@@ -149,11 +149,13 @@ Recorded rather than quietly omitted, because an ADR that describes only the par
 
 | Item | State |
 |---|---|
-| Whole-batch 422 on a field-level problem (§2) | **Not done** — [#259](https://github.com/dgloeckner/clubbar/issues/259). The controller still validates required fields and `amount_cents > 0` across the batch and refuses all of it with `422 validation_failed`. Ruling #143 §2 requires those to become per-item rejections in a 2xx response. Because the terminal only reaches its quarantine path on a 2xx and retries the batch unchanged otherwise, one unstorable row wedges every good sale queued behind it indefinitely. The existing tests all post single-item batches, so none of them pins the batch-wide behaviour. |
+| ~~Whole-batch 422 on a field-level problem (§2)~~ | **Done** — [#259](https://github.com/dgloeckner/clubbar/issues/259). `TerminalTransactionValidator` judges each row and the service returns a per-item rejection; the controller keeps only the envelope checks. This endpoint no longer returns 422 at all. The terminal chunks its queue at the batch limit in the same change — an oversized batch is refused whole, and a whole-request refusal is retried unchanged, so the two were one wedge reached by different doors. |
 | Price-divergence flag (§6) | **Not done** — [#204](https://github.com/dgloeckner/clubbar/issues/204). The amount is stored as sent; nothing compares it to the product's current price. |
 | OAS request validation enforcing in test (§8) | **Not done** — [#205](https://github.com/dgloeckner/clubbar/issues/205). The production allowlist is in place; the CI drift-detector is not. |
 
 Everything else in this ADR is implemented and covered by tests.
+
+One consequence of §2 worth stating plainly, because it is what made the batch-wide refusal a money bug rather than an inelegance: **the terminal reaches its quarantine path only on a 2xx.** A per-item rejection is the only signal that takes a row out of the sync queue. Any whole-request refusal — 4xx or 5xx — is treated as transient and the batch is resent unchanged. So a row that can never become storable, answered with a whole-batch 4xx, is resent forever, and every good sale queued behind it goes uncollected with it.
 
 ## Consequences
 

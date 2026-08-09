@@ -149,31 +149,68 @@ class SyncControllerTest extends TestCase
         $this->assertSame(495, $rows[0]['dispenser_actual']);
     }
 
-    public function test_an_invalid_batch_is_rejected_before_any_row_is_built(): void
+    /**
+     * #259, ruling #143 §2. This used to assert the opposite: a row missing a
+     * required field refused the **whole batch** with a 422 and stored
+     * nothing. Because the terminal treats a non-2xx as transient and retries
+     * the batch unchanged — and only quarantines on a 2xx — an unstorable row
+     * took every good sale queued behind it down with it, permanently.
+     *
+     * A field-level problem now belongs to the row that has it. The controller
+     * passes the batch on, and the service answers per item.
+     */
+    public function test_a_row_missing_a_required_field_does_not_refuse_the_batch(): void
     {
-        $this->transactionsService->expects($this->never())->method('processBatch');
+        $captured = [];
+
+        $this->transactionsService->expects($this->once())
+            ->method('processBatch')
+            ->willReturnCallback(function (array $rows) use (&$captured) {
+                $captured = $rows;
+                return new TransactionBatchResultDto([], 1, [], []);
+            });
 
         $response = $this->controller->processBatch(
-            $this->request([['member_id' => 'member-1']]),
+            $this->request([$this->sale(), ['member_id' => 'member-1']]),
             new Response(),
         );
 
-        $this->assertSame(422, $response->getStatusCode());
-        $this->assertSame('validation_failed', $this->decode($response)['error']);
+        $this->assertSame(201, $response->getStatusCode());
+        $this->assertCount(2, $captured, 'the good sale must still reach the service');
     }
 
     public function test_a_non_array_batch_entry_cannot_crash_the_endpoint(): void
     {
-        // Reached only if validation lets it through; the allowlist must not be
-        // the thing that turns a malformed payload into a 500.
-        $this->transactionsService->expects($this->never())->method('processBatch');
+        // The allowlist must not be the thing that turns a malformed payload
+        // into a 500: it rebuilds the entry as a row carrying only the
+        // server-owned fields, which the service then rejects on its own terms.
+        $this->transactionsService->expects($this->once())
+            ->method('processBatch')
+            ->willReturn(new TransactionBatchResultDto([], 1, [], []));
 
         $response = $this->controller->processBatch(
             $this->request(['not-an-object']),
             new Response(),
         );
 
-        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame(201, $response->getStatusCode());
+    }
+
+    /**
+     * The envelope is still the one thing a whole-batch 4xx is for: nothing in
+     * it was examined, so there is no per-item verdict to give.
+     */
+    public function test_a_batch_over_the_size_limit_is_still_refused_whole(): void
+    {
+        $this->transactionsService->expects($this->never())->method('processBatch');
+
+        $response = $this->controller->processBatch(
+            $this->request(array_fill(0, 101, $this->sale())),
+            new Response(),
+        );
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertSame('invalid_request', $this->decode($response)['error']);
     }
 
     // ------------------------------------------------------------------

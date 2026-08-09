@@ -201,7 +201,7 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(body.error).toBe('invalid_request');
   });
 
-  test('POST /api/sync/transactions validates required transaction fields', async ({ authenticatedTerminalRequest }) => {
+  test('POST /api/sync/transactions rejects an incomplete row per item, not per batch', async ({ authenticatedTerminalRequest }) => {
     const incompleteTransaction = {
       id: randomUUID(),
       // missing member_id, product_id, amount_cents, created_at
@@ -211,12 +211,13 @@ test.describe('Transactions Upload Endpoint', () => {
       data: { transactions: [incompleteTransaction] },
     });
 
-    expect(response.status()).toBe(422);
+    expect(response.status()).toBe(201);
 
     const body = await response.json();
-    expect(body.error).toBe('validation_failed');
-    expect(body.details).toBeDefined();
-    expect(body.details.length).toBeGreaterThan(0);
+    expect(body.accepted_ids).toEqual([]);
+    expect(body.rejected.count).toBe(1);
+    expect(body.rejected.errors[0].transaction_id).toBe(incompleteTransaction.id);
+    expect(body.rejected.errors[0].error).toBe('unstorable');
   });
 
   /**
@@ -224,7 +225,10 @@ test.describe('Transactions Upload Endpoint', () => {
    * without one reached the insert, where `INSERT IGNORE` discarded it and
    * reported it accepted. `id` is the client-generated UUID the whole
    * idempotency guarantee of ADR-0004 rests on; a batch entry without one is
-   * not storable and must be refused before anything is written.
+   * not storable and must never be counted as accepted.
+   *
+   * It is reported with a null `transaction_id` (#259) — there is no id to name
+   * it by, and reporting nothing at all would put us back where #82 started.
    */
   test('POST /api/sync/transactions rejects a transaction with no id', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
@@ -235,11 +239,71 @@ test.describe('Transactions Upload Endpoint', () => {
       data: { transactions: [transactionWithoutId] },
     });
 
-    expect(response.status()).toBe(422);
+    expect(response.status()).toBe(201);
 
     const body = await response.json();
-    expect(body.error).toBe('validation_failed');
-    expect(body.details.some((d) => d.field === 'id')).toBeTruthy();
+    expect(body.accepted_ids).toEqual([]);
+    expect(body.rejected.count).toBe(1);
+    expect(body.rejected.errors[0].transaction_id).toBeNull();
+    expect(body.rejected.errors[0].message).toContain('id');
+  });
+
+  /**
+   * #259, and the whole reason it is a bug rather than a contract nicety:
+   * ruling #143 §2's test contract, item 1.
+   *
+   * The batch-wide 422 stored nothing when any one row was unstorable. The
+   * terminal treats a non-2xx as transient and resends the batch unchanged,
+   * and only reaches its quarantine path on a 2xx — so the bad row, which can
+   * never become storable, took every good sale in the batch down with it, on
+   * every retry, forever.
+   */
+  test('POST /api/sync/transactions stores the good rows around one unstorable row', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+
+    const good = [
+      createValidTransaction(member.id, product.id),
+      createValidTransaction(member.id, product.id),
+      createValidTransaction(member.id, product.id),
+    ];
+    const { id, ...noId } = createValidTransaction(member.id, product.id);
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      // Deliberately first, so the batch cannot pass by luck of ordering.
+      data: { transactions: [noId, ...good] },
+    });
+
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+    expect(body.accepted_ids.sort()).toEqual(good.map((t) => t.id).sort());
+    expect(body.rejected.count).toBe(1);
+
+    // The good sales are really on the server, not merely reported as accepted
+    // — that distinction is exactly what #82 was about.
+    const history = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}`);
+    expect(history.status()).toBe(200);
+    const stored = await history.json();
+    expect(stored.transactions.map((t) => t.id).sort()).toEqual(good.map((t) => t.id).sort());
+  });
+
+  /**
+   * The envelope is the one thing a whole-batch 4xx is still for: nothing in it
+   * was judged, so there is no per-item verdict to give.
+   */
+  test('POST /api/sync/transactions refuses an oversized batch whole', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: {
+        transactions: Array.from({ length: 101 }, () => createValidTransaction(member.id, product.id)),
+      },
+    });
+
+    expect(response.status()).toBe(400);
+    expect((await response.json()).error).toBe('invalid_request');
   });
 
   /**
@@ -336,35 +400,25 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(historyBody.transactions[0].id).toBe(transaction.id);
   });
 
-  test('POST /api/sync/transactions rejects negative amount_cents', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
-    const member = await createMember(authenticatedRequest);
-    const product = await createProduct(authenticatedRequest);
-    const transaction = createValidTransaction(member.id, product.id, { amount_cents: -100 });
+  for (const [label, amount] of [['negative', -100], ['zero', 0]] as const) {
+    test(`POST /api/sync/transactions rejects ${label} amount_cents per item`, async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+      const member = await createMember(authenticatedRequest);
+      const product = await createProduct(authenticatedRequest);
+      const transaction = createValidTransaction(member.id, product.id, { amount_cents: amount });
 
-    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
-      data: { transactions: [transaction] },
+      const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+        data: { transactions: [transaction] },
+      });
+
+      expect(response.status()).toBe(201);
+
+      const body = await response.json();
+      expect(body.accepted_ids).toEqual([]);
+      expect(body.rejected.count).toBe(1);
+      expect(body.rejected.errors[0].transaction_id).toBe(transaction.id);
+      expect(body.rejected.errors[0].message).toContain('amount_cents');
     });
-
-    expect(response.status()).toBe(422);
-
-    const body = await response.json();
-    expect(body.error).toBe('validation_failed');
-  });
-
-  test('POST /api/sync/transactions rejects zero amount_cents', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
-    const member = await createMember(authenticatedRequest);
-    const product = await createProduct(authenticatedRequest);
-    const transaction = createValidTransaction(member.id, product.id, { amount_cents: 0 });
-
-    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
-      data: { transactions: [transaction] },
-    });
-
-    expect(response.status()).toBe(422);
-
-    const body = await response.json();
-    expect(body.error).toBe('validation_failed');
-  });
+  }
 
   test('POST /api/sync/transactions returns JSON content type', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
@@ -619,18 +673,26 @@ test.describe('Transactions Upload Endpoint', () => {
   // seam to assert at: the controller returns the storno row flat and drops the
   // balance. It is covered by TransactionsServiceTest instead.
 
-  test('POST /api/sync/transactions returns zero balance for empty transaction', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+  /**
+   * A rejected row must not move the member's balance, and must not report one
+   * either: a `member_balances` entry is the terminal's cue to overwrite its
+   * cached Deckel, so reporting a member touched only by a row that was refused
+   * would write a number no transaction backs.
+   */
+  test('POST /api/sync/transactions reports no balance for a member whose only row was rejected', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
     const product = await createProduct(authenticatedRequest);
-    // Note: This might be rejected by validation, but if allowed, balance should be 0
     const transaction = createValidTransaction(member.id, product.id, { amount_cents: 0 });
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
     });
 
-    // This request should actually fail validation (zero amount), so we check for 422
-    expect(response.status()).toBe(422);
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+    expect(body.rejected.count).toBe(1);
+    expect(body.member_balances[member.id]).toBeUndefined();
   });
 });
 

@@ -49,40 +49,13 @@ class SyncController
             return $this->json($response, ['error' => 'invalid_request', 'message' => 'Batch size exceeds maximum of 100'], 400);
         }
 
-        // Validate each transaction's required fields before processing
-        $validationErrors = [];
-        foreach ($transactions as $index => $tx) {
-            // `id` is the terminal-generated UUID the idempotency guarantee of
-            // ADR-0004 rests on. It was missing from this list (#82), so a batch
-            // entry without one reached the insert and was discarded there while
-            // the response still called it accepted.
-            $requiredFields = ['id', 'member_id', 'product_id', 'amount_cents', 'created_at'];
-            foreach ($requiredFields as $field) {
-                if (!isset($tx[$field]) || $tx[$field] === '') {
-                    $validationErrors[] = [
-                        'field' => $field,
-                        'message' => "{$field} is required",
-                        'transaction_index' => $index,
-                    ];
-                }
-            }
-            // Validate amount_cents > 0 when present
-            if (isset($tx['amount_cents']) && $tx['amount_cents'] !== '') {
-                $amount = (int) $tx['amount_cents'];
-                if ($amount <= 0) {
-                    $validationErrors[] = [
-                        'field' => 'amount_cents',
-                        'message' => 'amount_cents must be greater than 0',
-                        'transaction_index' => $index,
-                    ];
-                }
-            }
-        }
-
-        if (!empty($validationErrors)) {
-            return $this->json($response, ['error' => 'validation_failed', 'details' => $validationErrors], 422);
-        }
-
+        // Everything above judges the *envelope* — a request where nothing was
+        // examined at all. That is the only thing a whole-batch 4xx is for
+        // (ruling #143 §2). Field-level problems belong to the row that has
+        // them: they are judged by TerminalTransactionValidator inside the
+        // service and returned per item, so one unstorable row costs one sale
+        // instead of the whole upload (#259).
+        //
         // #79, ruling #144 §3: rebuild every row from an explicit allowlist.
         // Passing the client array through let a terminal token set
         // `transaction_type`, `related_transaction_id` and
