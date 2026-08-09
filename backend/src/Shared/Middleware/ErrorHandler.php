@@ -20,6 +20,9 @@ use Slim\Psr7\Response;
 
 class ErrorHandler implements MiddlewareInterface
 {
+    /** What a caller is told when an unhandled throwable produced the 500. */
+    private const GENERIC_500_MESSAGE = 'An internal server error occurred. Please try again or contact your administrator.';
+
     public function __construct(
         private Logger $logger,
         private bool $debug = false,
@@ -64,9 +67,20 @@ class ErrorHandler implements MiddlewareInterface
                     default => 500,
                 };
 
+                // A 500 means nothing here understood the failure, so the message
+                // was written by whatever blew up rather than for a caller to
+                // read. PDOException spells out the SQLSTATE, the table and the
+                // column, and can carry a fragment of another member's data
+                // inside a constraint message; returning it maps the schema for
+                // anyone probing the API. The full text is already logged above.
+                // Statuses that reached this branch deliberately — a Slim 404, a
+                // service's InvalidArgumentException for a rejected upload — keep
+                // their own message, which the frontend shows to the user.
                 $body = [
                     'error' => $this->errorCode($status, $e),
-                    'message' => $e->getMessage()
+                    'message' => $status === 500 && !$this->debug
+                        ? self::GENERIC_500_MESSAGE
+                        : $e->getMessage(),
                 ];
             }
 

@@ -62,9 +62,15 @@ class MandateDocumentController
 
     /**
      * GET /admin/members/{memberId}/mandate-document
-     * Stream the stored PDF inline.
+     * Stream the stored PDF as a download.
      * Returns 404 for both "member not found" and "member has no document" —
      * a single neutral message to avoid leaking member existence.
+     *
+     * The response hands back a file an admin uploaded, so it is served as an
+     * attachment rather than rendered in the site's origin, and marked nosniff
+     * so no browser re-types it from its content (#107). Upload-time sniffing
+     * already keeps non-PDFs out of the store; these two headers mean the
+     * download path does not depend on that being airtight.
      */
     public function download(Request $request, Response $response, array $args): Response
     {
@@ -78,7 +84,8 @@ class MandateDocumentController
         $response->getBody()->write((string) file_get_contents($filePath));
         return $response
             ->withHeader('Content-Type', 'application/pdf')
-            ->withHeader('Content-Disposition', 'inline; filename="mandate.pdf"')
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('Content-Disposition', 'attachment; filename="mandate.pdf"')
             ->withHeader('Content-Length', (string) filesize($filePath));
     }
 

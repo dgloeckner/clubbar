@@ -197,6 +197,84 @@ test.describe('Mandate Document API', () => {
     expect(getResp.status()).toBe(404)
   })
 
+  // ── Content decides the type, not the declared one (#107) ─────────────────
+  test('POST rejects HTML bytes declared as application/pdf', async ({ page }) => {
+    await page.goto('http://localhost:5173/members')
+    const memberId = await createTestMember(page)
+
+    // `application/pdf` is the one declared type that skips the dompdf
+    // re-render, so a client that lies about it used to get arbitrary bytes
+    // written to the mandate store and served back as a PDF.
+    const resp = await page.request.post(
+      `http://localhost:8080/api/admin/members/${memberId}/mandate-document`,
+      {
+        multipart: {
+          file: {
+            name: 'mandate.pdf',
+            mimeType: 'application/pdf',
+            buffer: Buffer.from('<html><body><script>alert(1)</script></body></html>'),
+          },
+        },
+        headers: await csrfHeaders(page),
+      }
+    )
+
+    expect(resp.status()).toBe(422)
+
+    // Nothing reached the store, so there is still no document to download.
+    const getResp = await page.request.get(
+      `http://localhost:8080/api/admin/members/${memberId}/mandate-document`
+    )
+    expect(getResp.status()).toBe(404)
+  })
+
+  test('POST accepts a PDF whose declared type is wrong', async ({ page }) => {
+    await page.goto('http://localhost:5173/members')
+    const memberId = await createTestMember(page)
+
+    const resp = await page.request.post(
+      `http://localhost:8080/api/admin/members/${memberId}/mandate-document`,
+      {
+        multipart: {
+          file: {
+            name: 'scan.png',
+            mimeType: 'image/png',
+            buffer: readFileSync(resolve(FIXTURES, 'test-mandate.pdf')),
+          },
+        },
+        headers: await csrfHeaders(page),
+      }
+    )
+
+    expect(resp.status()).toBe(200)
+  })
+
+  // ── Download headers ──────────────────────────────────────────────────────
+  test('GET serves the document as a nosniff attachment', async ({ page }) => {
+    await page.goto('http://localhost:5173/members')
+    const memberId = await createTestMember(page)
+
+    await page.request.post(
+      `http://localhost:8080/api/admin/members/${memberId}/mandate-document`,
+      {
+        multipart: { file: { name: 'test-mandate.pdf', mimeType: 'application/pdf', buffer: readFileSync(resolve(FIXTURES, 'test-mandate.pdf')) } },
+        headers: await csrfHeaders(page),
+      }
+    )
+
+    const getResp = await page.request.get(
+      `http://localhost:8080/api/admin/members/${memberId}/mandate-document`
+    )
+
+    expect(getResp.status()).toBe(200)
+    // The bytes came from an upload, so the browser must neither re-type them
+    // nor render them in the admin panel's origin (#107).
+    // Contains, not equals: Apache's .htaccess sets the same header, so a
+    // response served through it carries the value twice.
+    expect(getResp.headers()['x-content-type-options']).toContain('nosniff')
+    expect(getResp.headers()['content-disposition']).toContain('attachment')
+  })
+
   // ── Invalid file type → 422 ───────────────────────────────────────────────
   test('POST rejects unsupported file type', async ({ page }) => {
     await page.goto('http://localhost:5173/members')
