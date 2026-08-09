@@ -96,7 +96,10 @@ export async function loginAs(
   password: string,
   totpSecret?: string,
 ): Promise<CsrfAwareContext> {
-  const ctx = await playwright.request.newContext()
+  // baseURL so helpers that address the API with a relative path (the settlement
+  // factory, for one) work against this context exactly as they do against the
+  // authenticatedRequest fixture. Absolute URLs are unaffected.
+  const ctx = await playwright.request.newContext({ baseURL: API_BASE })
 
   // Step 1: Initial login
   const loginResponse = await ctx.post(`${API_BASE}/auth/login`, {

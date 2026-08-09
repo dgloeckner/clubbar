@@ -783,6 +783,93 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail")'
 - **Attribution**: All contributors credited in CONTRIBUTORS.md
 - **DCO**: Contributions must include sign-off (e.g., `git commit -s`)
 
+## Cloud sessions
+
+Applies to Claude Code cloud sessions (`CLAUDE_CODE_REMOTE=true`). On a local machine none of this runs — the scripts below are no-ops off the cloud.
+
+### dockerd is not started for you
+
+The session image ships Docker but does not run the daemon: the environment cache snapshots the filesystem, not running processes, so every session — and every *resume* — starts with no `dockerd` and `docker` fails with **"Cannot connect to the Docker daemon"**. Setup scripts are skipped once the cache exists, so the fix lives in the repo instead.
+
+`scripts/ensure-docker.sh` starts the daemon and is wired in as a **SessionStart hook** (`.claude/settings.json`, matcher `startup|resume`). It is idempotent, waits for readiness with a bounded timeout (`ENSURE_DOCKER_TIMEOUT`, default 60s), and **always exits 0** so a Docker problem can never block the session from starting.
+
+**How to tell whether the hook ran:**
+
+```bash
+docker info > /dev/null 2>&1 && echo "daemon up" || echo "daemon DOWN"
+tail -5 logs/ensure-docker.log     # "Docker daemon ready after Ns." / "already running"
+```
+
+If the daemon is down, run the hook by hand — it is safe to run at any time:
+
+```bash
+scripts/ensure-docker.sh
+```
+
+### The compose stack is NOT running at session start
+
+The hook starts **only the daemon**. It deliberately does not start the containers: it runs on every session and resume and blocks Claude from launching, while the stack costs 30–90s and a chunk of RAM that most sessions never need.
+
+**Use `scripts/dev-setup.sh` — it does the whole setup in one go** and every step is idempotent, so re-running it is cheap:
+
+```bash
+scripts/dev-setup.sh                  # API tests + backend tests
+scripts/dev-setup.sh --with-frontend  # also builds and serves the admin UI on :5173
+
+cd e2etests && npx playwright test --project=api-tests
+```
+
+It covers, in order: the Docker daemon → `composer install` → making `backend/logs` and `backend/storage` writable → `dev-stack.sh up` + `wait` → migrate + seed → `npm install` and the Playwright browser → optionally the admin frontend → a verification pass that reports what is missing.
+
+Four of those steps exist because a fresh clone fails without them, and none is obvious:
+
+| Step | Why it is not optional |
+|------|------------------------|
+| `chmod 777 backend/logs backend/storage` | The backend container runs as uid 1000; a fresh clone is owned by root. Without it mandate uploads return 500 (CI has the same step) |
+| `rm -f backend/storage/.installed` | `install.php` refuses to migrate while the marker exists — and the marker is **tracked in git**, so every fresh clone starts blocked. The script clears it, migrates, seeds, then `touch`es it back so the tree stays clean |
+| `npx playwright install chromium` | The image ships a pre-built Chromium, but `@playwright/test` resolves through its caret range to a newer Playwright that wants a newer browser build. Without this, browser tests cannot start |
+| Playwright browser + admin frontend | The `admin-chromium` project drives `http://localhost:5173`; nothing serves it by default |
+
+**Run backend PHP tests inside the container, not on the host:**
+
+```bash
+docker compose exec -w /app backend ./vendor/bin/phpunit
+```
+
+The host PHP has no **bcmath**, and `Validator.php` calls `bcmod()` for the IBAN checksum — on the host those tests die with `Call to undefined function bcmod()`. The host also cannot resolve the `database` hostname the feature tests connect to. The container has bcmath and is on the compose network, so both problems disappear. Installing bcmath on the host is not an option here: it lives in the `ondrej/php` PPA, and the egress policy returns 403 for `ppa.launchpadcontent.net` (see below).
+
+`scripts/dev-stack.sh`:
+
+| Command | Behaviour |
+|---------|-----------|
+| `up [SERVICE...]` | Calls `ensure-docker.sh`, then `docker compose up -d`. `dev-setup.sh` calls this for you |
+| `wait [SERVICE...]` | Blocks until every service is healthy. Bounded by `DEV_STACK_TIMEOUT` (default 180s); exits **2** on timeout and prints which service failed plus its last 30 log lines |
+| `down [ARG...]` | `docker compose down` (a no-op if the daemon is not running) |
+
+`up` is not enough on its own: `docker compose up -d` returns once containers are *created*, well before the backend answers HTTP. Readiness comes from compose healthchecks — `database` (`healthcheck.sh --connect`), `backend` (`/api/health`), `admin-frontend` (HTTP 200 on `/`). Note that `wait` does **not** use `docker compose up --wait`: that flag reports success for a container still inside its healthcheck `start_period`, which is exactly the window that matters here.
+
+### Container registry and egress allowlist
+
+Image pulls and outbound HTTPS go through the environment's allowlist. **That allowlist is configured in the Claude Code cloud environment settings, not in this repo.** If a fetch fails with 403/407, it is fixed by an admin in the environment settings — do not work around it from code: no daemon mirror configuration, no registry rewriting, no insecure-registry entries, no vendored binaries.
+
+To confirm a failure is a policy denial rather than a network fault, check the proxy's own record — it names the blocked host:
+
+```bash
+curl -sS "$HTTPS_PROXY/__agentproxy/status"   # see recentRelayFailures
+```
+
+Non-default hosts this project needs:
+
+| Host | Why |
+|------|-----|
+| `pkg-containers.githubusercontent.com` | GHCR blobs |
+| `production.cloudfront.docker.com` | Docker Hub legacy CDN |
+| `*.r2.cloudflarestorage.com` | Docker Hub R2 layer storage |
+| `quay.io`, `*.quay.io` | Keycloak |
+| `*.azurecr.io`, `*.blob.core.windows.net` | ACR manifests / layers |
+| `maven.pkg.github.com` | Defaults cover only `npm.pkg.github.com` |
+| `ppa.launchpadcontent.net` | The `ondrej/php` PPA — the only source of `php8.4-bcmath` for the host PHP. Currently **denied** (403), which is why backend PHP tests run in the container |
+
 ## Agent skills
 
 ### Issue tracker

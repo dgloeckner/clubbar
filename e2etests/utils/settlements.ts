@@ -1,5 +1,6 @@
 import type { APIRequestContext } from '@playwright/test'
 import { minimumExecutionDate, serverToday } from './dates'
+import type { ApiRequestLike } from './request-context'
 
 /**
  * Per-test settlement factory (issue #98, ruling #146).
@@ -84,7 +85,7 @@ function uniqueSuffix(): string {
  * Only written when missing: the config is global state shared by every
  * worker, and rewriting it needlessly would fight the tests that assert on it.
  */
-export async function ensureSepaConfigured(request: APIRequestContext): Promise<void> {
+export async function ensureSepaConfigured(request: ApiRequestLike): Promise<void> {
   const current = await request.get('/api/admin/sepa-config')
   if (current.status() === 200 && (await current.json()).is_configured === true) {
     return
@@ -111,8 +112,8 @@ export async function ensureSepaConfigured(request: APIRequestContext): Promise<
  * the member through the admin API, the purchase through terminal sync.
  */
 async function createMemberWithPurchase(
-  adminRequest: APIRequestContext,
-  terminalRequest: APIRequestContext,
+  adminRequest: ApiRequestLike,
+  terminalRequest: ApiRequestLike,
   amountCents: number
 ): Promise<CreatedSettlementMember> {
   const suffix = uniqueSuffix()
@@ -168,13 +169,23 @@ async function createMemberWithPurchase(
 }
 
 /**
+ * A context the factory can act through.
+ *
+ * `ApiRequestLike` rather than `APIRequestContext` so a CSRF-aware context from
+ * `loginAs` can be passed in — that is what lets a test build a settlement as a
+ * *different* admin, the only way to get more than one `created_by` value into
+ * the settlements list.
+ */
+export type SettlementRequestContext = ApiRequestLike
+
+/**
  * Build the factory over an authenticated admin context and a terminal
  * context (purchases enter through the terminal sync API, as they do in
  * production).
  */
 export function settlementFactory(
-  adminRequest: APIRequestContext,
-  terminalRequest: APIRequestContext
+  adminRequest: SettlementRequestContext,
+  terminalRequest: SettlementRequestContext
 ): SettlementFactory {
   return {
     async create(options: SettlementFixtureOptions = {}): Promise<CreatedSettlement> {
