@@ -1,13 +1,14 @@
 /**
- * Excluded from Collection Page Object (#188).
+ * Excluded from Collection Page Object (#188, third section #258).
  *
  * The standing counterpart of the New Settlement preview's exclusion
  * sections: the members the next run will leave out, visible between runs
  * rather than only inside a preview somebody happens to open.
  *
- * Two listings, two remedies. A member in credit is owed money and is paid by
- * hand; a member on hold owes money the last run failed to collect, and the
- * one write on the page releases them back into the next one.
+ * Three listings, three remedies. A member in credit is owed money and is
+ * paid by hand; a member on hold owes money the last run failed to collect,
+ * and the one write on the page releases them back into the next one; a member
+ * with no mandate cannot be reached at all until their bank details arrive.
  *
  * Patterns: 005 (test IDs), 006 (page object — private locators, public
  * semantic methods), 008 (expect, never try/catch visibility checks).
@@ -54,13 +55,17 @@ export class ExcludedFromCollectionPage extends BasePage {
 
   private readonly creditTotal = () => this.page.getByTestId('excluded-credit-total-value')
   private readonly holdTotal = () => this.page.getByTestId('excluded-hold-total-value')
+  private readonly noMandateTotal = () => this.page.getByTestId('excluded-nomandate-total-value')
   private readonly creditEmpty = () => this.page.getByTestId('excluded-credit-empty')
   private readonly holdEmpty = () => this.page.getByTestId('excluded-hold-empty')
+  private readonly noMandateEmpty = () => this.page.getByTestId('excluded-nomandate-empty')
 
   private readonly creditRow = (memberId: string) =>
     this.page.getByTestId(`excluded-credit-row-${memberId}`)
   private readonly holdRow = (memberId: string) =>
     this.page.getByTestId(`excluded-hold-row-${memberId}`)
+  private readonly noMandateRow = (memberId: string) =>
+    this.page.getByTestId(`excluded-nomandate-row-${memberId}`)
   private readonly clearBtn = (memberId: string) =>
     this.page.getByTestId(`excluded-hold-clear-btn-${memberId}`)
 
@@ -174,6 +179,32 @@ export class ExcludedFromCollectionPage extends BasePage {
 
   async expectHoldSectionEmpty() {
     await expect(this.holdEmpty()).toBeVisible()
+  }
+
+  // ── No usable mandate ─────────────────────────────────────────────
+
+  async expectMemberInNoMandateSection(memberId: string) {
+    await expect(this.noMandateRow(memberId)).toBeVisible()
+  }
+
+  async expectMemberNotInNoMandateSection(memberId: string) {
+    await expect(this.noMandateRow(memberId)).toHaveCount(0)
+  }
+
+  async getNoMandateRowText(memberId: string): Promise<string> {
+    return (await this.noMandateRow(memberId).textContent())?.trim() ?? ''
+  }
+
+  async getNoMandateAmountsCents(): Promise<number[]> {
+    return this.readAmounts('excluded-nomandate-amount-')
+  }
+
+  async getNoMandateTotalCents(): Promise<number> {
+    return parseMoneyToCents((await this.noMandateTotal().textContent())?.trim() ?? '')
+  }
+
+  async expectNoMandateSectionEmpty() {
+    await expect(this.noMandateEmpty()).toBeVisible()
   }
 
   // ── Clearing a hold ───────────────────────────────────────────────

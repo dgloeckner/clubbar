@@ -5,9 +5,10 @@ import { useExcludedFromCollection } from './useExcludedFromCollection'
 
 const listCreditBalances = vi.hoisted(() => vi.fn())
 const listCollectionHolds = vi.hoisted(() => vi.fn())
+const listMembersWithoutMandate = vi.hoisted(() => vi.fn())
 
 vi.mock('../api/generated/members/members', () => ({
-  getMembers: () => ({ listCreditBalances, listCollectionHolds }),
+  getMembers: () => ({ listCreditBalances, listCollectionHolds, listMembersWithoutMandate }),
 }))
 
 const creditResponse = {
@@ -23,13 +24,21 @@ const holdsResponse = {
   total_held_cents: 3820,
 }
 
+const noMandateResponse = {
+  items: [
+    { member_id: 'n1', first_name: 'Jonas', last_name: 'Feld', balance_cents: 1250, iban: null, mandate_reference: null },
+  ],
+  total_uncollectable_cents: 1250,
+}
+
 function mockBoth() {
   listCreditBalances.mockReset().mockResolvedValue(creditResponse)
   listCollectionHolds.mockReset().mockResolvedValue(holdsResponse)
+  listMembersWithoutMandate.mockReset().mockResolvedValue(noMandateResponse)
 }
 
 describe('useExcludedFromCollection', () => {
-  it('loads both listings and counts the members either one excludes', async () => {
+  it('loads all three listings and counts the members any one excludes', async () => {
     mockBoth()
 
     const { result } = renderHook(() => useExcludedFromCollection())
@@ -45,10 +54,14 @@ describe('useExcludedFromCollection', () => {
     expect(result.current.holds.totalCents).toBe(3820)
     expect(result.current.holds.error).toBeNull()
 
-    expect(result.current.excludedCount).toBe(3)
+    expect(result.current.noMandate.items).toHaveLength(1)
+    expect(result.current.noMandate.totalCents).toBe(1250)
+    expect(result.current.noMandate.error).toBeNull()
+
+    expect(result.current.excludedCount).toBe(4)
   })
 
-  it('passes an abort signal to each listing, one slot per stream', async () => {
+  it('passes a distinct abort signal to each listing, one slot per stream', async () => {
     mockBoth()
 
     const { result } = renderHook(() => useExcludedFromCollection())
@@ -56,11 +69,13 @@ describe('useExcludedFromCollection', () => {
 
     const creditSignal = listCreditBalances.mock.calls[0][0].signal as AbortSignal
     const holdsSignal = listCollectionHolds.mock.calls[0][0].signal as AbortSignal
+    const noMandateSignal = listMembersWithoutMandate.mock.calls[0][0].signal as AbortSignal
 
     expect(creditSignal).toBeInstanceOf(AbortSignal)
     expect(holdsSignal).toBeInstanceOf(AbortSignal)
-    // Independent streams: one must never abort the other.
-    expect(creditSignal).not.toBe(holdsSignal)
+    expect(noMandateSignal).toBeInstanceOf(AbortSignal)
+    // Independent streams: none may abort another.
+    expect(new Set([creditSignal, holdsSignal, noMandateSignal]).size).toBe(3)
   })
 
   it('reports a failed listing as an error, never as an empty one', async () => {
@@ -68,6 +83,7 @@ describe('useExcludedFromCollection', () => {
     // excluded" render identically unless the hook keeps them apart.
     listCreditBalances.mockReset().mockRejectedValue(new Error('Network down'))
     listCollectionHolds.mockReset().mockResolvedValue(holdsResponse)
+    listMembersWithoutMandate.mockReset().mockResolvedValue(noMandateResponse)
 
     const { result } = renderHook(() => useExcludedFromCollection())
     await waitFor(() => expect(result.current.loading).toBe(false))
@@ -75,13 +91,15 @@ describe('useExcludedFromCollection', () => {
     expect(result.current.credit.error).toBe('Network down')
     expect(result.current.credit.items).toEqual([])
 
-    // The listing that did load is still rendered — one failure does not
-    // blank the other half of the page.
+    // The listings that did load are still rendered — one failure does not
+    // blank the rest of the page.
     expect(result.current.holds.error).toBeNull()
     expect(result.current.holds.items).toHaveLength(1)
+    expect(result.current.noMandate.error).toBeNull()
+    expect(result.current.noMandate.items).toHaveLength(1)
   })
 
-  it('refetches both listings on reload', async () => {
+  it('refetches every listing on reload', async () => {
     mockBoth()
 
     const { result } = renderHook(() => useExcludedFromCollection())
@@ -89,15 +107,17 @@ describe('useExcludedFromCollection', () => {
 
     expect(listCreditBalances).toHaveBeenCalledTimes(1)
     expect(listCollectionHolds).toHaveBeenCalledTimes(1)
+    expect(listMembersWithoutMandate).toHaveBeenCalledTimes(1)
 
     // What the clear-hold mutation calls once it lands: the row is gone from
     // one listing and the totals in both tiles have to follow.
     act(() => result.current.reload())
     await waitFor(() => expect(listCreditBalances).toHaveBeenCalledTimes(2))
     expect(listCollectionHolds).toHaveBeenCalledTimes(2)
+    expect(listMembersWithoutMandate).toHaveBeenCalledTimes(2)
   })
 
-  it('aborts both in-flight listings on unmount', async () => {
+  it('aborts every in-flight listing on unmount', async () => {
     mockBoth()
 
     const { result, unmount } = renderHook(() => useExcludedFromCollection())
@@ -105,11 +125,13 @@ describe('useExcludedFromCollection', () => {
 
     const creditSignal = listCreditBalances.mock.calls[0][0].signal as AbortSignal
     const holdsSignal = listCollectionHolds.mock.calls[0][0].signal as AbortSignal
+    const noMandateSignal = listMembersWithoutMandate.mock.calls[0][0].signal as AbortSignal
     expect(creditSignal.aborted).toBe(false)
 
     unmount()
 
     expect(creditSignal.aborted).toBe(true)
     expect(holdsSignal.aborted).toBe(true)
+    expect(noMandateSignal.aborted).toBe(true)
   })
 })

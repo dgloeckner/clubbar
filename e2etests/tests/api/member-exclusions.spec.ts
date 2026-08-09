@@ -19,7 +19,12 @@
  */
 
 import { test, expect } from '../../fixtures/auth.fixture'
-import { seedCreditMember, seedHeldMember } from '../../utils/exclusions'
+import {
+  seedCreditMember,
+  seedHeldMember,
+  seedMember,
+  seedMemberWithoutMandate,
+} from '../../utils/exclusions'
 import type { APIRequestContext } from '@playwright/test'
 
 const API_BASE = '/api/admin'
@@ -203,15 +208,104 @@ test.describe('GET /admin/members/collection-holds', () => {
   })
 })
 
-test.describe('The two listings disagree about a member on purpose', () => {
-  test('a member in credit is not on hold, and a held member is not in credit', async ({
+test.describe('GET /admin/members/mandate-missing', () => {
+  test('names a member with an open position and no bank details', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+  }) => {
+    const member = await seedMemberWithoutMandate(authenticatedRequest, authenticatedTerminalRequest, {
+      tag: 'NoMandate',
+      amountCents: 1250,
+    })
+
+    const listing = await readListing(
+      authenticatedRequest,
+      '/members/mandate-missing',
+      'total_uncollectable_cents'
+    )
+    const row = rowFor(listing, member.memberId)
+
+    expect(row, 'a member with no mandate must be listed').toBeTruthy()
+    expect(row?.balance_cents).toBe(1250)
+    expect(row?.last_name).toBe(member.lastName)
+  })
+
+  test('leaves out a member who has a usable mandate', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+  }) => {
+    const collectable = await seedMember(authenticatedRequest, authenticatedTerminalRequest, {
+      tag: 'Collectable',
+      amounts: [800],
+      prefix: 'Excl',
+    })
+
+    const listing = await readListing(
+      authenticatedRequest,
+      '/members/mandate-missing',
+      'total_uncollectable_cents'
+    )
+
+    expect(rowFor(listing, collectable.memberId)).toBeFalsy()
+  })
+
+  test('the total is the sum of what it cannot collect', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+  }) => {
+    await seedMemberWithoutMandate(authenticatedRequest, authenticatedTerminalRequest, {
+      tag: 'NoMandTotal',
+      amountCents: 900,
+    })
+
+    const listing = await readListing(
+      authenticatedRequest,
+      '/members/mandate-missing',
+      'total_uncollectable_cents'
+    )
+    const summed = listing.items.reduce((sum, item) => sum + Number(item.balance_cents), 0)
+
+    expect(listing.total).toBe(summed)
+    // Money the club is owed and cannot reach — positive, unlike credit.
+    expect(listing.total).toBeGreaterThan(0)
+  })
+
+  test('never lists a negative position — that is credit, and credit wins', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+  }) => {
+    await seedCreditMember(authenticatedRequest, authenticatedTerminalRequest, {
+      tag: 'NoMandSign',
+      amountCents: 600,
+    })
+
+    const listing = await readListing(
+      authenticatedRequest,
+      '/members/mandate-missing',
+      'total_uncollectable_cents'
+    )
+
+    for (const item of listing.items) {
+      expect(Number(item.balance_cents)).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  test('refuses an unauthenticated caller', async ({ request }) => {
+    const response = await request.get(`${API_BASE}/members/mandate-missing`)
+    expect(response.status()).toBe(401)
+  })
+})
+
+test.describe('The three listings disagree about a member on purpose', () => {
+  test('every excluded member lands in exactly one listing', async ({
     authenticatedRequest,
     authenticatedTerminalRequest,
     settlementFactory,
   }) => {
-    // The buckets are exclusive and need opposite remedies — pay them back
-    // versus investigate the bank return — so a member landing in both would
-    // put contradictory instructions in front of the treasurer.
+    // The buckets need different remedies — pay them back, investigate the
+    // bank return, chase the bank details — so a member landing in two would
+    // put contradictory instructions in front of the treasurer. The standing
+    // listings therefore repeat the preview's precedence (ruling #148 §4).
     const inCredit = await seedCreditMember(authenticatedRequest, authenticatedTerminalRequest, {
       tag: 'Split',
       amountCents: 700,
@@ -220,14 +314,56 @@ test.describe('The two listings disagree about a member on purpose', () => {
       tag: 'Split',
       amountCents: 900,
     })
+    const noMandate = await seedMemberWithoutMandate(
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+      { tag: 'Split', amountCents: 1100 }
+    )
 
     const credit = await readListing(authenticatedRequest, '/members/credit-balances', 'total_credit_cents')
     const holds = await readListing(authenticatedRequest, '/members/collection-holds', 'total_held_cents')
+    const missing = await readListing(
+      authenticatedRequest,
+      '/members/mandate-missing',
+      'total_uncollectable_cents'
+    )
 
     expect(rowFor(credit, inCredit.memberId)).toBeTruthy()
     expect(rowFor(holds, inCredit.memberId)).toBeFalsy()
+    expect(rowFor(missing, inCredit.memberId)).toBeFalsy()
 
     expect(rowFor(holds, onHold.memberId)).toBeTruthy()
     expect(rowFor(credit, onHold.memberId)).toBeFalsy()
+    expect(rowFor(missing, onHold.memberId)).toBeFalsy()
+
+    expect(rowFor(missing, noMandate.memberId)).toBeTruthy()
+    expect(rowFor(credit, noMandate.memberId)).toBeFalsy()
+    expect(rowFor(holds, noMandate.memberId)).toBeFalsy()
+  })
+
+  test('a hold outranks a missing mandate', async ({ authenticatedRequest, settlementFactory }) => {
+    // The factory's member has a mandate, so strip it after the reversal: the
+    // member is now both held and mandate-less, and ruling #148 §4 says the
+    // hold is the fact that matters until somebody looks at it.
+    const held = await seedHeldMember(authenticatedRequest, settlementFactory, {
+      tag: 'Outrank',
+      amountCents: 1400,
+    })
+
+    const stripped = await authenticatedRequest.patch(`${API_BASE}/members/${held.memberId}`, {
+      data: { iban: null },
+    })
+    expect(stripped.status(), await stripped.text()).toBe(200)
+
+
+    const holds = await readListing(authenticatedRequest, '/members/collection-holds', 'total_held_cents')
+    const missing = await readListing(
+      authenticatedRequest,
+      '/members/mandate-missing',
+      'total_uncollectable_cents'
+    )
+
+    expect(rowFor(holds, held.memberId), 'the hold is still the reported reason').toBeTruthy()
+    expect(rowFor(missing, held.memberId), 'and it is not double-reported').toBeFalsy()
   })
 })

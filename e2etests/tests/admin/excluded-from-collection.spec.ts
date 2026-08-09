@@ -1,5 +1,5 @@
 /**
- * Excluded from Collection — the standing view under Members (#188).
+ * Excluded from Collection — the standing view under Members (#188, #258).
  *
  * The settlement preview already partitions the members a run leaves out, but
  * only while somebody has the preview open. These tests pin the thing that
@@ -7,9 +7,9 @@
  * who the next run will skip, and can act on the second without leaving the
  * page.
  *
- * The two listings need opposite remedies — pay them back versus investigate
- * the bank return — so several tests assert not just that a member is in the
- * right section but that they are absent from the wrong one.
+ * The three listings need different remedies — pay them back, investigate the
+ * bank return, chase the bank details — so several tests assert not just that
+ * a member is in the right section but that they are absent from the others.
  *
  * Patterns: 001 (data seeded per test), 003 (rows found by their own ids, never
  * by position), 004 (parallel-safe — no shared state, no assertions about
@@ -20,7 +20,13 @@
 import { test, expect } from '../../fixtures/auth.fixture'
 import { ExcludedFromCollectionPage } from '../../pages/ExcludedFromCollectionPage'
 import { NewSettlementPage } from '../../pages/NewSettlementPage'
-import { seedCreditMember, seedHeldMember, seedMember } from '../../utils/exclusions'
+import { FACTORY_IBAN } from '../../utils/settlements'
+import {
+  seedCreditMember,
+  seedHeldMember,
+  seedMember,
+  seedMemberWithoutMandate,
+} from '../../utils/exclusions'
 
 test.describe('Excluded from Collection', () => {
   test('a member in credit is listed here and cannot be collected from', async ({
@@ -141,6 +147,11 @@ test.describe('Excluded from Collection', () => {
       tag: 'Total',
       amountCents: 1900,
     })
+    const noMandate = await seedMemberWithoutMandate(
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+      { tag: 'Total', amountCents: 1450 }
+    )
 
     const excluded = new ExcludedFromCollectionPage(page)
     await excluded.goto()
@@ -153,20 +164,24 @@ test.describe('Excluded from Collection', () => {
     // render's total equals the rows in that same render.
     const creditAmounts = await excluded.getCreditAmountsCents()
     const holdAmounts = await excluded.getHoldAmountsCents()
+    const noMandateAmounts = await excluded.getNoMandateAmountsCents()
 
     expect(creditAmounts).toContain(-2200)
     expect(holdAmounts).toContain(1900)
+    expect(noMandateAmounts).toContain(1450)
 
     const sum = (values: number[]) => values.reduce((total, value) => total + value, 0)
     expect(await excluded.getCreditTotalCents()).toBe(sum(creditAmounts))
     expect(await excluded.getHoldTotalCents()).toBe(sum(holdAmounts))
+    expect(await excluded.getNoMandateTotalCents()).toBe(sum(noMandateAmounts))
 
     // And the seeded members really are the ones behind those figures.
     await excluded.expectMemberInCreditSection(inCredit.memberId)
     await excluded.expectMemberInHoldSection(held.memberId)
+    await excluded.expectMemberInNoMandateSection(noMandate.memberId)
   })
 
-  test('the Members tab reaches the surface and its badge counts both listings', async ({
+  test('the Members tab reaches the surface and its badge counts every listing', async ({
     authenticatedRequest,
     authenticatedTerminalRequest,
     settlementFactory,
@@ -180,21 +195,28 @@ test.describe('Excluded from Collection', () => {
       tag: 'Badge',
       amountCents: 800,
     })
+    await seedMemberWithoutMandate(authenticatedRequest, authenticatedTerminalRequest, {
+      tag: 'Badge',
+      amountCents: 950,
+    })
 
     const excluded = new ExcludedFromCollectionPage(page)
     await excluded.gotoViaTab()
     await excluded.expectTabsVisible()
 
-    const credit = await (
-      await authenticatedRequest.get('/api/admin/members/credit-balances')
-    ).json()
-    const holds = await (
-      await authenticatedRequest.get('/api/admin/members/collection-holds')
-    ).json()
-
     // The one figure that makes the tab worth clicking: how many members the
-    // next run will leave out, across both reasons.
-    expect(await excluded.getTabBadgeCount()).toBe(credit.items.length + holds.items.length)
+    // next run will leave out, across all three reasons.
+    //
+    // Counted against the rows of this same render, not against a separately
+    // fetched server count — the three listings are club-wide aggregates that
+    // other workers are moving, and a member seeded between the two reads makes
+    // them differ by one for no reason the badge is at fault for (Pattern 004).
+    const rendered =
+      (await excluded.getCreditAmountsCents()).length +
+      (await excluded.getHoldAmountsCents()).length +
+      (await excluded.getNoMandateAmountsCents()).length
+
+    expect(await excluded.getTabBadgeCount()).toBe(rendered)
   })
 
   test('the badge is readable from the roster, before the tab is clicked', async ({
@@ -215,21 +237,87 @@ test.describe('Excluded from Collection', () => {
       tag: 'Roster',
       amountCents: 700,
     })
+    await seedMemberWithoutMandate(authenticatedRequest, authenticatedTerminalRequest, {
+      tag: 'Roster',
+      amountCents: 850,
+    })
 
     const excluded = new ExcludedFromCollectionPage(page)
     await excluded.gotoRoster()
 
-    const credit = await (
-      await authenticatedRequest.get('/api/admin/members/credit-balances')
-    ).json()
-    const holds = await (
-      await authenticatedRequest.get('/api/admin/members/collection-holds')
-    ).json()
-
-    expect(await excluded.getTabBadgeCount()).toBe(credit.items.length + holds.items.length)
+    // The roster renders no sections, so there is nothing on this page to be
+    // self-consistent with, and an exact server count would race the other
+    // workers. What must hold — and what the bug broke — is that the badge is
+    // there at all and carries a real figure: at minimum the three members
+    // this test just excluded.
+    expect(await excluded.getTabBadgeCount()).toBeGreaterThanOrEqual(3)
   })
 
-  test('a member with an ordinary balance is in neither listing', async ({
+  test('a member with no mandate is listed as uncollectable, and only there', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+    page,
+  }) => {
+    // The worst of the three exclusions and, before #258, the least visible:
+    // this member can never be collected from, and the only way to notice was
+    // to read the SEPA column of the roster row by row.
+    const noMandate = await seedMemberWithoutMandate(
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+      { tag: 'NoMand', amountCents: 1250 }
+    )
+
+    const excluded = new ExcludedFromCollectionPage(page)
+    await excluded.goto()
+
+    await excluded.expectMemberInNoMandateSection(noMandate.memberId)
+    expect(await excluded.getNoMandateRowText(noMandate.memberId)).toContain(noMandate.lastName)
+    expect(await excluded.getNoMandateRowText(noMandate.memberId)).toMatch(/12[.,]50/)
+
+    // One member, one remedy — the buckets do not overlap.
+    await excluded.expectMemberNotInCreditSection(noMandate.memberId)
+    await excluded.expectMemberNotInHoldSection(noMandate.memberId)
+
+    // And the run agrees: still not collectable.
+    const newSettlement = new NewSettlementPage(page)
+    await newSettlement.goto()
+    await newSettlement.expectMemberInIneligibleSection(noMandate.memberId)
+    await newSettlement.expectMemberNotSelectable(noMandate.memberId)
+  })
+
+  test('adding a mandate takes the member off the uncollectable listing', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+    page,
+  }) => {
+    const noMandate = await seedMemberWithoutMandate(
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+      { tag: 'Fixed', amountCents: 640 }
+    )
+
+    const excluded = new ExcludedFromCollectionPage(page)
+    await excluded.goto()
+    await excluded.expectMemberInNoMandateSection(noMandate.memberId)
+
+    // The remedy the section asks for, applied.
+    const updated = await authenticatedRequest.patch(
+      `/api/admin/members/${noMandate.memberId}`,
+      { data: { iban: FACTORY_IBAN, mandate_signed_at: '2024-01-01' } }
+    )
+    expect(updated.status(), await updated.text()).toBe(200)
+
+    await excluded.goto()
+    await excluded.expectMemberNotInNoMandateSection(noMandate.memberId)
+
+    // ...and they are collectable now, which is the point of fixing it.
+    const newSettlement = new NewSettlementPage(page)
+    await newSettlement.goto()
+    await newSettlement.search(noMandate.lastName)
+    await newSettlement.expectMemberSelectable(noMandate.memberId)
+  })
+
+  test('a member with an ordinary balance is in no listing at all', async ({
     authenticatedRequest,
     authenticatedTerminalRequest,
     page,
@@ -247,5 +335,6 @@ test.describe('Excluded from Collection', () => {
 
     await excluded.expectMemberNotInCreditSection(collectable.memberId)
     await excluded.expectMemberNotInHoldSection(collectable.memberId)
+    await excluded.expectMemberNotInNoMandateSection(collectable.memberId)
   })
 })

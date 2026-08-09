@@ -1,10 +1,10 @@
 /**
- * Excluded from Collection on a phone (#188).
+ * Excluded from Collection on a phone (#188, third section #258).
  *
  * The hold listing carries a server-composed reason sentence — a settlement
  * id and a bank reference in prose — which no phone-width table column can
- * hold. Below the tablet breakpoint both listings become one card per member
- * instead: name and amount on one line so the page stays skimmable for the
+ * hold. Below the tablet breakpoint all three listings become one card per
+ * member instead: name and amount on one line so the page stays skimmable for the
  * figure, everything else stacked underneath.
  *
  * These tests exist because a table that merely *overflows* looks fine in a
@@ -21,10 +21,10 @@
 
 import { test, expect } from '../../fixtures/auth.fixture'
 import { ExcludedFromCollectionPage } from '../../pages/ExcludedFromCollectionPage'
-import { seedCreditMember, seedHeldMember } from '../../utils/exclusions'
+import { seedCreditMember, seedHeldMember, seedMemberWithoutMandate } from '../../utils/exclusions'
 
 test.describe('Excluded from Collection — mobile', () => {
-  test('both listings render as cards, not as an overflowing table', async ({
+  test('all three listings render as cards, not as overflowing tables', async ({
     authenticatedRequest,
     authenticatedTerminalRequest,
     settlementFactory,
@@ -38,6 +38,11 @@ test.describe('Excluded from Collection — mobile', () => {
       tag: 'MobHold',
       amountCents: 3820,
     })
+    const noMandate = await seedMemberWithoutMandate(
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+      { tag: 'MobNoMand', amountCents: 1450 }
+    )
 
     const excluded = new ExcludedFromCollectionPage(page)
     await excluded.goto()
@@ -52,9 +57,13 @@ test.describe('Excluded from Collection — mobile', () => {
     // ...including the reason, which is the whole argument for cards here.
     expect(holdCard).toContain(held.bankReference)
 
-    // ...and neither is inside a table at this width.
+    await excluded.expectMemberInNoMandateSection(noMandate.memberId)
+    expect(await excluded.getNoMandateRowText(noMandate.memberId)).toMatch(/14[.,]50/)
+
+    // ...and none of them is inside a table at this width.
     await expect(page.getByTestId('excluded-credit-table')).toHaveCount(0)
     await expect(page.getByTestId('excluded-hold-table')).toHaveCount(0)
+    await expect(page.getByTestId('excluded-nomandate-table')).toHaveCount(0)
   })
 
   test('the page does not scroll sideways', async ({

@@ -232,6 +232,26 @@ class AdminController
     }
 
     /**
+     * Standing "no usable mandate" listing under Members (#258) — the members
+     * the next run cannot collect from at all.
+     *
+     * The worst of the three exclusions and, until this endpoint, the least
+     * visible: a member in credit or on hold is at least an account somebody
+     * is transacting with, while a member with no mandate can never be
+     * collected from and was only discoverable by reading the SEPA column of
+     * the members list row by row.
+     */
+    public function mandateMissing(Request $request, Response $response): Response
+    {
+        $result = $this->settlementsService->listMembersWithoutMandate();
+
+        return $this->json($response, [
+            'items' => array_map(fn($item) => $item->toArray(), $result['items']),
+            'total_uncollectable_cents' => $result['total_uncollectable_cents'],
+        ]);
+    }
+
+    /**
      * Standing "on collection hold" listing under Members (ruling #148 §4) —
      * every member the next run will skip, and why.
      *

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getMembers } from '../api/generated/members/members'
-import type { CollectionHold, CreditBalance } from '../api/generated'
+import type { CollectionHold, CreditBalance, MandateMissing } from '../api/generated'
 import { useLatestRequest } from './useLatestRequest'
 import i18n from '../i18n/config'
 
@@ -20,21 +20,24 @@ export interface ExclusionStream<T> {
 export interface UseExcludedFromCollectionResult {
   credit: ExclusionStream<CreditBalance>
   holds: ExclusionStream<CollectionHold>
-  /** True until both listings have settled, however they settle. */
+  noMandate: ExclusionStream<MandateMissing>
+  /** True until every listing has settled, however each settles. */
   loading: boolean
-  /** How many members the next run will leave out, across both listings. */
+  /** How many members the next run will leave out, across all three listings. */
   excludedCount: number
-  /** Refetch both listings — what the clear-hold mutation calls once it lands. */
+  /** Refetch all three — what the clear-hold mutation calls once it lands. */
   reload: () => void
 }
 
 const emptyStream = <T,>(): ExclusionStream<T> => ({ items: [], totalCents: 0, error: null })
 
 /**
- * The two standing exclusion listings behind the Excluded from Collection view.
+ * The three standing exclusion listings behind the Excluded from Collection
+ * view: members in credit, members on hold, and members with no usable
+ * mandate (#258).
  *
- * Neither endpoint uses the standard list envelope — both answer with an
- * unpaginated `{ items, total }` and take no sort, filter or page — so
+ * No endpoint uses the standard list envelope — each answers with an
+ * unpaginated `{ items, total }` and takes no sort, filter or page — so
  * `useListQuery` does not apply here. What does apply is the rest of
  * `patterns/data-fetching.md`: each listing gets its own `useLatestRequest`
  * slot, because they are independent streams and one must never abort the
@@ -42,24 +45,27 @@ const emptyStream = <T,>(): ExclusionStream<T> => ({ items: [], totalCents: 0, e
  * abort error (a response that has already arrived resolves normally and
  * throws nothing).
  *
- * The two are fetched together and fail apart. A failure in one leaves the
- * other rendered, because a treasurer who can see the holds is better served
- * than one shown a bare error page.
+ * The three are fetched together and fail apart. A failure in one leaves the
+ * others rendered, because a treasurer who can see two of the three is better
+ * served than one shown a bare error page.
  */
 export function useExcludedFromCollection(): UseExcludedFromCollectionResult {
   const [credit, setCredit] = useState<ExclusionStream<CreditBalance>>(emptyStream)
   const [holds, setHolds] = useState<ExclusionStream<CollectionHold>>(emptyStream)
+  const [noMandate, setNoMandate] = useState<ExclusionStream<MandateMissing>>(emptyStream)
   const [loading, setLoading] = useState(true)
   const [attempt, setAttempt] = useState(0)
 
   const creditRequest = useLatestRequest()
   const holdsRequest = useLatestRequest()
+  const noMandateRequest = useLatestRequest()
 
   const reload = useCallback(() => setAttempt((n) => n + 1), [])
 
   useEffect(() => {
     const creditSignal = creditRequest.next()
     const holdsSignal = holdsRequest.next()
+    const noMandateSignal = noMandateRequest.next()
     setLoading(true)
 
     const loadCredit = async () => {
@@ -100,22 +106,42 @@ export function useExcludedFromCollection(): UseExcludedFromCollectionResult {
       }
     }
 
-    Promise.all([loadCredit(), loadHolds()]).finally(() => {
-      // A superseded pair must not clear the spinner the newer one raised.
-      if (creditSignal.aborted && holdsSignal.aborted) return
+    const loadNoMandate = async () => {
+      try {
+        const response = await getMembers().listMembersWithoutMandate({ signal: noMandateSignal })
+        if (noMandateSignal.aborted) return
+        setNoMandate({
+          items: response.items ?? [],
+          totalCents: response.total_uncollectable_cents ?? 0,
+          error: null,
+        })
+      } catch (err) {
+        if (noMandateSignal.aborted) return
+        setNoMandate({
+          items: [],
+          totalCents: 0,
+          error: err instanceof Error ? err.message : i18n.t('excluded.errors.loadNoMandate'),
+        })
+      }
+    }
+
+    Promise.all([loadCredit(), loadHolds(), loadNoMandate()]).finally(() => {
+      // A superseded set must not clear the spinner the newer one raised.
+      if (creditSignal.aborted && holdsSignal.aborted && noMandateSignal.aborted) return
       setLoading(false)
     })
 
     return () => {
       creditRequest.abort()
       holdsRequest.abort()
+      noMandateRequest.abort()
     }
-  }, [attempt, creditRequest, holdsRequest])
+  }, [attempt, creditRequest, holdsRequest, noMandateRequest])
 
-  const excludedCount = credit.items.length + holds.items.length
+  const excludedCount = credit.items.length + holds.items.length + noMandate.items.length
 
   return useMemo(
-    () => ({ credit, holds, loading, excludedCount, reload }),
-    [credit, holds, loading, excludedCount, reload]
+    () => ({ credit, holds, noMandate, loading, excludedCount, reload }),
+    [credit, holds, noMandate, loading, excludedCount, reload]
   )
 }

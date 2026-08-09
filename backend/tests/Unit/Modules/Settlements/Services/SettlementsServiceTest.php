@@ -2022,4 +2022,42 @@ class SettlementsServiceTest extends TestCase
         $this->assertSame([], $result['items']);
         $this->assertSame(0, $result['total_credit_cents']);
     }
+
+    // ------------------------------------------------------------------
+    // listMembersWithoutMandate (#258)
+    // ------------------------------------------------------------------
+
+    public function test_listMembersWithoutMandate_maps_rows_to_dtos_and_sums_what_cannot_be_collected(): void
+    {
+        $rows = [
+            ['member_id' => 'member-a', 'first_name' => 'Max', 'last_name' => 'Mustermann', 'balance_cents' => 2500],
+            ['member_id' => 'member-b', 'first_name' => 'Erika', 'last_name' => 'Musterfrau', 'balance_cents' => 1750],
+        ];
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('findMembersWithoutUsableMandate')
+            ->willReturn($rows);
+
+        $result = $this->service->listMembersWithoutMandate();
+
+        // Owed to the club and uncollectable, so the total is positive — the
+        // opposite sign to the credit listing, and a different figure again
+        // from what a hold keeps back.
+        $this->assertSame(4250, $result['total_uncollectable_cents']);
+        $this->assertCount(2, $result['items']);
+        $this->assertSame('member-a', $result['items'][0]->memberId);
+        $this->assertSame(2500, $result['items'][0]->balanceCents);
+        $this->assertSame('member-b', $result['items'][1]->memberId);
+        $this->assertSame(1750, $result['items'][1]->balanceCents);
+    }
+
+    public function test_listMembersWithoutMandate_returns_empty_list_and_zero_total_when_every_member_can_be_collected(): void
+    {
+        $this->settlementsRepository->method('findMembersWithoutUsableMandate')->willReturn([]);
+
+        $result = $this->service->listMembersWithoutMandate();
+
+        $this->assertSame([], $result['items']);
+        $this->assertSame(0, $result['total_uncollectable_cents']);
+    }
 }

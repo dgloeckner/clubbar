@@ -143,6 +143,28 @@ export async function seedCreditMember(
   return { ...member, creditCents: -amountCents }
 }
 
+/**
+ * A member with an open position and no usable mandate (#258).
+ *
+ * `withMandate: false` omits both the IBAN and the mandate date at creation,
+ * which is exactly how a member arrives before anyone has collected their bank
+ * details — the state the standing listing exists to surface.
+ */
+export async function seedMemberWithoutMandate(
+  adminRequest: APIRequestContext,
+  terminalRequest: APIRequestContext,
+  options: { tag: string; amountCents: number; prefix?: string }
+): Promise<SeededMember> {
+  const { tag, amountCents, prefix = 'Excl' } = options
+
+  return seedMember(adminRequest, terminalRequest, {
+    tag,
+    amounts: [amountCents],
+    withMandate: false,
+    prefix,
+  })
+}
+
 export interface SeededHeldMember {
   memberId: string
   /** "First Last", as the factory built it. */

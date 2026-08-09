@@ -776,7 +776,11 @@
       "heldSub_one": "{{count}} Mitglied · dem Verein geschuldet, nicht eingezogen",
       "heldSub_other": "{{count}} Mitglieder · dem Verein geschuldet, nicht eingezogen",
       "heldNobody": "Niemand",
-      "unavailable": "—"
+      "unavailable": "—",
+      "noMandateLabel": "Nicht einziehbar",
+      "noMandateSub_one": "{{count}} Mitglied · keine nutzbaren Bankdaten",
+      "noMandateSub_other": "{{count}} Mitglieder · keine nutzbaren Bankdaten",
+      "noMandateNobody": "Niemand"
     },
     "count_one": "{{count}} Mitglied",
     "count_other": "{{count}} Mitglieder",
@@ -819,7 +823,18 @@
     "errors": {
       "loadCredit": "Die Guthaben konnten nicht geladen werden.",
       "loadHolds": "Die Einzugssperren konnten nicht geladen werden.",
-      "clearFailed": "Die Sperre konnte nicht aufgehoben werden."
+      "clearFailed": "Die Sperre konnte nicht aufgehoben werden.",
+      "loadNoMandate": "Die Mitglieder ohne Mandat konnten nicht geladen werden."
+    },
+    "noMandate": {
+      "title": "Kein SEPA-Mandat — der Lauf erreicht sie gar nicht",
+      "note": "Eine Lastschrift braucht IBAN und unterschriebenes Mandat. Fehlendes nachfordern, dann sind diese Mitglieder beim nächsten Lauf dabei.",
+      "empty": "Alle Mitglieder mit offenem Saldo haben nutzbare Bankdaten.",
+      "total": "Summe nicht einziehbar",
+      "columns": {
+        "member": "Mitglied",
+        "balance": "Offen"
+      }
     }
   }
 }

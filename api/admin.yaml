@@ -597,6 +597,55 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /admin/members/mandate-missing:
+    get:
+      tags: [Members]
+      summary: List members with an open position and no usable mandate
+      description: |
+        Standing listing of the members the next collection run cannot reach
+        at all, because either the IBAN or the SEPA mandate reference is
+        missing (#258). Most owed first; soft-deleted members are excluded.
+
+        The third standing exclusion, and the one that was least visible: a
+        member in credit or on hold is at least an account somebody is
+        transacting with, while a member with no mandate can never be
+        collected from.
+
+        Scoped to **participants** — members with an open unsettled position.
+        That matches the `ineligible_members` bucket of the settlement
+        preview, which answers the same question about a run rather than about
+        the roster.
+
+        The three standing exclusions are mutually exclusive and repeat the
+        precedence the preview applies (ruling #148 §4): credit wins over a
+        hold, and a hold wins over a missing mandate, so a member appears in
+        exactly one listing and gets exactly one remedy.
+      operationId: listMembersWithoutMandate
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Members who cannot be collected from
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MandateMissing'
+                  total_uncollectable_cents:
+                    type: integer
+                    description: |
+                      Sum of what these members owe — money the club is owed
+                      and currently cannot collect. A different figure from the
+                      credit total (owed out) and the held total (owed in,
+                      temporarily skipped).
+                    example: 4250
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /admin/members/{memberId}/collection-hold/clear:
     parameters:
       - $ref: '#/components/parameters/memberId'
@@ -3854,6 +3903,29 @@ components:
         balance_cents:
           type: integer
           description: What the member currently owes, held back from collection.
+
+    MandateMissing:
+      type: object
+      description: |
+        A member with an open position the next run cannot collect, because no
+        active SEPA mandate is on file (#258).
+
+        There is deliberately no "which half is missing" field, unlike the
+        settlement preview's ineligible bucket: since #164 the IBAN and the
+        reference live on the same mandate row and arrive together, so a member
+        has both or neither.
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        balance_cents:
+          type: integer
+          description: What the member owes and no run can currently collect. Never negative — a negative position is credit, and credit wins.
+          example: 1250
 
     CreditBalance:
       type: object

@@ -6,6 +6,7 @@ namespace App\Modules\Settlements\Services;
 
 use App\Modules\Settlements\DTOs\CreditBalanceDto;
 use App\Modules\Settlements\DTOs\ExecutionDateInfoDto;
+use App\Modules\Settlements\DTOs\MandateMissingDto;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementItemDto;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
@@ -637,6 +638,27 @@ class SettlementsService
         return [
             'items' => $items,
             'total_credit_cents' => array_sum(array_column($rows, 'balance_cents')),
+        ];
+    }
+
+    /**
+     * Standing "no usable mandate" listing under Members (#258) — the members
+     * the next run cannot collect from at all, most owed first.
+     *
+     * The total is a third kind of number, and the surface labels it as one:
+     * credit is money owed *out*, a hold is money owed *in* and temporarily
+     * skipped, and this is money owed in that no run can currently reach.
+     *
+     * @return array{items: list<MandateMissingDto>, total_uncollectable_cents: int}
+     */
+    public function listMembersWithoutMandate(): array
+    {
+        $rows = $this->settlementsRepository->findMembersWithoutUsableMandate();
+        $items = array_map(fn(array $row) => MandateMissingDto::fromRow($row), $rows);
+
+        return [
+            'items' => $items,
+            'total_uncollectable_cents' => array_sum(array_column($rows, 'balance_cents')),
         ];
     }
 }

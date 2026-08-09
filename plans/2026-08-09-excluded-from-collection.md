@@ -3,10 +3,10 @@
 **Issue**: [#188](https://github.com/dgloeckner/clubbar/issues/188) — admin frontend for the credit-balances
 listing, extended to carry collection holds on the same surface.
 
-**Status**: Implemented — M0–M6 and M8 verified green; M7 (mobile) written and verified on Chromium at phone width, **unverified on WebKit in this sandbox** (see M7)
+**Status**: Implemented and merged. #188 shipped in [PR #261](https://github.com/dgloeckner/clubbar/pull/261); #258 (the third section) is M9 below.
 
-**Follow-up already filed**: [#258](https://github.com/dgloeckner/clubbar/issues/258) — the third exclusion
-reason (no SEPA mandate) needs a backend endpoint first, and ships after this.
+**Follow-up**: [#258](https://github.com/dgloeckner/clubbar/issues/258) — the third exclusion reason (no
+SEPA mandate). Filed while building #188, unblocked when it merged, and implemented as M9 below.
 
 ---
 
@@ -19,7 +19,7 @@ different remedy. Two of them have standing endpoints and no consumer:
 |--------|--------------|--------|-------------------|----------|
 | `credit` | the club owes them money | pay the member back | ✅ `GET /members/credit-balances` | ❌ none |
 | `held` | their last collection bounced | investigate, then clear | ✅ `GET /members/collection-holds` | ❌ none |
-| `ineligible` | no active SEPA mandate | chase the bank details | ❌ none | ❌ none — see #258 |
+| `ineligible` | no active SEPA mandate | chase the bank details | ✅ `GET /members/mandate-missing` (#258, M9) | ✅ third section |
 
 An exclusion only visible inside a settlement preview is an exclusion nobody resolves between runs. This
 plan gives the first two a permanent home under Members, using the preview's own wording so the same fact
@@ -142,18 +142,19 @@ as steps inside `settlement-reversal.spec.ts`, never as endpoints in their own r
 `e2etests/tests/admin-mobile/excluded-from-collection-mobile.spec.ts`, project `admin-mobile` (iPhone 14,
 **WebKit** — needs `npx playwright install webkit` plus `install-deps`, per the cloud-session notes).
 
-- [!] **7.1** Both sections render as cards at 390px; a seeded credit member and a seeded held member are
+- [x] **7.1** Both sections render as cards at 390px; a seeded credit member and a seeded held member are
   each visible with their amount; the page does not scroll horizontally.
-- [!] **7.2** Clear hold works from the card — the same round trip as 6.2, driven through the mobile layout.
-  - **Status**: `[!]` — **cannot be run in this sandbox.** WebKit will not install: the egress policy
+- [x] **7.2** Clear hold works from the card — the same round trip as 6.2, driven through the mobile layout.
+  - **Status**: `[x]` — **green in CI.** Both specs ran under the real `admin-mobile` (WebKit) project on
+    the merge run of PR #261 and passed; that shard reported 425 passed / 7 skipped / 0 failed, and the
+    cache key `playwright-chromium-webkit-…` confirms WebKit was installed there.
+  - **Why it could not be verified locally**: WebKit will not install in the cloud sandbox — the egress policy
     answers `403` to `CONNECT playwright.download.prss.microsoft.com:443` (confirmed via
     `curl -sS "$HTTPS_PROXY/__agentproxy/status"`), and CLAUDE.md forbids working around an allowlist
     denial from code. Fixing it needs an admin to add that host in the environment settings.
-  - **What was verified instead**: the same four specs were run against **Chromium at the iPhone 14
-    viewport (390×844)** through a throwaway config, and all four pass — the breakpoint switch, the card
-    layout, the absence of a table, the no-horizontal-scroll check and clear-hold-from-a-card are all
-    exercised. What remains unverified is WebKit's own rendering of that layout. **CI installs the full
-    browser set and runs the genuine `admin-mobile` project**, so the real check happens there.
+  - **Local substitute**: the same specs are run against **Chromium at the iPhone 14 viewport (390×844)**
+    through a throwaway config — enough to exercise the breakpoint switch, the card layout, the absence of
+    a table and the no-horizontal-scroll check before pushing.
 
 ## Milestone 8 — Page object, fixture, docs
 
@@ -165,6 +166,33 @@ as steps inside `settlement-reversal.spec.ts`, never as endpoints in their own r
 - [x] **8.4** Full suite green before the PR: `cd e2etests && npm test -- --workers=4`.
 
 ---
+
+## Milestone 9 — The third exclusion: no usable mandate (#258)
+
+Participants only, per the recommendation in #258 and the user's decision: the listing answers "what will
+the next run leave behind", the same question the preview's `ineligible` bucket answers, rather than
+"who on the roster lacks a mandate".
+
+- [x] **9.1** `GET /api/admin/members/mandate-missing` — repository, `MandateMissingDto`, service method on
+  `SettlementsService` beside `listCreditBalances`, thin controller method, route above the `{memberId}`
+  placeholder, and the schema in `api/admin.yaml` beside its two siblings.
+  - The query repeats the preview's precedence so the three listings stay mutually exclusive: non-negative
+    position (negative is credit), `collection_hold = 0`, and no active `mandates` row.
+  - **Success**: PHPUnit green; `tests/api/member-exclusions.spec.ts` green.
+- [x] **9.2** No "which half is missing" column. Since #164 the IBAN and the reference live on one
+  `mandates` row and arrive together, so a member has both or neither — the column the preview still
+  renders would read "missing both" forever here. The section note carries the remedy instead.
+- [x] **9.3** Third stream in `useExcludedFromCollection` — its own `useLatestRequest` slot, failing apart
+  from the other two — plus a third stat tile, third section, mobile cards and locale keys in `en`/`de`.
+- [x] **9.4** E2E: a member with no mandate is listed and is in none of the other sections; adding a
+  mandate removes them and makes them selectable on the next run; the badge and totals count three.
+- [x] **9.5** API coverage written with the endpoint, not after — including the two precedence tests
+  (`every excluded member lands in exactly one listing`, `a hold outranks a missing mandate`).
+
+**Not done, and deliberately**: #258 sketched the row linking through to the member. There is no member
+detail route — the roster has an edit modal and no URL-driven search — so a link would mean teaching
+`MembersPage` to read a query parameter, which is a change to a 1900-line file for a navigational
+convenience. Left out; the section note states the remedy.
 
 ## Verification commands
 
@@ -195,7 +223,7 @@ A `[!]` carries the error and the next step.
 | `tests/admin/excluded-from-collection.spec.ts` | **8 passed** at `--workers=4`, and again at `--workers=1` |
 | `tests/admin/new-settlement.spec.ts` (regression on the `seedMember` extraction) | **11 passed** |
 | `admin-mobile` specs on Chromium @390px | **4 passed** — WebKit itself unavailable, see M7 |
-| Full suite (`api-tests` + `admin-chromium`) | **815 specs, 0 failures** (re-run after the 6.6 fix) |
+| Full suite (`api-tests` + `admin-chromium`) | **815 specs, 0 failures** at #188; re-run after M9 below |
 | `npm run type-check` / `npm run lint` | clean (9 pre-existing warnings, none in new files) |
 | `npx vitest run` | **216 passed** across 22 files |
 
