@@ -584,11 +584,65 @@ class MembersRepositoryTest extends DatabaseTestCase
         $anonymized = $this->membersRepository->findByIdIncludingDeleted($member['id']);
         $this->assertNull($anonymized['iban']);
         $this->assertNull($anonymized['mandate_reference']);
+        // Read through the active-mandate join like the other two, so ending
+        // the mandate is what erases the signing date from the member (#115).
+        $this->assertNull($anonymized['mandate_signed_at']);
         $this->assertSame(
             1,
             $this->countMandates($member['id']),
             'erasure removes the person; the mandate record is what a bank return still has to resolve (#165)'
         );
+    }
+
+    /**
+     * Erasure has to take every column that says something about the person,
+     * not only the contact fields. `collection_hold_reason` is free text
+     * written at a bank return — a narrative about this member's payment
+     * history, on their own row, which used to outlive their name (#115).
+     */
+    public function test_anonymize_clears_the_collection_hold_narrative(): void
+    {
+        $member = $this->createMemberWithBankingData();
+        $adminId = $this->createTestAdminUser('hold-' . $member['id'] . '@example.com');
+        $this->db->prepare(
+            'UPDATE members SET collection_hold = 1, collection_hold_reason = ?, held_at = CURRENT_TIMESTAMP, held_by_admin_id = ? WHERE id = ?'
+        )->execute(['Direct debit returned by the bank for settlement 2026-03 (bank reference R-4711)', $adminId, $member['id']]);
+
+        $this->assertTrue($this->membersRepository->anonymize($member['id'], $adminId));
+
+        $row = $this->fetchMemberRow($member['id']);
+        $this->assertNull($row['collection_hold_reason']);
+        $this->assertNull($row['first_name']);
+        $this->assertNull($row['last_name']);
+        $this->assertNull($row['email']);
+        $this->assertNull($row['phone']);
+        $this->assertNull($row['account_holder_name']);
+    }
+
+    /**
+     * A member must be live to be anonymized, so `deleted_by_admin_id` was
+     * never written and the erasure — the one irreversible action here — had
+     * no actor on the record at all (#115).
+     */
+    public function test_anonymize_records_the_admin_who_performed_it(): void
+    {
+        $member = $this->createMemberWithBankingData();
+        $adminId = $this->createTestAdminUser('eraser-' . $member['id'] . '@example.com');
+
+        $this->assertTrue($this->membersRepository->anonymize($member['id'], $adminId));
+
+        $row = $this->fetchMemberRow($member['id']);
+        $this->assertSame($adminId, $row['deleted_by_admin_id']);
+        $this->assertNotNull($row['deleted_at']);
+    }
+
+    /** @return array<string, mixed> The raw row, columns included that no read model exposes. */
+    private function fetchMemberRow(string $memberId): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM members WHERE id = ?');
+        $stmt->execute([$memberId]);
+
+        return $stmt->fetch();
     }
 
     /**

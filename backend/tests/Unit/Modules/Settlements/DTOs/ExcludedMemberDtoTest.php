@@ -20,13 +20,29 @@ class ExcludedMemberDtoTest extends TestCase
         );
 
         $this->assertSame('Ada Lovelace', $dto->displayName());
+        $this->assertSame('Ada', $dto->firstName);
+        $this->assertSame('Lovelace', $dto->lastName);
+    }
+
+    /**
+     * The written-down form of an exclusion carries no name (#115). An audit
+     * entry filed under the settlement is out of reach of the member's own
+     * erasure, so a name in it survives that erasure indefinitely.
+     */
+    public function test_the_audit_projection_carries_the_id_and_no_name(): void
+    {
+        $dto = ExcludedMemberDto::fromMember(
+            'member-1',
+            ['first_name' => 'Ada', 'last_name' => 'Lovelace'],
+            1500,
+            SepaExclusionReason::NO_ACTIVE_MANDATE,
+        );
+
         $this->assertSame([
             'member_id' => 'member-1',
-            'first_name' => 'Ada',
-            'last_name' => 'Lovelace',
             'amount_cents' => 1500,
             'reason' => 'no_active_mandate',
-        ], $dto->toArray());
+        ], $dto->toAuditArray());
     }
 
     public function test_a_member_row_that_is_gone_entirely_still_reports_the_exclusion(): void

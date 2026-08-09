@@ -259,7 +259,7 @@ class MembersServiceTest extends TestCase
 
         $this->membersRepository->expects($this->once())
             ->method('anonymize')
-            ->with('member-1')
+            ->with('member-1', 'admin-1')
             ->willReturn(true);
 
         $this->db->expects($this->once())->method('beginTransaction');
@@ -282,9 +282,32 @@ class MembersServiceTest extends TestCase
         $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
         $this->membersRepository->method('anonymize')->willReturn(true);
 
+        // Keyed on the member's id alone: an entry filed under the wrong
+        // entity type is exactly the one an erasure must not skip (#115).
         $this->auditLogRepository->expects($this->once())
             ->method('scrubByEntityId')
-            ->with('member', 'member-1');
+            ->with('member-1');
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    /**
+     * A member has to be live to be anonymized, so nothing had ever written
+     * `deleted_by_admin_id` by the time the erasure ran and it stayed NULL —
+     * the one irreversible action in the system with no actor on the record
+     * (#115). The admin who erased is passed down to the row.
+     */
+    public function test_anonymizeMember_records_the_admin_who_erased_on_the_member_row(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn($this->member('member-1'), $this->member('member-1', ['deleted_at' => '2026-08-08 12:00:00']));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+
+        $this->membersRepository->expects($this->once())
+            ->method('anonymize')
+            ->with('member-1', 'admin-1')
+            ->willReturn(true);
 
         $this->membersService->anonymizeMember('member-1', 'admin-1');
     }

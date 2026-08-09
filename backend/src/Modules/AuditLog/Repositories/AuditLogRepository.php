@@ -33,12 +33,38 @@ class AuditLogRepository
         ]);
     }
 
-    public function scrubByEntityId(string $entityType, string $entityId): int
+    /**
+     * Strip the payloads from every audit entry about one entity, for an
+     * erasure request (GDPR Art. 17). The entries themselves stay: *that* an
+     * admin acted on this id, and when, is the accountability record.
+     *
+     * **Scope, and its one precondition.** The sweep is keyed on `entity_id`
+     * alone and no longer on the `entity_type` the row claims: ids here are
+     * UUIDs, so a row carrying this member's id is about this member whatever
+     * type it was filed under, and a mistyped entry is exactly the one an
+     * erasure must not skip. It used to require `entity_type = 'member'`,
+     * which made the completeness of an erasure depend on every writer
+     * getting the type right (#115).
+     *
+     * What this cannot reach is an entry filed under a *different* id that
+     * embeds member data inside its payload — a settlement's entry naming the
+     * members it left out, say. Nulling that would erase the record for
+     * everyone else in it, so the invariant runs the other way: **an audit
+     * payload keyed to something other than a member must not carry member
+     * PII**, only member ids, which the erasure turns into references to
+     * nobody. {@see \App\Modules\Settlements\DTOs\ExcludedMemberDto::toAuditArray()}
+     * is where that rule bit, and the tests that hold it are
+     * `SepaExportServiceTest::test_the_audit_summary_carries_no_member_pii`
+     * and this repository's own scrub tests.
+     *
+     * @return int Rows scrubbed.
+     */
+    public function scrubByEntityId(string $entityId): int
     {
         $stmt = $this->db->prepare(
-            'UPDATE audit_log SET old_values = NULL, new_values = NULL WHERE entity_type = ? AND entity_id = ?'
+            'UPDATE audit_log SET old_values = NULL, new_values = NULL WHERE entity_id = ?'
         );
-        $stmt->execute([$entityType, $entityId]);
+        $stmt->execute([$entityId]);
         return $stmt->rowCount();
     }
 

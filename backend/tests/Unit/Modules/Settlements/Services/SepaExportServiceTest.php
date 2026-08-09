@@ -247,7 +247,13 @@ class SepaExportServiceTest extends TestCase
                 $this->stringContains('collects less than the settlement records'),
                 $this->callback(static fn(array $ctx): bool => $ctx['shortfall_amount_cents'] === 1500
                     && $ctx['collected_amount_cents'] === 0
-                    && $ctx['settlement_amount_cents'] === 1500),
+                    && $ctx['settlement_amount_cents'] === 1500
+                    // Ids, not names: no erasure reaches a log file (#115).
+                    && $ctx['excluded_members'] === [[
+                        'member_id' => self::MEMBER_ID,
+                        'amount_cents' => 1500,
+                        'reason' => 'no_active_mandate',
+                    ]]),
             );
 
         $this->service->export(self::SETTLEMENT_ID);
@@ -272,11 +278,34 @@ class SepaExportServiceTest extends TestCase
         $this->assertSame(2000, $summary['shortfall_amount_cents']);
         $this->assertSame([[
             'member_id' => self::OTHER_MEMBER_ID,
-            'first_name' => 'Grace',
-            'last_name' => 'Hopper',
             'amount_cents' => 2000,
             'reason' => 'no_active_mandate',
         ]], $summary['excluded_members']);
+    }
+
+    /**
+     * The scrub that answers an Art. 17 erasure sweeps the audit entries keyed
+     * to the member's id. This entry is keyed to the settlement, so nothing
+     * sweeps it, and nulling it wholesale would erase the exclusion record of
+     * every other member in the run — so it must not carry a name in the first
+     * place (#115). The id is fine: after the erasure it resolves to nobody.
+     */
+    public function test_the_audit_summary_carries_no_member_pii(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 3500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
+        $this->givenMembers([
+            self::MEMBER_ID => self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => ['mandate_reference' => null] + self::member('Grace', 'Hopper'),
+        ]);
+
+        $summary = $this->service->export(self::SETTLEMENT_ID)->toAuditSummary();
+
+        $encoded = json_encode($summary, JSON_THROW_ON_ERROR);
+        foreach (['Grace', 'Hopper', 'Ada', 'Lovelace', 'first_name', 'last_name'] as $pii) {
+            $this->assertStringNotContainsString($pii, $encoded);
+        }
     }
 
     public function test_the_end_to_end_id_identifies_the_settlement_and_the_member(): void
