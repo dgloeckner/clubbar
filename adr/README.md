@@ -56,6 +56,8 @@ Each ADR follows this structure:
 | [0029](./0029-two-tier-retention-and-erasure.md) | Two-Tier Retention and Erasure | Accepted | 2026-08-07 |
 | [0030](./0030-settlement-selection-is-a-member-picker.md) | Settlement Selection Is a Member Picker | Accepted | 2026-08-08 |
 | [0031](./0031-production-hardening-on-shared-hosting.md) | Production Hardening on Shared Hosting | Accepted | 2026-08-09 |
+| [0032](./0032-settlement-lifecycle.md) | Settlement Lifecycle | Accepted | 2026-08-09 |
+| [0033](./0033-terminal-sync-contract.md) | Terminal Sync Contract | Accepted | 2026-08-09 |
 
 ## Creating a New ADR
 

@@ -111,7 +111,11 @@ All backend code must follow these patterns. Reference them when implementing fe
 **[Pattern 012: Terminal API Token Authentication](./pattern-012-terminal-api-token-authentication.md)**
 - Device-level authentication via Bearer tokens
 - 256-bit cryptographically secure tokens
-- Bcrypt hashing; no plaintext storage
+- SHA-256 hashing; no plaintext storage. Not bcrypt: a 256-bit random token has
+  nothing for a slow hash to defend against, and a fast one is an indexed lookup
+  rather than a scan of every terminal
+- Bounded token lifetime (`API_TOKEN_TTL_DAYS`, default 90), enforced in the
+  repository lookup so no caller can authenticate around it
 - Token generation, validation, rotation, revocation
 - **Key Principle**: Terminals authenticate as **devices**, not users
 - **When**: Terminal API endpoints (`/api/sync/*`)
@@ -120,8 +124,11 @@ All backend code must follow these patterns. Reference them when implementing fe
 - Traditional session-based admin authentication
 - Secure HTTP-only cookies with SameSite attribute
 - Session regeneration to prevent fixation attacks
-- Idle timeout (2 hours) + absolute timeout (24 hours)
-- **Key Principle**: Admins authenticate as **users** with passwords
+- Idle timeout (2 hours) + absolute timeout (24 hours), enforced by
+  `SessionTimeout` in the application — never left to `session.gc_maxlifetime`
+- Two-step login: a password buys an MFA-pending session, TOTP authenticates it
+- **Key Principle**: Admins authenticate as **users** with a password *and* a
+  second factor
 - **When**: Admin API endpoints (`/api/admin/*`)
 
 **[Pattern 014: RFID Member Identification](./pattern-014-rfid-member-identification.md)**
@@ -222,9 +229,9 @@ Controller → json() helper → PSR-7 Response
 
 ## Related Documentation
 
-- **ADR-0018**: [Modular Admin Interface Architecture](../adr/0018-modular-admin-interface-architecture.md) — Overall modularity structure these patterns support
-- **ADR-0004**: [Immutable Transaction Storage](../adr/0004-immutable-transaction-storage.md) — Immutability principles reflected in readonly DTOs
-- **ADR-0017**: [Input Validation and Injection Prevention](../adr/0017-input-validation-injection-prevention.md) — Validation patterns
+- **ADR-0018**: [Modular Admin Interface Architecture](../../adr/0018-modular-admin-interface-architecture.md) — Overall modularity structure these patterns support
+- **ADR-0004**: [Immutable Transaction Storage](../../adr/0004-immutable-transaction-storage.md) — Immutability principles reflected in readonly DTOs
+- **ADR-0017**: [Input Validation and Injection Prevention](../../adr/0017-input-validation-injection-prevention.md) — Validation patterns
 
 ---
 
