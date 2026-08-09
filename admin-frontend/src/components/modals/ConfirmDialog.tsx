@@ -10,20 +10,29 @@
  *   confirm-dialog-content  — inner content box
  *   confirm-dialog-message  — message text
  *   confirm-dialog-cancel   — cancel button
- *   confirm-dialog-ok       — confirm button
+ *   confirm-dialog-ok       — confirm button (absent when showConfirm is false)
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 
 export interface ConfirmDialogProps {
   isOpen: boolean
   title?: string
-  message: string
+  /** Plain text for most callers; a node when the question needs figures (#127). */
+  message: ReactNode
   confirmLabel?: string
   cancelLabel?: string
   variant?: 'danger' | 'primary'
+  /** The question is asked but cannot be answered yet — e.g. an unticked acknowledgement. */
+  confirmDisabled?: boolean
+  /**
+   * Drop the confirm button entirely. For a dialog that only explains why an
+   * action is unavailable, a permanently disabled button is the dead control
+   * the dialog exists to replace.
+   */
+  showConfirm?: boolean
   onConfirm: () => void
   onCancel: () => void
 }
@@ -35,6 +44,8 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel,
   variant = 'danger',
+  confirmDisabled = false,
+  showConfirm = true,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -104,11 +115,11 @@ export function ConfirmDialog({
           </h2>
         )}
 
-        <p
+        {/* A div, not a p: the message may carry blocks of its own (#127). */}
+        <div
           id="confirm-dialog-message"
           data-testid="confirm-dialog-message"
           style={{
-            margin: 0,
             marginBottom: theme.spacing.xl,
             color: theme.colors.text.secondary,
             fontSize: theme.typography.fontSize.base,
@@ -116,7 +127,7 @@ export function ConfirmDialog({
           }}
         >
           {message}
-        </p>
+        </div>
 
         <div style={{ display: 'flex', gap: theme.spacing.md, justifyContent: 'flex-end' }}>
           <button
@@ -136,22 +147,25 @@ export function ConfirmDialog({
             {resolvedCancelLabel}
           </button>
 
-          <button
-            data-testid="confirm-dialog-ok"
-            onClick={onConfirm}
-            style={{
-              padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-              background: confirmBg,
-              border: 'none',
-              borderRadius: theme.borderRadius.md,
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: theme.typography.fontSize.sm,
-              fontWeight: theme.typography.fontWeight.semibold,
-            }}
-          >
-            {resolvedConfirmLabel}
-          </button>
+          {showConfirm && (
+            <button
+              data-testid="confirm-dialog-ok"
+              onClick={onConfirm}
+              disabled={confirmDisabled}
+              style={{
+                padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                background: confirmDisabled ? theme.colors.bg.tertiary : confirmBg,
+                border: 'none',
+                borderRadius: theme.borderRadius.md,
+                color: confirmDisabled ? theme.colors.text.muted : 'white',
+                cursor: confirmDisabled ? 'not-allowed' : 'pointer',
+                fontSize: theme.typography.fontSize.sm,
+                fontWeight: theme.typography.fontWeight.semibold,
+              }}
+            >
+              {resolvedConfirmLabel}
+            </button>
+          )}
         </div>
       </div>
     </div>
