@@ -758,5 +758,68 @@
     "1y": "1J",
     "2y": "2J",
     "all": "Alle"
+  },
+  "excluded": {
+    "title": "Vom Einzug ausgeschlossen",
+    "tabs": {
+      "all": "Alle Mitglieder",
+      "excluded": "Vom Einzug ausgeschlossen",
+      "allShort": "Alle",
+      "excludedShort": "Ausgeschlossen"
+    },
+    "tiles": {
+      "creditLabel": "Guthaben",
+      "creditSub_one": "{{count}} Mitglied · das schuldet der Verein",
+      "creditSub_other": "{{count}} Mitglieder · das schuldet der Verein",
+      "creditNobody": "Niemand",
+      "heldLabel": "Vom nächsten Lauf zurückgehalten",
+      "heldSub_one": "{{count}} Mitglied · dem Verein geschuldet, nicht eingezogen",
+      "heldSub_other": "{{count}} Mitglieder · dem Verein geschuldet, nicht eingezogen",
+      "heldNobody": "Niemand",
+      "unavailable": "—"
+    },
+    "count_one": "{{count}} Mitglied",
+    "count_other": "{{count}} Mitglieder",
+    "none": "Keine",
+    "credit": {
+      "title": "Guthaben — der Verein schuldet ihnen Geld",
+      "note": "Von diesen Mitgliedern wird nie eingezogen. Die Erstattung wird von Hand ausgezahlt und als manuelle Abrechnung erfasst.",
+      "empty": "Kein Mitglied hat Guthaben. Es ist nichts zu erstatten.",
+      "total": "Summe offen",
+      "columns": {
+        "member": "Mitglied",
+        "balance": "Guthaben"
+      }
+    },
+    "holds": {
+      "title": "Einzug gesperrt — der nächste Lauf überspringt sie",
+      "note": "Eine Rücklastschrift hat diese Mitglieder gesperrt, damit der nächste Lauf den zurückgegebenen Betrag nicht erneut einzieht und eine zweite Rückgabegebühr verursacht. Bankdaten klären, dann die Sperre aufheben.",
+      "empty": "Kein Mitglied ist gesperrt. Der nächste Lauf zieht von allen mit gültigem Mandat ein.",
+      "total": "Summe zurückgehalten",
+      "columns": {
+        "member": "Mitglied",
+        "balance": "Zurückgehalten",
+        "reason": "Grund",
+        "heldSince": "Gesperrt seit",
+        "heldBy": "Gesperrt von"
+      },
+      "noReason": "Kein Grund erfasst",
+      "unknownAdmin": "—",
+      "clear": "Sperre aufheben",
+      "clearAria": "Einzugssperre für {{name}} aufheben"
+    },
+    "clearDialog": {
+      "title": "Einzugssperre für {{name}} aufheben?",
+      "consequence": "Der nächste Einzugslauf berücksichtigt dieses Mitglied wieder — mit den vollen {{amount}}, die derzeit zurückgehalten werden.",
+      "provenance": "{{reason}} · gesperrt am {{date}} von {{admin}}",
+      "provenanceNoAdmin": "{{reason}} · gesperrt am {{date}}",
+      "warning": "Vorher Mandat und Bankdaten prüfen — eine zweite Rückgabe kostet erneut Gebühren.",
+      "confirm": "Sperre aufheben"
+    },
+    "errors": {
+      "loadCredit": "Die Guthaben konnten nicht geladen werden.",
+      "loadHolds": "Die Einzugssperren konnten nicht geladen werden.",
+      "clearFailed": "Die Sperre konnte nicht aufgehoben werden."
+    }
   }
 }
