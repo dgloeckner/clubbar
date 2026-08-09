@@ -175,17 +175,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get memberInactive => 'Inactive';
 
   @override
-  String get sepaYes => 'Yes';
-
-  @override
-  String get sepaNo => 'No';
-
-  @override
-  String welcomeMember(String name) {
-    return 'Welcome, $name';
-  }
-
-  @override
   String balanceOpenTab(String amount) {
     return 'Open tab: $amount';
   }
@@ -212,9 +201,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get categoryDefault => 'Category';
-
-  @override
-  String get productDefault => 'Product';
 
   @override
   String get noProducts => 'No products available';
@@ -269,16 +255,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loading => 'Loading...';
 
   @override
-  String get cancel => 'Cancel';
-
-  @override
-  String get save => 'Save';
-
-  @override
   String get continueShopping => 'Continue Shopping';
-
-  @override
-  String get scanCard => 'Scan Token';
 
   @override
   String get rfidErrorUnknownCard =>

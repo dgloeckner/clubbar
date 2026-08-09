@@ -3401,7 +3401,12 @@ components:
 
   responses:
     Unauthorized:
-      description: Not authenticated
+      description: |
+        Not authenticated. `error` distinguishes why:
+
+        - `admin_not_authenticated` — no session, or the account behind it is gone or disabled.
+        - `session_expired` — the session passed one of its limits (2h idle, 24h absolute)
+          and was destroyed. Signing in again is the only way forward.
       content:
         application/json:
           schema:
@@ -4003,6 +4008,10 @@ components:
         email:
           type: string
           format: email
+          maxLength: 255
+        phone:
+          type: string
+          maxLength: 20
         preferred_language:
           type: string
           description: ISO 639-1 language code
@@ -4041,6 +4050,11 @@ components:
         email:
           type: string
           format: email
+          maxLength: 255
+          nullable: true
+        phone:
+          type: string
+          maxLength: 20
           nullable: true
         preferred_language:
           type: string

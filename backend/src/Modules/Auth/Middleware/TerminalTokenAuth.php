@@ -4,20 +4,24 @@ declare(strict_types=1);
 
 namespace App\Modules\Auth\Middleware;
 
-use PDO;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Auth\Services\TokenService;
 use Slim\Psr7\Response;
 
 class TerminalTokenAuth implements MiddlewareInterface
 {
+    /**
+     * @param LoginAttemptsRepository $authAttempts scoped to `terminal_auth_attempts`,
+     *        which has no `email` column — attempts are recorded by IP alone.
+     */
     public function __construct(
         private TerminalsRepository $terminalsRepository,
-        private PDO $pdo,
+        private LoginAttemptsRepository $authAttempts,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -60,11 +64,7 @@ class TerminalTokenAuth implements MiddlewareInterface
 
     private function unauthorized(ServerRequestInterface $request, string $code, string $message): ResponseInterface
     {
-        $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
-        $stmt = $this->pdo->prepare(
-            'INSERT INTO terminal_auth_attempts (ip_address) VALUES (:ip)'
-        );
-        $stmt->execute(['ip' => $ip]);
+        $this->authAttempts->record($request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1');
 
         $response = new Response(401);
         $response->getBody()->write(json_encode(['error' => $code, 'message' => $message]));

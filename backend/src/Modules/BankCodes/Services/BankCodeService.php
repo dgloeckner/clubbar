@@ -53,6 +53,34 @@ class BankCodeService
     }
 
     /**
+     * Everything known about the bank behind an IBAN.
+     *
+     * Returns `null` for anything that is not a German IBAN — the caller has to
+     * distinguish "we do not look this country up" from "we looked and found
+     * nothing", which is a populated record with null fields.
+     *
+     * @return array{bank_code: string, bank_name: ?string, short_name: ?string, bic: ?string, postal_code: ?string, city: ?string}|null
+     */
+    public function lookupByIban(?string $iban): ?array
+    {
+        $blz = self::extractBlz($iban);
+        if ($blz === null) {
+            return null;
+        }
+
+        $row = $this->repository->findByBankCode($blz);
+
+        return [
+            'bank_code' => $blz,
+            'bank_name' => $row['bank_name'] ?? null,
+            'short_name' => $row['short_name'] ?? null,
+            'bic' => $row['bic'] ?? null,
+            'postal_code' => $row['postal_code'] ?? null,
+            'city' => $row['city'] ?? null,
+        ];
+    }
+
+    /**
      * Batch lookup: map of IBAN → bank_name for a list of IBANs.
      * Efficient: extracts unique BLZs, does a single DB query.
      *

@@ -7,7 +7,6 @@ import 'package:clubbar_terminal/app/terminal_material_app.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
-import 'package:clubbar_terminal/providers/auth_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/locale_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
@@ -19,8 +18,6 @@ import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/widgets/main_layout.dart';
 import 'package:clubbar_terminal/widgets/member_details_modal.dart';
 import '../test_helpers.dart';
-
-class MockAuthProvider extends Mock implements AuthProvider {}
 
 class MockMembersProvider extends Mock implements MembersProvider {}
 
@@ -41,7 +38,6 @@ class MockNetworkService extends Mock implements NetworkService {}
 class MockDatabase extends Mock implements ClubBarDatabase {}
 
 void main() {
-  late MockAuthProvider authProvider;
   late MockMembersProvider membersProvider;
   late MockProductsProvider productsProvider;
   late MockCartProvider cartProvider;
@@ -63,7 +59,6 @@ void main() {
   );
 
   setUp(() {
-    authProvider = MockAuthProvider();
     membersProvider = MockMembersProvider();
     productsProvider = MockProductsProvider();
     cartProvider = MockCartProvider();
@@ -71,10 +66,6 @@ void main() {
     rfidProvider = MockRfidProvider();
     sessionController = MockSessionController();
     soundService = MockSoundService();
-
-    when(() => authProvider.isAuthenticated).thenReturn(true);
-    when(() => authProvider.addListener(any())).thenReturn(null);
-    when(() => authProvider.removeListener(any())).thenReturn(null);
 
     when(() => membersProvider.selectedMember).thenReturn(testMember);
     when(() => membersProvider.memberDeckel).thenReturn(0);
@@ -127,7 +118,6 @@ void main() {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
-        ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
         ChangeNotifierProvider<MembersProvider>.value(value: membersProvider),
         ChangeNotifierProvider<ProductsProvider>.value(value: productsProvider),
         ChangeNotifierProvider<CartProvider>.value(value: cartProvider),

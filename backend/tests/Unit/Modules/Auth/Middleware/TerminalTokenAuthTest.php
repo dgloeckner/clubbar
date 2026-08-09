@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Auth\Middleware;
 
 use App\Modules\Auth\Middleware\TerminalTokenAuth;
+use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Services\TokenService;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
-use PDO;
-use PDOStatement;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -19,14 +18,14 @@ use Slim\Psr7\Response;
 class TerminalTokenAuthTest extends TestCase
 {
     private TerminalsRepository $terminalsRepository;
-    private PDO $pdo;
+    private LoginAttemptsRepository $authAttempts;
     private TerminalTokenAuth $middleware;
 
     protected function setUp(): void
     {
         $this->terminalsRepository = $this->createMock(TerminalsRepository::class);
-        $this->pdo = $this->createMock(PDO::class);
-        $this->middleware = new TerminalTokenAuth($this->terminalsRepository, $this->pdo);
+        $this->authAttempts = $this->createMock(LoginAttemptsRepository::class);
+        $this->middleware = new TerminalTokenAuth($this->terminalsRepository, $this->authAttempts);
     }
 
     private function request(?string $authHeader): ServerRequestInterface
@@ -49,15 +48,16 @@ class TerminalTokenAuthTest extends TestCase
         return array_merge(['id' => 'terminal-1', 'is_active' => 1], $overrides);
     }
 
-    /** Expect the middleware to record a failed attempt via a raw INSERT. */
+    /**
+     * Expect the middleware to record a failed attempt against the rate limiter's
+     * terminal table — by IP alone, since terminal auth presents a token rather
+     * than an account (#118 moved this off a raw INSERT in the middleware).
+     */
     private function expectAttemptRecorded(): void
     {
-        $stmt = $this->createMock(PDOStatement::class);
-        $stmt->expects($this->once())->method('execute')->with($this->arrayHasKey('ip'));
-        $this->pdo->expects($this->once())
-            ->method('prepare')
-            ->with($this->stringContains('terminal_auth_attempts'))
-            ->willReturn($stmt);
+        $this->authAttempts->expects($this->once())
+            ->method('record')
+            ->with($this->isType('string'), null);
     }
 
     private function rejectingHandler(): RequestHandlerInterface
@@ -126,7 +126,7 @@ class TerminalTokenAuthTest extends TestCase
         $terminal = $this->terminal();
         $this->terminalsRepository->method('findByTokenHash')->willReturn($terminal);
         $this->terminalsRepository->expects($this->once())->method('updateLastSync')->with('terminal-1');
-        $this->pdo->expects($this->never())->method('prepare');
+        $this->authAttempts->expects($this->never())->method('record');
 
         $handler = $this->createMock(RequestHandlerInterface::class);
         $handler->expects($this->once())

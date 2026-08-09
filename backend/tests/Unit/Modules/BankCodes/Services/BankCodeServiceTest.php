@@ -94,4 +94,63 @@ class BankCodeServiceTest extends TestCase
         $this->assertSame('Deutsche Bank PGK München', $row['short_name']);
         $this->assertSame('DEUTDEDBBER', $row['bic']);
     }
+
+    // ─── lookupByIban ───────────────────────────────────────────────────────
+    //
+    // The bank-lookup endpoint used to assemble this record itself, straight
+    // from the repository (#118). It is a domain answer, so it lives here.
+
+    public function test_lookupByIban_returns_the_bank_behind_a_german_iban(): void
+    {
+        $repository = $this->createMock(\App\Modules\BankCodes\Repositories\BankCodesRepository::class);
+        $repository->expects($this->once())
+            ->method('findByBankCode')
+            ->with('37040044')
+            ->willReturn([
+                'bank_name' => 'Commerzbank',
+                'short_name' => 'Commerzbank Köln',
+                'bic' => 'COBADEFFXXX',
+                'postal_code' => '50667',
+                'city' => 'Köln',
+            ]);
+
+        $service = new BankCodeService($repository, $this->createMock(\App\Shared\Logging\Logger::class));
+
+        $this->assertSame([
+            'bank_code' => '37040044',
+            'bank_name' => 'Commerzbank',
+            'short_name' => 'Commerzbank Köln',
+            'bic' => 'COBADEFFXXX',
+            'postal_code' => '50667',
+            'city' => 'Köln',
+        ], $service->lookupByIban('DE89370400440532013000'));
+    }
+
+    public function test_lookupByIban_distinguishes_an_unknown_blz_from_a_foreign_iban(): void
+    {
+        $repository = $this->createMock(\App\Modules\BankCodes\Repositories\BankCodesRepository::class);
+        $repository->method('findByBankCode')->willReturn(null);
+
+        $service = new BankCodeService($repository, $this->createMock(\App\Shared\Logging\Logger::class));
+
+        // German IBAN, no such bank: a record with the code and nothing else.
+        $unknown = $service->lookupByIban('DE89370400440532013000');
+        $this->assertSame('37040044', $unknown['bank_code']);
+        $this->assertNull($unknown['bank_name']);
+        $this->assertNull($unknown['bic']);
+
+        // Not German at all: no record, because we never looked.
+        $this->assertNull($service->lookupByIban('AT611904300234573201'));
+    }
+
+    public function test_lookupByIban_does_not_query_for_a_foreign_iban(): void
+    {
+        $repository = $this->createMock(\App\Modules\BankCodes\Repositories\BankCodesRepository::class);
+        $repository->expects($this->never())->method('findByBankCode');
+
+        $service = new BankCodeService($repository, $this->createMock(\App\Shared\Logging\Logger::class));
+
+        $this->assertNull($service->lookupByIban('GB29NWBK60161331926819'));
+        $this->assertNull($service->lookupByIban(null));
+    }
 }

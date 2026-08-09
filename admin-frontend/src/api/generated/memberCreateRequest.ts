@@ -63,7 +63,10 @@ export interface MemberCreateRequest {
   first_name: string;
   /** @maxLength 100 */
   last_name: string;
+  /** @maxLength 255 */
   email?: string;
+  /** @maxLength 20 */
+  phone?: string;
   /** ISO 639-1 language code */
   preferred_language: string;
   /**
