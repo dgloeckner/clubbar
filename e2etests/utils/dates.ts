@@ -1,4 +1,5 @@
 import type { APIRequestContext } from '@playwright/test'
+import type { ApiRequestLike } from './request-context'
 
 /**
  * Date helpers for settlement tests.
@@ -32,7 +33,7 @@ export function toIsoDate(date: Date): string {
  * Both dates must come from the same clock, and the server's is the one the
  * rule is evaluated against.
  */
-export async function serverToday(request: APIRequestContext): Promise<string> {
+export async function serverToday(request: ApiRequestLike): Promise<string> {
   const res = await request.get('/api/health')
 
   if (!res.ok()) {
@@ -52,7 +53,7 @@ export async function serverToday(request: APIRequestContext): Promise<string> {
  * The earliest execution date the backend will accept — already rolled past
  * weekends and TARGET2 closing days.
  */
-export async function minimumExecutionDate(request: APIRequestContext): Promise<string> {
+export async function minimumExecutionDate(request: ApiRequestLike): Promise<string> {
   const res = await request.get('/api/admin/settlements/execution-date-info')
 
   if (!res.ok()) {
