@@ -54,6 +54,8 @@ Each ADR follows this structure:
 | [0027](./0027-terminal-session-lifecycle.md) | Terminal Session Lifecycle and Cart Ownership | Accepted | 2026-08-05 |
 | [0028](./0028-legal-constraints-on-money-handling.md) | Legal and Regulatory Constraints on Money Handling | Accepted | 2026-08-07 |
 | [0029](./0029-two-tier-retention-and-erasure.md) | Two-Tier Retention and Erasure | Accepted | 2026-08-07 |
+| [0030](./0030-settlement-selection-is-a-member-picker.md) | Settlement Selection Is a Member Picker | Accepted | 2026-08-08 |
+| [0031](./0031-production-hardening-on-shared-hosting.md) | Production Hardening on Shared Hosting | Accepted | 2026-08-09 |
 
 ## Creating a New ADR
 
