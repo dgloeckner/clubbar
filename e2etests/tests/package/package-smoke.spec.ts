@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -235,5 +236,134 @@ test.describe('Package: Runtime hardening', () => {
     );
 
     return JSON.parse(output.trim());
+  }
+});
+
+/**
+ * ADR-0031 decision 2: a scanned SEPA mandate — a name, an IBAN and a
+ * handwritten signature, named after the member UUID the admin API already
+ * hands to the browser — must not be retrievable over HTTP.
+ *
+ * Both layouts are exercised because both ship. In the document root the only
+ * thing standing between that PDF and a URL is an `.htaccess` rule, so the test
+ * asks the webserver. Relocated, the stronger claim holds and is the one worth
+ * asserting: the file is not under the document root at all, so a host that
+ * stopped honouring `.htaccess` tomorrow would have nothing to serve.
+ *
+ * Runs last: it moves the installation's data around and puts it back.
+ */
+test.describe.serial('Package: Data placement', () => {
+  test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
+
+  const REPO_ROOT = path.resolve(__dirname, '../../..');
+  const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.package.yml'];
+  const DOCUMENT_ROOT = '/app';
+  const RELOCATED = '/tmp/clubbar-data';
+  // Shaped like the real thing: the filename is the member UUID, which is
+  // exactly why guessing it is not a defence.
+  const MEMBER_ID = '11111111-2222-3333-4444-555555555555';
+  const MANDATE_URL = `${PACKAGE_URL}/backend/storage/mandates/${MEMBER_ID}.pdf`;
+
+  /**
+   * The installer does not take the `.htaccess` denial on trust either: it
+   * writes a file into the storage directory, fetches it over HTTP and reports
+   * what came back. This asserts that verification passes against the package
+   * as built — if a future change broke the rewrite rule, the wizard would say
+   * so on the prerequisites screen and so would this.
+   */
+  test('the installer verifies over HTTP that storage is not served', async ({ request }) => {
+    const key = 'exposure-check-key-0000';
+    fs.writeFileSync(
+      path.join(REPO_ROOT, 'dist/package/.installer-data'),
+      JSON.stringify({ key, completed_step: 0 })
+    );
+
+    await request.post(`${PACKAGE_URL}/install.php`, { form: { install_key: key } });
+    const page = await request.get(`${PACKAGE_URL}/install.php?step=1`);
+    const html = await page.text();
+
+    expect(html).toContain('Not served: backend/storage/');
+    expect(html, 'the installer could not confirm the denial holds').toContain('refused (HTTP 403)');
+  });
+
+  test('a mandate inside the document root is refused by the webserver', async ({ request }) => {
+    inContainer([
+      `@mkdir("${DOCUMENT_ROOT}/backend/storage/mandates", 0700, true);`,
+      `file_put_contents("${DOCUMENT_ROOT}/backend/storage/mandates/${MEMBER_ID}.pdf", "%PDF-1.4 signature");`,
+    ]);
+
+    const response = await request.get(MANDATE_URL);
+
+    expect(response.status()).toBe(403);
+    expect(await response.text()).not.toContain('%PDF');
+  });
+
+  test('the logs are refused too, and config.php never returns its contents', async ({ request }) => {
+    const logs = await request.get(`${PACKAGE_URL}/backend/logs/`);
+    expect(logs.status()).toBe(403);
+
+    // config.php sits next to index.php in this layout, so what protects it is
+    // that PHP files are executed rather than served. It returns an array and
+    // prints nothing — but that protection is exactly the one the relocated
+    // layout below stops depending on.
+    const config = await request.get(`${PACKAGE_URL}/config.php`);
+    // Strings that exist only in the config file's source, so this cannot pass
+    // by accident on a page that merely mentions passwords.
+    expect(await config.text()).not.toContain('totp_encryption_key');
+  });
+
+  test('relocating takes the mandate out of the document root entirely', async ({ request }) => {
+    const moved = inContainer([
+      'require "/app/backend/vendor/autoload.php";',
+      `$r = App\\Shared\\Config\\DataDirectory::relocate("${DOCUMENT_ROOT}", "${RELOCATED}");`,
+      'echo json_encode($r);',
+    ]);
+    expect(JSON.parse(moved).ok, `relocate failed: ${moved}`).toBe(true);
+
+    // The application still boots, which is what proves the front controller
+    // followed the pointer rather than the old path.
+    const health = await request.get(`${PACKAGE_URL}/api/health`);
+    expect(health.ok()).toBeTruthy();
+
+    // The claim decision 2 is actually about: nothing left under a URL.
+    expect(fileExists(`${DOCUMENT_ROOT}/backend/storage/mandates/${MEMBER_ID}.pdf`)).toBe(false);
+    expect(fileExists(`${DOCUMENT_ROOT}/config.php`)).toBe(false);
+    expect(fileExists(`${RELOCATED}/storage/mandates/${MEMBER_ID}.pdf`)).toBe(true);
+    expect(fileExists(`${RELOCATED}/config.php`)).toBe(true);
+
+    const response = await request.get(MANDATE_URL);
+    expect(response.status()).toBe(403);
+
+    // The pointer naming the new location is denied as well, and would print
+    // nothing even if it were not.
+    const pointer = await request.get(`${PACKAGE_URL}/data-path.php`);
+    expect(pointer.status()).toBe(403);
+  });
+
+  test('moving back restores the in-document-root layout', async ({ request }) => {
+    const moved = inContainer([
+      'require "/app/backend/vendor/autoload.php";',
+      `$r = App\\Shared\\Config\\DataDirectory::relocate("${DOCUMENT_ROOT}", "${DOCUMENT_ROOT}/backend");`,
+      `App\\Shared\\Config\\DataDirectory::removePointer("${DOCUMENT_ROOT}");`,
+      'echo json_encode($r);',
+    ]);
+    expect(JSON.parse(moved).ok, `revert failed: ${moved}`).toBe(true);
+
+    const health = await request.get(`${PACKAGE_URL}/api/health`);
+    expect(health.ok()).toBeTruthy();
+    expect(fileExists(`${DOCUMENT_ROOT}/config.php`)).toBe(true);
+  });
+
+  /** Run PHP inside the package container as the uid the webserver uses. */
+  function inContainer(lines: string[]): string {
+    return execFileSync(
+      'docker',
+      ['compose', ...COMPOSE_FILES, 'exec', '-T', '-u', '1000', 'backend', 'php', '-r', lines.join('\n')],
+      { cwd: REPO_ROOT, encoding: 'utf8' }
+    ).trim();
+  }
+
+  function fileExists(path: string): boolean {
+    return inContainer([`echo is_file("${path}") ? "yes" : "no";`]) === 'yes';
   }
 });

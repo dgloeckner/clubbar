@@ -9,6 +9,13 @@ Options -MultiViews
     Require all denied
 </Files>
 
+# Names the directory holding config.php, the scanned mandates and the logs.
+# It is a .php file precisely so that a host ignoring this denial executes it
+# instead of printing the path (#245) — this block is the belt, not the braces.
+<Files "data-path.php">
+    Require all denied
+</Files>
+
 RewriteEngine On
 RewriteBase /
 

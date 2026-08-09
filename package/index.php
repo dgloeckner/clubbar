@@ -1,14 +1,26 @@
 <?php
 declare(strict_types=1);
 
-// --- Load config into environment ---
-$configFile = __DIR__ . '/config.php';
+// --- Locate the data directory ---
+// config.php, storage/ (scanned SEPA mandates) and logs/ live wherever the
+// installer could put them: above the document root on a host with a writable
+// parent, inside it otherwise. The pointer file names the choice; without one
+// this resolves to the in-document-root layout every older install has
+// (#245, ADR-0031 decision 2).
+require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
+
+$dataDir    = \App\Shared\Config\DataDirectory::resolve(__DIR__);
+$configFile = \App\Shared\Config\DataDirectory::configPath(__DIR__);
+
 if (!file_exists($configFile)) {
     header('Location: /install.php');
     exit;
 }
 
 $config = require $configFile;
+
+// The backend resolves storage/, logs/ and the session directory from this.
+$_ENV['DATA_DIR'] = $dataDir;
 
 // Map config array to environment variables (Env class reads $_ENV)
 $_ENV['DB_HOST'] = $config['db']['host'];
@@ -26,8 +38,9 @@ $_ENV['SESSION_REGEN_INTERVAL'] = (string) ($config['session']['regeneration_int
 if (isset($config['session']['cookie_secure'])) {
     $_ENV['SESSION_COOKIE_SECURE'] = $config['session']['cookie_secure'] ? 'true' : 'false';
 }
-// Optional override. Left unset, sessions are written to backend/storage/sessions
-// instead of the host's shared session directory — see RuntimeHardening (#246).
+// Optional override. Left unset, sessions are written to the data directory's
+// storage/sessions instead of the host's shared session directory — see
+// RuntimeHardening (#246).
 if (!empty($config['session']['save_path'])) {
     $_ENV['SESSION_SAVE_PATH'] = $config['session']['save_path'];
 }
