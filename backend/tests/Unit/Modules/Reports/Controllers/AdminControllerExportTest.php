@@ -62,7 +62,7 @@ class AdminControllerExportTest extends TestCase
 
     public function test_it_returns_the_member_ranking_as_a_csv_download(): void
     {
-        $this->service->method('exportMemberRankingCsv')->willReturn("Rank;Member\n1;Anna\n");
+        $this->service->method('exportMemberRankingCsv')->willReturn("Rank;Member\n1;Member 1\n");
 
         $response = $this->controller->exportMemberRanking(
             $this->request('/api/admin/reports/member-ranking/export'),
@@ -70,36 +70,52 @@ class AdminControllerExportTest extends TestCase
         );
 
         $this->assertCsvDownload($response, 'report-member-ranking');
-        $this->assertSame("Rank;Member\n1;Anna\n", $this->body($response));
+        $this->assertSame("Rank;Member\n1;Member 1\n", $this->body($response));
     }
 
     public function test_it_passes_the_ranking_filters_through(): void
     {
         $this->service->expects($this->once())
             ->method('exportMemberRankingCsv')
-            ->with('2026-01-01', '2026-01-31', true, 50)
+            ->with('2026-01-01', '2026-01-31', 50)
             ->willReturn('');
 
         $this->controller->exportMemberRanking(
             $this->request('/api/admin/reports/member-ranking/export', [
                 'date_from' => '2026-01-01',
                 'date_to' => '2026-01-31',
-                'anonymize' => 'true',
                 'limit' => '50',
             ]),
             new Response()
         );
     }
 
-    public function test_the_ranking_export_defaults_to_named_members_and_the_default_limit(): void
+    public function test_the_ranking_export_defaults_to_the_default_limit(): void
     {
         $this->service->expects($this->once())
             ->method('exportMemberRankingCsv')
-            ->with(null, null, false, 25)
+            ->with(null, null, 25)
             ->willReturn('');
 
         $this->controller->exportMemberRanking(
             $this->request('/api/admin/reports/member-ranking/export'),
+            new Response()
+        );
+    }
+
+    /**
+     * The named ranking is gone (#177) — an `anonymize=false` left over in a
+     * bookmark or a stale client must not talk the export back into names.
+     */
+    public function test_an_anonymize_query_parameter_is_ignored(): void
+    {
+        $this->service->expects($this->once())
+            ->method('exportMemberRankingCsv')
+            ->with(null, null, 25)
+            ->willReturn('');
+
+        $this->controller->exportMemberRanking(
+            $this->request('/api/admin/reports/member-ranking/export', ['anonymize' => 'false']),
             new Response()
         );
     }

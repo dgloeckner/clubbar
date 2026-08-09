@@ -187,14 +187,16 @@ class ReportsService
 
     /**
      * Export the member ranking as a CSV string (UC-A51).
+     *
+     * Anonymous like the on-screen ranking — a file is the easiest way for a
+     * profile to leave the building, so it gets no named mode either (#177).
      */
     public function exportMemberRankingCsv(
         ?string $dateFrom,
         ?string $dateTo,
-        bool $anonymize = false,
         int $limit = 25,
     ): string {
-        $ranking = $this->getMemberRanking($dateFrom, $dateTo, $anonymize, $limit);
+        $ranking = $this->getMemberRanking($dateFrom, $dateTo, $limit);
 
         return Csv::build(
             ['Rank', 'Member', 'Total EUR', 'Transactions'],
@@ -255,11 +257,15 @@ class ReportsService
 
     /**
      * Get member consumption ranking (UC-A51).
+     *
+     * The ranking is always anonymous (#177). A named leaderboard of who drinks
+     * most is a consumption profile, which ADR-0029 prohibits — and the label is
+     * the ordinal position within *this* report, never a stable alias, so a row
+     * cannot be re-identified by cross-referencing a second report.
      */
     public function getMemberRanking(
         ?string $dateFrom,
         ?string $dateTo,
-        bool $anonymize = false,
         int $limit = 25,
     ): array {
         $limit = min(max($limit, 1), 100);
@@ -278,9 +284,9 @@ class ReportsService
 
         $where = implode(' AND ', $conditions);
 
+        // Names are not selected at all — the aggregate never carries identity.
         $stmt = $this->db->prepare(
-            "SELECT m.id, m.first_name, m.last_name,
-                    SUM(t.amount_cents) as total_amount_cents,
+            "SELECT SUM(t.amount_cents) as total_amount_cents,
                     COUNT(*) as transaction_count
              FROM transactions t
              JOIN members m ON t.member_id = m.id
@@ -297,9 +303,7 @@ class ReportsService
         foreach ($rows as $row) {
             $data[] = [
                 'rank' => $rank,
-                'member_name' => $anonymize
-                    ? "Member {$rank}"
-                    : trim($row['first_name'] . ' ' . $row['last_name']),
+                'member_name' => "Member {$rank}",
                 'total_amount_cents' => (int) $row['total_amount_cents'],
                 'transaction_count' => (int) $row['transaction_count'],
             ];

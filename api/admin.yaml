@@ -2522,10 +2522,15 @@ paths:
       tags: [Reports]
       summary: Get member ranking
       description: |
-        Retrieve member ranking by consumption.
+        Retrieve the anonymous member ranking by consumption.
+
+        Rows are labelled by their ordinal position in this response
+        ("Member 1", "Member 2", …) and never by member name. The label is not
+        stable across reports, so rows cannot be re-identified by
+        cross-referencing two responses. There is no named mode: a named
+        consumption ranking is a profile, which ADR-0029 prohibits.
 
         **Use Case**: UC-A51
-        **Status**: Not implemented — action needed (2026-03-07 audit)
       operationId: getMemberRanking
       security:
         - sessionAuth: []
@@ -2540,12 +2545,6 @@ paths:
           schema:
             type: string
             format: date
-        - name: anonymize
-          in: query
-          description: Display anonymized member names
-          schema:
-            type: boolean
-            default: false
         - name: limit
           in: query
           description: Backend clamps to the 1-100 range regardless of the value sent
@@ -2571,7 +2570,10 @@ paths:
                           type: integer
                         member_name:
                           type: string
-                          description: Real name or "Member N" if anonymized
+                          description: |
+                            Always the ordinal label "Member N", where N is the
+                            row's rank in this response. Never a real name.
+                          example: Member 1
                         total_amount_cents:
                           type: integer
                         transaction_count:
@@ -2584,7 +2586,9 @@ paths:
       tags: [Reports]
       summary: Export member ranking as CSV
       description: |
-        Export the member ranking as CSV, with the same filters as the list endpoint.
+        Export the anonymous member ranking as CSV, with the same filters as the
+        list endpoint. The Member column carries the same ordinal labels
+        ("Member 1", "Member 2", …) — the export has no named mode either.
 
         **Use Case**: UC-A51
       operationId: exportMemberRanking
@@ -2601,12 +2605,6 @@ paths:
           schema:
             type: string
             format: date
-        - name: anonymize
-          in: query
-          description: Write anonymized member names
-          schema:
-            type: boolean
-            default: false
         - name: limit
           in: query
           description: Backend clamps to the 1-100 range regardless of the value sent

@@ -5,7 +5,7 @@
  * - Page structure and tab navigation
  * - Revenue report (default tab) with filters
  * - Consumption and Transactions tabs
- * - Member Ranking tab with anonymize toggle
+ * - Member Ranking tab (always anonymous — no display-mode toggle, #177)
  * - Terminal Activity tab with sessions and hourly chart
  *
  * Implements E2E Testing Patterns:
@@ -272,8 +272,12 @@ test.describe('Reports Page', () => {
       await expect(page.getByTestId('ranking-table')).toBeVisible()
     })
 
-    test('should display anonymize toggle', async ({ page }) => {
-      await expect(page.getByTestId('ranking-anonymize')).toBeVisible()
+    // #177: the ranking is always anonymous, so there is no display-mode
+    // toggle any more — only a note saying the labels are positional.
+    test('should not offer a named display mode', async ({ page }) => {
+      await waitForRankingLoaded(page)
+      await expect(page.getByTestId('ranking-anonymize')).toHaveCount(0)
+      await expect(page.getByTestId('ranking-anonymous-note')).toBeVisible()
     })
 
     test('should display limit selector', async ({ page }) => {
@@ -311,10 +315,7 @@ test.describe('Reports Page', () => {
       await expect(page.getByTestId('report-export-error')).toBeHidden()
     })
 
-    test('anonymize toggle should send anonymize param to API', async ({ page }) => {
-      // Click the toggle to enable anonymize
-      await page.getByTestId('ranking-anonymize').click()
-
+    test('should never ask the API for a named ranking', async ({ page }) => {
       const responsePromise = page.waitForResponse(
         (resp) => resp.url().includes('/reports/member-ranking') && resp.status() === 200
       )
@@ -322,7 +323,20 @@ test.describe('Reports Page', () => {
       const response = await responsePromise
 
       const url = new URL(response.url())
-      expect(url.searchParams.get('anonymize')).toBe('true')
+      expect(url.searchParams.has('anonymize')).toBe(false)
+
+      const body = await response.json()
+      for (const row of body.data) {
+        expect(row.member_name).toBe(`Member ${row.rank}`)
+      }
+    })
+
+    test('should show positional labels in the table, not member names', async ({ page }) => {
+      await waitForRankingLoaded(page)
+
+      const firstRow = page.getByTestId('report-row-0')
+      await expect(firstRow).toBeVisible()
+      await expect(firstRow.locator('td').nth(1)).toHaveText('Member 1')
     })
 
     test('limit selector should include standard options', async ({ page }) => {

@@ -8,7 +8,9 @@ const API_BASE = "http://localhost:8080/api";
  * Tests for GET /api/admin/reports/member-ranking endpoint.
  * Returns members ranked by total consumption amount.
  *
- * Query params: date_from, date_to, anonymize (boolean), limit (10|25|50|100)
+ * Query params: date_from, date_to, limit (10|25|50|100)
+ *
+ * The ranking is always anonymous — there is no named mode (#177).
  *
  * Test Data Isolation (E2E Pattern 001):
  * - Tests use existing seeded data (read-only endpoint)
@@ -102,42 +104,121 @@ test.describe("Member Ranking API", () => {
   });
 
   // ========== ANONYMIZATION ==========
+  //
+  // The ranking has no named mode (#177). A named leaderboard of who drinks
+  // most is the consumption profile ADR-0029 prohibits, so it was removed
+  // rather than gated — and the label is the ordinal position within a single
+  // response, never a stable alias that two reports could be joined on.
 
-  test("anonymize=true produces anonymized names", async ({
+  /**
+   * A member whose purchase is big enough to land at rank 1, so the top of the
+   * ranking is a name this test knows and can go looking for. Returns the
+   * surname, which is unique per run (Pattern 001).
+   */
+  async function seedTopSpender(
+    authenticatedRequest: any,
+    testTransactions: any
+  ): Promise<string> {
+    const testId = `rank-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const lastName = `Topspender${testId}`;
+    const response = await authenticatedRequest.post(
+      `${API_BASE}/admin/members`,
+      {
+        data: {
+          first_name: "Rankcheck",
+          last_name: lastName,
+          email: `${testId}@test.example`,
+          iban: "DE89370400440532013000",
+          mandate_signed_at: "2024-12-15",
+          preferred_language: "de",
+        },
+      }
+    );
+    expect(response.status()).toBe(201);
+    const member = await response.json();
+
+    // Well clear of the small amounts the other suites book, so this member
+    // sits at the top of the ranking and is inside any limit the test asks for.
+    await testTransactions.createSyncTransaction(
+      member.id,
+      100_000,
+      `ranking seed ${testId}`
+    );
+
+    return lastName;
+  }
+
+  test("labels every row by rank and leaks no member name", async ({
     authenticatedRequest,
+    testTransactions,
   }) => {
+    const lastName = await seedTopSpender(authenticatedRequest, testTransactions);
+
     const response = await authenticatedRequest.get(
-      `${API_BASE}/admin/reports/member-ranking?anonymize=true`
+      `${API_BASE}/admin/reports/member-ranking?limit=100`
     );
 
     expect(response.status()).toBe(200);
-    const body = await response.json();
+    const raw = await response.text();
+    const body = JSON.parse(raw);
 
-    if (body.data.length > 0) {
-      for (const member of body.data) {
-        // Anonymized names should follow "Member N" pattern
-        expect(member.member_name).toMatch(/^Member \d+$/);
-      }
+    // The seeded member outspends everyone, so the ranking is non-empty and
+    // this assertion is never vacuous.
+    expect(body.data.length).toBeGreaterThan(0);
+    for (const member of body.data) {
+      expect(member.member_name).toBe(`Member ${member.rank}`);
     }
+
+    // The name that is definitely in the ranking is nowhere in the response.
+    expect(raw).not.toContain(lastName);
+    expect(raw).not.toContain("Rankcheck");
   });
 
-  test("default shows real member names (not anonymized)", async ({
+  test("an anonymize=false parameter does not bring names back", async ({
     authenticatedRequest,
+    testTransactions,
   }) => {
+    const lastName = await seedTopSpender(authenticatedRequest, testTransactions);
+
     const response = await authenticatedRequest.get(
-      `${API_BASE}/admin/reports/member-ranking`
+      `${API_BASE}/admin/reports/member-ranking?limit=100&anonymize=false`
     );
 
     expect(response.status()).toBe(200);
-    const body = await response.json();
+    const raw = await response.text();
+    const body = JSON.parse(raw);
 
-    if (body.data.length > 0) {
-      // At least one member name should NOT match "Member N" pattern
-      const hasRealName = body.data.some(
-        (m: any) => !/^Member \d+$/.test(m.member_name)
-      );
-      expect(hasRealName).toBe(true);
+    expect(body.data.length).toBeGreaterThan(0);
+    for (const member of body.data) {
+      expect(member.member_name).toBe(`Member ${member.rank}`);
     }
+    expect(raw).not.toContain(lastName);
+  });
+
+  test("export writes the same ordinal labels, not names", async ({
+    authenticatedRequest,
+    testTransactions,
+  }) => {
+    const lastName = await seedTopSpender(authenticatedRequest, testTransactions);
+
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/member-ranking/export?limit=100&anonymize=false`
+    );
+
+    expect(response.status()).toBe(200);
+    const csv = await response.text();
+    const dataLines = csv
+      .split("\n")
+      .slice(1)
+      .filter((line) => line.length > 0);
+
+    expect(dataLines.length).toBeGreaterThan(0);
+    dataLines.forEach((line, index) => {
+      const fields = line.split(";");
+      expect(fields[0]).toBe(String(index + 1));
+      expect(fields[1]).toBe(`Member ${index + 1}`);
+    });
+    expect(csv).not.toContain(lastName);
   });
 
   // ========== DATE RANGE FILTERING ==========

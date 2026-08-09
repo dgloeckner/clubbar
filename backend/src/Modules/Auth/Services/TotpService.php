@@ -9,6 +9,9 @@ use RobThree\Auth\TwoFactorAuth;
 
 class TotpService
 {
+    /** AES-256 takes a 32-byte key, which is 64 hex characters. */
+    private const KEY_BYTES = 32;
+
     private TwoFactorAuth $tfa;
     private string $encryptionKey;
 
@@ -19,8 +22,37 @@ class TotpService
             issuer: $issuer,
             qrcodeprovider: new ChillerlanQrProvider(),
         );
-        $keyHex = Env::get('TOTP_ENCRYPTION_KEY');
-        $this->encryptionKey = hex2bin($keyHex);
+        $this->encryptionKey = self::decodeKey(Env::get('TOTP_ENCRYPTION_KEY'));
+    }
+
+    /**
+     * Turn the configured hex string into the raw AES-256 key.
+     *
+     * This is checked rather than assumed because openssl fails *quietly* on a
+     * bad key: it pads anything shorter than 32 bytes with NUL. An empty key —
+     * which is exactly what `package/index.php` produces when
+     * `security.totp_encryption_key` is absent from config.php — would encrypt
+     * every secret under 32 NUL bytes, the same key on every such install, and
+     * nothing would report a problem. A short or truncated key is the same
+     * failure in milder form.
+     *
+     * The wrong length is therefore an error, not a warning, and the message
+     * names the variable so an operator can act on it.
+     */
+    private static function decodeKey(string $keyHex): string
+    {
+        $expectedHexLength = self::KEY_BYTES * 2;
+
+        if (strlen($keyHex) !== $expectedHexLength || !ctype_xdigit($keyHex)) {
+            throw new \RuntimeException(sprintf(
+                'TOTP_ENCRYPTION_KEY must be %d hexadecimal characters (%d bytes); got %d character(s).',
+                $expectedHexLength,
+                self::KEY_BYTES,
+                strlen($keyHex),
+            ));
+        }
+
+        return hex2bin($keyHex);
     }
 
     /**

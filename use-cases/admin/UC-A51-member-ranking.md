@@ -1,6 +1,6 @@
 # UC-A51: Member Ranking
 
-**Implementation Status**: Partially implemented — action needed (see plans/action-items-use-cases.md)
+**Implementation Status**: Implemented
 
 ## Actor
 Admin
@@ -13,52 +13,63 @@ Admin opens Reports → Member Ranking
 
 ## Main Flow
 1. Admin clicks "Member Ranking" in Reports
-2. Admin selects date range
-3. Admin chooses display mode (named or anonymized)
-4. System calculates and displays ranking
-5. Admin can view top N members by consumption
+2. Admin selects date range and how many rows to show
+3. System calculates and displays the ranking
+4. Admin can view the top N consumption figures
 
-## Display Modes
+## Display Mode
 
-### ~~Named Mode~~ ⚠️ **Conflicts with [ADR-0029](../../adr/0029-two-tier-retention-and-erasure.md)**
+The ranking is **always anonymous**. There is no display-mode choice, no named
+mode, and no parameter that produces one.
 
-~~Shows member names. Full detail view. For internal use only.~~
+Rows are labelled `Member 1`, `Member 2`, … by their **ordinal position in the
+response being rendered**. The label is not a persistent alias: `Member 1` in a
+January report and `Member 1` in a February report are, in general, different
+people. That matters — a stable pseudonym is re-identifiable by anyone who can
+put a name to a single row and then carry it across every other report.
 
-A **named ranking of members by consumption** is precisely the consumption-profile view ADR-0029 prohibits: it converts a billing record into a behavioural profile, and it is the strongest evidence a supervisory authority would use to argue that a decade of drink records is Art. 9 special-category data (see [`research/art9-rfid-display-retention.md`](../../research/art9-rfid-display-retention.md)).
+### Why named mode was removed
 
-"For internal use only" is not a mitigation — the concern is the existence of the profile, not who reads it.
+A **named ranking of members by consumption** is precisely the
+consumption-profile view [ADR-0029](../../adr/0029-two-tier-retention-and-erasure.md)
+prohibits: it converts a billing record into a behavioural profile, and it is
+the strongest evidence a supervisory authority would use to argue that a decade
+of drink records is Art. 9 special-category data (see
+[`research/art9-rfid-display-retention.md`](../../research/art9-rfid-display-retention.md)).
+It would also make the Art. 13(2)(f) privacy notice false, which declares that
+no profiling occurs.
 
-**Decision needed:** remove named mode, or keep it under a narrower justification. Anonymised mode is unaffected.
+"For internal use only" is not a mitigation — the concern is the existence of
+the profile, not who reads it.
 
-### Anonymized Mode
-- Shows "Member 1", "Member 2", etc.
-- For public display or sharing
+Anonymous aggregate statistics are unaffected, and match the § 27 Abs. 3 BDSG
+anonymise-early pattern.
 
 ## Ranking Table
 
 | Column | Content |
 |--------|---------|
 | Rank | Position (1, 2, 3...) |
-| Member | Name or "Member N" |
+| Member | Ordinal label for this report ("Member N") |
 | Total | Total consumption amount |
 | Count | Transaction count |
 
 ## Options
-- Top N (10, 25, 50, All)
-- Minimum transactions (filter out one-time)
+- Top N (10, 25, 50, 100)
 
 ## Postconditions
 - Ranking displayed
 
 ## Privacy Note
-- Anonymized mode for sharing outside organization
-- Named mode requires admin access
+- The ranking never carries member names, in the UI, the API or the CSV export
+- Names are not even read from the database — the query aggregates without selecting them
+- Labels are positional, so two reports cannot be joined on them
 
 ## Test Derivation
 - Ranking order: highest first
 - Date range: only transactions in range
-- Anonymized: no real names shown
-- Named: real names shown
+- Every label is `Member <rank>`; no real name appears anywhere in the response
+- An `anonymize` parameter left over in a bookmark or stale client changes nothing
+- CSV export carries the same positional labels
 - Top N: correct count displayed
-- Ties: same rank for equal amounts
 - Empty period: "No data" message
