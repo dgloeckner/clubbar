@@ -26,6 +26,11 @@ $_ENV['SESSION_REGEN_INTERVAL'] = (string) ($config['session']['regeneration_int
 if (isset($config['session']['cookie_secure'])) {
     $_ENV['SESSION_COOKIE_SECURE'] = $config['session']['cookie_secure'] ? 'true' : 'false';
 }
+// Optional override. Left unset, sessions are written to backend/storage/sessions
+// instead of the host's shared session directory — see RuntimeHardening (#246).
+if (!empty($config['session']['save_path'])) {
+    $_ENV['SESSION_SAVE_PATH'] = $config['session']['save_path'];
+}
 $_ENV['API_TOKEN_TTL_DAYS'] = (string) ($config['api_token']['ttl_days'] ?? 90);
 $_ENV['TOTP_ENCRYPTION_KEY'] = $config['security']['totp_encryption_key'] ?? '';
 $_ENV['LLM_PROVIDER']        = $config['llm']['provider'] ?? '';

@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 
 /**
  * Package smoke tests -- verify the shared hosting package works end-to-end.
@@ -158,4 +160,80 @@ test.describe.serial('Package: Upgrade Runner', () => {
     const response = await request.get(`${PACKAGE_URL}/.upgrade-secret`);
     expect(response.status()).toBe(403);
   });
+});
+
+/**
+ * ADR-0031 decision 1: the PHP runtime settings the deployment depends on are
+ * applied by the application, so they hold on a host whose php.ini we never
+ * see. This block measures the shipped package rather than the source tree —
+ * "did we regress the package?" is the question the smoke suite exists to
+ * answer, and a build that dropped `backend/src/Shared/Security` would still
+ * pass every unit test.
+ *
+ * Runs last on purpose: it drives PHP inside the container as the web user, so
+ * anything it creates on disk (the session directory) is created the way a
+ * request would have created it, after the tests that use sessions have run.
+ */
+test.describe('Package: Runtime hardening', () => {
+  test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
+
+  const REPO_ROOT = path.resolve(__dirname, '../../..');
+  const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.package.yml'];
+
+  /**
+   * The only hardening measure a caller can observe from outside, and the one
+   * that has no other layer behind it: `expose_php` is PHP_INI_SYSTEM, so no
+   * file the package ships can switch it off on shared hosting.
+   */
+  test('no response advertises the PHP version', async ({ request }) => {
+    for (const url of [`${PACKAGE_URL}/api/health`, `${PACKAGE_URL}/`]) {
+      const response = await request.get(url);
+      expect(response.headers()['x-powered-by'], `X-Powered-By on ${url}`).toBeUndefined();
+    }
+  });
+
+  // No docker guard: PACKAGE_TEST=1 already means the package is being served
+  // by the compose stack this reaches into. If docker were missing, nothing in
+  // this file could have run.
+  test('the packaged application applies its runtime directives', async () => {
+    const effective = measurePackagedRuntime();
+
+    // Read back with ini_get() — the effective value, not the intent.
+    expect(effective['display_errors']).toBe('0');
+    expect(effective['log_errors']).toBe('1');
+    expect(effective['zend.exception_ignore_args']).toBe('1');
+    expect(effective['session.use_strict_mode']).toBe('1');
+    expect(effective['session.use_only_cookies']).toBe('1');
+    expect(effective['session.use_trans_sid']).toBe('0');
+    // Session files belong to the installation, not to whatever directory the
+    // host shares between its accounts.
+    expect(effective['session.save_path']).toBe('/app/backend/storage/sessions');
+    expect(effective['warnings']).toEqual([]);
+  });
+
+  /**
+   * Applies the hardening inside the running package container and reports what
+   * PHP ended up with. Run as uid 1000, the uid the web server runs the
+   * application as, so the session directory it may create is owned the way a
+   * real request would own it.
+   */
+  function measurePackagedRuntime(): Record<string, string | string[]> {
+    const script = [
+      'require "/app/backend/vendor/autoload.php";',
+      '$warnings = App\\Shared\\Security\\RuntimeHardening::apply(new App\\Shared\\Config\\AppConfig(), false);',
+      '$keys = ["display_errors", "log_errors", "zend.exception_ignore_args", "session.use_strict_mode",',
+      '  "session.use_only_cookies", "session.use_trans_sid", "session.save_path"];',
+      '$out = ["warnings" => $warnings];',
+      'foreach ($keys as $key) { $out[$key] = ini_get($key); }',
+      'echo json_encode($out);',
+    ].join('\n');
+
+    const output = execFileSync(
+      'docker',
+      ['compose', ...COMPOSE_FILES, 'exec', '-T', '-u', '1000', 'backend', 'php', '-r', script],
+      { cwd: REPO_ROOT, encoding: 'utf8' }
+    );
+
+    return JSON.parse(output.trim());
+  }
 });

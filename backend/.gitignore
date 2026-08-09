@@ -6,6 +6,10 @@
 # Uploaded mandate documents are runtime state, and member data at that.
 # Every local E2E run leaves a few behind; none of them belong in the repo.
 /storage/mandates/*.pdf
+# Session files, moved here from the host's shared directory by
+# RuntimeHardening (#246). Every local run creates them; a session file is a
+# login, so none of them belong in the repo.
+/storage/sessions/
 *.php.disabled
 .DS_Store
 Thumbs.db

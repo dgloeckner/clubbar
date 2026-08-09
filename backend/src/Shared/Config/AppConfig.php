@@ -11,6 +11,7 @@ class AppConfig
     public readonly int    $sessionMaxAge;
     public readonly int    $sessionRegenInterval;
     public readonly bool   $sessionCookieSecure;
+    public readonly string $sessionSavePath;
     public readonly int    $tokenTtlDays;
     public readonly string $logDir;
     public readonly string $installKey;
@@ -27,6 +28,7 @@ class AppConfig
         $this->debug                = filter_var(Env::get('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN);
         $this->sessionMaxAge        = (int) Env::get('SESSION_MAX_AGE', '7200');
         $this->sessionRegenInterval = (int) Env::get('SESSION_REGEN_INTERVAL', '900');
+        $this->sessionSavePath      = self::resolveSessionSavePath();
         $this->tokenTtlDays         = self::readTokenTtlDays();
         $this->logDir               = __DIR__ . '/../../../logs';
         $this->installKey           = Env::get('INSTALL_KEY', '');
@@ -104,6 +106,27 @@ class AppConfig
         }
 
         return ((int) ($_SERVER['SERVER_PORT'] ?? 0)) === 443;
+    }
+
+    /**
+     * Where PHP writes session files (#246, ADR-0031 decision 1).
+     *
+     * Left to the host, sessions land in a directory shared with every other
+     * account on the machine, where a readable session file is an admin login.
+     * The default here is app-private and next to the other writable state.
+     *
+     * `SESSION_SAVE_PATH` overrides it, and is the seam the installer's data
+     * directory (#245) plugs into once it can resolve a location outside the
+     * document root — nothing else has to change for the sessions to follow.
+     */
+    private static function resolveSessionSavePath(): string
+    {
+        $configured = trim(Env::get('SESSION_SAVE_PATH', ''));
+        if ($configured !== '') {
+            return rtrim($configured, '/');
+        }
+
+        return dirname(__DIR__, 3) . '/storage/sessions';
     }
 
     /**

@@ -7,6 +7,7 @@ require __DIR__ . '/vendor/autoload.php';
 use App\Shared\Config\Env;
 use App\Shared\Config\AppConfig;
 use App\Shared\Logging\Logger;
+use App\Shared\Security\RuntimeHardening;
 use App\ServiceFactory;
 use Slim\Factory\AppFactory;
 
@@ -16,19 +17,22 @@ if (file_exists($envFile)) {
     Env::load($envFile);
 }
 
-// Build core dependencies
 $config = new AppConfig();
+
+// Runtime hardening first: it decides whether the failure of anything below
+// this line — the database connection especially, which is outside Slim's error
+// handler — reaches the browser as a stack trace (#246, ADR-0031 decision 1).
+// It also owns every session directive, set here because PHP refuses them once
+// a session has started.
+$hardeningWarnings = RuntimeHardening::apply($config);
+
 $logger = new Logger($config->logDir, $config->debug ? 'DEBUG' : 'INFO');
 
-// Configure session lifetime and cookie parameters globally before any session_start()
-ini_set('session.gc_maxlifetime', (string) $config->sessionMaxAge);
-session_set_cookie_params([
-    'lifetime' => $config->sessionMaxAge,
-    'path'     => '/',
-    'secure'   => $config->sessionCookieSecure,
-    'httponly' => true,
-    'samesite' => 'Lax',
-]);
+// A directive the host would not allow is a real gap in the deployment, not a
+// detail — it belongs in the log where an admin can find it after the fact.
+foreach ($hardeningWarnings as $warning) {
+    $logger->warning($warning);
+}
 
 $pdo = new PDO(
     sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', Env::get('DB_HOST'), Env::get('DB_NAME')),
