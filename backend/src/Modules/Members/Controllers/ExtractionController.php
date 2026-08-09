@@ -6,6 +6,7 @@ namespace App\Modules\Members\Controllers;
 
 use App\Modules\Members\Contracts\ExtractionServiceInterface;
 use App\Shared\Http\JsonResponder;
+use App\Shared\Utils\MimeSniffer;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -56,17 +57,20 @@ class ExtractionController
             ], 422);
         }
 
-        $mimeType = $uploadedFile->getClientMediaType() ?? '';
+        $stream = $uploadedFile->getStream();
+        $stream->rewind();
+        $bytes = (string) $stream->getContents();
+
+        // Sniffed, not declared: the multipart Content-Type is the client's word
+        // for what it sent, and the type decides what gets forwarded to the LLM
+        // provider as an image part (#107).
+        $mimeType = MimeSniffer::detect($bytes);
         if (!in_array($mimeType, self::ALLOWED_MIME_TYPES, true)) {
             return $this->json($response, [
                 'error'    => 'validation_error',
                 'messages' => ['file' => ["Unsupported file type '{$mimeType}'. Allowed: JPEG, PNG."]],
             ], 422);
         }
-
-        $stream = $uploadedFile->getStream();
-        $stream->rewind();
-        $bytes = (string) $stream->getContents();
 
         try {
             $result = $this->extractionService->extract($bytes, $mimeType);

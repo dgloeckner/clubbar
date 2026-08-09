@@ -364,8 +364,10 @@ function checkPrerequisites(): array
         'value' => PHP_VERSION,
     ];
 
-    // Required extensions
-    foreach (['pdo_mysql', 'json', 'mbstring'] as $ext) {
+    // Required extensions. `fileinfo` is what types an uploaded mandate from
+    // its own bytes rather than from the Content-Type the browser attached
+    // (#107) — without it, uploading a document fails.
+    foreach (['pdo_mysql', 'json', 'mbstring', 'fileinfo'] as $ext) {
         $checks[] = [
             'name' => "Extension: {$ext}",
             'ok' => extension_loaded($ext),

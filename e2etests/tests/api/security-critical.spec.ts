@@ -134,3 +134,25 @@ test.describe('C3: No stack traces in error responses', () => {
     expect(body).not.toHaveProperty('line');
   });
 });
+
+// ============================================================
+// #107: Responses carry X-Content-Type-Options: nosniff
+// The header is set globally rather than per route, so a browser never
+// re-types a response from its bytes — which matters most on the endpoint
+// that streams an admin-uploaded mandate PDF back. Asserted with toContain:
+// public/.htaccess sets it too, so an Apache-served response repeats the
+// value, which the Fetch spec's comma-split reading handles.
+// ============================================================
+test.describe('#107: nosniff on every response', () => {
+  test('a successful API response is marked nosniff', async ({ request }) => {
+    const response = await request.get(`${API_BASE}/api/health`);
+    expect(response.status()).toBe(200);
+    expect(response.headers()['x-content-type-options']).toContain('nosniff');
+  });
+
+  test('an error response is marked nosniff too', async ({ request }) => {
+    const response = await request.get(`${API_BASE}/api/nonexistent-endpoint-xyz`);
+    expect(response.status()).toBe(404);
+    expect(response.headers()['x-content-type-options']).toContain('nosniff');
+  });
+});

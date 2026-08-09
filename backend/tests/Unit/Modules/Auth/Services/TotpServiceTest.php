@@ -16,8 +16,10 @@ class TotpServiceTest extends TestCase
     // whenever a test just needs *a* valid key rather than the default one.
     private const VALID_KEY = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2';
 
-    // Same value published in backend/.env.example — anyone who reads the repo knows it.
-    private const DOT_ENV_EXAMPLE_DEFAULT_KEY = '0000000000000000000000000000000000000000000000000000000000000001';
+    // The fixed development key. It is in docker-compose.yml and in db/seed.sql,
+    // so anyone who reads the repo knows it — which is the whole reason a
+    // deployment must not run on it.
+    private const PUBLISHED_DEVELOPMENT_KEY = '0000000000000000000000000000000000000000000000000000000000000001';
 
     /** The process-level key, if the surrounding environment set one. */
     private ?string $processKey = null;
@@ -61,9 +63,15 @@ class TotpServiceTest extends TestCase
         );
     }
 
-    private function service(string $key = self::VALID_KEY): TotpService
+    /**
+     * APP_ENV is pinned rather than inherited: docker-compose sets it to `local`
+     * for the backend container and CI leaves it unset (which reads as
+     * production), and the published-key rule turns on exactly that difference.
+     */
+    private function service(string $key = self::VALID_KEY, string $appEnv = 'local'): TotpService
     {
         $_ENV['TOTP_ENCRYPTION_KEY'] = $key;
+        $_ENV['APP_ENV'] = $appEnv;
         return new TotpService();
     }
 
@@ -119,14 +127,63 @@ class TotpServiceTest extends TestCase
         ];
     }
 
-    public function test_constructor_accepts_the_dot_env_example_default_key_without_any_warning(): void
-    {
-        // Documents the current gap: nothing rejects the well-known example key,
-        // even though anyone who has read the public repo can decrypt with it.
-        $service = $this->service(self::DOT_ENV_EXAMPLE_DEFAULT_KEY);
+    // ── The published development key (#107) ───────────────
 
-        $encrypted = $service->encrypt('JBSWY3DPEHPK3PXP');
-        $this->assertSame('JBSWY3DPEHPK3PXP', $service->decrypt($encrypted));
+    public function test_constructor_rejects_the_published_development_key_in_production(): void
+    {
+        $_ENV['TOTP_ENCRYPTION_KEY'] = self::PUBLISHED_DEVELOPMENT_KEY;
+        $_ENV['APP_ENV'] = 'production';
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('openssl rand -hex 32');
+        new TotpService();
+    }
+
+    /**
+     * An operator who never sets APP_ENV is deploying, not developing — the
+     * default has to be the strict side of the rule, or the check is opt-in for
+     * exactly the installs that need it.
+     */
+    public function test_constructor_rejects_the_published_key_when_app_env_is_unset(): void
+    {
+        $_ENV['TOTP_ENCRYPTION_KEY'] = self::PUBLISHED_DEVELOPMENT_KEY;
+        unset($_ENV['APP_ENV']);
+        putenv('APP_ENV');
+        Env::reset();
+
+        $this->expectException(\RuntimeException::class);
+        new TotpService();
+    }
+
+    /** @dataProvider developmentEnvironments */
+    public function test_constructor_accepts_the_published_key_in_development(string $appEnv): void
+    {
+        // seed.sql pre-encrypts the test admin's TOTP secret with this key, so
+        // the dev stack and the E2E suite genuinely need it to work.
+        $service = $this->service(self::PUBLISHED_DEVELOPMENT_KEY, $appEnv);
+
+        $this->assertSame('JBSWY3DPEHPK3PXP', $service->decrypt($service->encrypt('JBSWY3DPEHPK3PXP')));
+    }
+
+    /** @return array<string, array{string}> */
+    public static function developmentEnvironments(): array
+    {
+        return [
+            // What docker-compose.yml sets.
+            'local' => ['local'],
+            // What docker-compose.ci.yml sets.
+            'test' => ['test'],
+            'development' => ['development'],
+            // Case is not the operator's problem.
+            'Local, capitalised' => ['Local'],
+        ];
+    }
+
+    public function test_a_self_generated_key_is_accepted_in_production(): void
+    {
+        $service = $this->service(self::VALID_KEY, 'production');
+
+        $this->assertSame('JBSWY3DPEHPK3PXP', $service->decrypt($service->encrypt('JBSWY3DPEHPK3PXP')));
     }
 
     public function test_generateSecret_returns_a_nonempty_base32_secret(): void

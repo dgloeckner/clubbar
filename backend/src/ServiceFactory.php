@@ -89,6 +89,7 @@ use App\Shared\Middleware\CsrfMiddleware;
 use App\Shared\Middleware\ErrorHandler;
 use App\Shared\Middleware\JsonBodyParser;
 use App\Shared\Middleware\RateLimitMiddleware;
+use App\Shared\Middleware\SecurityHeaders;
 use App\Shared\Middleware\TerminalOasValidator;
 use League\OpenAPIValidation\PSR15\ValidationMiddlewareBuilder;
 
@@ -158,6 +159,7 @@ class ServiceFactory implements ContainerInterface
         JsonBodyParser::class => 'getJsonBodyParser',
         ErrorHandler::class => 'getErrorHandler',
         RateLimitMiddleware::class => 'getRateLimitMiddleware',
+        SecurityHeaders::class => 'getSecurityHeaders',
     ];
 
     public function __construct(
@@ -445,6 +447,11 @@ class ServiceFactory implements ContainerInterface
     public function getErrorHandler(): ErrorHandler
     {
         return $this->resolve(ErrorHandler::class, fn() => new ErrorHandler($this->logger, $this->config->debug));
+    }
+
+    public function getSecurityHeaders(): SecurityHeaders
+    {
+        return $this->resolve(SecurityHeaders::class, fn() => new SecurityHeaders());
     }
 
     /**
