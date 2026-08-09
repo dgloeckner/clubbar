@@ -120,12 +120,12 @@ FAILED=()
 if [ "$CHECK_ONLY" -eq 1 ]; then
     echo "=== Mirror status ($MIRROR_NS) ==="
     echo ""
-    printf '%-28s %-22s %s\n' "UPSTREAM" "MIRROR ARCHES" "UPSTREAM ARCHES"
+    printf '%-28s %-38s %s\n' "UPSTREAM" "MIRROR ARCHES" "UPSTREAM ARCHES"
     for upstream in "${IMAGES[@]}"; do
         mirror="$(mirror_ref "$upstream")"
         mirror_arches="$(architectures_of "$mirror")"
         upstream_arches="$(architectures_of "$upstream")"
-        printf '%-28s %-22s %s\n' \
+        printf '%-28s %-38s %s\n' \
             "$upstream" "${mirror_arches:-MISSING}" "${upstream_arches:-unreadable}"
         # An arm64-only mirror is worse than none: it pulls fine and then dies
         # with "exec format error" on every amd64 host, which reads as a broken
@@ -157,16 +157,28 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
     exit 1
 fi
 
+LOG="$(mktemp)"
+trap 'rm -f "$LOG"' EXIT
+DENIED=()
+
 echo "=== Mirroring ${#IMAGES[@]} image(s) to $MIRROR_NS ==="
 for upstream in "${IMAGES[@]}"; do
     mirror="$(mirror_ref "$upstream")"
     echo ""
     echo "--- $upstream -> $mirror"
-    if docker buildx imagetools create --tag "$mirror" "$upstream"; then
+    # Streamed and captured: the output is worth seeing live, and worth
+    # classifying afterwards. pipefail makes the pipeline carry docker's status.
+    if docker buildx imagetools create --tag "$mirror" "$upstream" 2>&1 | tee "$LOG"; then
         echo "    architectures: $(architectures_of "$mirror")"
     else
         echo "    FAILED" >&2
         FAILED+=("$upstream")
+        # A 403 here is a package-permission problem, not a broken script, and
+        # it is invisible in a wall of blob-copy lines. Name it now so the fix
+        # is in the failure rather than in someone's memory.
+        if grep -q 'permission_denied: write_package' "$LOG"; then
+            DENIED+=("$mirror")
+        fi
     fi
 done
 
@@ -177,4 +189,28 @@ if [ "${#FAILED[@]}" -eq 0 ]; then
 fi
 echo "=== ${#FAILED[@]} of ${#IMAGES[@]} image(s) failed ===" >&2
 for f in "${FAILED[@]}"; do echo "  - $f" >&2; done
+
+if [ "${#DENIED[@]}" -gt 0 ]; then
+    # GITHUB_TOKEN may create new packages in the owner's namespace, but it can
+    # only write an *existing* package that is linked to this repository. A
+    # package first pushed with a personal token is not, so the token that
+    # creates node/httpd fine still gets 403 on mariadb/php-apache.
+    cat >&2 <<EOF
+
+The registry refused the write (403 permission_denied: write_package) for:
+$(printf '  - %s\n' "${DENIED[@]}")
+
+The token can create new packages but cannot write these, which means they
+already exist and are not linked to this repository. Either:
+
+  1. Open each package's settings on GitHub -> "Manage Actions access" ->
+     add dgloeckner/clubbar with the Write role; or
+  2. Set a GHCR_TOKEN repository secret (a PAT with write:packages).
+     .github/workflows/mirror-images.yaml prefers it over GITHUB_TOKEN.
+
+Until then those mirrors keep whatever they hold now, and
+scripts/pull-images.sh falls back to Docker Hub when they do not match the
+host architecture.
+EOF
+fi
 exit 1

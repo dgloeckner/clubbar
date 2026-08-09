@@ -20,8 +20,12 @@ on:
   # Manual: after adding an image to scripts/mirrored-images.txt, or to
   # re-copy after an upstream tag moved.
   workflow_dispatch:
-  # The image list changed — mirror whatever it now names.
+  # The image list changed — mirror whatever it now names. main only: this job
+  # writes to a registry other people pull from, so it should run on reviewed
+  # code, not on every branch that happens to touch the list.
   push:
+    branches:
+      - main
     paths:
       - 'scripts/mirrored-images.txt'
       - 'scripts/mirror-images.sh'
