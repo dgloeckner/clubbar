@@ -8,7 +8,8 @@ use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use Tests\Feature\DatabaseTestCase;
 
 /**
- * Ordering of the audit trail (#125).
+ * Ordering of the audit trail (#125), and the scrub that answers an erasure
+ * request (#115).
  *
  * The audit screen has always shown a sort control over the timestamp column.
  * The query behind it had `ORDER BY al.created_at DESC` hard-coded, so the
@@ -83,6 +84,63 @@ class AuditLogRepositoryTest extends DatabaseTestCase
         $this->repository->listWithFilters(10, 0, [], 'ip_address', 'asc');
     }
 
+    // ------------------------------------------------------------------
+    // The scrub behind an Art. 17 erasure (#115)
+    // ------------------------------------------------------------------
+
+    public function test_scrubByEntityId_empties_the_payloads_and_keeps_the_entries(): void
+    {
+        $memberId = $this->entityId();
+        $created = $this->insertEntry($memberId, 'create', '2026-03-01 09:00:00', payload: [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+        ]);
+
+        $this->assertSame(1, $this->repository->scrubByEntityId($memberId));
+
+        $row = $this->fetchEntry($created);
+        // The entry survives: *that* an admin created this member, and when,
+        // is the accountability record. Only the personal data goes.
+        $this->assertNotNull($row);
+        $this->assertSame('create', $row['action']);
+        $this->assertNull($row['old_values']);
+        $this->assertNull($row['new_values']);
+    }
+
+    /**
+     * The sweep is keyed on the id and not on the entity type the row claims.
+     * A member-scoped entry filed under the wrong type used to survive the
+     * erasure with its payload intact, and the completeness of an erasure
+     * cannot depend on every writer having got the type right (#115).
+     */
+    public function test_scrubByEntityId_reaches_an_entry_filed_under_another_entity_type(): void
+    {
+        $memberId = $this->entityId();
+        $mistyped = $this->insertEntry(
+            $memberId,
+            'update',
+            '2026-03-01 10:00:00',
+            entityType: 'terminal',
+            payload: ['email' => 'ada@example.com'],
+        );
+
+        $this->assertSame(1, $this->repository->scrubByEntityId($memberId));
+
+        $this->assertNull($this->fetchEntry($mistyped)['new_values']);
+    }
+
+    public function test_scrubByEntityId_leaves_every_other_entity_alone(): void
+    {
+        $memberId = $this->entityId();
+        $otherId = $this->entityId();
+        $this->insertEntry($memberId, 'create', '2026-03-01 09:00:00', payload: ['first_name' => 'Ada']);
+        $untouched = $this->insertEntry($otherId, 'create', '2026-03-01 09:00:00', payload: ['first_name' => 'Grace']);
+
+        $this->assertSame(1, $this->repository->scrubByEntityId($memberId));
+
+        $this->assertSame(['first_name' => 'Grace'], json_decode($this->fetchEntry($untouched)['new_values'], true));
+    }
+
     /**
      * @param list<array<string, mixed>> $rows
      * @return list<int> PDO hands back the id as a string on some drivers.
@@ -97,13 +155,20 @@ class AuditLogRepositoryTest extends DatabaseTestCase
         return $this->generateUuid();
     }
 
-    private function insertEntry(string $entityId, string $action, string $createdAt): int
-    {
+    /** @param array<string, mixed>|null $payload */
+    private function insertEntry(
+        string $entityId,
+        string $action,
+        string $createdAt,
+        string $entityType = 'member',
+        ?array $payload = null,
+    ): int {
         $this->repository->insert([
             'admin_user_id' => null,
             'action' => $action,
-            'entity_type' => 'member',
+            'entity_type' => $entityType,
             'entity_id' => $entityId,
+            'new_values' => $payload,
             'ip_address' => '127.0.0.1',
             'user_agent' => 'phpunit',
             'created_at' => $createdAt,
@@ -113,5 +178,14 @@ class AuditLogRepositoryTest extends DatabaseTestCase
         $this->testEntryIds[] = $id;
 
         return $id;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function fetchEntry(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM audit_log WHERE id = ?');
+        $stmt->execute([$id]);
+
+        return $stmt->fetch() ?: null;
     }
 }

@@ -256,6 +256,9 @@ class SepaExportService
      * treasurer and the export's audit entry keeps it permanently; this puts
      * it in the application log too, because the one thing #114 describes is a
      * divergence nobody could see afterwards.
+     *
+     * Ids only, for the reason the audit summary gives: no erasure reaches a
+     * rotated log file, so a name written here is a name kept forever (#115).
      */
     private function warnAboutShortfall(string $settlementId, SepaExportResultDto $result): void
     {
@@ -270,7 +273,7 @@ class SepaExportService
             'collected_amount_cents' => $result->collectedAmountCents,
             'shortfall_amount_cents' => $result->shortfallAmountCents(),
             'excluded_members' => array_map(
-                static fn(ExcludedMemberDto $member): array => $member->toArray(),
+                static fn(ExcludedMemberDto $member): array => $member->toAuditArray(),
                 $uncollectable,
             ),
         ]);

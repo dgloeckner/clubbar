@@ -261,15 +261,37 @@ class MembersRepository
         return (bool) $stmt->fetch();
     }
 
-    public function anonymize(string $id): bool
+    /**
+     * Erase the person from the member row (GDPR Art. 17).
+     *
+     * Every column of the row that says something about the human being is
+     * nulled, not only the obvious contact fields (#115):
+     *
+     * - `collection_hold_reason` is free text composed at a bank return and
+     *   quotes the bank's reference for it. It is a narrative about this
+     *   person's payment history sitting on their own row, and it used to
+     *   survive the erasure that removed their name.
+     * - `deleted_by_admin_id` records *who* performed the erasure. It is the
+     *   admin's id rather than the member's data, and it was previously left
+     *   NULL here — the erasure had no accountable actor on the record at all,
+     *   because a member must still be live (`deleted_at IS NULL`) to be
+     *   anonymized, so nothing had ever written it.
+     *
+     * Banking data is deliberately *not* covered: `iban`, `mandate_reference`
+     * and `mandate_signed_at` are not columns of this table any more, they are
+     * read through the active-mandate join, and ending the mandate below is
+     * what makes all three read as NULL for the erased member. The mandate row
+     * itself is retained — see the note at the end of this method.
+     */
+    public function anonymize(string $id, ?string $adminUserId = null): bool
     {
         $now = date('Y-m-d H:i:s');
         // card_uid is VARCHAR(20), so use ANON- + 15 chars of UUID = 20 chars max
         $anonCardUid = 'ANON-' . substr(str_replace('-', '', Uuid::v4()), 0, 15);
         $stmt = $this->db->prepare(
-            'UPDATE members SET first_name = NULL, last_name = NULL, email = NULL, phone = NULL, account_holder_name = NULL, card_uid = ?, is_active = 0, deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+            'UPDATE members SET first_name = NULL, last_name = NULL, email = NULL, phone = NULL, account_holder_name = NULL, collection_hold_reason = NULL, card_uid = ?, is_active = 0, deleted_at = ?, deleted_by_admin_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
         );
-        $stmt->execute([$anonCardUid, $now, $now, $id]);
+        $stmt->execute([$anonCardUid, $now, $adminUserId, $now, $id]);
 
         if ($stmt->rowCount() === 0) {
             return false;

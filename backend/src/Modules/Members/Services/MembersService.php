@@ -268,7 +268,7 @@ class MembersService
         // with intact PII in the audit log.
         $this->db->beginTransaction();
         try {
-            $anonymized = $this->membersRepository->anonymize($memberId);
+            $anonymized = $this->membersRepository->anonymize($memberId, $adminUserId);
             if (!$anonymized) {
                 throw new BusinessRuleException('Anonymization failed');
             }
@@ -284,8 +284,13 @@ class MembersService
             // carry the member's name, so the scrub has to sweep it up too.
             $orphanedMandateFile = $this->mandateDocumentService->deleteRecordForMember($memberId, $adminUserId);
 
-            // Scrub all historical audit log entries for this member (GDPR Art. 17)
-            $this->auditLogRepository->scrubByEntityId('member', $memberId);
+            // Scrub the payload of every historical audit entry about this
+            // member (GDPR Art. 17) — every entry keyed to their id, whatever
+            // entity type it claims. Entries keyed to *another* id are out of
+            // reach by design and must therefore never carry member PII in the
+            // first place; {@see AuditLogRepository::scrubByEntityId()} states
+            // that invariant and names what enforces it (#115).
+            $this->auditLogRepository->scrubByEntityId($memberId);
 
             // Fetch the updated member record
             $updatedMember = $this->membersRepository->findByIdIncludingDeleted($memberId);

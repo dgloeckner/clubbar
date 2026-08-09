@@ -93,6 +93,12 @@ final readonly class SepaExportResultDto
      * the omission is on the permanent record rather than only in an HTTP
      * response the browser threw away after saving the file.
      *
+     * Ids only, no names: this entry is filed under the settlement, so a
+     * member's erasure cannot reach into it, and a name left here would
+     * outlive the erasure ({@see ExcludedMemberDto::toAuditArray()}, #115).
+     * The response the treasurer acts on is unaffected — it carries ids too,
+     * by the same ruling #141 §3 that shaped the headers.
+     *
      * @return array<string, mixed>
      */
     public function toAuditSummary(): array
@@ -102,7 +108,7 @@ final readonly class SepaExportResultDto
             'settlement_amount_cents' => $this->settlementAmountCents,
             'shortfall_amount_cents' => $this->shortfallAmountCents(),
             'excluded_members' => array_map(
-                static fn(ExcludedMemberDto $member): array => $member->toArray(),
+                static fn(ExcludedMemberDto $member): array => $member->toAuditArray(),
                 $this->excludedMembers,
             ),
         ];
