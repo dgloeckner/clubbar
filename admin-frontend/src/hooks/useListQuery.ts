@@ -66,6 +66,17 @@ export interface UseListQueryResult<TItem, TFilters, TSortKey extends string> {
   total: number
   totalPages: number
   loading: boolean
+  /**
+   * False until the first query has settled — with items, or with an error.
+   *
+   * `loading` alone cannot tell a page whether it is waiting for its very first
+   * result or re-running a query it already answered, and pages that guessed
+   * with `loading && items.length === 0` guessed wrong for the one case where
+   * the two look alike: a search that came back empty. Gate a page-replacing
+   * loading state on this instead, so a re-fetch never unmounts the toolbar the
+   * admin is typing into (#137).
+   */
+  hasLoaded: boolean
   error: string | null
   /** Lets a page surface a mutation failure in the same banner as load failures. */
   setError: (message: string | null) => void
@@ -163,6 +174,7 @@ export function useListQuery<TItem, TFilters extends object, TSortKey extends st
   const [items, setItems] = useState<TItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [page, setPageState] = useState(1)
@@ -216,8 +228,12 @@ export function useListQuery<TItem, TFilters extends object, TSortKey extends st
       setError(parseErrorRef.current(err))
     } finally {
       // Whoever aborts owns the spinner: a superseded request must not clear
-      // the one the request that replaced it just raised.
-      if (!signal.aborted) setLoading(false)
+      // the one the request that replaced it just raised. A superseded run also
+      // published nothing, so it is not the first load having happened either.
+      if (!signal.aborted) {
+        setLoading(false)
+        setHasLoaded(true)
+      }
     }
   }, [request])
 
@@ -304,6 +320,7 @@ export function useListQuery<TItem, TFilters extends object, TSortKey extends st
     total,
     totalPages,
     loading,
+    hasLoaded,
     error,
     setError,
     page,

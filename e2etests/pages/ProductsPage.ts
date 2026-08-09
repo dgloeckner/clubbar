@@ -37,6 +37,9 @@ export class ProductsPage extends BasePage {
   // bar of its own with a page-specific test ID.
   private readonly globalLoadingIndicator = () => this.page.getByTestId('loading-indicator')
   private readonly searchInput = () => this.page.getByTestId('products-search-input')
+  // Covers the results while a refresh runs. Its whole point is that it is *not*
+  // the page: the toolbar above it stays mounted and keeps its focus (#137).
+  private readonly listLoadingOverlay = () => this.page.getByTestId('products-list-loading')
   private readonly categoriesError = () => this.page.getByTestId('products-categories-error')
   private readonly categoriesRetryBtn = () => this.page.getByTestId('products-categories-retry')
   private readonly formCategoriesError = () => this.page.getByTestId('products-form-categories-error')
@@ -673,6 +676,45 @@ export class ProductsPage extends BasePage {
     await this.searchInput().fill(term)
     await responsePromise
     await this.waitForLoadingToComplete()
+  }
+
+  /**
+   * Type further characters into the search box, one at a time, with `delayMs`
+   * between them.
+   *
+   * A delay longer than the 500 ms debounce is the point: it puts a request in
+   * flight *between* keystrokes, which is the state that used to replace the
+   * whole page — search box included — when the previous search had come back
+   * empty (#137). Does not wait for any response; the caller asserts on what
+   * the box ended up holding.
+   */
+  async typeIntoSearch(text: string, delayMs: number) {
+    await this.searchInput().focus()
+    // Deterministic caret position, so the characters land at the end.
+    await this.searchInput().press('End')
+    await this.searchInput().pressSequentially(text, { delay: delayMs })
+  }
+
+  async getSearchValue(): Promise<string> {
+    return await this.searchInput().inputValue()
+  }
+
+  async expectSearchFocused() {
+    await expect(this.searchInput()).toBeFocused()
+  }
+
+  /** The toolbar — search box, filters and create button — must outlive a refresh. */
+  async expectToolbarVisible() {
+    await expect(this.searchInput()).toBeVisible()
+    await expect(this.createBtn()).toBeVisible()
+    await expect(this.statusFilterPills()).toBeVisible()
+  }
+
+  /** The refresh spinner sits over the results, never over the toolbar. */
+  async expectListLoadingOverlayOverResultsOnly() {
+    await expect(this.listLoadingOverlay()).toBeVisible()
+    await expect(this.searchInput()).toBeVisible()
+    await expect(this.createBtn()).toBeVisible()
   }
 
   /**

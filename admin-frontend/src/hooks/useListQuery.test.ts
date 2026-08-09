@@ -435,6 +435,91 @@ describe('useListQuery', () => {
     expect(result.current.error).toBe('Failed to delete product')
   })
 
+  // `hasLoaded` is what lets a page tell "nothing to show yet" apart from
+  // "re-running a query that already came back empty" — the case where
+  // `loading && !items.length` misfired and unmounted the search box (#137).
+  describe('hasLoaded', () => {
+    it('is false until the first query settles, then stays true', async () => {
+      let resolveFirst: ((page: { items: Row[]; total: number }) => void) | undefined
+      const fetcher = vi.fn().mockImplementation(
+        () =>
+          new Promise<{ items: Row[]; total: number }>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+
+      const { result } = renderHook(() => useListQuery<Row, Filters, string>({ ...defaultOptions, fetcher }))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(result.current.loading).toBe(true)
+      expect(result.current.hasLoaded).toBe(false)
+
+      await act(async () => {
+        resolveFirst?.({ items: [{ id: 'a' }], total: 1 })
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(result.current.hasLoaded).toBe(true)
+    })
+
+    it('stays true while a later search re-runs over an empty result', async () => {
+      const fetcher = vi.fn().mockResolvedValue({ items: [], total: 0 })
+      const { result } = await renderListQuery(fetcher)
+      expect(result.current.hasLoaded).toBe(true)
+
+      act(() => {
+        result.current.setSearch('zzz')
+      })
+      // Mid-flight: the list is empty and loading again — the exact state the
+      // page used to read as a first load.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+      expect(result.current.items).toEqual([])
+      expect(result.current.hasLoaded).toBe(true)
+    })
+
+    it('is true after a failed first load, so the page can show the error', async () => {
+      const { result } = await renderListQuery(vi.fn().mockRejectedValue(new Error('boom')))
+
+      expect(result.current.error).toBe('boom')
+      expect(result.current.hasLoaded).toBe(true)
+    })
+
+    it('is not set by a superseded request that published nothing', async () => {
+      let resolveFirst: ((page: { items: Row[]; total: number }) => void) | undefined
+      const fetcher = vi.fn().mockImplementation((request: ListQueryRequest<Filters, string>) => {
+        if (fetcher.mock.calls.length === 1) {
+          return new Promise<{ items: Row[]; total: number }>((resolve) => {
+            resolveFirst = resolve
+          })
+        }
+        // The replacement never answers, so `hasLoaded` can only come from the
+        // abandoned one.
+        void request
+        return new Promise<{ items: Row[]; total: number }>(() => {})
+      })
+
+      const { result } = renderHook(() => useListQuery<Row, Filters, string>({ ...defaultOptions, fetcher }))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      act(() => {
+        result.current.setFilter('status', 'active')
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      await act(async () => {
+        resolveFirst?.({ items: [{ id: 'stale' }], total: 1 })
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(result.current.hasLoaded).toBe(false)
+    })
+  })
+
   it('aborts the in-flight request on unmount', async () => {
     const signals: AbortSignal[] = []
     const fetcher = vi.fn().mockImplementation((request: ListQueryRequest<Filters, string>) => {
