@@ -176,17 +176,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get memberInactive => 'Inaktiv';
 
   @override
-  String get sepaYes => 'Ja';
-
-  @override
-  String get sepaNo => 'Nein';
-
-  @override
-  String welcomeMember(String name) {
-    return 'Willkommen, $name';
-  }
-
-  @override
   String balanceOpenTab(String amount) {
     return 'Offener Betrag: $amount';
   }
@@ -213,9 +202,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get categoryDefault => 'Kategorie';
-
-  @override
-  String get productDefault => 'Produkt';
 
   @override
   String get noProducts => 'Keine Produkte verfügbar';
@@ -270,16 +256,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get loading => 'Laden...';
 
   @override
-  String get cancel => 'Abbrechen';
-
-  @override
-  String get save => 'Speichern';
-
-  @override
   String get continueShopping => 'Weiter einkaufen';
-
-  @override
-  String get scanCard => 'Chip scannen';
 
   @override
   String get rfidErrorUnknownCard =>
