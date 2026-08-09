@@ -415,8 +415,12 @@ paths:
         - Retry failed uploads in next sync cycle (same UUID safe to resubmit)
 
         ## Request Format
-        - **Batch size**: Max 100 transactions per request
-        - **All fields required**: id, member_id, product_id, amount_cents, created_at
+        - **Batch size**: Max 100 transactions per request. A larger batch is
+          refused whole — the terminal must split its queue rather than send it
+          in one request ([#259](https://github.com/dgloeckner/clubbar/issues/259))
+        - **All fields required**: id, member_id, product_id, amount_cents, created_at.
+          A row missing one is rejected **individually**, in the 2xx body; it does
+          not refuse the batch it arrived in
         - **Amount**: Always positive (purchases only); stored as integer cents
 
         ## Asking for a Balance Without Selling Anything
@@ -441,12 +445,25 @@ paths:
         - If transaction ID is missing from response, retry in next cycle
 
         ## Error Handling
-        - **Validation error**: Return 422 with detailed field errors; no transactions inserted
-        - **Transient database error**: Return 500; terminal retries entire batch
-        - **A row the database refuses**: reported per-entry under `rejected`, never in
-          `accepted_ids`. The rest of the batch still lands. Reporting a refused row as
-          accepted is what let a terminal purge a served drink from its offline queue
+        Ruling [#143](https://github.com/dgloeckner/ruderbar/issues/143) §2: a
+        whole-batch 4xx is reserved for a **malformed envelope**, where nothing
+        was judged at all — not an array, empty with no `member_ids`, over the
+        batch limit, bad auth. Anything that got as far as being judged is
+        answered per row, in a 2xx body.
+
+        - **A row that cannot be stored** — missing `id`, missing or unusable
+          `amount_cents`, unknown member, a row the database refuses — is reported
+          per-entry under `rejected`, never in `accepted_ids`. The rest of the
+          batch still lands. Reporting a refused row as accepted is what let a
+          terminal purge a served drink from its offline queue
           ([#82](https://github.com/dgloeckner/ruderbar/issues/82)).
+        - **This endpoint does not return 422.** It used to, for a field-level
+          problem, refusing the entire batch. Because the terminal treats a
+          non-2xx as transient and retries the batch unchanged — reaching its
+          quarantine path only on a 2xx — one unstorable row wedged every good
+          sale queued behind it, permanently
+          ([#259](https://github.com/dgloeckner/clubbar/issues/259)).
+        - **Transient database error**: Return 500; terminal retries entire batch
       operationId: syncTransactions
       security:
         - BearerAuth: []
@@ -495,7 +512,14 @@ paths:
                       count: 0
                       errors: []
         '400':
-          description: Malformed request (missing required field, invalid JSON)
+          description: |
+            Malformed **envelope** — nothing in the request was judged, so there
+            is no per-row verdict to give. Invalid JSON, `transactions` absent or
+            not an array, an empty batch naming no `member_ids`, or more than 100
+            entries. Nothing is stored.
+
+            A problem with an individual row is **not** this: it comes back as a
+            per-item rejection in the 201 body (#259).
           content:
             application/json:
               schema:
@@ -505,27 +529,10 @@ paths:
                   value:
                     error: invalid_request
                     message: Request body is not valid JSON
-        '422':
-          description: |
-            Validation error. Request was well-formed but contains invalid data
-            (e.g., unknown member_id, unknown product_id, invalid UUID, future timestamp).
-            **No transactions are inserted if any field fails validation.**
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationErrorResponse'
-              examples:
-                validation_error:
+                oversized_batch:
                   value:
-                    error: validation_failed
-                    message: Validation errors in transaction batch
-                    details:
-                      - index: 0
-                        field: member_id
-                        message: Member not found (member must exist on backend)
-                      - index: 1
-                        field: product_id
-                        message: Product not found
+                    error: invalid_request
+                    message: Batch size exceeds maximum of 100
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '429':
@@ -1239,13 +1246,22 @@ components:
                   transaction_id:
                     type: string
                     format: uuid
+                    nullable: true
+                    description: |
+                      The row this rejection is about. **Null** when the row
+                      carried no `id` at all — that is itself a reason to reject
+                      it, since the id is the idempotency key, and the rejection
+                      still has to be reported rather than silently dropped.
                   error:
                     type: string
                     description: |
                       Machine-readable rejection code — `not_found` (unknown
-                      member) or `unstorable`. `unstorable` means the database
-                      refused the row and will refuse it again: resubmitting it
-                      unchanged cannot help.
+                      member) or `unstorable`. `unstorable` means the row cannot
+                      be stored and resubmitting it unchanged cannot help:
+                      either the server refused it before the write (a missing
+                      required field, an `amount_cents` that is not a positive
+                      whole number) or the database refused it. The `message`
+                      says which.
 
                       A row is rejected only when it cannot be stored. Business
                       conditions are never rejections: a member with no usable

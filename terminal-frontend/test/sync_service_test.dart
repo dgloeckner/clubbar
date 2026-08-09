@@ -443,6 +443,49 @@ void main() {
           equals(['id', 'member_id', 'product_id', 'amount_cents', 'created_at']));
     });
 
+    /// #259: the server caps a batch at 100 (`api/terminal.yaml`), the queue is
+    /// unbounded, and an oversized batch is refused whole with a 400 — which
+    /// this service retries unchanged, so an offline evening of more than 100
+    /// sales would never sync again.
+    test('an oversized queue is uploaded in batches the server will accept',
+        () async {
+      stubReferenceDataSync();
+
+      final queued = List.generate(
+        250,
+        (i) => unsyncedTransaction(id: 'txn-$i'),
+      );
+      when(() => mockTransactionsRepo.getUnsyncedTransactions())
+          .thenAnswer((_) async => queued);
+      when(() => mockNetworkService.syncTransactions(any()))
+          .thenAnswer((invocation) async {
+        final batch =
+            invocation.positionalArguments.first as List<Map<String, dynamic>>;
+        return TransactionBatchResponse(
+          acceptedIds: batch.map((t) => t['id'] as String).toList(),
+          rejected:
+              const TransactionBatchResponse$Rejected(count: 0, errors: []),
+          memberBalances: const {'member-1': 350},
+        );
+      });
+
+      await syncService.syncAll();
+
+      final batches =
+          verify(() => mockNetworkService.syncTransactions(captureAny()))
+              .captured
+              .cast<List<Map<String, dynamic>>>();
+
+      expect(batches.length, equals(3));
+      expect(batches.map((b) => b.length), equals([100, 100, 50]));
+
+      // Every queued sale is uploaded exactly once, and none is dropped at a
+      // batch boundary.
+      final uploaded = batches.expand((b) => b).map((t) => t['id']).toList();
+      expect(uploaded.length, equals(250));
+      expect(uploaded.toSet().length, equals(250));
+    });
+
     test('a permanently rejected sale is quarantined instead of retried',
         () async {
       stubReferenceDataSync();

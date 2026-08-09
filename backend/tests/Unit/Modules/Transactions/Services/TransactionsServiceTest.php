@@ -60,7 +60,7 @@ class TransactionsServiceTest extends TestCase
     public function test_processBatch_happy_path_accepts_transaction_and_returns_balance(): void
     {
         $memberId = 'member-1';
-        $tx = ['id' => 'tx-1', 'member_id' => $memberId, 'amount_cents' => -500];
+        $tx = ['id' => 'tx-1', 'member_id' => $memberId, 'product_id' => 'product-1', 'amount_cents' => 500, 'created_at' => '2026-08-08T18:00:00Z'];
 
         $this->membersRepository->expects($this->once())
             ->method('findById')
@@ -93,7 +93,7 @@ class TransactionsServiceTest extends TestCase
         // transaction ever booked ignores settlement runs and grows forever, so
         // the member is shown a Deckel they have already paid.
         $memberId = 'member-1';
-        $tx = ['id' => 'tx-1', 'member_id' => $memberId, 'amount_cents' => 300];
+        $tx = ['id' => 'tx-1', 'member_id' => $memberId, 'product_id' => 'product-1', 'amount_cents' => 300, 'created_at' => '2026-08-08T18:00:00Z'];
 
         $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
         $this->transactionsRepository->method('insertTransaction')
@@ -117,7 +117,7 @@ class TransactionsServiceTest extends TestCase
         // an already-persisted transaction id must NOT create a second row, and
         // must still be reported back to the client as accepted so retries succeed.
         $memberId = 'member-1';
-        $tx = ['id' => 'tx-dup', 'member_id' => $memberId, 'amount_cents' => -300];
+        $tx = ['id' => 'tx-dup', 'member_id' => $memberId, 'product_id' => 'product-1', 'amount_cents' => 300, 'created_at' => '2026-08-08T18:00:00Z'];
 
         $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
 
@@ -147,7 +147,7 @@ class TransactionsServiceTest extends TestCase
     public function test_processBatch_rejects_an_entry_the_database_refuses(): void
     {
         $memberId = 'member-1';
-        $tx = ['id' => 'tx-unstorable', 'member_id' => $memberId, 'amount_cents' => 350];
+        $tx = ['id' => 'tx-unstorable', 'member_id' => $memberId, 'product_id' => 'product-1', 'amount_cents' => 350, 'created_at' => '2026-08-08T18:00:00Z'];
 
         $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
 
@@ -171,8 +171,8 @@ class TransactionsServiceTest extends TestCase
     public function test_processBatch_accepts_the_rest_of_the_batch_around_a_refused_entry(): void
     {
         $memberId = 'member-1';
-        $goodTx = ['id' => 'tx-good', 'member_id' => $memberId, 'amount_cents' => 100];
-        $badTx = ['id' => 'tx-refused', 'member_id' => $memberId, 'amount_cents' => 200];
+        $goodTx = ['id' => 'tx-good', 'member_id' => $memberId, 'product_id' => 'product-1', 'amount_cents' => 100, 'created_at' => '2026-08-08T18:00:00Z'];
+        $badTx = ['id' => 'tx-refused', 'member_id' => $memberId, 'product_id' => 'product-1', 'amount_cents' => 200, 'created_at' => '2026-08-08T18:00:00Z'];
 
         $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
 
@@ -201,7 +201,7 @@ class TransactionsServiceTest extends TestCase
     public function test_processBatch_propagates_a_transient_database_failure(): void
     {
         $memberId = 'member-1';
-        $tx = ['id' => 'tx-transient', 'member_id' => $memberId, 'amount_cents' => 350];
+        $tx = ['id' => 'tx-transient', 'member_id' => $memberId, 'product_id' => 'product-1', 'amount_cents' => 350, 'created_at' => '2026-08-08T18:00:00Z'];
 
         $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
 
@@ -216,8 +216,8 @@ class TransactionsServiceTest extends TestCase
     public function test_processBatch_mixed_new_and_duplicate_entries(): void
     {
         $memberId = 'member-1';
-        $newTx = ['id' => 'tx-new', 'member_id' => $memberId, 'amount_cents' => -100];
-        $dupTx = ['id' => 'tx-dup', 'member_id' => $memberId, 'amount_cents' => -200];
+        $newTx = ['id' => 'tx-new', 'member_id' => $memberId, 'product_id' => 'product-1', 'amount_cents' => 100, 'created_at' => '2026-08-08T18:00:00Z'];
+        $dupTx = ['id' => 'tx-dup', 'member_id' => $memberId, 'product_id' => 'product-1', 'amount_cents' => 200, 'created_at' => '2026-08-08T18:00:00Z'];
 
         $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
 
@@ -265,7 +265,7 @@ class TransactionsServiceTest extends TestCase
 
     public function test_processBatch_rejects_entry_when_member_not_found(): void
     {
-        $tx = ['id' => 'tx-1', 'member_id' => 'missing-member', 'amount_cents' => -100];
+        $tx = ['id' => 'tx-1', 'member_id' => 'missing-member', 'product_id' => 'product-1', 'amount_cents' => 100, 'created_at' => '2026-08-08T18:00:00Z'];
 
         $this->membersRepository->method('findById')->with('missing-member')->willReturn(null);
         $this->transactionsRepository->expects($this->never())->method('insertTransaction');
@@ -288,7 +288,7 @@ class TransactionsServiceTest extends TestCase
      */
     public function test_processBatch_stores_and_accepts_entry_when_member_lacks_sepa_mandate(): void
     {
-        $tx = ['id' => 'tx-1', 'member_id' => 'member-1', 'amount_cents' => -100];
+        $tx = ['id' => 'tx-1', 'member_id' => 'member-1', 'product_id' => 'product-1', 'amount_cents' => 100, 'created_at' => '2026-08-08T18:00:00Z'];
 
         $this->membersRepository->method('findById')->willReturn([
             'id' => 'member-1',
@@ -309,11 +309,57 @@ class TransactionsServiceTest extends TestCase
         $this->assertSame(['member-1' => -100], $result->memberBalances);
     }
 
+    /**
+     * Ruling #143's test contract, item 1 — and the whole point of #259.
+     *
+     * A batch of 100 with one malformed row stores 99 and returns that row as a
+     * permanent rejection. Until this shipped, the malformed row refused the
+     * entire batch with a 422; the terminal, which treats a non-2xx as
+     * transient, resent the identical batch forever and never reached the
+     * quarantine path, so the 99 good sales were never collected.
+     */
+    public function test_processBatch_stores_the_rest_of_the_batch_around_one_unstorable_row(): void
+    {
+        $memberId = 'member-1';
+
+        $batch = [];
+        for ($i = 0; $i < 99; $i++) {
+            $batch[] = [
+                'id' => "tx-{$i}",
+                'member_id' => $memberId,
+                'product_id' => 'product-1',
+                'amount_cents' => 350,
+                'created_at' => '2026-08-08T18:00:00Z',
+            ];
+        }
+        // The row that used to take the other 99 down with it: no id, so it can
+        // never be deduplicated and can never become storable.
+        $batch[] = [
+            'member_id' => $memberId,
+            'product_id' => 'product-1',
+            'amount_cents' => 350,
+            'created_at' => '2026-08-08T18:00:00Z',
+        ];
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+        $this->transactionsRepository->expects($this->exactly(99))
+            ->method('insertTransaction')
+            ->willReturn(['id' => 'stored']);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(34650);
+
+        $result = $this->service->processBatch($batch);
+
+        $this->assertCount(99, $result->acceptedIds);
+        $this->assertSame(1, $result->rejectedCount);
+        $this->assertSame('unstorable', $result->errors[0]['error']);
+        $this->assertNull($result->errors[0]['transaction_id']);
+    }
+
     public function test_processBatch_partial_failure_mixes_accepted_and_rejected(): void
     {
         $memberId = 'member-1';
-        $goodTx = ['id' => 'tx-good', 'member_id' => $memberId, 'amount_cents' => -100];
-        $badTx = ['id' => 'tx-bad', 'member_id' => 'missing-member', 'amount_cents' => -100];
+        $goodTx = ['id' => 'tx-good', 'member_id' => $memberId, 'product_id' => 'product-1', 'amount_cents' => 100, 'created_at' => '2026-08-08T18:00:00Z'];
+        $badTx = ['id' => 'tx-bad', 'member_id' => 'missing-member', 'product_id' => 'product-1', 'amount_cents' => 100, 'created_at' => '2026-08-08T18:00:00Z'];
 
         $this->membersRepository->method('findById')
             ->willReturnMap([
@@ -422,7 +468,13 @@ class TransactionsServiceTest extends TestCase
 
     private function saleAt(string $occurredAt): array
     {
-        return ['id' => 'tx-1', 'member_id' => 'member-1', 'amount_cents' => 350, 'created_at' => $occurredAt];
+        return [
+            'id' => 'tx-1',
+            'member_id' => 'member-1',
+            'product_id' => 'product-1',
+            'amount_cents' => 350,
+            'created_at' => $occurredAt,
+        ];
     }
 
     private function expectAccepted(array $tx): void

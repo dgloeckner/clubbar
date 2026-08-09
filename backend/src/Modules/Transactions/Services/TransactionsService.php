@@ -11,6 +11,7 @@ use App\Modules\Transactions\Exceptions\TransactionAlreadyStornoedException;
 use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
+use App\Modules\Transactions\Sync\TerminalTransactionValidator;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\NotFoundException;
@@ -52,15 +53,13 @@ class TransactionsService
         }
 
         foreach ($transactions as $tx) {
-            if (empty($tx['member_id'])) {
-                // Defensive: SyncController rejects the whole batch with a 422
-                // before this runs. Shaped like every other rejection so the
-                // response stays one contract.
-                $errors[] = [
-                    'error' => 'unstorable',
-                    'transaction_id' => $tx['id'] ?? null,
-                    'message' => 'member_id is required',
-                ];
+            // #259, ruling #143 §2: judged per row, not per batch. This used to
+            // be a batch-wide 422 in SyncController — one unstorable row and
+            // nothing at all was written, which the terminal then retried
+            // unchanged forever, so every good sale behind it went uncollected.
+            $rejection = TerminalTransactionValidator::rejectionFor($tx);
+            if ($rejection !== null) {
+                $errors[] = $rejection;
                 continue;
             }
 

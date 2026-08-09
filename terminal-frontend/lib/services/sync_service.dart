@@ -14,6 +14,13 @@ import 'network_service.dart';
 enum SyncResult { success, failure, alreadyInProgress }
 
 class SyncService {
+  /// Largest batch `POST /sync/transactions` accepts, per `api/terminal.yaml`.
+  ///
+  /// Must not exceed the server's own cap: it answers an oversized batch with
+  /// a whole-request 400, and a whole-request failure is retried unchanged, so
+  /// exceeding it does not degrade the upload — it stops it forever (#259).
+  static const int maxSyncBatchSize = 100;
+
   final NetworkService _networkService;
   final MembersRepository _membersRepo;
   final ProductsRepository _productsRepo;
@@ -263,51 +270,70 @@ class SyncService {
         return;
       }
 
-      // Convert to API format per api/terminal.yaml
-      final payloads = validTxns.map((t) => {
-        'id': t.id,
-        'member_id': t.memberId,
-        'product_id': t.productId,
-        'amount_cents': t.amountCents,
-        'created_at': _normalizeTimestamp(t.createdAt),
-      }).toList();
-
-      // POST to backend
-      final response = await _networkService.syncTransactions(payloads);
-
-      // Cast member_balances from Map<String, dynamic> to Map<String, int>
-      final memberBalances = response.memberBalances.map(
-        (key, value) => MapEntry(key, (value as num).toInt()),
-      );
-
-      // Atomically mark accepted transactions as synced and update balances
-      await _transactionsRepo.completeSyncAtomically(
-        acceptedIds: response.acceptedIds,
-        memberBalances: memberBalances,
-        membersRepo: _membersRepo,
-      );
-
-      _logger.i('Transactions synced: ${response.acceptedIds.length} accepted');
-
-      // A per-item rejection is permanent: the server tells us it could not
-      // store the row and would refuse it again. Quarantine it so it leaves
-      // the queue without being lost — a transient failure, by contrast,
-      // throws below and leaves the whole batch queued for an unchanged retry.
-      final rejections = <String, String>{};
-      for (final rejected in response.rejected.errors ?? []) {
-        final id = rejected.transactionId;
-        if (id == null) continue;
-        rejections[id] = rejected.error ?? 'unknown';
-        _logger.w('  Rejected $id: ${rejected.error} ${rejected.message ?? ''}');
-      }
-      if (rejections.isNotEmpty) {
-        _logger.w('Transactions rejected: ${rejections.length}');
-        await _transactionsRepo.quarantineTransactions(rejections);
+      // The server refuses a batch larger than maxSyncBatchSize outright, with
+      // a whole-request 400 — and a whole-request failure is retried unchanged,
+      // so an oversized queue would never sync again. The queue is unbounded
+      // and an offline evening passes 100 easily, so it is split here (#259).
+      for (var start = 0; start < validTxns.length; start += maxSyncBatchSize) {
+        final end = start + maxSyncBatchSize;
+        await _uploadTransactionBatch(
+          validTxns.sublist(start, end < validTxns.length ? end : validTxns.length),
+        );
       }
     } catch (e, stackTrace) {
       _logger.e('Transactions sync failed: $e', error: e, stackTrace: stackTrace);
       _logFailedTransactions(unsyncedTxns, e);
       rethrow;
+    }
+  }
+
+  /// Upload one batch and settle its outcome: accepted rows are marked synced,
+  /// permanently rejected rows are quarantined.
+  ///
+  /// A transient failure throws out of here, which aborts the remaining
+  /// batches and leaves them queued for an unchanged retry. Batches that
+  /// already committed stay committed — their rows are on the server, so
+  /// resending them would be pointless rather than harmful.
+  Future<void> _uploadTransactionBatch(List<TransactionsLocalData> batch) async {
+    // Convert to API format per api/terminal.yaml
+    final payloads = batch.map((t) => {
+      'id': t.id,
+      'member_id': t.memberId,
+      'product_id': t.productId,
+      'amount_cents': t.amountCents,
+      'created_at': _normalizeTimestamp(t.createdAt),
+    }).toList();
+
+    final response = await _networkService.syncTransactions(payloads);
+
+    // Cast member_balances from Map<String, dynamic> to Map<String, int>
+    final memberBalances = response.memberBalances.map(
+      (key, value) => MapEntry(key, (value as num).toInt()),
+    );
+
+    // Atomically mark accepted transactions as synced and update balances
+    await _transactionsRepo.completeSyncAtomically(
+      acceptedIds: response.acceptedIds,
+      memberBalances: memberBalances,
+      membersRepo: _membersRepo,
+    );
+
+    _logger.i('Transactions synced: ${response.acceptedIds.length} accepted');
+
+    // A per-item rejection is permanent: the server tells us it could not
+    // store the row and would refuse it again. Quarantine it so it leaves
+    // the queue without being lost — a transient failure, by contrast,
+    // throws and leaves the whole batch queued for an unchanged retry.
+    final rejections = <String, String>{};
+    for (final rejected in response.rejected.errors ?? []) {
+      final id = rejected.transactionId;
+      if (id == null) continue;
+      rejections[id] = rejected.error ?? 'unknown';
+      _logger.w('  Rejected $id: ${rejected.error} ${rejected.message ?? ''}');
+    }
+    if (rejections.isNotEmpty) {
+      _logger.w('Transactions rejected: ${rejections.length}');
+      await _transactionsRepo.quarantineTransactions(rejections);
     }
   }
 
