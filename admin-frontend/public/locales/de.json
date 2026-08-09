@@ -244,6 +244,7 @@
     "title": "Kategorien",
     "createCategory": "Kategorie erstellen",
     "editCategory": "Kategorie bearbeiten",
+    "formStateInvalid": "Das Formular ist in einem unerwarteten Zustand, es wurde nichts gespeichert. Bitte schließen Sie den Dialog und versuchen Sie es erneut.",
     "deleteCategory": "Kategorie löschen",
     "deleteConfirm": "\"{{name}}\" löschen? Die Kategorie wird dauerhaft aus der Datenbank entfernt und kann nicht wiederhergestellt werden.",
     "deactivateConfirm": "\"{{name}}\" deaktivieren? Alle {{count}} Produkte in dieser Kategorie werden im Terminal nicht mehr angezeigt.",

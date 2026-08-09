@@ -111,6 +111,56 @@ test.describe('Admin Frontend - Categories Page', () => {
       await authenticatedCategoriesPage.expectTableVisible()
     })
 
+    /**
+     * Regression for #88.
+     *
+     * The desktop create button only reset `selectedCategory`, leaving the modal
+     * in "edit" mode with the previously edited category's values. Submitting
+     * then matched neither branch of handleSubmit: the modal closed as if the
+     * save had worked and no category was created.
+     */
+    test('E2E: create after cancelling an edit opens an empty create form and persists', async ({
+      authenticatedCategoriesPage,
+    }) => {
+      const timestamp = Date.now()
+      const seed = { de: `Seed für Create ${timestamp}`, en: `Seed for Create ${timestamp}` }
+
+      // A category to edit first, with an icon so a stale icon would show up too.
+      await authenticatedCategoriesPage.createCategory(seed, 'beer-pils')
+      const seedId = await authenticatedCategoriesPage.findCategoryByName(seed.de)
+      expect(seedId).toBeTruthy()
+
+      // Edit it, then cancel — this is what poisoned the modal state.
+      await authenticatedCategoriesPage.openEditModal(seedId!)
+      await authenticatedCategoriesPage.expectFormModalVisible()
+      const editTitle = await authenticatedCategoriesPage.getFormTitle()
+      await authenticatedCategoriesPage.cancelForm()
+      await authenticatedCategoriesPage.expectFormModalHidden()
+
+      // Now open the create modal: it must be in create mode, not edit mode.
+      await authenticatedCategoriesPage.openCreateModal()
+      await authenticatedCategoriesPage.expectFormModalVisible()
+
+      expect(await authenticatedCategoriesPage.getFormTitle()).not.toBe(editTitle)
+      expect(await authenticatedCategoriesPage.getFormError()).toBeNull()
+      expect(await authenticatedCategoriesPage.getCategoryNameValue('de')).toBe('')
+      await authenticatedCategoriesPage.selectLanguageTab('en')
+      expect(await authenticatedCategoriesPage.getCategoryNameValue('en')).toBe('')
+      expect(await authenticatedCategoriesPage.getSelectedIconName()).toBeNull()
+
+      // And submitting must actually create a category, not close silently.
+      const created = `Created After Edit ${timestamp}`
+      await authenticatedCategoriesPage.selectLanguageTab('de')
+      await authenticatedCategoriesPage.fillCategoryName('de', created)
+      await authenticatedCategoriesPage.submitForm()
+
+      const createdId = await authenticatedCategoriesPage.findCategoryByName(created)
+      expect(createdId).toBeTruthy()
+
+      // The seed category must be untouched — the save must not have edited it.
+      expect(await authenticatedCategoriesPage.getCategoryName(seedId!)).toBe(seed.de)
+    })
+
     test('should display form with empty fields for create', async ({ authenticatedCategoriesPage }) => {
       // Pattern 006: Page object provides field getters
       await authenticatedCategoriesPage.openCreateModal()
