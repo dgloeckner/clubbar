@@ -280,6 +280,28 @@ class AppLocalizationsDe extends AppLocalizations {
   String get errorDetails => 'Fehlerdetails';
 
   @override
+  String get statusSyncing => 'Synchronisation läuft';
+
+  @override
+  String statusDegradedSince(String time) {
+    return 'Besteht seit $time';
+  }
+
+  @override
+  String get technicalDetails => 'Technische Details';
+
+  @override
+  String get technicalErrorCode => 'Fehlercode';
+
+  @override
+  String get backendVersionUnknown => 'Version unbekannt';
+
+  @override
+  String pendingOperationDetails(String member, String quantity, String date) {
+    return 'Mitglied $member · Anzahl $quantity · Erstellt $date';
+  }
+
+  @override
   String get loading => 'Laden...';
 
   @override

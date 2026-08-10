@@ -27,6 +27,7 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
   int _retryCount = 0;
   Timer? _backgroundTimer;
   ConnectionStatus _connectionStatus = ConnectionStatus.online;
+  DateTime? _degradedSince;
 
   SyncProvider({
     required SyncService syncService,
@@ -46,12 +47,30 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
   int get retryCount => _retryCount;
   ConnectionStatus get connectionStatus => _connectionStatus;
 
+  /// When the terminal first stopped being healthy, or null while online.
+  ///
+  /// This is the *transition* time, not the time of the latest failed attempt:
+  /// staff asking "how long has this been broken?" want the start of the
+  /// outage, and a retry every 60 s would otherwise keep resetting it to now.
+  DateTime? get degradedSince => _degradedSince;
+
+  /// Single place where [_connectionStatus] moves, so [_degradedSince] cannot
+  /// drift out of step with it.
+  void _setConnectionStatus(ConnectionStatus next) {
+    if (next == ConnectionStatus.online) {
+      _degradedSince = null;
+    } else {
+      _degradedSince ??= DateTime.now();
+    }
+    _connectionStatus = next;
+  }
+
   /// Manually trigger sync
   Future<void> startSync() async {
     // Always run health check to keep connectionStatus accurate
     final healthy = await _networkService.checkHealth();
     if (!healthy) {
-      _connectionStatus = ConnectionStatus.offline;
+      _setConnectionStatus(ConnectionStatus.offline);
       _retryCount++;
       // Emitted on every failed attempt, not just on the transition, so a
       // repeated outage still signals a fresh display event.
@@ -62,7 +81,7 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
 
     // Health passed — if we were offline, update immediately
     if (_connectionStatus == ConnectionStatus.offline) {
-      _connectionStatus = ConnectionStatus.online;
+      _setConnectionStatus(ConnectionStatus.online);
       resetError();
       _retryCount = 0;
       notifyListeners();
@@ -102,22 +121,22 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
         final txnError = _syncService.lastTransactionSyncError;
         if (txnError != null) {
           emitError(TerminalErrorKey.transactionSyncFailed, cause: txnError);
-          _connectionStatus = ConnectionStatus.error;
+          _setConnectionStatus(ConnectionStatus.error);
         } else {
           resetError();
-          _connectionStatus = ConnectionStatus.online;
+          _setConnectionStatus(ConnectionStatus.online);
         }
       } else {
         // Health passed but sync failed → error state
         emitError(TerminalErrorKey.syncFailed,
             cause: await _syncService.getLastError());
         _retryCount++;
-        _connectionStatus = ConnectionStatus.error;
+        _setConnectionStatus(ConnectionStatus.error);
       }
     } catch (e, stackTrace) {
       emitError(TerminalErrorKey.syncFailed, cause: e, stackTrace: stackTrace);
       _retryCount++;
-      _connectionStatus = ConnectionStatus.error;
+      _setConnectionStatus(ConnectionStatus.error);
     } finally {
       _isSyncing = false;
       notifyListeners();

@@ -542,6 +542,42 @@ abstract class AppLocalizations {
   /// **'Fehlerdetails'**
   String get errorDetails;
 
+  /// Header pill: a sync cycle is running right now
+  ///
+  /// In de, this message translates to:
+  /// **'Synchronisation läuft'**
+  String get statusSyncing;
+
+  /// How long the terminal has been offline or in error
+  ///
+  /// In de, this message translates to:
+  /// **'Besteht seit {time}'**
+  String statusDegradedSince(String time);
+
+  /// Expander that hides engineering detail from patrons
+  ///
+  /// In de, this message translates to:
+  /// **'Technische Details'**
+  String get technicalDetails;
+
+  /// Label for the internal error key, shown under technical details
+  ///
+  /// In de, this message translates to:
+  /// **'Fehlercode'**
+  String get technicalErrorCode;
+
+  /// Backend version badge when the version could not be fetched
+  ///
+  /// In de, this message translates to:
+  /// **'Version unbekannt'**
+  String get backendVersionUnknown;
+
+  /// One pending dispenser operation; the member id is truncated on purpose
+  ///
+  /// In de, this message translates to:
+  /// **'Mitglied {member} · Anzahl {quantity} · Erstellt {date}'**
+  String pendingOperationDetails(String member, String quantity, String date);
+
   /// Loading indicator text
   ///
   /// In de, this message translates to:
