@@ -104,6 +104,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
   Future<void> _updateLanguage(String newLanguage) async {
     try {
       await context.read<MembersProvider>().updateSelectedMemberLanguage(newLanguage);
+      // Language switching is why the sheet gets opened; once it succeeds the
+      // member's next goal is shopping, not the sheet (#294).
+      if (mounted) Navigator.of(context).pop();
     } catch (e, stackTrace) {
       AppLog.instance.e(
         'Failed to update member language',
