@@ -582,7 +582,7 @@ export function ProductsPage() {
                         style={{
                           display: 'flex', alignItems: 'center', gap: '4px',
                           padding: '6px 12px', borderRadius: '6px', border: 'none',
-                          background: 'rgba(239,68,68,0.1)', color: theme.colors.semantic.danger,
+                          background: theme.badges.danger.bg, color: theme.colors.semantic.danger,
                           fontSize: '12px', cursor: 'pointer',
                         }}
                       >

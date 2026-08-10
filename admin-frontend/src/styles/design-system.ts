@@ -191,6 +191,10 @@ export const theme = {
     },
     danger: {
       bg: 'rgba(239, 68, 68, 0.1)',
+      // Border tint for danger banners/panels (error messages, logout button,
+      // low-balance SEPA legend) — the bg pairs with this border at every
+      // call site that has a border at all (#289).
+      border: withAlpha('#ef4444', 0.3),
       text: '#ef4444',
       dot: '#ef4444',
     },

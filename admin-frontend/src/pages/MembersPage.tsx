@@ -494,7 +494,7 @@ export function MembersPage() {
     const styles: Record<string, React.CSSProperties> = {
       high:   { background: 'rgba(34,197,94,0.15)',  color: theme.colors.pastel.green, border: '1px solid rgba(34,197,94,0.3)'  },
       medium: { background: 'rgba(234,179,8,0.15)',  color: theme.colors.pastel.yellow, border: '1px solid rgba(234,179,8,0.3)'  },
-      low:    { background: 'rgba(239,68,68,0.15)',   color: theme.colors.banner.dangerText, border: '1px solid rgba(239,68,68,0.3)'  },
+      low:    { background: 'rgba(239,68,68,0.15)',   color: theme.colors.banner.dangerText, border: `1px solid ${theme.badges.danger.border}`  },
     }
     const labels: Record<string, string> = {
       high:   t('mandateDocument.confidenceHigh'),
@@ -1418,7 +1418,7 @@ export function MembersPage() {
                   marginBottom: theme.spacing.md,
                   backgroundColor: editingMember.is_sepa_valid
                     ? 'rgba(34, 197, 94, 0.1)'
-                    : 'rgba(239, 68, 68, 0.1)',
+                    : theme.badges.danger.bg,
                   border: `1px solid ${editingMember.is_sepa_valid ? theme.colors.semantic.success : theme.colors.semantic.danger}`,
                   display: 'flex',
                   alignItems: 'center',

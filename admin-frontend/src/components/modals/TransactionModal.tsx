@@ -196,7 +196,7 @@ export function TransactionModal({
             <div
               style={{
                 padding: theme.spacing.md,
-                background: 'rgba(239, 68, 68, 0.1)',
+                background: theme.badges.danger.bg,
                 color: theme.colors.semantic.danger,
                 borderRadius: theme.borderRadius.md,
                 marginBottom: theme.spacing.lg,

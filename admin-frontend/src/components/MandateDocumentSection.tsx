@@ -353,7 +353,7 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
                 padding: '8px 12px',
                 background: theme.badges.danger.bg,
                 color: theme.colors.semantic.danger,
-                border: `1px solid rgba(239, 68, 68, 0.3)`,
+                border: `1px solid ${theme.badges.danger.border}`,
                 borderRadius: '6px',
                 cursor: 'pointer',
                 fontSize: theme.typography.fontSize.sm,

@@ -557,11 +557,21 @@ theme.avatars.sizes = {
 theme.badges = {
   success: { bg: 'rgba(34, 197, 94, 0.1)', text: '#22c55e', dot: '#22c55e' },
   warning: { bg: 'rgba(251, 146, 60, 0.1)', text: '#f97316', dot: '#f97316' },
-  danger: { bg: 'rgba(239, 68, 68, 0.1)', text: '#ef4444', dot: '#ef4444' },
+  danger: { bg: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.3)', text: '#ef4444', dot: '#ef4444' },
   info: { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6', dot: '#3b82f6' },
   neutral: { bg: 'rgba(107, 114, 128, 0.1)', text: '#64748b', dot: '#64748b' },
 }
 ```
+
+`theme.badges.danger.bg`/`.border` aren't only for the status-badge component —
+per #289, they're the canonical danger tint reused wherever an error banner,
+delete button, or danger-adjacent panel needs the same translucent red
+background (and, where it has a border at all, the same border): `ProfilePage`
+error banners, `MainLayout`'s logout buttons, `ReportsPage`'s error style,
+`TransactionModal`'s error message, `TerminalsTab`'s revoke button, and
+others. Reuse the existing badge token instead of hand-writing a new
+`rgba(239, 68, 68, ...)` literal — that's the pattern the issue calls out
+("the existing `theme.badges.*.bg` pattern already does this ... extend it").
 
 ### Overlay Backdrop
 

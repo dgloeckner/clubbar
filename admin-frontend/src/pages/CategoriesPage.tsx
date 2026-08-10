@@ -457,7 +457,7 @@ export function CategoriesPage() {
                           style={{
                             display: 'flex', alignItems: 'center', gap: '4px',
                             padding: '6px 12px', borderRadius: '6px', border: 'none',
-                            background: category.product_count > 0 ? 'rgba(107,114,128,0.1)' : 'rgba(239,68,68,0.1)',
+                            background: category.product_count > 0 ? 'rgba(107,114,128,0.1)' : theme.badges.danger.bg,
                             color: category.product_count > 0 ? theme.colors.semantic.neutral : theme.colors.semantic.danger,
                             fontSize: '12px',
                             cursor: category.product_count > 0 ? 'not-allowed' : 'pointer',
