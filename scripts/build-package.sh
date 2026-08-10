@@ -13,6 +13,10 @@
 #
 # Local testing:
 #   ./scripts/build-package.sh test
+#   # Hand the tree to the uid the container serves it as. The package ships
+#   # 0700 on storage/ and logs/ (#248) and the build ran as you, so without
+#   # this the installer inside the container cannot write its own config:
+#   ./scripts/package-permissions.sh container-user
 #   docker compose -f docker-compose.yml -f docker-compose.ci.yml -f docker-compose.package.yml up -d database backend
 #   # Reset DB for fresh install:
 #   docker compose exec database mariadb -uroot -proot -e "DROP DATABASE IF EXISTS clubbar; CREATE DATABASE clubbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON clubbar.* TO 'clubbar'@'%';"
@@ -22,6 +26,7 @@
 #   open http://localhost:8080/install.php
 #   # Clean up:
 #   docker compose -f docker-compose.yml -f docker-compose.ci.yml -f docker-compose.package.yml down
+#   ./scripts/package-permissions.sh builder-user
 #
 
 set -euo pipefail
@@ -77,8 +82,11 @@ fi
 echo "--- Creating writable directories..."
 mkdir -p "$PKG_DIR/backend/storage"
 mkdir -p "$PKG_DIR/backend/logs"
-chmod -R 777 "$PKG_DIR/backend/storage" "$PKG_DIR/backend/logs"
-chmod 777 "$PKG_DIR"
+# Modes are set in one place, at the end of the build: scripts/package-permissions.sh
+# harden. These two directories hold scanned SEPA mandates, sessions and logs,
+# and used to ship 0777 along with the document root — a convenience for the
+# Docker package test that survived into every production install
+# (#248, ADR-0031 decision 4).
 
 # Defense-in-depth: block direct HTTP access to storage and logs
 # (primary protection is the RewriteRule ^backend/ in .htaccess)
@@ -158,7 +166,18 @@ cp "$PROJECT_ROOT/package/config.sample.php" "$PKG_DIR/config.sample.php"
 cp "$PROJECT_ROOT/package/README.txt"        "$PKG_DIR/README.txt"
 
 # ------------------------------------------------------------------
-# 9. Create ZIP archive
+# 9. Apply the modes the release carries, and prove it carries them
+# ------------------------------------------------------------------
+# `verify` is a gate rather than a report: a world-writable path in here ships
+# to every install, and on mass hosting that is a directory any other customer
+# — or anything already running as another user on the box — can drop an
+# executable .php file into (#248, ADR-0031 decision 4).
+echo "--- Applying package file modes..."
+"$SCRIPT_DIR/package-permissions.sh" harden "$PKG_DIR"
+"$SCRIPT_DIR/package-permissions.sh" verify "$PKG_DIR"
+
+# ------------------------------------------------------------------
+# 10. Create ZIP archive
 # ------------------------------------------------------------------
 ARCHIVE="clubbar-${VERSION}.zip"
 echo "--- Creating archive: $ARCHIVE"
@@ -166,7 +185,7 @@ cd "$PKG_DIR"
 zip -r "$DIST_DIR/$ARCHIVE" . -q
 
 # ------------------------------------------------------------------
-# 10. Summary
+# 11. Summary
 # ------------------------------------------------------------------
 ARCHIVE_PATH="$DIST_DIR/$ARCHIVE"
 ARCHIVE_SIZE=$(du -h "$ARCHIVE_PATH" | cut -f1)

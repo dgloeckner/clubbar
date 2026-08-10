@@ -274,7 +274,8 @@ test.describe('Package: Security self-check', () => {
    * Everything here is either set by application code (ADR-0031 decision 1) or
    * enforced by a file the package ships and the container honours. The rows
    * left out are the ones that legitimately depend on the deployment — HTTPS,
-   * HSTS, and the `0777` the build leaves on the writable directories.
+   * HSTS, and the data directory's placement, which needs a writable parent the
+   * container does not have.
    */
   const MUST_PASS = [
     'display_errors',
@@ -292,6 +293,13 @@ test.describe('Package: Security self-check', () => {
     // Written by the installer with 0600 — the database password and the key
     // that encrypts every admin's second factor are in it.
     'config_file_mode',
+    // Shipped 0700 by the build, and 0777 until #248: the mandate store and the
+    // request logs must not be readable by another account on the machine.
+    'storage_directory_mode',
+    'log_directory_mode',
+    // Served, so it stays readable — but nothing else may write a .php file
+    // into a directory the webserver executes from.
+    'document_root_mode',
   ];
 
   test('every protection the package promises is in effect', async () => {
@@ -312,6 +320,25 @@ test.describe('Package: Security self-check', () => {
     const failing = measurePackagedSecurity().filter((finding) => finding.status === 'fail');
 
     expect(failing.map((finding) => `${finding.id}: ${finding.observed}`)).toEqual([]);
+  });
+
+  /**
+   * ADR-0031 decision 4, asserted against the artifact rather than the intent.
+   *
+   * `MUST_PASS` above would stay green on `0640` or `0750` — anything without
+   * world bits passes. These are the modes the release is supposed to carry, so
+   * a build that stopped calling `package-permissions.sh harden`, or an
+   * installer whose `chmod` silently did nothing, is caught here instead of
+   * shipping. The document root is the exception: it is served, so `0755` is
+   * the target and only the write bits are the finding.
+   */
+  test('the writable directories and the config carry the modes the release targets', async () => {
+    const byId = new Map(measurePackagedSecurity().map((finding) => [finding.id, finding]));
+
+    expect(byId.get('storage_directory_mode')?.observed).toBe('0700');
+    expect(byId.get('log_directory_mode')?.observed).toBe('0700');
+    expect(byId.get('config_file_mode')?.observed).toBe('0600');
+    expect(byId.get('document_root_mode')?.observed).toBe('0755');
   });
 
   /**

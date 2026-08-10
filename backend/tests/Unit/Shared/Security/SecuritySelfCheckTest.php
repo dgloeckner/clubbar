@@ -276,6 +276,26 @@ class SecuritySelfCheckTest extends TestCase
         $this->assertSame('0777', $finding->observed);
     }
 
+    /**
+     * The document root is the one path measured by a different rule, and the
+     * rule has to hold in both directions: `0755` is what a served directory
+     * looks like and must not be a finding, while a write bit for anyone else
+     * means any foothold on the machine can drop in a `.php` file the webserver
+     * will execute (#248).
+     */
+    public function test_a_world_writable_document_root_is_reported_while_a_served_one_passes(): void
+    {
+        chmod($this->documentRoot, 0755);
+        $this->assertSame(SecurityFinding::PASS, $this->statusOf('document_root_mode'));
+
+        chmod($this->documentRoot, 0777);
+
+        $finding = $this->finding('document_root_mode');
+        $this->assertSame(SecurityFinding::WARN, $finding->status);
+        $this->assertSame('0777', $finding->observed);
+        $this->assertStringContainsString('can be written by other users', (string) $finding->remedy);
+    }
+
     public function test_the_configuration_files_mode_is_measured_when_there_is_one(): void
     {
         $configFile = $this->documentRoot . '/config.php';

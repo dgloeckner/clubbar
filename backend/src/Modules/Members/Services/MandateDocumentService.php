@@ -85,7 +85,13 @@ class MandateDocumentService
 
         $storageDir = $this->getStorageDir();
         if (!is_dir($storageDir)) {
-            mkdir($storageDir, 0755, true);
+            // 0700: what is about to be written here is a name, an IBAN and a
+            // handwritten signature per member, and on shared hosting the other
+            // accounts on the machine can read anything world-readable
+            // (#248, ADR-0031 decision 4). The enclosing storage/ is 0700 for
+            // the same reason; this is the layer that still holds if a host
+            // refused to let that one be narrowed.
+            mkdir($storageDir, 0700, true);
         }
 
         $absolutePath = $storageDir . '/' . $memberId . '.pdf';
