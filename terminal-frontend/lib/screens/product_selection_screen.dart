@@ -239,6 +239,13 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                       categories[_selectedCategoryIndex],
                       productsProvider,
                       cartProvider,
+                      // The summary bar (#34) is sticky below the grid, not
+                      // part of its scroll extent — without matching bottom
+                      // padding here the last row can never scroll clear of
+                      // it (#293).
+                      bottomPadding: cartProvider.items.isNotEmpty
+                          ? CartSummaryBar.height
+                          : 0.0,
                     ),
                   ),
                 ),
@@ -267,8 +274,9 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     BuildContext context,
     CategoriesCacheData category,
     ProductsProvider productsProvider,
-    CartProvider cartProvider,
-  ) {
+    CartProvider cartProvider, {
+    required double bottomPadding,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     // Get member's preferred language (needed for display)
     final memberLang = context.read<MembersProvider>().selectedMember?.preferredLanguage ?? 'de';
@@ -290,7 +298,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     }
 
     return GridView.builder(
-      padding: EdgeInsets.zero,
+      padding: EdgeInsets.only(bottom: bottomPadding),
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: _tileMaxWidth,
         // A pinned height, rather than an aspect ratio: the card's contents

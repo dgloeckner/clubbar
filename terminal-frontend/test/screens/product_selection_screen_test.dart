@@ -656,6 +656,184 @@ void main() {
       });
     });
 
+    // Issue #293: the grid used `padding: EdgeInsets.zero`, so the sticky
+    // summary bar below it (#34) got no compensating space — the last row
+    // could never scroll fully clear of it. The fix mirrors the bar's own
+    // fixed height back onto the grid's bottom padding whenever the bar is
+    // showing, and removes it again once the cart (and the bar) are gone.
+    group('grid bottom padding clears the summary bar (#293)', () {
+      Future<void> pumpCatalog(
+        WidgetTester tester, {
+        required int productCount,
+        required bool cartHasItems,
+        Size surface = const Size(1280, 800),
+      }) async {
+        tester.view.physicalSize = surface;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final categories = [
+          CategoriesCacheData(
+            id: 'cat-1',
+            names: jsonEncode({'de': 'Getränke'}),
+            isActive: 1,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        ];
+        final products = List.generate(
+          productCount,
+          (i) => ProductsCacheData(
+            id: 'prod-$i',
+            categoryId: 'cat-1',
+            names: jsonEncode({'de': 'Produkt $i'}),
+            descriptions: null,
+            priceCents: 250 + i,
+            isActive: 1,
+            requiresDispenser: 0,
+            iconName: null,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        );
+
+        when(() => mockProductsProvider.categories).thenReturn(categories);
+        when(() => mockProductsProvider.products).thenReturn(products);
+        when(() => mockProductsProvider.getVisibleProducts(any()))
+            .thenReturn(products);
+        when(() => mockProductsProvider.isProductAvailable(any()))
+            .thenReturn(true);
+        when(() => mockProductsProvider.lastError).thenReturn(null);
+        when(() => mockProductsProvider.getTranslatedName(any(), any()))
+            .thenAnswer((invocation) {
+          final product =
+              invocation.positionalArguments[0] as ProductsCacheData;
+          return 'Produkt ${product.id}';
+        });
+
+        if (cartHasItems) {
+          when(() => mockCartProvider.items).thenReturn([
+            CartItem(
+              productId: 'prod-0',
+              productName: 'Produkt prod-0',
+              quantity: 1,
+              priceCents: 250,
+              language: 'de',
+            ),
+          ]);
+          when(() => mockCartProvider.itemCount).thenReturn(1);
+          when(() => mockCartProvider.total).thenReturn(250);
+        } else {
+          when(() => mockCartProvider.items).thenReturn([]);
+          when(() => mockCartProvider.itemCount).thenReturn(0);
+          when(() => mockCartProvider.total).thenReturn(0);
+        }
+
+        await tester.pumpWidget(
+          createTestApp(
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ProductsProvider>.value(
+                    value: mockProductsProvider),
+                ChangeNotifierProvider<CartProvider>.value(
+                    value: mockCartProvider),
+                ChangeNotifierProvider<SyncProvider>.value(
+                    value: mockSyncProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                    value: mockMembersProvider),
+                ChangeNotifierProvider<SessionController>.value(
+                    value: mockSessionController),
+                Provider<SoundService>.value(value: mockSoundService),
+              ],
+              child: const Scaffold(body: ProductSelectionScreen()),
+            ),
+          ),
+        );
+      }
+
+      testWidgets('no dead space at the bottom while the cart is empty',
+          (WidgetTester tester) async {
+        await pumpCatalog(tester, productCount: 40, cartHasItems: false);
+
+        expect(find.byType(CartSummaryBar), findsNothing);
+        final grid = tester.widget<GridView>(find.byType(GridView));
+        expect(grid.padding, EdgeInsets.zero);
+      });
+
+      testWidgets(
+          'the grid reserves exactly the bar\'s height once the cart is not empty',
+          (WidgetTester tester) async {
+        await pumpCatalog(tester, productCount: 40, cartHasItems: true);
+
+        expect(find.byType(CartSummaryBar), findsOneWidget);
+        final grid = tester.widget<GridView>(find.byType(GridView));
+        expect(grid.padding, EdgeInsets.only(bottom: CartSummaryBar.height));
+      });
+
+      // Same three type scales as #41 — the reserved space is a fixed
+      // constant, not derived from the tile's own font-driven height, so it
+      // must not fight the tile sizing at any of them.
+      for (final scale in [
+        {
+          'xs': 12.0, 'sm': 13.0, 'base': 14.0,
+          'lg': 16.0, 'xl': 18.0, 'xxl': 20.0, 'xxxl': 24.0,
+        },
+        {
+          'xs': 14.0, 'sm': 15.0, 'base': 16.0,
+          'lg': 18.0, 'xl': 20.0, 'xxl': 24.0, 'xxxl': 28.0,
+        },
+        {
+          'xs': 16.0, 'sm': 17.0, 'base': 20.0,
+          'lg': 22.0, 'xl': 24.0, 'xxl': 26.0, 'xxxl': 30.0,
+        },
+      ]) {
+        testWidgets(
+            'the last tile scrolls fully above the bar at xl ${scale['xl']}',
+            (WidgetTester tester) async {
+          final shipped = {
+            'xs': AppFontSizes.xs,
+            'sm': AppFontSizes.sm,
+            'base': AppFontSizes.base,
+            'lg': AppFontSizes.lg,
+            'xl': AppFontSizes.xl,
+            'xxl': AppFontSizes.xxl,
+            'xxxl': AppFontSizes.xxxl,
+          };
+          addTearDown(() => AppFontSizes.applyConfig(shipped));
+          AppFontSizes.applyConfig(scale);
+
+          await pumpCatalog(tester, productCount: 40, cartHasItems: true);
+          expect(tester.takeException(), isNull);
+
+          // Drag to the grid's true max scroll extent, not merely until the
+          // last tile first becomes hit-testable (dragUntilVisible stops as
+          // soon as any sliver of it is on screen, which is exactly the
+          // half-covered state #293 is about).
+          final gridScrollable = find.descendant(
+            of: find.byType(GridView),
+            matching: find.byType(Scrollable),
+          );
+          double previousOffset;
+          double offset = -1;
+          do {
+            previousOffset = offset;
+            await tester.drag(find.byType(GridView), const Offset(0, -600));
+            await tester.pump();
+            offset = tester
+                .state<ScrollableState>(gridScrollable)
+                .position
+                .pixels;
+          } while (offset != previousOffset);
+          await tester.pumpAndSettle();
+
+          final tileBottom =
+              tester.getBottomLeft(find.byType(ProductCard).last).dy;
+          final barTop = tester.getTopLeft(find.byType(CartSummaryBar)).dy;
+
+          expect(tileBottom, lessThanOrEqualTo(barTop));
+          expect(tester.takeException(), isNull);
+        });
+      }
+    });
+
     // Issue #30: the bar was a plain Row of Expanded chips sized for two tabs.
     // A club with six categories — or one long German name like "Alkoholfreie
     // Getränke" — blew the row out with a RenderFlex overflow. The bar now
