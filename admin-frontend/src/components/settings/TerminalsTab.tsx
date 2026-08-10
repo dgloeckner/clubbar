@@ -273,7 +273,7 @@ export function TerminalsTab({
                   onClick={() => onEditTerminal(terminal)}
                   style={{
                     ...actionButtonStyle,
-                    background: 'rgba(59, 130, 246, 0.1)',
+                    background: theme.badges.info.bg,
                     color: theme.colors.semantic.primary,
                   }}
                 >

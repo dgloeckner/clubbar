@@ -176,7 +176,7 @@ export function TransactionModal({
                 onClick={() => setFilter(filterType)}
                 style={{
                   padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                  background: filter === filterType ? theme.colors.semantic.primary : 'rgba(59, 130, 246, 0.1)',
+                  background: filter === filterType ? theme.colors.semantic.primary : theme.badges.info.bg,
                   color: filter === filterType ? 'white' : theme.colors.semantic.primary,
                   border: 'none',
                   borderRadius: theme.borderRadius.md,

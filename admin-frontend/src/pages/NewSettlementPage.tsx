@@ -411,7 +411,7 @@ export function NewSettlementPage() {
                         data-testid={`new-settlement-member-row-${id}`}
                         style={{
                           borderBottom: tableColors.rowActiveBorder,
-                          backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : tableColors.rowActiveBg,
+                          backgroundColor: isSelected ? theme.badges.info.bg : tableColors.rowActiveBg,
                         }}
                       >
                         <td style={{ padding: tableSpacing.cellPadding }}>

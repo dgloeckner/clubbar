@@ -37,7 +37,7 @@ export function Input({
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     e.currentTarget.style.borderColor = theme.colors.border.focus
-    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)'
+    e.currentTarget.style.boxShadow = `0 0 0 3px ${theme.badges.info.bg}`
     props.onFocus?.(e)
   }
 
