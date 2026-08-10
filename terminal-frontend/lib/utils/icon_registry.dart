@@ -74,8 +74,11 @@
       // Beverages - Beer
       case 'beer-pils':
         return 'assets/icons/products/pils_icon.svg';
+      // Both Weizen names share one asset (#300): the old weizen_icon.svg
+      // was the muddiest tile in the set and visibly receded next to Pils
+      // and Radler; two variants for one product also bloated the registry.
       case 'beer-weizen':
-        return 'assets/icons/products/weizen_icon.svg';
+        return 'assets/icons/products/weizen_new_icon.svg';
       case 'beer-radler':
         return 'assets/icons/products/radler_icon.svg';
       case 'beer-alcohol-free':
@@ -166,7 +169,7 @@
       case 'PilsIcon':
         return 'assets/icons/products/pils_icon.svg';
       case 'WeizenIcon':
-        return 'assets/icons/products/weizen_icon.svg';
+        return 'assets/icons/products/weizen_new_icon.svg';
       case 'BeerAFIcon':
         return 'assets/icons/products/beerAF_icon.svg';
       case 'RadlerIcon':
