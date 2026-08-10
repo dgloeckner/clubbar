@@ -33,6 +33,8 @@ export const theme = {
       purple: '#8b5cf6',       // Purple - secondary action (e.g. detailed export)
       purpleHover: '#7c3aed',  // Purple - purple hover state
       neutral: '#6b7280',      // Gray - disabled/neutral action
+      blocked: '#78716c',      // Stone - action the backend gate refuses (not merely disabled)
+      blockedHover: '#57534e', // Stone - blocked hover state
     },
 
     // Text colors
@@ -56,6 +58,16 @@ export const theme = {
     // Alert/banner colors (opaque, for banners over the dark background)
     alert: {
       dangerBg: '#fee2e2',   // Error banner background
+    },
+
+    // Full-width status banners (dark bg, light text on the dark theme)
+    banner: {
+      dangerBg: '#7f1d1d',
+      dangerText: '#fca5a5',
+      warningBg: '#78350f',
+      warningText: '#fcd34d',
+      successBg: '#064e3b',
+      successText: '#6ee7b7',
     },
   },
 
