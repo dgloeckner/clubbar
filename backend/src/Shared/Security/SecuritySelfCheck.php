@@ -82,18 +82,21 @@ final class SecuritySelfCheck
      */
     public static function run(SecurityCheckContext $context): array
     {
-        // Nothing is fetched unless a row depends on it: the exposure rows are
-        // answered from the filesystem when the data is not under the document
-        // root, and HSTS is not measurable over plain HTTP. A self-request is
-        // cheap but not free — this endpoint is reachable by every admin.
-        $needsProbe = $context->https || !$context->dataIsOutsideDocumentRoot();
-        $probe = $needsProbe ? self::resolveBaseUrl($context) : ['baseUrl' => null, 'headers' => []];
+        // The mandate/log exposure rows are answered from the filesystem when
+        // the data is not under the document root, and HSTS is not measurable
+        // over plain HTTP — but the Content-Security-Policy header (#250) is
+        // meant to hold on every request regardless of transport or data
+        // placement, so unlike those rows it always needs the probe. A
+        // self-request is cheap but not free — this endpoint is reachable by
+        // every admin — so this stays a single fetch shared by every row below
+        // rather than one per row.
+        $probe = self::resolveBaseUrl($context);
 
         return [
             ...self::runtimeFindings($context),
             ...self::sessionFindings($context),
             ...self::dataFindings($context),
-            ...self::exposureFindings($context, $probe['baseUrl']),
+            ...self::exposureFindings($context, $probe),
             ...self::transportFindings($context, $probe),
         ];
     }
@@ -492,16 +495,17 @@ final class SecuritySelfCheck
     // ------------------------------------------------------------------
 
     /**
+     * @param array{baseUrl:string|null,headers:array<string,string>} $probe
      * @return list<SecurityFinding>
      */
-    private static function exposureFindings(SecurityCheckContext $context, ?string $baseUrl): array
+    private static function exposureFindings(SecurityCheckContext $context, array $probe): array
     {
         // The stronger claim, and the one worth reporting when it holds: a file
         // that is not under the document root cannot be served by any rule,
         // honoured or ignored. Verified against the filesystem, so it does not
         // depend on this host letting us fetch our own URLs.
-        if ($context->dataIsOutsideDocumentRoot()) {
-            return [
+        $findings = $context->dataIsOutsideDocumentRoot()
+            ? [
                 SecurityFinding::pass(
                     'mandate_not_served',
                     self::CATEGORY_EXPOSURE,
@@ -514,33 +518,91 @@ final class SecuritySelfCheck
                     'The application log cannot be fetched over the web',
                     'the log directory is not under the document root'
                 ),
+            ]
+            : [
+                self::canaryFinding(
+                    $context,
+                    $probe['baseUrl'],
+                    'mandate_not_served',
+                    'A scanned mandate cannot be fetched over the web',
+                    $context->dataDirectory . '/storage/mandates',
+                    // Shaped like the real thing: a mandate is named after the
+                    // member UUID the admin API already hands to the browser,
+                    // which is exactly why guessing the filename is not a
+                    // defence.
+                    self::canaryName('.pdf'),
+                    'Every scanned SEPA mandate on this installation — a name, an IBAN and a handwritten signature '
+                    . '— can be downloaded by anyone who can guess a member UUID.'
+                ),
+                self::canaryFinding(
+                    $context,
+                    $probe['baseUrl'],
+                    'logs_not_served',
+                    'The application log cannot be fetched over the web',
+                    $context->dataDirectory . '/logs',
+                    self::canaryName('.log'),
+                    'The application log can be downloaded by anyone.'
+                ),
             ];
+
+        $findings[] = self::cspFinding($probe);
+
+        return $findings;
+    }
+
+    /**
+     * The header the admin SPA depends on to bound what an injected script can
+     * do (#250). Unlike HSTS this is not a browser-side no-op over plain HTTP,
+     * so it is measured on every request rather than only over HTTPS.
+     *
+     * @param array{baseUrl:string|null,headers:array<string,string>} $probe
+     */
+    private static function cspFinding(array $probe): SecurityFinding
+    {
+        $label = 'A Content-Security-Policy header bounds what an injected script in the admin panel can do';
+
+        if ($probe['baseUrl'] === null) {
+            return SecurityFinding::unknown(
+                'csp_header',
+                self::CATEGORY_EXPOSURE,
+                $label,
+                'could not be measured',
+                'This host would not let Club Bar fetch its own URLs, so the response headers could not be read. '
+                . 'Request the admin panel yourself and check for a Content-Security-Policy response header.'
+            );
         }
 
-        return [
-            self::canaryFinding(
-                $context,
-                $baseUrl,
-                'mandate_not_served',
-                'A scanned mandate cannot be fetched over the web',
-                $context->dataDirectory . '/storage/mandates',
-                // Shaped like the real thing: a mandate is named after the
-                // member UUID the admin API already hands to the browser, which
-                // is exactly why guessing the filename is not a defence.
-                self::canaryName('.pdf'),
-                'Every scanned SEPA mandate on this installation — a name, an IBAN and a handwritten signature — '
-                . 'can be downloaded by anyone who can guess a member UUID.'
-            ),
-            self::canaryFinding(
-                $context,
-                $baseUrl,
-                'logs_not_served',
-                'The application log cannot be fetched over the web',
-                $context->dataDirectory . '/logs',
-                self::canaryName('.log'),
-                'The application log can be downloaded by anyone.'
-            ),
-        ];
+        // WARN, not FAIL: unlike the mandate/log rows above, an absent CSP
+        // header is not itself a leak of a secret or a member document — it
+        // is a missing defense-in-depth layer, the same class HSTS is in
+        // (SecurityFinding::FAIL is reserved for "exposes credentials or
+        // member data", which this alone does not).
+        $header = $probe['headers']['content-security-policy'] ?? '';
+        if ($header === '') {
+            return SecurityFinding::warn(
+                'csp_header',
+                self::CATEGORY_EXPOSURE,
+                $label,
+                'the header is not sent',
+                'Without a Content-Security-Policy, a script that ends up running in the admin panel — through a '
+                . 'compromised dependency or a stored XSS — can read the member list, trigger a settlement or send '
+                . "the session cookie to another origin, exactly as the logged-in admin. The .htaccess Club Bar "
+                . 'ships sets this header; a host that ignores .htaccess drops it.'
+            );
+        }
+
+        if (stripos($header, "'unsafe-eval'") !== false) {
+            return SecurityFinding::warn(
+                'csp_header',
+                self::CATEGORY_EXPOSURE,
+                $label,
+                $header,
+                "The policy grants 'unsafe-eval', which lets an injected script run arbitrary code the same way "
+                . 'eval() would. Remove it from the shipped policy — the admin panel does not need it.'
+            );
+        }
+
+        return SecurityFinding::pass('csp_header', self::CATEGORY_EXPOSURE, $label, $header);
     }
 
     /**

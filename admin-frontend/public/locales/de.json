@@ -708,6 +708,7 @@
     "replace": "Ersetzen",
     "uploaded": "Hochgeladen",
     "processingError": "Datei konnte nicht verarbeitet werden.",
+    "heicConversionError": "Dieses HEIC-Foto konnte nicht automatisch konvertiert werden. Bitte zuerst in JPEG umwandeln (auf den meisten Handys über \"Teilen\" oder \"Exportieren\" möglich) und erneut hochladen.",
     "uploadError": "Upload fehlgeschlagen.",
     "downloadError": "Download fehlgeschlagen.",
     "uploadingAndExtracting": "Hochladen & Extrahieren…",
