@@ -954,8 +954,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterIsActive === 'all' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
-              color: filterIsActive === 'all' ? 'white' : 'rgba(255,255,255,0.55)',
+              background: filterIsActive === 'all' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterIsActive === 'all' ? 'white' : theme.pillButton.idleText,
             }}
           >
             {t('members.filters.status.all')}
@@ -974,8 +974,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterIsActive === 'active' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
-              color: filterIsActive === 'active' ? 'white' : 'rgba(255,255,255,0.55)',
+              background: filterIsActive === 'active' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterIsActive === 'active' ? 'white' : theme.pillButton.idleText,
             }}
           >
             {t('members.filters.status.active')}
@@ -994,8 +994,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterIsActive === 'inactive' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
-              color: filterIsActive === 'inactive' ? 'white' : 'rgba(255,255,255,0.55)',
+              background: filterIsActive === 'inactive' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterIsActive === 'inactive' ? 'white' : theme.pillButton.idleText,
             }}
           >
             {t('members.filters.status.inactive')}
@@ -1032,8 +1032,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterCardUid === 'all' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
-              color: filterCardUid === 'all' ? 'white' : 'rgba(255,255,255,0.55)',
+              background: filterCardUid === 'all' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterCardUid === 'all' ? 'white' : theme.pillButton.idleText,
             }}
           >
             {t('members.filters.card.all')}
@@ -1051,8 +1051,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterCardUid === 'with' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
-              color: filterCardUid === 'with' ? 'white' : 'rgba(255,255,255,0.55)',
+              background: filterCardUid === 'with' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterCardUid === 'with' ? 'white' : theme.pillButton.idleText,
             }}
           >
             {t('members.filters.card.withCard')}
@@ -1070,8 +1070,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterCardUid === 'without' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
-              color: filterCardUid === 'without' ? 'white' : 'rgba(255,255,255,0.55)',
+              background: filterCardUid === 'without' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterCardUid === 'without' ? 'white' : theme.pillButton.idleText,
             }}
           >
             {t('members.filters.card.withoutCard')}
@@ -1108,8 +1108,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterSepaStatus === 'all' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
-              color: filterSepaStatus === 'all' ? 'white' : 'rgba(255,255,255,0.55)',
+              background: filterSepaStatus === 'all' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterSepaStatus === 'all' ? 'white' : theme.pillButton.idleText,
             }}
           >
             {t('members.filters.sepa.all')}
@@ -1127,8 +1127,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterSepaStatus === 'valid' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
-              color: filterSepaStatus === 'valid' ? 'white' : 'rgba(255,255,255,0.55)',
+              background: filterSepaStatus === 'valid' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterSepaStatus === 'valid' ? 'white' : theme.pillButton.idleText,
             }}
           >
             {t('members.filters.sepa.valid')}
@@ -1146,8 +1146,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterSepaStatus === 'invalid' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
-              color: filterSepaStatus === 'invalid' ? 'white' : 'rgba(255,255,255,0.55)',
+              background: filterSepaStatus === 'invalid' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterSepaStatus === 'invalid' ? 'white' : theme.pillButton.idleText,
             }}
           >
             {t('members.filters.sepa.missing')}
