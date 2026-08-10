@@ -45,6 +45,17 @@ class CartSummaryBar extends StatelessWidget {
 
   final VoidCallback onViewCart;
 
+  static const double _buttonHeight = 67.0;
+  static const double _borderWidth = 1.0;
+
+  /// The bar's fixed content height, computed from the same tokens the bar
+  /// itself renders with (button height, vertical padding, border) rather
+  /// than measured and pinned separately — so a caller that needs to reserve
+  /// space for the bar (the product grid's bottom padding, issue #293)
+  /// cannot drift out of sync with it.
+  static const double height =
+      _buttonHeight + 2 * AppSpacing.md + 2 * _borderWidth;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -58,7 +69,7 @@ class CartSummaryBar extends StatelessWidget {
         ),
         border: Border.all(
           color: const Color(0xff334155),
-          width: 1,
+          width: _borderWidth,
         ),
       ),
       padding: const EdgeInsets.symmetric(
@@ -161,7 +172,7 @@ class _ViewCartButton extends StatelessWidget {
         child: Opacity(
           opacity: onPressed == null ? 0.4 : 1.0,
           child: Container(
-            height: 67,
+            height: CartSummaryBar._buttonHeight,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             decoration: BoxDecoration(
               color: const Color(0x333b82f6),
