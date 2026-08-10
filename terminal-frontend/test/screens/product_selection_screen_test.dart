@@ -17,6 +17,7 @@ import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/product_selection_screen.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/widgets/cart_summary_bar.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
@@ -578,6 +579,80 @@ void main() {
         // screen, and height is identical either way.
         expect(wideTile.height, narrowTile.height);
         expect((wideTile.width - narrowTile.width).abs(), lessThan(40));
+      });
+
+      // The tile height used to be pinned at 218, measured when `xl` was 18.
+      // Raising the kiosk default to 20 made the card 225 px and every tile
+      // overflowed by 7 (#41). The height is derived from the type scale now,
+      // and the scale is a deployment setting — so the fit has to hold at more
+      // than the one scale that happens to ship.
+      group('the tile tracks the type scale (#41)', () {
+        /// Swap in a scale for one test and put the shipped one back after.
+        void useScale(
+          WidgetTester tester, {
+          required double xs,
+          required double sm,
+          required double base,
+          required double lg,
+          required double xl,
+          required double xxl,
+          required double xxxl,
+        }) {
+          final shipped = {
+            'xs': AppFontSizes.xs,
+            'sm': AppFontSizes.sm,
+            'base': AppFontSizes.base,
+            'lg': AppFontSizes.lg,
+            'xl': AppFontSizes.xl,
+            'xxl': AppFontSizes.xxl,
+            'xxxl': AppFontSizes.xxxl,
+          };
+          addTearDown(() => AppFontSizes.applyConfig(shipped));
+          AppFontSizes.applyConfig({
+            'xs': xs, 'sm': sm, 'base': base, 'lg': lg,
+            'xl': xl, 'xxl': xxl, 'xxxl': xxxl,
+          });
+        }
+
+        testWidgets('fits at the smaller scale the app used to ship',
+            (WidgetTester tester) async {
+          useScale(tester,
+              xs: 12, sm: 13, base: 14, lg: 16, xl: 18, xxl: 20, xxxl: 24);
+          await pumpCatalog(tester, 9);
+
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets('fits at a scale a large-print deployment might set',
+            (WidgetTester tester) async {
+          useScale(tester,
+              xs: 16, sm: 17, base: 20, lg: 22, xl: 24, xxl: 26, xxxl: 30);
+          await pumpCatalog(tester, 9);
+
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets('a bigger scale buys a taller tile, not a clipped one',
+            (WidgetTester tester) async {
+          useScale(tester,
+              xs: 12, sm: 13, base: 14, lg: 16, xl: 18, xxl: 20, xxxl: 24);
+          await pumpCatalog(tester, 9);
+          final small = tester.getSize(find.byType(ProductCard).first).height;
+
+          // The screen is pumped as a const widget, so an identical second
+          // pumpWidget reuses the element tree and never re-reads the scale.
+          // Drop the tree first to make the rebuild real.
+          await tester.pumpWidget(const SizedBox.shrink());
+
+          useScale(tester,
+              xs: 16, sm: 17, base: 20, lg: 22, xl: 24, xxl: 26, xxxl: 30);
+          await pumpCatalog(tester, 9);
+          final large = tester.getSize(find.byType(ProductCard).first).height;
+
+          expect(large, greaterThan(small),
+              reason: 'a pinned height is what caused #41');
+          expect(tester.takeException(), isNull);
+        });
       });
     });
 

@@ -19,10 +19,31 @@ class AppColors {
   static const String semanticDanger = '#ef4444';   // Red - errors
   static const String semanticInfo = '#0ea5e9';     // Cyan - info/prices
 
-  // Text colors
+  /// The blue a *filled* control may use when it carries white text (#41).
+  ///
+  /// [semanticPrimary] is a fine accent — as a border, an icon or text on a
+  /// dark background it clears AA comfortably. It is not a fine *fill*: white
+  /// on `#3b82f6` is only 3.7:1, below the 4.5:1 AA needs for text. This is
+  /// the same hue one step darker, where white reaches 5.2:1. Use it for
+  /// button and chip backgrounds; keep [semanticPrimary] for everything else.
+  static const String semanticPrimaryStrong = '#2563eb';
+
+  /// Red for text sitting on a *tinted red* surface, e.g. the offline badge
+  /// (#41). [semanticDanger] on its own 15% tint is 3.9:1; this is 5.3:1.
+  static const String dangerOnTint = '#f87171';
+
+  // Text colors — every one of these clears WCAG AA (4.5:1) on every
+  // background token above; `test/utils/contrast_test.dart` enforces it.
   static const String textPrimary = '#f1f5f9';   // Primary text
   static const String textSecondary = '#94a3b8'; // Secondary text
-  static const String textMuted = '#64748b';     // Muted text
+
+  /// Tertiary text — timestamps, version strings, hints.
+  ///
+  /// Was `#64748b`, which is 3.8:1 on [bgPrimary] and 3.1:1 on [bgCard] —
+  /// below AA anywhere it was used (#41). Lightened so that the token is safe
+  /// by construction rather than by reviewer vigilance; it is still visibly
+  /// quieter than [textSecondary].
+  static const String textMuted = '#8494a8';
 
   // Border colors
   static const String borderLight = '#334155';   // Light border
@@ -82,14 +103,21 @@ class AppSpacing {
   static const double xxxl = 32.0;
 }
 
+/// Type scale.
+///
+/// The defaults are sized for the deployment target — a 7″ touchscreen read
+/// standing up, at arm's length, in bar lighting — not for a phone held at
+/// 30 cm (#41). Every step is ~12% larger than the phone-ish scale the app
+/// started with (base was 14). Deployments that need something else override
+/// the steps from `config.json` via [applyConfig]; see `INSTALL.md`.
 class AppFontSizes {
-  static double xs = 12.0;
-  static double sm = 13.0;
-  static double base = 14.0;
-  static double lg = 16.0;
-  static double xl = 18.0;
-  static double xxl = 20.0;
-  static double xxxl = 24.0;
+  static double xs = 13.0;
+  static double sm = 14.0;
+  static double base = 16.0;
+  static double lg = 18.0;
+  static double xl = 20.0;
+  static double xxl = 22.0;
+  static double xxxl = 26.0;
 
   /// Apply font size overrides from config (e.g. from config.json `fontSizes` key).
   /// Only non-null values are applied; omitted keys keep their defaults.

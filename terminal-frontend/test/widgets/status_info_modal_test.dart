@@ -202,6 +202,12 @@ void main() {
         expect(find.text('Technische Details'), findsOneWidget);
         expect(find.text('backendUnreachable'), findsNothing);
 
+        // The modal caps at 600 px and scrolls; at the kiosk type scale (#41)
+        // the expander sits below that fold. Scroll to it first — tapping a
+        // widget that is off-screen silently misses and leaves it collapsed.
+        await tester.ensureVisible(find.text('Technische Details'));
+        await tester.pumpAndSettle();
+
         await tester.tap(find.text('Technische Details'));
         await tester.pumpAndSettle();
 

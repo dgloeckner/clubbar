@@ -83,6 +83,22 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
     }
   }
 
+  /// Label colour for a pill tinted with [color] (#41).
+  ///
+  /// Green and amber clear AA at full strength on both tints this widget uses
+  /// — 15 % when quiet, 25 % when alerting. Red does not: 3.9:1 quiet, and
+  /// only 3.5:1 alerting, because the heavier fill is itself redder. So a red
+  /// pill takes the lighter [AppColors.dangerOnTint] (5.3:1 / 4.7:1). Fill and
+  /// border keep [color] either way, so the pill still reads as red.
+  ///
+  /// Lives here rather than at the call sites so every pill — connection and
+  /// reader, quiet and alerting — is legible by construction.
+  Color _pillTextColor(Color color) {
+    return color == hexToColor(AppColors.semanticDanger)
+        ? hexToColor(AppColors.dangerOnTint)
+        : color;
+  }
+
   String _badgeText(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     switch (widget.connectionStatus) {
@@ -120,7 +136,12 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
     bool busy = false,
     String? semanticsLabel,
   }) {
-    final foreground = alert ? color : color.withValues(alpha: 0.7);
+    // Full strength in both states (#41). Fading the label to 70 % over the
+    // pill's own tint put it at 3.6:1 green / 2.6:1 red / 3.8:1 amber — the
+    // quiet state was the unreadable one, which is most of the time. What
+    // makes an alert shout is the stronger fill, the heavier border and the
+    // larger bold type below, none of which cost legibility.
+    final foreground = _pillTextColor(color);
 
     return Semantics(
       button: true,
@@ -258,7 +279,9 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
               Text(
                 _formatTime(_currentTime),
                 style: TextStyle(
-                  color: Color(0xff64748b),
+                  // Was a hardcoded #64748b (3.5:1 here) — the clock is text
+                  // a member reads, so it gets the secondary token (#41).
+                  color: hexToColor(AppColors.textSecondary),
                   fontSize: AppFontSizes.lg,
                   fontFamily: 'JetBrains Mono',
                   fontWeight: FontWeight.w500,

@@ -351,7 +351,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 icon: const Icon(Icons.refresh),
                 label: Text(l10n.retry),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xff3b82f6),
+                  // Strong blue: white on #3b82f6 is 3.7:1 (#41).
+                  backgroundColor:
+                      hexToColor(AppColors.semanticPrimaryStrong),
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -374,36 +376,47 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
     }
 
     if (_isOffline) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.cloud_off,
-                color: Color(0xff3b82f6),
-                size: 48,
+      // Scrollable, because the notice sits in a fixed-height slot and the
+      // type scale is a deployment setting (#41): at the kiosk default this
+      // column is 4 px taller than the space it is given. The minHeight keeps
+      // the old centring when there *is* room — a bare scroll view would pin
+      // the notice to the top — so all this changes is that "too tall"
+      // degrades into a nudge rather than a striped overflow banner.
+      return LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.cloud_off,
+                    color: Color(0xff3b82f6),
+                    size: 48,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.offlineMode,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: AppFontSizes.lg,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.transactionHistoryUnavailableOffline,
+                    style: TextStyle(
+                      color: const Color(0xffa1a1aa),
+                      fontSize: AppFontSizes.sm,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                l10n.offlineMode,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: AppFontSizes.lg,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l10n.transactionHistoryUnavailableOffline,
-                style: TextStyle(
-                  color: const Color(0xffa1a1aa),
-                  fontSize: AppFontSizes.sm,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
         ),
       );
@@ -558,8 +571,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
+          // Strong blue: white on #3b82f6 is 3.7:1 (#41).
           color: isSelected
-              ? const Color(0xff3b82f6)
+              ? hexToColor(AppColors.semanticPrimaryStrong)
               : const Color(0xff334155),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
@@ -572,7 +586,11 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : const Color(0xffa1a1aa),
+            // #a1a1aa on #334155 was 4.0:1; this is a tappable language
+            // label, so it needs to clear AA like any other text (#41).
+            color: isSelected
+                ? Colors.white
+                : hexToColor(AppColors.textPrimary),
             fontSize: AppFontSizes.base,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           ),

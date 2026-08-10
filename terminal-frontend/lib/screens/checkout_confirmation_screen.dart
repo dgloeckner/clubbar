@@ -318,7 +318,9 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         Text(
           l10n.checkoutReceiptUnavailable,
           style: TextStyle(
-            color: hexToColor(AppColors.textMuted),
+            // Secondary, not muted: this explains why the receipt is thin, so
+            // it is text the member has to be able to read (#41).
+            color: hexToColor(AppColors.textSecondary),
             fontSize: AppFontSizes.base,
           ),
           textAlign: TextAlign.center,
@@ -414,7 +416,8 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     return ElevatedButton(
       onPressed: _endSessionAndReturnToIdle,
       style: ElevatedButton.styleFrom(
-        backgroundColor: hexToColor(AppColors.semanticPrimary),
+        // Strong blue: white on #3b82f6 is 3.7:1 (#41).
+        backgroundColor: hexToColor(AppColors.semanticPrimaryStrong),
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 29, vertical: 17),
         textStyle: TextStyle(

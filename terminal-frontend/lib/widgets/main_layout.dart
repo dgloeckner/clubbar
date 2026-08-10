@@ -156,7 +156,9 @@ class _TimeoutWarningOverlay extends StatelessWidget {
               FilledButton(
                 key: const Key('session-timeout-continue'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xff3b82f6),
+                  // Strong blue: white on #3b82f6 is 3.7:1 (#41).
+                  backgroundColor: hexToColor(AppColors.semanticPrimaryStrong),
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.xl,
                     vertical: AppSpacing.lg,
