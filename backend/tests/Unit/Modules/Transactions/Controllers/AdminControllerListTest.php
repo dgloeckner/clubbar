@@ -63,11 +63,61 @@ class AdminControllerListTest extends TestCase
         $this->controller->getTransactions($this->get('/api/admin/transactions'), new Response());
     }
 
-    public function test_it_maps_the_type_parameter_to_a_transaction_type_filter(): void
+    /**
+     * The filter key the repository reads is `type`. This assertion used to
+     * demand `transaction_type`, which is the key nothing reads — the journal
+     * returned every transaction while the control read as active (#110).
+     */
+    public function test_it_passes_the_type_parameter_under_the_key_the_repository_reads(): void
     {
-        $this->expectList(20, 0, ['transaction_type' => 'storno'], 'created_at', 'desc');
+        $this->expectList(20, 0, ['type' => 'storno'], 'created_at', 'desc');
 
         $this->controller->getTransactions($this->get('/api/admin/transactions', ['type' => 'storno']), new Response());
+    }
+
+    public function test_it_accepts_transaction_type_as_an_alias_for_type(): void
+    {
+        $this->expectList(20, 0, ['type' => 'storno'], 'created_at', 'desc');
+
+        $this->controller->getTransactions(
+            $this->get('/api/admin/transactions', ['transaction_type' => 'storno']),
+            new Response(),
+        );
+    }
+
+    public function test_type_all_means_no_filter(): void
+    {
+        $this->expectList(20, 0, [], 'created_at', 'desc');
+
+        $this->controller->getTransactions($this->get('/api/admin/transactions', ['type' => 'all']), new Response());
+    }
+
+    public function test_an_empty_type_means_no_filter(): void
+    {
+        $this->expectList(20, 0, [], 'created_at', 'desc');
+
+        $this->controller->getTransactions($this->get('/api/admin/transactions', ['type' => '']), new Response());
+    }
+
+    /**
+     * The list and the export must agree: the same query against both applies
+     * the same filter. They disagreed for as long as the list wrote a key the
+     * repository never read (#110).
+     */
+    public function test_the_list_and_the_export_filter_on_the_same_key(): void
+    {
+        $seen = [];
+        $this->service->method('getTransactions')
+            ->willReturnCallback(function (int $limit, int $offset, array $filters) use (&$seen) {
+                $seen[] = $filters;
+                return new PaginatedResultDto([], total: 0, limit: $limit, offset: $offset);
+            });
+
+        $this->controller->getTransactions($this->get('/api/admin/transactions', ['type' => 'storno']), new Response());
+        $this->controller->exportTransactions($this->get('/api/admin/transactions/export', ['type' => 'storno']), new Response());
+
+        $this->assertSame(['type' => 'storno'], $seen[0]);
+        $this->assertSame($seen[0], $seen[1]);
     }
 
     public function test_it_maps_settlement_status_open_to_unsettled(): void
