@@ -37,6 +37,7 @@ MockConfigService createMockConfigService() {
   when(() => mock.fullscreen).thenReturn(false);
   when(() => mock.seedTestData).thenReturn(false);
   when(() => mock.fontSizes).thenReturn(null);
+  when(() => mock.displayName).thenReturn(ConfigService.defaultDisplayName);
   return mock;
 }
 

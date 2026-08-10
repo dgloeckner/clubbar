@@ -231,6 +231,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
   "soundsEnabled": true,
   "seedTestData": false,
   "demoMode": false,
+  "displayName": "Club Bar",
 
   "fontSizes": {
     "xs":    13,
@@ -271,6 +272,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `soundsEnabled` | bool | `true` | Enable audio feedback sounds. Natural/warm UI sounds at key interactions. Set `false` for a silent deployment. |
 | `seedTestData` | bool | `false` | Pre-populate the local database with mock members, categories, and products. **Development only — never enable in production.** |
 | `demoMode` | bool | `false` | Enable demo mode for showcasing the terminal without a backend connection. **Development only.** |
+| `displayName` | string | `"Club Bar"` | The club's name, shown in the terminal header. |
 | `fontSizes.xs` | number | `13` | Font size in logical pixels for the `xs` scale step. |
 | `fontSizes.sm` | number | `14` | Font size for the `sm` scale step. |
 | `fontSizes.base` | number | `16` | Base body font size. Used for balance display, labels, and secondary text. |

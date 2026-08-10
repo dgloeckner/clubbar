@@ -38,6 +38,9 @@ class ConfigParseException implements Exception {
 class ConfigService {
   static const String _configFileName = 'config.json';
 
+  /// Header title shown when `config.json` carries no `displayName` (#297).
+  static const String defaultDisplayName = 'Club Bar';
+
   final String? _configDirOverride;
   String? _terminalId;
   String? _apiUrl;
@@ -51,6 +54,7 @@ class ConfigService {
   int _dispenserPollIntervalMs = 250;
   bool _fullscreen = false;
   bool _soundsEnabled = true;
+  String? _displayName;
   Map<String, dynamic>? _fontSizes;
   bool _rfidReaderMonitor = true;
   String? _rfidReaderVendorId;
@@ -77,6 +81,10 @@ class ConfigService {
   int get dispenserPollIntervalMs => _dispenserPollIntervalMs;
   bool get fullscreen => _fullscreen;
   bool get soundsEnabled => _soundsEnabled;
+
+  /// The name a deploying club shows in the terminal header — a per-terminal
+  /// setting so a fork is not needed to show anything but "Club Bar" (#297).
+  String get displayName => _displayName ?? defaultDisplayName;
   Map<String, dynamic>? get fontSizes => _fontSizes;
 
   /// How the RFID reader is recognised among the machine's input devices.
@@ -128,6 +136,7 @@ class ConfigService {
         _demoMode = json['demoMode'] as bool? ?? false;
         _fullscreen = json['fullscreen'] as bool? ?? false;
         _soundsEnabled = json['soundsEnabled'] as bool? ?? true;
+        _displayName = json['displayName'] as String?;
         _fontSizes = json['fontSizes'] as Map<String, dynamic>?;
 
         // Dispenser config
@@ -231,6 +240,7 @@ class ConfigService {
     _dispenserPollIntervalMs = 250;
     _fullscreen = false;
     _soundsEnabled = true;
+    _displayName = null;
     _fontSizes = null;
     _rfidReaderMonitor = true;
     _rfidReaderVendorId = null;

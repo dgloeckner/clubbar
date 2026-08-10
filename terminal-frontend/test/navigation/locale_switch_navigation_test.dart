@@ -13,6 +13,7 @@ import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/widgets/main_layout.dart';
@@ -115,6 +116,7 @@ void main() {
   });
 
   Widget buildApp(LocaleProvider localeProvider) {
+    final configService = createMockConfigService();
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
@@ -127,8 +129,11 @@ void main() {
         Provider<SoundService>.value(value: soundService),
         Provider<NetworkService>.value(value: MockNetworkService()),
         Provider<ClubBarDatabase>.value(value: MockDatabase()),
+        // MainLayout reads ConfigService directly (#297), same as the real
+        // app's ClubBarTerminalApp provides it above TerminalMaterialApp.
+        Provider<ConfigService>.value(value: configService),
       ],
-      child: TerminalMaterialApp(configService: createMockConfigService()),
+      child: TerminalMaterialApp(configService: configService),
     );
   }
 
