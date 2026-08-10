@@ -31,11 +31,19 @@ class AdminController
         if (isset($params['member_id'])) {
             $filters['member_id'] = $params['member_id'];
         }
-        if (isset($params['type'])) {
-            $filters['transaction_type'] = $params['type'];
-        }
-        if (isset($params['transaction_type'])) {
-            $filters['transaction_type'] = $params['transaction_type'];
+        // The filter key is `type`: that is what the repository reads, and what
+        // the export next to it has always written. Writing `transaction_type`
+        // here meant the journal ignored the filter and returned every
+        // transaction while the control read as active — so an admin reviewing,
+        // say, every correction in a period saw the unfiltered list with no
+        // signal, and the export of the same view disagreed with it (#110).
+        //
+        // `transaction_type` stays accepted as an alias for the query
+        // parameter, and both `all` and the empty value mean "no filter", as in
+        // the export.
+        $type = $params['transaction_type'] ?? $params['type'] ?? null;
+        if ($type !== null && $type !== '' && $type !== 'all') {
+            $filters['type'] = $type;
         }
         if (isset($params['date_from'])) {
             $filters['date_from'] = $params['date_from'];
