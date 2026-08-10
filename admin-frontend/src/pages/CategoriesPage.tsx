@@ -376,11 +376,11 @@ export function CategoriesPage() {
 
           {/* Mobile card list */}
           {loading ? (
-            <div data-testid="categories-loading-indicator" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+            <div data-testid="categories-loading-indicator" style={{ padding: '40px', textAlign: 'center', color: theme.colors.text.secondary }}>
               {t('common.loading')}
             </div>
           ) : categories.length === 0 ? (
-            <div data-testid="categories-empty-state" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+            <div data-testid="categories-empty-state" style={{ padding: '40px', textAlign: 'center', color: theme.colors.text.secondary }}>
               {t('categories.noCategories')}
             </div>
           ) : (
@@ -407,13 +407,13 @@ export function CategoriesPage() {
                         testId={`categories-status-toggle-${category.id}`}
                       />
                       {IconComponent && (
-                        <span style={{ display: 'flex', alignItems: 'center', color: '#94a3b8' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', color: theme.colors.text.secondary }}>
                           <IconComponent size={16} />
                         </span>
                       )}
                       <span
                         data-testid={`categories-table-cell-name-${category.id}`}
-                        style={{ flex: 1, fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}
+                        style={{ flex: 1, fontWeight: 600, color: tableColors.cellText, fontSize: '14px' }}
                       >
                         {getLocalizedName(category.names as Record<string, string>, i18n.language)}
                       </span>
@@ -422,7 +422,7 @@ export function CategoriesPage() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: '46px' }}>
                       <span
                         data-testid={`categories-table-cell-product-count-${category.id}`}
-                        style={{ fontSize: '12px', color: '#94a3b8' }}
+                        style={{ fontSize: '12px', color: theme.colors.text.secondary }}
                       >
                         {category.product_count} {t('categories.productCount')}
                       </span>
@@ -436,7 +436,7 @@ export function CategoriesPage() {
                           style={{
                             display: 'flex', alignItems: 'center', gap: '4px',
                             padding: '6px 12px', borderRadius: '6px', border: 'none',
-                            background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+                            background: 'rgba(59,130,246,0.1)', color: theme.colors.semantic.primary,
                             fontSize: '12px', cursor: 'pointer',
                           }}
                         >
@@ -458,7 +458,7 @@ export function CategoriesPage() {
                             display: 'flex', alignItems: 'center', gap: '4px',
                             padding: '6px 12px', borderRadius: '6px', border: 'none',
                             background: category.product_count > 0 ? 'rgba(107,114,128,0.1)' : 'rgba(239,68,68,0.1)',
-                            color: category.product_count > 0 ? '#6b7280' : '#ef4444',
+                            color: category.product_count > 0 ? theme.colors.semantic.neutral : theme.colors.semantic.danger,
                             fontSize: '12px',
                             cursor: category.product_count > 0 ? 'not-allowed' : 'pointer',
                             opacity: category.product_count > 0 ? 0.5 : 1,
@@ -641,7 +641,7 @@ export function CategoriesPage() {
                           style={{
                             background: 'transparent',
                             border: 'none',
-                            color: category.product_count > 0 ? '#6b7280' : theme.colors.semantic.danger,
+                            color: category.product_count > 0 ? theme.colors.semantic.neutral : theme.colors.semantic.danger,
                             cursor: category.product_count > 0 ? 'not-allowed' : 'pointer',
                             padding: theme.spacing.sm,
                             marginLeft: theme.spacing.md,

@@ -101,9 +101,9 @@ type JournalSortKey = 'created_at' | 'amount' | 'type' | 'member'
 const retryButtonStyle: React.CSSProperties = {
   padding: '6px 14px',
   borderRadius: 6,
-  border: '1px solid #fca5a5',
+  border: `1px solid ${theme.colors.banner.dangerText}`,
   background: 'transparent',
-  color: '#fca5a5',
+  color: theme.colors.banner.dangerText,
   fontSize: 13,
   fontWeight: 600,
   cursor: 'pointer',
@@ -178,9 +178,9 @@ export function JournalPage() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const settlementStatusOptions: ReadonlyArray<PillFilterOption<JournalFilters['settlementStatus']>> = [
-    { value: 'all', label: t('common.all'), color: '#6b7280' },
-    { value: 'open', label: t('journal.open'), color: '#10b981' },
-    { value: 'settled', label: t('journal.settled'), color: '#8b5cf6' },
+    { value: 'all', label: t('common.all'), color: theme.colors.semantic.neutral },
+    { value: 'open', label: t('journal.open'), color: theme.colors.semantic.emerald },
+    { value: 'settled', label: t('journal.settled'), color: theme.colors.semantic.purple },
   ]
 
   const mobileSortOptions = [
@@ -303,8 +303,8 @@ export function JournalPage() {
             onClick={() => navigate('/settlements/new')}
             style={{
               padding: '8px 16px',
-              backgroundColor: '#3b82f6',
-              color: '#ffffff',
+              backgroundColor: theme.colors.semantic.primary,
+              color: 'white',
               border: 'none',
               borderRadius: 6,
               fontSize: 14,
@@ -313,10 +313,10 @@ export function JournalPage() {
               transition: 'background-color 0.15s',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#2563eb'
+              e.currentTarget.style.backgroundColor = theme.colors.semantic.primaryHover
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#3b82f6'
+              e.currentTarget.style.backgroundColor = theme.colors.semantic.primary
             }}
           >
             + {t('newSettlement.title')}
@@ -377,8 +377,8 @@ export function JournalPage() {
                 data-testid="journal-error-message"
                 style={{
                   padding: theme.spacing.md,
-                  backgroundColor: '#7f1d1d',
-                  color: '#fca5a5',
+                  backgroundColor: theme.colors.banner.dangerBg,
+                  color: theme.colors.banner.dangerText,
                   borderRadius: 6,
                   display: 'flex',
                   flexDirection: 'column',
@@ -561,10 +561,10 @@ export function JournalPage() {
             style={{
               flex: 1,
               padding: '8px 12px',
-              backgroundColor: '#0d1829',
-              border: '1px solid #2d3748',
+              backgroundColor: theme.colors.bg.input,
+              border: `1px solid ${theme.colors.border.input}`,
               borderRadius: 8,
-              color: '#e2e8f0',
+              color: tableColors.cellText,
               fontSize: '14px',
               fontFamily: 'inherit',
               maxWidth: '400px',
@@ -577,7 +577,7 @@ export function JournalPage() {
               e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)'
             }}
             onBlur={(e) => {
-              e.currentTarget.style.borderColor = '#2d3748'
+              e.currentTarget.style.borderColor = theme.colors.border.input
             }}
           />
 
@@ -614,8 +614,8 @@ export function JournalPage() {
             data-testid="journal-error-message"
             style={{
               padding: tableSpacing.cellPadding,
-              backgroundColor: '#7f1d1d',
-              color: '#fca5a5',
+              backgroundColor: theme.colors.banner.dangerBg,
+              color: theme.colors.banner.dangerText,
               borderRadius: 6,
               margin: tableSpacing.cellPadding,
               display: 'flex',

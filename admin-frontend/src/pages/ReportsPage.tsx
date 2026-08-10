@@ -268,7 +268,7 @@ function SummaryCard({ label, value, color, testId, isMobile }: SummaryCardMobil
     <div
       data-testid={testId}
       style={{
-        background: 'linear-gradient(135deg, #1e3a5f 0%, #0d1829 100%)',
+        background: `linear-gradient(135deg, ${theme.colors.bg.gradientStart} 0%, ${theme.colors.bg.input} 100%)`,
         border: `1px solid ${theme.colors.border.light}`,
         borderRadius: theme.borderRadius.xl,
         padding: isMobile ? theme.spacing.md : theme.spacing.xl,
@@ -648,7 +648,7 @@ export function ReportsPage() {
     background: theme.colors.semantic.primary,
     border: 'none',
     borderRadius: theme.borderRadius.md,
-    color: '#fff',
+    color: 'white',
     fontWeight: 600,
     fontSize: theme.typography.fontSize.sm,
     cursor: 'pointer',
@@ -660,7 +660,7 @@ export function ReportsPage() {
     background: 'rgba(34, 197, 94, 0.15)',
     border: '1px solid rgba(34, 197, 94, 0.4)',
     borderRadius: theme.borderRadius.md,
-    color: '#22c55e',
+    color: theme.colors.semantic.success,
     fontWeight: 600,
     fontSize: theme.typography.fontSize.sm,
     cursor: 'pointer',
@@ -673,7 +673,7 @@ export function ReportsPage() {
     background: 'rgba(239, 68, 68, 0.1)',
     border: '1px solid rgba(239, 68, 68, 0.3)',
     borderRadius: theme.borderRadius.md,
-    color: '#ef4444',
+    color: theme.colors.semantic.danger,
     marginBottom: theme.spacing.lg,
   }
 
@@ -789,28 +789,28 @@ export function ReportsPage() {
                 testId="report-summary-revenue"
                 label={t('reports.summaryRevenue')}
                 value={formatters.formatPrice(reportData.metadata.total_revenue_cents)}
-                color="#22c55e"
+                color={theme.colors.semantic.success}
                 isMobile={isMobile}
               />
               <SummaryCard
                 testId="report-summary-unique-members"
                 label={t('reports.summaryUniqueMembers')}
                 value={reportData.metadata.unique_member_count.toLocaleString(locale)}
-                color="#3b82f6"
+                color={theme.colors.semantic.primary}
                 isMobile={isMobile}
               />
               <SummaryCard
                 testId="report-summary-count"
                 label={t('reports.summaryCount')}
                 value={reportData.metadata.total_count.toLocaleString(locale)}
-                color="#a855f7"
+                color={theme.colors.semantic.violet}
                 isMobile={isMobile}
               />
               <SummaryCard
                 testId="report-summary-avg"
                 label={t('reports.summaryAvg')}
                 value={formatters.formatPrice(reportData.metadata.avg_transaction_cents)}
-                color="#f59e0b"
+                color={theme.colors.semantic.amber}
                 isMobile={isMobile}
               />
             </div>
@@ -852,7 +852,7 @@ export function ReportsPage() {
                         return [value ?? 0, name ?? '']
                       }}
                     />
-                    <Bar dataKey={isConsumption ? 'count' : 'revenue'} fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    <Bar dataKey={isConsumption ? 'count' : 'revenue'} fill={theme.colors.semantic.primary} radius={[4, 4, 0, 0]} maxBarSize={40} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -1199,7 +1199,7 @@ export function ReportsPage() {
                         color: theme.colors.text.primary,
                       }}
                     />
-                    <Bar dataKey="count" fill="#a855f7" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                    <Bar dataKey="count" fill={theme.colors.semantic.violet} radius={[4, 4, 0, 0]} maxBarSize={20} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (

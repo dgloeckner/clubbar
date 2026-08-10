@@ -26,16 +26,16 @@ import { formatDateTime } from '../styles/design-system'
 /** Return a color pair for action badges */
 function getActionBadgeStyle(action: string): { backgroundColor: string; color: string } {
   if (action.startsWith('create') || action === 'login') {
-    return { backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' }
+    return { backgroundColor: 'rgba(34, 197, 94, 0.2)', color: theme.colors.semantic.success }
   }
   if (action.startsWith('update')) {
-    return { backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' }
+    return { backgroundColor: 'rgba(59, 130, 246, 0.2)', color: theme.colors.semantic.primary }
   }
   if (action.startsWith('delete') || action === 'login_failed') {
-    return { backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }
+    return { backgroundColor: 'rgba(239, 68, 68, 0.2)', color: theme.colors.semantic.danger }
   }
   // default blue
-  return { backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' }
+  return { backgroundColor: 'rgba(59, 130, 246, 0.2)', color: theme.colors.semantic.primary }
 }
 
 /** Shared select style for filter dropdowns */
@@ -561,7 +561,7 @@ export function AuditLogPage() {
                 borderRadius: theme.borderRadius.md,
                 border: `1px solid ${theme.colors.border.light}`,
                 background: showMobileFilters ? 'rgba(59, 130, 246, 0.15)' : theme.colors.bg.input,
-                color: showMobileFilters ? '#3b82f6' : theme.colors.text.primary,
+                color: showMobileFilters ? theme.colors.semantic.primary : theme.colors.text.primary,
                 fontSize: '13px',
                 fontWeight: 500,
                 cursor: 'pointer',
@@ -574,8 +574,8 @@ export function AuditLogPage() {
               {t('common.filters')}
               {activeFilterCount > 0 && (
                 <span style={{
-                  background: '#3b82f6',
-                  color: '#fff',
+                  background: theme.colors.semantic.primary,
+                  color: 'white',
                   borderRadius: '10px',
                   padding: '1px 6px',
                   fontSize: '11px',
