@@ -27,6 +27,7 @@
   "checkout": "Checkout",
   "checkoutProcessing": "Processing…",
   "checkoutBlockedByLimit": "Limit reached",
+  "viewCart": "Cart",
   "creditLimitReached": "Balance limit reached — remove items to continue.",
   "creditLimitApproaching": "You are getting close to your limit.",
   "creditLimitCurrent": "Current balance: {amount}",

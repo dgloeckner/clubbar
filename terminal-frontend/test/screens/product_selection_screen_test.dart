@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
@@ -12,8 +15,12 @@ import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/product_selection_screen.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/utils/formatters.dart';
+import 'package:clubbar_terminal/widgets/cart_summary_bar.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
+import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
 import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
 import '../test_helpers.dart';
@@ -25,8 +32,16 @@ class MockMembersProvider extends Mock implements MembersProvider {}
 class MockSessionController extends Mock implements SessionController {}
 class MockSoundService extends Mock implements SoundService {}
 
+class MockCartService extends Mock implements CartService {}
+
+class FakeBuildContext extends Fake implements BuildContext {}
+
+class FakeMembersCacheData extends Fake implements MembersCacheData {}
+
 void main() {
   setUpAll(() {
+    registerFallbackValue(FakeBuildContext());
+    registerFallbackValue(FakeMembersCacheData());
     registerFallbackValue(ProductsCacheData(
       id: 'test',
       categoryId: 'test',
@@ -68,9 +83,18 @@ void main() {
       // Setup members provider mocks
       when(() => mockMembersProvider.selectedMember).thenReturn(null);
       when(() => mockMembersProvider.memberDeckel).thenReturn(0);
-      when(() => mockCartProvider.total).thenReturn(0);
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
+
+      // Setup cart provider mocks — an empty cart, no checkout in flight.
+      // The summary bar (#34) reads all of these on every build.
+      when(() => mockCartProvider.total).thenReturn(0);
+      when(() => mockCartProvider.itemCount).thenReturn(0);
+      when(() => mockCartProvider.items).thenReturn([]);
+      when(() => mockCartProvider.isLoading).thenReturn(false);
+      when(() => mockCartProvider.lastError).thenReturn(null);
+      when(() => mockCartProvider.addListener(any())).thenReturn(null);
+      when(() => mockCartProvider.removeListener(any())).thenReturn(null);
     });
 
     testWidgets('displays choice chips for categories', (WidgetTester tester) async {
@@ -872,6 +896,390 @@ void main() {
               iconName: any(named: 'iconName'),
               requiresDispenser: any(named: 'requiresDispenser'),
             )).called(1);
+      });
+    });
+
+    // Issue #34: the grid used to show an item *count* and nothing else, so
+    // the running total — the number a tab-based system is about — lived one
+    // screen away behind a mandatory interstitial. The summary bar puts the
+    // total and checkout where the tapping happens.
+    group('cart summary bar (#34)', () {
+      final beer = ProductsCacheData(
+        id: 'prod-beer',
+        categoryId: 'cat-1',
+        names: jsonEncode({'de': 'Bier'}),
+        descriptions: null,
+        priceCents: 350,
+        isActive: 1,
+        requiresDispenser: 0,
+        iconName: null,
+        updatedAt: '2025-02-01T10:00:00Z',
+      );
+
+      final testMember = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: '2025-02-01T10:00:00Z',
+      );
+
+      /// A cart holding [quantity] beers at €3.50.
+      void withCart(int quantity) {
+        when(() => mockCartProvider.items).thenReturn([
+          CartItem(
+            productId: 'prod-beer',
+            productName: 'Bier',
+            quantity: quantity,
+            priceCents: 350,
+            language: 'de',
+          ),
+        ]);
+        when(() => mockCartProvider.itemCount).thenReturn(quantity);
+        when(() => mockCartProvider.total).thenReturn(quantity * 350);
+      }
+
+      /// The screen behind a real router, so `/cart` and the confirmation hop
+      /// are exercised rather than stubbed.
+      ///
+      /// [cart] swaps in a real [CartProvider] for the tests that need the
+      /// grid to actually change the cart rather than assert against a stub.
+      Future<void> pumpScreen(
+        WidgetTester tester, {
+        CartProvider? cart,
+        Size surface = const Size(1600, 900),
+      }) async {
+        tester.view.physicalSize = surface;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        when(() => mockProductsProvider.categories).thenReturn([
+          CategoriesCacheData(
+            id: 'cat-1',
+            names: jsonEncode({'de': 'Getränke'}),
+            isActive: 1,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        ]);
+        when(() => mockProductsProvider.products).thenReturn([beer]);
+        when(() => mockProductsProvider.getVisibleProducts(any()))
+            .thenReturn([beer]);
+        when(() => mockProductsProvider.isProductAvailable(any()))
+            .thenReturn(true);
+        when(() => mockProductsProvider.lastError).thenReturn(null);
+        when(() => mockProductsProvider.getTranslatedName(any(), any()))
+            .thenReturn('Bier');
+        when(() => mockMembersProvider.selectedMember).thenReturn(testMember);
+        when(() => mockMembersProvider.sessionId).thenReturn('session-1');
+        when(() => mockMembersProvider.refreshDeckel()).thenAnswer((_) async {});
+        when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+
+        final router = GoRouter(
+          initialLocation: '/products',
+          routes: [
+            GoRoute(
+              path: '/products',
+              builder: (context, state) =>
+                  const Scaffold(body: ProductSelectionScreen()),
+            ),
+            GoRoute(
+              path: '/cart',
+              builder: (context, state) =>
+                  const Scaffold(body: Center(child: Text('CART SCREEN'))),
+            ),
+            GoRoute(
+              path: '/confirmation/:sessionId',
+              builder: (context, state) =>
+                  const Scaffold(body: Center(child: Text('CONFIRMATION'))),
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider<ProductsProvider>.value(
+                  value: mockProductsProvider),
+              ChangeNotifierProvider<CartProvider>.value(
+                  value: cart ?? mockCartProvider),
+              ChangeNotifierProvider<SyncProvider>.value(
+                  value: mockSyncProvider),
+              ChangeNotifierProvider<MembersProvider>.value(
+                  value: mockMembersProvider),
+              ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController),
+              Provider<SoundService>.value(value: mockSoundService),
+            ],
+            child: MaterialApp.router(
+              routerConfig: router,
+              locale: const Locale('de'),
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: const [Locale('en'), Locale('de')],
+            ),
+          ),
+        );
+      }
+
+      InkWell checkoutInkWell(WidgetTester tester) => tester.widget<InkWell>(
+            find.descendant(
+              of: find.byKey(const Key('checkout-button')),
+              matching: find.byType(InkWell),
+            ),
+          );
+
+      /// The amount on the bar — read off the bar itself, since the same
+      /// figure can legitimately appear on a product tile.
+      String runningTotal(WidgetTester tester) => tester
+          .widget<Text>(find.byKey(const Key('cart-summary-total')))
+          .data!;
+
+      testWidgets('stays away while the cart is empty',
+          (WidgetTester tester) async {
+        await pumpScreen(tester);
+
+        expect(find.byType(CartSummaryBar), findsNothing);
+      });
+
+      testWidgets('shows the running total once the cart is not empty',
+          (WidgetTester tester) async {
+        withCart(2);
+
+        await pumpScreen(tester);
+
+        expect(find.byType(CartSummaryBar), findsOneWidget);
+        expect(runningTotal(tester), formatPrice(700, 'de'));
+      });
+
+      // The point of the bar: the member watches the amount climb while they
+      // tap, instead of finding it out on another screen. Driven through a
+      // real CartProvider, because a stubbed total cannot grow.
+      testWidgets('the total grows as products are tapped',
+          (WidgetTester tester) async {
+        final cart = CartProvider(
+          service: MockCartService(),
+          config: createMockConfigService(),
+          soundService: mockSoundService,
+        );
+
+        await pumpScreen(tester, cart: cart);
+        expect(find.byType(CartSummaryBar), findsNothing);
+
+        await tester.tap(find.text('Bier'));
+        await tester.pump();
+        expect(runningTotal(tester), formatPrice(350, 'de'));
+
+        await tester.tap(find.text('Bier'));
+        await tester.pump();
+        expect(runningTotal(tester), formatPrice(700, 'de'));
+      });
+
+      // The bar shares a row with two buttons whose labels are translated and
+      // whose font sizes are configurable per kiosk, so it has to survive the
+      // narrowest screen the grid itself supports (see #29).
+      for (final surface in [const Size(1024, 768), const Size(1920, 1080)]) {
+        testWidgets(
+            'lays out on a ${surface.width.toInt()}px screen without overflowing',
+            (WidgetTester tester) async {
+          withCart(2);
+          when(() => mockMembersProvider.memberDeckel).thenReturn(9950);
+
+          // The blocked state carries the longest of the three labels.
+          await pumpScreen(tester, surface: surface);
+
+          expect(tester.takeException(), isNull);
+          expect(find.byType(CartSummaryBar), findsOneWidget);
+        });
+      }
+
+      testWidgets('the projected tab is shown next to the total',
+          (WidgetTester tester) async {
+        withCart(2);
+        when(() => mockMembersProvider.memberDeckel).thenReturn(1000);
+
+        await pumpScreen(tester);
+
+        final l10n = await AppLocalizations.delegate.load(const Locale('de'));
+        expect(
+          find.text(formatNewBalance(1700, l10n, 'de')),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('checkout runs without a detour through the cart screen',
+          (WidgetTester tester) async {
+        withCart(2);
+        when(() => mockCartProvider.checkout(any(), any(), any()))
+            .thenAnswer((_) async {});
+        when(() => mockCartProvider.lastSessionId).thenReturn('session-1');
+
+        await pumpScreen(tester);
+        await tester.tap(find.byKey(const Key('checkout-button')));
+        await tester.pumpAndSettle();
+
+        verify(() => mockCartProvider.checkout(any(), testMember, 'session-1'))
+            .called(1);
+        expect(find.text('CONFIRMATION'), findsOneWidget);
+        expect(find.text('CART SCREEN'), findsNothing);
+      });
+
+      testWidgets('the inactivity timer is suspended for that checkout',
+          (WidgetTester tester) async {
+        withCart(2);
+        when(() => mockCartProvider.checkout(any(), any(), any()))
+            .thenAnswer((_) async {});
+        when(() => mockCartProvider.lastSessionId).thenReturn('session-1');
+
+        await pumpScreen(tester);
+        await tester.tap(find.byKey(const Key('checkout-button')));
+        await tester.pumpAndSettle();
+
+        // ADR-0027 rule 7 — the same guard the cart screen applies.
+        verify(() => mockSessionController.beginCriticalOperation()).called(1);
+        verify(() => mockSessionController.endCriticalOperation()).called(1);
+      });
+
+      testWidgets('the cart is still one tap away for edits',
+          (WidgetTester tester) async {
+        withCart(2);
+
+        await pumpScreen(tester);
+        await tester.tap(find.byKey(const Key('view-cart-button')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('CART SCREEN'), findsOneWidget);
+      });
+
+      testWidgets('the credit limit blocks checkout here too (UC-T12)',
+          (WidgetTester tester) async {
+        withCart(2);
+        when(() => mockMembersProvider.memberDeckel).thenReturn(9950);
+
+        await pumpScreen(tester);
+
+        expect(checkoutInkWell(tester).onTap, isNull);
+        expect(find.text('Limit erreicht'), findsOneWidget);
+      });
+
+      group('while a checkout is in flight', () {
+        Future<void> pumpInFlight(WidgetTester tester) async {
+          withCart(2);
+          when(() => mockCartProvider.isLoading).thenReturn(true);
+          when(() => mockSessionController.isCriticalOperationInFlight)
+              .thenReturn(true);
+          await pumpScreen(tester);
+        }
+
+        testWidgets('the checkout button is disabled and says so',
+            (WidgetTester tester) async {
+          await pumpInFlight(tester);
+
+          expect(checkoutInkWell(tester).onTap, isNull);
+          expect(find.text('Wird verarbeitet…'), findsOneWidget);
+        });
+
+        testWidgets('the grid is frozen so no tile can join the paid cart',
+            (WidgetTester tester) async {
+          await pumpInFlight(tester);
+
+          final overlay = tester.widget<LoadingOverlay>(
+            find.ancestor(
+              of: find.byType(GridView),
+              matching: find.byType(LoadingOverlay),
+            ),
+          );
+          expect(overlay.isLoading, isTrue);
+
+          await tester.tap(find.text('Bier'), warnIfMissed: false);
+          await tester.pump();
+
+          verifyNever(() => mockCartProvider.addItem(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                iconName: any(named: 'iconName'),
+                requiresDispenser: any(named: 'requiresDispenser'),
+              ));
+        });
+
+        testWidgets('nor can the member bar\'s cart button open it',
+            (WidgetTester tester) async {
+          await pumpInFlight(tester);
+
+          final inkWell = tester.widget<InkWell>(
+            find.descendant(
+              of: find.byKey(const Key('member-bar-cart')),
+              matching: find.byType(InkWell),
+            ),
+          );
+          expect(inkWell.onTap, isNull);
+        });
+
+        testWidgets('the cart screen cannot be opened mid-checkout',
+            (WidgetTester tester) async {
+          await pumpInFlight(tester);
+
+          await tester.tap(
+            find.byKey(const Key('view-cart-button')),
+            warnIfMissed: false,
+          );
+          // Not pumpAndSettle: the freeze overlay's spinner never settles.
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 400));
+
+          expect(find.text('CART SCREEN'), findsNothing);
+          expect(find.byType(CartSummaryBar), findsOneWidget);
+        });
+      });
+
+      // runCheckout deliberately leaves a cancellation in lastError for the
+      // calling screen to render. Without this banner the grid would swallow
+      // it and the member would be left wondering what happened.
+      testWidgets('a cancelled checkout is acknowledged inline',
+          (WidgetTester tester) async {
+        withCart(2);
+        when(() => mockCartProvider.lastError).thenReturn(
+          const TerminalError(
+            key: TerminalErrorKey.checkoutCancelled,
+            sequence: 1,
+          ),
+        );
+
+        await pumpScreen(tester);
+
+        expect(find.byType(ErrorBanner), findsOneWidget);
+        expect(
+          find.text(await errorCopy(TerminalErrorKey.checkoutCancelled)),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('dismissing that acknowledgement clears the cart error',
+          (WidgetTester tester) async {
+        withCart(2);
+        when(() => mockCartProvider.lastError).thenReturn(
+          const TerminalError(
+            key: TerminalErrorKey.checkoutCancelled,
+            sequence: 1,
+          ),
+        );
+        when(() => mockCartProvider.clearError()).thenReturn(null);
+
+        await pumpScreen(tester);
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pump();
+
+        verify(() => mockCartProvider.clearError()).called(1);
       });
     });
   });

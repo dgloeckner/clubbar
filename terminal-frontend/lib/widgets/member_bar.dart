@@ -33,7 +33,12 @@ class MemberBar extends StatelessWidget {
     // ADR-0027 rule 7: a checkout/dispense in flight must not be interrupted,
     // so logout is refused for as long as it runs. Read here rather than per
     // screen so every surface showing the MemberBar is covered.
-    final logoutBlocked = context.select<SessionController, bool>(
+    //
+    // The cart and back buttons are refused for the same window (#34): leaving
+    // the screen that started the checkout unmounts the context it is waiting
+    // on, and the member would be left on the other screen with an emptied
+    // cart and no confirmation to show for their money.
+    final navigationBlocked = context.select<SessionController, bool>(
       (session) => session.isCriticalOperationInFlight,
     );
     final locale = member.preferredLanguage;
@@ -122,19 +127,19 @@ class MemberBar extends StatelessWidget {
             children: [
               // Cart button or Back button
               if (showBackButton)
-                _buildBackButton()
+                _buildBackButton(blocked: navigationBlocked)
               else
-                _buildCartButton(),
+                _buildCartButton(blocked: navigationBlocked),
               const SizedBox(width: 8),
               // Logout button — disabled while a checkout/dispense runs
               Material(
                 key: const Key('member-bar-logout'),
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: logoutBlocked ? null : onLogoutPressed,
+                  onTap: navigationBlocked ? null : onLogoutPressed,
                   borderRadius: BorderRadius.circular(14),
                   child: Opacity(
-                    opacity: logoutBlocked ? 0.4 : 1.0,
+                    opacity: navigationBlocked ? 0.4 : 1.0,
                     child: Container(
                       width: 46,
                       height: 46,
@@ -162,85 +167,95 @@ class MemberBar extends StatelessWidget {
     );
   }
 
-  Widget _buildCartButton() {
+  Widget _buildCartButton({required bool blocked}) {
     return Material(
+      key: const Key('member-bar-cart'),
       color: Colors.transparent,
       child: InkWell(
-        onTap: onCartPressed,
+        onTap: blocked ? null : onCartPressed,
         borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: 58,
-          height: 58,
-          decoration: BoxDecoration(
-            color: const Color(0xff3b82f6),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const Center(
-                child: Icon(
-                  Icons.shopping_cart_outlined,
-                  color: Colors.white,
-                  size: 28,
+        child: Opacity(
+          opacity: blocked ? 0.4 : 1.0,
+          child: Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: const Color(0xff3b82f6),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Center(
+                  child: Icon(
+                    Icons.shopping_cart_outlined,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
-              ),
-              // Badge with item count
-              if (itemCount > 0)
-                Positioned(
-                  top: -4,
-                  right: -4,
-                  child: Container(
-                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xffEF4444),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text(
-                        itemCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
+                // Badge with item count
+                if (itemCount > 0)
+                  Positioned(
+                    top: -4,
+                    right: -4,
+                    child: Container(
+                      constraints:
+                          const BoxConstraints(minWidth: 24, minHeight: 24),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xffEF4444),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          itemCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildBackButton() {
+  Widget _buildBackButton({required bool blocked}) {
     return Material(
+      key: const Key('member-bar-back'),
       color: Colors.transparent,
       child: InkWell(
-        onTap: onBackPressed,
+        onTap: blocked ? null : onBackPressed,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: 58,
-          height: 58,
-          decoration: BoxDecoration(
-            color: const Color(0x333b82f6),
-            border: Border.all(
-              color: const Color(0x663b82f6),
-              width: 1,
+        child: Opacity(
+          opacity: blocked ? 0.4 : 1.0,
+          child: Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: const Color(0x333b82f6),
+              border: Border.all(
+                color: const Color(0x663b82f6),
+                width: 1,
+              ),
+              borderRadius: BorderRadius.circular(12),
             ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Center(
-            child: Opacity(
-              opacity: 0.6,
-              child: Icon(
-                Icons.arrow_back,
-                color: Colors.white,
-                size: 31,
+            child: const Center(
+              child: Opacity(
+                opacity: 0.6,
+                child: Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 31,
+                ),
               ),
             ),
           ),

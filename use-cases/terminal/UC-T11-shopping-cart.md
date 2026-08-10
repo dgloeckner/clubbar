@@ -10,7 +10,14 @@ Member
 - Member has added items to cart (UC-T01)
 
 ## Trigger
-Member taps cart button to review items before purchase
+Member taps the cart button, or "View cart" in the product view's summary bar,
+to review items before purchase
+
+> The cart view is **not** on the way to paying: the product view's summary bar
+> totals the cart and checks out directly (UC-T01). This view exists for what
+> the grid cannot do — seeing the whole order at once and removing a line
+> outright. Both surfaces run the same checkout and enforce the same credit
+> limit.
 
 ## Main Flow
 1. Member taps cart button in product view
@@ -96,7 +103,8 @@ Member taps cart button to review items before purchase
 2. Buy button switches to a spinner with a "processing" label and stops accepting taps
 3. Quantity and remove controls are frozen for the duration of the checkout
 4. Further "Buy" taps are ignored — the cart is submitted exactly once
-5. On completion the confirmation view is shown
+5. The back, cart and logout buttons are inert: leaving the screen that started the checkout would strand the member without the confirmation they just paid for
+6. On completion the confirmation view is shown
 
 ## Business Rules
 - Cart is transient (not persisted)
