@@ -1,0 +1,22 @@
+import { describe, expect, it } from 'vitest'
+import { theme, withAlpha } from './design-system'
+
+describe('withAlpha', () => {
+  it('composes a black hex color with an alpha channel', () => {
+    expect(withAlpha('#000000', 0.5)).toBe('rgba(0, 0, 0, 0.5)')
+  })
+
+  it('composes a white hex color with an alpha channel', () => {
+    expect(withAlpha('#ffffff', 0.06)).toBe('rgba(255, 255, 255, 0.06)')
+  })
+
+  it('accepts a hex color with mixed case', () => {
+    expect(withAlpha('#3B82f6', 0.15)).toBe('rgba(59, 130, 246, 0.15)')
+  })
+})
+
+describe('theme.overlay', () => {
+  it('exposes a single canonical modal backdrop token', () => {
+    expect(theme.overlay.backdrop).toBe('rgba(0, 0, 0, 0.5)')
+  })
+})

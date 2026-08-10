@@ -5,6 +5,20 @@
 
 import { parseApiDate } from '../utils/dates'
 
+/**
+ * Compose a hex color with an alpha channel into a canonical `rgba()` string.
+ * Derive new tint/border/backdrop tokens with this instead of hand-writing an
+ * `rgba()` literal, so every consumer gets identical comma-spacing — hand-written
+ * literals for the same color have drifted into two spellings before (#289).
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const normalized = hex.replace('#', '')
+  const r = parseInt(normalized.slice(0, 2), 16)
+  const g = parseInt(normalized.slice(2, 4), 16)
+  const b = parseInt(normalized.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export const theme = {
   colors: {
     // Background colors
@@ -190,6 +204,13 @@ export const theme = {
       text: '#64748b',
       dot: '#64748b',
     },
+  },
+
+  // Full-screen overlays. Every modal needs an identical dimming backdrop;
+  // add further (color, opacity) tints here via withAlpha() as they're
+  // migrated off raw rgba() literals (#289).
+  overlay: {
+    backdrop: withAlpha('#000000', 0.5),
   },
 }
 
