@@ -189,7 +189,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                     color: readerOffline
                         ? AppColors.semanticDanger
                         : AppColors.textPrimary,
-                    fontSize: 55,
+                    fontSize: AppFontSizes.display,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
