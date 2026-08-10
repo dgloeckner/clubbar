@@ -215,7 +215,9 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                             ? () => rfidProvider.simulateCardDetection(context)
                             : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xff3b82f6),
+                          // Strong blue: white on #3b82f6 is 3.7:1 (#41).
+                          backgroundColor:
+                              hexToColor(AppColors.semanticPrimaryStrong),
                           disabledBackgroundColor: const Color(0xff334155),
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.xl,
@@ -240,7 +242,9 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                 Text(
                   AppConfig.version,
                   style: TextStyle(
-                    color: const Color(0xff94a3b8).withValues(alpha: 0.4),
+                    // 40% opacity put this at 2.2:1 (#41). The version is
+                    // tertiary, not invisible — that is what textMuted is for.
+                    color: hexToColor(AppColors.textMuted),
                     fontSize: AppFontSizes.xs,
                   ),
                 ),

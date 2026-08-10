@@ -13,6 +13,7 @@ import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/cart_summary_bar.dart';
 import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
@@ -51,11 +52,32 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   //
   // [_tileMaxWidth] is an upper bound: Flutter fits as many columns of at most
   // this width as the row allows, so tiles stay finger-sized on a 1920 px
-  // screen instead of stretching. [_tileHeight] is what the card actually
-  // needs — 72 px icon + two lines of name at `xl` + price at `xxl` + the
-  // card's padding — with a little slack.
+  // screen instead of stretching.
   static const double _tileMaxWidth = 240.0;
-  static const double _tileHeight = 218.0;
+
+  // [_tileHeight] is what the card actually needs — 72 px icon + two lines of
+  // name at `xl` + price at `xxl` + the card's padding — with a little slack.
+  //
+  // Computed, not a constant (#41): the type scale is a *deployment setting*
+  // (`AppFontSizes.applyConfig`, `fontSizes` in config.json), so a pinned
+  // height is only ever right for the scale it was measured against. It was
+  // 218, measured when `xl` was 18 — raising the kiosk default to 20 made the
+  // card 225 px and every tile overflowed by 7. A club dialling the scale up
+  // further would have hit the same wall.
+  //
+  // [_tileTextLineHeight] is the font's line box as a multiple of its size,
+  // measured from the rendered card; [_tileChrome] is everything that does not
+  // scale with type (icon, gaps, padding, card border). See the grid sizing
+  // tests in `test/screens/product_selection_screen_test.dart`, which pin the
+  // relationship at three different scales.
+  static const double _tileChrome = 143.0;
+  static const double _tileTextLineHeight = 1.34;
+  static const double _tileSlack = 4.0;
+
+  static double get _tileHeight =>
+      _tileChrome +
+      _tileTextLineHeight * (2 * AppFontSizes.xl + AppFontSizes.xxl) +
+      _tileSlack;
   static const double _gridSpacing = 12.0;
   static const double _horizontalPadding = 16.0;
   static const double _verticalSpacing = 12.0;
@@ -269,7 +291,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
 
     return GridView.builder(
       padding: EdgeInsets.zero,
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: _tileMaxWidth,
         // A pinned height, rather than an aspect ratio: the card's contents
         // are fixed-size, so the space they need must not depend on how wide

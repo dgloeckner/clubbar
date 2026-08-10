@@ -4,6 +4,7 @@ import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 import 'package:clubbar_terminal/widgets/clubbar_header.dart';
 import '../test_helpers.dart';
+import '../utils/wcag.dart';
 
 void main() {
   group('ClubBarHeader', () {
@@ -34,6 +35,21 @@ void main() {
     /// The colour the pill's own text is actually painted in.
     Color textColorOf(WidgetTester tester, String label) =>
         tester.widget<Text>(find.text(label)).style!.color!;
+
+    /// The header's own background — what a pill's translucent tint sits on.
+    /// Read from the tree so the contrast checks below measure what is
+    /// painted rather than a constant copied out of the widget.
+    Color headerBackgroundOf(WidgetTester tester) {
+      final header = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byType(ClubBarHeader),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      return (header.decoration as BoxDecoration).color!;
+    }
 
     testWidgets('shows Online badge with green styling', (tester) async {
       await tester.pumpWidget(buildTestApp(
@@ -169,17 +185,76 @@ void main() {
         expect(tapped, isTrue);
       });
 
-      testWidgets('offline text is fully opaque, online text is muted',
+      // #40 muted the quiet pill's label to 70 % so a healthy terminal would
+      // not shout. That put it at 3.6:1 green and 2.6:1 red on its own tint —
+      // under the 4.5:1 AA needs (#41), and the quiet state is the one showing
+      // almost all the time. The label is full strength in both states now.
+      //
+      // The intent behind the muting survives intact: an alerting pill is
+      // still louder, via the stronger fill, heavier border, and larger bolder
+      // type asserted below. Only the illegible part is gone.
+      testWidgets('every pill label clears AA against its own fill',
           (tester) async {
-        await tester.pumpWidget(buildTestApp(
-          connectionStatus: ConnectionStatus.offline,
-        ));
-        expect(textColorOf(tester, 'Offline').a, 1.0);
+        // Read the colours off the rendered tree rather than restating them:
+        // the pill's fill is a translucent tint of the status colour, and its
+        // label is whatever `_pillTextColor` decided, so a table here would be
+        // a guess about the widget instead of a check on it.
+        Future<void> check(
+          ConnectionStatus status,
+          String label, {
+          RfidReaderStatus reader = RfidReaderStatus.unknown,
+        }) async {
+          await tester.pumpWidget(buildTestApp(
+            connectionStatus: status,
+            readerStatus: reader,
+          ));
 
+          final fill = (tester.widget<Container>(pillOf(label)).decoration
+                  as BoxDecoration)
+              .color!;
+          final onHeader = compositeOver(fill, headerBackgroundOf(tester));
+
+          expectTextContrast(
+            compositeOver(textColorOf(tester, label), onHeader),
+            onHeader,
+            why: '"$label" pill label',
+          );
+        }
+
+        await check(ConnectionStatus.online, 'Online');
+        await check(ConnectionStatus.offline, 'Offline');
+        await check(ConnectionStatus.error, 'Fehler'); // "Error" in German
+        await check(ConnectionStatus.online, 'Scanner OK',
+            reader: RfidReaderStatus.connected);
+        await check(ConnectionStatus.online, 'Scanner fehlt',
+            reader: RfidReaderStatus.disconnected);
+      });
+
+      testWidgets('an alerting pill is still louder than a quiet one',
+          (tester) async {
         await tester.pumpWidget(buildTestApp(
           connectionStatus: ConnectionStatus.online,
         ));
-        expect(textColorOf(tester, 'Online').a, lessThan(1.0));
+        final quiet = tester.widget<Text>(find.text('Online')).style!;
+        final quietFill =
+            (tester.widget<Container>(pillOf('Online')).decoration
+                    as BoxDecoration)
+                .color!;
+
+        await tester.pumpWidget(buildTestApp(
+          connectionStatus: ConnectionStatus.offline,
+        ));
+        final loud = tester.widget<Text>(find.text('Offline')).style!;
+        final loudFill =
+            (tester.widget<Container>(pillOf('Offline')).decoration
+                    as BoxDecoration)
+                .color!;
+
+        expect(loud.fontSize, greaterThan(quiet.fontSize!),
+            reason: 'an alert should be readable from further away');
+        expect(loud.fontWeight!.value, greaterThan(quiet.fontWeight!.value));
+        expect(loudFill.a, greaterThan(quietFill.a),
+            reason: 'the alerting tint should be the stronger one');
       });
 
       testWidgets('each state carries its own icon', (tester) async {

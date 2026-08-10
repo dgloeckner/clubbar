@@ -219,7 +219,8 @@ class _ProductCardState extends State<ProductCard>
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xff3b82f6),
+                    // Strong blue: white on #3b82f6 is 3.7:1 (#41).
+                    color: hexToColor(AppColors.semanticPrimaryStrong),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(

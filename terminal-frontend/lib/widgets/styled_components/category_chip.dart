@@ -19,8 +19,9 @@ class CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Strong blue when selected: white on #3b82f6 is 3.7:1 (#41).
     final backgroundColor = selected
-        ? const Color(0xff3b82f6)  // Blue when selected
+        ? hexToColor(AppColors.semanticPrimaryStrong)
         : const Color(0xff0f1d32); // Secondary bg when unselected
     final textColor = selected
         ? Colors.white

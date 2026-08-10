@@ -220,11 +220,15 @@ class ShoppingCartScreen extends StatelessWidget {
                                     color: const Color(0xff7f1d1d),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
+                                  // White, not #ef4444: red-on-dark-red was
+                                  // 2.7:1 and read as a flat coloured square
+                                  // under bar lighting (#41). The fill still
+                                  // carries the "remove" meaning.
                                   child: const Center(
                                     child: Text(
                                       '−',
                                       style: TextStyle(
-                                        color: Color(0xffef4444),
+                                        color: Colors.white,
                                         fontSize: 28,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -262,11 +266,13 @@ class ShoppingCartScreen extends StatelessWidget {
                                     color: const Color(0xff166534),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
+                                  // White for the same reason as '−' (#41):
+                                  // #22c55e on #166534 was 3.1:1.
                                   child: const Center(
                                     child: Text(
                                       '+',
                                       style: TextStyle(
-                                        color: Color(0xff22c55e),
+                                        color: Colors.white,
                                         fontSize: 28,
                                         fontWeight: FontWeight.bold,
                                       ),

@@ -233,13 +233,13 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
   "demoMode": false,
 
   "fontSizes": {
-    "xs":    12,
-    "sm":    13,
-    "base":  14,
-    "lg":    16,
-    "xl":    18,
-    "xxl":   20,
-    "xxxl":  24
+    "xs":    13,
+    "sm":    14,
+    "base":  16,
+    "lg":    18,
+    "xl":    20,
+    "xxl":   22,
+    "xxxl":  26
   },
 
   "dispenser": {
@@ -271,13 +271,13 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `soundsEnabled` | bool | `true` | Enable audio feedback sounds. Natural/warm UI sounds at key interactions. Set `false` for a silent deployment. |
 | `seedTestData` | bool | `false` | Pre-populate the local database with mock members, categories, and products. **Development only — never enable in production.** |
 | `demoMode` | bool | `false` | Enable demo mode for showcasing the terminal without a backend connection. **Development only.** |
-| `fontSizes.xs` | number | `12` | Font size in logical pixels for the `xs` scale step. |
-| `fontSizes.sm` | number | `13` | Font size for the `sm` scale step. |
-| `fontSizes.base` | number | `14` | Base body font size. Used for balance display, labels, and secondary text. |
-| `fontSizes.lg` | number | `16` | Large font size — product names, member name in cart, button labels. |
-| `fontSizes.xl` | number | `18` | Extra-large — quantity badges, line totals, "Neuer Kontostand" in cart. |
-| `fontSizes.xxl` | number | `20` | Used for the "Gesamt" label in the cart footer. |
-| `fontSizes.xxxl` | number | `24` | Checkout confirmation title. |
+| `fontSizes.xs` | number | `13` | Font size in logical pixels for the `xs` scale step. |
+| `fontSizes.sm` | number | `14` | Font size for the `sm` scale step. |
+| `fontSizes.base` | number | `16` | Base body font size. Used for balance display, labels, and secondary text. |
+| `fontSizes.lg` | number | `18` | Large font size — product names, member name in cart, button labels. |
+| `fontSizes.xl` | number | `20` | Extra-large — quantity badges, line totals, "Neuer Kontostand" in cart. |
+| `fontSizes.xxl` | number | `22` | Used for the "Gesamt" label in the cart footer. |
+| `fontSizes.xxxl` | number | `26` | Checkout confirmation title. |
 | `dispenser.enabled` | bool | `false` | Enable the sauna token dispenser integration. |
 | `dispenser.baseUrl` | string | — | Base URL of the dispenser hardware API, e.g. `http://192.168.1.50`. |
 | `dispenser.apiKey` | string | — | API key for authenticating with the dispenser. |
@@ -319,6 +319,13 @@ distinctive. Configure nothing and monitoring stays off — the terminal shows n
 reader status rather than one it cannot back up. The same applies on a platform
 without `/proc/bus/input/devices` (macOS, Windows): presence is reported as
 unknown and the UI is unchanged.
+
+> **The `fontSizes` defaults changed in #41.** They used to be phone-sized
+> (base `14`), which is a poor fit for a 7″ panel read standing up in bar
+> lighting; every step is now roughly 12 % larger. Nothing else needs
+> adjusting — the product grid sizes its tiles from this scale, so larger type
+> gets taller tiles rather than clipped ones. To go back to the old scale, or
+> further up for a large-print deployment, set the steps explicitly.
 
 ### Environment variable overrides
 
