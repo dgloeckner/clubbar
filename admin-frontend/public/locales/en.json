@@ -144,7 +144,7 @@
     "createMember": "Create Member",
     "editMember": "Edit Member",
     "deleteMember": "Delete Member",
-    "deleteConfirm": "Are you sure you want to deactivate this member? This action cannot be undone.",
+    "deactivateConfirm": "Deactivate \"{{name}}\"? They can no longer be identified at the terminal and cannot book until reactivated.",
     "firstName": "First Name",
     "lastName": "Last Name",
     "displayName": "Display Name",
@@ -284,7 +284,6 @@
     "deleteCategory": "Delete Category",
     "deleteConfirm": "Delete \"{{name}}\"? This will permanently remove the category from the database and cannot be undone.",
     "deactivateConfirm": "Deactivate \"{{name}}\"? All {{count}} products in this category will no longer be visible in the terminal.",
-    "activateConfirm": "Activate \"{{name}}\"? All {{count}} products in this category will become visible in the terminal again.",
     "cannotDeleteWithProducts": "Cannot delete category with {{count}} products. Deactivate instead.",
     "categoryName": "Category Name",
     "productCount": "Products",
@@ -296,7 +295,7 @@
     "countFound_other": "{{count}} categories found",
     "errors": {
       "load": "Failed to load categories",
-      "deactivate": "Failed to deactivate category",
+      "activate": "Failed to activate category",
       "action": "Failed to perform action"
     }
   },
@@ -382,6 +381,7 @@
     "undoBlockedFallback": "This settlement can no longer be undone. Reverse it instead.",
     "undoExportedWarning": "A SEPA file has already been generated for this settlement. If it has been submitted to the bank, do not undo it — the money would be collected a second time by the next settlement. Reverse it instead.",
     "undoExportedAcknowledge": "I confirm this SEPA file was never submitted to the bank.",
+    "undoSuccess": "Settlement undone. Its transactions are open again and will be collected by the next settlement.",
     "sortNewest": "Newest first",
     "sortOldest": "Oldest first",
     "countFound_one": "{{count}} settlement found",
@@ -440,6 +440,8 @@
     "resetPassword": "Reset Password",
     "reset2fa": "Reset 2FA",
     "reset2faConfirm": "Reset 2FA for this admin user? They will need to re-enroll on next login.",
+    "reset2faSuccess": "2FA has been reset. The admin user will be asked to enroll again on next login.",
+    "resetPasswordConfirm": "Reset the password for this admin user? Their current password stops working immediately and they will have to use the new one shown next.",
     "noAdminUsers": "No admin users found",
     "loadingSepa": "Loading SEPA configuration...",
     "saving": "Saving...",

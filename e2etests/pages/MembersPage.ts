@@ -740,10 +740,58 @@ export class MembersPage extends BasePage {
    * STATUS TOGGLE (activate / deactivate from the table row)
    */
 
+  /**
+   * Click the status toggle. Deactivating opens a ConfirmDialog (#130), so
+   * this only clicks — use confirmDeactivate()/cancelDeactivate() next, or
+   * reactivateMember() for the direction that needs no confirmation.
+   */
   async toggleStatusForMember(memberId: string) {
     const toggle = this.page.getByTestId(`members-status-toggle-${memberId}`)
     await expect(toggle).toBeVisible()
     await toggle.click()
+  }
+
+  async expectDeactivateConfirmVisible() {
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible()
+  }
+
+  async expectDeactivateConfirmHidden() {
+    await expect(this.page.getByTestId('confirm-dialog')).toBeHidden()
+  }
+
+  async getDeactivateConfirmMessage(): Promise<string> {
+    return (await this.page.getByTestId('confirm-dialog-message').textContent()) ?? ''
+  }
+
+  async confirmDeactivate() {
+    await this.page.getByTestId('confirm-dialog-ok').click()
+    await this.expectDeactivateConfirmHidden()
+  }
+
+  async cancelDeactivate() {
+    await this.page.getByTestId('confirm-dialog-cancel').click()
+    await this.expectDeactivateConfirmHidden()
+  }
+
+  /**
+   * Deactivate a member end to end: click the toggle, confirm the dialog.
+   */
+  async deactivateMember(memberId: string) {
+    await this.toggleStatusForMember(memberId)
+    await this.expectDeactivateConfirmVisible()
+    await this.confirmDeactivate()
+  }
+
+  /** Reactivating restores access only, so it fires on the click (#130). */
+  async reactivateMember(memberId: string) {
+    await this.toggleStatusForMember(memberId)
+    await this.expectDeactivateConfirmHidden()
+  }
+
+  async getMemberStatus(memberId: string): Promise<'active' | 'inactive'> {
+    const toggle = this.page.getByTestId(`members-status-toggle-${memberId}`)
+    await expect(toggle).toBeVisible()
+    return (await toggle.getAttribute('aria-checked')) === 'true' ? 'active' : 'inactive'
   }
 
   /**

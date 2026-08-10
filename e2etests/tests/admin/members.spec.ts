@@ -315,8 +315,11 @@ test.describe('Admin Members Page', () => {
     await authenticatedMembersPage.expectMemberVisibleInTable(`${prefix}C`)
     await authenticatedMembersPage.expectMemberNotVisibleInTable(`${prefix}A`)
 
-    const toggleReload = listReload()
     await authenticatedMembersPage.toggleStatusForMember(memberC.id)
+    await authenticatedMembersPage.expectDeactivateConfirmVisible()
+
+    const toggleReload = listReload()
+    await authenticatedMembersPage.confirmDeactivate()
 
     const toggleParams = new URL((await toggleReload).url()).searchParams
     expect(toggleParams.get('sepa_status')).toBe('invalid')
@@ -454,5 +457,74 @@ test.describe('Admin Members Page', () => {
     // ── Verify member created ────────────────────────────────────────
     await authenticatedMembersPage.search(`IVal${ts}`)
     await authenticatedMembersPage.expectMemberVisibleInTable(`IVal${ts}`)
+  })
+
+  /**
+   * Deactivating a member used to fire on the toggle click — on the mobile card
+   * list that toggle sits right beside the name, so a mistap cut a member off
+   * from the terminal silently (#130). Reactivating only restores access, so it
+   * stays a single tap.
+   */
+  test('deactivating a member asks first; cancelling leaves the member active (#130)', async ({
+    authenticatedMembersPage,
+    page,
+  }) => {
+    const ts = Date.now()
+    const prefix = `Deact${ts}`
+    const member = await createMemberViaPage(page, {
+      firstName: prefix,
+      lastName: 'Toggle',
+      email: `${prefix.toLowerCase()}@test.com`,
+    })
+
+    await authenticatedMembersPage.navigate()
+    await authenticatedMembersPage.expectPageVisible()
+    await authenticatedMembersPage.search(prefix)
+    await authenticatedMembersPage.expectMemberVisibleInTable(prefix)
+    expect(await authenticatedMembersPage.getMemberStatus(member.id)).toBe('active')
+
+    // The PATCH must not go out on the click alone.
+    let patchCalls = 0
+    await page.route(`**/api/admin/members/${member.id}`, (route) => {
+      if (route.request().method() === 'PATCH') patchCalls += 1
+      return route.continue()
+    })
+
+    // ── Cancel keeps the member active ──────────────────────────────────
+    await authenticatedMembersPage.toggleStatusForMember(member.id)
+    await authenticatedMembersPage.expectDeactivateConfirmVisible()
+
+    // The dialog names the member, so a mistap is recognisable as one.
+    expect(await authenticatedMembersPage.getDeactivateConfirmMessage()).toContain(prefix)
+
+    await authenticatedMembersPage.cancelDeactivate()
+    expect(patchCalls).toBe(0)
+    expect(await authenticatedMembersPage.getMemberStatus(member.id)).toBe('active')
+
+    // ── Confirm deactivates, and the backend agrees ─────────────────────
+    const deactivateReload = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/members?') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+      { timeout: 15000 },
+    )
+    await authenticatedMembersPage.deactivateMember(member.id)
+    await deactivateReload
+    expect(patchCalls).toBe(1)
+    expect(await authenticatedMembersPage.getMemberStatus(member.id)).toBe('inactive')
+
+    // ── Reactivating needs no confirmation ──────────────────────────────
+    const reactivateReload = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/members?') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+      { timeout: 15000 },
+    )
+    await authenticatedMembersPage.reactivateMember(member.id)
+    await reactivateReload
+    expect(patchCalls).toBe(2)
+    expect(await authenticatedMembersPage.getMemberStatus(member.id)).toBe('active')
   })
 })

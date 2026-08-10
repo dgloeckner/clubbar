@@ -93,6 +93,11 @@ test.describe('Settlement undo confirmation', () => {
     await settlementsPage.confirmUndoDialog(settlement.id)
     expect((await settlementsPage.getSettlementStatusText(settlement.id))?.trim()).toBe('Storniert')
 
+    // The undo says so outright, rather than leaving the treasurer to spot a
+    // changed badge in one row of a long list (#130).
+    await settlementsPage.expectUndoSuccessVisible()
+    expect((await settlementsPage.getUndoSuccessMessage()).length).toBeGreaterThan(5)
+
     // End to end: the backend really cancelled the run, not just the UI.
     const after = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}`)
     expect(after.status()).toBe(200)

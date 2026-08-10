@@ -686,7 +686,9 @@ export class SettingsPage {
   }
 
   /**
-   * Click reset password button for admin user by email
+   * Click reset password button for admin user by email and confirm via
+   * ConfirmDialog — the reset invalidates a colleague's current password, so
+   * it asks first (#130).
    */
   async clickResetPasswordButton(email: string) {
     const adminId = await this.getAdminUserIdByEmail(email)
@@ -695,8 +697,40 @@ export class SettingsPage {
     }
 
     await this.page.getByTestId(`settings-admin-reset-password-button-${adminId}`).click()
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 5000 })
+    await this.page.getByTestId('confirm-dialog-ok').click()
     // Wait for password modal to appear
     await this.page.getByTestId('settings-admin-password-modal').waitFor({ state: 'visible' })
+  }
+
+  /**
+   * Open the reset-password confirmation without answering it.
+   */
+  async openResetPasswordConfirm(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+
+    await this.page.getByTestId(`settings-admin-reset-password-button-${adminId}`).click()
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 5000 })
+  }
+
+  async cancelConfirmDialog() {
+    await this.page.getByTestId('confirm-dialog-cancel').click()
+    await expect(this.page.getByTestId('confirm-dialog')).toBeHidden()
+  }
+
+  /**
+   * The page-level banner that confirms an action leaving no visible trace
+   * (#130) — distinct from the SEPA tab's own success message.
+   */
+  async expectActionSuccessVisible() {
+    await expect(this.page.getByTestId('settings-success-message')).toBeVisible()
+  }
+
+  async getActionSuccessMessage(): Promise<string> {
+    return (await this.page.getByTestId('settings-success-message').textContent()) ?? ''
   }
 
   /**
