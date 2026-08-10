@@ -19,6 +19,7 @@
 
 import { useTranslation } from 'react-i18next'
 import { PERIOD_KEYS, getPeriodRange, DEFAULT_PERIOD, type PeriodKey } from '../../utils/periods'
+import { theme } from '../../styles/design-system'
 
 export interface PeriodPickerProps {
   value?: PeriodKey
@@ -40,7 +41,7 @@ export function PeriodPicker({ value = DEFAULT_PERIOD, onPeriodChange, testId = 
       data-testid={testId}
       style={{
         display: 'inline-flex',
-        backgroundColor: '#0d1829',
+        backgroundColor: theme.colors.bg.input,
         borderRadius: '10px',
         padding: '4px',
         gap: '2px',
@@ -56,8 +57,8 @@ export function PeriodPicker({ value = DEFAULT_PERIOD, onPeriodChange, testId = 
             borderRadius: '8px',
             fontSize: '13px',
             fontWeight: 500,
-            color: value === key ? 'white' : '#94a3b8',
-            backgroundColor: value === key ? '#3b82f6' : 'transparent',
+            color: value === key ? 'white' : theme.colors.text.secondary,
+            backgroundColor: value === key ? theme.colors.semantic.primary : 'transparent',
             border: 'none',
             cursor: 'pointer',
             transition: 'all 0.15s',
@@ -65,12 +66,12 @@ export function PeriodPicker({ value = DEFAULT_PERIOD, onPeriodChange, testId = 
           }}
           onMouseEnter={(e) => {
             if (value !== key) {
-              e.currentTarget.style.color = '#f1f5f9'
+              e.currentTarget.style.color = theme.colors.text.primary
             }
           }}
           onMouseLeave={(e) => {
             if (value !== key) {
-              e.currentTarget.style.color = '#94a3b8'
+              e.currentTarget.style.color = theme.colors.text.secondary
             }
           }}
         >

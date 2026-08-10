@@ -6,6 +6,8 @@
 
 import { getProductIcon } from '../icons/IconRegistry'
 import { parsePriceToCents } from '../../utils/price'
+import { theme } from '../../styles/design-system'
+import { tableColors } from '../../styles/tableTokens'
 
 interface ProductPreviewProps {
   name: string
@@ -52,7 +54,7 @@ export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
           height: '56px',
         }}
       >
-        <IconComponent size={48} color="#e2e8f0" />
+        <IconComponent size={48} color={tableColors.cellText} />
       </div>
 
       {/* Product Name */}
@@ -60,7 +62,7 @@ export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
         style={{
           fontSize: '13px',
           fontWeight: '500',
-          color: '#e2e8f0',
+          color: tableColors.cellText,
           lineHeight: '1.2',
           marginBottom: '8px',
           maxWidth: '140px',
@@ -76,7 +78,7 @@ export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
           fontSize: '16px',
           fontWeight: '700',
           fontFamily: 'JetBrains Mono, monospace',
-          color: '#14b8a6',
+          color: theme.colors.semantic.teal,
           marginTop: '4px',
         }}
       >

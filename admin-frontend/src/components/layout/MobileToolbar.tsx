@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
+import { tableColors } from '../../styles/tableTokens'
 
 interface SortOption {
   value: string
@@ -138,8 +139,8 @@ export function MobileToolbar({
               width="14" height="14" viewBox="0 0 16 16" fill="none"
               style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', opacity: 0.35 }}
             >
-              <circle cx="7" cy="7" r="5.5" stroke="#fff" strokeWidth="1.5" />
-              <path d="M11 11l3.5 3.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+              <circle cx="7" cy="7" r="5.5" stroke="white" strokeWidth="1.5" />
+              <path d="M11 11l3.5 3.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             <input
               type="text"
@@ -153,7 +154,7 @@ export function MobileToolbar({
                 borderRadius: '7px',
                 border: '1px solid rgba(255,255,255,0.08)',
                 background: 'rgba(255,255,255,0.04)',
-                color: '#e2e8f0',
+                color: tableColors.cellText,
                 fontSize: '13px',
                 outline: 'none',
               }}
@@ -242,7 +243,7 @@ export function MobileToolbar({
                 data-testid={`${testId}-filter-badge`}
                 style={{
                   background: theme.colors.semantic.primary,
-                  color: '#fff',
+                  color: 'white',
                   borderRadius: '9999px',
                   padding: '0 6px',
                   fontSize: '11px',
@@ -271,7 +272,7 @@ export function MobileToolbar({
               background: theme.colors.semantic.primary,
               border: 'none',
               borderRadius: '7px',
-              color: '#fff',
+              color: 'white',
               cursor: 'pointer',
               flexShrink: 0,
             }}

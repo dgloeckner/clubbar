@@ -50,6 +50,13 @@ module.exports = {
         'src/utils/transactions.ts',
         'src/pages/MembersPage.tsx',
         'src/pages/ExcludedFromCollectionPage.tsx',
+        'src/components/layout/MobileToolbar.tsx',
+        'src/components/forms/PeriodPicker.tsx',
+        'src/components/common/Tooltip.tsx',
+        'src/components/forms/ProductPreview.tsx',
+        'src/components/tables/SortableTableHeader.tsx',
+        'src/components/tables/MobileFilterRow.tsx',
+        'src/components/common/LoadingIndicator.tsx',
       ],
       rules: {
         'no-restricted-syntax': [

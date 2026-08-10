@@ -11,6 +11,9 @@
  * - testId: Test ID for the button
  */
 
+import { theme } from '../../styles/design-system'
+import { tableColors } from '../../styles/tableTokens'
+
 interface SortableTableHeaderProps {
   label: string
   sortKey: string
@@ -66,7 +69,7 @@ export function SortableTableHeader({
         gap: 6,
         background: 'transparent',
         border: 'none',
-        color: isActive ? '#3b82f6' : '#cbd5e1',
+        color: isActive ? theme.colors.semantic.primary : tableColors.headerText,
         fontSize: 12,
         fontWeight: 600,
         textTransform: 'uppercase',
