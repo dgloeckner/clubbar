@@ -1,8 +1,11 @@
 import { test, expect } from '../../fixtures/auth.fixture';
 import {
   INVALID_EXECUTION_DATES,
+  businessDayInsideLeadTime,
   minimumExecutionDate,
   serverToday,
+  target2ClosingDays,
+  tuesdayAfterNextEaster,
 } from '../../utils/dates';
 import { ensureSepaConfigured } from '../../utils/settlements';
 
@@ -291,8 +294,7 @@ test.describe('Settlements API', () => {
         data: {
           method: 'direct_debit',
           transaction_ids: [],
-          settlement_date: '2026-01-26',
-          execution_date: '2026-02-02',
+          execution_date: await minimumExecutionDate(authenticatedRequest),
           period_start: '2026-01-01',
           period_end: '2026-01-25',
         },
@@ -311,29 +313,52 @@ test.describe('Settlements API', () => {
         data: {
           method: 'bank_transfer',
           transaction_ids: [],
-          settlement_date: '2026-01-26',
-          execution_date: '2026-02-02',
+          execution_date: await minimumExecutionDate(authenticatedRequest),
         },
       });
 
       expect([201, 422]).toContain(response.status());
     });
 
-    test('C3: POST /settlements rejects execution_date < settlement_date + 7', async ({ authenticatedRequest }) => {
+    test('C3: POST /settlements rejects an execution_date inside the lead time', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
           method: 'direct_debit',
           transaction_ids: ['test-id'],
-          settlement_date: '2026-01-26',
-          execution_date: '2026-01-28', // Only 2 days later
+          // Two days out, so inside the 7-day lead time measured from today.
+          execution_date: await businessDayInsideLeadTime(authenticatedRequest),
         },
       });
 
       expect(response.status()).toBe(422);
       const body = await response.json();
       expect(body.error).toBe('validation_failed');
-      expect(body.messages).toBeDefined();
-      // Validation message structure varies - just check messages exist
+      expect(JSON.stringify(body.messages)).toContain('7 days');
+    });
+
+    /**
+     * Issue #113: the lead time is anchored on the server's today.
+     *
+     * It used to be anchored on the request's own `settlement_date`, so a
+     * client that claimed the settlement dated from last month could have the
+     * bank collect tomorrow — members debited with no SEPA pre-notification at
+     * all. The field is no longer part of the request, and sending one buys
+     * nothing.
+     */
+    test('C3d: a backdated settlement_date does not shorten the lead time', async ({ authenticatedRequest }) => {
+      const lastMonth = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+
+      const response = await authenticatedRequest.post('/api/admin/settlements', {
+        data: {
+          method: 'direct_debit',
+          transaction_ids: ['test-id'],
+          settlement_date: lastMonth,
+          execution_date: await businessDayInsideLeadTime(authenticatedRequest),
+        },
+      });
+
+      expect(response.status(), 'a backdated settlement_date must not buy a short lead time').toBe(422);
+      expect(JSON.stringify((await response.json()).messages)).toContain('7 days');
     });
 
     /**
@@ -350,7 +375,6 @@ test.describe('Settlements API', () => {
           data: {
             method: 'direct_debit',
             transaction_ids: ['test-id'],
-            settlement_date: '2026-07-01',
             execution_date: execDate,
           },
         });
@@ -375,8 +399,6 @@ test.describe('Settlements API', () => {
           data: {
             method: 'direct_debit',
             transaction_ids: ['test-id'],
-            // Far enough back that the 7-day lead time is never the reason.
-            settlement_date: '2026-01-05',
             execution_date: execDate,
           },
         });
@@ -387,14 +409,15 @@ test.describe('Settlements API', () => {
     });
 
     test('C3c: POST /settlements accepts the business day after a closing day', async ({ authenticatedRequest }) => {
-      // 2026-04-07, the Tuesday after Good Friday → Easter Monday. Accepted past
-      // validation, so the failure is about the dummy transaction id, not the date.
+      // The Tuesday after Good Friday → Easter Monday, in the next Easter still
+      // ahead of us — the date has to clear the lead time as well as the
+      // business-day rule. Accepted past validation, so the failure is about
+      // the dummy transaction id, not the date.
       const response = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
           method: 'direct_debit',
           transaction_ids: ['test-id'],
-          settlement_date: '2026-01-05',
-          execution_date: '2026-04-07',
+          execution_date: tuesdayAfterNextEaster(),
         },
       });
 
@@ -408,8 +431,7 @@ test.describe('Settlements API', () => {
         data: {
           method: 'direct_debit',
           transaction_ids: [],
-          settlement_date: '2026-01-26',
-          execution_date: '2026-02-02',
+          execution_date: await minimumExecutionDate(authenticatedRequest),
         },
       });
 
@@ -428,8 +450,7 @@ test.describe('Settlements API', () => {
         data: {
           method: 'cash',
           transaction_ids: ['test-id'],
-          settlement_date: '2026-01-26',
-          execution_date: '2026-02-02',
+          execution_date: await minimumExecutionDate(authenticatedRequest),
         },
       });
 
@@ -443,8 +464,7 @@ test.describe('Settlements API', () => {
         data: {
           method: 'direct_debit',
           transaction_ids: [],
-          settlement_date: '2026-01-26',
-          execution_date: '2026-02-02',
+          execution_date: await minimumExecutionDate(authenticatedRequest),
         },
       });
 
@@ -466,21 +486,20 @@ test.describe('Settlements API', () => {
         data: {
           method: 'direct_debit',
           transaction_ids: [],
-          settlement_date: '2026-01-26',
-          execution_date: '2026-02-02',
+          execution_date: await minimumExecutionDate(authenticatedRequest),
         },
       });
 
       expect([201, 422]).toContain(response.status());
     });
 
-    test('C8: POST /settlements requires authentication', async ({ request }) => {
+    test('C8: POST /settlements requires authentication', async ({ authenticatedRequest, request }) => {
+      const execDate = await minimumExecutionDate(authenticatedRequest);
       const response = await request.post('/api/admin/settlements', {
         data: {
           method: 'direct_debit',
           transaction_ids: [],
-          settlement_date: '2026-01-26',
-          execution_date: '2026-02-02',
+          execution_date: execDate,
         },
       });
 
@@ -748,12 +767,10 @@ test.describe('Settlements API', () => {
       expect((await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`)).status()).toBe(200);
 
       const executionDate = await minimumExecutionDate(authenticatedRequest);
-      const settlementDate = await serverToday(authenticatedRequest);
       const resettled = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
           method: 'direct_debit',
           transaction_ids: settlement.transactionIds,
-          settlement_date: settlementDate,
           execution_date: executionDate,
         },
       });
@@ -1266,7 +1283,6 @@ test.describe('Settlements API', () => {
       const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
         data: {
           search: uniqueLastName,
-          settlement_date: today,
           execution_date: exec,
         },
       });
@@ -1282,21 +1298,28 @@ test.describe('Settlements API', () => {
       expect(settlement.total_amount_cents).toBe(1000);
     });
 
-    test('returns 422 when settlement_date is missing', async ({ authenticatedRequest }) => {
-      const futureDate = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
+    /**
+     * Issue #113: `settlement_date` left the request. Its absence is no longer
+     * a validation failure — this body reaches the sweep and fails, if at all,
+     * on what it actually matched.
+     */
+    test('does not require a settlement_date', async ({ authenticatedRequest }) => {
       const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
-        data: { execution_date: futureDate },
+        data: {
+          execution_date: await minimumExecutionDate(authenticatedRequest),
+          // A window nothing falls in, so the run is empty rather than a real
+          // sweep of other tests' transactions.
+          date_from: '1990-01-01',
+          date_to: '1990-01-02',
+        },
       });
-      expect(res.status()).toBe(422);
-      const body = await res.json();
-      expect(body.error).toBe('validation_failed');
-      expect(body.messages).toBeDefined();
+
+      expect(res.status(), await res.text()).not.toBe(422);
     });
 
     test('returns 422 when execution_date is missing', async ({ authenticatedRequest }) => {
-      const today = new Date().toISOString().split('T')[0];
       const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
-        data: { settlement_date: today },
+        data: {},
       });
       expect(res.status()).toBe(422);
       const body = await res.json();
@@ -1311,10 +1334,7 @@ test.describe('Settlements API', () => {
      */
     test('rejects a weekend execution_date', async ({ authenticatedRequest }) => {
       const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
-        data: {
-          settlement_date: '2026-07-01',
-          execution_date: INVALID_EXECUTION_DATES.sunday,
-        },
+        data: { execution_date: INVALID_EXECUTION_DATES.sunday },
       });
 
       expect(res.status()).toBe(422);
@@ -1323,10 +1343,7 @@ test.describe('Settlements API', () => {
 
     test('rejects a TARGET2 closing day execution_date', async ({ authenticatedRequest }) => {
       const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
-        data: {
-          settlement_date: '2026-01-05',
-          execution_date: INVALID_EXECUTION_DATES.easterMonday,
-        },
+        data: { execution_date: INVALID_EXECUTION_DATES.easterMonday },
       });
 
       expect(res.status()).toBe(422);
@@ -1335,13 +1352,23 @@ test.describe('Settlements API', () => {
 
     test('rejects an execution_date inside the 7-day lead time', async ({ authenticatedRequest }) => {
       const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
-        data: {
-          settlement_date: '2026-07-01', // Wednesday
-          execution_date: '2026-07-03',  // Friday — a business day, but only 2 days later
-        },
+        data: { execution_date: await businessDayInsideLeadTime(authenticatedRequest) },
       });
 
       expect(res.status()).toBe(422);
+      expect(JSON.stringify((await res.json()).messages)).toContain('7 days');
+    });
+
+    /** Issue #113: the other creation path, same anchor. */
+    test('a backdated settlement_date does not shorten the lead time', async ({ authenticatedRequest }) => {
+      const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
+        data: {
+          settlement_date: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
+          execution_date: await businessDayInsideLeadTime(authenticatedRequest),
+        },
+      });
+
+      expect(res.status(), 'a backdated settlement_date must not buy a short lead time').toBe(422);
       expect(JSON.stringify((await res.json()).messages)).toContain('7 days');
     });
   });
@@ -1370,6 +1397,24 @@ test.describe('Settlements API', () => {
       expect(Object.values(INVALID_EXECUTION_DATES)).not.toContain(body.minimum_date);
     });
 
+    /**
+     * The helpers in utils/dates.ts compute the TARGET2 calendar locally, which
+     * the rest of the suite deliberately does not do. This pins them against
+     * the hard-coded dates the suite already trusts, so a drifting local
+     * calendar fails here rather than silently weakening a lead-time test.
+     */
+    test('the local TARGET2 calendar agrees with the hard-coded closing days', async () => {
+      expect(target2ClosingDays(2026)).toEqual([
+        '2026-01-01',
+        INVALID_EXECUTION_DATES.goodFriday,
+        INVALID_EXECUTION_DATES.easterMonday,
+        '2026-05-01',
+        INVALID_EXECUTION_DATES.christmasDay,
+        '2026-12-26',
+      ]);
+      expect(target2ClosingDays(2027)).toContain(INVALID_EXECUTION_DATES.newYearsDay);
+    });
+
     test('the suggested minimum date is accepted by the creation endpoint', async ({ authenticatedRequest }) => {
       // Closes the loop: whatever the endpoint suggests must pass validation,
       // so the admin UI can submit it unchanged on any day of the year.
@@ -1379,7 +1424,6 @@ test.describe('Settlements API', () => {
         data: {
           method: 'direct_debit',
           transaction_ids: ['test-id'],
-          settlement_date: await serverToday(authenticatedRequest),
           execution_date: execDate,
         },
       });
@@ -1463,7 +1507,6 @@ test.describe('Settlements API', () => {
         data: {
           method: 'direct_debit',
           transaction_ids: [transactionId],
-          settlement_date: await serverToday(request),
           execution_date: executionDate,
         },
       });
@@ -1484,7 +1527,6 @@ test.describe('Settlements API', () => {
         data: {
           method: 'direct_debit',
           transaction_ids: transactionIds,
-          settlement_date: await serverToday(request),
           execution_date: await minimumExecutionDate(request),
         },
       });

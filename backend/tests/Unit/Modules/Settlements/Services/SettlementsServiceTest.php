@@ -816,7 +816,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessage('Some transactions are already settled');
 
-        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+        $this->service->createSettlement(['tx-1'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
     }
 
     public function test_createSettlement_rejects_when_no_valid_unsettled_transactions_found(): void
@@ -829,7 +829,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessage('No valid unsettled transactions found');
 
-        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+        $this->service->createSettlement(['tx-1'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
     }
 
     public function test_createSettlement_persists_items_and_writes_audit_entry(): void
@@ -867,7 +867,9 @@ class SettlementsServiceTest extends TestCase
             ->with($this->callback(function (array $data) {
                 return $data['total_amount_cents'] === 1250
                     && $data['member_count'] === 2
-                    && $data['settlement_date'] === '2026-01-01'
+                    // Issue #113: the settlement's date is the server's today,
+                    // and there is no longer a caller-supplied one to use.
+                    && $data['settlement_date'] === (new \DateTimeImmutable('today'))->format('Y-m-d')
                     && $data['execution_date'] === '2026-01-15'
                     && $data['sepa_message_id'] === 'SEPA-ABC123'
                     && $data['created_by_admin_id'] === 'admin-1';
@@ -900,7 +902,7 @@ class SettlementsServiceTest extends TestCase
         $this->db->expects($this->once())->method('commit');
         $this->db->expects($this->never())->method('rollBack');
 
-        $result = $this->service->createSettlement(['tx-1', 'tx-2'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+        $result = $this->service->createSettlement(['tx-1', 'tx-2'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
 
         $this->assertInstanceOf(SettlementDto::class, $result);
         $this->assertSame('settlement-1', $result->id);
@@ -946,7 +948,7 @@ class SettlementsServiceTest extends TestCase
 
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
-        $result = $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::BANK_TRANSFER, null, 'admin-1');
+        $result = $this->service->createSettlement(['tx-1'], '2026-01-15', null, null, SettlementMethod::BANK_TRANSFER, null, 'admin-1');
 
         $this->assertSame(SettlementMethod::BANK_TRANSFER, $result->method);
     }
@@ -972,7 +974,7 @@ class SettlementsServiceTest extends TestCase
 
         $this->expectException(ValidationException::class);
 
-        $this->service->createSettlement(['tx-1', 'tx-2'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::WRITE_OFF, null, 'admin-1');
+        $this->service->createSettlement(['tx-1', 'tx-2'], '2026-01-15', null, null, SettlementMethod::WRITE_OFF, null, 'admin-1');
     }
 
     public function test_createSettlement_does_not_validate_execution_date_is_a_business_day(): void
@@ -1008,7 +1010,7 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('create')->willReturn($settlementRow);
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
-        $result = $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-08-09', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+        $result = $this->service->createSettlement(['tx-1'], '2026-08-09', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
 
         $this->assertSame('2026-08-09', $result->executionDate);
     }
@@ -1029,7 +1031,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('db exploded');
 
-        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+        $this->service->createSettlement(['tx-1'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
     }
 
     /**
@@ -1064,7 +1066,7 @@ class SettlementsServiceTest extends TestCase
 
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
-        $this->service->createSettlement(['tx-feb'], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+        $this->service->createSettlement(['tx-feb'], '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
 
         $this->assertSame(['tx-jan-storno', 'tx-feb'], $settled, 'The January credit must be swept in with the February purchase');
     }
@@ -1105,7 +1107,7 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
         $this->service->createSettlement(
-            [], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
+            [], '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
             postedMemberIds: ['member-a'],
         );
 
@@ -1124,7 +1126,7 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
         $this->service->createSettlement(
-            [], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
+            [], '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
             postedMemberIds: ['member-a', 'member-a'],
         );
     }
@@ -1137,7 +1139,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectExceptionMessage('No members named');
 
         $this->service->createSettlement(
-            [], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
+            [], '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
             postedMemberIds: [],
         );
     }
@@ -1160,7 +1162,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectExceptionMessage('No valid unsettled transactions found');
 
         $this->service->createSettlement(
-            [], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
+            [], '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
             postedMemberIds: ['member-a'],
         );
     }
@@ -1176,7 +1178,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $this->service->createSettlement(
-            [], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
+            [], '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
             postedMemberIds: ['member-a'],
         );
     }
@@ -1204,7 +1206,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(ValidationException::class);
         $this->expectExceptionMessage('no active SEPA mandate');
 
-        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+        $this->service->createSettlement(['tx-1'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
     }
 
     /**
@@ -1227,7 +1229,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(ValidationException::class);
         $this->expectExceptionMessage('in credit');
 
-        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+        $this->service->createSettlement(['tx-1'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
     }
 
     /**
@@ -1253,7 +1255,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(ValidationException::class);
         $this->expectExceptionMessage('collection hold');
 
-        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+        $this->service->createSettlement(['tx-1'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
     }
 
     /**
@@ -1279,7 +1281,7 @@ class SettlementsServiceTest extends TestCase
         );
 
         $result = $this->service->createSettlement(
-            ['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::WRITE_OFF, null, 'admin-1',
+            ['tx-1'], '2026-01-15', null, null, SettlementMethod::WRITE_OFF, null, 'admin-1',
         );
 
         $this->assertSame('settlement-1', $result->id);
@@ -1312,7 +1314,7 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
         $result = $this->service->createSettlement(
-            ['tx-purchase', 'tx-payout'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1'
+            ['tx-purchase', 'tx-payout'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1'
         );
 
         $this->assertSame(0, $result->totalAmountCents);
@@ -1328,7 +1330,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessage('No unsettled transactions found for the given filters');
 
-        $this->service->createSettlementByFilters($filters, '2026-01-01', '2026-01-15', 'admin-1');
+        $this->service->createSettlementByFilters($filters, '2026-01-15', 'admin-1');
     }
 
     public function test_createSettlementByFilters_uses_same_transaction_selection_as_previewByFilters(): void
@@ -1381,7 +1383,7 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
         $previewResult = $this->service->previewByFilters($filters);
-        $createResult = $this->service->createSettlementByFilters($filters, '2026-01-01', '2026-01-15', 'admin-1');
+        $createResult = $this->service->createSettlementByFilters($filters, '2026-01-15', 'admin-1');
 
         $this->assertSame(2, $previewResult['transaction_count']);
         $this->assertSame('2026-01-01', $createResult->periodStart);
@@ -1422,7 +1424,7 @@ class SettlementsServiceTest extends TestCase
             ]);
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
-        $this->service->createSettlementByFilters($filters, '2026-02-01', '2026-02-15', 'admin-1');
+        $this->service->createSettlementByFilters($filters, '2026-02-15', 'admin-1');
     }
 
 
@@ -1471,7 +1473,7 @@ class SettlementsServiceTest extends TestCase
             ->willReturn($this->settlementRow(['total_amount_cents' => 500]));
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
-        $result = $this->service->createSettlementByFilters($filters, '2026-02-01', '2026-02-15', 'admin-1');
+        $result = $this->service->createSettlementByFilters($filters, '2026-02-15', 'admin-1');
 
         $this->assertSame(500, $result->totalAmountCents);
     }
@@ -1491,7 +1493,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessage('No collectable members');
 
-        $this->service->createSettlementByFilters($filters, '2026-02-01', '2026-02-15', 'admin-1');
+        $this->service->createSettlementByFilters($filters, '2026-02-15', 'admin-1');
     }
 
     // ── getSettlement ────────────────────────────────────────────────

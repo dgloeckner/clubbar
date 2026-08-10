@@ -119,7 +119,7 @@ CREATE TABLE transactions (
 CREATE TABLE settlements (
   id BINARY(16) PRIMARY KEY,
   settlement_date DATE NOT NULL,            -- Date settlement was created
-  execution_date DATE NOT NULL,             -- SEPA execution date (>= settlement_date + 7 days)
+  execution_date DATE NOT NULL,             -- SEPA execution date (>= the server's today + 7 days, ADR-0009)
   created_by_admin_id BINARY(16) NOT NULL,  -- Which admin created settlement
   settlement_period_start DATE,             -- Optional: accounting period start
   settlement_period_end DATE,               -- Optional: accounting period end

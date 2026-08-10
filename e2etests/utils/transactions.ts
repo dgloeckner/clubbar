@@ -162,7 +162,6 @@ export const createStorno = (
 export interface SettlementData {
   method: 'direct_debit' | 'bank_transfer' | 'write_off'
   transaction_ids: string[]
-  settlement_date: string
   execution_date: string
   period_start: string
   period_end: string
@@ -177,28 +176,25 @@ export interface SettlementData {
  * (issue #11). Use `minimumExecutionDate()` from `utils/dates` to get a valid
  * value from the backend.
  *
- * `settlementDate` is supplied for the same reason: it must come from the same
- * clock as the execution date, or the server's own lead-time rule rejects the
- * pair. Use `serverToday()` from `utils/dates`.
+ * There is no `settlement_date`: the settlement's date is recorded by the
+ * server, and no request field takes part in the lead-time rule (issue #113).
+ * `period` is descriptive only, so it is anchored on the server's today.
  *
  * @param transactionIds - IDs of transactions to settle
  * @param executionDate - Valid execution date (YYYY-MM-DD)
- * @param settlementDate - Server's today (YYYY-MM-DD)
+ * @param periodDate - Server's today (YYYY-MM-DD), used for the descriptive period
  * @returns Settlement data ready for settlement API
  */
 export const createSettlement = (
   transactionIds: string[],
   executionDate: string,
-  settlementDate: string
+  periodDate: string
 ): SettlementData => {
-  const today = settlementDate
-
   return {
     method: 'direct_debit',
     transaction_ids: transactionIds,
-    settlement_date: today,
     execution_date: executionDate,
-    period_start: today,
-    period_end: today,
+    period_start: periodDate,
+    period_end: periodDate,
   }
 }

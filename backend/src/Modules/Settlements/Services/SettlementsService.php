@@ -12,6 +12,7 @@ use App\Modules\Settlements\DTOs\SettlementItemDto;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
 use App\Modules\Settlements\DTOs\SettlementReversalDto;
 use App\Modules\Settlements\Domain\CancellationGate;
+use App\Modules\Settlements\Domain\SettlementLeadTime;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
@@ -24,13 +25,12 @@ use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Services\AuditService;
-use App\Shared\Utils\BankingCalendar;
 use PDO;
 
 class SettlementsService
 {
     /** Fixed SEPA lead time in calendar days (ADR-0009). */
-    public const LEAD_TIME_DAYS = 7;
+    public const LEAD_TIME_DAYS = SettlementLeadTime::DAYS;
 
     public function __construct(
         private SettlementsRepository $settlementsRepository,
@@ -53,12 +53,9 @@ class SettlementsService
      */
     public function getExecutionDateInfo(?string $today = null): ExecutionDateInfoDto
     {
-        $anchor = new \DateTimeImmutable($today ?? 'today');
-        $base = $anchor->modify('+7 days');
-
         return new ExecutionDateInfoDto(
-            minimumDate: BankingCalendar::nextBusinessDay($base->format('Y-m-d')),
-            today: $anchor->format('Y-m-d'),
+            minimumDate: SettlementLeadTime::earliestBusinessDay($today),
+            today: SettlementLeadTime::today($today),
             leadTimeDays: self::LEAD_TIME_DAYS,
             rule: 'execution_date >= today + 7 calendar days, rolled to the next bank business day '
                 . '(Mon-Fri, excluding TARGET2 closing days)',
@@ -220,9 +217,15 @@ class SettlementsService
      * is being settled and is then discarded, because either way the run
      * covers each named member in full (#161 §2).
      *
+     * There is no `$settlementDate` parameter: the settlement's date is the day
+     * the server created it (issue #113). It was a request field once, and
+     * being one made it the anchor of the lead-time rule — a caller could
+     * backdate it and collect tomorrow. Nothing reads it as a rule input now,
+     * and no layer can be handed a wrong one.
+     *
      * @param list<string>|null $postedMemberIds
      */
-    public function createSettlement(array $transactionIds, string $settlementDate, string $executionDate, ?string $periodStart, ?string $periodEnd, SettlementMethod $method, ?string $notes, string $adminUserId, ?array $postedMemberIds = null): SettlementDto
+    public function createSettlement(array $transactionIds, string $executionDate, ?string $periodStart, ?string $periodEnd, SettlementMethod $method, ?string $notes, string $adminUserId, ?array $postedMemberIds = null): SettlementDto
     {
         $this->db->beginTransaction();
         try {
@@ -297,7 +300,8 @@ class SettlementsService
 
             $settlement = $this->settlementsRepository->create([
                 'method' => $method->value,
-                'settlement_date' => $settlementDate,
+                // The server's clock, never the caller's (issue #113).
+                'settlement_date' => SettlementLeadTime::today(),
                 'execution_date' => $executionDate,
                 'period_start' => $periodStart,
                 'period_end' => $periodEnd,
@@ -400,7 +404,6 @@ class SettlementsService
      */
     public function createSettlementByFilters(
         array $filters,
-        string $settlementDate,
         string $executionDate,
         string $adminUserId,
         ?string $notes = null,
@@ -430,7 +433,6 @@ class SettlementsService
 
         return $this->createSettlement(
             transactionIds: $collectableIds,
-            settlementDate: $settlementDate,
             executionDate: $executionDate,
             periodStart: $filters['date_from'] ?? null,
             periodEnd: $filters['date_to'] ?? null,

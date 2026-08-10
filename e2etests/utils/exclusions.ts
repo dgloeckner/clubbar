@@ -122,13 +122,12 @@ export async function seedCreditMember(
 
   const dates = await adminRequest.get('/api/admin/settlements/execution-date-info')
   expect(dates.status()).toBe(200)
-  const { today, minimum_date: executionDate } = await dates.json()
+  const { minimum_date: executionDate } = await dates.json()
 
   const settled = await adminRequest.post('/api/admin/settlements', {
     data: {
       method: 'direct_debit',
       member_ids: [member.memberId],
-      settlement_date: today,
       execution_date: executionDate,
     },
   })

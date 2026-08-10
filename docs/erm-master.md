@@ -389,8 +389,8 @@ Settlement records for SEPA collections and manual settlements.
 |--------|------|-------------|-------------|
 | id | BINARY(16) | PK | UUID |
 | method | ENUM | NOT NULL | `direct_debit` (many members, produces pain.008) · `bank_transfer` (one member, money already arrived) · `write_off` (one member, money never arrives). **Only `direct_debit` may be exported** ([#163](https://github.com/dgloeckner/ruderbar/issues/163)) |
-| settlement_date | DATE | NOT NULL | Creation date (auto-set to today) |
-| execution_date | DATE | NULL | SEPA execution date (>= settlement_date + 7 days; NULL for manual) |
+| settlement_date | DATE | NOT NULL | Creation date, set by the server to its own today. Not a request field — the API accepts no `settlement_date` ([#113](https://github.com/dgloeckner/ruderbar/issues/113)) |
+| execution_date | DATE | NULL | SEPA execution date (>= the server's today + 7 days, and a TARGET2 business day; NULL for manual) |
 | period_start | DATE | NULL | Accounting period start (optional) |
 | period_end | DATE | NULL | Accounting period end (optional) |
 | sepa_message_id | VARCHAR(35) | UNIQUE, NULL | SEPA XML message ID (auto-generated on first export; NULL for manual) |

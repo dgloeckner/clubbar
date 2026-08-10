@@ -14,7 +14,7 @@
 import { test, expect } from '../../fixtures/auth.fixture'
 import { FACTORY_IBAN } from '../../utils/settlements'
 import { generateUUID } from '../../utils/transactions'
-import { minimumExecutionDate, serverToday } from '../../utils/dates'
+import { minimumExecutionDate } from '../../utils/dates'
 import type { APIRequestContext } from '@playwright/test'
 
 interface SeededMember {
@@ -222,7 +222,6 @@ test.describe('Settlement preview by transaction ids (#128)', () => {
       data: {
         method: 'direct_debit',
         transaction_ids: seeded.transactionIds,
-        settlement_date: await serverToday(authenticatedRequest),
         execution_date: await minimumExecutionDate(authenticatedRequest),
       },
     })

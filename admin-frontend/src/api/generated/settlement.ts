@@ -67,6 +67,9 @@ export interface Settlement {
 `direct_debit` settlements can be exported to SEPA.
  */
   method?: SettlementMethod;
+  /** The day the server created this settlement. Recorded, never
+supplied — it is not a request field (issue #113).
+ */
   settlement_date?: string;
   /** @nullable */
   execution_date?: string | null;

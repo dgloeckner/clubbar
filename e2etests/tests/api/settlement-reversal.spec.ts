@@ -132,7 +132,6 @@ test.describe('Settlement reversal (#196)', () => {
       data: {
         method: 'direct_debit',
         transaction_ids: freed,
-        settlement_date: settlement.settlementDate,
         execution_date: settlement.executionDate,
       },
     })
@@ -152,7 +151,6 @@ test.describe('Settlement reversal (#196)', () => {
       data: {
         method: 'direct_debit',
         transaction_ids: freed,
-        settlement_date: settlement.settlementDate,
         execution_date: settlement.executionDate,
       },
     })

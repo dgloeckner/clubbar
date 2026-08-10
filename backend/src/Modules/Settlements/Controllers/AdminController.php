@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Controllers;
 
+use App\Modules\Settlements\Domain\SettlementLeadTime;
 use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Services\SettlementReversalService;
@@ -96,7 +97,6 @@ class AdminController
         $adminId = $request->getAttribute('admin_user_id');
 
         if (!$this->validator->validate($body, [
-            'settlement_date' => ['required', 'date'],
             'execution_date'  => ['required', 'date', 'business_day'],
             'date_from'       => ['date'],
             'date_to'         => ['date'],
@@ -105,7 +105,7 @@ class AdminController
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
-        if ($leadTimeError = $this->validateLeadTime($body['settlement_date'], $body['execution_date'])) {
+        if ($leadTimeError = $this->validateLeadTime($body['execution_date'])) {
             return $this->json($response, $leadTimeError, 422);
         }
 
@@ -113,7 +113,6 @@ class AdminController
 
         $settlement = $this->settlementsService->createSettlementByFilters(
             filters: $filters,
-            settlementDate: $body['settlement_date'],
             executionDate: $body['execution_date'],
             adminUserId: $adminId,
             notes: $body['notes'] ?? null,
@@ -135,7 +134,6 @@ class AdminController
         if (!$this->validator->validate($body, [
             'member_ids'      => $namesMembers ? ['required', 'array'] : [],
             'transaction_ids' => $namesMembers ? [] : ['required', 'array'],
-            'settlement_date' => ['required', 'date'],
             'execution_date'  => ['required', 'date', 'business_day'],
             'method'          => ['in:direct_debit,bank_transfer,write_off'],
         ])) {
@@ -150,7 +148,7 @@ class AdminController
             ], 422);
         }
 
-        if ($leadTimeError = $this->validateLeadTime($body['settlement_date'], $body['execution_date'])) {
+        if ($leadTimeError = $this->validateLeadTime($body['execution_date'])) {
             return $this->json($response, $leadTimeError, 422);
         }
 
@@ -161,7 +159,6 @@ class AdminController
 
         $settlement = $this->settlementsService->createSettlement(
             transactionIds: $namesMembers ? [] : $body['transaction_ids'],
-            settlementDate: $body['settlement_date'],
             executionDate: $body['execution_date'],
             periodStart: $body['period_start'] ?? null,
             periodEnd: $body['period_end'] ?? null,
@@ -400,23 +397,26 @@ class AdminController
      * Enforce the ADR-0009 lead time on both settlement creation paths.
      *
      * The business-day part of the rule is applied declaratively via the
-     * `business_day` validation rule; this covers the cross-field part, which
-     * the rule-based validator cannot express.
+     * `business_day` validation rule; this covers the lead time, which the
+     * rule-based validator cannot express.
+     *
+     * Anchored on the server's today (issue #113). The anchor used to be the
+     * request's own `settlement_date`, so a caller that backdated that field
+     * could have the bank collect tomorrow — no SEPA pre-notification, and
+     * members debited without the advance notice the rule exists to give.
      *
      * @return array{error: string, messages: array<string, list<string>>}|null Null when valid.
      */
-    private function validateLeadTime(string $settlementDate, string $executionDate): ?array
+    private function validateLeadTime(string $executionDate): ?array
     {
-        $minExecDate = (new \DateTimeImmutable($settlementDate))->modify('+7 days');
-
-        if (new \DateTimeImmutable($executionDate) < $minExecDate) {
-            return [
-                'error' => 'validation_failed',
-                'messages' => ['execution_date' => ['execution_date must be at least 7 days after settlement_date']],
-            ];
+        if (SettlementLeadTime::isSatisfiedBy($executionDate)) {
+            return null;
         }
 
-        return null;
+        return [
+            'error' => 'validation_failed',
+            'messages' => ['execution_date' => [SettlementLeadTime::violationMessage()]],
+        ];
     }
 
     private function buildSettlementCsv(array $memberRows): string

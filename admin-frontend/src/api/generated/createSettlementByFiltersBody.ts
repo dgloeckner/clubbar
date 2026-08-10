@@ -59,8 +59,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 
 export type CreateSettlementByFiltersBody = {
-  settlement_date?: string;
-  execution_date?: string;
+  execution_date: string;
   date_from?: string;
   date_to?: string;
   search?: string;

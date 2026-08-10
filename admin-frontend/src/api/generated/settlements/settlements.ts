@@ -100,7 +100,9 @@ const listSettlements = (
 **Use Cases**: UC-A30 (SEPA), UC-A35 (manual), UC-SEPA-05
 
 **SEPA settlements**:
-- Require `execution_date` (minimum TODAY + 7 calendar days)
+- Require `execution_date`, at least TODAY + 7 calendar days out, where
+  TODAY is the **server's** calendar day (issue #113). No request field
+  moves that anchor; a `settlement_date` in the body is ignored.
 - `execution_date` must be a bank business day — Mon-Fri, excluding the
   six TARGET2 closing days. Use `GET /admin/settlements/execution-date-info`
   for the earliest valid date rather than computing it.
@@ -362,8 +364,9 @@ const previewSettlementByFilters = (
  * Create a settlement for all unsettled transactions matching date filters.
 
 `execution_date` follows the same rule as `POST /admin/settlements`: at
-least `settlement_date` + 7 calendar days, and a bank business day
-(Mon-Fri, excluding the six TARGET2 closing days).
+least 7 calendar days from the server's today, and a bank business day
+(Mon-Fri, excluding the six TARGET2 closing days). A `settlement_date`
+in the body is ignored (issue #113).
 
  * @summary Create settlement by date filter
  */

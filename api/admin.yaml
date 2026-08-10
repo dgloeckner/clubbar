@@ -1704,7 +1704,9 @@ paths:
         **Use Cases**: UC-A30 (SEPA), UC-A35 (manual), UC-SEPA-05
 
         **SEPA settlements**:
-        - Require `execution_date` (minimum TODAY + 7 calendar days)
+        - Require `execution_date`, at least TODAY + 7 calendar days out, where
+          TODAY is the **server's** calendar day (issue #113). No request field
+          moves that anchor; a `settlement_date` in the body is ignored.
         - `execution_date` must be a bank business day — Mon-Fri, excluding the
           six TARGET2 closing days. Use `GET /admin/settlements/execution-date-info`
           for the earliest valid date rather than computing it.
@@ -1735,8 +1737,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           description: |
-            Validation failed — `execution_date` is earlier than
-            `settlement_date` + 7 days, or is not a bank business day.
+            Validation failed — `execution_date` is less than 7 calendar days
+            from the server's today, or is not a bank business day.
           content:
             application/json:
               schema:
@@ -3371,8 +3373,9 @@ paths:
         Create a settlement for all unsettled transactions matching date filters.
 
         `execution_date` follows the same rule as `POST /admin/settlements`: at
-        least `settlement_date` + 7 calendar days, and a bank business day
-        (Mon-Fri, excluding the six TARGET2 closing days).
+        least 7 calendar days from the server's today, and a bank business day
+        (Mon-Fri, excluding the six TARGET2 closing days). A `settlement_date`
+        in the body is ignored (issue #113).
       operationId: createSettlementByFilters
       security:
         - sessionAuth: []
@@ -3382,10 +3385,8 @@ paths:
           application/json:
             schema:
               type: object
+              required: [execution_date]
               properties:
-                settlement_date:
-                  type: string
-                  format: date
                 execution_date:
                   type: string
                   format: date
@@ -3415,8 +3416,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           description: |
-            Validation failed — `execution_date` is earlier than
-            `settlement_date` + 7 days, or is not a bank business day.
+            Validation failed — `execution_date` is less than 7 calendar days
+            from the server's today, or is not a bank business day.
           content:
             application/json:
               schema:
@@ -4579,6 +4580,9 @@ components:
         settlement_date:
           type: string
           format: date
+          description: |
+            The day the server created this settlement. Recorded, never
+            supplied — it is not a request field (issue #113).
         execution_date:
           type: string
           format: date
@@ -4663,6 +4667,9 @@ components:
         settlement_date:
           type: string
           format: date
+          description: |
+            The day the server created this settlement. Recorded, never
+            supplied — it is not a request field (issue #113).
         execution_date:
           type: string
           format: date
@@ -4747,12 +4754,13 @@ components:
           type: string
           format: date
           description: |
-            The server's own calendar day, the one `minimum_date` was derived
-            from. Clients must build `settlement_date` from this rather than
-            from their local clock: a browser east of UTC is a calendar day
-            ahead of a UTC server every evening, and pairing a locally-dated
-            `settlement_date` with this `minimum_date` fails the lead-time
-            check on a pair the server itself proposed.
+            The server's own calendar day — the anchor the lead time is
+            measured from, and the one `minimum_date` was derived from.
+
+            Informational: since issue #113 no client-supplied date takes part
+            in the rule, so a browser whose calendar day runs ahead of the
+            server's can no longer produce a pair the server rejects. Display
+            it when the UI needs to say what "today" the rule means.
           example: '2026-08-05'
         minimum_date:
           type: string
@@ -4869,7 +4877,7 @@ components:
         wins. Neither bounds the amounts: every unsettled transaction of every
         named member is settled, including transactions older than
         `period_start`.
-      required: [settlement_date, execution_date]
+      required: [execution_date]
       properties:
         member_ids:
           type: array
@@ -4897,9 +4905,6 @@ components:
             `settlement_type`/`manual_reason` pair (ruling #163).
             `bank_transfer` and `write_off` settlements must cover exactly one
             member and can never be exported to SEPA.
-        settlement_date:
-          type: string
-          format: date
         period_start:
           type: string
           format: date
@@ -4911,7 +4916,11 @@ components:
         execution_date:
           type: string
           format: date
-          description: Required for direct_debit (>= TODAY + 7 days, and a bank business day)
+          description: |
+            At least 7 calendar days from the server's today, and a bank
+            business day. The settlement's own `settlement_date` is not an
+            input — the server records the day it created the settlement, and
+            the lead time is measured from that same clock (issue #113).
         notes:
           type: string
           maxLength: 500

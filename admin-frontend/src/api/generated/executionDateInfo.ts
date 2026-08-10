@@ -59,12 +59,13 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 
 export interface ExecutionDateInfo {
-  /** The server's own calendar day, the one `minimum_date` was derived
-from. Clients must build `settlement_date` from this rather than
-from their local clock: a browser east of UTC is a calendar day
-ahead of a UTC server every evening, and pairing a locally-dated
-`settlement_date` with this `minimum_date` fails the lead-time
-check on a pair the server itself proposed.
+  /** The server's own calendar day — the anchor the lead time is
+measured from, and the one `minimum_date` was derived from.
+
+Informational: since issue #113 no client-supplied date takes part
+in the rule, so a browser whose calendar day runs ahead of the
+server's can no longer produce a pair the server rejects. Display
+it when the UI needs to say what "today" the rule means.
  */
   today: string;
   /** Earliest valid execution date; always a bank business day. */
