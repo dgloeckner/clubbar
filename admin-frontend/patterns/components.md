@@ -555,7 +555,7 @@ theme.avatars.sizes = {
 
 ```typescript
 theme.badges = {
-  success: { bg: 'rgba(34, 197, 94, 0.1)', text: '#22c55e', dot: '#22c55e' },
+  success: { bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.3)', text: '#22c55e', dot: '#22c55e' },
   warning: { bg: 'rgba(251, 146, 60, 0.1)', text: '#f97316', dot: '#f97316' },
   danger: { bg: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.3)', text: '#ef4444', dot: '#ef4444' },
   info: { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6', dot: '#3b82f6' },
@@ -578,6 +578,13 @@ edit-button hover backgrounds (`CategoriesPage`, `MembersPage`, `ProductsPage`,
 `TerminalsTab`), a selected table row (`NewSettlementPage`), an idle filter
 background (`TransactionModal`), and focus box-shadows (`Input`,
 `SepaConfigTab`) — reuse it instead of a new `rgba(59, 130, 246, 0.1)` literal.
+
+And for `theme.badges.success.bg`/`.border` (`rgba(34, 197, 94, 0.1)` /
+`rgba(34, 197, 94, 0.3)`): reused for success banners (`ProfilePage`'s profile
+and password success messages), the valid-SEPA highlight (`MembersPage`,
+`DashboardPage`), the SEPA success message (`SepaConfigTab`), and the stored
+mandate document panel border (`MandateDocumentSection`) — the success mirror
+of the danger banner pattern above.
 
 ### Overlay Backdrop
 

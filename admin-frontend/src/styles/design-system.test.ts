@@ -46,3 +46,9 @@ describe('theme.activeTint', () => {
     expect(theme.activeTint.primary).toBe('rgba(59, 130, 246, 0.15)')
   })
 })
+
+describe('theme.badges.success', () => {
+  it('exposes a canonical border tint alongside the existing bg tint', () => {
+    expect(theme.badges.success.border).toBe('rgba(34, 197, 94, 0.3)')
+  })
+})

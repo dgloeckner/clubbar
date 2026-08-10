@@ -197,7 +197,7 @@ export function SepaConfigTab({
           style={{
             padding: theme.spacing.md,
             marginBottom: theme.spacing.lg,
-            background: 'rgba(34, 197, 94, 0.1)',
+            background: theme.badges.success.bg,
             border: `1px solid rgba(34, 197, 94, 0.5)`,
             borderRadius: theme.borderRadius.md,
             color: 'rgb(34, 197, 94)',

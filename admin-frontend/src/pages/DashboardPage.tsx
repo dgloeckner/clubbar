@@ -345,7 +345,7 @@ export function DashboardPage() {
               padding: theme.spacing.md,
               borderRadius: theme.borderRadius.sm,
               background: alerts.sepa_issues?.severity === 'none'
-                ? 'rgba(34, 197, 94, 0.1)'
+                ? theme.badges.success.bg
                 : alerts.sepa_issues?.severity === 'warning'
                   ? 'rgba(249, 115, 22, 0.1)'
                   : theme.badges.danger.bg,

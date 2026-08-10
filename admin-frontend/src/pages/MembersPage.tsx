@@ -492,7 +492,7 @@ export function MembersPage() {
     const field = extractedFields.fields?.[fieldName]
     if (!field?.confidence) return null
     const styles: Record<string, React.CSSProperties> = {
-      high:   { background: 'rgba(34,197,94,0.15)',  color: theme.colors.pastel.green, border: '1px solid rgba(34,197,94,0.3)'  },
+      high:   { background: 'rgba(34,197,94,0.15)',  color: theme.colors.pastel.green, border: `1px solid ${theme.badges.success.border}`  },
       medium: { background: 'rgba(234,179,8,0.15)',  color: theme.colors.pastel.yellow, border: '1px solid rgba(234,179,8,0.3)'  },
       low:    { background: 'rgba(239,68,68,0.15)',   color: theme.colors.banner.dangerText, border: `1px solid ${theme.badges.danger.border}`  },
     }
@@ -1417,7 +1417,7 @@ export function MembersPage() {
                   borderRadius: 6,
                   marginBottom: theme.spacing.md,
                   backgroundColor: editingMember.is_sepa_valid
-                    ? 'rgba(34, 197, 94, 0.1)'
+                    ? theme.badges.success.bg
                     : theme.badges.danger.bg,
                   border: `1px solid ${editingMember.is_sepa_valid ? theme.colors.semantic.success : theme.colors.semantic.danger}`,
                   display: 'flex',

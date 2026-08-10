@@ -210,8 +210,8 @@ export function ProfilePage() {
             data-testid="profile-success"
             style={{
               padding: theme.spacing.md,
-              background: 'rgba(34, 197, 94, 0.1)',
-              border: '1px solid rgba(34, 197, 94, 0.3)',
+              background: theme.badges.success.bg,
+              border: `1px solid ${theme.badges.success.border}`,
               borderRadius: theme.borderRadius.md,
               color: theme.colors.semantic.success,
               marginBottom: theme.spacing.lg,
@@ -295,8 +295,8 @@ export function ProfilePage() {
             data-testid="password-success"
             style={{
               padding: theme.spacing.md,
-              background: 'rgba(34, 197, 94, 0.1)',
-              border: '1px solid rgba(34, 197, 94, 0.3)',
+              background: theme.badges.success.bg,
+              border: `1px solid ${theme.badges.success.border}`,
               borderRadius: theme.borderRadius.md,
               color: theme.colors.semantic.success,
               marginBottom: theme.spacing.lg,

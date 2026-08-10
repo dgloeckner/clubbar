@@ -181,6 +181,9 @@ export const theme = {
   badges: {
     success: {
       bg: 'rgba(34, 197, 94, 0.1)',
+      // Border tint for success banners/panels (success messages, valid-SEPA
+      // legend) — mirrors theme.badges.danger.border (#289).
+      border: withAlpha('#22c55e', 0.3),
       text: '#22c55e',
       dot: '#22c55e',
     },
