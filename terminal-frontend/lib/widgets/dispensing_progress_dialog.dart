@@ -6,6 +6,7 @@ import 'package:clubbar_terminal/models/cart_item.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/services/sound_service.dart';
 
 /// States for the dispensing state machine
 enum DispensingState {
@@ -258,6 +259,7 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
 
   void _handleSuccess(DispenseResult result) {
     _transitionTo(DispensingState.done);
+    _playCompletionSound();
     widget.onComplete(result);
 
     // Auto-close after 5 seconds
@@ -277,6 +279,7 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
       dispensed: _dispensed,
     );
     _transitionTo(DispensingState.done);
+    _playCompletionSound();
     widget.onComplete(result);
 
     // Auto-close after 5 seconds
@@ -285,6 +288,19 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
         Navigator.of(context).pop();
       }
     });
+  }
+
+  /// Sound cue for the dispense outcome, played the moment it is known — not
+  /// after the dialog's 5-second auto-close delay, since that is exactly the
+  /// window in which a member walks away believing they got everything they
+  /// paid for (issue #37).
+  void _playCompletionSound() {
+    if (!mounted) return;
+    context.read<SoundService>().play(
+          _dispensed < _quantity
+              ? SoundEvent.dispensePartial
+              : SoundEvent.dispenseSuccess,
+        );
   }
 
   void _handleError(DispenserException error) {

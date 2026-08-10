@@ -12,6 +12,7 @@ import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
+import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
@@ -24,6 +25,8 @@ class MockMembersProvider extends Mock implements MembersProvider {}
 
 class MockSessionController extends Mock implements SessionController {}
 
+class MockSoundService extends Mock implements SoundService {}
+
 class FakeMembersCacheData extends Fake implements MembersCacheData {}
 
 class FakeBuildContext extends Fake implements BuildContext {}
@@ -32,16 +35,20 @@ void main() {
   setUpAll(() {
     registerFallbackValue(FakeMembersCacheData());
     registerFallbackValue(FakeBuildContext());
+    registerFallbackValue(SoundEvent.scanSuccess);
   });
   group('ShoppingCartScreen', () {
     late MockCartProvider mockCartProvider;
     late MockMembersProvider mockMembersProvider;
     late MockSessionController mockSessionController;
+    late MockSoundService mockSoundService;
 
     setUp(() {
       mockCartProvider = MockCartProvider();
       mockMembersProvider = MockMembersProvider();
       mockSessionController = MockSessionController();
+      mockSoundService = MockSoundService();
+      when(() => mockSoundService.play(any())).thenAnswer((_) async {});
       when(() => mockSessionController.endSession()).thenReturn(true);
       when(() => mockSessionController.hasActiveSession).thenReturn(false);
       when(() => mockSessionController.isCriticalOperationInFlight)
@@ -113,6 +120,7 @@ void main() {
             ChangeNotifierProvider<SessionController>.value(
               value: mockSessionController,
             ),
+            Provider<SoundService>.value(value: mockSoundService),
           ],
           child: child ?? const Scaffold(body: ShoppingCartScreen()),
         ),
@@ -170,6 +178,7 @@ void main() {
                 ChangeNotifierProvider<SessionController>.value(
                   value: mockSessionController,
                 ),
+                Provider<SoundService>.value(value: mockSoundService),
               ],
               child: const Scaffold(
                 body: ShoppingCartScreen(),
@@ -509,6 +518,10 @@ void main() {
           findsOneWidget,
         );
         verifyNever(() => mockCartProvider.checkout(any(), any(), any()));
+        // This path never reaches CartProvider.checkout(), so it was the one
+        // validation failure with no audible cue at all (issue #37).
+        verify(() => mockSoundService.play(SoundEvent.checkoutError))
+            .called(1);
       });
 
       testWidgets('a cancellation the member chose gets a banner, not a modal',
@@ -691,6 +704,7 @@ void main() {
                 ChangeNotifierProvider<SessionController>.value(
                   value: mockSessionController,
                 ),
+                Provider<SoundService>.value(value: mockSoundService),
               ],
               child: const Scaffold(body: ShoppingCartScreen()),
             ),

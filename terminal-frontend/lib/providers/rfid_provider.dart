@@ -239,6 +239,7 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
           _detectedMember = null;
           emitError(TerminalErrorKey.unknownCard);
           _membersProvider.setError(TerminalErrorKey.unknownCard);
+          _soundService.play(SoundEvent.scanError);
           return;
         }
         member = MembersCacheData(
@@ -281,6 +282,7 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
       emitError(TerminalErrorKey.memberLookupFailed,
           cause: e, stackTrace: stackTrace);
       _membersProvider.setError(TerminalErrorKey.memberLookupFailed);
+      _soundService.play(SoundEvent.scanError);
     } finally {
       _isScanning = false;
       notifyListeners();

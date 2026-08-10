@@ -228,7 +228,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
   "apiToken": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
 
   "fullscreen": false,
-  "soundsEnabled": false,
+  "soundsEnabled": true,
   "seedTestData": false,
   "demoMode": false,
 
@@ -268,7 +268,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `apiUrl` | string | — | Base URL of the Club Bar backend API, e.g. `https://club.example.com/api`. No trailing slash. |
 | `apiToken` | string | — | 64-character hex device token generated in the Admin Panel under *Terminals*. Stored with `chmod 600`. |
 | `fullscreen` | bool | `false` | Run the app fullscreen / kiosk mode on startup. Recommended for production deployments. |
-| `soundsEnabled` | bool | `false` | Enable audio feedback sounds. Natural/warm UI sounds at key interactions. |
+| `soundsEnabled` | bool | `true` | Enable audio feedback sounds. Natural/warm UI sounds at key interactions. Set `false` for a silent deployment. |
 | `seedTestData` | bool | `false` | Pre-populate the local database with mock members, categories, and products. **Development only — never enable in production.** |
 | `demoMode` | bool | `false` | Enable demo mode for showcasing the terminal without a backend connection. **Development only.** |
 | `fontSizes.xs` | number | `12` | Font size in logical pixels for the `xs` scale step. |

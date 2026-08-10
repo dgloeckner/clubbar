@@ -65,7 +65,7 @@ Create `config.json` at the platform-specific path:
 | Field | Default | Description |
 |-------|---------|-------------|
 | `fullscreen` | `false` | Launch in fullscreen mode |
-| `soundsEnabled` | `false` | Audio feedback for scans, checkout, cart actions |
+| `soundsEnabled` | `true` | Audio feedback for scans, checkout, cart actions |
 | `demoMode` | `false` | Shows a "Simulate Card Scan" button on idle screen (no RFID reader needed) |
 | `seedTestData` | `false` | Seeds mock categories, products, and members into local DB (dev only) |
 | `fontSizes` | — | Override the 7 font size scale steps |
