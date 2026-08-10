@@ -52,6 +52,7 @@
 
   "balanceOpenTab": "Open tab: {amount}",
   "balanceCredit": "Credit: {amount}",
+  "balanceSettled": "No open tab",
   "viewDetails": "Details",
   "logout": "Log out",
 

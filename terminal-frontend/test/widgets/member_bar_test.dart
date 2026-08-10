@@ -100,7 +100,9 @@ void main() {
         (tester) async {
       await tester.pumpWidget(buildTestWidget(balanceCents: 0));
 
-      final text = balanceText(tester, 'Offener Betrag: 0,00');
+      // Settled accounts get their own wording, not "Offener Betrag: 0,00"
+      // (#296).
+      final text = balanceText(tester, 'Nichts offen');
       expect(text.style?.color, hexToColor(AppColors.textPrimary));
     });
   });
