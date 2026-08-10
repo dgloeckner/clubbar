@@ -53,6 +53,7 @@ class MainLayout extends StatelessWidget {
     final backendStatus = context.select<SyncProvider, ConnectionStatus>(
       (p) => p.connectionStatus,
     );
+    final isSyncing = context.select<SyncProvider, bool>((p) => p.isSyncing);
 
     // Try to get dispenser health (may not be available if dispenser disabled)
     DispenserHealth? dispenserHealth;
@@ -81,6 +82,7 @@ class MainLayout extends StatelessWidget {
       appBar: ClubBarHeader(
         connectionStatus: effectiveStatus,
         readerStatus: readerStatus,
+        isSyncing: isSyncing,
         onStatusTap: () => showStatusInfoModal(context),
       ),
       // Every pointer-down anywhere in the app counts as member activity and

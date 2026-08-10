@@ -83,6 +83,12 @@
   "lastTransactionSync": "Last transaction sync",
   "retryCount": "Retry count",
   "errorDetails": "Error details",
+  "statusSyncing": "Syncing",
+  "statusDegradedSince": "Ongoing since {time}",
+  "technicalDetails": "Technical details",
+  "technicalErrorCode": "Error code",
+  "backendVersionUnknown": "Version unknown",
+  "pendingOperationDetails": "Member {member} · Qty {quantity} · Created {date}",
 
   "loading": "Loading...",
   "continueShopping": "Continue Shopping",

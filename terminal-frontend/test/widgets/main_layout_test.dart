@@ -33,6 +33,7 @@ void main() {
       when(() => syncProvider.removeListener(any())).thenReturn(null);
       when(() => syncProvider.connectionStatus)
           .thenReturn(ConnectionStatus.online);
+      when(() => syncProvider.isSyncing).thenReturn(false);
 
       session = MockSessionController();
       when(() => session.addListener(any())).thenReturn(null);

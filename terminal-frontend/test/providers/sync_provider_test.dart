@@ -287,5 +287,75 @@ void main() {
 
       provider.stopSync();
     });
+
+    // Issue #40: the status modal answers "how long has this been broken?",
+    // which needs the start of the outage rather than the latest attempt.
+    group('degradedSince', () {
+      test('is null while the terminal is healthy', () {
+        expect(provider.degradedSince, isNull);
+      });
+
+      test('is stamped when the backend goes unreachable', () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => false);
+
+        final before = DateTime.now();
+        await provider.startSync();
+
+        expect(provider.connectionStatus, equals(ConnectionStatus.offline));
+        expect(provider.degradedSince, isNotNull);
+        expect(
+          provider.degradedSince!.isBefore(before.subtract(
+            const Duration(seconds: 1),
+          )),
+          isFalse,
+        );
+      });
+
+      test('keeps the first failure time across repeated retries', () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => false);
+
+        await provider.startSync();
+        final first = provider.degradedSince;
+
+        await Future.delayed(const Duration(milliseconds: 20));
+        await provider.startSync();
+
+        expect(provider.retryCount, equals(2));
+        expect(provider.degradedSince, equals(first));
+      });
+
+      test('clears once the backend answers again', () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => false);
+        await provider.startSync();
+        expect(provider.degradedSince, isNotNull);
+
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockSyncService.isSyncNeeded()).thenAnswer((_) async => false);
+        await provider.startSync();
+
+        expect(provider.connectionStatus, equals(ConnectionStatus.online));
+        expect(provider.degradedSince, isNull);
+      });
+
+      test('is stamped when a sync cycle fails despite a healthy backend',
+          () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockSyncService.isSyncNeeded()).thenAnswer((_) async => true);
+        when(() => mockSyncService.syncAll())
+            .thenAnswer((_) async => SyncResult.failure);
+        when(() => mockSyncService.getLastError())
+            .thenAnswer((_) async => 'boom');
+
+        await provider.startSync();
+
+        expect(provider.connectionStatus, equals(ConnectionStatus.error));
+        expect(provider.degradedSince, isNotNull);
+      });
+    });
   });
 }

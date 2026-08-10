@@ -60,6 +60,7 @@ void showStatusInfoModal(BuildContext context) {
         lastTransactionSync: syncProvider.lastSuccessfulTransactionSync,
         retryCount: syncProvider.retryCount,
         lastError: syncProvider.lastError,
+        degradedSince: syncProvider.degradedSince,
         dispenserHealth: dispenserHealth,
         backendUrl: backendUrl,
         dispenserUrl: dispenserUrl,
@@ -85,6 +86,11 @@ class _StatusInfoDialog extends StatefulWidget {
   final DateTime? lastTransactionSync;
   final int retryCount;
   final TerminalError? lastError;
+
+  /// Start of the current outage, or null while healthy — see
+  /// [SyncProvider.degradedSince].
+  final DateTime? degradedSince;
+
   final DispenserHealth? dispenserHealth;
   final String? backendUrl;
   final String? dispenserUrl;
@@ -97,6 +103,7 @@ class _StatusInfoDialog extends StatefulWidget {
     required this.lastTransactionSync,
     required this.retryCount,
     required this.lastError,
+    this.degradedSince,
     this.backendUrl,
     this.dispenserHealth,
     this.dispenserUrl,
@@ -115,6 +122,13 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   DispenserHealthService? _healthService;
   RfidReaderHealthService? _readerHealthService;
   String? _backendVersion;
+
+  /// Tri-state for the version badge: pending → known → unavailable. Without
+  /// it a failed fetch is indistinguishable from a slow one, and the badge
+  /// simply never appears (issue #40).
+  bool _backendVersionPending = true;
+
+  bool _showTechnicalDetails = false;
 
   @override
   void initState() {
@@ -157,9 +171,18 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
 
   Future<void> _fetchBackendVersion() async {
     final version = await widget.networkService?.fetchBackendVersion();
-    if (mounted && version != null) {
-      setState(() => _backendVersion = version);
-    }
+    if (!mounted) return;
+    setState(() {
+      _backendVersion = version;
+      _backendVersionPending = false;
+    });
+  }
+
+  /// What the version badge says: still fetching, the version, or an honest
+  /// "unknown" — never nothing at all.
+  String _backendVersionLabel(AppLocalizations l10n) {
+    if (_backendVersionPending) return l10n.loading;
+    return _backendVersion ?? l10n.backendVersionUnknown;
   }
 
   @override
@@ -288,6 +311,21 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     final minutes = dt.minute.toString().padLeft(2, '0');
     final seconds = dt.second.toString().padLeft(2, '0');
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} $hours:$minutes:$seconds';
+  }
+
+  String _formatClock(DateTime dt) {
+    return '${dt.hour.toString().padLeft(2, '0')}:'
+        '${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Truncate an identifier before it reaches the screen.
+  ///
+  /// This modal is reachable by any patron who taps the header pill, so it
+  /// must not print member UUIDs in full (issue #40). The kept prefix is long
+  /// enough for staff to quote when asking support to look a row up, and short
+  /// enough not to be the identifier itself.
+  String _maskId(String id, {int keep = 8}) {
+    return id.length <= keep ? id : '${id.substring(0, keep)}…';
   }
 
   String _formatUptime(int seconds) {
@@ -419,7 +457,11 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             title: l10n.endpoints,
             children: [
               if (widget.backendUrl != null) ...[
-                _urlRow(l10n.backendEndpoint, widget.backendUrl!, version: _backendVersion),
+                _urlRow(
+                  l10n.backendEndpoint,
+                  widget.backendUrl!,
+                  version: _backendVersionLabel(l10n),
+                ),
                 const SizedBox(height: 12),
               ],
               if (widget.dispenserUrl != null) ...[
@@ -431,22 +473,90 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           // Error section (if any)
           if (widget.lastError != null && widget.connectionStatus != ConnectionStatus.online) ...[
             const SizedBox(height: 20),
-            _buildSection(
-              title: l10n.errorDetails,
-              titleColor: const Color(0xffef4444),
+            _buildErrorSection(l10n),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// What is wrong, in plain language and at a readable size, with the
+  /// engineering detail collapsed underneath (issue #40).
+  ///
+  /// The patron who taps the pill gets a sentence they can act on; the
+  /// volunteer on the phone to support expands one row for the error code.
+  Widget _buildErrorSection(AppLocalizations l10n) {
+    return _buildSection(
+      title: l10n.errorDetails,
+      titleColor: const Color(0xffef4444),
+      children: [
+        Text(
+          widget.lastError!.message(l10n),
+          style: TextStyle(
+            fontSize: AppFontSizes.base,
+            color: const Color(0xffe2e8f0),
+          ),
+        ),
+        if (widget.degradedSince != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            l10n.statusDegradedSince(_formatClock(widget.degradedSince!)),
+            style: TextStyle(
+              fontSize: AppFontSizes.sm,
+              color: const Color(0xff94a3b8),
+            ),
+          ),
+        ],
+        _buildTechnicalDetails(l10n),
+      ],
+    );
+  }
+
+  Widget _buildTechnicalDetails(AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(
+            () => _showTechnicalDetails = !_showTechnicalDetails,
+          ),
+          child: Padding(
+            // Vertical padding, not a fixed height: this is a 44 px touch
+            // target for the same fingers that had to hit the pill.
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                Icon(
+                  _showTechnicalDetails
+                      ? Icons.expand_less
+                      : Icons.expand_more,
+                  size: 20,
+                  color: const Color(0xff94a3b8),
+                ),
+                const SizedBox(width: 4),
                 Text(
-                  widget.lastError!.message(l10n),
+                  l10n.technicalDetails,
                   style: TextStyle(
-                    fontSize: AppFontSizes.xs,
+                    fontSize: AppFontSizes.sm,
                     color: const Color(0xff94a3b8),
                   ),
                 ),
               ],
             ),
+          ),
+        ),
+        if (_showTechnicalDetails) ...[
+          _infoRow(l10n.technicalErrorCode, widget.lastError!.key.name),
+          const SizedBox(height: 8),
+          _infoRow(l10n.retryCount, '${widget.retryCount}'),
+          if (widget.backendUrl != null) ...[
+            const SizedBox(height: 8),
+            _infoRow(l10n.backendEndpoint, widget.backendUrl!),
           ],
         ],
-      ),
+      ],
     );
   }
 
@@ -1019,9 +1129,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   Widget _buildPendingOpRow(DispenserOperation op, {required AppLocalizations l10n, required bool isNotFound}) {
     final stateColor = isNotFound ? const Color(0xffef4444) : const Color(0xfff59e0b);
     final stateLabel = _translateMachineState(op.lastKnownState, l10n).toUpperCase();
-    final shortId = op.dispenserTxId.length > 16
-        ? op.dispenserTxId.substring(0, 16)
-        : op.dispenserTxId;
+    final shortId = _maskId(op.dispenserTxId);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -1046,7 +1154,11 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   ),
                 ),
                 Text(
-                  'member: ${op.memberId}  ·  qty: ${op.requestedQty}  ·  created: ${op.createdAt.substring(0, 10)}',
+                  l10n.pendingOperationDetails(
+                    _maskId(op.memberId),
+                    '${op.requestedQty}',
+                    op.createdAt.substring(0, 10),
+                  ),
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: AppFontSizes.xs,

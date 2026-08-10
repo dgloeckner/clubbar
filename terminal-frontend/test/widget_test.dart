@@ -52,6 +52,7 @@ void main() {
     final mockNetworkService = MockNetworkService();
     final mockSoundService = MockSoundService();
     when(() => mockSyncProvider.connectionStatus).thenReturn(ConnectionStatus.online);
+    when(() => mockSyncProvider.isSyncing).thenReturn(false);
     when(() => mockLocaleProvider.locale).thenReturn(const Locale('de'));
     when(() => mockLocaleProvider.addListener(any())).thenReturn(null);
     when(() => mockLocaleProvider.removeListener(any())).thenReturn(null);

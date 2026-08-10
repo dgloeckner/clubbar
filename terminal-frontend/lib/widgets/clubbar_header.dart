@@ -5,6 +5,13 @@ import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 
+/// Minimum edge of a header pill's touch target.
+///
+/// The connection pill is the app's only persistent health indicator *and* the
+/// sole way into the diagnostics modal, so it obeys the same 44 px rule as the
+/// rest of the app instead of being the smallest thing on screen (issue #40).
+const double kHeaderPillTouchTarget = 44;
+
 class ClubBarHeader extends StatefulWidget implements PreferredSizeWidget {
   final ConnectionStatus connectionStatus;
 
@@ -12,11 +19,19 @@ class ClubBarHeader extends StatefulWidget implements PreferredSizeWidget {
   /// does not monitor it — then no reader pill is shown at all (issue #35).
   final RfidReaderStatus readerStatus;
 
+  /// Whether a sync cycle is running right now.
+  ///
+  /// Rendered as a spinner *inside* the connection pill rather than as a state
+  /// of its own: after a failure the pill must keep saying "Error" while still
+  /// showing that the terminal is retrying (issue #40).
+  final bool isSyncing;
+
   final VoidCallback? onStatusTap;
 
   const ClubBarHeader({
     required this.connectionStatus,
     this.readerStatus = RfidReaderStatus.unknown,
+    this.isSyncing = false,
     this.onStatusTap,
     super.key,
   });
@@ -80,27 +95,81 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
     }
   }
 
+  IconData _badgeIcon() {
+    switch (widget.connectionStatus) {
+      case ConnectionStatus.online:
+        return Icons.cloud_done_outlined;
+      case ConnectionStatus.offline:
+        return Icons.cloud_off;
+      case ConnectionStatus.error:
+        return Icons.warning_amber_rounded;
+    }
+  }
+
   /// A pill in the same style as the connection badge, so the header reads as
   /// one row of terminal health rather than a badge plus an afterthought.
-  Widget _pill({required String text, required Color color}) {
-    return GestureDetector(
-      onTap: widget.onStatusTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
-          border: Border.all(
-            color: color.withValues(alpha: 0.3),
-            width: 1,
+  ///
+  /// [alert] makes the pill shout: full-opacity text, a heavier border and a
+  /// stronger tint. A healthy terminal stays quiet, so anything that is *not*
+  /// green reads across the room (issue #40).
+  Widget _pill({
+    required String text,
+    required Color color,
+    required IconData icon,
+    required bool alert,
+    bool busy = false,
+    String? semanticsLabel,
+  }) {
+    final foreground = alert ? color : color.withValues(alpha: 0.7);
+
+    return Semantics(
+      button: true,
+      label: semanticsLabel,
+      child: GestureDetector(
+        onTap: widget.onStatusTap,
+        // Opaque: the whole 44 px box takes the tap, not just the glyphs.
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          constraints: const BoxConstraints(
+            minHeight: kHeaderPillTouchTarget,
+            minWidth: kHeaderPillTouchTarget,
           ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: color.withValues(alpha: 0.7),
-            fontSize: AppFontSizes.xs,
-            fontWeight: FontWeight.w500,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: alert ? 0.25 : 0.15),
+            border: Border.all(
+              color: color.withValues(alpha: alert ? 0.6 : 0.3),
+              width: alert ? 1.5 : 1,
+            ),
+            borderRadius: BorderRadius.circular(kHeaderPillTouchTarget / 2),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (busy)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(foreground),
+                  ),
+                )
+              else
+                Icon(icon, size: 18, color: foreground),
+              const SizedBox(width: 6),
+              Text(
+                text,
+                style: TextStyle(
+                  color: foreground,
+                  // A step larger when something is wrong: the pill has to be
+                  // read from across the room, not from the stool.
+                  fontSize: alert ? AppFontSizes.lg : AppFontSizes.base,
+                  fontWeight: alert ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -120,19 +189,25 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
         return _pill(
           text: l10n.statusReaderOk,
           color: const Color(0xff22c55e),
+          icon: Icons.nfc,
+          alert: false,
         );
       case RfidReaderStatus.disconnected:
         return _pill(
           text: l10n.statusReaderMissing,
           color: const Color(0xffef4444),
+          icon: Icons.sensors_off,
+          alert: true,
         );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final color = _badgeColor();
     final readerPill = _readerPill(context);
+    final statusText = _badgeText(context);
 
     return Container(
       height: 56,
@@ -151,12 +226,15 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Left: Club Bar title
-          Text(
-            'Club Bar',
-            style: TextStyle(
-              color: Color(0xfff1f5f9),
-              fontSize: AppFontSizes.xxl,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              'Club Bar',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Color(0xfff1f5f9),
+                fontSize: AppFontSizes.xxl,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           // Right: Reader pill, status badge and clock
@@ -166,7 +244,16 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
                 readerPill,
                 const SizedBox(width: 8),
               ],
-              _pill(text: _badgeText(context), color: color),
+              _pill(
+                text: statusText,
+                color: color,
+                icon: _badgeIcon(),
+                alert: widget.connectionStatus != ConnectionStatus.online,
+                busy: widget.isSyncing,
+                semanticsLabel: widget.isSyncing
+                    ? '$statusText, ${l10n.statusSyncing}'
+                    : statusText,
+              ),
               const SizedBox(width: 12),
               Text(
                 _formatTime(_currentTime),
