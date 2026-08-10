@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -427,10 +426,14 @@ test.describe.serial('Package: Data placement', () => {
    */
   test('the installer verifies over HTTP that storage is not served', async ({ request }) => {
     const key = 'exposure-check-key-0000';
-    fs.writeFileSync(
-      path.join(REPO_ROOT, 'dist/package/.installer-data'),
-      JSON.stringify({ key, completed_step: 0 })
-    );
+    // Written from inside the container, as the user the application runs as.
+    // Since #248 the package is owned by that user rather than chmod'ed 0777,
+    // so a host-side write here would be exactly the permission denial the
+    // installer itself would hit.
+    inContainer([
+      `file_put_contents("${DOCUMENT_ROOT}/.installer-data",`,
+      `  json_encode(["key" => "${key}", "completed_step" => 0]));`,
+    ]);
 
     await request.post(`${PACKAGE_URL}/install.php`, { form: { install_key: key } });
     const page = await request.get(`${PACKAGE_URL}/install.php?step=1`);
