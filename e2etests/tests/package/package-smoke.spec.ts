@@ -239,6 +239,32 @@ test.describe('Package: Runtime hardening', () => {
 });
 
 /**
+ * ADR-0031 layers L1/L2 (#249): .htaccess denies config.php, *.log, *.sql,
+ * package.json and dotfiles beyond .installer-data/.upgrade-secret, and adds
+ * Permissions-Policy — the two things RuntimeHardening.php cannot cover
+ * because expose_php is not the only concern: this is the belt for a request
+ * that never reaches PHP at all (a host that stops executing .php files).
+ */
+test.describe('Package: .htaccess access rules', () => {
+  test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
+
+  test('config.php, a stray log file and a dotfile are all denied', async ({ request }) => {
+    for (const path of ['/config.php', '/test.log', '/.env']) {
+      const response = await request.get(`${PACKAGE_URL}${path}`);
+      expect([403, 404], `${path} returned ${response.status()}`).toContain(response.status());
+    }
+  });
+
+  test('Permissions-Policy denies camera, microphone, geolocation and payment', async ({ request }) => {
+    const response = await request.get(`${PACKAGE_URL}/api/health`);
+    const header = response.headers()['permissions-policy'] ?? '';
+    for (const directive of ['camera=()', 'microphone=()', 'geolocation=()', 'payment=()']) {
+      expect(header, `Permissions-Policy: ${header}`).toContain(directive);
+    }
+  });
+});
+
+/**
  * ADR-0031 decision 3, third surface: "did we regress the package?"
  *
  * The installer asks this of a host once and the admin panel asks it of a

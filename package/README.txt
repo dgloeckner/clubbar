@@ -35,6 +35,13 @@ Where your data is kept:
   Do not delete data-path.php: without it the application looks for its config
   in the document root and will send you back to the installer.
 
+Advisory configuration:
+  The package ships a .user.ini next to config.php with the upload size
+  limits the mandate upload needs. Some hosts do not read it — that is fine,
+  the application enforces the real 10 MB limit itself either way, and
+  Settings -> Security in the admin panel reports whether the host honoured
+  the wider PHP-level limit too.
+
 Requirements:
 - PHP 8.3 or higher
 - MySQL 5.7+ or MariaDB 10.5+
