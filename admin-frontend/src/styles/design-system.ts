@@ -69,6 +69,17 @@ export const theme = {
       successBg: '#064e3b',
       successText: '#6ee7b7',
     },
+
+    // Light, saturated text on a translucent tinted background — small badges
+    // and highlighted text (e.g. mandate-extraction confidence, matched IBAN
+    // candidates), distinct from the `banner` family's full-width bars.
+    pastel: {
+      green: '#86efac',
+      yellow: '#fde047',
+      purple: '#c4b5fd',
+      blue: '#93c5fd',
+      cyan: '#7dd3fc',
+    },
   },
 
   typography: {

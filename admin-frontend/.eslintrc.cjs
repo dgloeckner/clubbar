@@ -41,6 +41,8 @@ module.exports = {
         'src/pages/SettlementsPage.tsx',
         'src/pages/NewSettlementPage.tsx',
         'src/components/modals/UndoSettlementDialog.tsx',
+        'src/pages/MembersPage.tsx',
+        'src/pages/ExcludedFromCollectionPage.tsx',
       ],
       rules: {
         'no-restricted-syntax': [
