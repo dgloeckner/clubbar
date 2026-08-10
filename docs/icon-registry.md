@@ -102,6 +102,26 @@ The authoritative source of truth for icon validation is `backend/src/Modules/Pr
 | `correction` | Manual correction | 📝 |
 | `unknown` | Unknown/undefined | 🛒 |
 
+## Category Icons
+
+Categories previously had no icon set of their own — a category chip could
+only wear one of the product icons above (#299), so e.g. the Sauna category
+wore a "sauna token" coin that read as *coin*, not *sauna*. These names
+resolve to the dedicated assets in `terminal-frontend/assets/icons/categories/`
+instead; a product icon name set on a category still resolves too, for
+existing deployments.
+
+| Icon Name | Description |
+|-----------|-------------|
+| `category-folder` | Folder outline |
+| `category-tags` | Price/label tag |
+| `category-layers` | Stacked layers |
+| `category-list` | Bulleted list |
+| `category-generic` | 2×2 grid — the default category glyph |
+
+Unrecognized category names (and `null`) fall back to a neutral `Icons.category`
+glyph in the terminal — never a product icon by accident.
+
 ## Database Migration Required
 
 Current database uses camelCase names with "Icon" suffix:

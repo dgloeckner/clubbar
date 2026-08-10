@@ -64,5 +64,38 @@ void main() {
       expect(find.byType(SvgPicture), findsOneWidget);
       expect(find.byIcon(Icons.category), findsNothing);
     });
+
+    // Issue #299: a category chip used to be able to wear only a product's
+    // icon (e.g. Sauna wore a "sauna token" coin), because the category
+    // lookup simply delegated to the product one with no dedicated set.
+    group('dedicated category icons (#299)', () {
+      for (final name in [
+        'category-folder',
+        'category-tags',
+        'category-layers',
+        'category-list',
+        'category-generic',
+      ]) {
+        testWidgets('"$name" resolves to a dedicated category asset', (
+          WidgetTester tester,
+        ) async {
+          await tester.pumpWidget(MaterialApp(home: getCategoryIcon(name)));
+
+          expect(find.byType(SvgPicture), findsOneWidget);
+          expect(find.byIcon(Icons.category), findsNothing);
+        });
+      }
+
+      testWidgets(
+          'a product-icon name set on a category still resolves (existing deployments)',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(
+          MaterialApp(home: getCategoryIcon('sauna-token')),
+        );
+
+        expect(find.byType(SvgPicture), findsOneWidget);
+        expect(find.byIcon(Icons.category), findsNothing);
+      });
+    });
   });
 }
