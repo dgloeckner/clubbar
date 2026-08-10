@@ -365,5 +365,22 @@ void main() {
         (widget) => widget is Text && timeRegex.hasMatch(widget.data ?? ''),
       ), findsOneWidget);
     });
+
+    // Issue #298: this request used to hit no bundled font at all and
+    // silently fall back to the platform default.
+    testWidgets('the clock requests the bundled monospace family (#298)',
+        (tester) async {
+      await tester.pumpWidget(buildTestApp(
+        connectionStatus: ConnectionStatus.online,
+      ));
+      await tester.pump();
+
+      final timeRegex = RegExp(r'\d{2}:\d{2}');
+      final clock = tester.widget<Text>(find.byWidgetPredicate(
+        (widget) => widget is Text && timeRegex.hasMatch(widget.data ?? ''),
+      ));
+
+      expect(clock.style?.fontFamily, 'JetBrains Mono');
+    });
   });
 }
