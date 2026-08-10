@@ -165,6 +165,54 @@ class DataDirectoryTest extends TestCase
         $this->assertStringContainsString('document root', $probe['reason']);
     }
 
+    // ── can-create ────────────────────────────────────────────────────
+
+    /** #329: the prerequisites screen must not refuse a directory `prepare()` can build. */
+    public function test_a_missing_directory_with_a_writable_grandparent_can_be_created(): void
+    {
+        $path = $this->root . '/clubbar-data/storage';
+
+        $this->assertTrue(DataDirectory::canCreate($path));
+    }
+
+    public function test_an_existing_writable_directory_can_be_created(): void
+    {
+        $target = $this->root . '/clubbar-data';
+        mkdir($target);
+
+        $this->assertTrue(DataDirectory::canCreate($target));
+    }
+
+    public function test_an_existing_unwritable_directory_cannot_be_created(): void
+    {
+        $target = $this->root . '/clubbar-data';
+        mkdir($target, 0555);
+
+        // Running the suite as root defeats permission bits entirely — the
+        // branch is real, this process just cannot be refused.
+        if (is_writable($target)) {
+            $this->markTestSkipped('Running as a user that bypasses directory permissions');
+        }
+
+        $this->assertFalse(DataDirectory::canCreate($target));
+
+        chmod($target, 0755);
+    }
+
+    public function test_a_missing_directory_with_an_unwritable_ancestor_cannot_be_created(): void
+    {
+        chmod($this->root, 0555);
+        $path = $this->root . '/clubbar-data/storage';
+
+        if (is_writable($this->root)) {
+            $this->markTestSkipped('Running as a user that bypasses directory permissions');
+        }
+
+        $this->assertFalse(DataDirectory::canCreate($path));
+
+        chmod($this->root, 0755);
+    }
+
     // ── preparing ─────────────────────────────────────────────────────
 
     public function test_preparing_creates_the_subdirectories_the_app_expects(): void

@@ -493,7 +493,7 @@ function checkPrerequisites(): array
     // storage/ and logs/ are written on every request whichever layout wins.
     foreach (DataDirectory::SUBDIRECTORIES as $subdirectory) {
         $path = $placement['path'] . '/' . $subdirectory;
-        $writable = is_dir($path) ? is_writable($path) : is_writable(dirname($path));
+        $writable = DataDirectory::canCreate($path);
         $checks[] = [
             'name'  => "Writable: {$subdirectory}/",
             'ok'    => $writable,
