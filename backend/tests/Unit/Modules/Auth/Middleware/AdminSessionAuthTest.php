@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\Auth\Middleware;
 use App\Modules\Auth\Middleware\AdminSessionAuth;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Auth\Domain\SessionTimeout;
+use App\Shared\Config\AppConfig;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -22,7 +23,7 @@ class AdminSessionAuthTest extends TestCase
     protected function setUp(): void
     {
         $this->adminUsersRepository = $this->createMock(AdminUsersRepository::class);
-        $this->middleware = new AdminSessionAuth($this->adminUsersRepository);
+        $this->middleware = new AdminSessionAuth($this->adminUsersRepository, new AppConfig());
 
         // The middleware only calls session_start() when no session is active yet;
         // start one up front so it never runs mid-test and clobbers the $_SESSION

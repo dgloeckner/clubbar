@@ -11,6 +11,7 @@ class AppConfig
     public readonly int    $sessionMaxAge;
     public readonly int    $sessionRegenInterval;
     public readonly bool   $sessionCookieSecure;
+    public readonly string $sessionCookieName;
     public readonly string $sessionSavePath;
     public readonly int    $tokenTtlDays;
     public readonly string $dataDir;
@@ -46,6 +47,7 @@ class AppConfig
 
         // Resolved last — the default depends on $this->appUrl.
         $this->sessionCookieSecure  = self::resolveSessionCookieSecure($this->appUrl);
+        $this->sessionCookieName    = self::resolveSessionCookieName($this->sessionCookieSecure);
     }
 
     public function isProduction(): bool
@@ -93,6 +95,25 @@ class AppConfig
         }
 
         return self::requestIsHttps();
+    }
+
+    /**
+     * The session cookie's name (issue #251, ADR-0031 decision 1).
+     *
+     * `__Host-` is a browser-enforced prefix: it refuses any `Set-Cookie` for
+     * the cookie that is not `Secure`, `Path=/` and free of a `Domain`
+     * attribute — exactly the attributes `RuntimeHardening` already sets. That
+     * turns a convention this app follows into one the browser enforces
+     * against every sibling subdomain of a shared-hosting account, which is
+     * the cookie-injection vector ADR-0025 names in its threat model.
+     *
+     * The prefix only works on a Secure cookie, so it follows the same flag:
+     * plain-HTTP development and the E2E suite keep the current `_session`
+     * name and keep working.
+     */
+    private static function resolveSessionCookieName(bool $secure): string
+    {
+        return $secure ? '__Host-session' : '_session';
     }
 
     private static function requestIsHttps(): bool

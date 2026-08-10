@@ -156,6 +156,40 @@ class AppConfigTest extends TestCase
         );
     }
 
+    // ── the session cookie name (#251, ADR-0031 decision 1) ───────────
+
+    public function test_cookie_name_gets_the_host_prefix_when_secure(): void
+    {
+        $_ENV['APP_URL'] = 'https://admin.club.de';
+
+        $config = new AppConfig();
+
+        $this->assertTrue($config->sessionCookieSecure);
+        $this->assertSame('__Host-session', $config->sessionCookieName);
+    }
+
+    public function test_cookie_name_stays_plain_for_http_development(): void
+    {
+        $_ENV['APP_URL'] = 'http://localhost:8080';
+
+        $config = new AppConfig();
+
+        $this->assertFalse($config->sessionCookieSecure);
+        $this->assertSame(
+            '_session',
+            $config->sessionCookieName,
+            'the __Host- prefix only works on a Secure cookie — plain HTTP must keep the current name'
+        );
+    }
+
+    public function test_cookie_name_follows_the_explicit_secure_override(): void
+    {
+        $_ENV['APP_URL'] = 'https://admin.club.de';
+        $_ENV['SESSION_COOKIE_SECURE'] = 'false';
+
+        $this->assertSame('_session', (new AppConfig())->sessionCookieName);
+    }
+
     // ── the data directory (#245, ADR-0031 decision 2) ────────────────
 
     /**

@@ -10,6 +10,12 @@ const ADMIN_PASSWORD = TEST_CREDENTIALS.admin.password;
 const INVALID_PASSWORD = "wrongpassword";
 const NONEXISTENT_EMAIL = "doesnotexist@example.com";
 
+// The __Host- prefix (issue #251) only works on a Secure cookie, so the name
+// follows the same scheme the suite runs on — https:// gets the prefixed
+// name, http:// (this suite) keeps the plain one. See AppConfigTest.php for
+// the derivation itself.
+const EXPECTED_SESSION_COOKIE_NAME = API_BASE.startsWith("https://") ? "__Host-session" : "_session";
+
 /**
  * Admin Authentication Tests
  *
@@ -111,7 +117,7 @@ test.describe("Admin Authentication", () => {
       // Session cookie must be set so the MFA step can be linked to this session
       const setCookieHeader = response.headers()["set-cookie"];
       expect(setCookieHeader).toBeTruthy();
-      expect(setCookieHeader).toContain("_session");
+      expect(setCookieHeader).toContain(EXPECTED_SESSION_COOKIE_NAME);
     });
 
     test("should reject login with invalid password", async ({ request }) => {
@@ -581,7 +587,7 @@ test.describe("Admin Authentication", () => {
         })
         const setCookie = resp.headers()["set-cookie"] ?? ""
 
-        expect(setCookie).toMatch(/_session=/)
+        expect(setCookie).toMatch(new RegExp(`${EXPECTED_SESSION_COOKIE_NAME}=`))
         expect(setCookie).toMatch(/HttpOnly/i)
         expect(setCookie).toMatch(/SameSite=Lax/i)
 
@@ -589,6 +595,9 @@ test.describe("Admin Authentication", () => {
         // runs on http://localhost, where the browser drops a Secure cookie and
         // no session could be established at all. The derivation itself is
         // covered by backend/tests/Unit/Shared/Config/AppConfigTest.php.
+        //
+        // The cookie name follows the same scheme (issue #251): __Host- only
+        // works on a Secure cookie, so the two must always agree.
         const overHttps = API_BASE.startsWith("https://")
         expect(/;\s*Secure/i.test(setCookie)).toBe(overHttps)
       } finally {

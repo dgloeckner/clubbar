@@ -433,7 +433,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getAdminSessionAuth(): AdminSessionAuth
     {
-        return $this->resolve(AdminSessionAuth::class, fn() => new AdminSessionAuth($this->getAdminUsersRepository()));
+        return $this->resolve(AdminSessionAuth::class, fn() => new AdminSessionAuth($this->getAdminUsersRepository(), $this->config));
     }
 
     public function getTerminalTokenAuth(): TerminalTokenAuth
@@ -497,9 +497,9 @@ class ServiceFactory implements ContainerInterface
             5,
             15,
             $this->loginRateLimitDisabled(),
-            static function (): ?string {
+            function (): ?string {
                 if (session_status() === PHP_SESSION_NONE) {
-                    session_name('_session');
+                    session_name($this->config->sessionCookieName);
                     session_start();
                 }
                 $email = $_SESSION['mfa_pending_email'] ?? null;
@@ -572,6 +572,7 @@ class ServiceFactory implements ContainerInterface
             $this->getAuditService(),
             $this->getValidator(),
             $this->getLoginAttemptsRepository(),
+            $this->config,
         ));
     }
 

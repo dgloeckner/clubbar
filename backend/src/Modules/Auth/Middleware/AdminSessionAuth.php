@@ -10,16 +10,20 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Auth\Domain\SessionTimeout;
+use App\Shared\Config\AppConfig;
 use Slim\Psr7\Response;
 
 class AdminSessionAuth implements MiddlewareInterface
 {
-    public function __construct(private AdminUsersRepository $adminUsersRepository) {}
+    public function __construct(
+        private AdminUsersRepository $adminUsersRepository,
+        private AppConfig $config,
+    ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_name('_session');
+            session_name($this->config->sessionCookieName);
             session_start();
         }
 
