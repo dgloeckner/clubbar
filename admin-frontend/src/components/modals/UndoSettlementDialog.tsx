@@ -138,7 +138,7 @@ export function UndoSettlementDialog({ settlement, onConfirm, onCancel }: UndoSe
                   borderRadius: theme.borderRadius.md,
                   background: 'rgba(251, 146, 60, 0.12)',
                   border: '1px solid rgba(251, 146, 60, 0.4)',
-                  color: '#fcd34d',
+                  color: theme.colors.banner.warningText,
                 }}
               >
                 {t('settlements.undoExportedWarning')}

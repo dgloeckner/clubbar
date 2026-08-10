@@ -38,6 +38,9 @@ module.exports = {
         'src/components/tables/ListLoadingOverlay.tsx',
         'src/components/tables/PaginationToolbar.tsx',
         'src/components/members/MembersTabs.tsx',
+        'src/pages/SettlementsPage.tsx',
+        'src/pages/NewSettlementPage.tsx',
+        'src/components/modals/UndoSettlementDialog.tsx',
       ],
       rules: {
         'no-restricted-syntax': [

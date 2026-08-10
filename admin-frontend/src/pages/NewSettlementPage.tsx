@@ -257,8 +257,8 @@ export function NewSettlementPage() {
           data-testid="new-settlement-error-message"
           style={{
             padding: tableSpacing.cellPadding,
-            backgroundColor: '#7f1d1d',
-            color: '#fca5a5',
+            backgroundColor: theme.colors.banner.dangerBg,
+            color: theme.colors.banner.dangerText,
             borderRadius: 6,
             marginBottom: theme.spacing.md,
           }}
@@ -314,8 +314,8 @@ export function NewSettlementPage() {
               style={{
                 marginLeft: 'auto',
                 padding: '10px 20px',
-                backgroundColor: selected.size > 0 && executionDateInfo ? '#10b981' : '#6b7280',
-                color: '#ffffff',
+                backgroundColor: selected.size > 0 && executionDateInfo ? theme.colors.semantic.emerald : theme.colors.semantic.neutral,
+                color: 'white',
                 border: 'none',
                 borderRadius: 6,
                 fontSize: 14,

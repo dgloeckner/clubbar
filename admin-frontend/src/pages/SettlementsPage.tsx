@@ -76,12 +76,12 @@ function getSettlementStatus(settlement: SettlementListItemExtended): 'active' |
  * the backend's reason, but it is not dressed as a destructive action (#127).
  */
 function undoButtonColor(settlement: SettlementListItemExtended): string {
-  if (settlement.is_cancelled) return '#6b7280'
-  return settlement.is_cancellable === false ? '#78716c' : '#ef4444'
+  if (settlement.is_cancelled) return theme.colors.semantic.neutral
+  return settlement.is_cancellable === false ? theme.colors.semantic.blocked : theme.colors.semantic.danger
 }
 
 function undoButtonHoverColor(settlement: SettlementListItemExtended): string {
-  return settlement.is_cancellable === false ? '#57534e' : '#dc2626'
+  return settlement.is_cancellable === false ? theme.colors.semantic.blockedHover : theme.colors.semantic.dangerHover
 }
 
 /**
@@ -196,9 +196,9 @@ export function SettlementsPage() {
   ].reduce((a, b) => a + b, 0)
 
   const statusOptions: ReadonlyArray<PillFilterOption<SettlementFilters['status']>> = [
-    { value: 'all', label: t('common.all'), color: '#6b7280' },
-    { value: 'active', label: t('settlements.active'), color: '#3b82f6' },
-    { value: 'cancelled', label: t('settlements.cancelled'), color: '#ef4444' },
+    { value: 'all', label: t('common.all'), color: theme.colors.semantic.neutral },
+    { value: 'active', label: t('settlements.active'), color: theme.colors.semantic.primary },
+    { value: 'cancelled', label: t('settlements.cancelled'), color: theme.colors.semantic.danger },
   ]
 
   const mobileSortOptions = [
@@ -326,8 +326,8 @@ export function SettlementsPage() {
             onClick={() => navigate('/settlements/new')}
             style={{
               padding: '10px 20px',
-              backgroundColor: '#10b981',
-              color: '#ffffff',
+              backgroundColor: theme.colors.semantic.emerald,
+              color: 'white',
               border: 'none',
               borderRadius: 6,
               fontSize: 14,
@@ -345,8 +345,8 @@ export function SettlementsPage() {
               data-testid="settlements-error-message"
               style={{
                 padding: tableSpacing.cellPadding,
-                backgroundColor: '#7f1d1d',
-                color: '#fca5a5',
+                backgroundColor: theme.colors.banner.dangerBg,
+                color: theme.colors.banner.dangerText,
                 borderRadius: 6,
                 margin: tableSpacing.cellPadding,
               }}
@@ -361,8 +361,8 @@ export function SettlementsPage() {
               data-testid="settlements-export-warning"
               style={{
                 padding: tableSpacing.cellPadding,
-                backgroundColor: '#78350f',
-                color: '#fcd34d',
+                backgroundColor: theme.colors.banner.warningBg,
+                color: theme.colors.banner.warningText,
                 borderRadius: 6,
                 margin: tableSpacing.cellPadding,
               }}
@@ -377,8 +377,8 @@ export function SettlementsPage() {
               data-testid="settlements-undo-success"
               style={{
                 padding: tableSpacing.cellPadding,
-                backgroundColor: '#064e3b',
-                color: '#6ee7b7',
+                backgroundColor: theme.colors.banner.successBg,
+                color: theme.colors.banner.successText,
                 borderRadius: 6,
                 margin: tableSpacing.cellPadding,
               }}
@@ -450,8 +450,8 @@ export function SettlementsPage() {
                           borderRadius: 4,
                           fontSize: 11,
                           fontWeight: 500,
-                          backgroundColor: settlement.is_cancelled ? '#ef4444' : '#10b981',
-                          color: '#ffffff',
+                          backgroundColor: settlement.is_cancelled ? theme.colors.semantic.danger : theme.colors.semantic.emerald,
+                          color: 'white',
                         }}
                       >
                         {settlement.is_cancelled ? t('settlements.cancelled') : t('settlements.active')}
@@ -492,8 +492,8 @@ export function SettlementsPage() {
                         aria-label={t('settlements.exportSepaHint')}
                         style={{
                           padding: '5px 10px',
-                          backgroundColor: settlement.is_cancelled ? '#6b7280' : '#3b82f6',
-                          color: '#ffffff',
+                          backgroundColor: settlement.is_cancelled ? theme.colors.semantic.neutral : theme.colors.semantic.primary,
+                          color: 'white',
                           border: 'none',
                           borderRadius: 4,
                           fontSize: 11,
@@ -511,8 +511,8 @@ export function SettlementsPage() {
                         aria-label={t('settlements.exportCsvHint')}
                         style={{
                           padding: '5px 10px',
-                          backgroundColor: settlement.is_cancelled ? '#6b7280' : '#10b981',
-                          color: '#ffffff',
+                          backgroundColor: settlement.is_cancelled ? theme.colors.semantic.neutral : theme.colors.semantic.emerald,
+                          color: 'white',
                           border: 'none',
                           borderRadius: 4,
                           fontSize: 11,
@@ -530,8 +530,8 @@ export function SettlementsPage() {
                         aria-label={t('settlements.exportTransactionsHint')}
                         style={{
                           padding: '5px 10px',
-                          backgroundColor: settlement.is_cancelled ? '#6b7280' : '#8b5cf6',
-                          color: '#ffffff',
+                          backgroundColor: settlement.is_cancelled ? theme.colors.semantic.neutral : theme.colors.semantic.purple,
+                          color: 'white',
                           border: 'none',
                           borderRadius: 4,
                           fontSize: 11,
@@ -552,7 +552,7 @@ export function SettlementsPage() {
                         style={{
                           padding: '5px 10px',
                           backgroundColor: undoButtonColor(settlement),
-                          color: '#ffffff',
+                          color: 'white',
                           border: 'none',
                           borderRadius: 4,
                           fontSize: 11,
@@ -783,10 +783,10 @@ export function SettlementsPage() {
                               fontSize: 12,
                               fontWeight: 500,
                               backgroundColor:
-                                status(settlement) === 'exported' ? '#10b981' :
-                                status(settlement) === 'cancelled' ? '#ef4444' :
-                                '#3b82f6',
-                              color: '#ffffff',
+                                status(settlement) === 'exported' ? theme.colors.semantic.emerald :
+                                status(settlement) === 'cancelled' ? theme.colors.semantic.danger :
+                                theme.colors.semantic.primary,
+                              color: 'white',
                             }}
                           >
                             {status(settlement) === 'exported' ? t('settlements.exported') :
