@@ -417,7 +417,7 @@ function FilterSelect({ value, onChange, options, testId, label, minWidth = 80 }
                   alignItems: 'center',
                   gap: 8,
                   padding: '8px 12px',
-                  background: value === opt.value ? 'rgba(59,130,246,0.15)' : 'transparent',
+                  background: value === opt.value ? theme.activeTint.primary : 'transparent',
                   border: 'none',
                   borderRadius: 8,
                   color: value === opt.value ? theme.colors.semantic.primary : theme.colors.text.primary,

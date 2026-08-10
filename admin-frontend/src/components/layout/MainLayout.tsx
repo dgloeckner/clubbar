@@ -252,7 +252,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 alignItems: 'center',
                 gap: theme.spacing.sm,
                 padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                background: isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)',
+                background: isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : theme.activeTint.primary,
                 border: `1px solid rgba(59, 130, 246, 0.3)`,
                 borderRadius: theme.borderRadius.full,
                 fontSize: theme.typography.fontSize.sm,
@@ -266,7 +266,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.25)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)'
+                e.currentTarget.style.backgroundColor = isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : theme.activeTint.primary
               }}
             >
               <UserIcon size={20} data-testid="header-user-icon" />

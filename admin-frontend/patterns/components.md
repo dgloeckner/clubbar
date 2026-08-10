@@ -645,6 +645,22 @@ theme.pillButton = {
 >
 ```
 
+### Active Tint (translucent primary background)
+
+A second, more subtle "selected" style — a translucent primary-blue
+background rather than `pillButton`'s solid fill — used for active nav
+items, sort/filter/language toggles, and the blue `StatCard` variant:
+
+```typescript
+theme.activeTint = {
+  primary: 'rgba(59, 130, 246, 0.15)', // derived via withAlpha('#3b82f6', 0.15)
+}
+```
+
+```tsx
+<button style={{ background: isSelected ? theme.activeTint.primary : 'transparent' }}>
+```
+
 ---
 
 ## Utility Functions

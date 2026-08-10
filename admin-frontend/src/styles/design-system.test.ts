@@ -40,3 +40,9 @@ describe('theme.badges.danger', () => {
     expect(theme.badges.danger.border).toBe('rgba(239, 68, 68, 0.3)')
   })
 })
+
+describe('theme.activeTint', () => {
+  it('exposes a canonical primary-blue active-state tint', () => {
+    expect(theme.activeTint.primary).toBe('rgba(59, 130, 246, 0.15)')
+  })
+})
