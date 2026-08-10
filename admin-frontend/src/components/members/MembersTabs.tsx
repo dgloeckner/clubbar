@@ -84,7 +84,7 @@ export function MembersTabs({ excludedCount }: MembersTabsProps) {
                   padding: '1px 7px',
                   borderRadius: theme.borderRadius.full,
                   background: 'rgba(249, 115, 22, 0.16)',
-                  color: '#fdba74',
+                  color: theme.colors.semantic.warningLight,
                 }}
               >
                 {excludedCount}

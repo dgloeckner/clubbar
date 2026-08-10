@@ -29,6 +29,15 @@ module.exports = {
         'src/pages/ProductsPage.tsx',
         'src/components/common/Button.tsx',
         'src/components/common/PillActionButton.tsx',
+        'src/components/forms/CategorySelect.tsx',
+        'src/components/forms/IconSelect.tsx',
+        'src/components/forms/LanguageSelector.tsx',
+        'src/components/forms/LanguageTabsInput.tsx',
+        'src/components/forms/PillFilter.tsx',
+        'src/components/tables/CategoryFilter.tsx',
+        'src/components/tables/ListLoadingOverlay.tsx',
+        'src/components/tables/PaginationToolbar.tsx',
+        'src/components/members/MembersTabs.tsx',
       ],
       rules: {
         'no-restricted-syntax': [

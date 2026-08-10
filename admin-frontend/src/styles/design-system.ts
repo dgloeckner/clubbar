@@ -39,6 +39,7 @@ export const theme = {
     text: {
       primary: '#f1f5f9',    // Primary text
       secondary: '#94a3b8',  // Secondary text
+      subtle: '#a0aec0',     // Idle text, slightly lighter than secondary (e.g. dot-variant pill filters)
       muted: '#64748b',      // Muted text
       dark: '#0f172a',       // Dark text on light bg
     },

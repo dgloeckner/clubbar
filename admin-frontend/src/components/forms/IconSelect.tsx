@@ -20,6 +20,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getProductIcon, getCategoryIcon, PRODUCT_ICON_NAMES, CATEGORY_ICON_NAMES } from '../icons/IconRegistry'
+import { theme } from '../../styles/design-system'
+import { tableColors } from '../../styles/tableTokens'
 
 interface IconSelectProps {
   value: string | null
@@ -70,9 +72,9 @@ export function IconSelect({
   return (
     <div ref={containerRef} style={{ position: 'relative', marginBottom: '12px' }}>
       {label && (
-        <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '500', color: '#e2e8f0' }}>
+        <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '500', color: tableColors.cellText }}>
           {label}
-          {required && <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>}
+          {required && <span style={{ color: theme.colors.semantic.danger, marginLeft: '4px' }}>*</span>}
         </label>
       )}
 
@@ -87,10 +89,10 @@ export function IconSelect({
         style={{
           width: '100%',
           padding: '10px 12px',
-          border: '1px solid #4b5563',
+          border: `1px solid ${theme.colors.border.muted}`,
           borderRadius: '6px',
-          backgroundColor: '#1e293b',
-          color: '#e2e8f0',
+          backgroundColor: theme.colors.bg.inputAlt,
+          color: tableColors.cellText,
           fontSize: '14px',
           cursor: 'pointer',
           display: 'flex',
@@ -128,8 +130,8 @@ export function IconSelect({
             left: 0,
             right: 0,
             marginTop: '4px',
-            backgroundColor: '#1e293b',
-            border: '1px solid #4b5563',
+            backgroundColor: theme.colors.bg.inputAlt,
+            border: `1px solid ${theme.colors.border.muted}`,
             borderRadius: '6px',
             zIndex: 1000,
             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)',
@@ -146,8 +148,8 @@ export function IconSelect({
               width: '100%',
               padding: '12px',
               border: 'none',
-              backgroundColor: value === null ? '#334155' : 'transparent',
-              color: '#e2e8f0',
+              backgroundColor: value === null ? theme.colors.border.light : 'transparent',
+              color: tableColors.cellText,
               fontSize: '14px',
               cursor: 'pointer',
               textAlign: 'left',
@@ -157,7 +159,7 @@ export function IconSelect({
               transition: 'background-color 0.2s',
             }}
             onMouseEnter={(e) => {
-              if (value !== null) (e.target as HTMLElement).style.backgroundColor = '#334155'
+              if (value !== null) (e.target as HTMLElement).style.backgroundColor = theme.colors.border.light
             }}
             onMouseLeave={(e) => {
               if (value !== null) (e.target as HTMLElement).style.backgroundColor = 'transparent'
@@ -180,8 +182,8 @@ export function IconSelect({
                   width: '100%',
                   padding: '12px',
                   border: 'none',
-                  backgroundColor: value === iconName ? '#334155' : 'transparent',
-                  color: '#e2e8f0',
+                  backgroundColor: value === iconName ? theme.colors.border.light : 'transparent',
+                  color: tableColors.cellText,
                   fontSize: '14px',
                   cursor: 'pointer',
                   textAlign: 'left',
@@ -191,7 +193,7 @@ export function IconSelect({
                   transition: 'background-color 0.2s',
                 }}
                 onMouseEnter={(e) => {
-                  if (value !== iconName) (e.target as HTMLElement).style.backgroundColor = '#334155'
+                  if (value !== iconName) (e.target as HTMLElement).style.backgroundColor = theme.colors.border.light
                 }}
                 onMouseLeave={(e) => {
                   if (value !== iconName) (e.target as HTMLElement).style.backgroundColor = 'transparent'
