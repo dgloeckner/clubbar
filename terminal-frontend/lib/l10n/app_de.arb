@@ -126,6 +126,10 @@
   "@checkoutBlockedByLimit": {
     "description": "Checkout button label when the credit limit blocks the purchase"
   },
+  "viewCart": "Warenkorb",
+  "@viewCart": {
+    "description": "Secondary button on the product grid's summary bar — opens the cart to review or remove items"
+  },
   "creditLimitReached": "Limit erreicht – bitte Artikel entfernen, um fortzufahren.",
   "@creditLimitReached": {
     "description": "Cart banner headline when the projected tab exceeds the credit limit"

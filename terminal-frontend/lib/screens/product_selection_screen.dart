@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
 import 'dart:convert';
+import 'package:clubbar_terminal/controllers/checkout_action.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
@@ -12,8 +13,10 @@ import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/widgets/cart_summary_bar.dart';
 import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
+import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
 import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
 import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
@@ -75,6 +78,22 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
           );
         }
 
+        final locale = selectedMember?.preferredLanguage ?? 'de';
+
+        // Credit limit, checked as items go in rather than only in the cart
+        // (UC-T12 "Add to cart | Warning shown, item still added"): the member
+        // sees the ceiling while they can still choose, not after they have
+        // picked a round for the table. Adding stays allowed — only checkout
+        // is blocked, here and on the cart screen alike.
+        final limitCheck = CreditLimitCheck.evaluate(
+          currentBalanceCents: membersProvider.memberDeckel ?? 0,
+          cartTotalCents: cartProvider.total,
+        );
+
+        // While a checkout runs the cart must not be edited or re-submitted —
+        // it can now be started from this screen too (#34).
+        final isCheckoutInFlight = cartProvider.isLoading;
+
         // Body content only - MainLayout provides Scaffold and header
         return Column(
             children: [
@@ -108,18 +127,20 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                   onDismiss: productsProvider.clearError,
                 ),
 
-              // Credit limit, checked as items go in rather than only in the
-              // cart (UC-T12 "Add to cart | Warning shown, item still added"):
-              // the member sees the ceiling while they can still choose, not
-              // after they have picked a round for the table. Adding stays
-              // allowed — only checkout is blocked.
-              CreditLimitBanner(
-                check: CreditLimitCheck.evaluate(
-                  currentBalanceCents: membersProvider.memberDeckel ?? 0,
-                  cartTotalCents: cartProvider.total,
+              // Quiet, dismissible acknowledgement of a checkout cancelled
+              // from this screen (#34). Genuine failures never reach here —
+              // runCheckout clears them as soon as their modal is shown, so
+              // what is left is the member's own choice, not an error to
+              // apologise for.
+              if (cartProvider.lastError != null)
+                ErrorBanner(
+                  message: cartProvider.lastError!.message(l10n),
+                  onDismiss: cartProvider.clearError,
                 ),
-                locale: selectedMember?.preferredLanguage ?? 'de',
-              ),
+
+              // Standing notice while the tab is at or over the limit —
+              // renders nothing below the warning band.
+              CreditLimitBanner(check: limitCheck, locale: locale),
 
               // Category tabs
               //
@@ -175,22 +196,45 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
               ),
               const SizedBox(height: _verticalSpacing),
 
-              // Product grid — constant tile size, scrolls past the fold
+              // Product grid — constant tile size, scrolls past the fold.
+              //
+              // Frozen while a checkout is in flight, for the same reason the
+              // cart screen freezes its item list: the transactions have
+              // already been computed from this cart, so a tile tapped now
+              // would be paid for by nobody. The overlay makes the freeze
+              // visible rather than letting the tiles swallow taps.
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                    left: _horizontalPadding,
-                    right: _horizontalPadding,
-                    bottom: 10,
-                  ),
-                  child: _buildProductGrid(
-                    context,
-                    categories[_selectedCategoryIndex],
-                    productsProvider,
-                    cartProvider,
+                child: LoadingOverlay(
+                  isLoading: isCheckoutInFlight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      left: _horizontalPadding,
+                      right: _horizontalPadding,
+                      bottom: 10,
+                    ),
+                    child: _buildProductGrid(
+                      context,
+                      categories[_selectedCategoryIndex],
+                      productsProvider,
+                      cartProvider,
+                    ),
                   ),
                 ),
               ),
+
+              // Running total and checkout, right where the tapping happens
+              // (#34). Absent on an empty cart: there is nothing to total and
+              // nothing to pay for, and the grid gets the height back.
+              if (cartProvider.items.isNotEmpty)
+                CartSummaryBar(
+                  totalCents: cartProvider.total,
+                  newBalanceCents: limitCheck.projectedBalanceCents,
+                  locale: locale,
+                  isCheckoutInFlight: isCheckoutInFlight,
+                  isBlockedByLimit: limitCheck.blocksCheckout,
+                  onCheckout: () => runCheckout(context),
+                  onViewCart: () => context.go('/cart'),
+                ),
             ],
           );
       },

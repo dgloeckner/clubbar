@@ -91,6 +91,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get checkoutBlockedByLimit => 'Limit erreicht';
 
   @override
+  String get viewCart => 'Warenkorb';
+
+  @override
   String get creditLimitReached =>
       'Limit erreicht – bitte Artikel entfernen, um fortzufahren.';
 

@@ -312,6 +312,21 @@ void main() {
         verifyNever(() => mockMembersProvider.clearSelectedMember());
       });
 
+      // #34: leaving mid-checkout unmounts the context runCheckout is waiting
+      // on, so the member would never reach the confirmation they paid for.
+      testWidgets('the back button cannot leave the screen',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildTestWidget());
+
+        final inkWell = tester.widget<InkWell>(
+          find.descendant(
+            of: find.byKey(const Key('member-bar-back')),
+            matching: find.byType(InkWell),
+          ),
+        );
+        expect(inkWell.onTap, isNull);
+      });
+
       testWidgets('checkout button shows spinner and processing label',
           (WidgetTester tester) async {
         await tester.pumpWidget(buildTestWidget());

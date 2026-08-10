@@ -21,14 +21,16 @@ Member scans RFID card
 4. Member taps category tab to browse products
 5. Member taps product tile to add to cart
 6. Product tile shows quantity badge (1)
-7. Balance preview updates to reflect cart contents
-8. Member taps same or different products to add more
-9. Member navigates to shopping cart
-10. Member reviews cart items and total
-11. Member taps "Buy" to confirm purchase
-12. System creates transactions for all cart items
-13. System displays confirmation with new tab balance
-14. Member chooses: "Done" (logout) or "Continue Shopping"
+7. Summary bar appears at the bottom of the product view with the running total and a "Buy" button
+8. Balance preview updates to reflect cart contents
+9. Member taps same or different products to add more; the running total grows with each tap
+10. Member taps "Buy" in the summary bar to confirm purchase
+11. System creates transactions for all cart items
+12. System displays confirmation with new tab balance
+13. Member chooses: "Done" (logout) or "Continue Shopping"
+
+The shopping cart view (UC-T11) is an optional detour for reviewing or removing
+items, not a step on the way to paying.
 
 ## Postconditions
 - Transactions recorded locally (one per line item)
@@ -73,6 +75,25 @@ Only **active products in active categories** are shown.
 | Cart button | Navigate to shopping cart view |
 | Cart badge | Shows total items in cart |
 | Balance display | Shows current + preview balance |
+
+### Summary Bar
+
+Shown at the bottom of the product view **whenever the cart is not empty**, and
+absent otherwise. It carries the running total so the member can watch what they
+are about to spend without leaving the grid.
+
+| Element | Description |
+|---------|-------------|
+| Total label | "Total" |
+| Running total | Sum of all line items, updated on every tap |
+| New balance | Current tab + running total (preview) |
+| View cart | Secondary button; opens the cart view for review and removal |
+| Buy button | Primary button; confirms the purchase from here (same three states as the cart view's — normal, processing, blocked by limit) |
+
+**Rules:**
+- The credit limit blocks "Buy" here exactly as it does in the cart view (UC-T12)
+- While a checkout is in flight the product grid is frozen and "View cart" is inert, so no tile can be added to a cart that has already been billed
+- A checkout cancelled from here is acknowledged by an inline, dismissible banner — not a modal
 
 ## Shopping Cart Behavior
 
@@ -131,6 +152,20 @@ Only **active products in active categories** are shown.
 2. Session times out
 3. No transaction created
 
+### V7: Checkout Without Visiting the Cart
+1. Member taps two products
+2. Summary bar shows the running total
+3. Member taps "Buy" in the summary bar
+4. Transactions are created and the confirmation view is shown
+5. The cart view was never opened
+
+### V8: Review Before Paying
+1. Member taps "View cart" in the summary bar
+2. Cart view opens with the items listed
+3. Member removes an item
+4. Member returns to the product view
+5. Summary bar shows the reduced total
+
 ## UI Requirements
 - Touch-optimized: minimum 48x48px tap targets
 - Visual feedback on tap (highlight/animation)
@@ -175,6 +210,12 @@ Only **active products in active categories** are shown.
 - See [UC-T12](./UC-T12-error-scenarios.md) for details
 
 ## Test Derivation
+- Summary bar hidden on empty cart: scan, verify no bar; add an item, verify bar appears
+- Running total grows: tap the same product twice, verify the bar's total doubles
+- Checkout from the product view: add items, tap "Buy" in the bar, verify confirmation without opening the cart
+- View cart from the bar: tap "View cart", verify the cart view opens
+- Limit blocks the bar's "Buy": exceed the limit, verify the button is disabled and labelled accordingly
+- Grid frozen mid-checkout: start a checkout, tap a tile, verify nothing is added
 - Happy path: scan, add product, checkout, verify transaction
 - Add multiple different products: add 3 products, checkout, verify 3 transactions
 - Add same product multiple times: tap product 3x, verify badge shows "3", checkout creates 1 transaction with qty 3

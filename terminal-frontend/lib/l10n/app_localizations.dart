@@ -242,6 +242,12 @@ abstract class AppLocalizations {
   /// **'Limit erreicht'**
   String get checkoutBlockedByLimit;
 
+  /// Secondary button on the product grid's summary bar — opens the cart to review or remove items
+  ///
+  /// In de, this message translates to:
+  /// **'Warenkorb'**
+  String get viewCart;
+
   /// Cart banner headline when the projected tab exceeds the credit limit
   ///
   /// In de, this message translates to:

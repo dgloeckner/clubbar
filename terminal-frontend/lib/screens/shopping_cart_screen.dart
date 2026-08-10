@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:clubbar_terminal/controllers/checkout_action.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/models/credit_limit.dart';
-import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/widgets/checkout_button.dart';
 import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
-import 'package:clubbar_terminal/widgets/error_modal.dart';
 import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
 
@@ -22,69 +22,6 @@ class ShoppingCartScreen extends StatelessWidget {
 
   static const double _horizontalPadding = 16.0;
   static const double _verticalSpacing = 12.0;
-
-  /// Run a checkout and route its outcome to the right surface.
-  ///
-  /// Failures get a blocking [showErrorModal] with Dismiss + Retry, where
-  /// Retry re-enters this method — the member can recover without hunting for
-  /// the checkout button behind a snackbar that overlapped the total bar.
-  ///
-  /// A member-initiated cancellation is not a failure: it stays in
-  /// `lastError` so the inline [ErrorBanner] can quietly confirm the cart is
-  /// unchanged, instead of a modal nagging about a choice they just made.
-  static Future<void> _runCheckout(BuildContext context) async {
-    final cartProvider = context.read<CartProvider>();
-    final membersProvider = context.read<MembersProvider>();
-
-    final selectedMember = membersProvider.selectedMember;
-    if (selectedMember == null) {
-      showErrorModal(
-        context,
-        TerminalErrorKey.noMemberSelected.message(AppLocalizations.of(context)!),
-      );
-      return;
-    }
-    final sessionId = membersProvider.sessionId ?? '';
-
-    // ADR-0027 rule 7: suspend the inactivity timer while
-    // checkout/dispensing is in flight.
-    final session = context.read<SessionController>();
-    session.beginCriticalOperation();
-    try {
-      await cartProvider.checkout(context, selectedMember, sessionId);
-    } finally {
-      session.endCriticalOperation();
-    }
-
-    final error = cartProvider.lastError;
-    if (error != null) {
-      if (error.key == TerminalErrorKey.checkoutCancelled) {
-        // Left pending on purpose — the banner renders it.
-        return;
-      }
-      // Shown — drop it so the next failure signals afresh.
-      cartProvider.clearError();
-      if (!context.mounted) return;
-      // The credit limit is a standing condition, not a hiccup: retrying
-      // would refuse the exact same cart. The member's way out is the banner
-      // above and the remove buttons, so the modal offers no Retry.
-      final isRetryable = error.key != TerminalErrorKey.balanceLimitExceeded;
-      showErrorModal(
-        context,
-        error.message(AppLocalizations.of(context)!),
-        onRetry: isRetryable ? () => _runCheckout(context) : null,
-      );
-      return;
-    }
-
-    // Recompute Deckel from database (now includes
-    // the new unsynced transaction)
-    await membersProvider.refreshDeckel();
-
-    if (cartProvider.lastSessionId != null && context.mounted) {
-      context.go('/confirmation/${cartProvider.lastSessionId}');
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -447,10 +384,10 @@ class ShoppingCartScreen extends StatelessWidget {
 
                   // Checkout button — disabled while a checkout is in flight so
                   // a double-tap cannot create duplicate transactions.
-                  _CheckoutButton(
+                  CheckoutButton(
                     isLoading: isCheckoutInFlight,
                     isBlockedByLimit: limitCheck.blocksCheckout,
-                    onPressed: () => _runCheckout(context),
+                    onPressed: () => runCheckout(context),
                   ),
                 ],
               ),
@@ -458,94 +395,6 @@ class ShoppingCartScreen extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-/// Checkout button with press feedback, an in-flight state and a blocked
-/// state.
-///
-/// While [isLoading] is true the button is non-interactive (no [onPressed] on
-/// the [InkWell]) and shows a spinner plus a "processing" label, so a member
-/// cannot tap it a second time during the async checkout.
-///
-/// While [isBlockedByLimit] is true it is greyed out and says so (UC-T12). A
-/// tooltip would be the desktop answer; on a touch terminal nobody hovers, so
-/// the reason goes in the label — and in the banner above the cart.
-class _CheckoutButton extends StatelessWidget {
-  const _CheckoutButton({
-    required this.isLoading,
-    required this.isBlockedByLimit,
-    required this.onPressed,
-  });
-
-  final bool isLoading;
-  final bool isBlockedByLimit;
-  final Future<void> Function() onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final borderRadius = BorderRadius.circular(AppBorderRadius.lg);
-    // Resolved once: background, foreground and label always describe the
-    // same state, so they cannot drift apart as states are added.
-    final (background, foreground, label) = switch (this) {
-      _ when isBlockedByLimit => (
-          hexToColor(AppColors.borderLight),
-          hexToColor(AppColors.textSecondary),
-          l10n.checkoutBlockedByLimit,
-        ),
-      _ when isLoading => (
-          const Color(0xff166534),
-          Colors.black,
-          l10n.checkoutProcessing,
-        ),
-      _ => (const Color(0xff22c55e), Colors.black, l10n.checkout),
-    };
-
-    return Material(
-      // Stable selector for widget/integration tests
-      key: const Key('checkout-button'),
-      color: background,
-      borderRadius: borderRadius,
-      child: InkWell(
-        onTap: isLoading || isBlockedByLimit ? null : onPressed,
-        borderRadius: borderRadius,
-        child: SizedBox(
-          height: 67,
-          child: Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isLoading)
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                    ),
-                  )
-                else
-                  Icon(
-                    isBlockedByLimit ? Icons.block : Icons.check,
-                    color: foreground,
-                    size: 24,
-                  ),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: AppFontSizes.xl,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
