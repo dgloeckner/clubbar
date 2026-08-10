@@ -374,6 +374,12 @@ abstract class AppLocalizations {
   /// **'Guthaben: {amount}'**
   String balanceCredit(String amount);
 
+  /// Member's account is exactly settled (zero balance)
+  ///
+  /// In de, this message translates to:
+  /// **'Nichts offen'**
+  String get balanceSettled;
+
   /// Button to view member details
   ///
   /// In de, this message translates to:

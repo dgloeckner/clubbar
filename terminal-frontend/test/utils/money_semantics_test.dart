@@ -47,18 +47,21 @@ void main() {
   });
 
   group('formatBalance', () {
-    test('labels an open tab and a credit distinctly (en)', () {
+    test('labels an open tab, a settled account and a credit distinctly (en)', () {
       final l10n = AppLocalizationsEn();
 
       expect(formatBalance(1480, l10n, 'en'), 'Open tab: €14.80');
-      expect(formatBalance(0, l10n, 'en'), 'Open tab: €0.00');
+      // A settled account (#296) gets its own wording — "Open tab: €0.00"
+      // reads as an amount owed of zero, which is confusing at a glance.
+      expect(formatBalance(0, l10n, 'en'), 'No open tab');
       expect(formatBalance(-500, l10n, 'en'), 'Credit: €5.00');
     });
 
-    test('labels an open tab and a credit distinctly (de)', () {
+    test('labels an open tab, a settled account and a credit distinctly (de)', () {
       final l10n = AppLocalizationsDe();
 
       expect(formatBalance(1480, l10n, 'de'), contains('Offener Betrag'));
+      expect(formatBalance(0, l10n, 'de'), 'Nichts offen');
       expect(formatBalance(-500, l10n, 'de'), contains('Guthaben'));
     });
 
@@ -73,6 +76,12 @@ void main() {
 
       expect(formatNewBalance(1480, l10n, 'en'), 'New open tab: €14.80');
       expect(formatNewBalance(-500, l10n, 'en'), 'New credit: €5.00');
+    });
+
+    // Unlike formatBalance (#296), a projected zero is still meaningful
+    // information right after a storno/credit checkout — left unchanged.
+    test('a projected zero balance still reads as a new open tab', () {
+      expect(formatNewBalance(0, AppLocalizationsEn(), 'en'), 'New open tab: €0.00');
     });
   });
 }

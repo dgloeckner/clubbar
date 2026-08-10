@@ -195,6 +195,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get balanceSettled => 'Nichts offen';
+
+  @override
   String get viewDetails => 'Details';
 
   @override

@@ -194,6 +194,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get balanceSettled => 'No open tab';
+
+  @override
   String get viewDetails => 'Details';
 
   @override

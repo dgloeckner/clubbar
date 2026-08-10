@@ -18,8 +18,10 @@ String formatPrice(int cents, String locale) {
 ///
 /// Positive cents mean the member owes money, negative mean credit (see
 /// [AppMoney] in `design_tokens.dart`). The label carries the sign, so the
-/// amount itself is always rendered positive.
+/// amount itself is always rendered positive. A settled account (#296) gets
+/// its own wording rather than "Open tab: €0.00" — an amount owed of zero.
 String formatBalance(int cents, AppLocalizations l10n, String locale) {
+  if (cents == 0) return l10n.balanceSettled;
   return cents < 0
       ? l10n.balanceCredit(formatPrice(-cents, locale))
       : l10n.balanceOpenTab(formatPrice(cents, locale));
