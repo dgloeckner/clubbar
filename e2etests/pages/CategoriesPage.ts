@@ -314,7 +314,12 @@ export class CategoriesPage extends BasePage {
    * STATUS TOGGLE INTERACTIONS
    */
 
-  async toggleCategoryStatus(categoryId: string) {
+  /**
+   * Activate a category. Activation only makes products visible again, so it
+   * fires on the click with no dialog in the way (#130) — the PATCH is
+   * therefore safe to await directly.
+   */
+  async activateCategory(categoryId: string) {
     const responsePromise = this.page.waitForResponse(
       (r) => {
         const url = new URL(r.url())
@@ -324,11 +329,13 @@ export class CategoriesPage extends BasePage {
     )
     await this.page.getByTestId(`categories-status-toggle-${categoryId}`).click()
     await responsePromise
+    await this.waitForLoadingToComplete()
   }
 
   /**
-   * Click the status toggle when a confirmation dialog is expected to appear.
-   * Unlike toggleCategoryStatus(), does NOT wait for PATCH (which only fires after confirm).
+   * Click the status toggle when a confirmation dialog is expected to appear
+   * (deactivation). Unlike activateCategory(), does NOT wait for PATCH — that
+   * only fires once the dialog is confirmed.
    */
   async clickStatusToggleExpectingDialog(categoryId: string) {
     await this.page.getByTestId(`categories-status-toggle-${categoryId}`).click()

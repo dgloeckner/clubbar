@@ -53,6 +53,11 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [modalError, setModalError] = useState<string | null>(null)
   const [modalFieldErrors, setModalFieldErrors] = useState<Record<string, string>>({})
+  // Confirmation that a one-shot action worked, rendered next to `error` above
+  // the tab content. An action whose only outcome is server-side — resetting
+  // 2FA changes nothing the table shows — is otherwise indistinguishable from
+  // one that silently failed (#130).
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [existingConfig, setExistingConfig] = useState<SepaConfig | null>(null)
   const [originalFormData, setOriginalFormData] = useState<SepaConfigFormData>({
@@ -103,6 +108,7 @@ export function SettingsPage() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null)
   const [reset2faConfirm, setReset2faConfirm] = useState<string | null>(null)
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState<string | null>(null)
 
   // Terminal State
   const [terminals, setTerminals] = useState<Terminal[]>([])
@@ -184,7 +190,14 @@ export function SettingsPage() {
    * generic fallback.
    */
   const reportError = (err: unknown, fallbackKey: string) => {
+    setActionSuccess(null)
     setError(getApiErrorMessage(err, t(fallbackKey)))
+  }
+
+  /** Confirm an action that leaves no visible trace of its own. */
+  const reportSuccess = (messageKey: string) => {
+    setError(null)
+    setActionSuccess(t(messageKey))
   }
 
   /**
@@ -205,6 +218,7 @@ export function SettingsPage() {
   const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals' | 'security') => {
     // The banner reports what failed on the tab that is being left behind.
     setError(null)
+    setActionSuccess(null)
     setActiveTab(tab)
   }
 
@@ -299,7 +313,17 @@ export function SettingsPage() {
     }
   }
 
-  const handleResetPassword = async (id: string) => {
+  // Resetting a password invalidates a colleague's current one the moment it is
+  // clicked, and the trigger is a bare icon button — so it is asked first, like
+  // deactivate and reset-2FA already were (#130).
+  const handleResetPassword = (id: string) => {
+    setResetPasswordConfirm(id)
+  }
+
+  const handleResetPasswordConfirmed = async () => {
+    if (!resetPasswordConfirm) return
+    const id = resetPasswordConfirm
+    setResetPasswordConfirm(null)
     try {
       const result = await getAdminUsers().resetAdminPassword(id)
       setGeneratedPassword(result.password ?? null)
@@ -319,6 +343,9 @@ export function SettingsPage() {
     setReset2faConfirm(null)
     try {
       await getAuthentication().resetTotp({ userId: id })
+      // Nothing in the table changes, so without this the admin cannot tell a
+      // reset that worked from one that failed (#130).
+      reportSuccess('settings.reset2faSuccess')
     } catch (err: unknown) {
       reportError(err, 'settings.errors.reset2fa')
     }
@@ -628,6 +655,11 @@ export function SettingsPage() {
           message stays with the action that caused it (#91). */}
       {error && <Alert variant="danger" message={error} testId="settings-error-message" />}
 
+      {/* An action that changed nothing on screen says so here (#130). */}
+      {actionSuccess && (
+        <Alert variant="success" message={actionSuccess} dismissible testId="settings-success-message" />
+      )}
+
       {/* SEPA Configuration Tab */}
       {activeTab === 'sepa' && (
         <SepaConfigTab
@@ -768,6 +800,15 @@ export function SettingsPage() {
         variant="danger"
         onConfirm={handleDeactivateAdminConfirmed}
         onCancel={() => setDeactivateConfirm(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!resetPasswordConfirm}
+        message={t('settings.resetPasswordConfirm')}
+        confirmLabel={t('settings.resetPassword')}
+        variant="danger"
+        onConfirm={handleResetPasswordConfirmed}
+        onCancel={() => setResetPasswordConfirm(null)}
       />
 
       <ConfirmDialog

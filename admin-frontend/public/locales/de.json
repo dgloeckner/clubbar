@@ -144,7 +144,7 @@
     "createMember": "Mitglied erstellen",
     "editMember": "Mitglied bearbeiten",
     "deleteMember": "Mitglied löschen",
-    "deleteConfirm": "Möchten Sie dieses Mitglied wirklich deaktivieren? Dies kann nicht rückgängig gemacht werden.",
+    "deactivateConfirm": "\"{{name}}\" deaktivieren? Das Mitglied wird am Terminal nicht mehr erkannt und kann bis zur Reaktivierung nicht buchen.",
     "firstName": "Vorname",
     "lastName": "Nachname",
     "displayName": "Anzeigename",
@@ -284,7 +284,6 @@
     "deleteCategory": "Kategorie löschen",
     "deleteConfirm": "\"{{name}}\" löschen? Die Kategorie wird dauerhaft aus der Datenbank entfernt und kann nicht wiederhergestellt werden.",
     "deactivateConfirm": "\"{{name}}\" deaktivieren? Alle {{count}} Produkte in dieser Kategorie werden im Terminal nicht mehr angezeigt.",
-    "activateConfirm": "\"{{name}}\" aktivieren? Alle {{count}} Produkte in dieser Kategorie werden im Terminal wieder angezeigt.",
     "cannotDeleteWithProducts": "Kategorie mit {{count}} Produkten kann nicht gelöscht werden. Bitte stattdessen deaktivieren.",
     "categoryName": "Kategoriename",
     "productCount": "Produkte",
@@ -296,7 +295,7 @@
     "countFound_other": "{{count}} Kategorien gefunden",
     "errors": {
       "load": "Kategorien konnten nicht geladen werden",
-      "deactivate": "Kategorie konnte nicht deaktiviert werden",
+      "activate": "Kategorie konnte nicht aktiviert werden",
       "action": "Aktion konnte nicht ausgeführt werden"
     }
   },
@@ -382,6 +381,7 @@
     "undoBlockedFallback": "Diese Abrechnung kann nicht mehr storniert werden. Führen Sie stattdessen eine Rückbuchung durch.",
     "undoExportedWarning": "Für diese Abrechnung wurde bereits eine SEPA-Datei erzeugt. Wenn sie bei der Bank eingereicht wurde, stornieren Sie die Abrechnung nicht — die nächste Abrechnung würde das Geld ein zweites Mal einziehen. Führen Sie stattdessen eine Rückbuchung durch.",
     "undoExportedAcknowledge": "Ich bestätige, dass diese SEPA-Datei nie bei der Bank eingereicht wurde.",
+    "undoSuccess": "Abrechnung storniert. Ihre Buchungen sind wieder offen und werden von der nächsten Abrechnung eingezogen.",
     "sortNewest": "Neueste zuerst",
     "sortOldest": "Älteste zuerst",
     "countFound_one": "{{count}} Abrechnung gefunden",
@@ -440,6 +440,8 @@
     "resetPassword": "Passwort zurücksetzen",
     "reset2fa": "2FA zurücksetzen",
     "reset2faConfirm": "2FA für diesen Admin-Benutzer zurücksetzen? Der Benutzer muss sich beim nächsten Login erneut einrichten.",
+    "reset2faSuccess": "2FA wurde zurückgesetzt. Der Admin-Benutzer muss sich beim nächsten Login erneut einrichten.",
+    "resetPasswordConfirm": "Passwort für diesen Admin-Benutzer zurücksetzen? Das aktuelle Passwort wird sofort ungültig, der Benutzer muss das anschließend angezeigte neue Passwort verwenden.",
     "noAdminUsers": "Keine Admin-Benutzer gefunden",
     "loadingSepa": "Lade SEPA-Konfiguration...",
     "saving": "Speichert...",

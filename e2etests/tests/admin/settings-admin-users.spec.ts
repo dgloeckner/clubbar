@@ -326,10 +326,75 @@ test.describe('Admin Users Management', () => {
     // Act: Reset 2FA — confirm dialog appears, confirm it, verify API call succeeds
     await authenticatedSettingsPage.clickReset2faButton(testData.email)
 
+    // Assert: the reset changes nothing in the table, so the page has to say it
+    // worked — otherwise a success and a silent failure look identical (#130).
+    await authenticatedSettingsPage.expectActionSuccessVisible()
+    expect((await authenticatedSettingsPage.getActionSuccessMessage()).length).toBeGreaterThan(5)
+
     // Assert: Admin still exists in table after reset
     const adminAfterReset = await authenticatedSettingsPage.getAdminUserByEmail(testData.email)
     expect(adminAfterReset).not.toBeNull()
     expect(adminAfterReset?.email).toContain(testData.email)
+  })
+
+  /**
+   * Test: Resetting a password asks first, and cancelling changes nothing
+   *
+   * The reset used to fire straight off an unlabelled icon button, invalidating
+   * a colleague's current password with no way back (#130). Deactivate and
+   * reset-2FA already confirmed; this pins the third one.
+   *
+   * E2E Verification Flow:
+   * 1. Create admin user, note the generated password
+   * 2. Click Reset Password → confirmation dialog appears
+   * 3. Cancel → no password modal, so no reset was performed
+   * 4. Click again and confirm → the new password modal appears
+   *
+   * Pattern 001: Unique test data per test
+   * Pattern 008: Use expect() for assertions
+   */
+  test('should confirm before resetting an admin password', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickAdminUsersTab()
+
+    const testData = generateTestAdminUser()
+
+    const adminUsersLoaded = authenticatedSettingsPage.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+    )
+
+    await authenticatedSettingsPage.clickCreateAdminButton()
+    await authenticatedSettingsPage.fillCreateAdminForm(testData)
+    await authenticatedSettingsPage.clickCreateAdminConfirm()
+    await authenticatedSettingsPage.waitForPasswordModal()
+    await authenticatedSettingsPage.closePasswordModal()
+    await adminUsersLoaded
+
+    // The reset must not fire on the click alone.
+    let resetCalls = 0
+    await authenticatedSettingsPage.page.route('**/api/admin/admin-users/*/reset-password', (route) => {
+      resetCalls += 1
+      return route.continue()
+    })
+
+    await authenticatedSettingsPage.openResetPasswordConfirm(testData.email)
+    await authenticatedSettingsPage.cancelConfirmDialog()
+
+    // Cancelling means no request and no new password.
+    await authenticatedSettingsPage.expectPasswordModalHidden()
+    expect(resetCalls).toBe(0)
+
+    // Confirming goes through.
+    await authenticatedSettingsPage.clickResetPasswordButton(testData.email)
+    await authenticatedSettingsPage.waitForPasswordModal()
+    const newPassword = await authenticatedSettingsPage.getGeneratedPassword()
+    expect(newPassword).toMatch(/^[A-Za-z0-9!@#$%^&*]{12,}$/)
+    expect(resetCalls).toBe(1)
+
+    await authenticatedSettingsPage.closePasswordModal()
   })
 
   /**

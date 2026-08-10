@@ -34,6 +34,7 @@ import { useLatestRequest } from '../hooks/useLatestRequest'
 import { useListQuery } from '../hooks/useListQuery'
 import { ValidationIndicator } from '../components/forms/ValidationIndicator'
 import { MandateDocumentSection } from '../components/MandateDocumentSection'
+import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { getMandateDocument } from '../api/generated/mandate-document/mandate-document'
 import type { ExtractionResult } from '../api/generated'
 import {
@@ -149,6 +150,10 @@ export function MembersPage() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [anonymizeConfirm, setAnonymizeConfirm] = useState<MemberListItem | null>(null)
+  // The member the deactivation dialog is asking about. On the mobile card list
+  // the toggle sits beside the name, so a mistap used to cut a member off from
+  // the terminal with no way to notice it had happened (#130).
+  const [deactivateConfirm, setDeactivateConfirm] = useState<MemberListItem | null>(null)
 
   const mobileFilterCount = [
     filterIsActive !== 'all' ? 1 : 0,
@@ -330,12 +335,22 @@ export function MembersPage() {
     }
   }
 
-  // Handle status toggle (activate/deactivate)
-  const handleStatusToggle = async (member: MemberListItem) => {
+  // Handle status toggle (activate/deactivate). Deactivating asks first;
+  // reactivating only restores access, so it stays a single tap (#130).
+  const handleStatusToggle = (member: MemberListItem) => {
+    if (!member.id) return
+    if (member.is_active) {
+      setDeactivateConfirm(member)
+      return
+    }
+    void applyStatusChange(member, true)
+  }
+
+  const applyStatusChange = async (member: MemberListItem, isActive: boolean) => {
     try {
       if (!member.id) return
       // Only send the field that needs to be updated
-      await getMembersFactory().updateMember(member.id, { is_active: !member.is_active })
+      await getMembersFactory().updateMember(member.id, { is_active: isActive })
 
       // Reload members list with the active filters still applied
       await list.reload()
@@ -344,6 +359,13 @@ export function MembersPage() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('members.errors.updateStatus'))
     }
+  }
+
+  const handleDeactivateConfirmed = async () => {
+    const member = deactivateConfirm
+    if (!member) return
+    setDeactivateConfirm(null)
+    await applyStatusChange(member, false)
   }
 
   // Handle anonymize member (GDPR Art. 17)
@@ -1861,6 +1883,18 @@ export function MembersPage() {
         </div>
       )}
 
+
+      {/* Deactivation Confirmation Dialog (#130) */}
+      <ConfirmDialog
+        isOpen={!!deactivateConfirm}
+        message={t('members.deactivateConfirm', {
+          name: `${deactivateConfirm?.first_name ?? ''} ${deactivateConfirm?.last_name ?? ''}`.trim(),
+        })}
+        confirmLabel={t('common.deactivate')}
+        variant="danger"
+        onConfirm={handleDeactivateConfirmed}
+        onCancel={() => setDeactivateConfirm(null)}
+      />
 
       {/* Anonymize Confirmation Dialog */}
       {anonymizeConfirm && (
