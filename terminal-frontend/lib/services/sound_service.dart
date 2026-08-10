@@ -9,6 +9,8 @@ enum SoundEvent {
   productRemove,
   quantityChange,
   categorySwitch,
+  dispenseSuccess,
+  dispensePartial,
 }
 
 class SoundService {
@@ -24,6 +26,11 @@ class SoundService {
     SoundEvent.productRemove: 'sounds/product_remove.mp3',
     SoundEvent.quantityChange: 'sounds/quantity_change.mp3',
     SoundEvent.categorySwitch: 'sounds/category_switch.mp3',
+    // Dispensing has no dedicated clips of its own: it reuses the checkout
+    // pair, since a full dispense is a success and a partial one is exactly
+    // the "something needs attention" warning checkout_error already voices.
+    SoundEvent.dispenseSuccess: 'sounds/checkout_success.mp3',
+    SoundEvent.dispensePartial: 'sounds/checkout_error.mp3',
   };
 
   static const Map<SoundEvent, double> _volumes = {
@@ -35,6 +42,8 @@ class SoundService {
     SoundEvent.productRemove: 0.3,
     SoundEvent.quantityChange: 0.2,
     SoundEvent.categorySwitch: 0.15,
+    SoundEvent.dispenseSuccess: 0.8,
+    SoundEvent.dispensePartial: 0.6,
   };
 
   SoundService({required bool enabled}) : _enabled = enabled;

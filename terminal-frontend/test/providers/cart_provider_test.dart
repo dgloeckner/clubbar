@@ -722,6 +722,22 @@ void main() {
       verify(() => mockSoundService.play(SoundEvent.productRemove)).called(1);
     });
 
+    // The cart screen's own +/- controls go through updateQuantity() rather
+    // than decreaseItem() — silent before this fix, unlike every other cart
+    // mutator (issue #37).
+    test('plays quantityChange when updateQuantity changes the quantity', () {
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      clearInteractions(mockSoundService);
+      provider.updateQuantity('prod-1', 3);
+      verify(() => mockSoundService.play(SoundEvent.quantityChange)).called(1);
+    });
+
+    test('updateQuantity on an item not in the cart plays no sound', () {
+      clearInteractions(mockSoundService);
+      provider.updateQuantity('missing', 3);
+      verifyNever(() => mockSoundService.play(any()));
+    });
+
     test('plays checkoutSuccess when checkout succeeds', () async {
       final member = MembersCacheData(
         id: 'member-1',

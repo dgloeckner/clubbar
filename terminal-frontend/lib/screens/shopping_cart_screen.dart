@@ -8,6 +8,7 @@ import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
@@ -38,6 +39,7 @@ class ShoppingCartScreen extends StatelessWidget {
 
     final selectedMember = membersProvider.selectedMember;
     if (selectedMember == null) {
+      context.read<SoundService>().play(SoundEvent.checkoutError);
       showErrorModal(
         context,
         TerminalErrorKey.noMemberSelected.message(AppLocalizations.of(context)!),
