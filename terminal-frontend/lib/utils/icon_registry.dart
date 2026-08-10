@@ -242,7 +242,26 @@
   }
 
   /// Map backend category icon name to SVG asset path.
-  /// Categories use the same universal product icon set.
+  ///
+  /// Canonical `category-*` names (documented in docs/icon-registry.md)
+  /// resolve to the dedicated category assets first (#299) — a category chip
+  /// used to be able to wear only a product's icon, so e.g. Sauna wore a
+  /// "sauna token" coin that read as *coin*, not *sauna*. Anything else falls
+  /// through to the product icon set so existing product-icon-on-category
+  /// deployments keep working.
   String? _getCategoryIconPath(String? iconName) {
-    return _getProductIconPath(iconName);
+    switch (iconName) {
+      case 'category-folder':
+        return 'assets/icons/categories/category_folder_icon.svg';
+      case 'category-tags':
+        return 'assets/icons/categories/category_tags_icon.svg';
+      case 'category-layers':
+        return 'assets/icons/categories/category_layers_icon.svg';
+      case 'category-list':
+        return 'assets/icons/categories/category_list_icon.svg';
+      case 'category-generic':
+        return 'assets/icons/categories/category_icon.svg';
+      default:
+        return _getProductIconPath(iconName);
+    }
   }
