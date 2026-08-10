@@ -1,4 +1,11 @@
-Options -MultiViews
+# IONOS (the reference target, ADR-0031) runs PHP as CGI/FPM, not mod_php. A
+# bare `php_value` or `php_flag` here is not a no-op on that SAPI — Apache
+# returns HTTP 500 for the whole request, an outage indistinguishable from an
+# application bug. Do not add either directive unqualified; wrap it in
+# <IfModule mod_php.c> or, better, set it from PHP_INI_PERDIR in .user.ini or
+# from code in RuntimeHardening.php (#246). See ADR-0031 decision 5.
+
+Options -MultiViews -Indexes
 
 # Block direct HTTP access to the install key file
 <Files ".installer-data">
@@ -15,6 +22,22 @@ Options -MultiViews
 <Files "data-path.php">
     Require all denied
 </Files>
+
+# Deny config.php / config.sample.php (database password and the TOTP
+# encryption key), *.log, *.sql and package.json — none of these should ever
+# be served as source, but a host that stops executing PHP (a misconfigured
+# handler after a PHP version change is the classic way this happens) would
+# otherwise hand config.php out verbatim (#249).
+<FilesMatch "(^config(\.sample)?\.php$|\.(log|sql)$|^package\.json$)">
+    Require all denied
+</FilesMatch>
+
+# Deny every dotfile beyond the ones already named above — .user.ini,
+# .htaccess itself, and any stray .env/.git/.DS_Store a host or a careless
+# upload leaves behind.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
 
 RewriteEngine On
 RewriteBase /
@@ -47,6 +70,11 @@ RewriteRule ^ index.php [L,QSA]
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "DENY"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+    # expose_php is PHP_INI_SYSTEM and unreachable from a shipped file on mass
+    # hosting (ADR-0031); RuntimeHardening::apply() already strips this header
+    # from code (#246), this is the belt for a request that never reaches it.
+    Header always unset X-Powered-By
 </IfModule>
 
 # Enable gzip compression

@@ -162,6 +162,7 @@ cp "$PROJECT_ROOT/package/index.php"         "$PKG_DIR/index.php"
 cp "$PROJECT_ROOT/package/install.php"       "$PKG_DIR/install.php"
 cp "$PROJECT_ROOT/package/upgrade.php"       "$PKG_DIR/upgrade.php"
 cp "$PROJECT_ROOT/package/.htaccess"         "$PKG_DIR/.htaccess"
+cp "$PROJECT_ROOT/package/.user.ini"         "$PKG_DIR/.user.ini"
 cp "$PROJECT_ROOT/package/config.sample.php" "$PKG_DIR/config.sample.php"
 cp "$PROJECT_ROOT/package/README.txt"        "$PKG_DIR/README.txt"
 
