@@ -197,7 +197,7 @@ export function ProfilePage() {
               background: 'rgba(239, 68, 68, 0.1)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
               borderRadius: theme.borderRadius.md,
-              color: '#ef4444',
+              color: theme.colors.semantic.danger,
               marginBottom: theme.spacing.lg,
             }}
           >
@@ -213,7 +213,7 @@ export function ProfilePage() {
               background: 'rgba(34, 197, 94, 0.1)',
               border: '1px solid rgba(34, 197, 94, 0.3)',
               borderRadius: theme.borderRadius.md,
-              color: '#22c55e',
+              color: theme.colors.semantic.success,
               marginBottom: theme.spacing.lg,
             }}
           >
@@ -282,7 +282,7 @@ export function ProfilePage() {
               background: 'rgba(239, 68, 68, 0.1)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
               borderRadius: theme.borderRadius.md,
-              color: '#ef4444',
+              color: theme.colors.semantic.danger,
               marginBottom: theme.spacing.lg,
             }}
           >
@@ -298,7 +298,7 @@ export function ProfilePage() {
               background: 'rgba(34, 197, 94, 0.1)',
               border: '1px solid rgba(34, 197, 94, 0.3)',
               borderRadius: theme.borderRadius.md,
-              color: '#22c55e',
+              color: theme.colors.semantic.success,
               marginBottom: theme.spacing.lg,
             }}
           >

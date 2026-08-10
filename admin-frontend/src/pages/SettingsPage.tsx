@@ -550,7 +550,7 @@ export function SettingsPage() {
   // Tab styles (prototype styling: button group container)
   const tabContainerStyle: React.CSSProperties = {
     display: 'flex',
-    background: '#1a2744',
+    background: theme.colors.bg.card,
     borderRadius: '12px',
     padding: '4px',
     gap: '4px',

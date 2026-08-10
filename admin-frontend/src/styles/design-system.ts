@@ -16,6 +16,7 @@ export const theme = {
       input: '#0d1829',      // Form fields
       inputAlt: '#1e293b',   // Form fields on a card/modal background
       hover: '#15213f',      // Hover states
+      gradientStart: '#1e3a5f', // Hero/summary card gradient start (paired with bg.input as the end stop)
     },
 
     // Semantic colors
@@ -35,6 +36,8 @@ export const theme = {
       neutral: '#6b7280',      // Gray - disabled/neutral action
       blocked: '#78716c',      // Stone - action the backend gate refuses (not merely disabled)
       blockedHover: '#57534e', // Stone - blocked hover state
+      violet: '#a855f7',       // Violet - a third category alongside primary/purple (e.g. payout transactions)
+      amber: '#f59e0b',        // Amber - a third warning-adjacent category, distinct from `warning`
     },
 
     // Text colors
