@@ -201,8 +201,8 @@ export function TerminalsTab({
               key={terminal.id}
               data-testid={`settings-terminal-row-${terminal.id}`}
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                background: theme.mobileCard.bg,
+                border: `1px solid ${theme.mobileCard.border}`,
                 borderRadius: '10px',
                 padding: '14px',
                 opacity: terminal.is_active ? 1 : 0.5,

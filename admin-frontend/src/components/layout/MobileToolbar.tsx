@@ -126,9 +126,9 @@ export function MobileToolbar({
           alignItems: 'center',
           gap: '8px',
           padding: '10px 14px',
-          background: 'rgba(255,255,255,0.03)',
+          background: theme.mobileCard.bg,
           borderRadius: showFilters ? '10px 10px 0 0' : '10px',
-          border: '1px solid rgba(255,255,255,0.06)',
+          border: `1px solid ${theme.mobileCard.border}`,
           borderBottom: showFilters ? '1px solid rgba(255,255,255,0.04)' : undefined,
         }}
       >
@@ -288,9 +288,9 @@ export function MobileToolbar({
           data-testid={`${testId}-filters`}
           style={{
             padding: '12px 14px',
-            background: 'rgba(255,255,255,0.03)',
+            background: theme.mobileCard.bg,
             borderRadius: '0 0 10px 10px',
-            border: '1px solid rgba(255,255,255,0.06)',
+            border: `1px solid ${theme.mobileCard.border}`,
             borderTop: 'none',
             display: 'flex',
             flexDirection: 'column',

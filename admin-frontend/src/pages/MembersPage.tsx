@@ -786,8 +786,8 @@ export function MembersPage() {
                   key={member.id}
                   data-testid={`member-card-${member.id}`}
                   style={{
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    background: theme.mobileCard.bg,
+                    border: `1px solid ${theme.mobileCard.border}`,
                     borderRadius: '10px',
                     padding: '14px 16px',
                   }}
@@ -884,9 +884,9 @@ export function MembersPage() {
           gap: '16px',
           flexWrap: 'wrap',
           padding: '14px 18px',
-          background: 'rgba(255,255,255,0.03)',
+          background: theme.mobileCard.bg,
           borderRadius: '10px',
-          border: '1px solid rgba(255,255,255,0.06)',
+          border: `1px solid ${theme.mobileCard.border}`,
           marginBottom: '20px',
         }}
       >
