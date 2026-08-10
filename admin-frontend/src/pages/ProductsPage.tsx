@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { getProducts } from '../api/generated/products/products'
+import { theme } from '../styles/design-system'
 import type {
   Product,
   Category,
@@ -419,8 +420,8 @@ export function ProductsPage() {
           style={{
             marginBottom: '10px',
             padding: '10px',
-            backgroundColor: '#fee2e2',
-            color: '#dc2626',
+            backgroundColor: theme.colors.alert.dangerBg,
+            color: theme.colors.semantic.dangerHover,
             borderRadius: '4px',
           }}
         >
@@ -436,7 +437,7 @@ export function ProductsPage() {
             padding: '10px',
             backgroundColor: 'rgba(249,115,22,0.12)',
             border: '1px solid rgba(249,115,22,0.5)',
-            color: '#fdba74',
+            color: theme.colors.semantic.warningLight,
             borderRadius: '4px',
             display: 'flex',
             alignItems: 'center',
@@ -454,7 +455,7 @@ export function ProductsPage() {
               borderRadius: '6px',
               border: '1px solid rgba(249,115,22,0.6)',
               background: 'transparent',
-              color: '#fdba74',
+              color: theme.colors.semantic.warningLight,
               fontSize: '13px',
               fontWeight: 600,
               cursor: 'pointer',
@@ -520,7 +521,7 @@ export function ProductsPage() {
           <ListLoadingOverlay loading={loading} label={t('common.loading')} testId="products-list-loading">
           {products.length === 0 ? (
             !loading && (
-              <div data-testid="products-empty-state" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+              <div data-testid="products-empty-state" style={{ padding: '40px', textAlign: 'center', color: theme.colors.text.secondary }}>
                 {t('products.noProducts')}
               </div>
             )
@@ -548,16 +549,16 @@ export function ProductsPage() {
                         size="small"
                         testId={`products-status-toggle-${product.id}`}
                       />
-                      <span style={{ flex: 1, fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>
+                      <span style={{ flex: 1, fontWeight: 600, color: tableColors.cellText, fontSize: '14px' }}>
                         {getLocalizedName(product.names as Record<string, string>, i18n.language)}
                       </span>
-                      <span style={{ fontWeight: 600, color: '#e2e8f0', fontSize: '14px', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontWeight: 600, color: tableColors.cellText, fontSize: '14px', whiteSpace: 'nowrap' }}>
                         {formatPrice(product.price_cents ?? 0)}
                       </span>
                     </div>
                     {/* Row 2: category */}
                     {categoryName && (
-                      <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px', paddingLeft: '46px' }}>
+                      <div style={{ fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '10px', paddingLeft: '46px' }}>
                         {categoryName}
                       </div>
                     )}
@@ -569,7 +570,7 @@ export function ProductsPage() {
                         style={{
                           display: 'flex', alignItems: 'center', gap: '4px',
                           padding: '6px 12px', borderRadius: '6px', border: 'none',
-                          background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+                          background: 'rgba(59,130,246,0.1)', color: theme.colors.semantic.primary,
                           fontSize: '12px', cursor: 'pointer',
                         }}
                       >
@@ -581,7 +582,7 @@ export function ProductsPage() {
                         style={{
                           display: 'flex', alignItems: 'center', gap: '4px',
                           padding: '6px 12px', borderRadius: '6px', border: 'none',
-                          background: 'rgba(239,68,68,0.1)', color: '#ef4444',
+                          background: 'rgba(239,68,68,0.1)', color: theme.colors.semantic.danger,
                           fontSize: '12px', cursor: 'pointer',
                         }}
                       >
@@ -627,7 +628,7 @@ export function ProductsPage() {
       >
         {/* Left: Summary + Search */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-          <span data-testid="products-count-summary" style={{ color: '#cbd5e1', fontSize: 14, whiteSpace: 'nowrap' }}>
+          <span data-testid="products-count-summary" style={{ color: tableColors.headerText, fontSize: 14, whiteSpace: 'nowrap' }}>
             {t('products.countFound', { count: totalItems })}
           </span>
           <input
@@ -641,10 +642,10 @@ export function ProductsPage() {
             style={{
               flex: 1,
               padding: '8px 12px',
-              backgroundColor: '#0d1829',
-              border: '1px solid #2d3748',
+              backgroundColor: theme.colors.bg.input,
+              border: `1px solid ${theme.colors.border.input}`,
               borderRadius: 8,
-              color: '#e2e8f0',
+              color: tableColors.cellText,
               fontSize: '14px',
               fontFamily: 'inherit',
               maxWidth: '400px',
@@ -657,7 +658,7 @@ export function ProductsPage() {
               e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)'
             }}
             onBlur={(e) => {
-              e.currentTarget.style.borderColor = '#2d3748'
+              e.currentTarget.style.borderColor = theme.colors.border.input
             }}
           />
         </div>
@@ -686,7 +687,7 @@ export function ProductsPage() {
             onClick={openCreateModal}
             style={{
               padding: '8px 16px',
-              backgroundColor: '#3b82f6',
+              backgroundColor: theme.colors.semantic.primary,
               color: 'white',
               border: 'none',
               borderRadius: '4px',
@@ -777,7 +778,7 @@ export function ProductsPage() {
                 <td
                   style={{
                     padding: '12px 16px',
-                    color: '#e2e8f0',
+                    color: tableColors.cellText,
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
@@ -828,7 +829,7 @@ export function ProductsPage() {
           style={{
             textAlign: 'center',
             padding: '40px',
-            color: '#94a3b8',
+            color: theme.colors.text.secondary,
           }}
         >
           {t('products.noProducts')}
@@ -878,7 +879,7 @@ export function ProductsPage() {
           <div
             data-testid="products-form-modal-content"
             style={{
-              backgroundColor: '#1a2744',
+              backgroundColor: theme.colors.bg.card,
               padding: isMobile ? '16px' : '24px',
               borderRadius: isMobile ? 0 : '8px',
               maxWidth: isMobile ? '100%' : '700px',
@@ -894,7 +895,7 @@ export function ProductsPage() {
           >
             {/* Left Column: Form */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <h2 data-testid="products-form-title" style={{ marginTop: 0, marginBottom: '16px', color: '#e2e8f0' }}>
+              <h2 data-testid="products-form-title" style={{ marginTop: 0, marginBottom: '16px', color: tableColors.cellText }}>
                 {modalMode === 'create' ? t('products.createProduct') : t('products.editProduct')}
               </h2>
 
@@ -904,8 +905,8 @@ export function ProductsPage() {
                   style={{
                     marginBottom: '12px',
                     padding: '8px',
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
+                    backgroundColor: theme.colors.alert.dangerBg,
+                    color: theme.colors.semantic.dangerHover,
                     borderRadius: '4px',
                     fontSize: '14px',
                   }}
@@ -943,7 +944,7 @@ export function ProductsPage() {
                   style={{
                     marginTop: '-8px',
                     marginBottom: '16px',
-                    color: '#fdba74',
+                    color: theme.colors.semantic.warningLight,
                     fontSize: '13px',
                   }}
                 >
@@ -956,7 +957,7 @@ export function ProductsPage() {
                   style={{
                     display: 'block',
                     marginBottom: '6px',
-                    color: '#e2e8f0',
+                    color: tableColors.cellText,
                     fontSize: '14px',
                     fontWeight: '500',
                   }}
@@ -973,10 +974,10 @@ export function ProductsPage() {
                   style={{
                     width: '100%',
                     padding: '10px 12px',
-                    border: '1px solid #4b5563',
+                    border: `1px solid ${theme.colors.border.muted}`,
                     borderRadius: '6px',
-                    backgroundColor: '#1e293b',
-                    color: '#e2e8f0',
+                    backgroundColor: theme.colors.bg.inputAlt,
+                    color: tableColors.cellText,
                     fontSize: '14px',
                     boxSizing: 'border-box',
                   }}
@@ -998,7 +999,7 @@ export function ProductsPage() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    color: '#e2e8f0',
+                    color: tableColors.cellText,
                     fontSize: '14px',
                     fontWeight: '500',
                     cursor: 'pointer',
@@ -1022,7 +1023,7 @@ export function ProductsPage() {
                     style={{
                       marginTop: '6px',
                       marginLeft: '26px',
-                      color: '#94a3b8',
+                      color: theme.colors.text.secondary,
                       fontSize: '12px',
                       lineHeight: '1.5',
                     }}
@@ -1039,8 +1040,8 @@ export function ProductsPage() {
                   onClick={handleCancel}
                   style={{
                     padding: '8px 16px',
-                    backgroundColor: '#2d3748',
-                    color: '#e2e8f0',
+                    backgroundColor: theme.colors.border.input,
+                    color: tableColors.cellText,
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -1055,7 +1056,7 @@ export function ProductsPage() {
                   type="submit"
                   style={{
                     padding: '8px 16px',
-                    backgroundColor: '#3b82f6',
+                    backgroundColor: theme.colors.semantic.primary,
                     color: 'white',
                     border: 'none',
                     borderRadius: '4px',
@@ -1073,7 +1074,7 @@ export function ProductsPage() {
             {/* Right Column: Preview - hidden on mobile */}
             {!isMobile && (
               <div style={{ width: '160px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '12px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div style={{ marginBottom: '12px', color: theme.colors.text.muted, fontSize: '12px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {t('common.terminalPreview')}
                 </div>
                 <ProductPreview

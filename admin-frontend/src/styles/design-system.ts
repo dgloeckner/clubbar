@@ -14,16 +14,25 @@ export const theme = {
       tertiary: '#11233a',   // Tertiary background (for disabled states)
       card: '#1a2744',       // Content cards
       input: '#0d1829',      // Form fields
+      inputAlt: '#1e293b',   // Form fields on a card/modal background
       hover: '#15213f',      // Hover states
     },
 
     // Semantic colors
     semantic: {
-      primary: '#3b82f6',    // Blue - primary action, info
-      success: '#22c55e',    // Green - success
-      warning: '#f97316',    // Orange - warning, balance
-      danger: '#ef4444',     // Red - danger, errors
-      info: '#0ea5e9',       // Cyan - informational
+      primary: '#3b82f6',      // Blue - primary action, info
+      primaryHover: '#2563eb', // Blue - primary hover state
+      success: '#22c55e',      // Green - success
+      warning: '#f97316',      // Orange - warning, balance
+      warningLight: '#fdba74', // Orange - warning text on dark backgrounds
+      danger: '#ef4444',       // Red - danger, errors
+      dangerHover: '#dc2626',  // Red - danger hover state / error text
+      info: '#0ea5e9',         // Cyan - informational
+      emerald: '#10b981',      // Green - secondary success action (e.g. CSV export)
+      emeraldHover: '#059669', // Green - emerald hover state
+      purple: '#8b5cf6',       // Purple - secondary action (e.g. detailed export)
+      purpleHover: '#7c3aed',  // Purple - purple hover state
+      neutral: '#6b7280',      // Gray - disabled/neutral action
     },
 
     // Text colors
@@ -39,7 +48,14 @@ export const theme = {
       light: '#334155',      // Light border
       dark: '#1e293b',       // Dark border
       focus: '#3b82f6',      // Focus border
-    }
+      input: '#2d3748',      // Input field border
+      muted: '#4b5563',      // Muted input/control border
+    },
+
+    // Alert/banner colors (opaque, for banners over the dark background)
+    alert: {
+      dangerBg: '#fee2e2',   // Error banner background
+    },
   },
 
   typography: {

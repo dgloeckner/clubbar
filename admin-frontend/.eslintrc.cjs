@@ -17,4 +17,29 @@ module.exports = {
     '@typescript-eslint/no-explicit-any': 'warn',
     'no-console': ['warn', { allow: ['warn', 'error'] }],
   },
+  overrides: [
+    // Raw hex color literals bypass the design system (#124) and drift from
+    // the token values over time. Enforced only for files already migrated
+    // onto `theme`/`tableColors` — add a file here once it is hex-free, and
+    // add any new color to `src/styles/design-system.ts` (theme.colors) or
+    // `src/styles/tableTokens.ts` rather than reintroducing a literal.
+    {
+      files: [
+        'src/pages/LoginPage.tsx',
+        'src/pages/ProductsPage.tsx',
+        'src/components/common/Button.tsx',
+        'src/components/common/PillActionButton.tsx',
+      ],
+      rules: {
+        'no-restricted-syntax': [
+          'error',
+          {
+            selector: "Literal[value=/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]",
+            message:
+              'Raw hex color literals are banned in migrated files (#124) — add a token to theme.colors (design-system.ts) or tableTokens.ts and reference it instead.',
+          },
+        ],
+      },
+    },
+  ],
 }

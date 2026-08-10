@@ -76,9 +76,9 @@ export function Button({
   const handleHover = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!disabled && !loading) {
       if (variant === 'primary') {
-        e.currentTarget.style.background = '#2563eb'
+        e.currentTarget.style.background = theme.colors.semantic.primaryHover
       } else if (variant === 'danger') {
-        e.currentTarget.style.background = '#dc2626'
+        e.currentTarget.style.background = theme.colors.semantic.dangerHover
       }
     }
   }
