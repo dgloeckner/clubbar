@@ -170,10 +170,10 @@ function Tile({ label, value, sub, tone, testId }: TileProps) {
 
 function SectionHeader({ title, chip, chipTone }: { title: string; chip: string; chipTone: Tone }) {
   const chipStyles = {
-    credit: { background: 'rgba(249, 115, 22, 0.15)', color: '#fdba74' },
-    held: { background: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5' },
-    nomandate: { background: 'rgba(14, 165, 233, 0.15)', color: '#7dd3fc' },
-    ok: { background: 'rgba(34, 197, 94, 0.15)', color: '#86efac' },
+    credit: { background: 'rgba(249, 115, 22, 0.15)', color: theme.colors.semantic.warningLight },
+    held: { background: 'rgba(239, 68, 68, 0.15)', color: theme.colors.banner.dangerText },
+    nomandate: { background: 'rgba(14, 165, 233, 0.15)', color: theme.colors.pastel.cyan },
+    ok: { background: 'rgba(34, 197, 94, 0.15)', color: theme.colors.pastel.green },
   }[chipTone]
 
   return (

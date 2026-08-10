@@ -492,9 +492,9 @@ export function MembersPage() {
     const field = extractedFields.fields?.[fieldName]
     if (!field?.confidence) return null
     const styles: Record<string, React.CSSProperties> = {
-      high:   { background: 'rgba(34,197,94,0.15)',  color: '#86efac', border: '1px solid rgba(34,197,94,0.3)'  },
-      medium: { background: 'rgba(234,179,8,0.15)',  color: '#fde047', border: '1px solid rgba(234,179,8,0.3)'  },
-      low:    { background: 'rgba(239,68,68,0.15)',   color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)'  },
+      high:   { background: 'rgba(34,197,94,0.15)',  color: theme.colors.pastel.green, border: '1px solid rgba(34,197,94,0.3)'  },
+      medium: { background: 'rgba(234,179,8,0.15)',  color: theme.colors.pastel.yellow, border: '1px solid rgba(234,179,8,0.3)'  },
+      low:    { background: 'rgba(239,68,68,0.15)',   color: theme.colors.banner.dangerText, border: '1px solid rgba(239,68,68,0.3)'  },
     }
     const labels: Record<string, string> = {
       high:   t('mandateDocument.confidenceHigh'),
@@ -633,7 +633,7 @@ export function MembersPage() {
               borderRadius: '8px',
               border: '1px solid rgba(255,255,255,0.15)',
               background: 'transparent',
-              color: scanExtracting ? 'rgba(255,255,255,0.4)' : '#fff',
+              color: scanExtracting ? 'rgba(255,255,255,0.4)' : 'white',
               fontSize: '14px',
               fontWeight: 600,
               cursor: scanExtracting ? 'wait' : 'pointer',
@@ -654,7 +654,7 @@ export function MembersPage() {
               borderRadius: '8px',
               border: '1px solid rgba(255,255,255,0.15)',
               background: 'transparent',
-              color: '#fff',
+              color: 'white',
               fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer',
@@ -680,8 +680,8 @@ export function MembersPage() {
               padding: isMobile ? '10px' : '10px 20px',
               borderRadius: '8px',
               border: 'none',
-              background: '#3b82f6',
-              color: '#fff',
+              background: theme.colors.semantic.primary,
+              color: 'white',
               fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer',
@@ -899,8 +899,8 @@ export function MembersPage() {
             fill="none"
             style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', opacity: 0.35 }}
           >
-            <circle cx="7" cy="7" r="5.5" stroke="#fff" strokeWidth="1.5" />
-            <path d="M11 11l3.5 3.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="7" cy="7" r="5.5" stroke="white" strokeWidth="1.5" />
+            <path d="M11 11l3.5 3.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
           <input
             type="text"
@@ -916,7 +916,7 @@ export function MembersPage() {
               borderRadius: '7px',
               border: '1px solid rgba(255,255,255,0.08)',
               background: 'rgba(255,255,255,0.04)',
-              color: '#e2e8f0',
+              color: tableColors.cellText,
               fontSize: '13px',
               outline: 'none',
             }}
@@ -954,8 +954,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterIsActive === 'all' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-              color: filterIsActive === 'all' ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: filterIsActive === 'all' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
+              color: filterIsActive === 'all' ? 'white' : 'rgba(255,255,255,0.55)',
             }}
           >
             {t('members.filters.status.all')}
@@ -974,8 +974,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterIsActive === 'active' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-              color: filterIsActive === 'active' ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: filterIsActive === 'active' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
+              color: filterIsActive === 'active' ? 'white' : 'rgba(255,255,255,0.55)',
             }}
           >
             {t('members.filters.status.active')}
@@ -994,8 +994,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterIsActive === 'inactive' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-              color: filterIsActive === 'inactive' ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: filterIsActive === 'inactive' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
+              color: filterIsActive === 'inactive' ? 'white' : 'rgba(255,255,255,0.55)',
             }}
           >
             {t('members.filters.status.inactive')}
@@ -1032,8 +1032,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterCardUid === 'all' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-              color: filterCardUid === 'all' ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: filterCardUid === 'all' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
+              color: filterCardUid === 'all' ? 'white' : 'rgba(255,255,255,0.55)',
             }}
           >
             {t('members.filters.card.all')}
@@ -1051,8 +1051,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterCardUid === 'with' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-              color: filterCardUid === 'with' ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: filterCardUid === 'with' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
+              color: filterCardUid === 'with' ? 'white' : 'rgba(255,255,255,0.55)',
             }}
           >
             {t('members.filters.card.withCard')}
@@ -1070,8 +1070,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterCardUid === 'without' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-              color: filterCardUid === 'without' ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: filterCardUid === 'without' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
+              color: filterCardUid === 'without' ? 'white' : 'rgba(255,255,255,0.55)',
             }}
           >
             {t('members.filters.card.withoutCard')}
@@ -1108,8 +1108,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterSepaStatus === 'all' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-              color: filterSepaStatus === 'all' ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: filterSepaStatus === 'all' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
+              color: filterSepaStatus === 'all' ? 'white' : 'rgba(255,255,255,0.55)',
             }}
           >
             {t('members.filters.sepa.all')}
@@ -1127,8 +1127,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterSepaStatus === 'valid' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-              color: filterSepaStatus === 'valid' ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: filterSepaStatus === 'valid' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
+              color: filterSepaStatus === 'valid' ? 'white' : 'rgba(255,255,255,0.55)',
             }}
           >
             {t('members.filters.sepa.valid')}
@@ -1146,8 +1146,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterSepaStatus === 'invalid' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-              color: filterSepaStatus === 'invalid' ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: filterSepaStatus === 'invalid' ? theme.colors.semantic.primary : 'rgba(255,255,255,0.06)',
+              color: filterSepaStatus === 'invalid' ? 'white' : 'rgba(255,255,255,0.55)',
             }}
           >
             {t('members.filters.sepa.missing')}
@@ -1266,7 +1266,7 @@ export function MembersPage() {
                           fontSize: 12,
                           fontWeight: 500,
                           backgroundColor: member.is_sepa_valid ? theme.colors.semantic.success : theme.colors.semantic.danger,
-                          color: '#ffffff',
+                          color: 'white',
                           display: 'inline-block',
                         }}
                       >
@@ -1399,7 +1399,7 @@ export function MembersPage() {
                   width: '40px',
                   height: '40px',
                   border: '3px solid rgba(196,181,253,0.2)',
-                  borderTopColor: '#c4b5fd',
+                  borderTopColor: theme.colors.pastel.purple,
                   borderRadius: '50%',
                   animation: 'members-spin 0.8s linear infinite',
                 }} />
@@ -1636,7 +1636,7 @@ export function MembersPage() {
                       borderRadius: theme.borderRadius.md,
                     }}
                   >
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#fde047', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: theme.colors.pastel.yellow, marginBottom: '8px' }}>
                       {t('mandateDocument.ibanCandidates')}
                     </div>
                     {extractedFields.ibanCandidates.map(candidate => (
@@ -1665,7 +1665,7 @@ export function MembersPage() {
                           textAlign: 'left',
                         }}
                       >
-                        <span style={{ fontSize: '10px', color: formData.iban === candidate ? '#93c5fd' : theme.colors.text.secondary }}>
+                        <span style={{ fontSize: '10px', color: formData.iban === candidate ? theme.colors.pastel.blue : theme.colors.text.secondary }}>
                           {formData.iban === candidate ? '●' : '○'}
                         </span>
                         {candidate}
@@ -1777,7 +1777,7 @@ export function MembersPage() {
                     borderRadius: '6px',
                     padding: '8px 12px',
                     fontSize: '12px',
-                    color: '#c4b5fd',
+                    color: theme.colors.pastel.purple,
                     marginBottom: '12px',
                     display: 'flex',
                     alignItems: 'center',
@@ -1794,7 +1794,7 @@ export function MembersPage() {
                       background: 'transparent',
                       border: '1px solid rgba(124,58,237,0.4)',
                       borderRadius: '4px',
-                      color: '#c4b5fd',
+                      color: theme.colors.pastel.purple,
                       fontSize: '11px',
                       padding: '3px 8px',
                       cursor: 'pointer',
