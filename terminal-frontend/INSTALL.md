@@ -248,6 +248,14 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
     "apiKey":         "your-dispenser-api-key",
     "timeoutMs":      3000,
     "pollIntervalMs": 250
+  },
+
+  "rfidReader": {
+    "monitor":             true,
+    "vendorId":            "ffff",
+    "productId":           "0035",
+    "namePattern":         "USB Reader",
+    "pollIntervalSeconds": 5
   }
 }
 ```
@@ -275,6 +283,42 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `dispenser.apiKey` | string | — | API key for authenticating with the dispenser. |
 | `dispenser.timeoutMs` | integer | `3000` | HTTP request timeout for dispenser calls in milliseconds. |
 | `dispenser.pollIntervalMs` | integer | `250` | Polling interval when waiting for a dispense result in milliseconds. |
+| `rfidReader.monitor` | bool | `true` | Watch whether the RFID reader is still plugged in. Has no effect until the reader is described by at least one of the three keys below. |
+| `rfidReader.vendorId` | string | — | USB vendor id of the reader, e.g. `ffff`. Case and a `0x` prefix are ignored. |
+| `rfidReader.productId` | string | — | USB product id of the reader, e.g. `0035`. |
+| `rfidReader.namePattern` | string | — | Case-insensitive substring of the reader's device name, e.g. `USB Reader`. |
+| `rfidReader.pollIntervalSeconds` | integer | `5` | How often the reader's presence is checked. This interval *is* the detection delay — keep it well under a minute. |
+
+### Reader health monitoring
+
+An unplugged or dead reader is silent: the idle screen would keep inviting
+scans that can never arrive. Tell the terminal what its reader looks like and
+it will notice within `rfidReader.pollIntervalSeconds`, show a red
+*Scanner fehlt* pill in the header and replace the idle screen's invitation
+with "Scanner nicht verbunden — bitte Personal informieren". Plugging the
+reader back in clears both, with no restart.
+
+Find the ids and the name of the connected reader on the kiosk:
+
+```bash
+cat /proc/bus/input/devices
+```
+
+Look for the block whose `Handlers=` line contains `kbd` and whose name is the
+reader, e.g.:
+
+```
+I: Bus=0003 Vendor=ffff Product=0035 Version=0100
+N: Name="Sycreader RFID Technology Co., Ltd USB Reader"
+H: Handlers=sysrq kbd event3
+```
+
+Any combination of `vendorId`, `productId` and `namePattern` may be given; all
+of the ones present must match, so a name alone is enough when it is
+distinctive. Configure nothing and monitoring stays off — the terminal shows no
+reader status rather than one it cannot back up. The same applies on a platform
+without `/proc/bus/input/devices` (macOS, Windows): presence is reported as
+unknown and the UI is unchanged.
 
 ### Environment variable overrides
 
@@ -293,6 +337,11 @@ for CI, Docker deployments, or `.desktop` file `Exec=env ...` lines:
 | `DISPENSER_ENABLED` | `dispenser.enabled` |
 | `DISPENSER_BASE_URL` | `dispenser.baseUrl` |
 | `DISPENSER_API_KEY` | `dispenser.apiKey` |
+| `RFID_READER_MONITOR` | `rfidReader.monitor` (`true`/`false`) |
+| `RFID_READER_VENDOR_ID` | `rfidReader.vendorId` |
+| `RFID_READER_PRODUCT_ID` | `rfidReader.productId` |
+| `RFID_READER_NAME_PATTERN` | `rfidReader.namePattern` |
+| `RFID_READER_POLL_INTERVAL_SECONDS` | `rfidReader.pollIntervalSeconds` |
 
 > **Note:** `fontSizes` cannot be set via environment variables — use the
 > config file.
@@ -470,4 +519,6 @@ wherever the mock is running) to test the full checkout flow.
 | `screen-idle.py` can't open input devices | Run `sudo usermod -aG input $USER` and re-login |
 | App doesn't fill the screen | Set `"fullscreen": true` in `config.json` or `TERMINAL_FULLSCREEN=true` env var |
 | RFID scanner not detected | Ensure reader is in keyboard-emulation mode (sends UID + Enter); test with `evtest` |
+| Idle screen says "Scanner nicht verbunden" with the reader plugged in | The configured `rfidReader` ids/name no longer match the device — re-read them from `cat /proc/bus/input/devices` (a replacement reader often has different ids) |
+| Reader dies unnoticed — screen keeps inviting scans | Reader monitoring is off: describe the reader under `rfidReader` in `config.json`, see [Reader health monitoring](#reader-health-monitoring) |
 | No sound / audio not working | See [Audio setup on Raspberry Pi](docs/audio-setup-raspberry-pi.md) for GStreamer and ALSA configuration |

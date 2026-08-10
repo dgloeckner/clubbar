@@ -18,6 +18,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get demoScanCard => 'Demo: Scan Token';
 
   @override
+  String get readerDisconnectedTitle => 'Scanner not connected';
+
+  @override
+  String get readerDisconnectedSubtitle => 'Please inform the staff';
+
+  @override
   String get setupTitle => 'Terminal Setup';
 
   @override
@@ -226,6 +232,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get statusWarning => 'Warning';
+
+  @override
+  String get statusReaderOk => 'Reader OK';
+
+  @override
+  String get statusReaderMissing => 'Reader missing';
+
+  @override
+  String get cardReader => 'Card reader';
+
+  @override
+  String get cardReaderConnected => 'Connected';
+
+  @override
+  String get cardReaderDisconnected => 'Not connected';
+
+  @override
+  String get cardReaderNotMonitored => 'Not monitored';
+
+  @override
+  String get cardReaderLastSeen => 'Last detected';
 
   @override
   String get dispenser => 'Dispenser';

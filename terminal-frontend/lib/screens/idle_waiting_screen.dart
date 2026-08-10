@@ -7,6 +7,7 @@ import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/rfid_detector_button.dart';
@@ -77,9 +78,24 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
     });
   }
 
+  /// Whether the reader is known to be gone.
+  ///
+  /// Only ever true on a terminal that monitors its reader (issue #35);
+  /// everywhere else this is false and the screen invites a scan as before.
+  bool _readerOffline(BuildContext context) {
+    try {
+      return context.watch<RfidReaderHealthService>().isDisconnected;
+    } catch (_) {
+      return false; // reader monitoring not configured
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    // A dead reader turns the invitation into a lie: taps do nothing, and
+    // without this the screen keeps asking for them forever (issue #35).
+    final readerOffline = _readerOffline(context);
 
     return Container(
       decoration: const BoxDecoration(
@@ -121,6 +137,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                           RfidDetectorButton(
                             hasError: rfidProvider.error != null,
                             errorOpacity: _errorOpacity,
+                            isOffline: readerOffline,
                           ),
                           if (rfidProvider.error != null)
                             Positioned(
@@ -166,10 +183,12 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                 const SizedBox(height: AppSpacing.xxxl),
 
                 Text(
-                  l10n.idleTitle,
+                  readerOffline ? l10n.readerDisconnectedTitle : l10n.idleTitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xfff1f5f9),
+                    color: readerOffline
+                        ? const Color(0xffef4444)
+                        : const Color(0xfff1f5f9),
                     fontSize: 55,
                     fontWeight: FontWeight.bold,
                   ),
@@ -177,7 +196,9 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                 const SizedBox(height: AppSpacing.md),
 
                 Text(
-                  l10n.idleSubtitle,
+                  readerOffline
+                      ? l10n.readerDisconnectedSubtitle
+                      : l10n.idleSubtitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Color(0xff94a3b8),

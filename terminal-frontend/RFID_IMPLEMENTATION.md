@@ -144,6 +144,39 @@ The system validates and provides clear error messages:
 
 Errors are displayed in a red banner below the idle screen title.
 
+## Reader Health Detection
+
+A keyboard-wedge reader is passive: it types a UID and says nothing else, so an
+unplugged or dead reader used to be indistinguishable from a quiet bar — the
+idle screen kept pulsing "hold your token to the scanner" forever (issue #35).
+
+**How presence is checked** (`lib/services/rfid_reader_probe.dart`):
+`InputDevicesRfidReaderProbe` reads `/proc/bus/input/devices`, the kernel's
+list of attached input devices, and looks for the block matching the reader's
+configured USB vendor id, product id and/or name substring. Unplugging removes
+the block; plugging back in restores it, which is what makes recovery work
+without a restart.
+
+**How it is surfaced** (`lib/services/rfid_reader_health_service.dart`):
+`RfidReaderHealthService` polls the probe every `rfidReader.pollIntervalSeconds`
+(default 5 s) and exposes a three-state status:
+
+| Status | Meaning | UI |
+|--------|---------|-----|
+| `connected` | reader seen in the device list | green *Scanner OK* pill in the header |
+| `disconnected` | reader not in the device list | red *Scanner fehlt* pill; idle screen swaps to "Scanner nicht verbunden — bitte Personal informieren"; the RFID button stops pulsing |
+| `unknown` | nothing configured, or a platform without `/proc/bus/input/devices` | nothing at all — the UI is exactly as it was before this feature |
+
+The `unknown` state is deliberate: a terminal that cannot check must never
+accuse its own hardware. Monitoring stays off until an installation describes
+its reader in `config.json` — see
+[Reader health monitoring](INSTALL.md#reader-health-monitoring) for how to read
+the ids off the kiosk.
+
+The status modal (tap the header pill) shows the reader's state and, when it is
+gone, when it was last seen — and re-checks on open, so staff who just pushed
+the cable back in get an answer immediately rather than waiting out a poll.
+
 ## Testing
 
 ### Unit Tests

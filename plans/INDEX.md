@@ -15,6 +15,7 @@ This index tracks the status of all implementation plans for Club Bar.
 | [SEPA NOTPROVIDED BIC Encoding](./2026-08-05-sepa-notprovided-bic-encoding.md) | In Progress (Tasks 1-4 done; bank file check pending) | Issue #12 — emit `Othr/Id = NOTPROVIDED` instead of `BICFI = NOTPROVIDED` for IBAN-only agents in the pain.008.001.08 export |
 | [SEPA Execution Date: Bank Business Day Rule](./2026-08-05-sepa-execution-date-business-day.md) | Implemented (E2E pending CI) | Issue #11: reject non-business-day `execution_date` (422, weekends + six TARGET2 closing days) on both settlement endpoints, add `GET /settlements/execution-date-info` as the single source of truth, guard the SEPA export |
 | [Terminal: Checkout Double-Tap Guard](./2026-08-05-checkout-double-tap-guard.md) | Implemented | Issue #14: re-entrancy guard in `CartProvider.checkout` plus a disabled/loading checkout button, so a double-tap can no longer create duplicate transactions |
+| [Terminal: RFID Reader Health Detection](./2026-08-10-rfid-reader-health-detection.md) | Implemented (582/582 unit + widget tests green) | [#35](https://github.com/dgloeckner/clubbar/issues/35): poll `/proc/bus/input/devices` for the configured reader, surface it as a third header pill, and replace the idle screen's invitation with "Scanner nicht verbunden" while the reader is gone |
 
 ---
 

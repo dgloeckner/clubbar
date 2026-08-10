@@ -10,6 +10,7 @@ import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/error_modal.dart';
 
@@ -112,6 +113,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   List<DispenserOperation> _pendingOps = [];
   StreamSubscription<List<DispenserOperation>>? _opsSub;
   DispenserHealthService? _healthService;
+  RfidReaderHealthService? _readerHealthService;
   String? _backendVersion;
 
   @override
@@ -137,6 +139,15 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
       } catch (_) {
         // Dispenser not configured — leave _healthService null.
       }
+      try {
+        _readerHealthService = context.read<RfidReaderHealthService>();
+        _readerHealthService!.addListener(_onHealthChanged);
+        // Staff open this modal right after pushing the cable back in — check
+        // now rather than making them wait out the poll interval.
+        _readerHealthService!.checkNow();
+      } catch (_) {
+        // Reader monitoring not configured — leave _readerHealthService null.
+      }
     });
   }
 
@@ -154,6 +165,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   @override
   void dispose() {
     _healthService?.removeListener(_onHealthChanged);
+    _readerHealthService?.removeListener(_onHealthChanged);
     _opsSub?.cancel();
     super.dispose();
   }
@@ -377,6 +389,13 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           ),
           const SizedBox(height: 20),
 
+          // Card reader section — only on a terminal that monitors it (#35)
+          if (_readerHealthService != null &&
+              _readerHealthService!.status != RfidReaderStatus.unknown) ...[
+            _buildReaderSection(l10n, _readerHealthService!),
+            const SizedBox(height: 20),
+          ],
+
           // Dispenser section - simplified (if available)
           if (health != null) ...[
             _buildSection(
@@ -428,6 +447,33 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           ],
         ],
       ),
+    );
+  }
+
+  /// The reader's own row in the overview: what staff need before they start
+  /// looking for a cable — is it seen, and if not, when was it last seen.
+  Widget _buildReaderSection(
+    AppLocalizations l10n,
+    RfidReaderHealthService reader,
+  ) {
+    final connected = reader.status == RfidReaderStatus.connected;
+
+    return _buildSection(
+      title: l10n.cardReader,
+      titleColor: connected ? null : const Color(0xffef4444),
+      children: [
+        _infoRow(
+          'Status',
+          connected ? l10n.cardReaderConnected : l10n.cardReaderDisconnected,
+        ),
+        if (!connected) ...[
+          const SizedBox(height: 8),
+          _infoRow(
+            l10n.cardReaderLastSeen,
+            _formatTimestamp(reader.lastSeenAt, l10n),
+          ),
+        ],
+      ],
     );
   }
 

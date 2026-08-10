@@ -18,6 +18,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get demoScanCard => 'Demo: Chip scannen';
 
   @override
+  String get readerDisconnectedTitle => 'Scanner nicht verbunden';
+
+  @override
+  String get readerDisconnectedSubtitle => 'Bitte Personal informieren';
+
+  @override
   String get setupTitle => 'Terminal-Einrichtung';
 
   @override
@@ -227,6 +233,27 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get statusWarning => 'Warnung';
+
+  @override
+  String get statusReaderOk => 'Scanner OK';
+
+  @override
+  String get statusReaderMissing => 'Scanner fehlt';
+
+  @override
+  String get cardReader => 'Kartenleser';
+
+  @override
+  String get cardReaderConnected => 'Verbunden';
+
+  @override
+  String get cardReaderDisconnected => 'Nicht verbunden';
+
+  @override
+  String get cardReaderNotMonitored => 'Nicht überwacht';
+
+  @override
+  String get cardReaderLastSeen => 'Zuletzt erkannt';
 
   @override
   String get dispenser => 'Ausgabegerät';

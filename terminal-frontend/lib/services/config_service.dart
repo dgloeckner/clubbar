@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import 'package:clubbar_terminal/services/rfid_reader_probe.dart';
+
 // Thrown when config.json exists but cannot be parsed or is structurally invalid.
 class ConfigParseException implements Exception {
   final String message;
@@ -28,6 +30,11 @@ class ConfigParseException implements Exception {
 /// - DISPENSER_ENABLED
 /// - DISPENSER_BASE_URL
 /// - DISPENSER_API_KEY
+/// - RFID_READER_MONITOR
+/// - RFID_READER_VENDOR_ID
+/// - RFID_READER_PRODUCT_ID
+/// - RFID_READER_NAME_PATTERN
+/// - RFID_READER_POLL_INTERVAL_SECONDS
 class ConfigService {
   static const String _configFileName = 'config.json';
 
@@ -45,6 +52,11 @@ class ConfigService {
   bool _fullscreen = false;
   bool _soundsEnabled = false;
   Map<String, dynamic>? _fontSizes;
+  bool _rfidReaderMonitor = true;
+  String? _rfidReaderVendorId;
+  String? _rfidReaderProductId;
+  String? _rfidReaderNamePattern;
+  int _rfidReaderPollIntervalSeconds = 5;
 
   ConfigService({String? configDir}) : _configDirOverride = configDir;
 
@@ -66,6 +78,21 @@ class ConfigService {
   bool get fullscreen => _fullscreen;
   bool get soundsEnabled => _soundsEnabled;
   Map<String, dynamic>? get fontSizes => _fontSizes;
+
+  /// How the RFID reader is recognised among the machine's input devices.
+  RfidReaderIdentity get rfidReaderIdentity => RfidReaderIdentity(
+        vendorId: _rfidReaderVendorId,
+        productId: _rfidReaderProductId,
+        namePattern: _rfidReaderNamePattern,
+      );
+
+  /// Reader health monitoring runs only for a terminal that was told what its
+  /// reader looks like (issue #35). Every other install keeps the previous
+  /// behaviour, rather than being shown a status it cannot trust.
+  bool get rfidReaderMonitoringEnabled =>
+      _rfidReaderMonitor && rfidReaderIdentity.isSpecified;
+
+  int get rfidReaderPollIntervalSeconds => _rfidReaderPollIntervalSeconds;
 
   Future<String> _getConfigDir() async {
     if (_configDirOverride != null) {
@@ -112,6 +139,17 @@ class ConfigService {
           _dispenserTimeoutMs = dispenser['timeoutMs'] as int? ?? 3000;
           _dispenserPollIntervalMs = dispenser['pollIntervalMs'] as int? ?? 250;
         }
+
+        // RFID reader health monitoring (issue #35)
+        final rfidReader = json['rfidReader'] as Map<String, dynamic>?;
+        if (rfidReader != null) {
+          _rfidReaderMonitor = rfidReader['monitor'] as bool? ?? true;
+          _rfidReaderVendorId = rfidReader['vendorId'] as String?;
+          _rfidReaderProductId = rfidReader['productId'] as String?;
+          _rfidReaderNamePattern = rfidReader['namePattern'] as String?;
+          _rfidReaderPollIntervalSeconds =
+              rfidReader['pollIntervalSeconds'] as int? ?? 5;
+        }
       } catch (e) {
         throw ConfigParseException(
           'Failed to parse ${configFile.path}: $e',
@@ -151,6 +189,23 @@ class ConfigService {
     if (env.containsKey('DISPENSER_API_KEY')) {
       _dispenserApiKey = env['DISPENSER_API_KEY'];
     }
+    if (env.containsKey('RFID_READER_MONITOR')) {
+      _rfidReaderMonitor = env['RFID_READER_MONITOR']?.toLowerCase() == 'true';
+    }
+    if (env.containsKey('RFID_READER_VENDOR_ID')) {
+      _rfidReaderVendorId = env['RFID_READER_VENDOR_ID'];
+    }
+    if (env.containsKey('RFID_READER_PRODUCT_ID')) {
+      _rfidReaderProductId = env['RFID_READER_PRODUCT_ID'];
+    }
+    if (env.containsKey('RFID_READER_NAME_PATTERN')) {
+      _rfidReaderNamePattern = env['RFID_READER_NAME_PATTERN'];
+    }
+    final pollInterval =
+        int.tryParse(env['RFID_READER_POLL_INTERVAL_SECONDS'] ?? '');
+    if (pollInterval != null && pollInterval > 0) {
+      _rfidReaderPollIntervalSeconds = pollInterval;
+    }
   }
 
   /// Returns the path to the logs directory, creating it if needed.
@@ -177,6 +232,11 @@ class ConfigService {
     _fullscreen = false;
     _soundsEnabled = false;
     _fontSizes = null;
+    _rfidReaderMonitor = true;
+    _rfidReaderVendorId = null;
+    _rfidReaderProductId = null;
+    _rfidReaderNamePattern = null;
+    _rfidReaderPollIntervalSeconds = 5;
 
     final configFile = await _getConfigFile();
     if (configFile.existsSync()) {
