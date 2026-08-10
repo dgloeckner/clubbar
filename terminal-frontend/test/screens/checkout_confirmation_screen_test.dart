@@ -14,6 +14,7 @@ import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
 import 'package:clubbar_terminal/services/members_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/styled_components/price_display.dart';
+import 'package:clubbar_terminal/widgets/styled_components/secondary_button.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
@@ -444,6 +445,30 @@ void main() {
       verifyNever(() => mockSessionController.endSession());
     });
 
+    testWidgets(
+        '"Weiter einkaufen" is an outlined button beside "Fertig", not '
+        'muted text (#295)', (WidgetTester tester) async {
+      await pumpReceipt(tester);
+
+      // "Fertig" stays the only filled button — the outlined button beside
+      // it must not read as equally (or more) weighted.
+      expect(find.byType(ElevatedButton), findsOneWidget);
+
+      final continueButton = find.byType(SecondaryButton);
+      expect(continueButton, findsOneWidget);
+      expect(
+        find.descendant(
+          of: continueButton,
+          matching: find.text('Weiter einkaufen'),
+        ),
+        findsOneWidget,
+      );
+
+      // Tappable at kiosk-touch size, not a thin text link.
+      final size = tester.getSize(continueButton);
+      expect(size.height, greaterThanOrEqualTo(44));
+    });
+
     /// Pumps the screen with a repository whose session lookup fails, so the
     /// receipt has to fall back (#16).
     Future<void> pumpFailingReceipt(WidgetTester tester) async {
@@ -556,6 +581,17 @@ void main() {
 
       verify(() => mockSessionController.endSession()).called(1);
       expect(find.text('Idle'), findsOneWidget);
+    });
+
+    testWidgets(
+        'the fallback receipt has no continue-shopping button (#16, #295)',
+        (WidgetTester tester) async {
+      await pumpFailingReceipt(tester);
+
+      // Failing to read the receipt back is the wrong moment to invite more
+      // spending — only "Fertig" is offered.
+      expect(find.byType(SecondaryButton), findsNothing);
+      expect(find.text('Weiter einkaufen'), findsNothing);
     });
 
     testWidgets('clears cart on navigation', (WidgetTester tester) async {

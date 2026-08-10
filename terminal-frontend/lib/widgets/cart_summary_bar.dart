@@ -3,6 +3,7 @@ import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/widgets/checkout_button.dart';
+import 'package:clubbar_terminal/widgets/styled_components/secondary_button.dart';
 
 /// Sticky bottom bar on the product grid: what the cart costs so far, and the
 /// way to pay for it (issue #34).
@@ -160,54 +161,17 @@ class _ViewCartButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final borderRadius = BorderRadius.circular(AppBorderRadius.lg);
 
-    return Material(
+    return SecondaryButton(
       key: const Key('view-cart-button'),
-      color: Colors.transparent,
-      borderRadius: borderRadius,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: borderRadius,
-        child: Opacity(
-          opacity: onPressed == null ? 0.4 : 1.0,
-          child: Container(
-            height: CartSummaryBar._buttonHeight,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: const Color(0x333b82f6),
-              border: Border.all(
-                color: const Color(0x663b82f6),
-                width: 1,
-              ),
-              borderRadius: borderRadius,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Not the cart glyph: the member bar above already carries
-                // that one with the item-count badge, and two identical icons
-                // on one screen read as two different destinations. A list is
-                // what this button actually opens — the order, itemised.
-                const Icon(
-                  Icons.list_alt,
-                  color: Colors.white,
-                  size: 24,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  l10n.viewCart,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: AppFontSizes.lg,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      // Not the cart glyph: the member bar above already carries that one
+      // with the item-count badge, and two identical icons on one screen
+      // read as two different destinations. A list is what this button
+      // actually opens — the order, itemised.
+      icon: Icons.list_alt,
+      label: l10n.viewCart,
+      height: CartSummaryBar._buttonHeight,
+      onPressed: onPressed,
     );
   }
 }
