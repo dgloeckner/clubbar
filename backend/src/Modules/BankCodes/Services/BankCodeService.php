@@ -68,6 +68,34 @@ class BankCodeService
             return null;
         }
 
+        return $this->assembleBankRecord($blz);
+    }
+
+    /**
+     * Everything known about a bank behind a BLZ (Bankleitzahl) directly.
+     *
+     * Used by the bank-lookup endpoint, which takes only the 8-digit BLZ so
+     * that full member IBANs never appear in access logs via the query
+     * string (#108).
+     *
+     * Returns `null` for anything that is not a well-formed 8-digit BLZ.
+     *
+     * @return array{bank_code: string, bank_name: ?string, short_name: ?string, bic: ?string, postal_code: ?string, city: ?string}|null
+     */
+    public function lookupByBlz(?string $blz): ?array
+    {
+        if ($blz === null || preg_match('/^\d{8}$/', $blz) !== 1) {
+            return null;
+        }
+
+        return $this->assembleBankRecord($blz);
+    }
+
+    /**
+     * @return array{bank_code: string, bank_name: ?string, short_name: ?string, bic: ?string, postal_code: ?string, city: ?string}
+     */
+    private function assembleBankRecord(string $blz): array
+    {
         $row = $this->repository->findByBankCode($blz);
 
         return [
