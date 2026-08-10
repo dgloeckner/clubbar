@@ -75,6 +75,31 @@ RewriteRule ^ index.php [L,QSA]
     # hosting (ADR-0031); RuntimeHardening::apply() already strips this header
     # from code (#246), this is the belt for a request that never reaches it.
     Header always unset X-Powered-By
+
+    # Content-Security-Policy (#250, ADR-0031 layer L2).
+    #
+    # The Vite build ships no third-party origins and no inline <script>, so
+    # script-src is 'self' with neither unsafe-inline nor unsafe-eval.
+    #
+    # style-src keeps 'unsafe-inline': the admin panel computes its design-system
+    # theme in TypeScript and injects it as a <style> element at startup, and
+    # several components render scoped @keyframes the same way. React's inline
+    # `style={{...}}` attributes — used throughout for dynamic, per-render values
+    # (widths, colors from the theme) — are covered by the same directive and
+    # cannot be nonced or hashed: a nonce only applies to <style> elements, not
+    # to the style="" attribute, and a hash-source is not workable for values
+    # computed at render time. Eliminating this would mean rewriting every
+    # dynamic inline style in the panel to a CSS class, which is out of scope
+    # here; the risk is first-party CSS only, not attacker-controlled markup.
+    #
+    # worker-src carries blob: because the mandate upload flow (heic2any for
+    # iPhone photos, browser-image-compression before submitting a scan) spins
+    # up its worker from a Blob URL rather than a same-origin script file —
+    # confirmed against the built package, not assumed from the library docs.
+    #
+    # img-src carries data: for the TOTP enrollment QR code, returned by the
+    # API as a data: URI and rendered directly in an <img>.
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 </IfModule>
 
 # Enable gzip compression

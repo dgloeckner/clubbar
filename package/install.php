@@ -701,6 +701,7 @@ function renderPage(string $step, ?string $error, bool $isUpdate): void
             </div>
             <p class="reset-link"><small><a href="?action=reset">Start over</a></small></p>
         </div>
+        <script src="install.js"></script>
     </body>
     </html>
     <?php
@@ -798,7 +799,7 @@ function renderStep2(bool $isUpdate): void
             <input type="password" name="db_pass" value="<?php echo htmlspecialchars((string)$dbDefaults['pass']); ?>">
         </label>
         <div class="btn-row">
-            <button type="button" onclick="testConnection()" class="btn btn-secondary" id="testBtn">Test Connection</button>
+            <button type="button" class="btn btn-secondary" id="testBtn">Test Connection</button>
             <span id="testResult"></span>
         </div>
 
@@ -837,42 +838,10 @@ function renderStep2(bool $isUpdate): void
 
         <button type="submit" class="btn">Save &amp; Continue</button>
     </form>
-    <script>
-    function testConnection() {
-        var btn = document.getElementById('testBtn');
-        var result = document.getElementById('testResult');
-        btn.disabled = true;
-        result.textContent = 'Testing...';
-        result.className = '';
-        var form = document.getElementById('dbForm');
-        var params = new URLSearchParams({
-            action: 'test_db',
-            host: form.db_host.value,
-            port: form.db_port.value,
-            name: form.db_name.value,
-            user: form.db_user.value,
-            pass: form.db_pass.value
-        });
-        fetch('?' + params)
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.success) {
-                    result.textContent = 'Connection successful!';
-                    result.className = 'test-ok';
-                } else {
-                    result.textContent = 'Failed: ' + data.error;
-                    result.className = 'test-fail';
-                }
-                btn.disabled = false;
-            })
-            .catch(function() {
-                result.textContent = 'Request failed — check your server.';
-                result.className = 'test-fail';
-                btn.disabled = false;
-            });
-    }
-    </script>
     <?php
+    // testConnection() lives in install.js, loaded once from renderPage() —
+    // the panel's CSP (#250) blocks an inline <script> here just as it would
+    // in the SPA.
 }
 
 function renderStep3(bool $isUpdate): void
@@ -883,7 +852,7 @@ function renderStep3(bool $isUpdate): void
     <p>Click the button below to create or update database tables.</p>
     <form method="post" action="?step=3<?php echo $updateParam; ?>">
         <input type="hidden" name="step" value="3">
-        <button type="submit" class="btn" id="migrateBtn" onclick="this.disabled=true;this.textContent='Running...';this.form.submit();">
+        <button type="submit" class="btn" id="migrateBtn">
             Run Migrations
         </button>
     </form>

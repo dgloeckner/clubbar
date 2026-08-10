@@ -708,6 +708,7 @@
     "replace": "Replace",
     "uploaded": "Uploaded",
     "processingError": "Could not process file.",
+    "heicConversionError": "This HEIC photo could not be converted automatically. Please convert it to JPEG first (most phones offer this under Share or Export) and upload it again.",
     "uploadError": "Upload failed.",
     "downloadError": "Download failed.",
     "uploadingAndExtracting": "Uploading & extracting…",

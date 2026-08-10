@@ -325,7 +325,9 @@ class SecuritySelfCheckTest extends TestCase
     /**
      * The stronger claim, and the one that does not depend on the host letting
      * us fetch our own URLs: a file that is not under the document root cannot
-     * be served by any rule, honoured or ignored.
+     * be served by any rule, honoured or ignored. The CSP row is a different
+     * claim — it is about a header, not a file, so it still needs the probe and
+     * comes back UNKNOWN when the webserver cannot be reached.
      */
     public function test_data_outside_the_document_root_needs_no_http_probe(): void
     {
@@ -339,6 +341,7 @@ class SecuritySelfCheckTest extends TestCase
 
             $this->assertSame(SecurityFinding::PASS, $this->find('mandate_not_served', $findings)?->status);
             $this->assertSame(SecurityFinding::PASS, $this->find('logs_not_served', $findings)?->status);
+            $this->assertSame(SecurityFinding::UNKNOWN, $this->find('csp_header', $findings)?->status);
         } finally {
             $this->removeTree($outside);
         }
@@ -354,7 +357,7 @@ class SecuritySelfCheckTest extends TestCase
         // Port 1: nothing listens there, so the control fetch cannot succeed.
         $findings = SecuritySelfCheck::run($this->context(baseUrlCandidates: ['http://127.0.0.1:1']));
 
-        foreach (['mandate_not_served', 'logs_not_served'] as $id) {
+        foreach (['mandate_not_served', 'logs_not_served', 'csp_header'] as $id) {
             $finding = $this->find($id, $findings);
             $this->assertSame(SecurityFinding::UNKNOWN, $finding?->status, $id);
             $this->assertNotNull($finding?->remedy, "{$id} must say what to check by hand");
@@ -370,6 +373,59 @@ class SecuritySelfCheckTest extends TestCase
             $this->dataDirectory . '/storage/mandates',
             'A directory the check created to place a canary in is removed again'
         );
+    }
+
+    // ------------------------------------------------------------------
+    // Content-Security-Policy (#250)
+    // ------------------------------------------------------------------
+
+    /**
+     * Exercised against a real webserver, like {@see HttpProbeTest}: a mocked
+     * response would agree with whatever the check expected and prove nothing
+     * about whether it reads the header the way a browser would.
+     */
+    public function test_the_csp_header_passes_when_the_response_carries_one(): void
+    {
+        $this->withCspServer("default-src 'self'; script-src 'self'", function (string $baseUrl): void {
+            $findings = SecuritySelfCheck::run($this->context(baseUrlCandidates: [$baseUrl]));
+
+            $finding = $this->find('csp_header', $findings);
+            $this->assertSame(SecurityFinding::PASS, $finding?->status);
+            $this->assertSame("default-src 'self'; script-src 'self'", $finding?->observed);
+        });
+    }
+
+    public function test_the_csp_header_fails_when_the_response_carries_none(): void
+    {
+        $this->withCspServer(null, function (string $baseUrl): void {
+            $findings = SecuritySelfCheck::run($this->context(baseUrlCandidates: [$baseUrl]));
+
+            $finding = $this->find('csp_header', $findings);
+            $this->assertSame(SecurityFinding::FAIL, $finding?->status);
+            $this->assertNotNull($finding?->remedy);
+        });
+    }
+
+    public function test_the_csp_header_warns_when_it_grants_unsafe_eval(): void
+    {
+        $this->withCspServer("default-src 'self'; script-src 'self' 'unsafe-eval'", function (string $baseUrl): void {
+            $findings = SecuritySelfCheck::run($this->context(baseUrlCandidates: [$baseUrl]));
+
+            $finding = $this->find('csp_header', $findings);
+            $this->assertSame(SecurityFinding::WARN, $finding?->status);
+            $this->assertStringContainsString('unsafe-eval', (string) $finding?->remedy);
+        });
+    }
+
+    public function test_the_csp_header_is_measured_regardless_of_transport(): void
+    {
+        // Plain HTTP, unlike HSTS, is exactly where a browser still enforces
+        // this header — there is no transport precondition to wait for.
+        $this->withCspServer("default-src 'self'", function (string $baseUrl): void {
+            $findings = SecuritySelfCheck::run($this->context(https: false, baseUrlCandidates: [$baseUrl]));
+
+            $this->assertSame(SecurityFinding::PASS, $this->find('csp_header', $findings)?->status);
+        });
     }
 
     // ------------------------------------------------------------------
@@ -489,6 +545,98 @@ class SecuritySelfCheckTest extends TestCase
         }
 
         return null;
+    }
+
+    /**
+     * Start a PHP built-in server that answers every request with
+     * $cspHeaderValue on the Content-Security-Policy header (or no such header
+     * at all when null), hand its base URL to $test, then tear it down.
+     *
+     * Mirrors {@see HttpProbeTest::startServer()}: a real server is the only
+     * way to prove the check reads back what the webserver actually sent.
+     */
+    private function withCspServer(?string $cspHeaderValue, callable $test): void
+    {
+        $documentRoot = sys_get_temp_dir() . '/clubbar-csp-' . bin2hex(random_bytes(6));
+        mkdir($documentRoot, 0700, true);
+        // The self-check's control fetch requires this file, and it doubles as
+        // the response every request in this test carries the header on.
+        file_put_contents($documentRoot . '/README.txt', "clubbar security self-check\n");
+
+        $headerStatement = $cspHeaderValue === null
+            ? ''
+            : sprintf("header('Content-Security-Policy: %s');\n", addslashes($cspHeaderValue));
+
+        // Cannot `return false;` and let the built-in server fall through to
+        // its static-file handler: that path serves the file straight off
+        // disk and drops whatever headers the router already sent. The router
+        // has to answer every request itself to keep the CSP header on it.
+        file_put_contents($documentRoot . '/router.php', <<<PHP
+            <?php
+            {$headerStatement}
+            \$path = __DIR__ . parse_url(\$_SERVER['REQUEST_URI'], PHP_URL_PATH);
+            if (is_file(\$path)) {
+                readfile(\$path);
+            } else {
+                http_response_code(404);
+            }
+            PHP);
+
+        $server = null;
+        $baseUrl = null;
+        for ($attempt = 0; $attempt < 10 && $server === null; $attempt++) {
+            $port = random_int(20000, 60000);
+            $command = sprintf(
+                '%s -S 127.0.0.1:%d -t %s %s',
+                escapeshellarg(PHP_BINARY),
+                $port,
+                escapeshellarg($documentRoot),
+                escapeshellarg($documentRoot . '/router.php'),
+            );
+
+            $candidate = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+            if (!is_resource($candidate)) {
+                continue;
+            }
+
+            if ($this->waitForPort($port)) {
+                $server = $candidate;
+                $baseUrl = "http://127.0.0.1:{$port}";
+            } else {
+                proc_terminate($candidate);
+                proc_close($candidate);
+            }
+        }
+
+        if ($server === null || $baseUrl === null) {
+            $this->removeTree($documentRoot);
+            $this->markTestSkipped('Could not start a local webserver to probe');
+
+            return;
+        }
+
+        try {
+            $test($baseUrl);
+        } finally {
+            proc_terminate($server);
+            proc_close($server);
+            $this->removeTree($documentRoot);
+        }
+    }
+
+    private function waitForPort(int $port): bool
+    {
+        for ($attempt = 0; $attempt < 50; $attempt++) {
+            $socket = @fsockopen('127.0.0.1', $port, $errno, $error, 0.2);
+            if (is_resource($socket)) {
+                fclose($socket);
+
+                return true;
+            }
+            usleep(100_000);
+        }
+
+        return false;
     }
 
     private function removeTree(string $directory): void

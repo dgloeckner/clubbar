@@ -29,6 +29,24 @@ function formatDate(iso: string): string {
   })
 }
 
+// heic2any's decoder runs in a worker that needs `unsafe-eval` (Emscripten
+// glue code) — the admin panel's Content-Security-Policy does not grant it
+// (#250, ADR-0031 layer L2), so the conversion never resolves there. A hard
+// timeout turns that into a clear message instead of a spinner that hangs
+// forever; where the policy does allow eval (a deployment outside the
+// shipped package) the real conversion still wins the race well within it.
+const HEIC_CONVERSION_TIMEOUT_MS = 15_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('HEIC conversion timed out')), ms)
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value) },
+      (err) => { clearTimeout(timer); reject(err) }
+    )
+  })
+}
+
 export function MandateDocumentSection({ memberId, initialDocument, onExtractionComplete }: Props) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -52,13 +70,25 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
       // heic2any returns Blob | Blob[] — take first item when it returns an array
       // (burst/multi-image HEIC files).
       if (raw.type === 'image/heic' || raw.name.toLowerCase().endsWith('.heic')) {
-        const result = await heic2any({ blob: raw, toType: 'image/jpeg', quality: 0.85 })
-        const blob   = Array.isArray(result) ? result[0] : result
-        processedFile = new File(
-          [blob],
-          raw.name.replace(/\.heic$/i, '.jpg'),
-          { type: 'image/jpeg' }
-        )
+        try {
+          const result = await withTimeout(
+            heic2any({ blob: raw, toType: 'image/jpeg', quality: 0.85 }),
+            HEIC_CONVERSION_TIMEOUT_MS
+          )
+          const blob = Array.isArray(result) ? result[0] : result
+          processedFile = new File(
+            [blob],
+            raw.name.replace(/\.heic$/i, '.jpg'),
+            { type: 'image/jpeg' }
+          )
+        } catch {
+          // The backend only accepts JPEG, PNG and PDF (never raw HEIC), so
+          // there is nothing useful left to do with this file — surface the
+          // specific, actionable message rather than the generic one below.
+          setError(t('mandateDocument.heicConversionError'))
+          if (inputRef.current) inputRef.current.value = ''
+          return
+        }
       }
 
       // Compress images (not PDFs)
