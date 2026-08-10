@@ -21,7 +21,11 @@ class Logger
         $this->channel  = $channel;
 
         if (!is_dir($this->logDir)) {
-            mkdir($this->logDir, 0755, true);
+            // 0700 rather than 0755: the lines written here carry request
+            // context, member identifiers included, and a world-readable log
+            // directory on shared hosting is readable by every other account on
+            // the machine (#248, ADR-0031 decision 4).
+            mkdir($this->logDir, 0700, true);
         }
     }
 

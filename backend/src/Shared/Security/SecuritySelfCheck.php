@@ -67,6 +67,15 @@ final class SecuritySelfCheck
     private const OTHER_THAN_OWNER = 0077;
 
     /**
+     * Writable by someone other than the owner.
+     *
+     * The weaker rule, for the one path that has to stay *readable* by others:
+     * the document root is served, so `0755` is correct there and only the
+     * write bits are a finding.
+     */
+    private const WRITABLE_BY_OTHERS = 0022;
+
+    /**
      * Every row, in reading order.
      *
      * @return list<SecurityFinding>
@@ -399,19 +408,45 @@ final class SecuritySelfCheck
             'Application logs carry request context, including identifiers of the members involved.'
         );
 
+        // The document root is *meant* to be readable — it is served. What
+        // must not be true of it is that someone else can write into it: every
+        // .php file below it is code the webserver executes on request, so a
+        // world-writable document root turns any foothold on the machine into
+        // code running as this installation.
+        $findings[] = self::modeFinding(
+            'document_root_mode',
+            'Only the owner can write to the document root',
+            $context->documentRoot,
+            'Every .php file below it is executed by the webserver, so anything that can write here can run '
+            . 'code as this installation.',
+            self::WRITABLE_BY_OTHERS,
+            'can be written by other users on this machine'
+        );
+
         return $findings;
     }
 
     /**
      * Report a path's permission bits as `stat()` sees them.
      *
-     * `0777` on the writable directories is a build-time convenience that
-     * survives into production (ADR-0031 decision 4), and a `chmod` the host
-     * refused leaves no trace anywhere else — which is why this measures rather
-     * than trusting the installer's return value.
+     * The package builds and the installer both aim at the narrowest mode a
+     * host tolerates (ADR-0031 decision 4, {@see FileModes}) — and both can be
+     * refused, by an unzip that ignored the stored modes or by a host whose PHP
+     * process does not own the files. Neither refusal leaves a trace anywhere
+     * else, which is why this measures rather than trusting a `chmod`'s return
+     * value.
+     *
+     * @param int    $forbidden   Bits that must be clear for the row to pass.
+     * @param string $consequence What it means for those bits to be set.
      */
-    private static function modeFinding(string $id, string $label, string $path, string $why): SecurityFinding
-    {
+    private static function modeFinding(
+        string $id,
+        string $label,
+        string $path,
+        string $why,
+        int $forbidden = self::OTHER_THAN_OWNER,
+        string $consequence = 'can be read by other users on this machine'
+    ): SecurityFinding {
         if (!file_exists($path)) {
             return SecurityFinding::unknown(
                 $id,
@@ -437,7 +472,7 @@ final class SecuritySelfCheck
         $mode = $perms & 0777;
         $observed = sprintf('%04o', $mode);
 
-        if (($mode & self::OTHER_THAN_OWNER) === 0) {
+        if (($mode & $forbidden) === 0) {
             return SecurityFinding::pass($id, self::CATEGORY_DATA, $label, $observed);
         }
 
@@ -446,7 +481,7 @@ final class SecuritySelfCheck
             self::CATEGORY_DATA,
             $label,
             $observed,
-            "{$path} can be read by other users on this machine, and on shared hosting those users are other "
+            "{$path} {$consequence}, and on shared hosting those users are other "
             . "customers. {$why} A tighter mode is not always possible — some hosts run PHP as a different user "
             . 'than the one that owns the files, and narrowing the mode there breaks the installation.'
         );

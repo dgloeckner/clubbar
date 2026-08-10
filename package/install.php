@@ -37,7 +37,13 @@ require_once __DIR__ . '/backend/src/Shared/Security/SecurityCheckContext.php';
 require_once __DIR__ . '/backend/src/Shared/Security/HttpProbe.php';
 require_once __DIR__ . '/backend/src/Shared/Security/SecuritySelfCheck.php';
 
+// The narrowest mode this host tolerates on config.php, storage/ and logs/,
+// applied and then verified (#248, ADR-0031 decision 4). Required by path for
+// the same reason.
+require_once __DIR__ . '/backend/src/Shared/Security/FileModes.php';
+
 use App\Shared\Config\DataDirectory;
+use App\Shared\Security\FileModes;
 use App\Shared\Security\SecurityCheckContext;
 use App\Shared\Security\SecurityFinding;
 use App\Shared\Security\SecuritySelfCheck;
@@ -188,6 +194,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Could not prepare the data directory: ' . $prepared['error'];
                 break;
             }
+            // Whatever the package shipped or an older install left behind,
+            // storage/ and logs/ end up as narrow as this host tolerates —
+            // and a mode that broke them is put back rather than left behind
+            // (#248, ADR-0031 decision 4). Nothing to report inline: the
+            // security rows on the prerequisites screen and in the admin panel
+            // measure the result, so a host that refused says so there instead
+            // of here, where it would only block an installation that works.
+            FileModes::hardenData($placement['path'], null, DataDirectory::SUBDIRECTORIES, __DIR__);
             // The data directory when there is one above the document root,
             // next to index.php when there is not — the fallback layout is left
             // exactly as it was. $configFile still points at the existing
@@ -256,8 +270,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     break;
                 }
 
-                // The database password and the TOTP key are in there.
-                @chmod($configTarget, 0600);
+                // The database password and the TOTP key are in there, so the
+                // file is narrowed to 0600 — and then read back, because a
+                // chmod that locked PHP out of its own configuration would
+                // otherwise take the installation down on the next request
+                // (#248, ADR-0031 decision 4).
+                FileModes::narrowConfigFile($configTarget);
 
                 if ($placement['outside']) {
                     // Tell the front controller where the data went. Without

@@ -611,6 +611,17 @@ jobs:
       - name: Write deploy secret for package tests
         run: echo -n 'ci-deploy-secret-0000' > dist/package/.upgrade-secret
 
+      # The package ships 0700 on storage/ and logs/ and 0755 on the document
+      # root (#248, ADR-0031 decision 4), while the container runs the
+      # application as uid 1000 and the build ran as the runner. Ownership is
+      # what gives here, not the modes: loosening them for the container would
+      # mean the smoke test measures modes the release does not carry, which is
+      # exactly the regression #248 is about. Must run after the two files
+      # above — they are written as the runner, into a directory the container
+      # user is about to own.
+      - name: Hand the package to the container user
+        run: ./scripts/package-permissions.sh container-user
+
       - name: Wait for backend
         run: |
           for i in $(seq 1 30); do
@@ -657,7 +668,7 @@ jobs:
         # Everything the install wizard and the smoke tests wrote into the
         # package. Shipping any of it in the release ZIP would hand every
         # download this run's database credentials, its data path, a member's
-        # scanned mandate or a live session.
+        # scanned mandate, a live session or this run's request log.
         #
         # sudo because the application creates mandates/ and sessions/ from
         # inside the container as uid 1000 with mode 0700 — the runner cannot
@@ -669,6 +680,7 @@ jobs:
                      dist/package/backend/storage/install.lock
           sudo rm -rf dist/package/backend/storage/mandates \
                       dist/package/backend/storage/sessions
+          sudo find dist/package/backend/logs -name '*.log' -delete
           # Loud rather than best-effort: a leftover here ships to users.
           # Exact paths, not a find sweep — vendor/ is full of files with these
           # names and a false positive would fail every release.
@@ -681,10 +693,25 @@ jobs:
             # false test as the last command of the loop body aborts the step.
             if [ -e "dist/package/$path" ]; then survivors="$survivors $path"; fi
           done
+          # Log files are named after the day they were written, so they need a
+          # glob rather than a path — and they carry the request context of this
+          # run, member identifiers included.
+          logs="$(sudo find dist/package/backend/logs -name '*.log' -printf ' backend/logs/%f' || true)"
+          survivors="$survivors$logs"
           if [ -n "$survivors" ]; then
             echo "Test artifacts survived cleanup and would ship in the ZIP:$survivors"
             exit 1
           fi
+
+      # The tree goes back to the runner so `zip` can read every path of it —
+      # storage/ and logs/ are 0700 and were owned by the container user until
+      # now — and the modes are re-asserted afterwards, because the install the
+      # smoke tests drove created directories of its own.
+      - name: Take the package back and re-assert its modes
+        run: |
+          ./scripts/package-permissions.sh builder-user
+          ./scripts/package-permissions.sh harden
+          ./scripts/package-permissions.sh verify
 
       - name: Create package ZIP
         id: package

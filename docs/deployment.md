@@ -15,9 +15,9 @@ This guide covers deploying Club Bar on standard PHP shared hosting (e.g., Hetzn
 
 1. Download the latest release ZIP from [GitHub Releases](https://github.com/dgloeckner/clubbar/releases)
 2. Extract and upload all files to your web hosting document root (e.g., `public_html/`)
-3. Ensure `backend/storage/` and `backend/logs/` directories are writable by the web server:
+3. Nothing to `chmod`. The ZIP already carries the modes it should be installed with — `0700` on `backend/storage/` and `backend/logs/`, `0755` on the document root — and the installer narrows anything your extraction widened (see [File Permissions](#file-permissions)). Only if extraction left those two directories unwritable by PHP:
    ```bash
-   chmod 755 backend/storage backend/logs
+   chmod 700 backend/storage backend/logs   # 0770 or 0777 only if your host runs PHP as another user
    ```
 4. Open your domain in a browser — you will be redirected to the **Installation Wizard** (`install.php`)
 
@@ -97,6 +97,34 @@ curl -sI https://your-domain.com/backend/storage/mandates/ | head -1   # expect 
 
 # In the relocated layout, there is nothing under the document root to serve
 ls -la /home/youraccount/clubbar-data     # config.php, storage/, logs/
+```
+
+### File Permissions
+
+On mass hosting the neighbours are the threat model. Tenants are separated by uid, so a file that is *world*-readable is readable by every other customer whose account lands on the same machine — and by anything already running as another user on it, such as a compromised neighbour or a shared backup agent. Club Bar therefore ships and maintains the narrowest modes it can ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) decision 4):
+
+| Path | Mode | Why not wider |
+|---|---|---|
+| `config.php` | `0600` | The database password and the key that encrypts every admin's second factor |
+| `storage/` | `0700` | The scanned SEPA mandates: per member a name, an IBAN and a signature |
+| `logs/` | `0700` | Request context, including identifiers of the members involved |
+| The document root | `0755` | It is served, so it stays readable — but a *writable* document root lets anything with a foothold drop in a `.php` file the webserver will execute |
+
+Three things happen without you doing anything:
+
+- **The release ZIP carries these modes**, and the build fails rather than publishing an archive with a world-writable path in it.
+- **The installer narrows what it finds**, because a control-panel extractor or an FTP client may apply its own modes to everything it writes.
+- **`upgrade.php` narrows an existing installation** the same way, which is how an install unpacked from an older package — those shipped `0777` on `storage/`, `logs/` and the document root — gets fixed.
+
+Every one of those steps *verifies* rather than assumes. A narrower mode is applied, the path is then used — a file read back, a directory written to — and a mode that broke it is put back rather than left behind. This matters on hosts where PHP does not run as the user that owns the files: there, `0700` on `logs/` would mean an application that can no longer write its own log. The ladder tried is `0700 → 0770 → 0777` for directories and `0600 → 0640 → 0644` for `config.php`, narrowest first, and the mode that survives is whatever the host tolerated.
+
+Which is why the result is *reported* rather than promised: **Settings → Security** shows the mode of each of these four paths as `stat()` sees it. A row that is not green is your host declining, and it says so.
+
+**Verify:**
+
+```bash
+ls -la <data-directory>            # config.php -rw-------, storage/ and logs/ drwx------
+stat -c '%a %n' .                  # 755, in the document root — never 777
 ```
 
 ### PHP Runtime Settings

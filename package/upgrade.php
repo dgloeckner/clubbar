@@ -26,8 +26,10 @@ declare(strict_types=1);
 
 // Required by path — this script runs before Composer's autoloader exists.
 require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
+require_once __DIR__ . '/backend/src/Shared/Security/FileModes.php';
 
 use App\Shared\Config\DataDirectory;
+use App\Shared\Security\FileModes;
 
 $secretFile = __DIR__ . '/.upgrade-secret';
 // Wherever the installation actually keeps it: the data directory on an
@@ -177,6 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case '3': // Migrate
             $result = runMigrations($configFile);
             if ($result['ok']) {
+                hardenFileModes();
                 $_SESSION['migration_result'] = $result;
                 // Clean up deploy secret (self-destruct like CI mode)
                 @unlink($secretFile);
@@ -213,6 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
 
+            hardenFileModes();
             $_SESSION['placement_result'] = ['moved' => $moveResult['moved'], 'to' => DataDirectory::resolve(__DIR__)];
             header('Location: ?step=5');
             exit;
@@ -302,8 +306,34 @@ function handleApiMode(string $secretFile, string $configFile, string $zipFile, 
 
     // Default: migrate
     $result = runMigrations($configFile);
+    if ($result['ok']) {
+        hardenFileModes();
+    }
     http_response_code($result['ok'] ? 200 : 500);
     echo json_encode($result);
+}
+
+/**
+ * Bring an existing installation's file modes down to what this host tolerates
+ * (#248, ADR-0031 decision 4).
+ *
+ * The upgrade is the only moment this can happen for an installation that was
+ * unpacked from a package built before decision 4 landed: the `0777` on
+ * `storage/`, `logs/` and the document root is inside the *installation*, not
+ * inside the new ZIP, and extraction deliberately leaves the first two alone so
+ * a member's mandate survives the upgrade. Silent by design — a host that
+ * refuses is reported by the security self-check in the admin panel (#247),
+ * where there is somewhere to say it and a remedy to attach; refusing to finish
+ * an upgrade over a permission bit would be the worse trade.
+ */
+function hardenFileModes(): void
+{
+    FileModes::hardenData(
+        DataDirectory::resolve(__DIR__),
+        DataDirectory::configPath(__DIR__),
+        DataDirectory::SUBDIRECTORIES,
+        __DIR__
+    );
 }
 
 // ============================================================================

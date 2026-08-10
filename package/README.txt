@@ -7,6 +7,20 @@ Installation:
 3. Open your domain in a browser — you will be redirected to /install.php
 4. Follow the installation wizard
 
+File permissions:
+  This package ships the modes it should be installed with: 0700 on
+  backend/storage/ and backend/logs/, 0755 on the document root, and the
+  installer writes config.php with 0600. On shared hosting the other accounts
+  on the machine are the reason — a world-readable storage/ is readable by
+  every one of them, and it holds your members' scanned mandates.
+
+  You should not need to chmod anything. If your upload tool applied its own
+  permissions and the installer reports storage/ or logs/ as not writable, use
+  0700 first, and only widen (0770, then 0777) if your host runs PHP as a
+  different user than the one that owns your files. The installer narrows what
+  it can and verifies afterwards, so it will never leave a directory it broke;
+  Settings -> Security in the admin panel shows the modes it ended up with.
+
 Where your data is kept:
   The installer looks for a writable directory above your document root and, if
   it finds one, puts config.php (database password), the scanned SEPA mandates
