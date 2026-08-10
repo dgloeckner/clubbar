@@ -67,6 +67,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     Category(
       id: 'wt-cat-drinks',
       names: {'de': 'Getränke', 'en': 'Drinks'},
+      iconName: 'beer-pils',
       isActive: true,
       createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
       updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
@@ -74,6 +75,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     Category(
       id: 'wt-cat-snacks',
       names: {'de': 'Snacks', 'en': 'Snacks'},
+      iconName: 'food-bretzel',
       isActive: true,
       createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
       updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
@@ -81,6 +83,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     Category(
       id: 'wt-cat-sauna',
       names: {'de': 'Sauna', 'en': 'Sauna'},
+      iconName: 'sauna-token',
       isActive: true,
       createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
       updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
@@ -91,6 +94,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     // -- Drinks --
     Product(
       id: 'wt-prod-pils',
+      iconName: 'beer-pils',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Pils 0,5l', 'en': 'Pils 0.5l'},
       descriptions: null,
@@ -101,6 +105,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     ),
     Product(
       id: 'wt-prod-weizen',
+      iconName: 'beer-weizen',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Weizen 0,5l', 'en': 'Weizen 0.5l'},
       descriptions: null,
@@ -111,6 +116,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     ),
     Product(
       id: 'wt-prod-radler',
+      iconName: 'beer-radler',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Radler 0,5l', 'en': 'Radler 0.5l'},
       descriptions: null,
@@ -121,6 +127,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     ),
     Product(
       id: 'wt-prod-water',
+      iconName: 'water-small',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Wasser 0,33l', 'en': 'Water 0.33l'},
       descriptions: null,
@@ -131,6 +138,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     ),
     Product(
       id: 'wt-prod-apfelschorle',
+      iconName: 'spritzer-apple',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Apfelschorle', 'en': 'Apple Spritzer'},
       descriptions: null,
@@ -141,6 +149,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     ),
     Product(
       id: 'wt-prod-coffee',
+      iconName: 'coffee',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Kaffee', 'en': 'Coffee'},
       descriptions: null,
@@ -152,6 +161,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     // -- Snacks --
     Product(
       id: 'wt-prod-pretzel',
+      iconName: 'food-bretzel',
       categoryId: 'wt-cat-snacks',
       names: {'de': 'Brezel', 'en': 'Pretzel'},
       descriptions: null,
@@ -162,6 +172,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     ),
     Product(
       id: 'wt-prod-nuts',
+      iconName: 'food-crackers',
       categoryId: 'wt-cat-snacks',
       names: {'de': 'Erdnüsse', 'en': 'Peanuts'},
       descriptions: null,
@@ -172,6 +183,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     ),
     Product(
       id: 'wt-prod-chips',
+      iconName: 'food-crisps',
       categoryId: 'wt-cat-snacks',
       names: {'de': 'Chips', 'en': 'Chips'},
       descriptions: null,
@@ -183,6 +195,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     // -- Sauna --
     Product(
       id: 'wt-prod-sauna-session',
+      iconName: 'sauna-session',
       categoryId: 'wt-cat-sauna',
       names: {'de': 'Sauna-Session', 'en': 'Sauna Session'},
       descriptions: null,
@@ -193,6 +206,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     ),
     Product(
       id: 'wt-prod-sauna-towel',
+      iconName: 'sauna-towel',
       categoryId: 'wt-cat-sauna',
       names: {'de': 'Handtuch-Verleih', 'en': 'Towel Rental'},
       descriptions: null,
@@ -203,6 +217,7 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
     ),
     Product(
       id: 'wt-prod-sauna-aufguss',
+      iconName: 'sauna-infusion',
       categoryId: 'wt-cat-sauna',
       names: {'de': 'Aufguss-Event', 'en': 'Infusion Event'},
       descriptions: null,
@@ -306,8 +321,13 @@ void main() {
       expect(find.text('English'), findsOneWidget);
       await capture(tester, 'Member details with language selection');
 
-      // -- Scene 4: Tap English — modal closes automatically on language change --
+      // -- Scene 4: Tap English — labels update in place, the sheet stays
+      // open (issue #33 keeps navigation state across locale changes), so it
+      // is closed explicitly before shopping continues --
       await tester.tap(find.text('English'));
+      await pumpFrames(tester, count: 20);
+
+      await tester.tap(find.byIcon(Icons.close));
       await pumpFrames(tester, count: 20);
 
       // -- Scene 5: Products now shown in English --
