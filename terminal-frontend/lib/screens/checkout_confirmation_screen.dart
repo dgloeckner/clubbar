@@ -11,6 +11,7 @@ import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/widgets/styled_components/price_display.dart';
+import 'package:clubbar_terminal/widgets/styled_components/secondary_button.dart';
 
 class _SessionData {
   final int billedCents;
@@ -264,19 +265,20 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.lg),
-              _doneButton(l10n),
-              const SizedBox(height: AppSpacing.sm),
-              // For the member who is not done yet — buying a second round
-              // should not cost them a card scan.
-              TextButton(
-                onPressed: _continueShopping,
-                child: Text(
-                  l10n.continueShopping,
-                  style: TextStyle(
-                    color: hexToColor(AppColors.textSecondary),
-                    fontSize: AppFontSizes.lg,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _doneButton(l10n),
+                  const SizedBox(width: AppSpacing.md),
+                  // For the member who is not done yet — buying a second
+                  // round should not cost them a card scan. Outlined, beside
+                  // "Done", so it reads as an option rather than a cancel
+                  // (#25's red-button history on this same screen) (#295).
+                  SecondaryButton(
+                    label: l10n.continueShopping,
+                    onPressed: _continueShopping,
                   ),
-                ),
+                ],
               ),
             ],
           ],
