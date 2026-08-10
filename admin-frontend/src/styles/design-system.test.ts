@@ -20,3 +20,10 @@ describe('theme.overlay', () => {
     expect(theme.overlay.backdrop).toBe('rgba(0, 0, 0, 0.5)')
   })
 })
+
+describe('theme.mobileCard', () => {
+  it('exposes canonical background and border tints', () => {
+    expect(theme.mobileCard.bg).toBe('rgba(255, 255, 255, 0.03)')
+    expect(theme.mobileCard.border).toBe('rgba(255, 255, 255, 0.06)')
+  })
+})

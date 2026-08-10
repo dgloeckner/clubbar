@@ -212,6 +212,15 @@ export const theme = {
   overlay: {
     backdrop: withAlpha('#000000', 0.5),
   },
+
+  // Mobile card container: the subtle white tint used as background + border
+  // on narrow-viewport card rows (audit log, settlements, members, products,
+  // categories, journal, admin users, terminals) — the same pair reimplemented
+  // identically at every call site (#289).
+  mobileCard: {
+    bg: withAlpha('#ffffff', 0.03),
+    border: withAlpha('#ffffff', 0.06),
+  },
 }
 
 /**

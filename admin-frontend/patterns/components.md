@@ -587,6 +587,31 @@ theme.overlay = {
 >
 ```
 
+### Mobile Card
+
+The card-style rows used on narrow viewports (audit log, settlements,
+members, products, categories, journal, admin users, terminals) all pair the
+same subtle white background tint with the same subtle white border — use
+the tokens instead of reimplementing the pair:
+
+```typescript
+theme.mobileCard = {
+  bg: 'rgba(255, 255, 255, 0.03)',    // derived via withAlpha('#ffffff', 0.03)
+  border: 'rgba(255, 255, 255, 0.06)', // derived via withAlpha('#ffffff', 0.06)
+}
+```
+
+```tsx
+<div
+  style={{
+    background: theme.mobileCard.bg,
+    border: `1px solid ${theme.mobileCard.border}`,
+    borderRadius: '10px',
+    padding: '14px 16px',
+  }}
+>
+```
+
 ---
 
 ## Utility Functions
