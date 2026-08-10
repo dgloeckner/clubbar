@@ -11,6 +11,8 @@
  * ones a call site remembered to handle.
  */
 
+import { theme } from '../../styles/design-system'
+
 export interface MobileFilterOption {
   value: string
   label: string
@@ -51,7 +53,7 @@ export function MobileFilterRow({ label, options, value, onChange, testId }: Mob
               borderRadius: '6px',
               border: 'none',
               background: selected ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
-              color: selected ? '#3b82f6' : 'rgba(255,255,255,0.5)',
+              color: selected ? theme.colors.semantic.primary : 'rgba(255,255,255,0.5)',
               fontSize: '12px',
               fontWeight: selected ? 600 : 400,
               cursor: 'pointer',

@@ -52,7 +52,7 @@ export function Tooltip({ content, position = 'top', children, testId }: Tooltip
       transform: 'translateX(-50%)',
       borderLeft: '4px solid transparent',
       borderRight: '4px solid transparent',
-      borderTop: '4px solid #1f2937',
+      borderTop: `4px solid ${theme.colors.bg.tooltip}`,
     },
     bottom: {
       top: '-4px',
@@ -60,7 +60,7 @@ export function Tooltip({ content, position = 'top', children, testId }: Tooltip
       transform: 'translateX(-50%)',
       borderLeft: '4px solid transparent',
       borderRight: '4px solid transparent',
-      borderBottom: '4px solid #1f2937',
+      borderBottom: `4px solid ${theme.colors.bg.tooltip}`,
     },
     left: {
       right: '-4px',
@@ -68,7 +68,7 @@ export function Tooltip({ content, position = 'top', children, testId }: Tooltip
       transform: 'translateY(-50%)',
       borderTop: '4px solid transparent',
       borderBottom: '4px solid transparent',
-      borderLeft: '4px solid #1f2937',
+      borderLeft: `4px solid ${theme.colors.bg.tooltip}`,
     },
     right: {
       left: '-4px',
@@ -76,7 +76,7 @@ export function Tooltip({ content, position = 'top', children, testId }: Tooltip
       transform: 'translateY(-50%)',
       borderTop: '4px solid transparent',
       borderBottom: '4px solid transparent',
-      borderRight: '4px solid #1f2937',
+      borderRight: `4px solid ${theme.colors.bg.tooltip}`,
     },
   }
 
@@ -97,7 +97,7 @@ export function Tooltip({ content, position = 'top', children, testId }: Tooltip
           style={{
             position: 'absolute',
             ...positionStyles[position],
-            background: '#1f2937',
+            background: theme.colors.bg.tooltip,
             color: 'white',
             padding: `${theme.spacing.sm} ${theme.spacing.md}`,
             borderRadius: theme.borderRadius.sm,

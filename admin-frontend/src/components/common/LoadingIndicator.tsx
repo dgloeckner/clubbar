@@ -8,6 +8,8 @@
  *   <LoadingIndicator show={isLoading} />
  */
 
+import { theme } from '../../styles/design-system'
+
 interface LoadingIndicatorProps {
   show: boolean
 }
@@ -36,7 +38,7 @@ export function LoadingIndicator({ show }: LoadingIndicatorProps) {
           left: 0,
           width: '25%',
           height: '100%',
-          background: 'linear-gradient(90deg, transparent, #3b82f6, transparent)',
+          background: `linear-gradient(90deg, transparent, ${theme.colors.semantic.primary}, transparent)`,
           animation: 'loadingSlide 0.8s ease-in-out infinite',
         }}
       />
