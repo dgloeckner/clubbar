@@ -17,6 +17,8 @@
  * pill carries `${testId}-${option.value}`.
  */
 
+import { theme } from '../../styles/design-system'
+
 export interface PillFilterOption<T extends string> {
   value: T
   label: string
@@ -32,7 +34,7 @@ export interface PillFilterProps<T extends string> {
   testId?: string
 }
 
-const NEUTRAL = '#6b7280'
+const NEUTRAL = theme.colors.semantic.neutral
 
 export function PillFilter<T extends string>({
   value,
@@ -55,10 +57,10 @@ export function PillFilter<T extends string>({
 
         // Idle border/text colours, restored by onMouseLeave. Kept in one place
         // so the hover handlers below cannot drift from the inline style.
-        const idleBorder = variant === 'dot' ? '#4b5563' : 'rgba(71, 85, 105, 0.4)'
-        const idleText = variant === 'dot' ? '#a0aec0' : '#94a3b8'
+        const idleBorder = variant === 'dot' ? theme.colors.border.muted : 'rgba(71, 85, 105, 0.4)'
+        const idleText = variant === 'dot' ? theme.colors.text.subtle : theme.colors.text.secondary
         const hoverBorder = variant === 'dot' ? color : 'rgba(71, 85, 105, 0.6)'
-        const hoverText = variant === 'dot' ? color : '#f1f5f9'
+        const hoverText = variant === 'dot' ? color : theme.colors.text.primary
 
         return (
           <button
@@ -87,8 +89,8 @@ export function PillFilter<T extends string>({
                     gap: '8px',
                     padding: '8px 14px',
                     borderRadius: '8px',
-                    background: selected ? '#3b82f6' : 'transparent',
-                    border: `1px solid ${selected ? '#3b82f6' : idleBorder}`,
+                    background: selected ? theme.colors.semantic.primary : 'transparent',
+                    border: `1px solid ${selected ? theme.colors.semantic.primary : idleBorder}`,
                     color: selected ? 'white' : idleText,
                     fontSize: '14px',
                     fontWeight: 500,

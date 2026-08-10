@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { theme } from '../../styles/design-system';
+import { tableColors } from '../../styles/tableTokens';
 
 interface LanguageTabsInputProps {
   values: { de: string; en: string };
@@ -36,7 +38,7 @@ export function LanguageTabsInput({
       <label style={{
         display: 'block',
         marginBottom: '6px',
-        color: '#e2e8f0',
+        color: tableColors.cellText,
         fontSize: '14px',
         fontWeight: '500',
       }}>
@@ -90,10 +92,10 @@ export function LanguageTabsInput({
             width: '100%',
             minHeight: '80px',
             padding: '10px 12px',
-            border: '1px solid #4b5563',
+            border: `1px solid ${theme.colors.border.muted}`,
             borderRadius: '6px',
-            backgroundColor: '#1e293b',
-            color: '#e2e8f0',
+            backgroundColor: theme.colors.bg.inputAlt,
+            color: tableColors.cellText,
             fontSize: '14px',
             boxSizing: 'border-box',
             resize: 'vertical',
@@ -109,10 +111,10 @@ export function LanguageTabsInput({
           style={{
             width: '100%',
             padding: '10px 12px',
-            border: '1px solid #4b5563',
+            border: `1px solid ${theme.colors.border.muted}`,
             borderRadius: '6px',
-            backgroundColor: '#1e293b',
-            color: '#e2e8f0',
+            backgroundColor: theme.colors.bg.inputAlt,
+            color: tableColors.cellText,
             fontSize: '14px',
             boxSizing: 'border-box',
           }}

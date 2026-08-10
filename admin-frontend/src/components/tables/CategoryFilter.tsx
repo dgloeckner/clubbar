@@ -12,6 +12,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { theme } from '../../styles/design-system'
+import { tableColors } from '../../styles/tableTokens'
 
 interface Category {
   id: string
@@ -73,10 +75,10 @@ export function CategoryFilter({
           alignItems: 'center',
           gap: 8,
           padding: '8px 12px',
-          background: '#0d1829',
-          border: `1px solid ${isOpen ? 'rgba(59,130,246,0.5)' : '#2d3748'}`,
+          background: theme.colors.bg.input,
+          border: `1px solid ${isOpen ? 'rgba(59,130,246,0.5)' : theme.colors.border.input}`,
           borderRadius: 8,
-          color: '#e2e8f0',
+          color: tableColors.cellText,
           fontSize: 14,
           cursor: 'pointer',
           transition: 'all 0.15s',
@@ -85,7 +87,7 @@ export function CategoryFilter({
         <span>{selectedLabel}</span>
         <span
           style={{
-            color: '#64748b',
+            color: theme.colors.text.muted,
             transform: isOpen ? 'rotate(180deg)' : '',
             transition: 'transform 0.2s',
             display: 'flex',
@@ -104,8 +106,8 @@ export function CategoryFilter({
             right: 0,
             marginTop: 8,
             minWidth: 200,
-            background: '#1a2744',
-            border: '1px solid #2d3748',
+            background: theme.colors.bg.card,
+            border: `1px solid ${theme.colors.border.input}`,
             borderRadius: 12,
             boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
             zIndex: 1000,
@@ -128,14 +130,14 @@ export function CategoryFilter({
                 background: value === null ? 'rgba(59,130,246,0.15)' : 'transparent',
                 border: 'none',
                 borderRadius: 8,
-                color: value === null ? '#3b82f6' : '#e2e8f0',
+                color: value === null ? theme.colors.semantic.primary : tableColors.cellText,
                 fontSize: 14,
                 cursor: 'pointer',
                 textAlign: 'left',
                 transition: 'all 0.15s',
               }}
             >
-              <span style={{ color: value === null ? '#3b82f6' : '#64748b', fontWeight: 500 }}>●</span>
+              <span style={{ color: value === null ? theme.colors.semantic.primary : theme.colors.text.muted, fontWeight: 500 }}>●</span>
               <span style={{ flex: 1 }}>{t('products.allCategories')}</span>
             </button>
 
@@ -157,14 +159,14 @@ export function CategoryFilter({
                   background: value === category.id ? 'rgba(59,130,246,0.15)' : 'transparent',
                   border: 'none',
                   borderRadius: 8,
-                  color: value === category.id ? '#3b82f6' : '#e2e8f0',
+                  color: value === category.id ? theme.colors.semantic.primary : tableColors.cellText,
                   fontSize: 14,
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'all 0.15s',
                 }}
               >
-                <span style={{ color: value === category.id ? '#3b82f6' : '#64748b', fontWeight: 500 }}>●</span>
+                <span style={{ color: value === category.id ? theme.colors.semantic.primary : theme.colors.text.muted, fontWeight: 500 }}>●</span>
                 <span style={{ flex: 1 }}>{category.names[lang] || category.names.de || category.names.en || t('common.name')}</span>
               </button>
             ))}

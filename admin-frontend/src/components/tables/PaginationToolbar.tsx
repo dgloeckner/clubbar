@@ -18,6 +18,8 @@
  */
 
 import { useTranslation } from 'react-i18next'
+import { theme } from '../../styles/design-system'
+import { tableColors } from '../../styles/tableTokens'
 
 interface PaginationToolbarProps {
   currentPage: number
@@ -111,13 +113,13 @@ export function PaginationToolbar({
     minWidth: 36,
     height: 36,
     padding: '0 12px',
-    border: '1px solid #2d3748',
+    border: `1px solid ${theme.colors.border.input}`,
     borderRadius: 8,
     fontSize: 14,
     cursor: 'pointer',
     transition: 'all 0.15s',
     backgroundColor: 'transparent',
-    color: '#e2e8f0',
+    color: tableColors.cellText,
   }
 
   const PageButton = ({ page, active }: { page: number; active: boolean }) => (
@@ -126,9 +128,9 @@ export function PaginationToolbar({
       onClick={() => onPageChange(page)}
       style={{
         ...btnBase,
-        background: active ? '#3b82f6' : 'transparent',
-        borderColor: active ? '#3b82f6' : '#2d3748',
-        color: active ? 'white' : '#e2e8f0',
+        background: active ? theme.colors.semantic.primary : 'transparent',
+        borderColor: active ? theme.colors.semantic.primary : theme.colors.border.input,
+        color: active ? 'white' : tableColors.cellText,
         fontWeight: active ? 600 : 400,
       }}
     >
@@ -158,7 +160,7 @@ export function PaginationToolbar({
         ...btnBase,
         minWidth: 36,
         padding: 0,
-        color: disabled ? '#64748b' : '#e2e8f0',
+        color: disabled ? theme.colors.text.muted : tableColors.cellText,
         opacity: disabled ? 0.5 : 1,
         cursor: disabled ? 'not-allowed' : 'pointer',
       }}
@@ -182,23 +184,23 @@ export function PaginationToolbar({
       {/* Left: Info & Page size */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         {showInfo && (
-          <span data-testid={`${testId}-info`} style={{ color: '#cbd5e1', fontSize: 14 }}>
-            {t('common.showing')} <strong style={{ color: '#e2e8f0' }}>{startItem}-{endItem}</strong> {t('common.of')}{' '}
-            <strong style={{ color: '#e2e8f0' }}>{totalItems}</strong>
+          <span data-testid={`${testId}-info`} style={{ color: tableColors.headerText, fontSize: 14 }}>
+            {t('common.showing')} <strong style={{ color: tableColors.cellText }}>{startItem}-{endItem}</strong> {t('common.of')}{' '}
+            <strong style={{ color: tableColors.cellText }}>{totalItems}</strong>
           </span>
         )}
         {showPageSize && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: '#94a3b8', fontSize: 13 }}>{t('common.perPage')}:</span>
+            <span style={{ color: theme.colors.text.secondary, fontSize: 13 }}>{t('common.perPage')}:</span>
             <select
               data-testid={`${testId}-page-size-select`}
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               style={{
-                background: '#0d1829',
-                border: '1px solid #2d3748',
+                background: theme.colors.bg.input,
+                border: `1px solid ${theme.colors.border.input}`,
                 borderRadius: 6,
-                color: '#e2e8f0',
+                color: tableColors.cellText,
                 fontSize: 13,
                 padding: '6px 28px 6px 10px',
                 cursor: 'pointer',
@@ -248,7 +250,7 @@ export function PaginationToolbar({
               <span
                 key={`dots-${idx}`}
                 data-testid={`${testId}-ellipsis-${idx}`}
-                style={{ padding: '0 8px', color: '#64748b' }}
+                style={{ padding: '0 8px', color: theme.colors.text.muted }}
               >
                 …
               </span>
@@ -258,7 +260,7 @@ export function PaginationToolbar({
           )}
 
         {variant === 'minimal' && (
-          <span data-testid={`${testId}-page-info`} style={{ padding: '0 12px', color: '#e2e8f0', fontSize: 14 }}>
+          <span data-testid={`${testId}-page-info`} style={{ padding: '0 12px', color: tableColors.cellText, fontSize: 14 }}>
             {t('common.page')} <strong>{currentPage}</strong> {t('common.of')} <strong>{totalPages}</strong>
           </span>
         )}

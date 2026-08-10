@@ -22,6 +22,8 @@
  */
 
 import type { ReactNode } from 'react'
+import { theme } from '../../styles/design-system'
+import { tableColors } from '../../styles/tableTokens'
 
 interface ListLoadingOverlayProps {
   loading: boolean
@@ -78,10 +80,10 @@ export function ListLoadingOverlay({ loading, label, children, testId }: ListLoa
                 gap: '10px',
                 padding: '8px 16px',
                 borderRadius: '999px',
-                backgroundColor: '#0d1829',
-                border: '1px solid #2d3748',
+                backgroundColor: theme.colors.bg.input,
+                border: `1px solid ${theme.colors.border.input}`,
                 boxShadow: '0 8px 20px rgba(0, 0, 0, 0.45)',
-                color: '#cbd5e1',
+                color: tableColors.headerText,
                 fontSize: '14px',
               }}
             >
@@ -91,7 +93,7 @@ export function ListLoadingOverlay({ loading, label, children, testId }: ListLoa
                   height: '16px',
                   borderRadius: '50%',
                   border: '2px solid rgba(59, 130, 246, 0.25)',
-                  borderTopColor: '#3b82f6',
+                  borderTopColor: theme.colors.semantic.primary,
                   animation: 'listLoadingSpin 0.7s linear infinite',
                 }}
               />
