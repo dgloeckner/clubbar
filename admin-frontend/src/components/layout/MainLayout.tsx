@@ -153,8 +153,8 @@ export function MainLayout({ children }: MainLayoutProps) {
                 alignItems: 'center',
                 gap: isSmallMobile ? '0' : theme.spacing.sm,
                 padding: isSmallMobile ? '8px' : `${theme.spacing.sm} ${theme.spacing.md}`,
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
+                background: theme.badges.danger.bg,
+                border: `1px solid ${theme.badges.danger.border}`,
                 borderRadius: theme.borderRadius.md,
                 fontSize: theme.typography.fontSize.sm,
                 color: theme.colors.semantic.danger,
@@ -282,8 +282,8 @@ export function MainLayout({ children }: MainLayoutProps) {
                 alignItems: 'center',
                 gap: theme.spacing.sm,
                 padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: `1px solid rgba(239, 68, 68, 0.3)`,
+                background: theme.badges.danger.bg,
+                border: `1px solid ${theme.badges.danger.border}`,
                 borderRadius: theme.borderRadius.md,
                 fontSize: theme.typography.fontSize.sm,
                 color: theme.colors.semantic.danger,
@@ -294,7 +294,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'
+                e.currentTarget.style.backgroundColor = theme.badges.danger.bg
               }}
             >
               <LogoutIcon size={20} />

@@ -295,7 +295,7 @@ export function TerminalsTab({
                   onClick={() => onRevokeAccess(terminal.id)}
                   style={{
                     ...actionButtonStyle,
-                    background: 'rgba(239, 68, 68, 0.1)',
+                    background: theme.badges.danger.bg,
                     color: 'rgb(239, 68, 68)',
                   }}
                 >

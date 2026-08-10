@@ -110,7 +110,7 @@ function FormField({
         }}
         onFocus={(e) => {
           e.currentTarget.style.borderColor = hasError ? theme.colors.semantic.danger : theme.colors.semantic.primary
-          e.currentTarget.style.boxShadow = `0 0 0 3px ${hasError ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)'}`
+          e.currentTarget.style.boxShadow = `0 0 0 3px ${hasError ? theme.badges.danger.bg : 'rgba(59, 130, 246, 0.1)'}`
         }}
         onBlur={(e) => {
           e.currentTarget.style.borderColor = hasError ? theme.colors.semantic.danger : theme.colors.border.light

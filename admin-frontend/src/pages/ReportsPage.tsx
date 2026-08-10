@@ -670,8 +670,8 @@ export function ReportsPage() {
 
   const errorStyle: React.CSSProperties = {
     padding: theme.spacing.md,
-    background: 'rgba(239, 68, 68, 0.1)',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
+    background: theme.badges.danger.bg,
+    border: `1px solid ${theme.badges.danger.border}`,
     borderRadius: theme.borderRadius.md,
     color: theme.colors.semantic.danger,
     marginBottom: theme.spacing.lg,

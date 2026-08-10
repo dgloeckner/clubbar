@@ -34,3 +34,9 @@ describe('theme.pillButton', () => {
     expect(theme.pillButton.idleText).toBe('rgba(255, 255, 255, 0.55)')
   })
 })
+
+describe('theme.badges.danger', () => {
+  it('exposes a canonical border tint alongside the existing bg tint', () => {
+    expect(theme.badges.danger.border).toBe('rgba(239, 68, 68, 0.3)')
+  })
+})

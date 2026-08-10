@@ -348,7 +348,7 @@ export function DashboardPage() {
                 ? 'rgba(34, 197, 94, 0.1)'
                 : alerts.sepa_issues?.severity === 'warning'
                   ? 'rgba(249, 115, 22, 0.1)'
-                  : 'rgba(239, 68, 68, 0.1)',
+                  : theme.badges.danger.bg,
             }}>
               <div style={{
                 width: '8px',
