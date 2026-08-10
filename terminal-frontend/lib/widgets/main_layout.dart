@@ -5,6 +5,7 @@ import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/clubbar_header.dart';
 import 'package:clubbar_terminal/widgets/failed_sales_banner.dart';
@@ -62,6 +63,16 @@ class MainLayout extends StatelessWidget {
       // Dispenser not configured
     }
 
+    // Reader health is its own pill rather than folded into the connection
+    // status: a dead reader and a dead backend need different actions from
+    // staff (issue #35). Absent when this terminal does not monitor the reader.
+    var readerStatus = RfidReaderStatus.unknown;
+    try {
+      readerStatus = context.watch<RfidReaderHealthService>().status;
+    } catch (_) {
+      // Reader monitoring not configured
+    }
+
     final effectiveStatus = _computeEffectiveStatus(backendStatus, dispenserHealth);
     final session = context.watch<SessionController>();
 
@@ -69,6 +80,7 @@ class MainLayout extends StatelessWidget {
       backgroundColor: const Color(0xff0a1628),
       appBar: ClubBarHeader(
         connectionStatus: effectiveStatus,
+        readerStatus: readerStatus,
         onStatusTap: () => showStatusInfoModal(context),
       ),
       // Every pointer-down anywhere in the app counts as member activity and

@@ -14,6 +14,14 @@
   "@demoScanCard": {
     "description": "Demo button to simulate card scan"
   },
+  "readerDisconnectedTitle": "Scanner nicht verbunden",
+  "@readerDisconnectedTitle": {
+    "description": "Idle screen title when the RFID reader is unplugged"
+  },
+  "readerDisconnectedSubtitle": "Bitte Personal informieren",
+  "@readerDisconnectedSubtitle": {
+    "description": "Idle screen instruction when the RFID reader is unplugged"
+  },
 
   "@_SETUP_SCREEN": {},
   "setupTitle": "Terminal-Einrichtung",
@@ -320,6 +328,34 @@
   "statusWarning": "Warnung",
   "@statusWarning": {
     "description": "Connection status: warning (e.g. dispenser offline)"
+  },
+  "statusReaderOk": "Scanner OK",
+  "@statusReaderOk": {
+    "description": "Header pill: the RFID reader is plugged in"
+  },
+  "statusReaderMissing": "Scanner fehlt",
+  "@statusReaderMissing": {
+    "description": "Header pill: the RFID reader is unplugged or dead"
+  },
+  "cardReader": "Kartenleser",
+  "@cardReader": {
+    "description": "RFID card reader hardware label"
+  },
+  "cardReaderConnected": "Verbunden",
+  "@cardReaderConnected": {
+    "description": "Card reader status: plugged in and detected"
+  },
+  "cardReaderDisconnected": "Nicht verbunden",
+  "@cardReaderDisconnected": {
+    "description": "Card reader status: not detected"
+  },
+  "cardReaderNotMonitored": "Nicht überwacht",
+  "@cardReaderNotMonitored": {
+    "description": "Card reader status: monitoring not configured on this terminal"
+  },
+  "cardReaderLastSeen": "Zuletzt erkannt",
+  "@cardReaderLastSeen": {
+    "description": "Timestamp label for when the card reader was last detected"
   },
   "dispenser": "Ausgabegerät",
   "@dispenser": {

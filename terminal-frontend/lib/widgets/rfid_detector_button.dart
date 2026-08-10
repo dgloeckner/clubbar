@@ -8,10 +8,15 @@ class RfidDetectorButton extends StatefulWidget {
   final bool hasError;
   final double errorOpacity;
 
+  /// The reader is known to be gone (issue #35): the button stops inviting a
+  /// scan that cannot be read, and says so rather than pulsing forever.
+  final bool isOffline;
+
   const RfidDetectorButton({
     super.key,
     this.hasError = false,
     this.errorOpacity = 1.0,
+    this.isOffline = false,
   });
 
   @override
@@ -28,6 +33,7 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
   static const Color _blue = Color(0xff3b82f6);
   static const Color _teal = Color(0xff14b8a6);
   static const Color _red = Color(0xffef4444);
+  static const Color _slate = Color(0xff64748b);
 
   @override
   void initState() {
@@ -58,28 +64,33 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
   Widget build(BuildContext context) {
     return Consumer<RfidProvider>(
       builder: (context, rfidProvider, child) {
-        // Adjust animation speed based on state
-        if (rfidProvider.isScanning) {
-          // Faster pulse when scanning (0.8s)
-          if (_glowController.duration != const Duration(milliseconds: 800)) {
-            _glowController.duration = const Duration(milliseconds: 800);
-            _glowController.repeat(reverse: true);
-          }
+        // A missing reader must not keep pulsing: the glow is an invitation to
+        // tap, and there is nothing to tap into.
+        if (widget.isOffline) {
+          _glowController.stop();
         } else {
-          // Slower glow when idle (2s)
-          if (_glowController.duration != const Duration(milliseconds: 2000)) {
-            _glowController.duration = const Duration(milliseconds: 2000);
+          // Adjust animation speed based on state
+          final wanted = rfidProvider.isScanning
+              ? const Duration(milliseconds: 800) // faster pulse when scanning
+              : const Duration(milliseconds: 2000); // slower glow when idle
+          if (_glowController.duration != wanted ||
+              !_glowController.isAnimating) {
+            _glowController.duration = wanted;
             _glowController.repeat(reverse: true);
           }
         }
 
         // Interpolate colors based on error state
-        final Color primaryColor = widget.hasError
-            ? Color.lerp(_red, _blue, 1.0 - widget.errorOpacity)!
-            : _blue;
-        final Color secondaryColor = widget.hasError
-            ? Color.lerp(_red, _teal, 1.0 - widget.errorOpacity)!
-            : _teal;
+        final Color primaryColor = widget.isOffline
+            ? _slate
+            : widget.hasError
+                ? Color.lerp(_red, _blue, 1.0 - widget.errorOpacity)!
+                : _blue;
+        final Color secondaryColor = widget.isOffline
+            ? _slate
+            : widget.hasError
+                ? Color.lerp(_red, _teal, 1.0 - widget.errorOpacity)!
+                : _teal;
 
         final demoMode = context.read<ConfigService>().demoMode;
         return GestureDetector(
@@ -105,17 +116,24 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
                           ], // 20% opacity when idle
                   ),
                   boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withValues(
-                        alpha: rfidProvider.isScanning ? 0.5 : _opacityAnimation.value,
+                    if (!widget.isOffline)
+                      BoxShadow(
+                        color: primaryColor.withValues(
+                          alpha: rfidProvider.isScanning ? 0.5 : _opacityAnimation.value,
+                        ),
+                        blurRadius: rfidProvider.isScanning ? 60 : _glowAnimation.value,
+                        spreadRadius: rfidProvider.isScanning ? 5 : 0,
                       ),
-                      blurRadius: rfidProvider.isScanning ? 60 : _glowAnimation.value,
-                      spreadRadius: rfidProvider.isScanning ? 5 : 0,
-                    ),
                   ],
                 ),
                 child: Center(
-                  child: rfidProvider.isScanning
+                  child: widget.isOffline
+                      ? const Icon(
+                          Icons.sensors_off,
+                          size: 135,
+                          color: _slate,
+                        )
+                      : rfidProvider.isScanning
                       ? SizedBox(
                           width: 101,
                           height: 101,

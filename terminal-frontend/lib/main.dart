@@ -30,6 +30,8 @@ import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/dispenser_recovery_service.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/error_file_output.dart';
+import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
+import 'package:clubbar_terminal/services/rfid_reader_probe.dart';
 import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/utils/app_logger.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
@@ -290,6 +292,20 @@ void main() async {
     }
   }
 
+  // RFID reader presence monitoring (issue #35). Only for a terminal that was
+  // told what its reader looks like — see INSTALL.md; elsewhere the reader
+  // status simply stays unknown and no UI mentions it.
+  RfidReaderHealthService? rfidReaderHealthService;
+  if (configService.rfidReaderMonitoringEnabled) {
+    rfidReaderHealthService = RfidReaderHealthService(
+      probe: InputDevicesRfidReaderProbe(
+        identity: configService.rfidReaderIdentity,
+      ),
+      interval: Duration(seconds: configService.rfidReaderPollIntervalSeconds),
+    );
+    rfidReaderHealthService.startMonitoring();
+  }
+
   // Create repositories (data access layer)
   final membersRepo = MembersRepository(database);
   final productsRepo = ProductsRepository(database);
@@ -381,6 +397,7 @@ void main() async {
     soundService: soundService,
     dispenserHealthService: dispenserHealthService,
     dispenserRecoveryService: dispenserRecoveryService,
+    rfidReaderHealthService: rfidReaderHealthService,
   ));
 }
 
@@ -416,6 +433,7 @@ class ClubBarTerminalApp extends StatelessWidget {
   final SoundService soundService;
   final DispenserHealthService? dispenserHealthService;
   final DispenserRecoveryService? dispenserRecoveryService;
+  final RfidReaderHealthService? rfidReaderHealthService;
 
   const ClubBarTerminalApp({
     super.key,
@@ -434,6 +452,7 @@ class ClubBarTerminalApp extends StatelessWidget {
     required this.soundService,
     this.dispenserHealthService,
     this.dispenserRecoveryService,
+    this.rfidReaderHealthService,
   });
 
   @override
@@ -447,6 +466,8 @@ class ClubBarTerminalApp extends StatelessWidget {
         Provider<TransactionsRepository>.value(value: transactionsRepository),
         if (dispenserHealthService != null)
           ChangeNotifierProvider<DispenserHealthService>.value(value: dispenserHealthService!),
+        if (rfidReaderHealthService != null)
+          ChangeNotifierProvider<RfidReaderHealthService>.value(value: rfidReaderHealthService!),
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
         ChangeNotifierProvider<MembersProvider>.value(value: membersProvider),
         ChangeNotifierProvider<ProductsProvider>(create: (_) => productsProvider),

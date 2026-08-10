@@ -6,10 +6,22 @@ import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/screens/idle_waiting_screen.dart';
+import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
+import 'package:clubbar_terminal/services/rfid_reader_probe.dart';
 import '../test_helpers.dart';
 
 class MockRfidProvider extends Mock implements RfidProvider {}
 class MockSyncProvider extends Mock implements SyncProvider {}
+
+/// A reader probe whose answer the test dictates.
+class StubRfidReaderProbe implements RfidReaderProbe {
+  bool? present;
+
+  StubRfidReaderProbe(this.present);
+
+  @override
+  Future<bool?> isReaderPresent() async => present;
+}
 
 /// A real [ChangeNotifier] standing in for [RfidProvider], so that the screen
 /// rebuilds on notification the way it does in production. A mocked
@@ -121,6 +133,92 @@ void main() {
 
     // Keyboard-wedge capture moved to the app shell in issue #26 — it is
     // covered by test/widgets/scan_capture_test.dart.
+  });
+
+  group('IdleWaitingScreen reader health', () {
+    late MockRfidProvider mockRfidProvider;
+    late MockSyncProvider mockSyncProvider;
+
+    setUp(() {
+      mockRfidProvider = MockRfidProvider();
+      when(() => mockRfidProvider.addListener(any())).thenReturn(null);
+      when(() => mockRfidProvider.removeListener(any())).thenReturn(null);
+      when(() => mockRfidProvider.isScanning).thenReturn(false);
+
+      mockSyncProvider = MockSyncProvider();
+      when(() => mockSyncProvider.startBackgroundSync(
+          intervalSeconds: any(named: 'intervalSeconds'))).thenReturn(null);
+      when(() => mockSyncProvider.addListener(any())).thenReturn(null);
+      when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
+    });
+
+    Widget buildTestApp({RfidReaderHealthService? readerHealth}) {
+      return createTestApp(
+        child: MultiProvider(
+          providers: [
+            ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+            ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+            if (readerHealth != null)
+              ChangeNotifierProvider<RfidReaderHealthService>.value(
+                value: readerHealth,
+              ),
+          ],
+          child: const Scaffold(body: IdleWaitingScreen()),
+        ),
+      );
+    }
+
+    testWidgets('keeps inviting a scan while the reader is connected',
+        (tester) async {
+      final probe = StubRfidReaderProbe(true);
+      final readerHealth = RfidReaderHealthService(probe: probe);
+      await readerHealth.checkNow();
+
+      await tester.pumpWidget(buildTestApp(readerHealth: readerHealth));
+
+      expect(find.text('Halte deinen Chip an den Scanner'), findsOneWidget);
+      expect(find.text('Scanner nicht verbunden'), findsNothing);
+    });
+
+    testWidgets('says the reader is gone instead of inviting a scan forever',
+        (tester) async {
+      final probe = StubRfidReaderProbe(false);
+      final readerHealth = RfidReaderHealthService(probe: probe);
+      await readerHealth.checkNow();
+
+      await tester.pumpWidget(buildTestApp(readerHealth: readerHealth));
+
+      expect(find.text('Scanner nicht verbunden'), findsOneWidget);
+      expect(find.text('Bitte Personal informieren'), findsOneWidget);
+      expect(find.text('Durstig?'), findsNothing);
+      expect(find.text('Halte deinen Chip an den Scanner'), findsNothing);
+    });
+
+    testWidgets('recovers when the reader is plugged back in, without a restart',
+        (tester) async {
+      final probe = StubRfidReaderProbe(false);
+      final readerHealth = RfidReaderHealthService(probe: probe);
+      await readerHealth.checkNow();
+
+      await tester.pumpWidget(buildTestApp(readerHealth: readerHealth));
+      expect(find.text('Scanner nicht verbunden'), findsOneWidget);
+
+      probe.present = true;
+      await readerHealth.checkNow();
+      await tester.pump();
+
+      expect(find.text('Durstig?'), findsOneWidget);
+      expect(find.text('Halte deinen Chip an den Scanner'), findsOneWidget);
+      expect(find.text('Scanner nicht verbunden'), findsNothing);
+    });
+
+    testWidgets('is unchanged on a terminal that does not monitor the reader',
+        (tester) async {
+      await tester.pumpWidget(buildTestApp());
+
+      expect(find.text('Durstig?'), findsOneWidget);
+      expect(find.text('Scanner nicht verbunden'), findsNothing);
+    });
   });
 
   group('IdleWaitingScreen error banner', () {

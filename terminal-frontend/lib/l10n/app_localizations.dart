@@ -116,6 +116,18 @@ abstract class AppLocalizations {
   /// **'Demo: Chip scannen'**
   String get demoScanCard;
 
+  /// Idle screen title when the RFID reader is unplugged
+  ///
+  /// In de, this message translates to:
+  /// **'Scanner nicht verbunden'**
+  String get readerDisconnectedTitle;
+
+  /// Idle screen instruction when the RFID reader is unplugged
+  ///
+  /// In de, this message translates to:
+  /// **'Bitte Personal informieren'**
+  String get readerDisconnectedSubtitle;
+
   /// Setup screen title
   ///
   /// In de, this message translates to:
@@ -439,6 +451,48 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Warnung'**
   String get statusWarning;
+
+  /// Header pill: the RFID reader is plugged in
+  ///
+  /// In de, this message translates to:
+  /// **'Scanner OK'**
+  String get statusReaderOk;
+
+  /// Header pill: the RFID reader is unplugged or dead
+  ///
+  /// In de, this message translates to:
+  /// **'Scanner fehlt'**
+  String get statusReaderMissing;
+
+  /// RFID card reader hardware label
+  ///
+  /// In de, this message translates to:
+  /// **'Kartenleser'**
+  String get cardReader;
+
+  /// Card reader status: plugged in and detected
+  ///
+  /// In de, this message translates to:
+  /// **'Verbunden'**
+  String get cardReaderConnected;
+
+  /// Card reader status: not detected
+  ///
+  /// In de, this message translates to:
+  /// **'Nicht verbunden'**
+  String get cardReaderDisconnected;
+
+  /// Card reader status: monitoring not configured on this terminal
+  ///
+  /// In de, this message translates to:
+  /// **'Nicht überwacht'**
+  String get cardReaderNotMonitored;
+
+  /// Timestamp label for when the card reader was last detected
+  ///
+  /// In de, this message translates to:
+  /// **'Zuletzt erkannt'**
+  String get cardReaderLastSeen;
 
   /// Token dispenser hardware label
   ///

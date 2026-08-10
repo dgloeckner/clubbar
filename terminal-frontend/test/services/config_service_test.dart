@@ -367,5 +367,74 @@ void main() {
         expect(configService.demoMode, isFalse);
       });
     });
+
+    group('rfid reader monitoring', () {
+      Future<void> loadWith(Map<String, dynamic> extra) async {
+        File('${tempDir.path}/config.json').writeAsStringSync(jsonEncode({
+          'terminalId': 'Test-Terminal',
+          'apiUrl': 'https://test.example.com/api',
+          'apiToken': 'b' * 64,
+          ...extra,
+        }));
+        await configService.load();
+      }
+
+      test('is off when the reader is not described', () async {
+        await loadWith({});
+
+        // Every terminal that predates issue #35 keeps its old behaviour rather
+        // than being shown a reader status nothing can back up.
+        expect(configService.rfidReaderMonitoringEnabled, isFalse);
+        expect(configService.rfidReaderIdentity.isSpecified, isFalse);
+        expect(configService.rfidReaderPollIntervalSeconds, 5);
+      });
+
+      test('loads the reader identity and poll interval', () async {
+        await loadWith({
+          'rfidReader': {
+            'vendorId': 'ffff',
+            'productId': '0035',
+            'namePattern': 'USB Reader',
+            'pollIntervalSeconds': 10,
+          },
+        });
+
+        expect(configService.rfidReaderMonitoringEnabled, isTrue);
+        expect(configService.rfidReaderIdentity.vendorId, 'ffff');
+        expect(configService.rfidReaderIdentity.productId, '0035');
+        expect(configService.rfidReaderIdentity.namePattern, 'USB Reader');
+        expect(configService.rfidReaderPollIntervalSeconds, 10);
+      });
+
+      test('a described reader is monitored by default', () async {
+        await loadWith({
+          'rfidReader': {'vendorId': 'ffff'},
+        });
+
+        expect(configService.rfidReaderMonitoringEnabled, isTrue);
+      });
+
+      test('monitor:false turns it off even for a described reader', () async {
+        await loadWith({
+          'rfidReader': {'monitor': false, 'vendorId': 'ffff'},
+        });
+
+        expect(configService.rfidReaderMonitoringEnabled, isFalse);
+        expect(configService.rfidReaderIdentity.vendorId, 'ffff');
+      });
+
+      test('clear resets reader config to defaults', () async {
+        await loadWith({
+          'rfidReader': {'vendorId': 'ffff', 'pollIntervalSeconds': 30},
+        });
+        expect(configService.rfidReaderMonitoringEnabled, isTrue);
+
+        await configService.clear();
+
+        expect(configService.rfidReaderMonitoringEnabled, isFalse);
+        expect(configService.rfidReaderIdentity.isSpecified, isFalse);
+        expect(configService.rfidReaderPollIntervalSeconds, 5);
+      });
+    });
   });
 }
