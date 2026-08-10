@@ -312,6 +312,18 @@ export class SettlementsPage extends BasePage {
     await this.confirmUndoDialog(settlementId)
   }
 
+  /**
+   * The banner confirming an undo went through (#130). Undoing only flips a
+   * badge in one row, which on a long list is easy to miss.
+   */
+  async expectUndoSuccessVisible() {
+    await expect(this.page.getByTestId('settlements-undo-success')).toBeVisible()
+  }
+
+  async getUndoSuccessMessage(): Promise<string> {
+    return (await this.page.getByTestId('settlements-undo-success').textContent())?.trim() ?? ''
+  }
+
   /** Confirm an already-open undo dialog and wait for the reloaded list. */
   async confirmUndoDialog(settlementId: string) {
     const responsePromise = this.page.waitForResponse(

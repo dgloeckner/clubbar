@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
@@ -13,6 +14,7 @@ class MockMembersProvider extends Mock implements MembersProvider {}
 class MockMembersRepository extends Mock implements MembersRepository {}
 class MockSoundService extends Mock implements SoundService {}
 class MockSessionController extends Mock implements SessionController {}
+class MockBuildContext extends Mock implements BuildContext {}
 
 void main() {
   setUpAll(() {
@@ -104,6 +106,38 @@ void main() {
       await provider.handleCardScan('card-123');
 
       verify(() => soundService.play(SoundEvent.scanError)).called(1);
+    });
+  });
+
+  // Demo mode (the mock scan button) shares _startSessionForScannedCard with
+  // a real scan, so scanSuccess already matched production. These are the two
+  // paths that previously stayed silent (issue #37).
+  group('RfidProvider demo mode sounds (#37)', () {
+    test('plays scanError when the mock fallback finds no member', () async {
+      when(() => membersRepository.getAllActive()).thenAnswer((_) async => []);
+
+      await provider.simulateCardDetection(MockBuildContext(),
+          cardUidOverride: 'unknown-demo-card');
+
+      verify(() => soundService.play(SoundEvent.scanError)).called(1);
+    });
+
+    test('plays scanError on exception', () async {
+      when(() => membersRepository.getAllActive())
+          .thenThrow(Exception('DB error'));
+
+      await provider.simulateCardDetection(MockBuildContext());
+
+      verify(() => soundService.play(SoundEvent.scanError)).called(1);
+    });
+
+    test('plays scanSuccess when a real synced member is picked', () async {
+      when(() => membersRepository.getAllActive())
+          .thenAnswer((_) async => [member('m1')]);
+
+      await provider.simulateCardDetection(MockBuildContext());
+
+      verify(() => soundService.play(SoundEvent.scanSuccess)).called(1);
     });
   });
 

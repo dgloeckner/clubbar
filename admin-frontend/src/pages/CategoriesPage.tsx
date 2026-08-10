@@ -238,25 +238,29 @@ export function CategoriesPage() {
 
   async function handleStatusToggle(category: CategoryRuntime) {
     if (category.is_active) {
-      // Deactivating is immediate (no confirmation)
-      try {
-        await getProducts().updateCategory(category.id, { is_active: false })
-        await list.reload()
-      } catch (err: unknown) {
-        if (axios.isAxiosError(err)) {
-          setError(err.response?.data?.message || err.message || t('categories.errors.deactivate'))
-        } else {
-          setError(err instanceof Error ? err.message : t('categories.errors.deactivate'))
-        }
-      }
-    } else {
-      // Activating requires confirmation
+      // Deactivating hides every product in the category from the terminal —
+      // the disruptive direction, so it is the one that asks first. It used to
+      // be the other way round: activation was confirmed, deactivation fired on
+      // the click (#130).
       const categoryName = getLocalizedName(category.names as Record<string, string>, i18n.language)
       setConfirmDialog({
         type: 'status',
         categoryId: category.id,
-        message: t('categories.activateConfirm', { name: categoryName, count: category.product_count }),
+        message: t('categories.deactivateConfirm', { name: categoryName, count: category.product_count }),
       })
+      return
+    }
+
+    // Activating only makes products visible again; nothing is lost by it.
+    try {
+      await getProducts().updateCategory(category.id, { is_active: true })
+      await list.reload()
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || err.message || t('categories.errors.activate'))
+      } else {
+        setError(err instanceof Error ? err.message : t('categories.errors.activate'))
+      }
     }
   }
 

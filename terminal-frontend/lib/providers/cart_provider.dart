@@ -109,6 +109,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
     final index = _items.indexWhere((item) => item.productId == productId);
     if (index >= 0) {
       _items[index].quantity = quantity;
+      _soundService.play(SoundEvent.quantityChange);
       notifyListeners();
     }
   }

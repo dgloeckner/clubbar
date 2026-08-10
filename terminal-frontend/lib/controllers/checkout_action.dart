@@ -7,6 +7,7 @@ import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/widgets/error_modal.dart';
 
 /// Run a checkout and route its outcome to the right surface.
@@ -30,6 +31,9 @@ Future<void> runCheckout(BuildContext context) async {
 
   final selectedMember = membersProvider.selectedMember;
   if (selectedMember == null) {
+    // This guard never reaches CartProvider.checkout(), which is where every
+    // other failure gets its sound, so it plays its own (#37).
+    context.read<SoundService>().play(SoundEvent.checkoutError);
     showErrorModal(
       context,
       TerminalErrorKey.noMemberSelected.message(AppLocalizations.of(context)!),

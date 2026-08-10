@@ -181,6 +181,10 @@ export function SettlementsPage() {
   // the bank for less than the settlement records.
   const [exportWarning, setExportWarning] = useState<string | null>(null)
 
+  // Undoing a settlement only flips a badge in one row. On a long list that is
+  // easy to miss, so the outcome is stated outright (#130).
+  const [undoSuccess, setUndoSuccess] = useState<string | null>(null)
+
   // Mobile responsive
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -285,8 +289,10 @@ export function SettlementsPage() {
     setUndoTarget(null)
     try {
       setError(null)
+      setUndoSuccess(null)
       await getSettlementsFactory().cancelSettlement(settlementId)
       await list.reload()
+      setUndoSuccess(t('settlements.undoSuccess'))
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)
@@ -361,6 +367,22 @@ export function SettlementsPage() {
               }}
             >
               {exportWarning}
+            </div>
+          )}
+
+          {/* The undo landed — the only other sign is a badge in one row (#130). */}
+          {undoSuccess && (
+            <div
+              data-testid="settlements-undo-success"
+              style={{
+                padding: tableSpacing.cellPadding,
+                backgroundColor: '#064e3b',
+                color: '#6ee7b7',
+                borderRadius: 6,
+                margin: tableSpacing.cellPadding,
+              }}
+            >
+              {undoSuccess}
             </div>
           )}
 

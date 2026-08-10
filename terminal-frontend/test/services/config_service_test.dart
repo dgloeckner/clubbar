@@ -250,12 +250,20 @@ void main() {
     });
 
     group('soundsEnabled', () {
-      test('defaults to false when not in config', () async {
+      // A fresh install without an explicit config must not ship silent
+      // (issue #37): a terminal deployed with no config.json at all gets
+      // audio feedback by default.
+      test('defaults to true when not in config', () async {
         File('${tempDir.path}/config.json').writeAsStringSync(
           jsonEncode({'terminalId': 'T1', 'apiUrl': 'http://x', 'apiToken': 'tok'}),
         );
         await configService.load();
-        expect(configService.soundsEnabled, isFalse);
+        expect(configService.soundsEnabled, isTrue);
+      });
+
+      test('defaults to true with no config file at all', () async {
+        await configService.load();
+        expect(configService.soundsEnabled, isTrue);
       });
 
       test('reads true from config', () async {
@@ -263,6 +271,27 @@ void main() {
           jsonEncode({'terminalId': 'T1', 'apiUrl': 'http://x', 'apiToken': 'tok', 'soundsEnabled': true}),
         );
         await configService.load();
+        expect(configService.soundsEnabled, isTrue);
+      });
+
+      test('reads false from config — a site can opt back into silence',
+          () async {
+        File('${tempDir.path}/config.json').writeAsStringSync(
+          jsonEncode({'terminalId': 'T1', 'apiUrl': 'http://x', 'apiToken': 'tok', 'soundsEnabled': false}),
+        );
+        await configService.load();
+        expect(configService.soundsEnabled, isFalse);
+      });
+
+      test('clear resets soundsEnabled to the true default', () async {
+        File('${tempDir.path}/config.json').writeAsStringSync(
+          jsonEncode({'terminalId': 'T1', 'apiUrl': 'http://x', 'apiToken': 'tok', 'soundsEnabled': false}),
+        );
+        await configService.load();
+        expect(configService.soundsEnabled, isFalse);
+
+        await configService.clear();
+
         expect(configService.soundsEnabled, isTrue);
       });
     });

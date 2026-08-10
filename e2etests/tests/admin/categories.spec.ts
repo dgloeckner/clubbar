@@ -181,36 +181,22 @@ test.describe('Admin Frontend - Categories Page', () => {
    * UC-A44: Activate/Deactivate Category
    */
   test.describe('UC-A44: Activate/Deactivate Category', () => {
-    test('should deactivate category immediately without confirmation dialog', async ({ authenticatedCategoriesPage }) => {
+    /**
+     * The risk used to be inverted here (#130): activation — which only makes
+     * products visible again — was confirmed, while deactivation, which hides a
+     * whole category from every terminal, fired on the click. These three tests
+     * pin the corrected direction.
+     */
+    test('should show confirmation dialog when deactivating category and cancel keeps status unchanged', async ({ authenticatedCategoriesPage }) => {
       // Create a unique test category (Pattern 001: Test Data Isolation)
-      const categoryName = `Deact ${Date.now()}`
+      const categoryName = `DeactCancel ${Date.now()}`
       await authenticatedCategoriesPage.createCategory({ de: categoryName })
 
       const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
       expect(categoryId).toBeTruthy()
+      expect(await authenticatedCategoriesPage.getCategoryStatus(categoryId!)).toBe('Active')
 
-      // Deactivation should be immediate — no confirm dialog
-      await authenticatedCategoriesPage.toggleCategoryStatus(categoryId!)
-      await authenticatedCategoriesPage.expectConfirmDialogHidden()
-
-      // Status should have changed to Inactive
-      const status = await authenticatedCategoriesPage.getCategoryStatus(categoryId!)
-      expect(status).toBe('Inactive')
-    })
-
-    test('should show confirmation dialog when activating category and cancel keeps status unchanged', async ({ authenticatedCategoriesPage }) => {
-      // Create a unique test category (Pattern 001: Test Data Isolation)
-      const categoryName = `ActCancel ${Date.now()}`
-      await authenticatedCategoriesPage.createCategory({ de: categoryName })
-
-      const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
-      expect(categoryId).toBeTruthy()
-
-      // First deactivate (immediate, no dialog) — toggleCategoryStatus waits for API internally
-      await authenticatedCategoriesPage.toggleCategoryStatus(categoryId!)
-      await authenticatedCategoriesPage.expectConfirmDialogHidden()
-
-      // Now activate — shows confirmation dialog before API call
+      // Deactivating asks first — no PATCH until the dialog is confirmed
       await authenticatedCategoriesPage.clickStatusToggleExpectingDialog(categoryId!)
       await authenticatedCategoriesPage.expectConfirmDialogVisible()
 
@@ -219,34 +205,46 @@ test.describe('Admin Frontend - Categories Page', () => {
       expect(message).toBeTruthy()
       expect(message!.length).toBeGreaterThan(5)
 
-      // Cancel — status should remain Inactive
+      // Cancel — status should remain Active
       await authenticatedCategoriesPage.cancelStatusChange()
       await authenticatedCategoriesPage.expectConfirmDialogHidden()
 
       const statusAfterCancel = await authenticatedCategoriesPage.getCategoryStatus(categoryId!)
-      expect(statusAfterCancel).toBe('Inactive')
+      expect(statusAfterCancel).toBe('Active')
     })
 
-    test('should activate category when confirm dialog is confirmed', async ({ authenticatedCategoriesPage }) => {
-      const categoryName = `ActConfirm ${Date.now()}`
+    test('should deactivate category when confirm dialog is confirmed', async ({ authenticatedCategoriesPage }) => {
+      const categoryName = `DeactConfirm ${Date.now()}`
       await authenticatedCategoriesPage.createCategory({ de: categoryName })
 
       const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
       expect(categoryId).toBeTruthy()
 
-      // Deactivate first (immediate, no dialog)
-      await authenticatedCategoriesPage.toggleCategoryStatus(categoryId!)
-      await authenticatedCategoriesPage.expectConfirmDialogHidden()
-      expect(await authenticatedCategoriesPage.getCategoryStatus(categoryId!)).toBe('Inactive')
-
-      // Activate: shows confirm dialog
+      // Deactivate: shows confirm dialog
       await authenticatedCategoriesPage.clickStatusToggleExpectingDialog(categoryId!)
       await authenticatedCategoriesPage.expectConfirmDialogVisible()
 
-      // Confirm → category becomes Active
+      // Confirm → the PATCH goes out and the reloaded row comes back Inactive
       await authenticatedCategoriesPage.confirmStatusChange(categoryId!)
-      const status = await authenticatedCategoriesPage.getCategoryStatus(categoryId!)
-      expect(status).toBe('Active')
+      expect(await authenticatedCategoriesPage.getCategoryStatus(categoryId!)).toBe('Inactive')
+    })
+
+    test('should activate category immediately without confirmation dialog', async ({ authenticatedCategoriesPage }) => {
+      const categoryName = `Act ${Date.now()}`
+      await authenticatedCategoriesPage.createCategory({ de: categoryName })
+
+      const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+      expect(categoryId).toBeTruthy()
+
+      // Get it inactive first, through the confirmed path
+      await authenticatedCategoriesPage.clickStatusToggleExpectingDialog(categoryId!)
+      await authenticatedCategoriesPage.confirmStatusChange(categoryId!)
+      expect(await authenticatedCategoriesPage.getCategoryStatus(categoryId!)).toBe('Inactive')
+
+      // Activation should be immediate — no confirm dialog
+      await authenticatedCategoriesPage.activateCategory(categoryId!)
+      await authenticatedCategoriesPage.expectConfirmDialogHidden()
+      expect(await authenticatedCategoriesPage.getCategoryStatus(categoryId!)).toBe('Active')
     })
   })
 

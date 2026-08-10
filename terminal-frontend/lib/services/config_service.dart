@@ -50,7 +50,7 @@ class ConfigService {
   int _dispenserTimeoutMs = 3000;
   int _dispenserPollIntervalMs = 250;
   bool _fullscreen = false;
-  bool _soundsEnabled = false;
+  bool _soundsEnabled = true;
   Map<String, dynamic>? _fontSizes;
   bool _rfidReaderMonitor = true;
   String? _rfidReaderVendorId;
@@ -127,7 +127,7 @@ class ConfigService {
         _seedTestData = json['seedTestData'] as bool? ?? false;
         _demoMode = json['demoMode'] as bool? ?? false;
         _fullscreen = json['fullscreen'] as bool? ?? false;
-        _soundsEnabled = json['soundsEnabled'] as bool? ?? false;
+        _soundsEnabled = json['soundsEnabled'] as bool? ?? true;
         _fontSizes = json['fontSizes'] as Map<String, dynamic>?;
 
         // Dispenser config
@@ -230,7 +230,7 @@ class ConfigService {
     _dispenserTimeoutMs = 3000;
     _dispenserPollIntervalMs = 250;
     _fullscreen = false;
-    _soundsEnabled = false;
+    _soundsEnabled = true;
     _fontSizes = null;
     _rfidReaderMonitor = true;
     _rfidReaderVendorId = null;

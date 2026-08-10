@@ -13,8 +13,10 @@ void main() {
         SoundEvent.productRemove,
         SoundEvent.quantityChange,
         SoundEvent.categorySwitch,
+        SoundEvent.dispenseSuccess,
+        SoundEvent.dispensePartial,
       ]));
-      expect(SoundEvent.values, hasLength(8));
+      expect(SoundEvent.values, hasLength(10));
     });
   });
 

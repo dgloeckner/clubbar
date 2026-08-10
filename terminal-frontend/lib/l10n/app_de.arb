@@ -393,6 +393,50 @@
   "@errorDetails": {
     "description": "Label for error details section"
   },
+  "statusSyncing": "Synchronisation läuft",
+  "@statusSyncing": {
+    "description": "Header pill: a sync cycle is running right now"
+  },
+  "statusDegradedSince": "Besteht seit {time}",
+  "@statusDegradedSince": {
+    "description": "How long the terminal has been offline or in error",
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "14:32"
+      }
+    }
+  },
+  "technicalDetails": "Technische Details",
+  "@technicalDetails": {
+    "description": "Expander that hides engineering detail from patrons"
+  },
+  "technicalErrorCode": "Fehlercode",
+  "@technicalErrorCode": {
+    "description": "Label for the internal error key, shown under technical details"
+  },
+  "backendVersionUnknown": "Version unbekannt",
+  "@backendVersionUnknown": {
+    "description": "Backend version badge when the version could not be fetched"
+  },
+  "pendingOperationDetails": "Mitglied {member} · Anzahl {quantity} · Erstellt {date}",
+  "@pendingOperationDetails": {
+    "description": "One pending dispenser operation; the member id is truncated on purpose",
+    "placeholders": {
+      "member": {
+        "type": "String",
+        "example": "a1b2c3d4…"
+      },
+      "quantity": {
+        "type": "String",
+        "example": "2"
+      },
+      "date": {
+        "type": "String",
+        "example": "2026-08-10"
+      }
+    }
+  },
 
   "@_COMMON": {},
   "loading": "Laden...",
