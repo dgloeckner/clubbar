@@ -78,13 +78,15 @@ class MemberBar extends StatelessWidget {
                   label: l10n.viewDetails,
                   child: Row(
                     children: [
-                      // Avatar with initials
+                      // Avatar with initials — gradient keyed off the member
+                      // id so the same member always gets the same colours
+                      // across every surface that shows their avatar (#302).
                       Container(
                         width: 43,
                         height: 43,
                         decoration: BoxDecoration(
-                          color: const Color(0xffFF6B4A),
-                          borderRadius: BorderRadius.circular(22),
+                          gradient: avatarGradientFor(member.id),
+                          borderRadius: BorderRadius.circular(AppBorderRadius.full),
                         ),
                         child: Center(
                           child: Text(
@@ -130,7 +132,7 @@ class MemberBar extends StatelessWidget {
                       const SizedBox(width: 4),
                       Icon(
                         Icons.chevron_right,
-                        color: hexToColor(AppColors.textMuted),
+                        color: AppColors.textMuted,
                         size: 22,
                       ),
                     ],
@@ -154,23 +156,23 @@ class MemberBar extends StatelessWidget {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: navigationBlocked ? null : onLogoutPressed,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.lg),
                   child: Opacity(
                     opacity: navigationBlocked ? 0.4 : 1.0,
                     child: Container(
                       width: 46,
                       height: 46,
                       decoration: BoxDecoration(
-                        color: const Color(0xff334155),
-                        borderRadius: BorderRadius.circular(11),
+                        color: AppColors.borderLight,
+                        borderRadius: BorderRadius.circular(AppBorderRadius.md),
                         border: Border.all(
-                          color: const Color(0xff475569),
+                          color: AppColors.borderMuted,
                           width: 1,
                         ),
                       ),
                       child: const Icon(
                         Icons.exit_to_app,
-                        color: Color(0xff94a3b8),
+                        color: AppColors.textSecondary,
                         size: 22,
                       ),
                     ),
@@ -190,15 +192,15 @@ class MemberBar extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: blocked ? null : onCartPressed,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
         child: Opacity(
           opacity: blocked ? 0.4 : 1.0,
           child: Container(
             width: 58,
             height: 58,
             decoration: BoxDecoration(
-              color: const Color(0xff3b82f6),
-              borderRadius: BorderRadius.circular(14),
+              color: AppColors.semanticPrimary,
+              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
             ),
             child: Stack(
               clipBehavior: Clip.none,
@@ -221,7 +223,7 @@ class MemberBar extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 5, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xffEF4444),
+                        color: AppColors.semanticDanger,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Center(

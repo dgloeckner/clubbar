@@ -35,7 +35,7 @@ class CreditLimitBanner extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     // Amber for both states: over the limit is not an app error, it is the
     // member's tab doing what tabs do. Red is reserved for failures.
-    final accent = hexToColor(AppColors.semanticWarning);
+    final accent = AppColors.semanticWarning;
     final headline = check.blocksCheckout
         ? l10n.creditLimitReached
         : l10n.creditLimitApproaching;
@@ -68,7 +68,7 @@ class CreditLimitBanner extends StatelessWidget {
                 Text(
                   headline,
                   style: TextStyle(
-                    color: hexToColor(AppColors.textPrimary),
+                    color: AppColors.textPrimary,
                     fontSize: AppFontSizes.lg,
                     fontWeight: FontWeight.w600,
                   ),
@@ -84,7 +84,7 @@ class CreditLimitBanner extends StatelessWidget {
                         formatPrice(check.limitCents, locale)),
                   ].join('   ·   '),
                   style: TextStyle(
-                    color: hexToColor(AppColors.textSecondary),
+                    color: AppColors.textSecondary,
                     fontSize: AppFontSizes.base,
                   ),
                 ),

@@ -80,7 +80,7 @@ class ShoppingCartScreen extends StatelessWidget {
                   child: Text(
                     l10n.cartEmpty,
                     style: TextStyle(
-                      color: Color(0xff94a3b8),
+                      color: AppColors.textSecondary,
                       fontSize: AppFontSizes.lg,
                     ),
                   ),
@@ -158,10 +158,10 @@ class ShoppingCartScreen extends StatelessWidget {
                         vertical: AppSpacing.md,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xff1a2744),
+                        color: AppColors.bgCard,
                         borderRadius: BorderRadius.circular(AppBorderRadius.lg),
                         border: Border.all(
-                          color: const Color(0xff334155),
+                          color: AppColors.borderLight,
                           width: 1,
                         ),
                       ),
@@ -182,7 +182,7 @@ class ShoppingCartScreen extends StatelessWidget {
                                 Text(
                                   item.productName,
                                   style: TextStyle(
-                                    color: Color(0xfff1f5f9),
+                                    color: AppColors.textPrimary,
                                     fontSize: AppFontSizes.lg,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -191,7 +191,7 @@ class ShoppingCartScreen extends StatelessWidget {
                                 Text(
                                   l10n.cartEachPrice(unitPriceFormatted),
                                   style: TextStyle(
-                                    color: Color(0xff0ea5e9),
+                                    color: AppColors.semanticInfo,
                                     fontSize: AppFontSizes.base,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -217,7 +217,7 @@ class ShoppingCartScreen extends StatelessWidget {
                                   width: 44,
                                   height: 44,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xff7f1d1d),
+                                    color: AppColors.cartRemoveFill,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   // White, not #ef4444: red-on-dark-red was
@@ -263,7 +263,7 @@ class ShoppingCartScreen extends StatelessWidget {
                                   width: 44,
                                   height: 44,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xff166534),
+                                    color: AppColors.cartAddFill,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   // White for the same reason as '−' (#41):
@@ -311,14 +311,14 @@ class ShoppingCartScreen extends StatelessWidget {
                                 color: const Color(0x807f1d1d),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: const Color(0xffef4444),
+                                  color: AppColors.semanticDanger,
                                   width: 1,
                                 ),
                               ),
                               child: const Center(
                                 child: Icon(
                                   Icons.delete_outline,
-                                  color: Color(0xffef4444),
+                                  color: AppColors.semanticDanger,
                                   size: 28,
                                 ),
                               ),
@@ -335,13 +335,13 @@ class ShoppingCartScreen extends StatelessWidget {
             // Total section (sticky bottom)
             Container(
               decoration: BoxDecoration(
-                color: const Color(0xff1a2744),
+                color: AppColors.bgCard,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(AppBorderRadius.lg),
                   topRight: Radius.circular(AppBorderRadius.lg),
                 ),
                 border: Border.all(
-                  color: const Color(0xff334155),
+                  color: AppColors.borderLight,
                   width: 1,
                 ),
               ),
@@ -359,7 +359,7 @@ class ShoppingCartScreen extends StatelessWidget {
                             Text(
                               l10n.cartTotal,
                               style: TextStyle(
-                                color: Color(0xff94a3b8),
+                                color: AppColors.textSecondary,
                                 fontSize: AppFontSizes.xxl,
                                 fontWeight: FontWeight.w500,
                               ),

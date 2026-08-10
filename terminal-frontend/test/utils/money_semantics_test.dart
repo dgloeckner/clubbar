@@ -7,41 +7,41 @@ import 'package:clubbar_terminal/utils/formatters.dart';
 void main() {
   group('balanceColor', () {
     test('credit is green', () {
-      expect(balanceColor(-1), hexToColor(AppColors.semanticSuccess));
-      expect(balanceColor(-5000), hexToColor(AppColors.semanticSuccess));
+      expect(balanceColor(-1), AppColors.semanticSuccess);
+      expect(balanceColor(-5000), AppColors.semanticSuccess);
     });
 
     test('settled and small open tabs are neutral', () {
-      expect(balanceColor(0), hexToColor(AppColors.textPrimary));
-      expect(balanceColor(1), hexToColor(AppColors.textPrimary));
+      expect(balanceColor(0), AppColors.textPrimary);
+      expect(balanceColor(1), AppColors.textPrimary);
       expect(
         balanceColor(AppMoney.warnAboveCents),
-        hexToColor(AppColors.textPrimary),
+        AppColors.textPrimary,
       );
     });
 
     test('open tabs above the warn threshold are amber', () {
       expect(
         balanceColor(AppMoney.warnAboveCents + 1),
-        hexToColor(AppColors.semanticWarning),
+        AppColors.semanticWarning,
       );
     });
   });
 
   group('transactionAmountColor', () {
     test('a charge is neutral', () {
-      expect(transactionAmountColor(0), hexToColor(AppColors.textPrimary));
-      expect(transactionAmountColor(250), hexToColor(AppColors.textPrimary));
+      expect(transactionAmountColor(0), AppColors.textPrimary);
+      expect(transactionAmountColor(250), AppColors.textPrimary);
       expect(
         transactionAmountColor(AppMoney.warnAboveCents + 1),
-        hexToColor(AppColors.textPrimary),
+        AppColors.textPrimary,
       );
     });
 
     test('a credit or refund is green', () {
       expect(
         transactionAmountColor(-250),
-        hexToColor(AppColors.semanticSuccess),
+        AppColors.semanticSuccess,
       );
     });
   });

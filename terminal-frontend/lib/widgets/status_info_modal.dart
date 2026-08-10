@@ -232,15 +232,15 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
 
   Color _statusColor(DispenserHealth? health) {
     if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline(health)) {
-      return const Color(0xfff59e0b);
+      return AppColors.semanticPending;
     }
     switch (widget.connectionStatus) {
       case ConnectionStatus.online:
-        return const Color(0xff22c55e);
+        return AppColors.semanticSuccess;
       case ConnectionStatus.offline:
-        return const Color(0xffef4444);
+        return AppColors.semanticDanger;
       case ConnectionStatus.error:
-        return const Color(0xfff59e0b);
+        return AppColors.semanticPending;
     }
   }
 
@@ -268,10 +268,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xff34d399) : Colors.transparent,
+          color: isActive ? AppColors.semanticSuccessLight : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isActive ? const Color(0xff34d399) : const Color(0xff475569),
+            color: isActive ? AppColors.semanticSuccessLight : AppColors.borderMuted,
             width: 1,
           ),
         ),
@@ -280,7 +280,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           style: TextStyle(
             fontSize: AppFontSizes.sm,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-            color: isActive ? Colors.white : const Color(0xff94a3b8),
+            color: isActive ? Colors.white : AppColors.textSecondary,
           ),
         ),
       ),
@@ -488,13 +488,13 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   Widget _buildErrorSection(AppLocalizations l10n) {
     return _buildSection(
       title: l10n.errorDetails,
-      titleColor: const Color(0xffef4444),
+      titleColor: AppColors.semanticDanger,
       children: [
         Text(
           widget.lastError!.message(l10n),
           style: TextStyle(
             fontSize: AppFontSizes.base,
-            color: const Color(0xffe2e8f0),
+            color: AppColors.textBright,
           ),
         ),
         if (widget.degradedSince != null) ...[
@@ -503,7 +503,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             l10n.statusDegradedSince(_formatClock(widget.degradedSince!)),
             style: TextStyle(
               fontSize: AppFontSizes.sm,
-              color: const Color(0xff94a3b8),
+              color: AppColors.textSecondary,
             ),
           ),
         ],
@@ -533,14 +533,14 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                       ? Icons.expand_less
                       : Icons.expand_more,
                   size: 20,
-                  color: const Color(0xff94a3b8),
+                  color: AppColors.textSecondary,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   l10n.technicalDetails,
                   style: TextStyle(
                     fontSize: AppFontSizes.sm,
-                    color: const Color(0xff94a3b8),
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -570,7 +570,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
 
     return _buildSection(
       title: l10n.cardReader,
-      titleColor: connected ? null : const Color(0xffef4444),
+      titleColor: connected ? null : AppColors.semanticDanger,
       children: [
         _infoRow(
           'Status',
@@ -594,7 +594,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           padding: const EdgeInsets.all(24),
           child: Text(
             l10n.dispenserNotAvailable,
-            style: TextStyle(fontSize: AppFontSizes.base, color: const Color(0xff94a3b8)),
+            style: TextStyle(fontSize: AppFontSizes.base, color: AppColors.textSecondary),
           ),
         ),
       );
@@ -639,7 +639,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             style: TextStyle(
               fontSize: AppFontSizes.xxxl,
               fontWeight: FontWeight.w700,
-              color: accentColor ?? const Color(0xffe2e8f0),
+              color: accentColor ?? AppColors.textBright,
             ),
           ),
           const SizedBox(height: 8),
@@ -647,7 +647,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             label.toUpperCase(),
             style: TextStyle(
               fontSize: AppFontSizes.xs,
-              color: const Color(0xff475569),
+              color: AppColors.borderMuted,
               letterSpacing: 0.1,
             ),
             textAlign: TextAlign.center,
@@ -687,15 +687,15 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     if (isError) {
       bg     = const Color(0x19ef4444);
       border = const Color(0x33ef4444);
-      text   = const Color(0xffef4444);
+      text   = AppColors.semanticDanger;
     } else if (isIdle) {
       bg     = const Color(0x196366f1);
       border = const Color(0x336366f1);
-      text   = const Color(0xff818cf8);
+      text   = AppColors.semanticIdle;
     } else {
       bg     = const Color(0x1934d399);
       border = const Color(0x3334d399);
-      text   = const Color(0xff34d399);
+      text   = AppColors.semanticSuccessLight;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
@@ -740,7 +740,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                 style: TextStyle(
                   fontSize: AppFontSizes.xs,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xff475569),
+                  color: AppColors.borderMuted,
                   letterSpacing: 0.12,
                 ),
               ),
@@ -751,7 +751,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   fontFamily: 'monospace',
                   fontSize: AppFontSizes.xl,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xff34d399),
+                  color: AppColors.semanticSuccessLight,
                   letterSpacing: 0.05,
                 ),
               ),
@@ -762,7 +762,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             style: TextStyle(
               fontFamily: 'monospace',
               fontSize: AppFontSizes.xs,
-              color: const Color(0xff334155),
+              color: AppColors.borderLight,
             ),
           ),
         ],
@@ -797,7 +797,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                 style: TextStyle(
                   fontSize: AppFontSizes.xs,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xff475569),
+                  color: AppColors.borderMuted,
                   letterSpacing: 0.12,
                 ),
               ),
@@ -818,7 +818,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                 child: _buildMetricCard(
                   label: l10n.dispenserSuccess,
                   value: health.requestedTokens ?? health.successful,
-                  accentColor: const Color(0xff34d399),
+                  accentColor: AppColors.semanticSuccessLight,
                 ),
               ),
               const SizedBox(width: 8),
@@ -826,7 +826,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                 child: _buildMetricCard(
                   label: l10n.dispenserJams,
                   value: health.jams,
-                  accentColor: const Color(0xfff59e0b),
+                  accentColor: AppColors.semanticPending,
                 ),
               ),
               const SizedBox(width: 8),
@@ -834,7 +834,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                 child: _buildMetricCard(
                   label: l10n.dispenserFailures,
                   value: failures,
-                  accentColor: const Color(0xffef4444),
+                  accentColor: AppColors.semanticDanger,
                 ),
               ),
             ],
@@ -862,7 +862,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               style: TextStyle(
                 fontSize: AppFontSizes.xs,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xff475569),
+                color: AppColors.borderMuted,
                 letterSpacing: 0.12,
               ),
             ),
@@ -872,7 +872,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: AppFontSizes.xs,
-                color: const Color(0xff475569),
+                color: AppColors.borderMuted,
               ),
             ),
           ],
@@ -898,7 +898,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             style: TextStyle(
               fontSize: AppFontSizes.xs,
               fontWeight: FontWeight.w600,
-              color: const Color(0xff475569),
+              color: AppColors.borderMuted,
               letterSpacing: 0.12,
             ),
           ),
@@ -919,7 +919,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                           fontFamily: 'monospace',
                           fontSize: AppFontSizes.base,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xffe2e8f0),
+                          color: AppColors.textBright,
                         ),
                       ),
                       Text(
@@ -927,7 +927,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           fontSize: AppFontSizes.xs,
-                          color: const Color(0xff475569),
+                          color: AppColors.borderMuted,
                         ),
                       ),
                     ],
@@ -945,7 +945,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: AppFontSizes.xs,
-                    color: const Color(0xff94a3b8),
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -975,7 +975,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             style: TextStyle(
               fontSize: AppFontSizes.xs,
               fontWeight: FontWeight.w600,
-              color: const Color(0xff475569),
+              color: AppColors.borderMuted,
               letterSpacing: 0.12,
             ),
           ),
@@ -986,7 +986,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: AppFontSizes.xs,
-                    color: const Color(0xff334155),
+                    color: AppColors.borderLight,
                   ),
                   textAlign: TextAlign.center,
                 )
@@ -1023,7 +1023,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                 error.cleared ? '✓' : '⚠',
                 style: TextStyle(
                   fontSize: AppFontSizes.base,
-                  color: error.cleared ? const Color(0xff34d399) : const Color(0xffef4444),
+                  color: error.cleared ? AppColors.semanticSuccessLight : AppColors.semanticDanger,
                 ),
               ),
             ),
@@ -1039,7 +1039,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                     fontFamily: 'monospace',
                     fontSize: AppFontSizes.xs,
                     fontWeight: FontWeight.w600,
-                    color: error.cleared ? const Color(0xff94a3b8) : const Color(0xffef4444),
+                    color: error.cleared ? AppColors.textSecondary : AppColors.semanticDanger,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1048,7 +1048,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: AppFontSizes.xs,
-                    color: const Color(0xff475569),
+                    color: AppColors.borderMuted,
                   ),
                 ),
               ],
@@ -1080,14 +1080,14 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               if (notFound.isNotEmpty)
                 const Padding(
                   padding: EdgeInsets.only(right: 6),
-                  child: Icon(Icons.warning_amber_rounded, color: Color(0xffef4444), size: 14),
+                  child: Icon(Icons.warning_amber_rounded, color: AppColors.semanticDanger, size: 14),
                 ),
               Text(
                 l10n.dispenserLocalTransactionLog.toUpperCase(),
                 style: TextStyle(
                   fontSize: AppFontSizes.xs,
                   fontWeight: FontWeight.w600,
-                  color: notFound.isNotEmpty ? const Color(0xffef4444) : const Color(0xff475569),
+                  color: notFound.isNotEmpty ? AppColors.semanticDanger : AppColors.borderMuted,
                   letterSpacing: 0.12,
                 ),
               ),
@@ -1100,7 +1100,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               style: TextStyle(
                 fontSize: AppFontSizes.xs,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xffef4444),
+                color: AppColors.semanticDanger,
                 letterSpacing: 0.08,
               ),
             ),
@@ -1114,7 +1114,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               style: TextStyle(
                 fontSize: AppFontSizes.xs,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xff475569),
+                color: AppColors.borderMuted,
                 letterSpacing: 0.08,
               ),
             ),
@@ -1127,7 +1127,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   }
 
   Widget _buildPendingOpRow(DispenserOperation op, {required AppLocalizations l10n, required bool isNotFound}) {
-    final stateColor = isNotFound ? const Color(0xffef4444) : const Color(0xfff59e0b);
+    final stateColor = isNotFound ? AppColors.semanticDanger : AppColors.semanticPending;
     final stateLabel = _translateMachineState(op.lastKnownState, l10n).toUpperCase();
     final shortId = _maskId(op.dispenserTxId);
 
@@ -1150,7 +1150,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: AppFontSizes.xs,
-                    color: const Color(0xff94a3b8),
+                    color: AppColors.textSecondary,
                   ),
                 ),
                 Text(
@@ -1162,7 +1162,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: AppFontSizes.xs,
-                    color: const Color(0xff475569),
+                    color: AppColors.borderMuted,
                   ),
                 ),
               ],
@@ -1203,7 +1203,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           style: TextStyle(
             fontSize: AppFontSizes.base,
             fontWeight: FontWeight.w600,
-            color: titleColor ?? const Color(0xff64748b),
+            color: titleColor ?? AppColors.textDisabled,
             letterSpacing: 0.5,
           ),
         ),
@@ -1247,7 +1247,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xff334155),
+                  color: AppColors.borderLight,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -1255,7 +1255,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   style: TextStyle(
                     fontSize: AppFontSizes.xs,
                     fontFamily: 'monospace',
-                    color: const Color(0xff94a3b8),
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),

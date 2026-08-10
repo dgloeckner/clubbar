@@ -36,16 +36,16 @@ class CheckoutButton extends StatelessWidget {
     // same state, so they cannot drift apart as states are added.
     final (background, foreground, label) = switch (this) {
       _ when isBlockedByLimit => (
-          hexToColor(AppColors.borderLight),
-          hexToColor(AppColors.textSecondary),
+          AppColors.borderLight,
+          AppColors.textSecondary,
           l10n.checkoutBlockedByLimit,
         ),
       _ when isLoading => (
-          const Color(0xff166534),
+          AppColors.cartAddFill,
           Colors.black,
           l10n.checkoutProcessing,
         ),
-      _ => (const Color(0xff22c55e), Colors.black, l10n.checkout),
+      _ => (AppColors.semanticSuccess, Colors.black, l10n.checkout),
     };
 
     return Material(

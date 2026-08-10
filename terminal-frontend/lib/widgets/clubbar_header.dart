@@ -82,11 +82,11 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
   Color _badgeColor() {
     switch (widget.connectionStatus) {
       case ConnectionStatus.online:
-        return const Color(0xff22c55e);
+        return AppColors.semanticSuccess;
       case ConnectionStatus.offline:
-        return const Color(0xffef4444);
+        return AppColors.semanticDanger;
       case ConnectionStatus.error:
-        return const Color(0xfff59e0b);
+        return AppColors.semanticPending;
     }
   }
 
@@ -101,8 +101,8 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
   /// Lives here rather than at the call sites so every pill — connection and
   /// reader, quiet and alerting — is legible by construction.
   Color _pillTextColor(Color color) {
-    return color == hexToColor(AppColors.semanticDanger)
-        ? hexToColor(AppColors.dangerOnTint)
+    return color == AppColors.semanticDanger
+        ? AppColors.dangerOnTint
         : color;
   }
 
@@ -216,14 +216,14 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
       case RfidReaderStatus.connected:
         return _pill(
           text: l10n.statusReaderOk,
-          color: const Color(0xff22c55e),
+          color: AppColors.semanticSuccess,
           icon: Icons.nfc,
           alert: false,
         );
       case RfidReaderStatus.disconnected:
         return _pill(
           text: l10n.statusReaderMissing,
-          color: const Color(0xffef4444),
+          color: AppColors.semanticDanger,
           icon: Icons.sensors_off,
           alert: true,
         );
@@ -241,10 +241,10 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xff0f1d32),
+        color: AppColors.bgSecondary,
         border: Border(
           bottom: BorderSide(
-            color: const Color(0xff3b82f6).withValues(alpha: 0.2),
+            color: AppColors.semanticPrimary.withValues(alpha: 0.2),
             width: 1,
           ),
         ),
@@ -259,7 +259,7 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
               widget.displayName,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: Color(0xfff1f5f9),
+                color: AppColors.textPrimary,
                 fontSize: AppFontSizes.xxl,
                 fontWeight: FontWeight.w600,
               ),
@@ -288,7 +288,7 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
                 style: TextStyle(
                   // Was a hardcoded #64748b (3.5:1 here) — the clock is text
                   // a member reads, so it gets the secondary token (#41).
-                  color: hexToColor(AppColors.textSecondary),
+                  color: AppColors.textSecondary,
                   fontSize: AppFontSizes.lg,
                   fontFamily: 'JetBrains Mono',
                   fontWeight: FontWeight.w500,

@@ -63,13 +63,13 @@ class CartSummaryBar extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xff1a2744),
+        color: AppColors.bgCard,
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(AppBorderRadius.lg),
           topRight: Radius.circular(AppBorderRadius.lg),
         ),
         border: Border.all(
-          color: const Color(0xff334155),
+          color: AppColors.borderLight,
           width: _borderWidth,
         ),
       ),
@@ -94,7 +94,7 @@ class CartSummaryBar extends StatelessWidget {
                       Text(
                         l10n.cartTotal,
                         style: TextStyle(
-                          color: const Color(0xff94a3b8),
+                          color: AppColors.textSecondary,
                           fontSize: AppFontSizes.lg,
                           fontWeight: FontWeight.w500,
                         ),

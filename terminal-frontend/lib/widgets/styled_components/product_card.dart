@@ -94,16 +94,14 @@ class _ProductCardState extends State<ProductCard>
             Opacity(
               opacity: enabled ? 1.0 : 0.45,
               child: Card(
-                color: Color(
-                  int.parse('0xff${AppColors.bgCard.replaceFirst('#', '')}'),
-                ),
+                color: AppColors.bgCard,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppBorderRadius.lg),
                   side: BorderSide(
                     color: isInCart
-                        ? const Color(0xff3b82f6)
-                        : const Color(0xff334155),
+                        ? AppColors.semanticPrimary
+                        : AppColors.borderLight,
                     width: isInCart ? 2 : 1,
                   ),
                 ),
@@ -128,7 +126,7 @@ class _ProductCardState extends State<ProductCard>
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Color(0xfff1f5f9),
+                          color: AppColors.textPrimary,
                           fontSize: AppFontSizes.xl,
                           fontWeight: FontWeight.w600,
                         ),
@@ -140,7 +138,7 @@ class _ProductCardState extends State<ProductCard>
                         formatPrice(widget.product.priceCents, widget.locale),
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Color(0xff0ea5e9),
+                          color: AppColors.semanticInfo,
                           fontSize: AppFontSizes.xxl,
                           fontWeight: FontWeight.bold,
                         ),
@@ -163,6 +161,7 @@ class _ProductCardState extends State<ProductCard>
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
+                    // rgba tint of borderDark — opacity-only, not swept (#302).
                     color: const Color(0xcc1e293b),
                     borderRadius: BorderRadius.only(
                       bottomLeft: Radius.circular(AppBorderRadius.lg),
@@ -175,7 +174,7 @@ class _ProductCardState extends State<ProductCard>
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: const Color(0xfffbbf24),
+                      color: AppColors.semanticWarningLight,
                       fontSize: AppFontSizes.sm,
                       fontWeight: FontWeight.w600,
                     ),
@@ -193,16 +192,16 @@ class _ProductCardState extends State<ProductCard>
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xff1e293b),
-                      borderRadius: BorderRadius.circular(22),
+                      color: AppColors.borderDark,
+                      borderRadius: BorderRadius.circular(AppBorderRadius.full),
                       border: Border.all(
-                        color: const Color(0xff3b82f6),
+                        color: AppColors.semanticPrimary,
                         width: 1.5,
                       ),
                     ),
                     child: const Icon(
                       Icons.remove,
-                      color: Color(0xff94a3b8),
+                      color: AppColors.textSecondary,
                       size: 24,
                     ),
                   ),
@@ -220,7 +219,7 @@ class _ProductCardState extends State<ProductCard>
                   ),
                   decoration: BoxDecoration(
                     // Strong blue: white on #3b82f6 is 3.7:1 (#41).
-                    color: hexToColor(AppColors.semanticPrimaryStrong),
+                    color: AppColors.semanticPrimaryStrong,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
