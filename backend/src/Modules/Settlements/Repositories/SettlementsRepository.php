@@ -171,6 +171,52 @@ class SettlementsRepository
         return $rows;
     }
 
+    /**
+     * Members the next run cannot collect from because they have no usable
+     * mandate (#258) — the third standing exclusion, beside credit and holds.
+     *
+     * The three buckets must stay mutually exclusive, or the surface puts
+     * contradictory remedies in front of the treasurer for one member. So this
+     * repeats the precedence `previewSettlement()` applies (ruling #148 §4):
+     * credit is tested first and wins, a hold outranks a missing mandate, and
+     * only what is left lands here. Expressed as SQL that means a non-negative
+     * position (negative is credit) and `collection_hold = 0`.
+     *
+     * "No usable mandate" is the absence of an active `mandates` row. Since
+     * #164 the IBAN and the reference live there together and arrive as a
+     * pair, so `hasActiveMandate()` inverted is simply "nothing joined":
+     * `active_member_id` is the column that marks the one live mandate, and it
+     * is nulled when a mandate is revoked or replaced.
+     *
+     * Participants only — a member with no open position is not something the
+     * next run would leave behind, and listing every mandate-less member at a
+     * club that collects mandates late produces a list long enough to ignore.
+     *
+     * @return list<array{member_id: string, first_name: string, last_name: string, balance_cents: int}>
+     */
+    public function findMembersWithoutUsableMandate(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT t.member_id, m.first_name, m.last_name,
+                    SUM(t.amount_cents) as balance_cents
+             FROM transactions t
+             JOIN members m ON m.id = t.member_id
+             LEFT JOIN mandates md ON md.active_member_id = m.id
+             WHERE ' . self::UNSETTLED . ' AND m.deleted_at IS NULL
+               AND m.collection_hold = 0
+               AND md.active_member_id IS NULL
+             GROUP BY t.member_id, m.first_name, m.last_name
+             HAVING SUM(t.amount_cents) >= 0
+             ORDER BY balance_cents DESC'
+        );
+
+        $rows = $stmt->fetchAll();
+        foreach ($rows as &$row) {
+            $row['balance_cents'] = (int) $row['balance_cents'];
+        }
+        return $rows;
+    }
+
     public function create(array $data): array
     {
         $id = $data['id'] ?? Uuid::v4();

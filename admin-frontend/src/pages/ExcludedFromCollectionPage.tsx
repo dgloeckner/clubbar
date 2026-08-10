@@ -7,7 +7,7 @@ import { useExcludedFromCollection } from '../hooks/useExcludedFromCollection'
 import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { getMembers } from '../api/generated/members/members'
-import type { CollectionHold, CreditBalance } from '../api/generated'
+import type { CollectionHold, CreditBalance, MandateMissing } from '../api/generated'
 import { theme } from '../styles/design-system'
 import { tableColors, tableSpacing } from '../styles/tableTokens'
 
@@ -104,11 +104,13 @@ const clearButtonStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
+type Tone = 'credit' | 'held' | 'nomandate' | 'ok'
+
 interface TileProps {
   label: string
   value: string
   sub: string
-  tone: 'credit' | 'held' | 'ok'
+  tone: Tone
   testId: string
 }
 
@@ -116,6 +118,10 @@ function Tile({ label, value, sub, tone, testId }: TileProps) {
   const toneColor = {
     credit: theme.colors.semantic.warning,
     held: theme.colors.semantic.danger,
+    // A third exclusion needs a third reading, not a reused one: this is money
+    // owed in that no run can reach, distinct from owed-out and from
+    // owed-in-but-skipped.
+    nomandate: theme.colors.semantic.info,
     ok: theme.colors.semantic.success,
   }[tone]
 
@@ -162,10 +168,11 @@ function Tile({ label, value, sub, tone, testId }: TileProps) {
   )
 }
 
-function SectionHeader({ title, chip, chipTone }: { title: string; chip: string; chipTone: 'credit' | 'held' | 'ok' }) {
+function SectionHeader({ title, chip, chipTone }: { title: string; chip: string; chipTone: Tone }) {
   const chipStyles = {
     credit: { background: 'rgba(249, 115, 22, 0.15)', color: '#fdba74' },
     held: { background: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5' },
+    nomandate: { background: 'rgba(14, 165, 233, 0.15)', color: '#7dd3fc' },
     ok: { background: 'rgba(34, 197, 94, 0.15)', color: '#86efac' },
   }[chipTone]
 
@@ -194,7 +201,7 @@ export function ExcludedFromCollectionPage() {
   const breakpoint = useBreakpoint()
   const isNarrow = breakpoint === 'mobile' || breakpoint === 'smallMobile'
 
-  const { credit, holds, loading, excludedCount, reload } = useExcludedFromCollection()
+  const { credit, holds, noMandate, loading, excludedCount, reload } = useExcludedFromCollection()
 
   const [pendingHold, setPendingHold] = useState<CollectionHold | null>(null)
   const [clearing, setClearing] = useState(false)
@@ -284,6 +291,21 @@ export function ExcludedFromCollectionPage() {
       </tr>
     ))
 
+  const noMandateRows = (items: MandateMissing[]) =>
+    items.map((m) => (
+      <tr key={m.member_id} data-testid={`excluded-nomandate-row-${m.member_id}`}>
+        <td style={{ ...cellStyle, fontWeight: theme.typography.fontWeight.medium }}>
+          {memberName(m)}
+        </td>
+        <td
+          data-testid={`excluded-nomandate-amount-${m.member_id}`}
+          style={{ ...numericCellStyle, color: theme.colors.semantic.info }}
+        >
+          {formatPrice(m.balance_cents ?? 0)}
+        </td>
+      </tr>
+    ))
+
   const creditCards = (items: CreditBalance[]) =>
     items.map((m) => (
       <div key={m.member_id} data-testid={`excluded-credit-row-${m.member_id}`} style={cardStyle}>
@@ -350,6 +372,27 @@ export function ExcludedFromCollectionPage() {
       </div>
     ))
 
+  const noMandateCards = (items: MandateMissing[]) =>
+    items.map((m) => (
+      <div key={m.member_id} data-testid={`excluded-nomandate-row-${m.member_id}`} style={cardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: theme.spacing.md }}>
+          <span style={{ fontWeight: theme.typography.fontWeight.semibold, color: theme.colors.text.primary }}>
+            {memberName(m)}
+          </span>
+          <span
+            data-testid={`excluded-nomandate-amount-${m.member_id}`}
+            style={{
+              fontWeight: theme.typography.fontWeight.semibold,
+              fontVariantNumeric: 'tabular-nums',
+              color: theme.colors.semantic.info,
+            }}
+          >
+            {formatPrice(m.balance_cents ?? 0)}
+          </span>
+        </div>
+      </div>
+    ))
+
   return (
     <>
       <div data-testid="excluded-page" style={{ padding: '20px' }}>
@@ -378,11 +421,13 @@ export function ExcludedFromCollectionPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing['3xl'] }}>
-            {/* Summary — the two figures the treasurer is here for. */}
+            {/* Summary — the three figures the treasurer is here for. Each is a
+                different kind of money, so none of them may be summed with
+                another: owed out, owed in but skipped, owed in and unreachable. */}
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))',
+                gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : 'repeat(3, minmax(0, 1fr))',
                 gap: theme.spacing.lg,
               }}
             >
@@ -410,6 +455,21 @@ export function ExcludedFromCollectionPage() {
                     : holds.items.length > 0
                       ? t('excluded.tiles.heldSub', { count: holds.items.length })
                       : t('excluded.tiles.heldNobody')
+                }
+              />
+              <Tile
+                testId="excluded-nomandate-total"
+                tone={noMandate.error ? 'ok' : noMandate.items.length > 0 ? 'nomandate' : 'ok'}
+                label={t('excluded.tiles.noMandateLabel')}
+                value={
+                  noMandate.error ? t('excluded.tiles.unavailable') : formatPrice(noMandate.totalCents)
+                }
+                sub={
+                  noMandate.error
+                    ? noMandate.error
+                    : noMandate.items.length > 0
+                      ? t('excluded.tiles.noMandateSub', { count: noMandate.items.length })
+                      : t('excluded.tiles.noMandateNobody')
                 }
               />
             </div>
@@ -512,6 +572,63 @@ export function ExcludedFromCollectionPage() {
                           {formatPrice(holds.totalCents)}
                         </td>
                         <td style={footerCellStyle} colSpan={4} />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            {/* ── No usable mandate ───────────────────────────────── */}
+            <section style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.md }}>
+              <SectionHeader
+                title={t('excluded.noMandate.title')}
+                chip={
+                  noMandate.items.length > 0
+                    ? t('excluded.count', { count: noMandate.items.length })
+                    : t('excluded.none')
+                }
+                chipTone={noMandate.items.length > 0 ? 'nomandate' : 'ok'}
+              />
+              <p style={noteStyle}>{t('excluded.noMandate.note')}</p>
+
+              {noMandate.error ? (
+                <Alert variant="danger" message={noMandate.error} testId="excluded-nomandate-error" />
+              ) : noMandate.items.length === 0 ? (
+                <div data-testid="excluded-nomandate-empty" style={emptyStyle}>
+                  {t('excluded.noMandate.empty')}
+                </div>
+              ) : isNarrow ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.md }}>
+                  {noMandateCards(noMandate.items)}
+                </div>
+              ) : (
+                <div style={tableWrapStyle}>
+                  <table
+                    data-testid="excluded-nomandate-table"
+                    style={{ width: '100%', borderCollapse: 'collapse' }}
+                  >
+                    <thead>
+                      <tr>
+                        <th style={headerCellStyle}>{t('excluded.noMandate.columns.member')}</th>
+                        <th style={{ ...headerCellStyle, textAlign: 'right' }}>
+                          {t('excluded.noMandate.columns.balance')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>{noMandateRows(noMandate.items)}</tbody>
+                    <tfoot>
+                      <tr>
+                        <td style={footerCellStyle}>{t('excluded.noMandate.total')}</td>
+                        <td
+                          style={{
+                            ...footerCellStyle,
+                            textAlign: 'right',
+                            color: theme.colors.semantic.info,
+                          }}
+                        >
+                          {formatPrice(noMandate.totalCents)}
+                        </td>
                       </tr>
                     </tfoot>
                   </table>

@@ -70,6 +70,7 @@ import type {
   ListCreditBalances200,
   ListMembers200,
   ListMembersParams,
+  ListMembersWithoutMandate200,
   MandateDocument,
   Member,
   MemberCreateRequest,
@@ -157,6 +158,36 @@ const listCollectionHolds = (
  options?: SecondParameter<typeof customInstance<ListCollectionHolds200>>,) => {
       return customInstance<ListCollectionHolds200>(
       {url: `/admin/members/collection-holds`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * Standing listing of the members the next collection run cannot reach
+at all, because either the IBAN or the SEPA mandate reference is
+missing (#258). Most owed first; soft-deleted members are excluded.
+
+The third standing exclusion, and the one that was least visible: a
+member in credit or on hold is at least an account somebody is
+transacting with, while a member with no mandate can never be
+collected from.
+
+Scoped to **participants** — members with an open unsettled position.
+That matches the `ineligible_members` bucket of the settlement
+preview, which answers the same question about a run rather than about
+the roster.
+
+The three standing exclusions are mutually exclusive and repeat the
+precedence the preview applies (ruling #148 §4): credit wins over a
+hold, and a hold wins over a missing mandate, so a member appears in
+exactly one listing and gets exactly one remedy.
+
+ * @summary List members with an open position and no usable mandate
+ */
+const listMembersWithoutMandate = (
+    
+ options?: SecondParameter<typeof customInstance<ListMembersWithoutMandate200>>,) => {
+      return customInstance<ListMembersWithoutMandate200>(
+      {url: `/admin/members/mandate-missing`, method: 'GET'
     },
       options);
     }
@@ -361,11 +392,12 @@ const getAdminSepaMandateTemplate = (
     },
       options);
     }
-  return {listMembers,createMember,listCreditBalances,listCollectionHolds,clearCollectionHold,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm,uploadMandateDocument,getMandateDocument,deleteMandateDocument,getAdminSepaMandateTemplate}};
+  return {listMembers,createMember,listCreditBalances,listCollectionHolds,listMembersWithoutMandate,clearCollectionHold,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm,uploadMandateDocument,getMandateDocument,deleteMandateDocument,getAdminSepaMandateTemplate}};
 export type ListMembersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listMembers']>>>
 export type CreateMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['createMember']>>>
 export type ListCreditBalancesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listCreditBalances']>>>
 export type ListCollectionHoldsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listCollectionHolds']>>>
+export type ListMembersWithoutMandateResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listMembersWithoutMandate']>>>
 export type ClearCollectionHoldResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['clearCollectionHold']>>>
 export type GetMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['getMember']>>>
 export type UpdateMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['updateMember']>>>

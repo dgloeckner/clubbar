@@ -798,7 +798,11 @@
       "heldSub_one": "{{count}} member · owed to the club, not collected",
       "heldSub_other": "{{count}} members · owed to the club, not collected",
       "heldNobody": "Nobody",
-      "unavailable": "—"
+      "unavailable": "—",
+      "noMandateLabel": "Cannot be collected",
+      "noMandateSub_one": "{{count}} member · no usable bank details",
+      "noMandateSub_other": "{{count}} members · no usable bank details",
+      "noMandateNobody": "Nobody"
     },
     "count_one": "{{count}} member",
     "count_other": "{{count}} members",
@@ -841,7 +845,18 @@
     "errors": {
       "loadCredit": "The credit balances could not be loaded.",
       "loadHolds": "The collection holds could not be loaded.",
-      "clearFailed": "The hold could not be cleared."
+      "clearFailed": "The hold could not be cleared.",
+      "loadNoMandate": "The members without a mandate could not be loaded."
+    },
+    "noMandate": {
+      "title": "No SEPA mandate — the run cannot reach them at all",
+      "note": "A direct debit needs both an IBAN and a signed mandate. Collect what is missing, and these members join the next run.",
+      "empty": "Every member with an open balance has usable bank details.",
+      "total": "Total uncollectable",
+      "columns": {
+        "member": "Member",
+        "balance": "Owed"
+      }
     }
   }
 }

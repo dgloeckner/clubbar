@@ -270,6 +270,129 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $this->assertSame([$wanted], $participants);
     }
 
+
+    // ------------------------------------------------------------------
+    // findMembersWithoutUsableMandate (#258)
+    // ------------------------------------------------------------------
+
+    public function test_findMembersWithoutUsableMandate_lists_a_participant_with_no_mandate(): void
+    {
+        $memberId = $this->createTestMember('NoMandate', 'Owing');
+        $categoryId = $this->createTestCategory('NoMandateCategory');
+        $productId = $this->createTestProduct($categoryId, 'NoMandateProduct', 'mug', 1250);
+        $this->createTestTransaction($memberId, $productId, 1250, 'purchase', '2026-04-01 10:00:00');
+
+        $result = $this->settlementsRepository->findMembersWithoutUsableMandate();
+
+        $entry = $this->findByMemberId($result, $memberId);
+        $this->assertNotNull($entry, 'A participant with no mandate must be listed');
+        $this->assertSame(1250, $entry['balance_cents']);
+        $this->assertSame('NoMandate', $entry['first_name']);
+        $this->assertSame('Owing', $entry['last_name']);
+    }
+
+    public function test_findMembersWithoutUsableMandate_excludes_a_member_who_has_one(): void
+    {
+        $memberId = $this->createTestMember('HasMandate', 'Collectable');
+        $this->giveTestMandate($memberId);
+        $categoryId = $this->createTestCategory('HasMandateCategory');
+        $productId = $this->createTestProduct($categoryId, 'HasMandateProduct', 'mug', 900);
+        $this->createTestTransaction($memberId, $productId, 900, 'purchase', '2026-04-02 10:00:00');
+
+        $result = $this->settlementsRepository->findMembersWithoutUsableMandate();
+
+        $this->assertNull(
+            $this->findByMemberId($result, $memberId),
+            'A member the run can collect from is not an exclusion'
+        );
+    }
+
+    public function test_findMembersWithoutUsableMandate_excludes_a_member_with_nothing_open(): void
+    {
+        // Participants only: a mandate-less member who owes nothing is not
+        // something the next run would leave behind.
+        $memberId = $this->createTestMember('NoMandate', 'NoBalance');
+
+        $result = $this->settlementsRepository->findMembersWithoutUsableMandate();
+
+        $this->assertNull($this->findByMemberId($result, $memberId));
+    }
+
+    public function test_findMembersWithoutUsableMandate_yields_to_credit(): void
+    {
+        // Precedence, ruling #148 §4: credit is tested first and wins, so a
+        // member who is both in credit and mandate-less is reported once, as
+        // credit — the remedy is to pay them, not to chase their bank details.
+        $adminId = $this->createTestAdminUser('nomandate-credit-admin@example.com');
+        $memberId = $this->createTestMember('NoMandate', 'InCredit');
+        $categoryId = $this->createTestCategory('NoMandateCreditCategory');
+        $productId = $this->createTestProduct($categoryId, 'NoMandateCreditProduct', 'mug', 2000);
+
+        $purchase = $this->createTestTransaction($memberId, $productId, 2000, 'purchase', '2026-04-03 10:00:00');
+        $settlementId = $this->createSettlementRow($adminId, '2026-04-30', '2026-05-07', 2000, 1);
+        $this->settlementsRepository->createItem([
+            'settlement_id' => $settlementId,
+            'transaction_id' => $purchase,
+            'member_id' => $memberId,
+            'amount_cents' => 2000,
+        ]);
+        $this->createTestTransaction($memberId, $productId, -2000, 'storno', '2026-04-04 10:00:00', $purchase);
+
+        $result = $this->settlementsRepository->findMembersWithoutUsableMandate();
+
+        $this->assertNull(
+            $this->findByMemberId($result, $memberId),
+            'A negative position is credit, and credit outranks a missing mandate'
+        );
+    }
+
+    public function test_findMembersWithoutUsableMandate_yields_to_a_collection_hold(): void
+    {
+        // A hold outranks a missing mandate: until somebody looks at the bank
+        // return, the member's bank details are not the question.
+        $memberId = $this->createTestMember('NoMandate', 'OnHold');
+        $categoryId = $this->createTestCategory('NoMandateHoldCategory');
+        $productId = $this->createTestProduct($categoryId, 'NoMandateHoldProduct', 'mug', 700);
+        $this->createTestTransaction($memberId, $productId, 700, 'purchase', '2026-04-05 10:00:00');
+
+        $this->db->prepare('UPDATE members SET collection_hold = 1 WHERE id = ?')->execute([$memberId]);
+
+        $result = $this->settlementsRepository->findMembersWithoutUsableMandate();
+
+        $this->assertNull($this->findByMemberId($result, $memberId));
+    }
+
+    public function test_findMembersWithoutUsableMandate_excludes_soft_deleted_members(): void
+    {
+        $memberId = $this->createTestMember('NoMandate', 'Deleted');
+        $categoryId = $this->createTestCategory('NoMandateDeletedCategory');
+        $productId = $this->createTestProduct($categoryId, 'NoMandateDeletedProduct', 'mug', 500);
+        $this->createTestTransaction($memberId, $productId, 500, 'purchase', '2026-04-06 10:00:00');
+
+        $this->db->prepare('UPDATE members SET deleted_at = NOW() WHERE id = ?')->execute([$memberId]);
+
+        $result = $this->settlementsRepository->findMembersWithoutUsableMandate();
+
+        $this->assertNull($this->findByMemberId($result, $memberId));
+    }
+
+    public function test_findMembersWithoutUsableMandate_lists_the_largest_debt_first(): void
+    {
+        $small = $this->createTestMember('NoMandate', 'Small');
+        $large = $this->createTestMember('NoMandate', 'Large');
+        $categoryId = $this->createTestCategory('NoMandateOrderCategory');
+        $productId = $this->createTestProduct($categoryId, 'NoMandateOrderProduct', 'mug', 100);
+        $this->createTestTransaction($small, $productId, 300, 'purchase', '2026-04-07 10:00:00');
+        $this->createTestTransaction($large, $productId, 9900, 'purchase', '2026-04-07 11:00:00');
+
+        $result = $this->settlementsRepository->findMembersWithoutUsableMandate();
+
+        $balances = array_column($result, 'balance_cents');
+        $sorted = $balances;
+        rsort($sorted);
+        $this->assertSame($sorted, $balances, 'The listing is ordered most owed first');
+    }
+
     // ------------------------------------------------------------------
     // findMembersInCredit (#161 work item 3)
     // ------------------------------------------------------------------
@@ -1021,6 +1144,30 @@ class SettlementsRepositoryTest extends DatabaseTestCase
     {
         $stmt = $this->db->prepare('UPDATE settlements SET created_at = ? WHERE id = ?');
         $stmt->execute([$createdAt, $settlementId]);
+    }
+
+    /**
+     * Give a member the active mandate that makes them collectable.
+     *
+     * `active_member_id` is the column marking the one live mandate; it is
+     * nulled when the mandate is revoked or replaced, which is exactly what
+     * findMembersWithoutUsableMandate() keys off. Cascades away with the
+     * member, so tearDown needs no extra step.
+     */
+    private function giveTestMandate(string $memberId): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban, signed_at)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $this->generateUuid(),
+            $memberId,
+            $memberId,
+            'MND-' . substr($memberId, 0, 12),
+            'DE89370400440532013000',
+            '2024-01-01',
+        ]);
     }
 
     private function findByMemberId(array $rows, string $memberId): ?array
