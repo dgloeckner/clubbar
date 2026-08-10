@@ -612,6 +612,29 @@ theme.mobileCard = {
 >
 ```
 
+### Pill Filter Button (idle state)
+
+Dark-mode pill/toggle filter buttons (e.g. `MembersPage.tsx`'s status/card/SEPA
+filter groups) share one idle (unselected) background+text tint pair — the
+selected state uses `theme.colors.semantic.primary` / `'white'` already:
+
+```typescript
+theme.pillButton = {
+  idleBg: 'rgba(255, 255, 255, 0.06)',   // derived via withAlpha('#ffffff', 0.06)
+  idleText: 'rgba(255, 255, 255, 0.55)', // derived via withAlpha('#ffffff', 0.55)
+}
+```
+
+```tsx
+<button
+  aria-pressed={isSelected}
+  style={{
+    background: isSelected ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+    color: isSelected ? 'white' : theme.pillButton.idleText,
+  }}
+>
+```
+
 ---
 
 ## Utility Functions

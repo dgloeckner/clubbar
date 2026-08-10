@@ -221,6 +221,14 @@ export const theme = {
     bg: withAlpha('#ffffff', 0.03),
     border: withAlpha('#ffffff', 0.06),
   },
+
+  // Idle (unselected) state of dark-mode pill/toggle filter buttons — the
+  // same background+text tint pair reimplemented at every filter pill in
+  // MembersPage.tsx (#289).
+  pillButton: {
+    idleBg: withAlpha('#ffffff', 0.06),
+    idleText: withAlpha('#ffffff', 0.55),
+  },
 }
 
 /**

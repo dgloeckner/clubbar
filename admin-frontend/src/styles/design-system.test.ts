@@ -27,3 +27,10 @@ describe('theme.mobileCard', () => {
     expect(theme.mobileCard.border).toBe('rgba(255, 255, 255, 0.06)')
   })
 })
+
+describe('theme.pillButton', () => {
+  it('exposes canonical idle background and text tints', () => {
+    expect(theme.pillButton.idleBg).toBe('rgba(255, 255, 255, 0.06)')
+    expect(theme.pillButton.idleText).toBe('rgba(255, 255, 255, 0.55)')
+  })
+})
