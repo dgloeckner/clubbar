@@ -159,6 +159,11 @@ class AppFontSizes {
   static double xxl = 22.0;
   static double xxxl = 26.0;
 
+  /// The idle screen headline — the one display-size string in the app, kept
+  /// as its own step (rather than derived from [xxxl]) so it tunes the same
+  /// way every other step does (#303).
+  static double display = 55.0;
+
   /// Apply font size overrides from config (e.g. from config.json `fontSizes` key).
   /// Only non-null values are applied; omitted keys keep their defaults.
   static void applyConfig(Map<String, dynamic>? fontSizes) {
@@ -170,6 +175,9 @@ class AppFontSizes {
     if (fontSizes['xl'] is num) xl = (fontSizes['xl'] as num).toDouble();
     if (fontSizes['xxl'] is num) xxl = (fontSizes['xxl'] as num).toDouble();
     if (fontSizes['xxxl'] is num) xxxl = (fontSizes['xxxl'] as num).toDouble();
+    if (fontSizes['display'] is num) {
+      display = (fontSizes['display'] as num).toDouble();
+    }
   }
 }
 

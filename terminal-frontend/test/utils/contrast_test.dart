@@ -214,11 +214,20 @@ void main() {
     test('a deployment can still override the defaults', () {
       // Raising the shipped default must not cost anyone the escape hatch —
       // a club on a larger panel may well want to go back down.
-      AppFontSizes.applyConfig(const {'base': 14, 'xxxl': 30});
+      AppFontSizes.applyConfig(const {'base': 14, 'xxxl': 30, 'display': 64});
       expect(AppFontSizes.base, 14.0);
       expect(AppFontSizes.xxxl, 30.0);
+      expect(AppFontSizes.display, 64.0);
       // Untouched keys keep the shipped default.
       expect(AppFontSizes.lg, 18.0);
+    });
+
+    test('the idle headline defaults to 55 and can still be tuned (#303)', () {
+      expect(AppFontSizes.display, 55.0);
+      AppFontSizes.applyConfig(const {'display': 70});
+      expect(AppFontSizes.display, 70.0);
+      // Untouched keys keep the shipped default.
+      expect(AppFontSizes.xxxl, 26.0);
     });
   });
 }
@@ -233,6 +242,7 @@ void _resetFontSizes() {
   AppFontSizes.xl = 20.0;
   AppFontSizes.xxl = 22.0;
   AppFontSizes.xxxl = 26.0;
+  AppFontSizes.display = 55.0;
 }
 
 Color _c(String hex) => hexToColor(hex);

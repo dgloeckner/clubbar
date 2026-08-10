@@ -234,13 +234,14 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
   "displayName": "Club Bar",
 
   "fontSizes": {
-    "xs":    13,
-    "sm":    14,
-    "base":  16,
-    "lg":    18,
-    "xl":    20,
-    "xxl":   22,
-    "xxxl":  26
+    "xs":      13,
+    "sm":      14,
+    "base":    16,
+    "lg":      18,
+    "xl":      20,
+    "xxl":     22,
+    "xxxl":    26,
+    "display": 55
   },
 
   "dispenser": {
@@ -280,6 +281,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `fontSizes.xl` | number | `20` | Extra-large — quantity badges, line totals, "Neuer Kontostand" in cart. |
 | `fontSizes.xxl` | number | `22` | Used for the "Gesamt" label in the cart footer. |
 | `fontSizes.xxxl` | number | `26` | Checkout confirmation title. |
+| `fontSizes.display` | number | `55` | Idle screen headline ("Durstig?" / reader-offline title) — the one display-size string in the app. |
 | `dispenser.enabled` | bool | `false` | Enable the sauna token dispenser integration. |
 | `dispenser.baseUrl` | string | — | Base URL of the dispenser hardware API, e.g. `http://192.168.1.50`. |
 | `dispenser.apiKey` | string | — | API key for authenticating with the dispenser. |
