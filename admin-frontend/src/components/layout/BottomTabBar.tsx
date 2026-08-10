@@ -153,7 +153,7 @@ export function BottomTabBar() {
                   gap: '10px',
                   padding: '10px 12px',
                   borderRadius: '8px',
-                  background: isActive(item.path) ? 'rgba(59,130,246,0.15)' : 'transparent',
+                  background: isActive(item.path) ? theme.activeTint.primary : 'transparent',
                   color: isActive(item.path) ? theme.colors.semantic.primary : theme.colors.text.primary,
                   textDecoration: 'none',
                   fontSize: '14px',

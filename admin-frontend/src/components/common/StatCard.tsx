@@ -18,7 +18,7 @@ export function StatCard({ icon, label, value, color = 'blue' }: StatCardProps) 
   }
 
   const bgColorMap = {
-    blue: 'rgba(59, 130, 246, 0.15)',
+    blue: theme.activeTint.primary,
     green: 'rgba(34, 197, 94, 0.15)',
     orange: 'rgba(249, 115, 22, 0.15)',
     red: 'rgba(239, 68, 68, 0.15)',

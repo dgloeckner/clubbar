@@ -205,7 +205,7 @@ export function MobileToolbar({
                       alignItems: 'center',
                       gap: '8px',
                       padding: '10px 12px',
-                      background: sort.value === option.value ? 'rgba(59,130,246,0.15)' : 'transparent',
+                      background: sort.value === option.value ? theme.activeTint.primary : 'transparent',
                       border: 'none',
                       borderRadius: '8px',
                       color: sort.value === option.value ? theme.colors.semantic.primary : theme.colors.text.primary,
@@ -232,7 +232,7 @@ export function MobileToolbar({
             onClick={onFilterToggle}
             style={{
               ...buttonStyle,
-              background: showFilters ? 'rgba(59,130,246,0.15)' : buttonStyle.background,
+              background: showFilters ? theme.activeTint.primary : buttonStyle.background,
               borderColor: showFilters ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)',
               color: showFilters ? theme.colors.semantic.primary : theme.colors.text.primary,
             }}

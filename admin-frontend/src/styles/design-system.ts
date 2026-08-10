@@ -233,6 +233,13 @@ export const theme = {
     idleBg: withAlpha('#ffffff', 0.06),
     idleText: withAlpha('#ffffff', 0.55),
   },
+
+  // Translucent primary-blue background for the "active/selected" state of
+  // nav items, filter pills, sort/language toggles, and the blue StatCard
+  // variant — the same tint reimplemented at every call site (#289).
+  activeTint: {
+    primary: withAlpha('#3b82f6', 0.15),
+  },
 }
 
 /**

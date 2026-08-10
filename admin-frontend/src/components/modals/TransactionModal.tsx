@@ -321,7 +321,7 @@ export function TransactionModal({
                             padding: `2px 6px`,
                             background:
                               transaction.type === 'storno'
-                                ? 'rgba(59, 130, 246, 0.15)'
+                                ? theme.activeTint.primary
                                 : 'rgba(249, 115, 22, 0.15)',
                             color:
                               transaction.type === 'storno'

@@ -560,7 +560,7 @@ export function AuditLogPage() {
                 padding: '8px 14px',
                 borderRadius: theme.borderRadius.md,
                 border: `1px solid ${theme.colors.border.light}`,
-                background: showMobileFilters ? 'rgba(59, 130, 246, 0.15)' : theme.colors.bg.input,
+                background: showMobileFilters ? theme.activeTint.primary : theme.colors.bg.input,
                 color: showMobileFilters ? theme.colors.semantic.primary : theme.colors.text.primary,
                 fontSize: '13px',
                 fontWeight: 500,
