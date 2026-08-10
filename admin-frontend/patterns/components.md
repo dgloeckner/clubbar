@@ -412,6 +412,46 @@ function IbanInput({ iban, validateIban }) {
 
 ### Table Components
 
+#### PillActionButton Component
+
+A small, solid-colour action button for row-level actions (export, undo). It
+owns its hover state internally so callers don't re-declare
+`onMouseEnter`/`onMouseLeave` handlers that mutate `e.currentTarget.style` — a
+pattern that was duplicated per button on `SettlementsPage` (#124).
+
+**File**: `src/components/common/PillActionButton.tsx`
+
+**Props**:
+- `children` (ReactNode, required): Button label/content
+- `color` (string, required): Background color (usually a `theme.colors.semantic.*` token)
+- `hoverColor` (string, required): Background color on hover
+- `disabledColor` (string, default: `theme.colors.semantic.neutral`): Background color when disabled
+- `disabled` (boolean, default: false)
+- Plus any native `<button>` prop (`onClick`, `title`, `aria-label`, `data-testid`, ...)
+
+**Example**:
+```typescript
+import { PillActionButton } from '@/components/common/PillActionButton'
+import { theme } from '@/styles/design-system'
+
+<PillActionButton
+  onClick={() => handleExportCsv(settlement.id)}
+  disabled={settlement.is_cancelled}
+  color={theme.colors.semantic.emerald}
+  hoverColor={theme.colors.semantic.emeraldHover}
+  data-testid={`settlements-export-csv-btn-${settlement.id}`}
+>
+  {t('settlements.exportCsv')}
+</PillActionButton>
+```
+
+**When a color is state-dependent** (e.g. the undo button's color depends on
+whether the settlement is cancellable), compute it in a plain function and
+pass the result as `color`/`hoverColor` — the component itself stays
+state-free about business rules.
+
+---
+
 #### ListLoadingOverlay Component
 
 Lays a spinner over a list's **results region** while a refresh is in flight,
@@ -449,6 +489,23 @@ loading state on `useListQuery`'s `hasLoaded` instead of on `loading`.
 ## Design System Tokens
 
 All components use tokens from `src/styles/design-system.ts`:
+
+### Raw hex literals are banned in migrated pages (#124)
+
+`theme.colors` and `src/styles/tableTokens.ts`'s `tableColors` are the single
+source of truth for colors. A page that still contains raw hex color literals
+in `style={{ ... }}` blocks has drifted from the design system and is exactly
+the tech debt #124 tracks — new work on such a page should replace literals
+with tokens as it touches them, rather than adding more.
+
+`.eslintrc.cjs` enforces this with a `no-restricted-syntax` rule scoped (via
+`overrides`) to files that are already hex-free — currently `LoginPage.tsx`,
+`ProductsPage.tsx`, `Button.tsx` and `PillActionButton.tsx`. Add a file to
+that list once it no longer contains any raw hex; this makes the rule a
+ratchet instead of an all-or-nothing gate that would fail on every
+not-yet-migrated page. If a color you need doesn't have a token yet, add it to
+`theme.colors` (or `tableColors` for table-specific colors) instead of typing
+the hex literal in the page.
 
 ### Avatar Gradients
 

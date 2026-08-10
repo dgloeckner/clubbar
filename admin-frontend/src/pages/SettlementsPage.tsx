@@ -32,6 +32,7 @@ import { useFormatters } from '../hooks/useFormatters'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { PillFilter, type PillFilterOption } from '../components/forms/PillFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
+import { PillActionButton } from '../components/common/PillActionButton'
 import { useListQuery } from '../hooks/useListQuery'
 import { downloadBlob, downloadFile } from '../api/client'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
@@ -804,137 +805,58 @@ export function SettlementsPage() {
                         >
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
                             {/* Export SEPA XML */}
-                            <button
+                            <PillActionButton
                               data-testid={`settlements-export-sepa-btn-${settlement.id}`}
                               onClick={() => handleExportSepa(settlement.id ?? '')}
                               disabled={settlement.is_cancelled}
-                              style={{
-                                padding: '4px 8px',
-                                backgroundColor: settlement.is_cancelled ? '#6b7280' : '#3b82f6',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: 4,
-                                fontSize: 12,
-                                fontWeight: 500,
-                                cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
-                                transition: 'background-color 0.15s',
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!settlement.is_cancelled) {
-                                  e.currentTarget.style.backgroundColor = '#2563eb'
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!settlement.is_cancelled) {
-                                  e.currentTarget.style.backgroundColor = '#3b82f6'
-                                }
-                              }}
+                              color={theme.colors.semantic.primary}
+                              hoverColor={theme.colors.semantic.primaryHover}
                               title={t('settlements.exportSepaHint')}
                               aria-label={t('settlements.exportSepaHint')}
                             >
                               {t('settlements.exportSepa')}
-                            </button>
+                            </PillActionButton>
 
                             {/* Export CSV (aggregated) */}
-                            <button
+                            <PillActionButton
                               data-testid={`settlements-export-csv-btn-${settlement.id}`}
                               onClick={() => handleExportCsv(settlement.id ?? '')}
                               disabled={settlement.is_cancelled}
-                              style={{
-                                padding: '4px 8px',
-                                backgroundColor: settlement.is_cancelled ? '#6b7280' : '#10b981',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: 4,
-                                fontSize: 12,
-                                fontWeight: 500,
-                                cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
-                                transition: 'background-color 0.15s',
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!settlement.is_cancelled) {
-                                  e.currentTarget.style.backgroundColor = '#059669'
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!settlement.is_cancelled) {
-                                  e.currentTarget.style.backgroundColor = '#10b981'
-                                }
-                              }}
+                              color={theme.colors.semantic.emerald}
+                              hoverColor={theme.colors.semantic.emeraldHover}
                               title={t('settlements.exportCsvHint')}
                               aria-label={t('settlements.exportCsvHint')}
                             >
                               {t('settlements.exportCsv')}
-                            </button>
+                            </PillActionButton>
 
                             {/* Export Transactions CSV (detailed) */}
-                            <button
+                            <PillActionButton
                               data-testid={`settlements-export-transactions-btn-${settlement.id}`}
                               onClick={() => handleExportTransactionsCsv(settlement.id ?? '')}
                               disabled={settlement.is_cancelled}
-                              style={{
-                                padding: '4px 8px',
-                                backgroundColor: settlement.is_cancelled ? '#6b7280' : '#8b5cf6',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: 4,
-                                fontSize: 12,
-                                fontWeight: 500,
-                                cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
-                                transition: 'background-color 0.15s',
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!settlement.is_cancelled) {
-                                  e.currentTarget.style.backgroundColor = '#7c3aed'
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!settlement.is_cancelled) {
-                                  e.currentTarget.style.backgroundColor = '#8b5cf6'
-                                }
-                              }}
+                              color={theme.colors.semantic.purple}
+                              hoverColor={theme.colors.semantic.purpleHover}
                               title={t('settlements.exportTransactionsHint')}
                               aria-label={t('settlements.exportTransactionsHint')}
                             >
                               {t('settlements.exportTransactions')}
-                            </button>
+                            </PillActionButton>
 
                             {/* Undo Settlement. Disabled only once cancelled —
                                 a settlement the gate refuses still opens the
                                 dialog, which states why (#127). */}
-                            <button
+                            <PillActionButton
                               data-testid={`settlements-undo-btn-${settlement.id}`}
                               onClick={() => setUndoTarget(settlement)}
                               disabled={settlement.is_cancelled}
-                              style={{
-                                padding: '4px 8px',
-                                backgroundColor: undoButtonColor(settlement),
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: 4,
-                                fontSize: 12,
-                                fontWeight: 500,
-                                cursor:
-                                  settlement.is_cancelled
-                                    ? 'not-allowed'
-                                    : 'pointer',
-                                transition: 'background-color 0.15s',
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!settlement.is_cancelled) {
-                                  e.currentTarget.style.backgroundColor = undoButtonHoverColor(settlement)
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!settlement.is_cancelled) {
-                                  e.currentTarget.style.backgroundColor = undoButtonColor(settlement)
-                                }
-                              }}
+                              color={undoButtonColor(settlement)}
+                              hoverColor={undoButtonHoverColor(settlement)}
                               title={settlement.cancellation_blocked_reason ?? t('settlements.undoSettlement')}
                               aria-label={t('settlements.undoSettlement')}
                             >
                               <span aria-hidden="true">↩</span>
-                            </button>
+                            </PillActionButton>
                           </div>
                         </td>
                       </tr>
