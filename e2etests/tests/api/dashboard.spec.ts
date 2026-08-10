@@ -366,16 +366,21 @@ test.describe("Dashboard API", () => {
 
   // ========== AUTHENTICATION & PERFORMANCE ==========
 
-  test("should require admin authentication", async ({
+  test("should allow authenticated requests", async ({
     authenticatedRequest,
   }) => {
-    // All tests use authenticatedRequest which includes session auth
-    // This test verifies that the endpoint is protected by checking
-    // that authenticated requests work (which they do)
     const response = await authenticatedRequest.get(`${API_BASE}/admin/dashboard`);
 
-    // Should return 200 with valid authentication
     expect(response.status()).toBe(200);
+  });
+
+  test("should reject unauthenticated requests", async ({ request }) => {
+    // Unlike authenticatedRequest, the plain `request` fixture carries no
+    // session cookie — this is the actual "endpoint is protected" check
+    // (#104), which the authenticated-only test above cannot exercise.
+    const response = await request.get(`${API_BASE}/admin/dashboard`);
+
+    expect([301, 302, 401, 403]).toContain(response.status());
   });
 
   test("should return complete dashboard response within timeout", async ({

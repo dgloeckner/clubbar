@@ -233,4 +233,35 @@ test.describe("Reports API", () => {
     expect(contentDisposition).toBeDefined();
     expect(contentDisposition).toContain("attachment");
   });
+
+  // #104: only the revenue export was exercised; consumption shares the
+  // export code path but had no coverage of its own report_type or rows.
+  test("consumption CSV export returns text/csv with the report's rows", async ({
+    authenticatedRequest,
+  }) => {
+    // per_page matches what exportCsv uses internally, so the row count
+    // comparison below isn't at the mercy of the JSON endpoint's default page size.
+    const jsonResponse = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/consumption?group_by=product&per_page=10000`
+    );
+    expect(jsonResponse.ok()).toBeTruthy();
+    const jsonBody = await jsonResponse.json();
+    expect(jsonBody.metadata).toHaveProperty("report_type", "consumption");
+
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/consumption/export?group_by=product`
+    );
+
+    expect(response.ok()).toBeTruthy();
+    expect(response.headers()["content-type"]).toContain("text/csv");
+    const contentDisposition = response.headers()["content-disposition"];
+    expect(contentDisposition).toBeDefined();
+    expect(contentDisposition).toContain("attachment");
+
+    const csv = await response.text();
+    const lines = csv.trim().split("\n");
+    expect(lines[0]).toContain("Dimension");
+    // One header row plus one row per dimension returned by the JSON report.
+    expect(lines.length).toBe(jsonBody.data.length + 1);
+  });
 });

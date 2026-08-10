@@ -109,6 +109,21 @@ test.describe('Admin Frontend - Categories Page', () => {
       // Pattern 008: Verify creation successful
       await authenticatedCategoriesPage.expectFormModalHidden()
       await authenticatedCategoriesPage.expectTableVisible()
+
+      // Verify the category actually persisted (#104) — the German name
+      // (the admin UI's default display language) must show up in the list,
+      // database-agnostically (Pattern 003: search by name, not position).
+      await authenticatedCategoriesPage.expectCategoryVisibleByName(categoryNames.de)
+      const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryNames.de)
+      expect(categoryId).toBeTruthy()
+
+      // And both translations were stored server-side, not just the active tab.
+      await authenticatedCategoriesPage.openEditModal(categoryId!)
+      await authenticatedCategoriesPage.expectFormModalVisible()
+      expect(await authenticatedCategoriesPage.getCategoryNameValue('de')).toBe(categoryNames.de)
+      await authenticatedCategoriesPage.selectLanguageTab('en')
+      expect(await authenticatedCategoriesPage.getCategoryNameValue('en')).toBe(categoryNames.en)
+      await authenticatedCategoriesPage.cancelForm()
     })
 
     /**
