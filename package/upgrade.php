@@ -25,11 +25,36 @@ declare(strict_types=1);
  */
 
 // Required by path — this script runs before Composer's autoloader exists.
+//
+// On the very first deploy that carries this require (or any install whose
+// backend/src/Shared/ predates it), neither class exists on disk yet: CI
+// uploads upgrade.php on its own, ahead of the package it will extract, so
+// there is nothing to require. bootstrapSharedClass() pulls each file out of
+// the already-uploaded .upgrade-package.zip before requiring it — the same
+// ZIP `action=extract` unpacks moments later — so this script can get itself
+// off the ground without duplicating either class's logic here.
+bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Config/DataDirectory.php');
+bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Security/FileModes.php');
+
 require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
 require_once __DIR__ . '/backend/src/Shared/Security/FileModes.php';
 
 use App\Shared\Config\DataDirectory;
 use App\Shared\Security\FileModes;
+
+function bootstrapSharedClass(string $documentRoot, string $zipFile, string $relativePath): void
+{
+    $target = $documentRoot . '/' . $relativePath;
+    if (file_exists($target) || !file_exists($zipFile)) {
+        return;
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($zipFile) === true) {
+        $zip->extractTo($documentRoot, $relativePath);
+        $zip->close();
+    }
+}
 
 $secretFile = __DIR__ . '/.upgrade-secret';
 // Wherever the installation actually keeps it: the data directory on an
