@@ -1,6 +1,8 @@
   import 'package:flutter/material.dart';
   import 'package:flutter_svg/flutter_svg.dart';
 
+  import 'app_logger.dart';
+
   /// Get product icon as SVG widget from backend icon name enum value
   /// Maps backend icon name (e.g., "PilsIcon") to SVG asset
   Widget getProductIcon(
@@ -8,6 +10,14 @@
     double size = 64,
   }) {
     final iconPath = _getProductIconPath(iconName);
+
+    if (iconPath == null) {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Icon(Icons.shopping_bag_outlined, size: size),
+      );
+    }
 
     return SvgPicture.asset(
       iconPath,
@@ -31,6 +41,14 @@
   }) {
     final iconPath = _getCategoryIconPath(iconName);
 
+    if (iconPath == null) {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Icon(Icons.category, size: size),
+      );
+    }
+
     return SvgPicture.asset(
       iconPath,
       width: size,
@@ -48,7 +66,9 @@
   /// Map backend product icon name to SVG asset path
   /// Supports canonical icon names from docs/icon-registry.md (e.g., "beer-pils", "coffee")
   /// and legacy names for backward compatibility (e.g., "PilsIcon", "CoffeeMugIcon")
-  String _getProductIconPath(String? iconName) {
+  /// Returns null for unrecognized names so callers can fall back to a
+  /// neutral placeholder instead of silently rendering a beer glass.
+  String? _getProductIconPath(String? iconName) {
     switch (iconName) {
       // === CANONICAL NAMES (from docs/icon-registry.md) ===
       // Beverages - Beer
@@ -216,12 +236,13 @@
       case 'SaladIcon':
         return 'assets/icons/products/salad_icon.svg';
       default:
-        return 'assets/icons/products/pils_icon.svg'; // Fallback
+        AppLog.instance.w('Unknown product icon name: $iconName');
+        return null;
     }
   }
 
   /// Map backend category icon name to SVG asset path.
   /// Categories use the same universal product icon set.
-  String _getCategoryIconPath(String? iconName) {
+  String? _getCategoryIconPath(String? iconName) {
     return _getProductIconPath(iconName);
   }
