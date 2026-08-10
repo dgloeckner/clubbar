@@ -572,9 +572,14 @@ final class SecuritySelfCheck
             );
         }
 
+        // WARN, not FAIL: unlike the mandate/log rows above, an absent CSP
+        // header is not itself a leak of a secret or a member document — it
+        // is a missing defense-in-depth layer, the same class HSTS is in
+        // (SecurityFinding::FAIL is reserved for "exposes credentials or
+        // member data", which this alone does not).
         $header = $probe['headers']['content-security-policy'] ?? '';
         if ($header === '') {
-            return SecurityFinding::fail(
+            return SecurityFinding::warn(
                 'csp_header',
                 self::CATEGORY_EXPOSURE,
                 $label,

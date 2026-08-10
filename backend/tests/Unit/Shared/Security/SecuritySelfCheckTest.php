@@ -395,13 +395,15 @@ class SecuritySelfCheckTest extends TestCase
         });
     }
 
-    public function test_the_csp_header_fails_when_the_response_carries_none(): void
+    public function test_the_csp_header_warns_when_the_response_carries_none(): void
     {
         $this->withCspServer(null, function (string $baseUrl): void {
             $findings = SecuritySelfCheck::run($this->context(baseUrlCandidates: [$baseUrl]));
 
             $finding = $this->find('csp_header', $findings);
-            $this->assertSame(SecurityFinding::FAIL, $finding?->status);
+            // WARN, not FAIL: absence is a missing defense-in-depth layer, not
+            // by itself a leak of a secret or member document.
+            $this->assertSame(SecurityFinding::WARN, $finding?->status);
             $this->assertNotNull($finding?->remedy);
         });
     }
