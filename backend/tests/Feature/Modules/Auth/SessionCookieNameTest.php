@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Modules\Auth;
 
 use App\Shared\Config\AppConfig;
+use App\Shared\Utils\Uuid;
 use Tests\Feature\HttpTestCase;
 
 /**
@@ -19,28 +20,35 @@ use Tests\Feature\HttpTestCase;
  */
 class SessionCookieNameTest extends HttpTestCase
 {
-    private const ADMIN_EMAIL = 'admin@example.com';
-    private const ADMIN_PASSWORD = 'password123';
+    private const ADMIN_PASSWORD = 'test-password-123';
 
     private string $ip;
+    private string $adminId;
+    private string $adminEmail;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // A fresh IP per run so this test's request is never itself rate-limited,
-        // and clearing this seeded account's attempts keeps it that way even
-        // when another suite (e.g. the E2E login-failure specs) ran against the
-        // same database minutes earlier and left rows in the account's window.
+        // Own admin row rather than the seeded one (Pattern 001): the CI job
+        // that runs this suite only migrates the schema, it does not run
+        // db/seed.sql, so admin@example.com does not exist there at all.
+        $this->adminId = Uuid::v4();
+        $this->adminEmail = 'session-cookie-name-' . bin2hex(random_bytes(4)) . '@example.test';
+        $this->db->prepare('INSERT INTO admin_users (id, email, password_hash, is_active) VALUES (?, ?, ?, 1)')
+            ->execute([$this->adminId, $this->adminEmail, password_hash(self::ADMIN_PASSWORD, PASSWORD_BCRYPT)]);
+
+        // A fresh IP per run so this test's request is never itself rate-limited.
         $this->ip = '198.51.100.' . (hexdec(bin2hex(random_bytes(1))) % 200 + 1);
         $this->db->prepare('DELETE FROM login_attempts WHERE ip_address = ? OR email = ?')
-            ->execute([$this->ip, self::ADMIN_EMAIL]);
+            ->execute([$this->ip, $this->adminEmail]);
     }
 
     protected function tearDown(): void
     {
         $this->db->prepare('DELETE FROM login_attempts WHERE ip_address = ? OR email = ?')
-            ->execute([$this->ip, self::ADMIN_EMAIL]);
+            ->execute([$this->ip, $this->adminEmail]);
+        $this->db->prepare('DELETE FROM admin_users WHERE id = ?')->execute([$this->adminId]);
         $_SESSION = [];
         parent::tearDown();
     }
@@ -52,12 +60,14 @@ class SessionCookieNameTest extends HttpTestCase
         $response = $this->request(
             'POST',
             '/api/auth/login',
-            ['email' => self::ADMIN_EMAIL, 'password' => self::ADMIN_PASSWORD],
+            ['email' => $this->adminEmail, 'password' => self::ADMIN_PASSWORD],
             ['REMOTE_ADDR' => $this->ip],
         );
 
+        // Fresh admin, TOTP never enrolled — login() takes the "setup required"
+        // branch, but that split happens after the session is already started.
         $this->assertSame(200, $response->getStatusCode());
-        $this->assertSame(['requiresMfa' => true], $this->decode($response));
+        $this->assertSame(true, $this->decode($response)['requiresTotpSetup'] ?? null);
 
         // PHP's session cookie travels through header()/setcookie(), which the
         // in-process PSR-7 dispatch used here does not capture — session_name()
