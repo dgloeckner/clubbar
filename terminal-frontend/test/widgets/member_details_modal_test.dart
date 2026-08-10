@@ -219,4 +219,98 @@ void main() {
           findsOneWidget);
     });
   });
+
+  // Issue #294: since the #33 router fix the sheet stayed open after a
+  // language switch; the member's goal afterwards is shopping, not the sheet.
+  group('MemberDetailsModal language switch auto-close (#294)', () {
+    late MockMembersProvider mockMembersProvider;
+    late MockNetworkService mockNetworkService;
+    late ClubBarDatabase db;
+
+    setUp(() {
+      db = ClubBarDatabase.forTesting(NativeDatabase.memory());
+      mockMembersProvider = MockMembersProvider();
+      mockNetworkService = MockNetworkService();
+
+      when(() => mockMembersProvider.addListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.selectedMember).thenReturn(
+        MembersCacheData(
+          id: 'member-1',
+          cardUid: 'card-123',
+          firstName: 'John',
+          lastName: 'Doe',
+          preferredLanguage: 'de',
+          isActive: 1,
+          isSepaValid: 1,
+          balanceCents: 0,
+          updatedAt: '2026-02-01T10:00:00Z',
+        ),
+      );
+      when(() => mockNetworkService.checkHealth())
+          .thenAnswer((_) async => false);
+      when(() => mockMembersProvider.updateSelectedMemberLanguage(any()))
+          .thenAnswer((_) async {});
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    Future<void> pumpOpenModal(WidgetTester tester) async {
+      // Providers must sit above MaterialApp's Navigator, not inside `home` —
+      // a route pushed via showModalBottomSheet is a sibling of `home`, not
+      // a descendant, so a provider scoped inside `home` would not reach it.
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<MembersProvider>.value(
+              value: mockMembersProvider,
+            ),
+            Provider<NetworkService>.value(value: mockNetworkService),
+            Provider<ClubBarDatabase>.value(value: db),
+          ],
+          child: createTestApp(
+            child: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => showMemberDetailsModal(context),
+                  child: const Text('Open modal'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open modal'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('tapping a language updates it and dismisses the sheet',
+        (WidgetTester tester) async {
+      await pumpOpenModal(tester);
+      expect(find.byType(MemberDetailsModal), findsOneWidget);
+
+      await tester.tap(find.text('English'));
+      await tester.pumpAndSettle();
+
+      verify(() => mockMembersProvider.updateSelectedMemberLanguage('en'))
+          .called(1);
+      expect(find.byType(MemberDetailsModal), findsNothing);
+    });
+
+    testWidgets('a failed update keeps the sheet open',
+        (WidgetTester tester) async {
+      when(() => mockMembersProvider.updateSelectedMemberLanguage(any()))
+          .thenThrow(Exception('update failed'));
+
+      await pumpOpenModal(tester);
+      expect(find.byType(MemberDetailsModal), findsOneWidget);
+
+      await tester.tap(find.text('English'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MemberDetailsModal), findsOneWidget);
+    });
+  });
 }

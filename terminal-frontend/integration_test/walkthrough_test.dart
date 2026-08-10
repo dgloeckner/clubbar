@@ -321,14 +321,10 @@ void main() {
       expect(find.text('English'), findsOneWidget);
       await capture(tester, 'Member details with language selection');
 
-      // -- Scene 4: Tap English — labels update in place, the sheet stays
-      // open (issue #33 keeps navigation state across locale changes), so it
-      // is closed explicitly before shopping continues --
+      // -- Scene 4: Tap English — the sheet closes automatically once the
+      // language switch succeeds (#294), so shopping continues right away --
       await tester.tap(find.text('English'));
-      await pumpFrames(tester, count: 20);
-
-      await tester.tap(find.byIcon(Icons.close));
-      await pumpFrames(tester, count: 20);
+      await pumpFrames(tester, count: 30);
 
       // -- Scene 5: Products now shown in English --
       await capture(tester, 'Products now in English');
