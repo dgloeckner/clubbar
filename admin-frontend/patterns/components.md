@@ -573,6 +573,12 @@ others. Reuse the existing badge token instead of hand-writing a new
 `rgba(239, 68, 68, ...)` literal — that's the pattern the issue calls out
 ("the existing `theme.badges.*.bg` pattern already does this ... extend it").
 
+Same story for `theme.badges.info.bg` (`rgba(59, 130, 246, 0.1)`): reused for
+edit-button hover backgrounds (`CategoriesPage`, `MembersPage`, `ProductsPage`,
+`TerminalsTab`), a selected table row (`NewSettlementPage`), an idle filter
+background (`TransactionModal`), and focus box-shadows (`Input`,
+`SepaConfigTab`) — reuse it instead of a new `rgba(59, 130, 246, 0.1)` literal.
+
 ### Overlay Backdrop
 
 Every full-screen modal needs the same dimming backdrop — use the token
