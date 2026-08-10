@@ -72,6 +72,10 @@ export const theme = {
       focus: '#3b82f6',      // Focus border
       input: '#2d3748',      // Input field border
       muted: '#4b5563',      // Muted input/control border
+      // Subtle white tint used for borders and vertical dividers on dark-mode
+      // toolbars (search input, filter group dividers, clear-filters button,
+      // mobile toolbar) — reimplemented identically at every call site (#289).
+      subtle: withAlpha('#ffffff', 0.08),
     },
 
     // Alert/banner colors (opaque, for banners over the dark background)

@@ -667,6 +667,22 @@ theme.activeTint = {
 <button style={{ background: isSelected ? theme.activeTint.primary : 'transparent' }}>
 ```
 
+### Subtle Border/Divider Tint
+
+A translucent white tint used for both `border` and solid vertical divider
+bars on dark-mode toolbars (the `MembersPage.tsx` filter toolbar's search
+input, group dividers, and clear-filters button; `MobileToolbar.tsx`'s
+container border and toggle button):
+
+```typescript
+theme.colors.border.subtle = 'rgba(255, 255, 255, 0.08)' // derived via withAlpha('#ffffff', 0.08)
+```
+
+```tsx
+<div style={{ border: `1px solid ${theme.colors.border.subtle}` }} />
+<div style={{ width: '1px', height: '28px', background: theme.colors.border.subtle }} />
+```
+
 ---
 
 ## Utility Functions
