@@ -499,13 +499,39 @@ the tech debt #124 tracks — new work on such a page should replace literals
 with tokens as it touches them, rather than adding more.
 
 `.eslintrc.cjs` enforces this with a `no-restricted-syntax` rule scoped (via
-`overrides`) to files that are already hex-free — currently `LoginPage.tsx`,
-`ProductsPage.tsx`, `Button.tsx` and `PillActionButton.tsx`. Add a file to
-that list once it no longer contains any raw hex; this makes the rule a
-ratchet instead of an all-or-nothing gate that would fail on every
-not-yet-migrated page. If a color you need doesn't have a token yet, add it to
-`theme.colors` (or `tableColors` for table-specific colors) instead of typing
-the hex literal in the page.
+`overrides`) to files that are already hex-free — see the `files` list in that
+override for the current set. Add a file to that list once it no longer
+contains any raw hex; this makes the rule a ratchet instead of an
+all-or-nothing gate that would fail on every not-yet-migrated page. If a color
+you need doesn't have a token yet, add it to `theme.colors` (or `tableColors`
+for table-specific colors) instead of typing the hex literal in the page.
+
+### `rgba()` tints, borders, and overlays are the same problem (#289)
+
+The hex rule above doesn't match `rgba(...)` literals, so those drifted the
+same way — the same tint (e.g. a modal backdrop, a danger tint) copy-pasted
+into dozens of `style={{ ... }}` blocks, sometimes with different comma
+spacing for the same color. Migrate these into `theme` the same way, one
+proven-duplicated tint at a time (see `theme.overlay.backdrop` below), rather
+than typing a new `rgba(...)` literal.
+
+When adding a new tint/border/overlay token, derive it with `withAlpha(hex,
+alpha)` (also exported from `design-system.ts`) instead of hand-writing the
+`rgba()` string — it guarantees identical formatting for every consumer, so
+the next grep for duplication isn't undercounted by spacing differences:
+
+```typescript
+export const theme = {
+  // ...
+  overlay: {
+    backdrop: withAlpha('#000000', 0.5),
+  },
+}
+```
+
+`.eslintrc.cjs` does not yet restrict `rgba(...)` literals — that's left for a
+follow-up slice once enough of the tint/border families above are tokenized
+that a ratchet rule wouldn't immediately fail on the untouched ones.
 
 ### Avatar Gradients
 
@@ -535,6 +561,30 @@ theme.badges = {
   info: { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6', dot: '#3b82f6' },
   neutral: { bg: 'rgba(107, 114, 128, 0.1)', text: '#64748b', dot: '#64748b' },
 }
+```
+
+### Overlay Backdrop
+
+Every full-screen modal needs the same dimming backdrop — use the token
+instead of reimplementing it:
+
+```typescript
+theme.overlay = {
+  backdrop: 'rgba(0, 0, 0, 0.5)', // derived via withAlpha('#000000', 0.5)
+}
+```
+
+```tsx
+<div
+  style={{
+    position: 'fixed',
+    inset: 0,
+    background: theme.overlay.backdrop,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  }}
+>
 ```
 
 ---
