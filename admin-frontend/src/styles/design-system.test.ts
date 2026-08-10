@@ -46,3 +46,9 @@ describe('theme.activeTint', () => {
     expect(theme.activeTint.primary).toBe('rgba(59, 130, 246, 0.15)')
   })
 })
+
+describe('theme.colors.border.subtle', () => {
+  it('exposes a canonical subtle white border/divider tint', () => {
+    expect(theme.colors.border.subtle).toBe('rgba(255, 255, 255, 0.08)')
+  })
+})

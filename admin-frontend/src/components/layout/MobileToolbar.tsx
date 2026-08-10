@@ -108,7 +108,7 @@ export function MobileToolbar({
     gap: '4px',
     padding: '8px 10px',
     background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
+    border: `1px solid ${theme.colors.border.subtle}`,
     borderRadius: '7px',
     color: theme.colors.text.primary,
     fontSize: '13px',
@@ -152,7 +152,7 @@ export function MobileToolbar({
                 width: '100%',
                 padding: '8px 10px 8px 28px',
                 borderRadius: '7px',
-                border: '1px solid rgba(255,255,255,0.08)',
+                border: `1px solid ${theme.colors.border.subtle}`,
                 background: 'rgba(255,255,255,0.04)',
                 color: tableColors.cellText,
                 fontSize: '13px',
@@ -233,7 +233,7 @@ export function MobileToolbar({
             style={{
               ...buttonStyle,
               background: showFilters ? theme.activeTint.primary : buttonStyle.background,
-              borderColor: showFilters ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)',
+              borderColor: showFilters ? 'rgba(59,130,246,0.3)' : theme.colors.border.subtle,
               color: showFilters ? theme.colors.semantic.primary : theme.colors.text.primary,
             }}
           >
