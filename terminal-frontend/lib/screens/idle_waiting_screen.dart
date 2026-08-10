@@ -155,10 +155,10 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                                     vertical: AppSpacing.sm,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xffef4444).withValues(alpha: 0.95),
+                                    color: AppColors.semanticDanger.withValues(alpha: 0.95),
                                     borderRadius: BorderRadius.circular(AppBorderRadius.md),
                                     border: Border.all(
-                                      color: const Color(0xffef4444),
+                                      color: AppColors.semanticDanger,
                                       width: 1,
                                     ),
                                   ),
@@ -187,8 +187,8 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: readerOffline
-                        ? const Color(0xffef4444)
-                        : const Color(0xfff1f5f9),
+                        ? AppColors.semanticDanger
+                        : AppColors.textPrimary,
                     fontSize: 55,
                     fontWeight: FontWeight.bold,
                   ),
@@ -201,7 +201,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                       : l10n.idleSubtitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xff94a3b8),
+                    color: AppColors.textSecondary,
                     fontSize: AppFontSizes.xxl,
                     fontWeight: FontWeight.w400,
                   ),
@@ -216,9 +216,8 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                             : null,
                         style: ElevatedButton.styleFrom(
                           // Strong blue: white on #3b82f6 is 3.7:1 (#41).
-                          backgroundColor:
-                              hexToColor(AppColors.semanticPrimaryStrong),
-                          disabledBackgroundColor: const Color(0xff334155),
+                          backgroundColor: AppColors.semanticPrimaryStrong,
+                          disabledBackgroundColor: AppColors.borderLight,
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.xl,
                             vertical: AppSpacing.md,
@@ -244,7 +243,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                   style: TextStyle(
                     // 40% opacity put this at 2.2:1 (#41). The version is
                     // tertiary, not invisible — that is what textMuted is for.
-                    color: hexToColor(AppColors.textMuted),
+                    color: AppColors.textMuted,
                     fontSize: AppFontSizes.xs,
                   ),
                 ),

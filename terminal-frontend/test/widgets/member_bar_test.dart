@@ -77,7 +77,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget(balanceCents: 1480));
 
       final text = balanceText(tester, 'Offener Betrag: 14,80');
-      expect(text.style?.color, hexToColor(AppColors.textPrimary));
+      expect(text.style?.color, AppColors.textPrimary);
     });
 
     testWidgets('colours a large open tab amber', (tester) async {
@@ -86,14 +86,14 @@ void main() {
       );
 
       final text = balanceText(tester, 'Offener Betrag: 20,01');
-      expect(text.style?.color, hexToColor(AppColors.semanticWarning));
+      expect(text.style?.color, AppColors.semanticWarning);
     });
 
     testWidgets('labels credit and colours it green', (tester) async {
       await tester.pumpWidget(buildTestWidget(balanceCents: -500));
 
       final text = balanceText(tester, 'Guthaben: 5,00');
-      expect(text.style?.color, hexToColor(AppColors.semanticSuccess));
+      expect(text.style?.color, AppColors.semanticSuccess);
     });
 
     testWidgets('a settled account is never shown as a warning',
@@ -103,7 +103,7 @@ void main() {
       // Settled accounts get their own wording, not "Offener Betrag: 0,00"
       // (#296).
       final text = balanceText(tester, 'Nichts offen');
-      expect(text.style?.color, hexToColor(AppColors.textPrimary));
+      expect(text.style?.color, AppColors.textPrimary);
     });
   });
 

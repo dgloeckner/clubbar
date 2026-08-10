@@ -253,8 +253,8 @@ class _ScanFeedbackBannerState extends State<_ScanFeedbackBanner> {
             ),
             decoration: BoxDecoration(
               color: _isHint
-                  ? hexToColor(AppColors.semanticWarning)
-                  : hexToColor(AppColors.semanticDanger).withValues(alpha: 0.95),
+                  ? AppColors.semanticWarning
+                  : AppColors.semanticDanger.withValues(alpha: 0.95),
               borderRadius: BorderRadius.circular(AppBorderRadius.md),
             ),
             child: Text(

@@ -33,7 +33,7 @@ void main() {
       final resolvedForeground =
           theme.elevatedButtonTheme.style?.foregroundColor?.resolve({});
 
-      expect(resolvedBackground, hexToColor(AppColors.semanticPrimaryStrong));
+      expect(resolvedBackground, AppColors.semanticPrimaryStrong);
       expect(resolvedForeground, Colors.white);
     });
 
@@ -55,17 +55,17 @@ void main() {
       final resolvedForeground =
           theme.textButtonTheme.style?.foregroundColor?.resolve({});
 
-      expect(resolvedForeground, hexToColor(AppColors.textSecondary));
+      expect(resolvedForeground, AppColors.textSecondary);
     });
 
     test('bottom sheets and dialogs use the app card background', () {
       final theme = buildTerminalTheme();
 
       expect(theme.bottomSheetTheme.backgroundColor,
-          hexToColor(AppColors.bgCard));
+          AppColors.bgCard);
       expect(theme.bottomSheetTheme.modalBackgroundColor,
-          hexToColor(AppColors.bgCard));
-      expect(theme.dialogTheme.backgroundColor, hexToColor(AppColors.bgCard));
+          AppColors.bgCard);
+      expect(theme.dialogTheme.backgroundColor, AppColors.bgCard);
     });
   });
 }
