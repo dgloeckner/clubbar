@@ -11,6 +11,7 @@ use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Auth\Services\TotpService;
+use App\Shared\Config\AppConfig;
 use App\Shared\Services\AuditService;
 use App\Shared\Validation\Validator;
 use PDO;
@@ -46,6 +47,7 @@ class AuthControllerProfileTest extends TestCase
             $this->createMock(AuditService::class),
             new Validator($this->createMock(PDO::class)),
             $this->createMock(LoginAttemptsRepository::class),
+            new AppConfig(),
         );
     }
 

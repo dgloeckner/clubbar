@@ -10,6 +10,7 @@ use App\Modules\Auth\Services\TotpService;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Shared\Config\AppConfig;
 use App\Shared\Services\AuditService;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
@@ -36,6 +37,7 @@ class AuthController
         private AuditService $auditService,
         private Validator $validator,
         private LoginAttemptsRepository $loginAttempts,
+        private AppConfig $config,
     ) {}
 
     public function login(Request $request, Response $response): Response
@@ -69,7 +71,7 @@ class AuthController
 
         // Start session and regenerate ID to prevent session fixation
         if (session_status() === PHP_SESSION_NONE) {
-            session_name('_session');
+            session_name($this->config->sessionCookieName);
             session_start();
         }
         session_regenerate_id(true);
@@ -123,7 +125,7 @@ class AuthController
     public function mfa(Request $request, Response $response): Response
     {
         if (session_status() === PHP_SESSION_NONE) {
-            session_name('_session');
+            session_name($this->config->sessionCookieName);
             session_start();
         }
 

@@ -23,6 +23,11 @@ const API_BASE = "http://localhost:8080/api";
 const WRONG_CODE = "000000";
 const MFA_MAX_ATTEMPTS = 5;
 
+// The __Host- prefix (issue #251) only works on a Secure cookie, so the name
+// follows the scheme the suite runs on. See admin-auth.spec.ts and
+// backend/tests/Unit/Shared/Config/AppConfigTest.php for the derivation.
+const EXPECTED_SESSION_COOKIE_NAME = API_BASE.startsWith("https://") ? "__Host-session" : "_session";
+
 /** Start a login and return the cookie carrying the MFA-pending session. */
 async function startMfaPendingSession(request: APIRequestContext): Promise<string> {
   const response = await request.post(`${API_BASE}/auth/login`, {
@@ -37,7 +42,7 @@ async function startMfaPendingSession(request: APIRequestContext): Promise<strin
 
   const setCookie = response.headers()["set-cookie"];
   const cookie = (Array.isArray(setCookie) ? setCookie[0] : setCookie || "").split(";")[0];
-  expect(cookie).toContain("_session");
+  expect(cookie).toContain(EXPECTED_SESSION_COOKIE_NAME);
 
   return cookie;
 }
