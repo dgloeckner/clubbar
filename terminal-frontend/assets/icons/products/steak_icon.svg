@@ -1,4 +1,4 @@
-<svg viewBox="0 0 48 48">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
   <!-- plate -->
   <ellipse cx="24" cy="40" rx="19" ry="6" fill="#F3F4F6" stroke="#D1D5DB" stroke-width="2"/>
   <!-- shadow under steak -->

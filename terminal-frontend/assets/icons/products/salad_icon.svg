@@ -1,4 +1,4 @@
-<svg viewBox="0 0 48 48">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
   <!-- bowl -->
   <path d="M7,28Q7,44 24,44Q41,44 41,28Z" fill="#F3F4F6" stroke="#D1D5DB" stroke-width="2.5" stroke-linejoin="round"/>
   <line x1="7" y1="28" x2="41" y2="28" stroke="#D1D5DB" stroke-width="2.5" stroke-linecap="round"/>
