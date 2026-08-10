@@ -84,3 +84,12 @@ flutter:
     - assets/icons/categories/
     - assets/icons/ui/
     - assets/sounds/
+
+  # #298: the header clock requested this family with no font bundled, so it
+  # silently fell back to the platform default. Bundled instead of dropping
+  # the declaration — a monospaced clock avoids width jitter as digits tick.
+  fonts:
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Medium.ttf
+          weight: 500
