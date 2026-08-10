@@ -48,6 +48,8 @@ module.exports = {
         'src/pages/ReportsPage.tsx',
         'src/pages/JournalPage.tsx',
         'src/utils/transactions.ts',
+        'src/pages/MembersPage.tsx',
+        'src/pages/ExcludedFromCollectionPage.tsx',
       ],
       rules: {
         'no-restricted-syntax': [
