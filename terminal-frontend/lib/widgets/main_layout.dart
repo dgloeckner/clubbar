@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
@@ -84,6 +85,7 @@ class MainLayout extends StatelessWidget {
         readerStatus: readerStatus,
         isSyncing: isSyncing,
         onStatusTap: () => showStatusInfoModal(context),
+        displayName: context.read<ConfigService>().displayName,
       ),
       // Every pointer-down anywhere in the app counts as member activity and
       // resets the session inactivity timer (ADR-0027 rule 6).

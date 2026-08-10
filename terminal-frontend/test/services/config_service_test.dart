@@ -296,6 +296,53 @@ void main() {
       });
     });
 
+    group('displayName (#297)', () {
+      // A deploying club shows its own name without forking; a terminal with
+      // no explicit config, or one predating this key, keeps the stock name.
+      test('defaults to "Club Bar" when not in config', () async {
+        File('${tempDir.path}/config.json').writeAsStringSync(
+          jsonEncode({'terminalId': 'T1', 'apiUrl': 'http://x', 'apiToken': 'tok'}),
+        );
+        await configService.load();
+        expect(configService.displayName, 'Club Bar');
+      });
+
+      test('defaults to "Club Bar" with no config file at all', () async {
+        await configService.load();
+        expect(configService.displayName, 'Club Bar');
+      });
+
+      test('reads a configured name', () async {
+        File('${tempDir.path}/config.json').writeAsStringSync(
+          jsonEncode({
+            'terminalId': 'T1',
+            'apiUrl': 'http://x',
+            'apiToken': 'tok',
+            'displayName': 'SV Musterverein',
+          }),
+        );
+        await configService.load();
+        expect(configService.displayName, 'SV Musterverein');
+      });
+
+      test('clear resets displayName to the default', () async {
+        File('${tempDir.path}/config.json').writeAsStringSync(
+          jsonEncode({
+            'terminalId': 'T1',
+            'apiUrl': 'http://x',
+            'apiToken': 'tok',
+            'displayName': 'SV Musterverein',
+          }),
+        );
+        await configService.load();
+        expect(configService.displayName, 'SV Musterverein');
+
+        await configService.clear();
+
+        expect(configService.displayName, 'Club Bar');
+      });
+    });
+
     group('fullscreen configuration', () {
       test('fullscreen defaults to false', () async {
         await configService.load();

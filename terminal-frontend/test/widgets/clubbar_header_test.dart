@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 import 'package:clubbar_terminal/widgets/clubbar_header.dart';
 import '../test_helpers.dart';
@@ -13,6 +14,7 @@ void main() {
       RfidReaderStatus readerStatus = RfidReaderStatus.unknown,
       bool isSyncing = false,
       VoidCallback? onStatusTap,
+      String? displayName,
     }) {
       return createTestApp(
         child: Scaffold(
@@ -21,6 +23,7 @@ void main() {
             readerStatus: readerStatus,
             isSyncing: isSyncing,
             onStatusTap: onStatusTap,
+            displayName: displayName ?? ConfigService.defaultDisplayName,
           ),
         ),
       );
@@ -309,6 +312,43 @@ void main() {
 
         expect(find.text('Fehler'), findsOneWidget);
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      });
+    });
+
+    // Issue #297: the header used to hard-code "Club Bar", so a deploying
+    // club could not show its own name without forking.
+    group('configurable club name (#297)', () {
+      testWidgets('falls back to "Club Bar" when no name is configured',
+          (tester) async {
+        await tester.pumpWidget(buildTestApp(
+          connectionStatus: ConnectionStatus.online,
+        ));
+
+        expect(find.text('Club Bar'), findsOneWidget);
+      });
+
+      testWidgets('shows the configured club name instead', (tester) async {
+        await tester.pumpWidget(buildTestApp(
+          connectionStatus: ConnectionStatus.online,
+          displayName: 'SV Musterverein',
+        ));
+
+        expect(find.text('SV Musterverein'), findsOneWidget);
+        expect(find.text('Club Bar'), findsNothing);
+      });
+
+      testWidgets('a long name still ellipsizes rather than overflowing',
+          (tester) async {
+        await tester.pumpWidget(buildTestApp(
+          connectionStatus: ConnectionStatus.online,
+          displayName:
+              'A Very Long Club Name That Would Never Fit The Header Bar',
+        ));
+
+        final text = tester.widget<Text>(find.textContaining('A Very Long'));
+        expect(text.overflow, TextOverflow.ellipsis);
+        // Renders without a layout overflow error.
+        expect(tester.takeException(), isNull);
       });
     });
 

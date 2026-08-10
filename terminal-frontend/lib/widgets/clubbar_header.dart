@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 
 /// Minimum edge of a header pill's touch target.
@@ -28,11 +29,17 @@ class ClubBarHeader extends StatefulWidget implements PreferredSizeWidget {
 
   final VoidCallback? onStatusTap;
 
+  /// The deploying club's name shown in the header (#297). Defaults to the
+  /// stock "Club Bar" so existing deployments without a `displayName` in
+  /// `config.json` are unaffected.
+  final String displayName;
+
   const ClubBarHeader({
     required this.connectionStatus,
     this.readerStatus = RfidReaderStatus.unknown,
     this.isSyncing = false,
     this.onStatusTap,
+    this.displayName = ConfigService.defaultDisplayName,
     super.key,
   });
 
@@ -246,10 +253,10 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Left: Club Bar title
+          // Left: deploying club's name (#297)
           Flexible(
             child: Text(
-              'Club Bar',
+              widget.displayName,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: Color(0xfff1f5f9),
