@@ -4157,6 +4157,13 @@ components:
 
     MemberCreateRequest:
       type: object
+      description: >-
+        An optional field left empty may be sent as `""` as well as omitted or
+        `null`: a form has no way to send "absent", so a blank string is read as
+        no value for `phone`, `card_uid`, `iban`, `account_holder_name` and
+        `mandate_signed_at`. `mandate_reference` is the exception — a blank one
+        says the member has no mandate, while an omitted one is minted from the
+        member id (ADR-0006).
       # SEPA details are not required to register a member: the list has a
       # "SEPA: Missing" filter and badge precisely because a member without
       # bank details is a supported state, and the backend has always accepted
@@ -4205,6 +4212,12 @@ components:
 
     MemberUpdateRequest:
       type: object
+      description: >-
+        Only the fields the request carries are changed. A field being cleared
+        may be sent as `""` as well as `null` — a blank string is read as no
+        value for `phone`, `card_uid`, `iban`, `account_holder_name` and
+        `mandate_signed_at`, so a form that empties an input clears the field
+        rather than storing the empty string.
       properties:
         first_name:
           type: string

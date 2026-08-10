@@ -174,6 +174,115 @@ class AdminControllerValidationTest extends TestCase
         $this->assertArrayHasKey('mandate_signed_at', $messages);
     }
 
+    /** @return array<string, array{0: string}> */
+    public static function clearableFields(): array
+    {
+        return [
+            'phone' => ['phone'],
+            'card_uid' => ['card_uid'],
+            'iban' => ['iban'],
+            'account_holder_name' => ['account_holder_name'],
+            'mandate_signed_at' => ['mandate_signed_at'],
+        ];
+    }
+
+    /**
+     * A field the volunteer cleared in the form arrives as `""`, and the update
+     * path used to hand that on verbatim (#111) — so the member kept an empty
+     * string where the create path would have stored no value at all, and
+     * `card_uid` could not be cleared at all because a blank fails its own
+     * `min:8` rule.
+     */
+    #[DataProvider('clearableFields')]
+    public function test_update_clears_a_blank_field_to_null(string $field): void
+    {
+        // Strictly: `''` and `null` are loosely equal in PHP, so the default
+        // constraint would accept the very value this test exists to reject.
+        $this->membersService->expects($this->once())
+            ->method('updateMember')
+            ->with('m-1', $this->identicalTo([$field => null]), 'admin-1')
+            ->willReturn($this->member());
+
+        $response = $this->controller->update($this->patch([$field => '']), new Response(), ['memberId' => 'm-1']);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /** The same body must mean the same thing on both paths. */
+    #[DataProvider('clearableFields')]
+    public function test_store_reads_a_blank_field_as_no_value(string $field): void
+    {
+        $this->membersService->expects($this->once())
+            ->method('createMember')
+            ->with(
+                'Ada',
+                'Lovelace',
+                'ada@example.org',
+                $this->identicalTo(null),
+                $this->identicalTo(null),
+                $this->anything(),
+                $this->identicalTo(null),
+                $this->identicalTo(null),
+                $this->identicalTo(null),
+                $this->identicalTo(null),
+                'admin-1',
+            )
+            ->willReturn($this->member());
+
+        $response = $this->controller->store($this->post(self::validBody([$field => ''])), new Response());
+
+        $this->assertSame(201, $response->getStatusCode());
+    }
+
+    /**
+     * `card_uid` is the one clearable field carrying a length rule, so a blank
+     * that reached the validator came back as "must be at least 8 characters" —
+     * a 422 on a member whose card was simply handed back.
+     */
+    public function test_a_blank_card_uid_is_not_reported_as_too_short(): void
+    {
+        $this->membersService->expects($this->once())
+            ->method('updateMember')
+            ->willReturn($this->member());
+
+        $response = $this->controller->update($this->patch(['card_uid' => '']), new Response(), ['memberId' => 'm-1']);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * Blank does not mean absent for the mandate reference: an absent one is
+     * minted from the member id (ADR-0006), a blank one says this member has no
+     * mandate and must leave them without one (#164). Normalizing it away would
+     * mint a reference over the admin's explicit "there is none".
+     */
+    public function test_store_passes_a_blank_mandate_reference_through_unchanged(): void
+    {
+        $this->membersService->expects($this->once())
+            ->method('createMember')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->identicalTo(''),
+                $this->anything(),
+                $this->anything(),
+            )
+            ->willReturn($this->member());
+
+        $response = $this->controller->store(
+            $this->post(self::validBody(['mandate_reference' => ''])),
+            new Response(),
+        );
+
+        $this->assertSame(201, $response->getStatusCode());
+    }
+
     public function test_update_still_accepts_an_empty_body(): void
     {
         $this->membersService->expects($this->once())

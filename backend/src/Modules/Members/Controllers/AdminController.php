@@ -51,6 +51,59 @@ class AdminController
         'mandate_signed_at' => ['nullable', 'date'],
     ];
 
+    /**
+     * The optional fields where a blank string means "no value".
+     *
+     * A form has no way to send "absent": a field the volunteer cleared arrives
+     * as `""`. Create normalized three of these inline and update normalized
+     * none, so the same cleared field meant different things depending on which
+     * button produced the request (#111). `phone` and `account_holder_name`
+     * were stored as the empty string on update; `card_uid` could not be
+     * cleared at all, since a blank fell foul of its own `min:8` rule and came
+     * back as "must be at least 8 characters" for a card that had simply been
+     * handed back. That length rule is also the only thing standing between an
+     * empty `card_uid` and the UNIQUE index it shares — UNIQUE permits many
+     * NULLs but only one empty string, so the second member cleared this way
+     * would collide. Both paths now run the same list, so the two cannot drift
+     * apart again.
+     *
+     * `mandate_reference` is deliberately absent. Blank does not mean absent on
+     * the create path: an absent reference is minted from the member id
+     * (ADR-0006), while an explicitly blank one says the member has no mandate
+     * and must stay without one (#164) — a distinction the repository reads
+     * from key presence and which mapping to null would erase. It needs no
+     * normalization here in any case: `MembersRepository` resolves the value
+     * with `?:` on both paths before it can reach the UNIQUE column.
+     */
+    private const BLANK_MEANS_NULL = [
+        'phone',
+        'card_uid',
+        'iban',
+        'account_holder_name',
+        'mandate_signed_at',
+    ];
+
+    /**
+     * Map the cleared fields of a request body to null before anything reads it.
+     *
+     * This runs ahead of validation on purpose: `card_uid: ""` would otherwise
+     * be rejected by `min:8`, so a volunteer removing a lost member card could
+     * not save the form at all.
+     *
+     * @param array<string, mixed> $body
+     * @return array<string, mixed>
+     */
+    private static function withBlanksAsNull(array $body): array
+    {
+        foreach (self::BLANK_MEANS_NULL as $field) {
+            if (array_key_exists($field, $body) && $body[$field] === '') {
+                $body[$field] = null;
+            }
+        }
+
+        return $body;
+    }
+
     public function __construct(
         private MembersService $membersService,
         private Validator $validator,
@@ -118,7 +171,7 @@ class AdminController
 
     public function store(Request $request, Response $response): Response
     {
-        $body = $request->getParsedBody() ?? [];
+        $body = self::withBlanksAsNull($request->getParsedBody() ?? []);
         $adminId = $request->getAttribute('admin_user_id');
 
         $rules = self::FIELD_RULES;
@@ -141,10 +194,12 @@ class AdminController
             phone: $body['phone'] ?? null,
             cardUid: $body['card_uid'] ?? null,
             language: $language,
-            iban: ($body['iban'] ?? null) ?: null,
-            accountHolderName: ($body['account_holder_name'] ?? null) ?: null,
+            iban: $body['iban'] ?? null,
+            accountHolderName: $body['account_holder_name'] ?? null,
+            // Passed through as sent — see BLANK_MEANS_NULL for why a blank
+            // reference is not the same as an absent one on this path.
             mandateReference: $body['mandate_reference'] ?? null,
-            mandateSignedAt: ($body['mandate_signed_at'] ?? null) ?: null,
+            mandateSignedAt: $body['mandate_signed_at'] ?? null,
             adminUserId: $adminId,
         );
 
@@ -166,7 +221,7 @@ class AdminController
     public function update(Request $request, Response $response, array $args): Response
     {
         $memberId = $args['memberId'];
-        $body = $request->getParsedBody() ?? [];
+        $body = self::withBlanksAsNull($request->getParsedBody() ?? []);
         $adminId = $request->getAttribute('admin_user_id');
 
         // Only the fields the request carries are checked — three of them used
