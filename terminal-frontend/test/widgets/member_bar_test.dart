@@ -105,6 +105,37 @@ void main() {
     });
   });
 
+  group('MemberBar details affordance (#39)', () {
+    testWidgets(
+        'shows a chevron and a tappable ripple over the whole member cluster',
+        (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('member-bar-details')),
+          matching: find.byIcon(Icons.chevron_right),
+        ),
+        findsOneWidget,
+      );
+
+      final detailsInkWell = tester.widget<InkWell>(
+        find.descendant(
+          of: find.byKey(const Key('member-bar-details')),
+          matching: find.byType(InkWell),
+        ),
+      );
+      expect(detailsInkWell.onTap, isNotNull);
+
+      // Avatar and name/balance both sit inside the same tappable cluster.
+      final detailsFinder = find.byKey(const Key('member-bar-details'));
+      expect(
+        find.descendant(of: detailsFinder, matching: find.text('John Doe')),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('MemberBar logout button', () {
     testWidgets('is enabled while no critical operation is in flight',
         (tester) async {

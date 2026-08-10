@@ -62,65 +62,82 @@ class MemberBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Member info on left
-          Row(
-            children: [
-              // Avatar with initials (clickable)
-              GestureDetector(
-                onTap: () => showMemberDetailsModal(context),
-                child: Container(
-                  width: 43,
-                  height: 43,
-                  decoration: BoxDecoration(
-                    color: const Color(0xffFF6B4A),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Center(
-                    child: Text(
-                      initials,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: AppFontSizes.base,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              // Member name and balance (clickable — same action as avatar)
-              GestureDetector(
-                onTap: () => showMemberDetailsModal(context),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$firstName $lastName',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: AppFontSizes.lg,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      formatBalance(
-                        deckelCents ?? member.balanceCents,
-                        l10n,
-                        locale,
-                      ),
-                      style: TextStyle(
-                        color: balanceColor(
-                          deckelCents ?? member.balanceCents,
+          // Member info on left — a single tappable cluster (#39): one
+          // InkWell for avatar + name/balance + chevron, so the ripple and
+          // the "tap for details" cue cover the whole area, not just part.
+          Material(
+            key: const Key('member-bar-details'),
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => showMemberDetailsModal(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Semantics(
+                  button: true,
+                  label: l10n.viewDetails,
+                  child: Row(
+                    children: [
+                      // Avatar with initials
+                      Container(
+                        width: 43,
+                        height: 43,
+                        decoration: BoxDecoration(
+                          color: const Color(0xffFF6B4A),
+                          borderRadius: BorderRadius.circular(22),
                         ),
-                        fontSize: AppFontSizes.lg,
-                        fontWeight: FontWeight.w500,
+                        child: Center(
+                          child: Text(
+                            initials,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: AppFontSizes.base,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      // Member name and balance
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$firstName $lastName',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: AppFontSizes.lg,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            formatBalance(
+                              deckelCents ?? member.balanceCents,
+                              l10n,
+                              locale,
+                            ),
+                            style: TextStyle(
+                              color: balanceColor(
+                                deckelCents ?? member.balanceCents,
+                              ),
+                              fontSize: AppFontSizes.lg,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.chevron_right,
+                        color: hexToColor(AppColors.textMuted),
+                        size: 22,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
           // Action buttons on right
           Row(
