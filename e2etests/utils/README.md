@@ -107,7 +107,9 @@ test('settlement structure is valid', async ({ testTransactions }) => {
 
   // Verify structure
   expect(memberData.first_name).toMatch(/Test_\d+/) // Timestamp appended
-  expect(settlementData.settlement_date).toBeTruthy()
+  // There is no settlement_date to build: the server records its own
+  // (issue #113), so the request carries only the execution date.
+  expect(settlementData.execution_date).toBeTruthy()
 })
 ```
 

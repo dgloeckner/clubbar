@@ -218,10 +218,10 @@ export function NewSettlementPage() {
       await getSettlements().createSettlement(
         ({
           method: 'direct_debit',
-          // The run names its members. Both dates come from the server's clock,
-          // never this browser's.
+          // The run names its members. The only date it sends is the one the
+          // server just suggested — there is no `settlement_date` to send, and
+          // no clock of this browser's takes part in the rule (issue #113).
           member_ids: Array.from(selected),
-          settlement_date: executionDateInfo.today,
           execution_date: executionDateInfo.minimum_date,
         } as unknown) as Parameters<ReturnType<typeof getSettlements>['createSettlement']>[0],
       )

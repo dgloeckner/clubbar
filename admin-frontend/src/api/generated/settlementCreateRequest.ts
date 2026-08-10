@@ -92,12 +92,15 @@ those members in full, so these ids do not limit its contents.
 member and can never be exported to SEPA.
  */
   method?: SettlementCreateRequestMethod;
-  settlement_date: string;
   /** Descriptive only — it does not bound what the run settles. */
   period_start?: string;
   /** Descriptive only — it does not bound what the run settles. */
   period_end?: string;
-  /** Required for direct_debit (>= TODAY + 7 days, and a bank business day) */
+  /** At least 7 calendar days from the server's today, and a bank
+business day. The settlement's own `settlement_date` is not an
+input — the server records the day it created the settlement, and
+the lead time is measured from that same clock (issue #113).
+ */
   execution_date: string;
   /** @maxLength 500 */
   notes?: string;

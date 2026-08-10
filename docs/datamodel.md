@@ -127,7 +127,7 @@ Settlement records for SEPA collections and manual settlements.
 | id | BINARY(16) | Yes | UUID primary key | Referenced by settlement_items | UUID v4 format |
 | settlement_type | ENUM | Yes | Type of settlement | Determines processing rules | 'sepa', 'manual' |
 | settlement_date | DATE | Yes | Creation date | When settlement was created | Auto-set to today |
-| execution_date | DATE | No | SEPA execution date | Bank processing date; NULL for manual | >= settlement_date + 7 days (SEPA only) |
+| execution_date | DATE | No | SEPA execution date | Bank processing date; NULL for manual | >= the server's today + 7 days, and a TARGET2 business day (SEPA only) |
 | period_start | DATE | No | Accounting period start | Optional; for reporting | <= period_end |
 | period_end | DATE | No | Accounting period end | Optional; for reporting | >= period_start |
 | sepa_message_id | VARCHAR(35) | No | SEPA XML message ID | Unique per XML export; NULL for manual | Auto-generated on first export |

@@ -151,13 +151,12 @@ test.describe('New Settlement — the selection is members', () => {
     })
 
     const dates = await authenticatedRequest.get('/api/admin/settlements/execution-date-info')
-    const { today, minimum_date: executionDate } = await dates.json()
+    const { minimum_date: executionDate } = await dates.json()
 
     const settled = await authenticatedRequest.post('/api/admin/settlements', {
       data: {
         method: 'direct_debit',
         member_ids: [inCredit.memberId],
-        settlement_date: today,
         execution_date: executionDate,
       },
     })

@@ -206,6 +206,8 @@ export function settlementFactory(
         members.push(await createMemberWithPurchase(adminRequest, terminalRequest, amountCents))
       }
 
+      // The settlement's own date is recorded by the server (issue #113); the
+      // factory reads it back below rather than sending one.
       const settlementDate = await serverToday(adminRequest)
       const executionDate = await minimumExecutionDate(adminRequest)
 
@@ -213,7 +215,6 @@ export function settlementFactory(
         data: {
           method,
           transaction_ids: members.map((m) => m.transactionId),
-          settlement_date: settlementDate,
           execution_date: executionDate,
           period_start: settlementDate,
           period_end: settlementDate,

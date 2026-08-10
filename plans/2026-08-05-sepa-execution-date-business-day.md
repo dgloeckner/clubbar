@@ -214,8 +214,32 @@ way. Adding `date-fns`/`dayjs` here would only serve the local computation that 
 
 - **Regional bank holidays** beyond TARGET2 (e.g. German state holidays). TARGET2 governs SEPA
   settlement; local closures do not move `ReqdColltnDt`.
-- **`+7` anchor divergence** (A7): `settlement_date + 7` vs ADR-0009's `TODAY + 7`. Pre-existing;
-  not changed here.
+- ~~**`+7` anchor divergence** (A7): `settlement_date + 7` vs ADR-0009's `TODAY + 7`. Pre-existing;
+  not changed here.~~ **Closed by [#113](https://github.com/dgloeckner/clubbar/issues/113)** — see below.
+
+## Follow-up: A7 closed ([#113](https://github.com/dgloeckner/clubbar/issues/113), 2026-08-10)
+
+A7 was documented here and left alone. It was a security hole, not a cosmetic divergence: the
+anchor was a **request field**, so a caller who backdated `settlement_date` could name an
+execution date tomorrow and pass the check. The SEPA pre-notification period the rule exists to
+guarantee was optional for anyone posting to the API directly.
+
+| # | Change | Where |
+|---|--------|-------|
+| F1 | The lead time is anchored on the server's today | `Modules/Settlements/Domain/SettlementLeadTime.php` (new) |
+| F2 | `settlement_date` removed from both creation requests; the server records its own | `AdminController::store`, `::settleFilter`, `SettlementsService::createSettlement` |
+| F3 | Suggestion and validation read the same anchor, so `minimum_date` is accepted by construction | `SettlementsService::getExecutionDateInfo` |
+| F4 | ADR-0009's pseudo-code corrected — it said `settlementDate + 7` while its own decision said `TODAY + 7`, which is how the weaker rule got written | `adr/0009-settlement-lead-times-bank-working-days.md` |
+| F5 | Admin UI stops sending `settlement_date`; OpenAPI drops it from the request schemas | `NewSettlementPage.tsx`, `api/admin.yaml` |
+
+Verified: PHPUnit 1378 tests green (including a new `SettlementLeadTimeTest`), api-tests 555 green,
+admin-chromium 278 green, admin-mobile 49 green.
+
+Note this also retires the second, non-malicious symptom of the same root cause that
+[#194](https://github.com/dgloeckner/clubbar/issues/194) patched on the client side: a browser
+east of UTC was a calendar day ahead of the server every evening, so a locally-dated
+`settlement_date` paired with the server's `minimum_date` failed the check on a pair the server
+had just proposed.
 
 ## Implementation notes (deviations from the plan as written)
 

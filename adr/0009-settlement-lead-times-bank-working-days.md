@@ -1,6 +1,6 @@
 # ADR-0009: Settlement Lead Times
 
-**Status**: Accepted (amended 2026-08-05)
+**Status**: Accepted (amended 2026-08-10)
 
 **Date**: 2025-01-23
 
@@ -8,6 +8,16 @@
 on a TARGET2 business day. The original decision allowed weekends and bank
 holidays, which produced an invalid `ReqdColltnDt` in the SEPA export. See
 "Amendment: Bank Business Days" below; Alternative 1 is now partially adopted.
+
+**Amendment 2026-08-10 (issue #113)**: this ADR contradicted itself. The
+decision below has always said the lead time is measured from **TODAY**, but the
+pseudo-code said `executionDate < settlementDate + 7 days`, and the
+implementation followed the pseudo-code — against a `settlement_date` that
+arrived in the request body. A caller who backdated that field could have the
+bank collect tomorrow, with no SEPA pre-notification period at all. The
+pseudo-code is corrected below, and `settlement_date` is removed from the
+request: it is the day the server created the settlement, and it is not an input
+to any rule. See "Amendment: The Anchor Is the Server's Today".
 
 ---
 
@@ -65,6 +75,31 @@ rather than silently rolled forward. Rewriting a caller-supplied date would make
 the stored settlement differ from the request with no trace in the audit log.
 Clients that need a valid date ask for one (see the endpoint below).
 
+### Amendment: The Anchor Is the Server's Today
+
+The lead time exists to guarantee the SEPA pre-notification period. A period
+counted from a date the caller chose is not a guarantee — the caller can move
+it. So the anchor is the one date the caller does not control:
+
+1. **The anchor is the server's current date.** `execution_date >= today + 7`,
+   where `today` is read from the server clock at validation time.
+2. **`settlement_date` is not a request field.** It records the day the server
+   created the settlement. Nothing reads it as a rule input. A `settlement_date`
+   in a request body is ignored rather than rejected, matching how
+   `settlement_type`/`manual_reason` were retired in ruling #163.
+3. **One clock for suggestion and validation.** `GET /admin/settlements/execution-date-info`
+   and the creation endpoints read the same anchor, so what the server suggests
+   is by construction what the server accepts.
+
+Point 3 also closes a second, non-malicious symptom of the same root cause. The
+suggested `minimum_date` came from the server (UTC), while a browser built its
+`settlement_date` from the local clock; between 22:00 and 24:00 CEST the browser
+was already on the next calendar day, and the lead-time check rejected the very
+pair the server had just proposed. An admin in Germany could not create a
+settlement for two hours every evening. Issue #194 patched the client half by
+publishing `today` on `ExecutionDateInfo` and having the UI use it; removing the
+field from the request retires the class of bug rather than the instance.
+
 ### Validation Algorithm
 
 **Pseudocode: Settlement Execution Date Validation**
@@ -84,15 +119,17 @@ Function NextBusinessDay(date):
     date = date + 1 day
   return date
 
-Function ValidateExecutionDate(executionDate, settlementDate):
-  if executionDate < settlementDate + 7 days:
-    return [false, "execution_date must be at least 7 days after settlement_date"]
+Function ValidateExecutionDate(executionDate):
+  // TODAY is the server's calendar day. There is no second parameter: no
+  // caller-supplied date takes part in this rule (issue #113).
+  if executionDate < TODAY + 7 days:
+    return [false, "execution_date must be at least 7 days from today - <TODAY + 7> or later"]
   if not IsBusinessDay(executionDate):
     return [false, "execution_date must be a bank business day"]
   return [true, "Valid"]
 
 Function GetMinimumExecutionDate():
-  return NextBusinessDay(TODAY + 7 days)
+  return NextBusinessDay(TODAY + 7 days)   // same TODAY as above, by construction
 ```
 
 The frontend must **not** reimplement this. `GET /admin/settlements/execution-date-info`
@@ -107,7 +144,7 @@ is the single source of truth, so the Easter computation exists in one language 
 | id | UUID | Unique settlement identifier |
 | period_start | DATE | Start of transaction period included in settlement |
 | period_end | DATE | End of transaction period |
-| sepa_execution_date | DATE | Date bank executes debit collections (must be ≥ TODAY + 7) |
+| sepa_execution_date | DATE | Date bank executes debit collections (must be ≥ TODAY + 7, measured on the server) |
 | created_at | DATETIME | Settlement creation timestamp |
 | finalized_at | DATETIME | Settlement finalization timestamp (when marked complete) |
 
@@ -117,11 +154,16 @@ is the single source of truth, so the Easter computation exists in one language 
 
 ```json
 {
+  "today": "2026-08-05",
   "minimum_date": "2026-08-12",
   "lead_time_days": 7,
   "rule": "execution_date >= today + 7 calendar days, rolled to the next bank business day (Mon-Fri, excluding TARGET2 closing days)"
 }
 ```
+
+`today` is the anchor `minimum_date` was derived from, published so the UI can
+state which "today" the rule means. It is informational — the server re-reads
+its own clock at validation time either way.
 
 ### Mermaid Diagram: Settlement Execution Date Validation Flow
 
@@ -154,6 +196,7 @@ graph TD
 ✅ **Maintainability**: Single validation rule, easy to understand and audit
 ✅ **No dependencies**: No external holiday services or complex algorithms
 ✅ **Predictable**: Same rule for all regions and organizations
+✅ **Not negotiable by the caller**: the anchor is the server clock, so no request can shorten the pre-notification period (issue #113)
 ✅ **Reduced code**: Minimal validation code vs. business day calculator with holiday rules
 
 ### Negative

@@ -451,7 +451,6 @@ class SettlementReversalTest extends DatabaseTestCase
         try {
             $this->settlementsService->createSettlement(
                 $freed,
-                date('Y-m-d'),
                 date('Y-m-d', strtotime('+14 days')),
                 null,
                 null,
@@ -468,7 +467,6 @@ class SettlementReversalTest extends DatabaseTestCase
         // is resolved, so the hold must not stand in its way.
         $writeOff = $this->settlementsService->createSettlement(
             $freed,
-            date('Y-m-d'),
             date('Y-m-d', strtotime('+14 days')),
             null,
             null,
