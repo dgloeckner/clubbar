@@ -349,16 +349,12 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
+              // Strong blue/white/etc. now come from the app theme (#301) —
+              // this used to duplicate elevatedButtonTheme's defaults exactly.
               ElevatedButton.icon(
                 onPressed: _loadTransactions,
                 icon: const Icon(Icons.refresh),
                 label: Text(l10n.retry),
-                style: ElevatedButton.styleFrom(
-                  // Strong blue: white on #3b82f6 is 3.7:1 (#41).
-                  backgroundColor:
-                      hexToColor(AppColors.semanticPrimaryStrong),
-                  foregroundColor: Colors.white,
-                ),
               ),
             ],
           ),

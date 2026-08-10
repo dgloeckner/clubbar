@@ -251,6 +251,9 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
             // Partial dispense: show confirm button; normal: countdown + actions
             if (data.isPartial) ...[
+              // Deliberately bare: this used to render default M3 seed
+              // colors matching nothing else in the app — the app theme
+              // now makes a bare button correct by construction (#301).
               ElevatedButton(
                 onPressed: _endSessionAndReturnToIdle,
                 child: Text(l10n.checkoutPartialConfirm),
@@ -417,6 +420,10 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   Widget _doneButton(AppLocalizations l10n) {
     return ElevatedButton(
       onPressed: _endSessionAndReturnToIdle,
+      // Background/foreground here match the app theme's elevatedButtonTheme
+      // (#301) exactly — kept local (rather than trimmed to just the size
+      // override below) because the test suite asserts this button's color
+      // directly against its own style, not the resolved theme.
       style: ElevatedButton.styleFrom(
         // Strong blue: white on #3b82f6 is 3.7:1 (#41).
         backgroundColor: hexToColor(AppColors.semanticPrimaryStrong),
