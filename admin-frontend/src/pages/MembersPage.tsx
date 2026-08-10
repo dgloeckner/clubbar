@@ -931,7 +931,7 @@ export function MembersPage() {
           <span
             style={{
               fontSize: '12px',
-              color: 'rgba(255,255,255,0.35)',
+              color: theme.colors.text.label,
               marginRight: '4px',
               fontWeight: 500,
               textTransform: 'uppercase',
@@ -1010,7 +1010,7 @@ export function MembersPage() {
           <span
             style={{
               fontSize: '12px',
-              color: 'rgba(255,255,255,0.35)',
+              color: theme.colors.text.label,
               marginRight: '4px',
               fontWeight: 500,
               textTransform: 'uppercase',
@@ -1086,7 +1086,7 @@ export function MembersPage() {
           <span
             style={{
               fontSize: '12px',
-              color: 'rgba(255,255,255,0.35)',
+              color: theme.colors.text.label,
               marginRight: '4px',
               fontWeight: 500,
               textTransform: 'uppercase',
