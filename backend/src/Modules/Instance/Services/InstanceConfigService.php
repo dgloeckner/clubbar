@@ -27,11 +27,24 @@ class InstanceConfigService
 
     /**
      * The instance name as used by callers that only need the string, such as
-     * TotpService — no need to go through the DTO for a single field.
+     * TotpService and the public /health check — no need to go through the
+     * DTO for a single field.
+     *
+     * /health is unauthenticated and, per its own contract, must answer
+     * before the database is necessarily migrated (CI — and any fresh
+     * deployment — polls it to detect backend readiness *before* running
+     * migrations). A missing instance_config table is therefore expected,
+     * not exceptional, and falls back to the stock name rather than turning
+     * an otherwise-healthy backend into a 500.
      */
     public function getInstanceName(): string
     {
-        $config = $this->instanceConfigRepository->getConfig();
+        try {
+            $config = $this->instanceConfigRepository->getConfig();
+        } catch (\PDOException) {
+            return self::DEFAULT_NAME;
+        }
+
         $name = $config['instance_name'] ?? null;
         return $name !== null && $name !== '' ? $name : self::DEFAULT_NAME;
     }

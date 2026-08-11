@@ -111,8 +111,9 @@ test.describe('Instance Branding', () => {
     test.use({ storageState: { cookies: [], origins: [] } })
 
     test('should show the configured instance name', async ({ loginPage }) => {
-      test.skip(!savedInstanceName, 'requires the save test above to have run first')
-
+      // Serial mode (above) guarantees the save test ran first and set this.
+      // If it didn't (e.g. that test failed), asserting against `undefined`
+      // fails this test too — a real signal, not something to skip past.
       await loginPage.navigate()
       await loginPage.waitForBrandName()
 

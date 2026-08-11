@@ -64,6 +64,21 @@ class InstanceConfigServiceTest extends TestCase
         $this->assertSame('Club Bar', $this->service->getInstanceName());
     }
 
+    /**
+     * /health (which calls this via HealthCheckService) must answer before
+     * the database is necessarily migrated — CI, and any fresh deployment,
+     * polls it to detect backend readiness *before* running migrations. A
+     * missing instance_config table would otherwise turn an
+     * otherwise-healthy backend into a permanent 500.
+     */
+    public function test_getInstanceName_falls_back_when_the_table_does_not_exist_yet(): void
+    {
+        $this->instanceConfigRepository->method('getConfig')
+            ->willThrowException(new \PDOException("SQLSTATE[42S02]: Base table or view not found"));
+
+        $this->assertSame('Club Bar', $this->service->getInstanceName());
+    }
+
     // ── updateConfig ────────────────────────────────────
 
     public function test_updateConfig_returns_null_when_repository_reports_no_row(): void
