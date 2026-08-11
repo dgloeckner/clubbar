@@ -321,9 +321,16 @@ test.describe("TOTP 2FA", () => {
     expect(beforeReset).toBeDefined()
     expect(beforeReset.totp_enabled).toBe(true)
 
-    // Step 3: Superadmin resets the new admin's 2FA
+    // Step 3: Superadmin resets the new admin's 2FA — the caller must first
+    // re-prove their own identity with a step-up credential (#337): their
+    // own password, plus their own fresh TOTP code since they have 2FA
+    // enabled.
     const resetResp = await authenticatedRequest.post(`${API_BASE}/auth/2fa/reset`, {
-      data: { userId: newAdmin.id },
+      data: {
+        userId: newAdmin.id,
+        current_password: TEST_CREDENTIALS.admin.password,
+        totp_code: generateTotp(TEST_CREDENTIALS.totp.adminSecret),
+      },
     })
     expect(resetResp.status()).toBe(200)
 

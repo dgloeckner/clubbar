@@ -12,6 +12,7 @@ import { getAdminUsers } from '../api/generated/admin-users/admin-users'
 import { getTerminals } from '../api/generated/terminals/terminals'
 import { getAuthentication } from '../api/generated/authentication/authentication'
 import { getInstanceBranding } from '../api/generated/instance-branding/instance-branding'
+import { getProfile } from '../auth/session'
 import { useInstanceConfig } from '../context/InstanceConfigContext'
 import type { SepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
 
@@ -26,6 +27,7 @@ import { CreateAdminModal } from '../components/modals/CreateAdminModal'
 import { EditAdminModal } from '../components/modals/EditAdminModal'
 import { PasswordDisplayModal } from '../components/modals/PasswordDisplayModal'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
+import { StepUpConfirmDialog, type StepUpCredentials } from '../components/modals/StepUpConfirmDialog'
 import { TerminalsTab } from '../components/settings/TerminalsTab'
 import { SecurityCheckTab } from '../components/settings/SecurityCheckTab'
 import { InstanceBrandingTab } from '../components/settings/InstanceBrandingTab'
@@ -113,6 +115,12 @@ export function SettingsPage() {
   const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null)
   const [reset2faConfirm, setReset2faConfirm] = useState<string | null>(null)
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState<string | null>(null)
+  // Whether the *caller* (not the target being acted on) has 2FA enabled —
+  // decides whether the step-up dialog asks for a TOTP code (#337).
+  const [callerTotpEnabled, setCallerTotpEnabled] = useState(false)
+  // Failure from the last step-up attempt (wrong password/code); shown inside
+  // the step-up dialog itself, which stays open so the admin can retry.
+  const [stepUpError, setStepUpError] = useState<string | null>(null)
 
   // Terminal State
   const [terminals, setTerminals] = useState<Terminal[]>([])
@@ -190,6 +198,16 @@ export function SettingsPage() {
       loadAdminUsers()
     }
   }, [activeTab])
+
+  // The step-up dialogs (2FA reset, password reset, #337) need to know
+  // whether the *signed-in* admin has 2FA enabled, to decide whether to ask
+  // for a TOTP code alongside the password. Fetched once — it does not
+  // change over the life of the page.
+  useEffect(() => {
+    getProfile()
+      .then((profile) => setCallerTotpEnabled(!!profile.totp_enabled))
+      .catch(() => setCallerTotpEnabled(false))
+  }, [])
 
   // Load terminals when terminals tab is active
   useEffect(() => {
@@ -349,39 +367,47 @@ export function SettingsPage() {
 
   // Resetting a password invalidates a colleague's current one the moment it is
   // clicked, and the trigger is a bare icon button — so it is asked first, like
-  // deactivate and reset-2FA already were (#130).
+  // deactivate and reset-2FA already were (#130). As of #337 the confirmation
+  // also collects the caller's own step-up credential — the target's password
+  // does not change until the caller re-proves who they are.
   const handleResetPassword = (id: string) => {
+    setStepUpError(null)
     setResetPasswordConfirm(id)
   }
 
-  const handleResetPasswordConfirmed = async () => {
+  const handleResetPasswordConfirmed = async (credentials: StepUpCredentials) => {
     if (!resetPasswordConfirm) return
-    const id = resetPasswordConfirm
-    setResetPasswordConfirm(null)
     try {
-      const result = await getAdminUsers().resetAdminPassword(id)
+      const result = await getAdminUsers().resetAdminPassword(resetPasswordConfirm, credentials)
+      setResetPasswordConfirm(null)
+      setStepUpError(null)
       setGeneratedPassword(result.password ?? null)
       setShowPasswordModal(true)
     } catch (err: unknown) {
-      reportError(err, 'settings.errors.resetPassword')
+      // A wrong step-up credential keeps the dialog open so the admin can
+      // retry, rather than reporting it on the page banner behind it.
+      setStepUpError(getApiErrorMessage(err, t('settings.errors.resetPassword')))
     }
   }
 
   const handleReset2fa = (id: string) => {
+    setStepUpError(null)
     setReset2faConfirm(id)
   }
 
-  const handleReset2faConfirmed = async () => {
+  const handleReset2faConfirmed = async (credentials: StepUpCredentials) => {
     if (!reset2faConfirm) return
-    const id = reset2faConfirm
-    setReset2faConfirm(null)
     try {
-      await getAuthentication().resetTotp({ userId: id })
+      await getAuthentication().resetTotp({ userId: reset2faConfirm, ...credentials })
+      setReset2faConfirm(null)
+      setStepUpError(null)
       // Nothing in the table changes, so without this the admin cannot tell a
       // reset that worked from one that failed (#130).
       reportSuccess('settings.reset2faSuccess')
     } catch (err: unknown) {
-      reportError(err, 'settings.errors.reset2fa')
+      // A wrong step-up credential keeps the dialog open so the admin can
+      // retry, rather than reporting it on the page banner behind it.
+      setStepUpError(getApiErrorMessage(err, t('settings.errors.reset2fa')))
     }
   }
 
@@ -942,22 +968,30 @@ export function SettingsPage() {
         onCancel={() => setDeactivateConfirm(null)}
       />
 
-      <ConfirmDialog
+      <StepUpConfirmDialog
         isOpen={!!resetPasswordConfirm}
         message={t('settings.resetPasswordConfirm')}
         confirmLabel={t('settings.resetPassword')}
-        variant="danger"
+        requiresTotp={callerTotpEnabled}
+        error={stepUpError}
         onConfirm={handleResetPasswordConfirmed}
-        onCancel={() => setResetPasswordConfirm(null)}
+        onCancel={() => {
+          setResetPasswordConfirm(null)
+          setStepUpError(null)
+        }}
       />
 
-      <ConfirmDialog
+      <StepUpConfirmDialog
         isOpen={!!reset2faConfirm}
         message={t('settings.reset2faConfirm')}
         confirmLabel={t('common.confirm')}
-        variant="danger"
+        requiresTotp={callerTotpEnabled}
+        error={stepUpError}
         onConfirm={handleReset2faConfirmed}
-        onCancel={() => setReset2faConfirm(null)}
+        onCancel={() => {
+          setReset2faConfirm(null)
+          setStepUpError(null)
+        }}
       />
 
       <CreateTerminalModal

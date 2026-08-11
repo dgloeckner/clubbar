@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\AdminUsers\Controllers;
 
 use App\Modules\AdminUsers\Services\AdminUsersService;
+use App\Modules\Auth\Services\StepUpAuthService;
 use App\Shared\Validation\Validator;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Http\ListQuery;
@@ -19,6 +20,7 @@ class AdminController
     public function __construct(
         private AdminUsersService $adminUsersService,
         private Validator $validator,
+        private StepUpAuthService $stepUpAuthService,
     ) {}
 
     public function index(Request $request, Response $response): Response
@@ -142,6 +144,22 @@ class AdminController
     {
         $id = $args['id'];
         $adminId = $request->getAttribute('admin_user_id');
+        $caller = $request->getAttribute('admin_user');
+
+        $body = $request->getParsedBody() ?? [];
+
+        if (!$this->validator->validate($body, [
+            'current_password' => ['required', 'string'],
+        ])) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        if (!$this->stepUpAuthService->verify($caller, $body, $request)) {
+            return $this->json($response, [
+                'error' => 'invalid_credentials',
+                'message' => "Re-enter your password to reset this admin's password",
+            ], 401);
+        }
 
         $result = $this->adminUsersService->resetAdminPassword($id, $adminId);
 

@@ -63,6 +63,7 @@ import type {
   AdminUserWithPassword,
   ListAdminUsers200,
   ListAdminUsersParams,
+  ResetAdminPasswordRequest,
   UpdateAdminUserBody
 } from './..';
 
@@ -124,7 +125,12 @@ const updateAdminUser = (
       options);
     }
   /**
- * Generate a new password for an admin user.
+ * Generate a new password for an admin user. The caller must first
+re-prove their own identity with a step-up credential: their own
+current password, plus their own fresh TOTP code if they have 2FA
+enabled (#337). This step-up is rate-limited on the caller's account
+(5 attempts / 15 min, same dimension as login) and a failed attempt
+is audited.
 
 **Use Case**: UC-A63
 
@@ -134,9 +140,12 @@ The new password is returned once. All sessions for this user are invalidated.
  */
 const resetAdminPassword = (
     adminUserId: string,
+    resetAdminPasswordRequest: ResetAdminPasswordRequest,
  options?: SecondParameter<typeof customInstance<AdminUserWithPassword>>,) => {
       return customInstance<AdminUserWithPassword>(
-      {url: `/admin/admin-users/${adminUserId}/reset-password`, method: 'POST'
+      {url: `/admin/admin-users/${adminUserId}/reset-password`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: resetAdminPasswordRequest
     },
       options);
     }

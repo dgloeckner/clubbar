@@ -9,6 +9,7 @@ use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Services\AuthService;
+use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Auth\Services\TotpService;
 use App\Shared\Config\AppConfig;
 use App\Shared\Enums\AuditAction;
@@ -58,6 +59,7 @@ class AuthControllerMfaTest extends TestCase
             new Validator($this->createMock(PDO::class)),
             $this->loginAttempts,
             new AppConfig(),
+            $this->createMock(StepUpAuthService::class),
         );
 
         // The controller only starts a session when none is active; start one up

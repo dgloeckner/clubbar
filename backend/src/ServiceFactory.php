@@ -39,6 +39,7 @@ use App\Modules\AuditLog\Services\AuditLogService;
 use App\Modules\Dashboard\Services\DashboardService;
 use App\Shared\Services\AuditService;
 use App\Modules\Auth\Services\AuthService;
+use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Auth\Services\TokenService;
 use App\Modules\Auth\Services\TotpService;
 use App\Modules\Products\Services\CategoriesService;
@@ -311,6 +312,16 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(AdminUsersService::class, fn() => new AdminUsersService($this->getAdminUsersRepository(), $this->getAuditService()));
     }
 
+    public function getStepUpAuthService(): StepUpAuthService
+    {
+        return $this->resolve(StepUpAuthService::class, fn() => new StepUpAuthService(
+            $this->getAdminUsersService(),
+            $this->getTotpService(),
+            $this->getAuditService(),
+            $this->getLoginAttemptsRepository(),
+        ));
+    }
+
     public function getCategoriesService(): CategoriesService
     {
         return $this->resolve(CategoriesService::class, fn() => new CategoriesService($this->getCategoriesRepository(), $this->getAuditService()));
@@ -532,6 +543,28 @@ class ServiceFactory implements ContainerInterface
         return Env::get('DISABLE_LOGIN_RATE_LIMITING', 'false') === 'true';
     }
 
+    /**
+     * Step-up re-authentication (2FA reset, cross-account password reset,
+     * #337): the account under attack is the caller re-entering their own
+     * password, not a target named in the body — so, like the MFA step, the
+     * account dimension resolves from the session admin rather than the
+     * request body.
+     */
+    public function getStepUpRateLimitMiddleware(): RateLimitMiddleware
+    {
+        return new RateLimitMiddleware(
+            $this->getLoginAttemptsRepository(),
+            5,
+            15,
+            $this->loginRateLimitDisabled(),
+            static function (\Psr\Http\Message\ServerRequestInterface $request): ?string {
+                $admin = $request->getAttribute('admin_user');
+                $email = is_array($admin) ? ($admin['email'] ?? null) : null;
+                return is_string($email) ? $email : null;
+            },
+        );
+    }
+
     public function getTerminalRateLimitMiddleware(): RateLimitMiddleware
     {
         // Not cached via resolve() — returns a fresh instance with terminal-specific config.
@@ -587,6 +620,7 @@ class ServiceFactory implements ContainerInterface
             $this->getValidator(),
             $this->getLoginAttemptsRepository(),
             $this->config,
+            $this->getStepUpAuthService(),
         ));
     }
 
@@ -637,7 +671,11 @@ class ServiceFactory implements ContainerInterface
 
     public function getAdminUsersAdminController(): AdminUsersAdminController
     {
-        return $this->resolve(AdminUsersAdminController::class, fn() => new AdminUsersAdminController($this->getAdminUsersService(), $this->getValidator()));
+        return $this->resolve(AdminUsersAdminController::class, fn() => new AdminUsersAdminController(
+            $this->getAdminUsersService(),
+            $this->getValidator(),
+            $this->getStepUpAuthService(),
+        ));
     }
 
     public function getAuditLogService(): AuditLogService

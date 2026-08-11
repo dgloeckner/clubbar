@@ -58,9 +58,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export interface Reset2faRequest {
-  /** ID of the admin user whose TOTP enrollment should be cleared */
-  userId: string;
+export interface ResetAdminPasswordRequest {
   /** The caller's own current password (step-up re-authentication, */
   current_password: string;
   /**

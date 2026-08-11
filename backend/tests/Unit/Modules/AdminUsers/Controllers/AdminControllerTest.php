@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\AdminUsers\Controllers;
 use App\Modules\AdminUsers\Controllers\AdminController;
 use App\Modules\AdminUsers\DTOs\AdminUserDto;
 use App\Modules\AdminUsers\Services\AdminUsersService;
+use App\Modules\Auth\Services\StepUpAuthService;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Exceptions\InvalidQueryParameterException;
 use App\Shared\Validation\Validator;
@@ -28,15 +29,18 @@ class AdminControllerTest extends TestCase
     use ListEndpointAssertions;
 
     private AdminUsersService $service;
+    private StepUpAuthService $stepUpAuthService;
     private AdminController $controller;
 
     protected function setUp(): void
     {
         $this->service = $this->createMock(AdminUsersService::class);
+        $this->stepUpAuthService = $this->createMock(StepUpAuthService::class);
 
         $this->controller = new AdminController(
             $this->service,
             new Validator($this->createMock(\PDO::class)),
+            $this->stepUpAuthService,
         );
     }
 
