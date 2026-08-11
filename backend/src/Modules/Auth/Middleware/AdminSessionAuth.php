@@ -51,6 +51,14 @@ class AdminSessionAuth implements MiddlewareInterface
 
         SessionTimeout::touch($_SESSION);
 
+        // Periodic session-ID rotation (#340): limits how long a leaked ID stays
+        // usable in a long-lived session. Checked after the expiry check above,
+        // so an expired session is destroyed rather than rotated.
+        if (SessionTimeout::shouldRegenerateId($_SESSION, $this->config->sessionRegenInterval)) {
+            session_regenerate_id(true);
+            SessionTimeout::markRegenerated($_SESSION);
+        }
+
         // Block access for authenticated-but-not-enrolled users, except on setup/confirm routes
         if (($_SESSION['totp_setup_required'] ?? false) === true) {
             $path = $request->getUri()->getPath();

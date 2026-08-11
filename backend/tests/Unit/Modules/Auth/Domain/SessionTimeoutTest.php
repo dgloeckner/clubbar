@@ -26,6 +26,7 @@ class SessionTimeoutTest extends TestCase
 
         $this->assertSame(self::NOW, $session[SessionTimeout::AUTHENTICATED_AT]);
         $this->assertSame(self::NOW, $session[SessionTimeout::LAST_ACTIVITY_AT]);
+        $this->assertSame(self::NOW, $session[SessionTimeout::REGENERATED_AT]);
         $this->assertFalse(SessionTimeout::hasExpired($session, self::NOW));
     }
 
@@ -105,5 +106,44 @@ class SessionTimeoutTest extends TestCase
         SessionTimeout::touch($session, self::NOW);
 
         $this->assertSame(self::NOW, $session[SessionTimeout::AUTHENTICATED_AT]);
+    }
+
+    // ── Periodic session-ID rotation (#340) ─────────────────────────────────
+
+    public function test_a_session_with_no_regeneration_stamp_is_due_immediately(): void
+    {
+        // Covers both a brand new session and one that predates this rule.
+        $this->assertTrue(SessionTimeout::shouldRegenerateId([], 900, self::NOW));
+    }
+
+    public function test_a_session_regenerated_within_the_interval_is_not_due(): void
+    {
+        $session = [SessionTimeout::REGENERATED_AT => self::NOW];
+
+        $this->assertFalse(SessionTimeout::shouldRegenerateId($session, 900, self::NOW + 899));
+    }
+
+    public function test_a_session_regenerated_past_the_interval_is_due(): void
+    {
+        $session = [SessionTimeout::REGENERATED_AT => self::NOW];
+
+        $this->assertTrue(SessionTimeout::shouldRegenerateId($session, 900, self::NOW + 900));
+    }
+
+    public function test_a_regeneration_stamp_that_is_not_a_timestamp_is_ignored(): void
+    {
+        $session = [SessionTimeout::REGENERATED_AT => 'yesterday'];
+
+        $this->assertTrue(SessionTimeout::shouldRegenerateId($session, 900, self::NOW));
+    }
+
+    public function test_mark_regenerated_restarts_the_rotation_clock(): void
+    {
+        $session = [SessionTimeout::REGENERATED_AT => self::NOW - 1000];
+
+        SessionTimeout::markRegenerated($session, self::NOW);
+
+        $this->assertSame(self::NOW, $session[SessionTimeout::REGENERATED_AT]);
+        $this->assertFalse(SessionTimeout::shouldRegenerateId($session, 900, self::NOW + 899));
     }
 }

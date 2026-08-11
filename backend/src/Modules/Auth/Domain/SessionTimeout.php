@@ -31,9 +31,16 @@ final class SessionTimeout
     /** Session key: when the session last carried a request. */
     public const LAST_ACTIVITY_AT = 'last_activity_at';
 
+    /** Session key: when the session ID was last rotated. */
+    public const REGENERATED_AT = 'regenerated_at';
+
     /**
      * Stamp a freshly authenticated session. Called once, when the second factor
      * has passed (or when there is none to pass).
+     *
+     * Also stamps `REGENERATED_AT`: login and the MFA upgrade both call
+     * `session_regenerate_id(true)` immediately before this, so the periodic
+     * rotation clock (#340) starts ticking from the same moment.
      *
      * @param array<string, mixed> $session
      */
@@ -42,6 +49,33 @@ final class SessionTimeout
         $now ??= time();
         $session[self::AUTHENTICATED_AT] = $now;
         $session[self::LAST_ACTIVITY_AT] = $now;
+        $session[self::REGENERATED_AT] = $now;
+    }
+
+    /**
+     * Whether the session ID is due for periodic rotation (#340).
+     *
+     * A session with no stamp — either newly adopted or predating this rule —
+     * is due immediately; `markRegenerated` then starts its clock.
+     *
+     * @param array<string, mixed> $session
+     */
+    public static function shouldRegenerateId(array $session, int $intervalSeconds, ?int $now = null): bool
+    {
+        $now ??= time();
+        $last = $session[self::REGENERATED_AT] ?? null;
+
+        return !is_int($last) || ($now - $last) >= $intervalSeconds;
+    }
+
+    /**
+     * Record that the session ID was just rotated, restarting the interval.
+     *
+     * @param array<string, mixed> $session
+     */
+    public static function markRegenerated(array &$session, ?int $now = null): void
+    {
+        $session[self::REGENERATED_AT] = $now ?? time();
     }
 
     /**

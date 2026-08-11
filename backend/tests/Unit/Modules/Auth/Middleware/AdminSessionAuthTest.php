@@ -225,4 +225,68 @@ class AdminSessionAuthTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
         $this->assertIsInt($_SESSION[SessionTimeout::AUTHENTICATED_AT]);
     }
+
+    // ── Periodic session-ID rotation (#340) ─────────────────────────────────
+
+    private function middlewareWithRegenInterval(int $seconds): AdminSessionAuth
+    {
+        $_ENV['SESSION_REGEN_INTERVAL'] = (string) $seconds;
+        try {
+            return new AdminSessionAuth($this->adminUsersRepository, new AppConfig());
+        } finally {
+            unset($_ENV['SESSION_REGEN_INTERVAL']);
+        }
+    }
+
+    public function test_process_rotates_the_session_id_once_the_interval_has_elapsed(): void
+    {
+        $middleware = $this->middlewareWithRegenInterval(10);
+        $_SESSION = [
+            'admin_user_id' => 'admin-1',
+            SessionTimeout::REGENERATED_AT => time() - 11,
+        ];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+        $idBefore = session_id();
+
+        $response = $middleware->process($this->request(), $this->passthroughHandler());
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertNotSame($idBefore, session_id(), 'the session ID is rotated once due');
+        $this->assertGreaterThanOrEqual(time() - 1, $_SESSION[SessionTimeout::REGENERATED_AT]);
+    }
+
+    public function test_process_does_not_rotate_the_session_id_before_the_interval_elapses(): void
+    {
+        $middleware = $this->middlewareWithRegenInterval(900);
+        $regeneratedAt = time() - 5;
+        $_SESSION = [
+            'admin_user_id' => 'admin-1',
+            SessionTimeout::REGENERATED_AT => $regeneratedAt,
+        ];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+        $idBefore = session_id();
+
+        $response = $middleware->process($this->request(), $this->passthroughHandler());
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame($idBefore, session_id(), 'the session ID is left alone before the interval elapses');
+        $this->assertSame($regeneratedAt, $_SESSION[SessionTimeout::REGENERATED_AT]);
+    }
+
+    public function test_process_never_rotates_an_expired_session(): void
+    {
+        $middleware = $this->middlewareWithRegenInterval(10);
+        $_SESSION = [
+            'admin_user_id' => 'admin-1',
+            SessionTimeout::AUTHENTICATED_AT => time() - SessionTimeout::ABSOLUTE_SECONDS - 1,
+            SessionTimeout::LAST_ACTIVITY_AT => time(),
+            SessionTimeout::REGENERATED_AT => time() - 11,
+        ];
+        $this->adminUsersRepository->expects($this->never())->method('findById');
+
+        $response = $middleware->process($this->request(), $this->createMock(RequestHandlerInterface::class));
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame([], $_SESSION, 'expiry is checked before rotation, so an expired session is destroyed, not rotated');
+    }
 }
