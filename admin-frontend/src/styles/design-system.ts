@@ -223,6 +223,11 @@ export const theme = {
       // low-balance SEPA legend) — the bg pairs with this border at every
       // call site that has a border at all (#289).
       border: withAlpha('#ef4444', 0.3),
+      // A stronger background variant — audit-log delete/login-failed action
+      // badges, and hover backgrounds (MainLayout's logout button,
+      // TerminalsTab's delete action) — reimplemented identically at every
+      // call site (#289).
+      strong: withAlpha('#ef4444', 0.2),
       text: '#ef4444',
       dot: '#ef4444',
     },

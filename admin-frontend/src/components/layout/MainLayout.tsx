@@ -293,7 +293,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 transition: `all ${theme.transitions.default}`,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'
+                e.currentTarget.style.backgroundColor = theme.badges.danger.strong
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = theme.badges.danger.bg

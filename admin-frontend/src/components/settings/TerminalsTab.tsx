@@ -517,7 +517,7 @@ export function TerminalsTab({
                           onClick={() => onRevokeAccess(terminal.id)}
                           style={actionButtonStyle}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'
+                            e.currentTarget.style.background = theme.badges.danger.strong
                             e.currentTarget.style.color = 'rgb(239, 68, 68)'
                           }}
                           onMouseLeave={(e) => {

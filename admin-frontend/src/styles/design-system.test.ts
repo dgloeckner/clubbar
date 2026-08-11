@@ -45,6 +45,10 @@ describe('theme.badges.danger', () => {
   it('exposes a canonical border tint alongside the existing bg tint', () => {
     expect(theme.badges.danger.border).toBe('rgba(239, 68, 68, 0.3)')
   })
+
+  it('exposes a canonical stronger background variant', () => {
+    expect(theme.badges.danger.strong).toBe('rgba(239, 68, 68, 0.2)')
+  })
 })
 
 describe('theme.activeTint', () => {
