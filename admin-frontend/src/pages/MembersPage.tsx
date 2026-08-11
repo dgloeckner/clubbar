@@ -915,7 +915,7 @@ export function MembersPage() {
               padding: '8px 12px 8px 32px',
               borderRadius: '7px',
               border: `1px solid ${theme.colors.border.subtle}`,
-              background: 'rgba(255,255,255,0.04)',
+              background: theme.colors.bg.surfaceSubtle,
               color: tableColors.cellText,
               fontSize: '13px',
               outline: 'none',
