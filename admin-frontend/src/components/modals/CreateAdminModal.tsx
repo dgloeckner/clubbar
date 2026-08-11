@@ -9,6 +9,7 @@ import { theme } from '../../styles/design-system'
 import { LanguageSelector } from '../forms/LanguageSelector'
 import { FieldError, ModalError, modalInputStyle } from './ModalError'
 import { validateCreateAdminForm } from '../../utils/settingsForms'
+import { useModalDialog } from '../../hooks/useModalDialog'
 
 export interface CreateAdminModalProps {
   isOpen: boolean
@@ -38,6 +39,7 @@ export function CreateAdminModal({
   const { t } = useTranslation()
   // Field name → i18n key, from validating locally before the request goes out.
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const contentRef = useModalDialog(isOpen, onClose)
 
   // The modal stays mounted while closed, so a stale complaint would otherwise
   // greet whoever opens it next.
@@ -80,6 +82,11 @@ export function CreateAdminModal({
       }}
     >
       <div
+        ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-admin-create-title"
+        tabIndex={-1}
         style={{
           background: theme.colors.bg.primary,
           borderRadius: theme.borderRadius.lg,
@@ -88,7 +95,7 @@ export function CreateAdminModal({
           width: '90%',
         }}
       >
-        <h2 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.createAdminUser')}</h2>
+        <h2 id="settings-admin-create-title" style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.createAdminUser')}</h2>
 
         <ModalError message={error} testId="settings-admin-create-error" />
 

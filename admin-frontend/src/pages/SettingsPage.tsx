@@ -3,7 +3,7 @@
  * Configuration management for system settings (SEPA configuration, admin users)
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -85,6 +85,11 @@ export function SettingsPage() {
     payment_reference_prefix: '',
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  // Tracks the pending "clear the success message" timer so a later save
+  // can cancel a still-pending one instead of having it clear a newer
+  // message, and so unmounting the page cancels it instead of setting state
+  // on an unmounted component (#136).
+  const successMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Admin Users State
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([])
@@ -145,6 +150,9 @@ export function SettingsPage() {
   const [instanceSaving, setInstanceSaving] = useState(false)
   const [instanceSuccessMessage, setInstanceSuccessMessage] = useState<string | null>(null)
   const [instanceFieldErrors, setInstanceFieldErrors] = useState<Record<string, string>>({})
+  // Same purpose as `successMessageTimeoutRef`, for the Instance tab's own
+  // success message (#136).
+  const instanceSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load SEPA config on mount
   useEffect(() => {
@@ -191,6 +199,15 @@ export function SettingsPage() {
     // `t` is deliberately not a dependency: re-running this on a language
     // switch would refetch the config and discard unsaved edits.
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cancel any pending "clear success message" timers on unmount so they
+  // cannot set state after the page is gone (#136).
+  useEffect(() => {
+    return () => {
+      if (successMessageTimeoutRef.current) clearTimeout(successMessageTimeoutRef.current)
+      if (instanceSuccessTimeoutRef.current) clearTimeout(instanceSuccessTimeoutRef.current)
+    }
+  }, [])
 
   // Load admin users when admin-users tab is active
   useEffect(() => {
@@ -581,8 +598,10 @@ export function SettingsPage() {
       setFieldErrors({})
       setSuccessMessage(t('settings.sepaSaved'))
 
-      // Clear success message after 5 seconds
-      setTimeout(() => {
+      // Clear success message after 5 seconds. Cancel a still-pending timer
+      // from an earlier save first, so it cannot clear this newer message.
+      if (successMessageTimeoutRef.current) clearTimeout(successMessageTimeoutRef.current)
+      successMessageTimeoutRef.current = setTimeout(() => {
         setSuccessMessage(null)
       }, 5000)
     } catch (err: unknown) {
@@ -661,8 +680,11 @@ export function SettingsPage() {
       // postconditions) — refetch the shared context that feeds them.
       await refetchInstanceConfig()
 
-      // Clear success message after 5 seconds, matching the SEPA tab
-      setTimeout(() => {
+      // Clear success message after 5 seconds, matching the SEPA tab. Cancel
+      // a still-pending timer from an earlier save first, so it cannot clear
+      // this newer message.
+      if (instanceSuccessTimeoutRef.current) clearTimeout(instanceSuccessTimeoutRef.current)
+      instanceSuccessTimeoutRef.current = setTimeout(() => {
         setInstanceSuccessMessage(null)
       }, 5000)
     } catch (err: unknown) {

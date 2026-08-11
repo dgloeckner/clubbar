@@ -12,6 +12,7 @@ import { Card } from '../components/common/Card'
 import { Input } from '../components/common/Input'
 import { Button } from '../components/common/Button'
 import { theme } from '../styles/design-system'
+import { useModalEscape } from '../hooks/useModalDialog'
 
 // ─── Shared card wrapper (logo + title) ──────────────────────────────────────
 
@@ -97,10 +98,9 @@ function TotpInfoModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     closeRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [])
+
+  useModalEscape(true, onClose)
 
   const sections = [
     { title: t('auth.setupInfoWhatTitle'),   text: t('auth.setupInfoWhatText') },
@@ -284,8 +284,16 @@ function TotpSetupStep() {
   const [localError, setLocalError] = useState<string>()
   const [fetchError, setFetchError] = useState<string>()
   const [showInfo, setShowInfo] = useState(false)
+  // StrictMode (main.tsx) double-invokes effects in development. Without this
+  // guard, this ran twice and POSTed /auth/2fa/setup twice — since the
+  // backend rotates the secret per call, the QR code shown could be for a
+  // secret that was no longer the one actually stored (#136).
+  const hasFetchedRef = useRef(false)
 
   useEffect(() => {
+    if (hasFetchedRef.current) return
+    hasFetchedRef.current = true
+
     setupTotp()
       .then(({ qrCode, secret }) => {
         setQrCode(qrCode)

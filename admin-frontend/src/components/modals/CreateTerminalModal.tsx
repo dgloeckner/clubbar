@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { FieldError, ModalError, modalInputStyle } from './ModalError'
 import { validateCreateTerminalForm } from '../../utils/settingsForms'
+import { useModalDialog } from '../../hooks/useModalDialog'
 
 export interface CreateTerminalModalProps {
   isOpen: boolean
@@ -36,6 +37,7 @@ export function CreateTerminalModal({
   const { t } = useTranslation()
   // Field name → i18n key, from validating locally before the request goes out.
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const contentRef = useModalDialog(isOpen, onClose)
 
   // The modal stays mounted while closed, so a stale complaint would otherwise
   // greet whoever opens it next.
@@ -78,6 +80,11 @@ export function CreateTerminalModal({
       }}
     >
       <div
+        ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-terminal-create-title"
+        tabIndex={-1}
         style={{
           background: theme.colors.bg.primary,
           borderRadius: theme.borderRadius.lg,
@@ -86,7 +93,7 @@ export function CreateTerminalModal({
           width: '90%',
         }}
       >
-        <h2 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.createTerminal')}</h2>
+        <h2 id="settings-terminal-create-title" style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.createTerminal')}</h2>
 
         <ModalError message={error} testId="settings-terminal-create-error" />
 

@@ -6,6 +6,7 @@
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { FieldError, ModalError, modalInputStyle } from './ModalError'
+import { useModalDialog } from '../../hooks/useModalDialog'
 
 export interface EditTerminalModalProps {
   isOpen: boolean
@@ -31,6 +32,7 @@ export function EditTerminalModal({
   onClose,
 }: EditTerminalModalProps) {
   const { t } = useTranslation()
+  const contentRef = useModalDialog(isOpen, onClose)
 
   if (!isOpen) {
     return null
@@ -53,6 +55,11 @@ export function EditTerminalModal({
       }}
     >
       <div
+        ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-terminal-edit-title"
+        tabIndex={-1}
         style={{
           background: theme.colors.bg.primary,
           borderRadius: theme.borderRadius.lg,
@@ -61,7 +68,7 @@ export function EditTerminalModal({
           width: '90%',
         }}
       >
-        <h2 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.editTerminal')}</h2>
+        <h2 id="settings-terminal-edit-title" style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.editTerminal')}</h2>
 
         <ModalError message={error} testId="settings-terminal-edit-error" />
 

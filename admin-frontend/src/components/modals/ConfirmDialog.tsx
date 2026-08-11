@@ -13,9 +13,10 @@
  *   confirm-dialog-ok       — confirm button (absent when showConfirm is false)
  */
 
-import { useEffect, useRef, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
+import { useModalDialog } from '../../hooks/useModalDialog'
 
 export interface ConfirmDialogProps {
   isOpen: boolean
@@ -50,13 +51,7 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const { t } = useTranslation()
-  const contentRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (isOpen) {
-      contentRef.current?.focus()
-    }
-  }, [isOpen])
+  const contentRef = useModalDialog(isOpen, onCancel)
 
   if (!isOpen) return null
 
@@ -79,7 +74,6 @@ export function ConfirmDialog({
         zIndex: 2000,
       }}
       onClick={onCancel}
-      onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
     >
       <div
         ref={contentRef}
