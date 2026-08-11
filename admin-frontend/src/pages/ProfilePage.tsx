@@ -111,7 +111,7 @@ export function ProfilePage() {
       return
     }
     if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
-      setPasswordError(t('validation.minLength', { min: 8 }))
+      setPasswordError(t('validation.passwordComplexity'))
       return
     }
     if (newPassword !== confirmPassword) {

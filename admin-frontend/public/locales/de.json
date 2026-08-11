@@ -116,6 +116,7 @@
     "invalidEmail": "Ungültige E-Mail-Adresse",
     "minLength": "Mindestens {{min}} Zeichen erforderlich",
     "maxLength": "Maximal {{max}} Zeichen erlaubt",
+    "passwordComplexity": "Das Passwort muss mindestens einen Kleinbuchstaben, einen Großbuchstaben und eine Ziffer enthalten",
     "passwordMismatch": "Passwörter stimmen nicht überein",
     "invalidIban": "Ungültige IBAN",
     "invalidPrice": "Ungültiger Preis",

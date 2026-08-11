@@ -90,6 +90,16 @@ test.describe('Profile Page', () => {
     await authenticatedProfilePage.expectPasswordError()
   })
 
+  // #135: a password long enough but missing an uppercase/digit must report
+  // the actual requirement, not "Minimum 8 characters required" again.
+  test('should reject password missing complexity with a dedicated message', async ({ authenticatedProfilePage }) => {
+    await authenticatedProfilePage.fillCurrentPassword('AnyValue1!')
+    await authenticatedProfilePage.fillNewPassword('alllowercase')
+    await authenticatedProfilePage.fillConfirmPassword('alllowercase')
+    await authenticatedProfilePage.clickChangePassword()
+    await authenticatedProfilePage.expectPasswordError('Großbuchstaben')
+  })
+
   test('should be accessible from header user badge', async ({ page, authenticatedProfilePage }) => {
     await page.goto('/members')
     await authenticatedProfilePage.expectUserBadgeVisible()
