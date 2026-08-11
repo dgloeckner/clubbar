@@ -77,6 +77,12 @@ describe('theme.colors.border.subtle', () => {
   })
 })
 
+describe('theme.colors.border.slate', () => {
+  it('exposes a canonical translucent slate border tint', () => {
+    expect(theme.colors.border.slate).toBe('rgba(71, 85, 105, 0.4)')
+  })
+})
+
 describe('theme.colors.text.label', () => {
   it('exposes a canonical uppercase group-label text tint', () => {
     expect(theme.colors.text.label).toBe('rgba(255, 255, 255, 0.35)')

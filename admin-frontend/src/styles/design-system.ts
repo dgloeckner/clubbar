@@ -85,6 +85,10 @@ export const theme = {
       // toolbars (search input, filter group dividers, clear-filters button,
       // mobile toolbar) — reimplemented identically at every call site (#289).
       subtle: withAlpha('#ffffff', 0.08),
+      // A translucent slate border used on empty-state panels (dashed) and
+      // preview/idle-pill borders (solid) — reimplemented identically at
+      // every call site (#289).
+      slate: withAlpha('#475569', 0.4),
     },
 
     // Alert/banner colors (opaque, for banners over the dark background)

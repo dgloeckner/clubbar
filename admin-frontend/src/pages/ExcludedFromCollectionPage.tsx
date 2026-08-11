@@ -74,7 +74,7 @@ const tableWrapStyle: React.CSSProperties = {
 
 const emptyStyle: React.CSSProperties = {
   background: theme.colors.bg.secondary,
-  border: `1px dashed rgba(71, 85, 105, 0.4)`,
+  border: `1px dashed ${theme.colors.border.slate}`,
   borderRadius: tableSpacing.tableWrapperRadius,
   padding: '26px 20px',
   textAlign: 'center',

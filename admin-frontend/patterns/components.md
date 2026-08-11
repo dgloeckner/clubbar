@@ -722,6 +722,21 @@ theme.colors.border.subtle = 'rgba(255, 255, 255, 0.08)' // derived via withAlph
 <div style={{ width: '1px', height: '28px', background: theme.colors.border.subtle }} />
 ```
 
+### Slate Border Tint
+
+A translucent slate border — a different hue from the white/primary tints
+above — used on empty-state panels (`ExcludedFromCollectionPage.tsx`'s dashed
+border), `ProductPreview.tsx`'s solid border, and `PillFilter.tsx`'s idle
+border:
+
+```typescript
+theme.colors.border.slate = 'rgba(71, 85, 105, 0.4)' // derived via withAlpha('#475569', 0.4)
+```
+
+```tsx
+<div style={{ border: `1px dashed ${theme.colors.border.slate}` }} />
+```
+
 ### Uppercase Group Label Text
 
 The small uppercase label above a filter group or picker (`MembersPage.tsx`'s
