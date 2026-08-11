@@ -1091,6 +1091,7 @@ td {
     padding: 8px 10px;
     border-bottom: 1px solid #f3f4f6;
     font-size: 14px;
+    overflow-wrap: anywhere;
 }
 .check-icon {
     width: 24px;
