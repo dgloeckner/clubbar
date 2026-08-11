@@ -15,6 +15,12 @@ describe('withAlpha', () => {
   })
 })
 
+describe('theme.colors.bg.surfaceSubtle', () => {
+  it('exposes a canonical faint white surface-fill tint', () => {
+    expect(theme.colors.bg.surfaceSubtle).toBe('rgba(255, 255, 255, 0.04)')
+  })
+})
+
 describe('theme.overlay', () => {
   it('exposes a single canonical modal backdrop token', () => {
     expect(theme.overlay.backdrop).toBe('rgba(0, 0, 0, 0.5)')

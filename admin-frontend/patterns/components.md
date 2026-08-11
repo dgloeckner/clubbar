@@ -635,6 +635,21 @@ theme.mobileCard = {
 >
 ```
 
+### Faint Surface Fill
+
+A step fainter than `mobileCard.bg` (`0.04` vs `0.03` — distinct, not a typo)
+used for the mobile search input, `MobileToolbar`'s container/panel
+backgrounds and its filter-panel divider, and `MobileFilterRow`'s idle pill
+background:
+
+```typescript
+theme.colors.bg.surfaceSubtle = 'rgba(255, 255, 255, 0.04)' // derived via withAlpha('#ffffff', 0.04)
+```
+
+```tsx
+<input style={{ background: theme.colors.bg.surfaceSubtle, border: `1px solid ${theme.colors.border.subtle}` }} />
+```
+
 ### Pill Filter Button (idle state)
 
 Dark-mode pill/toggle filter buttons (e.g. `MembersPage.tsx`'s status/card/SEPA

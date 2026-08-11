@@ -107,7 +107,7 @@ export function MobileToolbar({
     alignItems: 'center',
     gap: '4px',
     padding: '8px 10px',
-    background: 'rgba(255,255,255,0.04)',
+    background: theme.colors.bg.surfaceSubtle,
     border: `1px solid ${theme.colors.border.subtle}`,
     borderRadius: '7px',
     color: theme.colors.text.primary,
@@ -129,7 +129,7 @@ export function MobileToolbar({
           background: theme.mobileCard.bg,
           borderRadius: showFilters ? '10px 10px 0 0' : '10px',
           border: `1px solid ${theme.mobileCard.border}`,
-          borderBottom: showFilters ? '1px solid rgba(255,255,255,0.04)' : undefined,
+          borderBottom: showFilters ? `1px solid ${theme.colors.bg.surfaceSubtle}` : undefined,
         }}
       >
         {/* Search */}
@@ -153,7 +153,7 @@ export function MobileToolbar({
                 padding: '8px 10px 8px 28px',
                 borderRadius: '7px',
                 border: `1px solid ${theme.colors.border.subtle}`,
-                background: 'rgba(255,255,255,0.04)',
+                background: theme.colors.bg.surfaceSubtle,
                 color: tableColors.cellText,
                 fontSize: '13px',
                 outline: 'none',

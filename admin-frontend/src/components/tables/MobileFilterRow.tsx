@@ -52,7 +52,7 @@ export function MobileFilterRow({ label, options, value, onChange, testId }: Mob
               padding: '4px 10px',
               borderRadius: '6px',
               border: 'none',
-              background: selected ? theme.activeTint.primaryStrong : 'rgba(255,255,255,0.04)',
+              background: selected ? theme.activeTint.primaryStrong : theme.colors.bg.surfaceSubtle,
               color: selected ? theme.colors.semantic.primary : 'rgba(255,255,255,0.5)',
               fontSize: '12px',
               fontWeight: selected ? 600 : 400,

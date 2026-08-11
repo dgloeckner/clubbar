@@ -32,6 +32,11 @@ export const theme = {
       hover: '#15213f',      // Hover states
       gradientStart: '#1e3a5f', // Hero/summary card gradient start (paired with bg.input as the end stop)
       tooltip: '#1f2937',    // Tooltip surface
+      // Faint white surface fill used for the mobile search input, toolbar
+      // container/panel backgrounds, and an idle filter-pill background —
+      // distinct from mobileCard.bg (0.03) and pillButton.idleBg (0.06) —
+      // reimplemented identically at every call site (#289).
+      surfaceSubtle: withAlpha('#ffffff', 0.04),
     },
 
     // Semantic colors
