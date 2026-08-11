@@ -9,6 +9,7 @@ use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Services\AuthService;
+use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Auth\Services\TotpService;
 use App\Shared\Config\AppConfig;
 use App\Shared\Services\AuditService;
@@ -47,6 +48,7 @@ class AuthControllerConfirm2faTest extends TestCase
             new Validator($this->createMock(PDO::class)),
             $this->createMock(LoginAttemptsRepository::class),
             new AppConfig(),
+            $this->createMock(StepUpAuthService::class),
         );
 
         if (session_status() !== PHP_SESSION_ACTIVE) {
