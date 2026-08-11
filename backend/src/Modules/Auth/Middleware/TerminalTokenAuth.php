@@ -64,7 +64,9 @@ class TerminalTokenAuth implements MiddlewareInterface
         $request = $request->withAttribute('terminal_id', $terminal['id']);
         $request = $request->withAttribute('terminal', $terminal);
 
-        return $handler->handle($request);
+        return $handler->handle($request)
+            ->withHeader('Cache-Control', 'no-store')
+            ->withHeader('Pragma', 'no-cache');
     }
 
     private function findTerminalByToken(string $token): ?array

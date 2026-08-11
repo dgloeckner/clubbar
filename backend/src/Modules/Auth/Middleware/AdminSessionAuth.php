@@ -72,7 +72,9 @@ class AdminSessionAuth implements MiddlewareInterface
         $request = $request->withAttribute('admin_user_id', $adminId);
         $request = $request->withAttribute('admin_user', $admin);
 
-        return $handler->handle($request);
+        return $handler->handle($request)
+            ->withHeader('Cache-Control', 'no-store')
+            ->withHeader('Pragma', 'no-cache');
     }
 
     private function unauthorized(): ResponseInterface
