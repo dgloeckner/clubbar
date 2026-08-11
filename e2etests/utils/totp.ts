@@ -11,6 +11,7 @@
  */
 
 import { createHmac } from 'crypto'
+import type { APIResponse } from '@playwright/test'
 
 /**
  * Decode a base32-encoded string to a Buffer.
@@ -85,4 +86,40 @@ export function generateTotp(secret: string, timeOffsetSeconds = 0): string {
 
   const otp = truncated % Math.pow(10, DIGITS)
   return otp.toString().padStart(DIGITS, '0')
+}
+
+/**
+ * Submit a TOTP code, retrying with a freshly generated one if the server
+ * rejects it — guards the shared seeded admin's secret (TEST_CREDENTIALS.totp.adminSecret)
+ * against replay-collisions between concurrent test workers/files: two
+ * `/api/auth/mfa` calls landing in the same 30-second window generate and
+ * submit the *identical* code, which replay protection (#338) correctly
+ * refuses on the second submission even though it is not a real replay
+ * attack — just two unrelated logins racing the same clock window.
+ *
+ * `submit` must return the raw response so the caller can still inspect it
+ * (cookies, JSON body, ...); only its status code drives the retry decision.
+ * Waits past the next time-step boundary before retrying, since the code for
+ * the current window will not change until then — plus random jitter, so that
+ * several callers who collided in the same window (and would otherwise all
+ * retry in lockstep into the *next* window together) spread out instead of
+ * colliding again. Callers should raise the test timeout well past
+ * `maxAttempts * 60s` to comfortably fit the worst case.
+ */
+export async function submitTotpWithRetry(
+  secret: string,
+  submit: (code: string) => Promise<APIResponse>,
+  maxAttempts = 4,
+): Promise<APIResponse> {
+  let response: APIResponse
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    response = await submit(generateTotp(secret))
+    if (response.status() !== 401 || attempt === maxAttempts) {
+      return response
+    }
+    const msUntilNextStep = 30_000 - (Date.now() % 30_000)
+    const jitter = Math.floor(Math.random() * 30_000)
+    await new Promise((resolve) => setTimeout(resolve, msUntilNextStep + jitter + 250))
+  }
+  return response!
 }

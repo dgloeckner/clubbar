@@ -58,14 +58,15 @@ test.describe('Login (UI)', () => {
   test.use({ storageState: { cookies: [], origins: [] } })
 
   test('logs in a TOTP-enrolled admin via the MFA step', async ({ loginPage, page }) => {
+    // Retries against a same-window replay collision on the shared admin secret (#338).
+    test.setTimeout(240_000)
     await loginPage.navigate()
     await loginPage.login(TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
 
     // Backend's login() branch 1: TOTP-enrolled → requiresMfa, no session yet
     await expect(loginPage.mfaCodeInput()).toBeVisible()
 
-    const code = generateTotp(TEST_CREDENTIALS.totp.adminSecret)
-    await loginPage.submitMfaCode(code)
+    await loginPage.submitMfaCodeWithRetry(TEST_CREDENTIALS.totp.adminSecret)
 
     await page.waitForURL('**/dashboard', { timeout: 10000 })
     await expect(page.getByTestId('dashboard-page')).toBeVisible()
@@ -87,6 +88,9 @@ test.describe('Login (UI)', () => {
   })
 
   test('completes first-time TOTP enrollment and reaches the dashboard', async ({ loginPage, page, playwright }) => {
+    // createUnenrolledAdmin logs in as the shared seeded admin, which can retry
+    // against a same-window replay collision (#338).
+    test.setTimeout(240_000)
     const { email, password } = await createUnenrolledAdmin(playwright, 'login-setup')
 
     await loginPage.navigate()

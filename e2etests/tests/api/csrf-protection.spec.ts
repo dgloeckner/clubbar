@@ -1,11 +1,13 @@
 import { test, expect } from '../../fixtures/auth.fixture';
 import { TEST_CREDENTIALS } from '../../config/test-credentials';
-import { generateTotp } from '../../utils/totp';
+import { submitTotpWithRetry } from '../../utils/totp';
 
 const API_BASE = 'http://localhost:8080/api';
 
 test.describe('CSRF Protection', () => {
   test('POST to admin endpoint without CSRF token returns 403', async ({ playwright }) => {
+    // Retries against a same-window replay collision on the shared admin secret (#338).
+    test.setTimeout(240_000)
     // Login fresh to get session, completing TOTP MFA to obtain a fully-authenticated session
     const freshRequest = await playwright.request.newContext({
       baseURL: API_BASE,
@@ -23,11 +25,12 @@ test.describe('CSRF Protection', () => {
 
     // Complete MFA if required (seeded admin is enrolled)
     if (loginData.requiresMfa) {
-      const code = generateTotp(TEST_CREDENTIALS.totp.adminSecret);
-      const mfaResponse = await freshRequest.post(`${API_BASE}/auth/mfa`, {
-        data: { code },
-        headers: { cookie: cookieString },
-      });
+      const mfaResponse = await submitTotpWithRetry(TEST_CREDENTIALS.totp.adminSecret, (code) =>
+        freshRequest.post(`${API_BASE}/auth/mfa`, {
+          data: { code },
+          headers: { cookie: cookieString },
+        })
+      );
       // Session is regenerated after MFA — capture updated cookie
       const mfaSetCookie = mfaResponse.headers()['set-cookie'];
       if (mfaSetCookie) {

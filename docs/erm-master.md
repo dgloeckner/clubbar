@@ -544,6 +544,9 @@ Administrator accounts for the admin panel.
 | locale | VARCHAR(10) | NOT NULL, DEFAULT 'de' | UI language preference (ISO 639-1) |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Account enabled |
 | last_login_at | DATETIME | NULL | Last successful login |
+| totp_secret | VARCHAR(255) | NULL | AES-256-CBC encrypted TOTP secret (`base64(iv):base64(ciphertext)`) |
+| totp_enabled | BOOLEAN | NOT NULL, DEFAULT FALSE | `0` = not enrolled, `1` = TOTP active |
+| totp_last_timestep | BIGINT | NULL | Time-step of the last TOTP code MFA accepted; a code at or below it is refused as a replay ([#338](https://github.com/dgloeckner/ruderbar/issues/338)). Cleared alongside `totp_secret` on 2FA reset |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 

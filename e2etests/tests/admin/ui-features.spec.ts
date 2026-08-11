@@ -32,6 +32,9 @@ test.describe('User Badge & Logout', () => {
   })
 
   test('should perform logout and redirect to login', async ({ page }) => {
+    // Retries against a same-window replay collision on the shared admin secret (#338).
+    test.setTimeout(240_000)
+
     // Navigate first so localStorage is accessible, then clear auth state
     await page.goto('/dashboard')
     await page.waitForURL('**/dashboard', { timeout: 10000 })
@@ -44,10 +47,27 @@ test.describe('User Badge & Logout', () => {
     await page.locator('[data-testid="login-password-input"]').fill('password123')
     await page.locator('[data-testid="login-submit-button"]').click()
 
-    // MFA step: login now requires TOTP verification
+    // MFA step: login now requires TOTP verification. A code that collides with
+    // another login's same 30-second window is correctly refused as a replay
+    // (#338) even though it isn't a real attack — retry with a fresh one. Waits
+    // past the next window boundary plus random jitter so that several callers
+    // who collided in the same window don't retry into the next one together.
+    const MAX_MFA_ATTEMPTS = 4
     await expect(page.locator('[data-testid="mfa-code-input"]')).toBeVisible({ timeout: 5000 })
-    await page.locator('[data-testid="mfa-code-input"]').fill(generateTotp(TEST_CREDENTIALS.totp.adminSecret))
-    await page.locator('[data-testid="mfa-submit-button"]').click()
+    for (let attempt = 1; attempt <= MAX_MFA_ATTEMPTS; attempt++) {
+      await page.locator('[data-testid="mfa-code-input"]').fill(generateTotp(TEST_CREDENTIALS.totp.adminSecret))
+      await page.locator('[data-testid="mfa-submit-button"]').click()
+
+      const outcome = await Promise.race([
+        page.waitForURL('**/dashboard', { timeout: 5000 }).then(() => 'success' as const),
+        page.locator('[data-testid="mfa-error"]').waitFor({ state: 'visible', timeout: 5000 }).then(() => 'rejected' as const),
+      ]).catch(() => 'timeout' as const)
+
+      if (outcome === 'success' || attempt === MAX_MFA_ATTEMPTS) break
+      const msUntilNextStep = 30_000 - (Date.now() % 30_000)
+      const jitter = Math.floor(Math.random() * 30_000)
+      await page.waitForTimeout(msUntilNextStep + jitter + 250)
+    }
 
     await page.waitForURL('**/dashboard', { timeout: 10000 })
 

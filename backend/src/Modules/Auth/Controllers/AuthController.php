@@ -155,9 +155,25 @@ class AuthController
         }
 
         $secret = $this->totpService->decrypt($encryptedSecret);
-        if ($secret === false || !$this->totpService->verifyCode($secret, $body['code'])) {
+        $matchedTimestep = $secret !== false ? $this->totpService->verifyCodeWithTimestep($secret, $body['code']) : null;
+
+        if ($matchedTimestep === null) {
             return $this->rejectMfaCode($request, $response, $admin);
         }
+
+        // Replay protection (#338): a code stays structurally valid for its whole
+        // ±1 window, so refuse one whose time-step was already consumed — whether
+        // that is the exact code being resubmitted or clock skew replaying an
+        // earlier one in the window. Goes through the same rejectMfaCode() path as
+        // a wrong code: a replay is a real credential-guessing signal, so it counts
+        // against both the rate limiter (ruling #145) and the pending session's
+        // MFA_MAX_ATTEMPTS cap exactly the same way.
+        $lastTimestep = ($admin['totp_last_timestep'] ?? null) !== null ? (int) $admin['totp_last_timestep'] : null;
+        if ($lastTimestep !== null && $matchedTimestep <= $lastTimestep) {
+            return $this->rejectMfaCode($request, $response, $admin);
+        }
+
+        $this->adminUsersRepository->updateTotpLastTimestep($admin['id'], $matchedTimestep);
 
         // Upgrade to fully authenticated session
         session_regenerate_id(true);
@@ -289,12 +305,22 @@ class AuthController
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
-        if (!$this->totpService->verifyCode($pendingSecret, $body['code'])) {
+        $matchedTimestep = $this->totpService->verifyCodeWithTimestep($pendingSecret, $body['code']);
+        if ($matchedTimestep === null) {
+            return $this->json($response, ['error' => 'invalid_code', 'message' => 'Invalid TOTP code'], 400);
+        }
+
+        // Same replay guard as mfa() (#338), for completeness — low value here since
+        // the secret being enrolled is brand new, but a prior enrollment attempt on
+        // this account could in principle have recorded a time-step already.
+        $admin = $this->adminUsersRepository->findById($adminId);
+        $lastTimestep = ($admin['totp_last_timestep'] ?? null) !== null ? (int) $admin['totp_last_timestep'] : null;
+        if ($lastTimestep !== null && $matchedTimestep <= $lastTimestep) {
             return $this->json($response, ['error' => 'invalid_code', 'message' => 'Invalid TOTP code'], 400);
         }
 
         $encryptedSecret = $this->totpService->encrypt($pendingSecret);
-        $this->adminUsersRepository->saveTotp($adminId, $encryptedSecret);
+        $this->adminUsersRepository->saveTotp($adminId, $encryptedSecret, $matchedTimestep);
 
         unset($_SESSION['totp_pending_secret'], $_SESSION['totp_setup_required']);
 

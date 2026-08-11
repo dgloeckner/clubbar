@@ -80,27 +80,42 @@ class AdminUsersRepository
     }
 
     /**
-     * Persist an encrypted TOTP secret and mark the account as enrolled.
+     * Persist an encrypted TOTP secret, mark the account as enrolled, and
+     * record the time-step of the code that confirmed enrollment so the very
+     * next MFA login cannot replay it (#338).
      */
-    public function saveTotp(string $id, string $encryptedSecret): void
+    public function saveTotp(string $id, string $encryptedSecret, int $timestep): void
     {
         $stmt = $this->db->prepare(
-            'UPDATE admin_users SET totp_secret = ?, totp_enabled = 1, updated_at = ? WHERE id = ?'
+            'UPDATE admin_users SET totp_secret = ?, totp_enabled = 1, totp_last_timestep = ?, updated_at = ? WHERE id = ?'
         );
-        $stmt->execute([$encryptedSecret, date('Y-m-d H:i:s'), $id]);
+        $stmt->execute([$encryptedSecret, $timestep, date('Y-m-d H:i:s'), $id]);
         $this->logger->info('Admin user TOTP enrolled', ['id' => $id]);
     }
 
     /**
-     * Remove TOTP credentials and mark the account as unenrolled.
+     * Remove TOTP credentials and mark the account as unenrolled. Clears the
+     * replay-tracking time-step too, since it is meaningless without a secret.
      */
     public function clearTotp(string $id): void
     {
         $stmt = $this->db->prepare(
-            'UPDATE admin_users SET totp_secret = NULL, totp_enabled = 0, updated_at = ? WHERE id = ?'
+            'UPDATE admin_users SET totp_secret = NULL, totp_enabled = 0, totp_last_timestep = NULL, updated_at = ? WHERE id = ?'
         );
         $stmt->execute([date('Y-m-d H:i:s'), $id]);
         $this->logger->info('Admin user TOTP reset', ['id' => $id]);
+    }
+
+    /**
+     * Record the time-step of the most recently accepted TOTP code for this
+     * admin. AuthController::mfa refuses any future code at or below it (#338).
+     */
+    public function updateTotpLastTimestep(string $id, int $timestep): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE admin_users SET totp_last_timestep = ?, updated_at = ? WHERE id = ?'
+        );
+        $stmt->execute([$timestep, date('Y-m-d H:i:s'), $id]);
     }
 
     public function listPaginated(int $limit, int $offset, array $filters = []): array

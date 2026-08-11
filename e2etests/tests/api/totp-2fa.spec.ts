@@ -18,7 +18,7 @@
 
 import { test, expect } from "../../fixtures/auth.fixture";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
-import { generateTotp } from "../../utils/totp";
+import { generateTotp, submitTotpWithRetry } from "../../utils/totp";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -93,6 +93,8 @@ test.describe("TOTP 2FA", () => {
   test("4.1 login with enrolled admin requires MFA verification before granting access", async ({
     playwright,
   }) => {
+    // Retries against a same-window replay collision on the shared admin secret (#338).
+    test.setTimeout(240_000)
     const ctx = await playwright.request.newContext()
 
     try {
@@ -110,10 +112,9 @@ test.describe("TOTP 2FA", () => {
       expect(loginData).not.toHaveProperty("csrf_token") // no full session yet
 
       // Step 2: Complete MFA with correct TOTP code
-      const code = generateTotp(TEST_CREDENTIALS.totp.adminSecret)
-      const mfaResp = await ctx.post(`${API_BASE}/auth/mfa`, {
-        data: { code },
-      })
+      const mfaResp = await submitTotpWithRetry(TEST_CREDENTIALS.totp.adminSecret, (code) =>
+        ctx.post(`${API_BASE}/auth/mfa`, { data: { code } })
+      )
       expect(mfaResp.status()).toBe(200)
 
       const mfaData = await mfaResp.json()

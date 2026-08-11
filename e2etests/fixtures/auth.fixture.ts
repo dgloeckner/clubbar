@@ -1,6 +1,6 @@
 import { test as base, APIRequestContext } from "@playwright/test";
 import { TEST_CREDENTIALS } from "../config/test-credentials";
-import { generateTotp } from "../utils/totp";
+import { generateTotp, submitTotpWithRetry } from "../utils/totp";
 import {
   createTestMember,
   createSyncTransaction,
@@ -70,9 +70,6 @@ interface TestTransactionsFixture {
 }
 
 interface AuthFixtures {
-  authenticatedRequest: APIRequestContext & {
-    cookieString: string;
-  };
   authenticatedTerminalRequest: APIRequestContext & {
     token: string;
   };
@@ -86,6 +83,20 @@ interface AuthFixtures {
   profilePage: ProfilePage;
   mainLayoutPage: MainLayoutPage;
   productsPage: ProductsPage;
+}
+
+interface AuthWorkerFixtures {
+  /**
+   * Worker-scoped (#338): logging in as the shared seeded admin performs a
+   * real TOTP MFA exchange, and TOTP replay protection means two of those
+   * landing in the same 30-second window would otherwise fail one of them —
+   * a near certainty if this logged in fresh for every one of the hundreds
+   * of tests that use it. Authenticating once per worker instead of once per
+   * test avoids that entirely and is also just faster.
+   */
+  authenticatedRequest: APIRequestContext & {
+    cookieString: string;
+  };
 }
 
 /**
@@ -221,8 +232,8 @@ class TerminalRequestContext {
     });
 }
 
-export const test = base.extend<AuthFixtures>({
-  authenticatedRequest: async ({ playwright }, use) => {
+export const test = base.extend<AuthFixtures, AuthWorkerFixtures>({
+  authenticatedRequest: [async ({ playwright }, use) => {
     // Create a fresh request context without storageState to avoid
     // sending existing session cookies that prevent Set-Cookie from being returned
     const freshRequest = await playwright.request.newContext({
@@ -258,11 +269,12 @@ export const test = base.extend<AuthFixtures>({
 
     // Handle TOTP MFA: user is enrolled and verification is required
     if (loginData.requiresMfa) {
-      const code = generateTotp(TEST_CREDENTIALS.totp.adminSecret);
-      const mfaResponse = await freshRequest.post(`${API_BASE}/auth/mfa`, {
-        data: { code },
-        headers: { cookie: cookieString },
-      });
+      const mfaResponse = await submitTotpWithRetry(TEST_CREDENTIALS.totp.adminSecret, (code) =>
+        freshRequest.post(`${API_BASE}/auth/mfa`, {
+          data: { code },
+          headers: { cookie: cookieString },
+        })
+      );
 
       if (!mfaResponse.ok()) {
         const errorBody = await mfaResponse.text();
@@ -342,7 +354,7 @@ export const test = base.extend<AuthFixtures>({
 
     // Cleanup
     await freshRequest.dispose();
-  },
+  }, { scope: 'worker', timeout: 240_000 }],
 
   authenticatedTerminalRequest: async ({ request }, use) => {
     // Create terminal request wrapper with bearer token

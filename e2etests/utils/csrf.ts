@@ -10,9 +10,10 @@
  * 2. API tests (fresh request contexts): use loginAs() to create a CSRF-aware context
  */
 
+import { test } from '@playwright/test'
 import type { Page, APIRequestContext, Playwright } from '@playwright/test'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
-import { generateTotp } from './totp'
+import { generateTotp, submitTotpWithRetry } from './totp'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -116,11 +117,14 @@ export async function loginAs(
   // Step 2a: TOTP verification required — user is already enrolled
   if (loginData.requiresMfa) {
     const secret = totpSecret ?? TEST_CREDENTIALS.totp.adminSecret
-    const code = generateTotp(secret)
 
-    const mfaResponse = await ctx.post(`${API_BASE}/auth/mfa`, {
-      data: { code },
-    })
+    // Retries on a rejected code (submitTotpWithRetry) — mainly relevant when
+    // `secret` is the shared seeded admin's, where a concurrent login can land
+    // in the same 30-second window and collide with replay protection (#338).
+    test.setTimeout(240_000)
+    const mfaResponse = await submitTotpWithRetry(secret, (code) =>
+      ctx.post(`${API_BASE}/auth/mfa`, { data: { code } })
+    )
 
     if (!mfaResponse.ok()) {
       const body = await mfaResponse.text()
