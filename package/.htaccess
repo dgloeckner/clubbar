@@ -42,6 +42,13 @@ Options -MultiViews -Indexes
 RewriteEngine On
 RewriteBase /
 
+# Apache/CGI/FPM (IONOS's SAPI, ADR-0031) strips the Authorization header
+# before PHP ever sees it — TerminalTokenAuth reads it via PSR-7 and 401s
+# with "authorization_header_missing" even when the client sent it correctly.
+# Restore it into the CGI environment so getHeaderLine('Authorization') works.
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
 # Force HTTPS in production (skip on localhost for dev/CI)
 RewriteCond %{HTTPS} off
 RewriteCond %{HTTP_HOST} !^localhost [NC]
