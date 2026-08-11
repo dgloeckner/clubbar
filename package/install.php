@@ -414,9 +414,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 
                 $stmt = $pdo->prepare(
-                    'INSERT INTO admin_users (id, email, password_hash, is_active, created_at, updated_at) VALUES (?, ?, ?, 1, NOW(), NOW())'
+                    'INSERT INTO admin_users (id, email, password_hash, display_name, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, NOW(), NOW())'
                 );
-                $stmt->execute([$id, $email, $hashedPassword]);
+                $stmt->execute([$id, $email, $hashedPassword, $email]);
 
                 // Installation complete — delete installer data so next run requires a fresh key
                 @unlink($dataFile);

@@ -1,0 +1,11 @@
+-- =============================================================================
+-- 012_admin_users_backfill_display_name.down.sql — rollback (#330)
+-- =============================================================================
+-- Not reversible: once display_name is backfilled to email, nothing
+-- distinguishes those rows from ones an admin deliberately set to match their
+-- email address. Setting them back to NULL would also reopen the original
+-- 500 (AdminUserDto now falls back to email regardless, so leaving the data
+-- as-is is harmless either way).
+--
+-- Roll back 012 by re-deploying without it; there is no schema to undo.
+-- =============================================================================

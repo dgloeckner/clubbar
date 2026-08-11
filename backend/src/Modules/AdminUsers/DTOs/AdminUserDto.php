@@ -23,7 +23,7 @@ final readonly class AdminUserDto
         return new self(
             id: $row['id'],
             email: $row['email'],
-            displayName: $row['display_name'],
+            displayName: $row['display_name'] ?: $row['email'],
             locale: $row['locale'] ?? 'de',
             isActive: (bool) $row['is_active'],
             totpEnabled: (bool) ($row['totp_enabled'] ?? false),
