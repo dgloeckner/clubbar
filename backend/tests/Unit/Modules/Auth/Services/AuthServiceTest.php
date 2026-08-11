@@ -42,6 +42,31 @@ class AuthServiceTest extends TestCase
         $this->assertNull($result);
     }
 
+    public function test_authenticate_verifies_a_dummy_hash_for_unknown_email(): void
+    {
+        $this->adminUsersRepository->method('findByEmail')->willReturn(null);
+
+        $authService = $this->getMockBuilder(AuthService::class)
+            ->setConstructorArgs([$this->adminUsersRepository, $this->logger])
+            ->onlyMethods(['verifyPassword'])
+            ->getMock();
+        $authService->expects($this->once())
+            ->method('verifyPassword')
+            ->with('irrelevant', $this->matchesRegularExpression('/^\$2y\$12\$/'))
+            ->willReturn(false);
+
+        $this->assertNull($authService->authenticate('nobody@example.com', 'irrelevant'));
+    }
+
+    public function test_authenticate_dummy_hash_never_matches_a_real_password(): void
+    {
+        $this->adminUsersRepository->method('findByEmail')->willReturn(null);
+        $this->adminUsersRepository->expects($this->never())->method('updateById');
+
+        $this->assertNull($this->authService->authenticate('nobody@example.com', 'correct-password'));
+        $this->assertNull($this->authService->authenticate('nobody@example.com', ''));
+    }
+
     public function test_authenticate_returns_null_for_wrong_password(): void
     {
         $this->adminUsersRepository->method('findByEmail')->willReturn($this->admin());
