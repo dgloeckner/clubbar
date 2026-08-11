@@ -49,6 +49,10 @@ describe('theme.activeTint', () => {
   it('exposes a stronger primary-blue tint variant', () => {
     expect(theme.activeTint.primaryStrong).toBe('rgba(59, 130, 246, 0.2)')
   })
+
+  it('exposes an even stronger primary-blue border tint variant', () => {
+    expect(theme.activeTint.primaryBorder).toBe('rgba(59, 130, 246, 0.5)')
+  })
 })
 
 describe('theme.badges.success', () => {

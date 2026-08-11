@@ -260,6 +260,13 @@ export const theme = {
     // active nav item — reimplemented identically (sometimes with drifted
     // comma spacing) at every call site (#289).
     primaryStrong: withAlpha('#3b82f6', 0.2),
+    // A third, even stronger variant used as the open/hover-state border on
+    // dropdowns and toggles (ReportsPage, CategoryFilter, LanguageSelector,
+    // and hover handlers in ProductsPage/JournalPage), also reused as the
+    // in-progress background in MandateDocumentSection's upload bar —
+    // reimplemented identically (sometimes with drifted comma spacing) at
+    // every call site (#289).
+    primaryBorder: withAlpha('#3b82f6', 0.5),
   },
 }
 

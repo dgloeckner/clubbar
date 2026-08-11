@@ -355,7 +355,7 @@ function FilterSelect({ value, onChange, options, testId, label, minWidth = 80 }
           padding: `${theme.spacing.sm} ${theme.spacing.md}`,
           minWidth,
           background: theme.colors.bg.secondary,
-          border: `1px solid ${isOpen ? 'rgba(59,130,246,0.5)' : theme.colors.border.light}`,
+          border: `1px solid ${isOpen ? theme.activeTint.primaryBorder : theme.colors.border.light}`,
           borderRadius: theme.borderRadius.md,
           color: theme.colors.text.primary,
           fontSize: theme.typography.fontSize.sm,

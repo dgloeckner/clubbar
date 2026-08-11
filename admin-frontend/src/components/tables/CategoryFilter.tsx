@@ -76,7 +76,7 @@ export function CategoryFilter({
           gap: 8,
           padding: '8px 12px',
           background: theme.colors.bg.input,
-          border: `1px solid ${isOpen ? 'rgba(59,130,246,0.5)' : theme.colors.border.input}`,
+          border: `1px solid ${isOpen ? theme.activeTint.primaryBorder : theme.colors.border.input}`,
           borderRadius: 8,
           color: tableColors.cellText,
           fontSize: 14,
