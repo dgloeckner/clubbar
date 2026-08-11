@@ -42,6 +42,32 @@ class AuthServiceTest extends TestCase
         $this->assertNull($result);
     }
 
+    public function test_authenticate_verifies_dummy_hash_for_unknown_email(): void
+    {
+        $this->adminUsersRepository->method('findByEmail')->with('nobody@example.com')->willReturn(null);
+        $this->adminUsersRepository->expects($this->never())->method('updateById');
+
+        $authService = new class($this->adminUsersRepository, $this->logger) extends AuthService {
+            /** @var list<array{password: string, hash: string}> */
+            public array $verifyCalls = [];
+
+            protected function verifyPassword(string $password, string $hash): bool
+            {
+                $this->verifyCalls[] = ['password' => $password, 'hash' => $hash];
+                return false;
+            }
+        };
+
+        $result = $authService->authenticate('nobody@example.com', 'irrelevant');
+
+        $this->assertNull($result);
+        $this->assertCount(1, $authService->verifyCalls);
+        $this->assertSame('irrelevant', $authService->verifyCalls[0]['password']);
+        $dummyHashInfo = password_get_info($authService->verifyCalls[0]['hash']);
+        $this->assertSame(PASSWORD_BCRYPT, $dummyHashInfo['algo']);
+        $this->assertSame(12, $dummyHashInfo['options']['cost']);
+    }
+
     public function test_authenticate_returns_null_for_wrong_password(): void
     {
         $this->adminUsersRepository->method('findByEmail')->willReturn($this->admin());
