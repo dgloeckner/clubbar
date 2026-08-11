@@ -755,6 +755,25 @@ The two shadows are deliberately distinct — don't consolidate them into one
 without a design decision; match a new call site's exact shadow string to the
 correct token instead.
 
+### Dropdown/Popover Shadow
+
+A third shadow shape, used by open-state dropdowns and popovers
+(`ReportsPage.tsx`'s export menu, `CategoryFilter.tsx`, `MobileToolbar.tsx`'s
+filter panel, `LanguageSelector.tsx`), reimplemented identically (sometimes
+with drifted comma spacing) at every call site:
+
+```typescript
+theme.shadows.dropdown = '0 10px 40px rgba(0, 0, 0, 0.4)'
+```
+
+```tsx
+<div style={{ boxShadow: theme.shadows.dropdown }}>
+```
+
+`BottomTabBar.tsx`'s upward shadow (`'0 -4px 20px rgba(0,0,0,0.4)'`) uses the
+same alpha but a different shape and isn't duplicated elsewhere, so it's left
+as a literal — #289 targets cross-file duplication, not every `rgba()` use.
+
 ---
 
 ## Utility Functions

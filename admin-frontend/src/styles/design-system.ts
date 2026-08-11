@@ -171,6 +171,9 @@ export const theme = {
     // (sometimes with drifted comma spacing) at 6 modal/dialog call sites.
     // Deliberately distinct from `modal`, which has its own call site (#289).
     modalStrong: '0 25px 50px rgba(0, 0, 0, 0.5)',
+    // Dropdown/popover shadow — reimplemented identically (with drifted
+    // comma spacing) at every open-state dropdown call site (#289).
+    dropdown: '0 10px 40px rgba(0, 0, 0, 0.4)',
   },
 
   transitions: {
