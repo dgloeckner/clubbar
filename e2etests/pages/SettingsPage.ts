@@ -1,4 +1,6 @@
 import { Page, Locator, expect } from '@playwright/test'
+import { TEST_CREDENTIALS } from '../config/test-credentials'
+import { generateTotp } from '../utils/totp'
 
 /**
  * Settings Page Object Model
@@ -686,9 +688,26 @@ export class SettingsPage {
   }
 
   /**
+   * Fill the step-up credential (#337) shown by the reset-password and
+   * reset-2FA confirmations: the *signed-in* admin's own password, plus a
+   * fresh TOTP code when the `step-up-totp-code` field is present (it only
+   * renders when the signed-in admin has 2FA enabled — true for the seeded
+   * test admin used across these specs).
+   */
+  private async fillStepUpCredential() {
+    await this.page.getByTestId('step-up-password').fill(TEST_CREDENTIALS.admin.password)
+
+    const totpField = this.page.getByTestId('step-up-totp-code')
+    if (await totpField.count() > 0) {
+      await totpField.fill(generateTotp(TEST_CREDENTIALS.totp.adminSecret))
+    }
+  }
+
+  /**
    * Click reset password button for admin user by email and confirm via
    * ConfirmDialog — the reset invalidates a colleague's current password, so
-   * it asks first (#130).
+   * it asks first (#130). Requires the signed-in admin's own step-up
+   * credential (#337).
    */
   async clickResetPasswordButton(email: string) {
     const adminId = await this.getAdminUserIdByEmail(email)
@@ -698,6 +717,7 @@ export class SettingsPage {
 
     await this.page.getByTestId(`settings-admin-reset-password-button-${adminId}`).click()
     await expect(this.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 5000 })
+    await this.fillStepUpCredential()
     await this.page.getByTestId('confirm-dialog-ok').click()
     // Wait for password modal to appear
     await this.page.getByTestId('settings-admin-password-modal').waitFor({ state: 'visible' })
@@ -734,7 +754,9 @@ export class SettingsPage {
   }
 
   /**
-   * Click reset 2FA button for admin user by email and confirm via ConfirmDialog.
+   * Click reset 2FA button for admin user by email and confirm via
+   * ConfirmDialog. Requires the signed-in admin's own step-up credential
+   * (#337).
    */
   async clickReset2faButton(email: string) {
     const adminId = await this.getAdminUserIdByEmail(email)
@@ -745,6 +767,7 @@ export class SettingsPage {
     await this.page.getByTestId(`settings-admin-reset-2fa-button-${adminId}`).click()
     // Wait for confirm dialog
     await expect(this.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 5000 })
+    await this.fillStepUpCredential()
     // Set up response watcher before confirming
     const responsePromise = this.page.waitForResponse(
       (resp) => resp.url().includes('/api/auth/2fa/reset') && resp.request().method() === 'POST' && resp.status() === 200,

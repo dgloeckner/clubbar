@@ -6,6 +6,7 @@ namespace App\Modules\Auth\Controllers;
 
 use App\Modules\Auth\Domain\SessionTimeout;
 use App\Modules\Auth\Services\AuthService;
+use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Auth\Services\TotpService;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
@@ -38,6 +39,7 @@ class AuthController
         private Validator $validator,
         private LoginAttemptsRepository $loginAttempts,
         private AppConfig $config,
+        private StepUpAuthService $stepUpAuthService,
     ) {}
 
     public function login(Request $request, Response $response): Response
@@ -310,7 +312,9 @@ class AuthController
 
     /**
      * POST /api/auth/2fa/reset
-     * Remove TOTP from any admin user account. Any logged-in admin may call this.
+     * Remove TOTP from any admin user account. Any logged-in admin may call
+     * this, but only after re-proving their own identity — a session alone
+     * is not enough to strip 2FA off a peer account (#337).
      */
     public function reset2fa(Request $request, Response $response): Response
     {
@@ -318,13 +322,22 @@ class AuthController
         if (!$callerAdminId) {
             return $this->json($response, ['error' => 'admin_not_authenticated'], 401);
         }
+        $caller = $request->getAttribute('admin_user');
 
         $body = $request->getParsedBody() ?? [];
 
         if (!$this->validator->validate($body, [
             'userId' => ['required', 'string'],
+            'current_password' => ['required', 'string'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        if (!$this->stepUpAuthService->verify($caller, $body, $request)) {
+            return $this->json($response, [
+                'error' => 'invalid_credentials',
+                'message' => 'Re-enter your password to reset two-factor authentication',
+            ], 401);
         }
 
         $target = $this->adminUsersRepository->findById($body['userId']);

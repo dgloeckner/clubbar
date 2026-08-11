@@ -1,5 +1,7 @@
 import { test, expect } from "../../fixtures/auth.fixture";
 import { loginAs } from "../../utils/csrf";
+import { TEST_CREDENTIALS } from "../../config/test-credentials";
+import { generateTotp } from "../../utils/totp";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -343,14 +345,62 @@ test.describe("Admin Users API", () => {
     const adminId = createData.admin.id;
     const originalPassword = createData.password;
 
+    // The caller must first re-prove their own identity with a step-up
+    // credential (#337): their own password, plus their own fresh TOTP code
+    // since they have 2FA enabled.
     const resetResponse = await authenticatedRequest.post(
-      `${API_BASE}/admin/admin-users/${adminId}/reset-password`
+      `${API_BASE}/admin/admin-users/${adminId}/reset-password`,
+      {
+        data: {
+          current_password: TEST_CREDENTIALS.admin.password,
+          totp_code: generateTotp(TEST_CREDENTIALS.totp.adminSecret),
+        },
+      }
     );
 
     expect(resetResponse.status()).toBe(200);
     const data = await resetResponse.json();
     expect(data.password.length).toBe(16);
     expect(data.password).not.toBe(originalPassword);
+  });
+
+  test("should reject resetting an admin's password with a wrong step-up credential", async ({
+    authenticatedRequest,
+  }) => {
+    const timestamp = Date.now();
+    const createResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users`,
+      {
+        data: {
+          email: `reset-reject-${timestamp}@test.example.com`,
+          display_name: "To Reset Password Reject",
+          locale: "de",
+        },
+      }
+    );
+
+    const createData = await createResponse.json();
+    const adminId = createData.admin.id;
+
+    const resetResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users/${adminId}/reset-password`,
+      {
+        data: {
+          current_password: "definitely-wrong-password",
+          totp_code: generateTotp(TEST_CREDENTIALS.totp.adminSecret),
+        },
+      }
+    );
+
+    expect(resetResponse.status()).toBe(401);
+    const data = await resetResponse.json();
+    expect(data.error).toBe("invalid_credentials");
+
+    // No state change: the target's password was not reset.
+    const showResponse = await authenticatedRequest.get(
+      `${API_BASE}/admin/admin-users/${adminId}`
+    );
+    expect(showResponse.status()).toBe(200);
   });
 
   // ========== CHANGE OWN PASSWORD ==========

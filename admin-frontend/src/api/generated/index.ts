@@ -219,6 +219,7 @@ export * from './reportMetadataFilters';
 export * from './reportMetadataFiltersGroupBy';
 export * from './reportSummary';
 export * from './reset2faRequest';
+export * from './resetAdminPasswordRequest';
 export * from './resetTotp200';
 export * from './reverseSettlementBody';
 export * from './reverseSettlementBodyReason';

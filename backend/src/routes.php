@@ -33,6 +33,7 @@ return function (App $app): void {
     /** @var \App\ServiceFactory $factory */
     $factory = $app->getContainer();
     $terminalRateLimit = $factory->getTerminalRateLimitMiddleware();
+    $stepUpRateLimit = $factory->getStepUpRateLimitMiddleware();
 
     // Public health check
     $app->get('/api/health', [HealthController::class, 'check']);
@@ -47,7 +48,7 @@ return function (App $app): void {
     $app->post('/api/auth/login', [AuthController::class, 'login'])->add(RateLimitMiddleware::class);
     $app->post('/api/auth/mfa', [AuthController::class, 'mfa'])->add($factory->getMfaRateLimitMiddleware());
 
-    $app->group('/api/auth', function (RouteCollectorProxy $group) {
+    $app->group('/api/auth', function (RouteCollectorProxy $group) use ($stepUpRateLimit) {
         $group->post('/logout', [AuthController::class, 'logout']);
         $group->get('/profile', [AuthController::class, 'profile']);
         $group->patch('/profile', [AuthController::class, 'updateProfile']);
@@ -55,8 +56,10 @@ return function (App $app): void {
         // 2FA setup/confirm: accessible even with totp_setup_required (see AdminSessionAuth)
         $group->post('/2fa/setup', [AuthController::class, 'setup2fa']);
         $group->post('/2fa/confirm', [AuthController::class, 'confirm2fa']);
-        // 2FA reset: requires full authenticated session
-        $group->post('/2fa/reset', [AuthController::class, 'reset2fa']);
+        // 2FA reset: requires full authenticated session, plus a fresh
+        // step-up credential (#337) — rate-limited on the caller's own
+        // account so the credential can't be brute-forced.
+        $group->post('/2fa/reset', [AuthController::class, 'reset2fa'])->add($stepUpRateLimit);
     })->add(CsrfMiddleware::class)->add(AdminSessionAuth::class);
 
     // Terminal sync endpoints (token auth)
@@ -74,7 +77,7 @@ return function (App $app): void {
         ->add($terminalRateLimit);
 
     // Admin endpoints (session auth)
-    $app->group('/api/admin', function (RouteCollectorProxy $group) {
+    $app->group('/api/admin', function (RouteCollectorProxy $group) use ($stepUpRateLimit) {
         // Security self-check. Admin-only because the report names this
         // installation's weak points and the paths its member documents live
         // in (#247, ADR-0031 decision 3).
@@ -140,7 +143,9 @@ return function (App $app): void {
         $group->patch('/admin-users/{id}', [AdminUsersAdminController::class, 'update']);
         $group->delete('/admin-users/{id}', [AdminUsersAdminController::class, 'destroy']);
         $group->post('/admin-users/{id}/reactivate', [AdminUsersAdminController::class, 'reactivate']);
-        $group->post('/admin-users/{id}/reset-password', [AdminUsersAdminController::class, 'resetPassword']);
+        // Cross-account password reset requires a step-up credential (#337),
+        // same rate-limit dimension as the 2FA reset above.
+        $group->post('/admin-users/{id}/reset-password', [AdminUsersAdminController::class, 'resetPassword'])->add($stepUpRateLimit);
 
         // Audit log
         $group->get('/audit-log', [AuditLogAdminController::class, 'index']);

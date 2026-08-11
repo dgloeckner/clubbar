@@ -234,7 +234,12 @@ const confirmTotp = (
     }
   /**
  * Remove TOTP enrollment from any admin user account. Any authenticated
-admin may call this (e.g. to help a locked-out colleague).
+admin may call this (e.g. to help a locked-out colleague), but must
+first re-prove their own identity with a step-up credential: their
+own current password, plus their own fresh TOTP code if they have
+2FA enabled. This step-up is rate-limited on the caller's account
+(5 attempts / 15 min, same dimension as login) and a failed attempt
+is audited.
 
 **Use Case**: UC-A01
 
