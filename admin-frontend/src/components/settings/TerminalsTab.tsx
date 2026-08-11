@@ -479,7 +479,7 @@ export function TerminalsTab({
                           onClick={() => onEditTerminal(terminal)}
                           style={actionButtonStyle}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'
+                            e.currentTarget.style.background = theme.activeTint.primaryStrong
                             e.currentTarget.style.color = theme.colors.semantic.primary
                           }}
                           onMouseLeave={(e) => {

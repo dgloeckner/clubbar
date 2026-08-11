@@ -247,6 +247,11 @@ export const theme = {
   // variant — the same tint reimplemented at every call site (#289).
   activeTint: {
     primary: withAlpha('#3b82f6', 0.15),
+    // A stronger variant at a different alpha — audit-log action badges,
+    // the selected mobile filter row, hover backgrounds, and the sidebar's
+    // active nav item — reimplemented identically (sometimes with drifted
+    // comma spacing) at every call site (#289).
+    primaryStrong: withAlpha('#3b82f6', 0.2),
   },
 }
 
