@@ -681,9 +681,10 @@ items, sort/filter/language toggles, and the blue `StatCard` variant:
 
 ```typescript
 theme.activeTint = {
-  primary: 'rgba(59, 130, 246, 0.15)',        // derived via withAlpha('#3b82f6', 0.15)
-  primaryStrong: 'rgba(59, 130, 246, 0.2)',   // derived via withAlpha('#3b82f6', 0.2)
-  primaryBorder: 'rgba(59, 130, 246, 0.5)',   // derived via withAlpha('#3b82f6', 0.5)
+  primary: 'rgba(59, 130, 246, 0.15)',         // derived via withAlpha('#3b82f6', 0.15)
+  primaryStrong: 'rgba(59, 130, 246, 0.2)',    // derived via withAlpha('#3b82f6', 0.2)
+  profileActive: 'rgba(59, 130, 246, 0.25)',   // derived via withAlpha('#3b82f6', 0.25)
+  primaryBorder: 'rgba(59, 130, 246, 0.5)',    // derived via withAlpha('#3b82f6', 0.5)
 }
 ```
 
@@ -694,14 +695,16 @@ theme.activeTint = {
 `primaryStrong` is a distinct, more opaque variant of the same hue — used for
 audit-log action badges, the selected state in `MobileFilterRow`, hover
 backgrounds (`LoadingIndicator`, `AdminUsersTab`, `TerminalsTab`), and
-`MainLayout`'s sidebar active-item background. `primaryBorder` is a third,
-even stronger variant used as the open/hover-state `border` on dropdowns and
-toggles (`ReportsPage`, `CategoryFilter`, `LanguageSelector`, and hover
-handlers in `ProductsPage`/`JournalPage`), also reused as the in-progress
-`background` in `MandateDocumentSection`'s upload bar. All three are
-different alphas by design (all exist in the app today) — don't conflate
-them when tokenizing a new call site; match the literal's alpha to the
-correct field.
+`MainLayout`'s sidebar active-item background. `profileActive` is a stronger
+variant still, used only for `MainLayout`'s Profile nav item's active/hover
+background — also reused (likely coincidentally, same numeric value) as
+`ListLoadingOverlay`'s spinner border. `primaryBorder` is the strongest
+variant, used as the open/hover-state `border` on dropdowns and toggles
+(`ReportsPage`, `CategoryFilter`, `LanguageSelector`, and hover handlers in
+`ProductsPage`/`JournalPage`), also reused as the in-progress `background` in
+`MandateDocumentSection`'s upload bar. All four are different alphas by
+design (all exist in the app today) — don't conflate them when tokenizing a
+new call site; match the literal's alpha to the correct field.
 
 ### Subtle Border/Divider Tint
 

@@ -275,6 +275,12 @@ export const theme = {
     // reimplemented identically (sometimes with drifted comma spacing) at
     // every call site (#289).
     primaryBorder: withAlpha('#3b82f6', 0.5),
+    // The Profile nav item's active/hover background in MainLayout — a
+    // stronger tint than `primaryStrong`'s general active-nav background —
+    // also reused (likely coincidentally, same numeric value) as
+    // ListLoadingOverlay's spinner border. Reimplemented identically at
+    // every call site (#289).
+    profileActive: withAlpha('#3b82f6', 0.25),
   },
 }
 
