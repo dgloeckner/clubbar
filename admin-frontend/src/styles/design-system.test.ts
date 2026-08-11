@@ -84,3 +84,9 @@ describe('theme.shadows.modalStrong', () => {
     expect(theme.shadows.modalStrong).toBe('0 25px 50px rgba(0, 0, 0, 0.5)')
   })
 })
+
+describe('theme.shadows.dropdown', () => {
+  it('exposes a canonical dropdown/popover shadow', () => {
+    expect(theme.shadows.dropdown).toBe('0 10px 40px rgba(0, 0, 0, 0.4)')
+  })
+})

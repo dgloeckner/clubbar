@@ -396,7 +396,7 @@ function FilterSelect({ value, onChange, options, testId, label, minWidth = 80 }
             background: theme.colors.bg.card,
             border: `1px solid ${theme.colors.border.light}`,
             borderRadius: theme.borderRadius.md,
-            boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
+            boxShadow: theme.shadows.dropdown,
             zIndex: 1000,
             minWidth: '100%',
           }}

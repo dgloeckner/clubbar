@@ -109,7 +109,7 @@ export function CategoryFilter({
             background: theme.colors.bg.card,
             border: `1px solid ${theme.colors.border.input}`,
             borderRadius: 12,
-            boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
+            boxShadow: theme.shadows.dropdown,
             zIndex: 1000,
           }}
         >
