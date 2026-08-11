@@ -144,7 +144,7 @@ export function MembersPage() {
   const [scanFile, setScanFile] = useState<File | null>(null)
   const [scanExtracting, setScanExtracting] = useState(false)
   const scanInputRef = useRef<HTMLInputElement>(null)
-  const bankName = useBankName(formData.iban)
+  const { bankName, isLoading: isBankNameLoading } = useBankName(formData.iban)
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -1617,7 +1617,7 @@ export function MembersPage() {
                       fontStyle: bankName ? 'normal' : 'italic',
                     }}
                   >
-                    {bankName ?? (validateIban(formData.iban) ? t('members.bankNameLoading') : '')}
+                    {bankName ?? (isBankNameLoading ? t('members.bankNameLoading') : '')}
                   </p>
                 )}
                 {formErrors.iban && (

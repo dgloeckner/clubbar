@@ -21,18 +21,19 @@ describe('useBankName', () => {
     vi.useRealTimers()
   })
 
-  it('returns null for a non-German IBAN and never calls the backend', async () => {
+  it('returns null and not loading for a non-German IBAN and never calls the backend', async () => {
     const { result } = renderHook(() => useBankName('FR7630006000011234567890189'))
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500)
     })
 
-    expect(result.current).toBeNull()
+    expect(result.current.bankName).toBeNull()
+    expect(result.current.isLoading).toBe(false)
     expect(getMock).not.toHaveBeenCalled()
   })
 
-  it('returns null for an invalid German IBAN (broken checksum) and never calls the backend', async () => {
+  it('returns null and not loading for an invalid German IBAN (broken checksum) and never calls the backend', async () => {
     // Same digits as the valid fixture but with the last digit altered, breaking the checksum.
     const { result } = renderHook(() => useBankName('DE89370400440532013001'))
 
@@ -40,7 +41,8 @@ describe('useBankName', () => {
       await vi.advanceTimersByTimeAsync(500)
     })
 
-    expect(result.current).toBeNull()
+    expect(result.current.bankName).toBeNull()
+    expect(result.current.isLoading).toBe(false)
     expect(getMock).not.toHaveBeenCalled()
   })
 
@@ -49,8 +51,9 @@ describe('useBankName', () => {
 
     const { result } = renderHook(() => useBankName(VALID_DE_IBAN))
 
-    // Not yet requested before the debounce window elapses.
+    // Not yet requested before the debounce window elapses, but already flagged as loading.
     expect(getMock).not.toHaveBeenCalled()
+    expect(result.current.isLoading).toBe(true)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
@@ -62,7 +65,8 @@ describe('useBankName', () => {
       '/admin/bank-lookup',
       expect.objectContaining({ params: { blz: '37040044' } })
     )
-    expect(result.current).toBe('Commerzbank')
+    expect(result.current.bankName).toBe('Commerzbank')
+    expect(result.current.isLoading).toBe(false)
   })
 
   it('debounces rapid IBAN changes so only the final value triggers a lookup', async () => {
@@ -86,6 +90,24 @@ describe('useBankName', () => {
       '/admin/bank-lookup',
       expect.objectContaining({ params: { blz: '10010010' } })
     )
-    expect(result.current).toBe('Commerzbank')
+    expect(result.current.bankName).toBe('Commerzbank')
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('stops loading once the lookup resolves with no match, instead of showing "loading" forever', async () => {
+    // Backend returns bank_name: null for a syntactically valid but unrecognized BLZ.
+    getMock.mockResolvedValue({ data: { bank_name: null, bic: null } })
+
+    const { result } = renderHook(() => useBankName(VALID_DE_IBAN))
+
+    expect(result.current.isLoading).toBe(true)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400)
+    })
+
+    expect(getMock).toHaveBeenCalledTimes(1)
+    expect(result.current.bankName).toBeNull()
+    expect(result.current.isLoading).toBe(false)
   })
 })
