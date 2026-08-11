@@ -97,7 +97,7 @@ export function StornoConfirmDialog({
           width: '90%',
           maxHeight: '90vh',
           overflowY: 'auto',
-          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
+          boxShadow: theme.shadows.modalStrong,
         }}
       >
         <h2

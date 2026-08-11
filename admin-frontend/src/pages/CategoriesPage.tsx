@@ -714,7 +714,7 @@ export function CategoriesPage() {
               height: isMobile ? '100%' : 'auto',
               maxHeight: isMobile ? '100%' : '90vh',
               overflowY: 'auto' as const,
-              boxShadow: isMobile ? 'none' : '0 25px 50px rgba(0, 0, 0, 0.5)',
+              boxShadow: isMobile ? 'none' : theme.shadows.modalStrong,
             }}
           >
             <h2 data-testid="categories-form-title" style={{ margin: '0 0 20px 0' }}>

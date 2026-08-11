@@ -161,6 +161,11 @@ export const theme = {
     lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
     xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
     modal: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+    // A second, more common modal/dialog shadow shape (no negative spread,
+    // double the alpha of `modal` above) — reimplemented identically
+    // (sometimes with drifted comma spacing) at 6 modal/dialog call sites.
+    // Deliberately distinct from `modal`, which has its own call site (#289).
+    modalStrong: '0 25px 50px rgba(0, 0, 0, 0.5)',
   },
 
   transitions: {

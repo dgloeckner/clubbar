@@ -716,6 +716,25 @@ theme.colors.text.label = 'rgba(255, 255, 255, 0.35)' // derived via withAlpha('
 </span>
 ```
 
+### Second Modal Shadow Shape
+
+`theme.shadows.modal` (used by `TransactionModal.tsx`) isn't the only modal
+shadow in the app — a second shape, with no negative spread and double the
+alpha, is reimplemented identically across `LoginPage.tsx`, `CategoriesPage.tsx`,
+`MembersPage.tsx` (×2), `ConfirmDialog.tsx`, and `StornoConfirmDialog.tsx`:
+
+```typescript
+theme.shadows.modalStrong = '0 25px 50px rgba(0, 0, 0, 0.5)'
+```
+
+```tsx
+<div style={{ boxShadow: isMobile ? 'none' : theme.shadows.modalStrong }}>
+```
+
+The two shadows are deliberately distinct — don't consolidate them into one
+without a design decision; match a new call site's exact shadow string to the
+correct token instead.
+
 ---
 
 ## Utility Functions
