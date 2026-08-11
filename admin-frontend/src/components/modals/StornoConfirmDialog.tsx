@@ -13,10 +13,10 @@
  * input, so this is a dedicated dialog rather than a contorted reuse.
  */
 
-import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { useFormatters } from '../../hooks/useFormatters'
+import { useModalDialog } from '../../hooks/useModalDialog'
 
 export interface StornoConfirmDialogTarget {
   id: string
@@ -52,13 +52,7 @@ export function StornoConfirmDialog({
 }: StornoConfirmDialogProps) {
   const { t } = useTranslation()
   const { formatPrice, formatDateTime } = useFormatters()
-  const contentRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (isOpen) {
-      contentRef.current?.focus()
-    }
-  }, [isOpen])
+  const contentRef = useModalDialog(isOpen, onCancel)
 
   if (!isOpen || !transaction) return null
 
@@ -80,8 +74,8 @@ export function StornoConfirmDialog({
       }}
       // No backdrop close handler: the reason is mandatory and typed by hand,
       // and a stray click beside the dialog used to throw it away (#131).
-      // Escape stays — that one is deliberate.
-      onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
+      // Escape stays — that one is deliberate, and is handled by
+      // useModalDialog via a window listener (#136).
     >
       <div
         ref={contentRef}

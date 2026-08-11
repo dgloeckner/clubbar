@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { LanguageSelector } from '../forms/LanguageSelector'
 import { FieldError, ModalError, modalInputStyle } from './ModalError'
+import { useModalDialog } from '../../hooks/useModalDialog'
 
 export interface EditAdminModalProps {
   isOpen: boolean
@@ -34,6 +35,7 @@ export function EditAdminModal({
   onClose,
 }: EditAdminModalProps) {
   const { t } = useTranslation()
+  const contentRef = useModalDialog(isOpen, onClose)
 
   if (!isOpen) {
     return null
@@ -56,6 +58,11 @@ export function EditAdminModal({
       }}
     >
       <div
+        ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-admin-edit-title"
+        tabIndex={-1}
         style={{
           background: theme.colors.bg.primary,
           borderRadius: theme.borderRadius.lg,
@@ -64,7 +71,7 @@ export function EditAdminModal({
           width: '90%',
         }}
       >
-        <h2 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.editAdminUser')}</h2>
+        <h2 id="settings-admin-edit-title" style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.editAdminUser')}</h2>
 
         <ModalError message={error} testId="settings-admin-edit-error" />
 

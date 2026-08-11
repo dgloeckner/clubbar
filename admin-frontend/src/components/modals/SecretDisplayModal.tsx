@@ -13,6 +13,7 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useClipboardCopy } from '../../hooks/useClipboardCopy'
+import { useModalDialog } from '../../hooks/useModalDialog'
 import { theme } from '../../styles/design-system'
 
 export interface SecretDisplayModalProps {
@@ -36,6 +37,7 @@ export function SecretDisplayModal({
   const { t } = useTranslation()
   const { status, copy, reset } = useClipboardCopy()
   const secretRef = useRef<HTMLDivElement>(null)
+  const contentRef = useModalDialog(isOpen, onClose)
 
   // A new secret is a new copy attempt — never inherit the previous verdict.
   useEffect(() => {
@@ -83,9 +85,11 @@ export function SecretDisplayModal({
       }}
     >
       <div
+        ref={contentRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         style={{
           background: theme.colors.bg.primary,
           borderRadius: theme.borderRadius.lg,

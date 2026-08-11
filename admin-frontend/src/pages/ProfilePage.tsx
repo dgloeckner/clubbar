@@ -5,7 +5,7 @@
  * - Change password
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { getAuthentication } from '../api/generated/authentication/authentication'
@@ -37,6 +37,24 @@ export function ProfilePage() {
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null)
   const [changingPassword, setChangingPassword] = useState(false)
 
+  // Guards state updates below against firing after unmount — `getProfile`
+  // has no cancellation of its own, so a page navigated away from before it
+  // resolves would otherwise still write into the departed component (#136).
+  const isMountedRef = useRef(true)
+  // Pending "clear success message" timers, cancelled on unmount for the
+  // same reason, and cancelled on a fresh success so an earlier timer never
+  // clears a newer message.
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const passwordSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current)
+      if (passwordSuccessTimeoutRef.current) clearTimeout(passwordSuccessTimeoutRef.current)
+    }
+  }, [])
+
   useEffect(() => {
     loadProfile()
   }, [])
@@ -45,14 +63,16 @@ export function ProfilePage() {
     try {
       setLoading(true)
       const data = await getProfile()
+      if (!isMountedRef.current) return
       setProfile(data)
       setEmail(data.email ?? '')
       setDisplayName(data.display_name ?? '')
       setLocale((data.locale as 'de' | 'en') ?? 'de')
     } catch (err) {
+      if (!isMountedRef.current) return
       setError(t('errors.generic'))
     } finally {
-      setLoading(false)
+      if (isMountedRef.current) setLoading(false)
     }
   }
 
@@ -81,8 +101,10 @@ export function ProfilePage() {
       setProfile(updated)
       setSuccess(t('profile.profileUpdated'))
 
-      // Clear success after 3 seconds
-      setTimeout(() => setSuccess(null), 3000)
+      // Clear success after 3 seconds. Cancel a still-pending timer from an
+      // earlier save first, so it cannot clear this newer message.
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current)
+      successTimeoutRef.current = setTimeout(() => setSuccess(null), 3000)
     } catch (err: unknown) {
       const message = err instanceof Error && 'response' in err
         ? (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? t('profile.saveFailed')
@@ -132,8 +154,10 @@ export function ProfilePage() {
       setNewPassword('')
       setConfirmPassword('')
 
-      // Clear success after 3 seconds
-      setTimeout(() => setPasswordSuccess(null), 3000)
+      // Clear success after 3 seconds. Cancel a still-pending timer from an
+      // earlier change first, so it cannot clear this newer message.
+      if (passwordSuccessTimeoutRef.current) clearTimeout(passwordSuccessTimeoutRef.current)
+      passwordSuccessTimeoutRef.current = setTimeout(() => setPasswordSuccess(null), 3000)
     } catch (err: unknown) {
       const message = err instanceof Error && 'response' in err
         ? (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? t('profile.saveFailed')
