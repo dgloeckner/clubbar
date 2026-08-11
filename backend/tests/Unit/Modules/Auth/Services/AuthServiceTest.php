@@ -32,14 +32,18 @@ class AuthServiceTest extends TestCase
         ], $overrides);
     }
 
-    public function test_authenticate_returns_null_for_unknown_email(): void
+    public function test_authenticate_performs_dummy_password_verify_for_unknown_email(): void
     {
         $this->adminUsersRepository->method('findByEmail')->with('nobody@example.com')->willReturn(null);
         $this->adminUsersRepository->expects($this->never())->method('updateById');
 
-        $result = $this->authService->authenticate('nobody@example.com', 'irrelevant');
+        $start = microtime(true);
+        $result = $this->authService->authenticate('nobody@example.com', 'some-password');
+        $duration = microtime(true) - $start;
 
         $this->assertNull($result);
+        // password_verify on dummy hash takes non-zero time (bcrypt execution)
+        $this->assertGreaterThan(0, $duration);
     }
 
     public function test_authenticate_returns_null_for_wrong_password(): void
