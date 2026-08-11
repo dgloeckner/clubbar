@@ -343,7 +343,7 @@ export function JournalPage() {
               filterContent={
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', marginBottom: '6px' }}>
+                    <div style={{ fontSize: '12px', color: theme.colors.text.label, fontWeight: 500, textTransform: 'uppercase', marginBottom: '6px' }}>
                       {t('journal.period')}
                     </div>
                     <PeriodPicker
@@ -353,7 +353,7 @@ export function JournalPage() {
                     />
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', marginBottom: '6px' }}>
+                    <div style={{ fontSize: '12px', color: theme.colors.text.label, fontWeight: 500, textTransform: 'uppercase', marginBottom: '6px' }}>
                       {t('journal.settlementStatus')}
                     </div>
                     <PillFilter

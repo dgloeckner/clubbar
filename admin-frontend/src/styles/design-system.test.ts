@@ -52,3 +52,9 @@ describe('theme.colors.border.subtle', () => {
     expect(theme.colors.border.subtle).toBe('rgba(255, 255, 255, 0.08)')
   })
 })
+
+describe('theme.colors.text.label', () => {
+  it('exposes a canonical uppercase group-label text tint', () => {
+    expect(theme.colors.text.label).toBe('rgba(255, 255, 255, 0.35)')
+  })
+})
