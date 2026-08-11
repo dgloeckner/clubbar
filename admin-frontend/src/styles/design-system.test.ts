@@ -69,6 +69,14 @@ describe('theme.activeTint', () => {
   })
 })
 
+describe('theme.softTint', () => {
+  it('exposes canonical soft color-coded backgrounds at 0.15 alpha', () => {
+    expect(theme.softTint.success).toBe('rgba(34, 197, 94, 0.15)')
+    expect(theme.softTint.warning).toBe('rgba(249, 115, 22, 0.15)')
+    expect(theme.softTint.danger).toBe('rgba(239, 68, 68, 0.15)')
+  })
+})
+
 describe('theme.badges.success', () => {
   it('exposes a canonical border tint alongside the existing bg tint', () => {
     expect(theme.badges.success.border).toBe('rgba(34, 197, 94, 0.3)')

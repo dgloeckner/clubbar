@@ -712,6 +712,35 @@ variant, used as the open/hover-state `border` on dropdowns and toggles
 design (all exist in the app today) — don't conflate them when tokenizing a
 new call site; match the literal's alpha to the correct field.
 
+### Soft Color-Coded Tint (0.15 alpha)
+
+`activeTint.primary` is the blue member of a family of translucent
+backgrounds at a shared `0.15` alpha — `theme.softTint` completes it for
+green/orange/red. Used by `StatCard`'s non-blue variants, credit/held/ok
+status chips (`ExcludedFromCollectionPage`), a report card background
+(`ReportsPage`), a transaction-type highlight (`TransactionModal`), and
+severity-tinted panels (`MembersPage`):
+
+```typescript
+theme.softTint = {
+  success: 'rgba(34, 197, 94, 0.15)',  // derived via withAlpha('#22c55e', 0.15)
+  warning: 'rgba(249, 115, 22, 0.15)', // derived via withAlpha('#f97316', 0.15)
+  danger: 'rgba(239, 68, 68, 0.15)',   // derived via withAlpha('#ef4444', 0.15)
+}
+```
+
+```tsx
+const variants = {
+  blue: theme.activeTint.primary,
+  green: theme.softTint.success,
+  orange: theme.softTint.warning,
+  red: theme.softTint.danger,
+}
+```
+
+Note this is a different alpha from `theme.badges.*.bg` (`0.1`) — the two
+families serve different visual weights and aren't interchangeable.
+
 ### Subtle Border/Divider Tint
 
 A translucent white tint used for both `border` and solid vertical divider

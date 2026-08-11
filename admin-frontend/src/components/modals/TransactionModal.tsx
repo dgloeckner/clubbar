@@ -322,7 +322,7 @@ export function TransactionModal({
                             background:
                               transaction.type === 'storno'
                                 ? theme.activeTint.primary
-                                : 'rgba(249, 115, 22, 0.15)',
+                                : theme.softTint.warning,
                             color:
                               transaction.type === 'storno'
                                 ? theme.colors.semantic.primary
