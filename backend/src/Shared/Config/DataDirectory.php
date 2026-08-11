@@ -194,6 +194,37 @@ final class DataDirectory
     }
 
     /**
+     * Whether $path is writable now, or would be after `mkdir($path, recursive:
+     * true)` — the same question the installer's prerequisites screen asks
+     * before the directory exists.
+     *
+     * A missing $path is not answered by checking its immediate parent: on a
+     * fresh relocated install that parent (the data directory itself) does not
+     * exist either, only its grandparent does. Recursive `mkdir()` walks up
+     * from $path until it finds ground to build on, so this walks the same
+     * chain rather than looking one level up and calling a non-existent
+     * directory "not writable".
+     */
+    public static function canCreate(string $path): bool
+    {
+        if (is_dir($path)) {
+            return is_writable($path);
+        }
+
+        $ancestor = $path;
+        do {
+            $parent = dirname($ancestor);
+            if ($parent === $ancestor) {
+                // Walked to the filesystem root without finding a directory.
+                return false;
+            }
+            $ancestor = $parent;
+        } while (!is_dir($ancestor));
+
+        return is_writable($ancestor);
+    }
+
+    /**
      * Create the data directory and its subdirectories.
      *
      * `0700` where the host allows it: on shared hosting the neighbours are the
