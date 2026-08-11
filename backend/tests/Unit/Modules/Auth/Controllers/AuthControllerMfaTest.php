@@ -111,12 +111,15 @@ class AuthControllerMfaTest extends TestCase
         $_SESSION['mfa_failed_attempts'] = $failures;
     }
 
-    /** @param bool $codeValid what TotpService reports for the submitted code */
-    private function expectTotpVerification(bool $codeValid): void
+    /**
+     * @param bool $codeValid what TotpService reports for the submitted code
+     * @param ?int $totpLastTimestep the admin's previously-recorded time-step (#338)
+     */
+    private function expectTotpVerification(bool $codeValid, ?int $totpLastTimestep = null): void
     {
-        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin(['totp_last_timestep' => $totpLastTimestep]));
         $this->totpService->method('decrypt')->willReturn('plain-secret');
-        $this->totpService->method('verifyCode')->willReturn($codeValid);
+        $this->totpService->method('verifyCodeWithTimestep')->willReturn($codeValid ? 1000 : null);
     }
 
     // ─── Password step ────────────────────────────────────────────────────────
@@ -235,7 +238,7 @@ class AuthControllerMfaTest extends TestCase
         $this->adminUsersRepository->method('findById')->willReturn($this->admin());
         $this->totpService->method('decrypt')->willReturn('plain-secret');
         // First code wrong (trips the cap), then the attacker gets lucky.
-        $this->totpService->method('verifyCode')->willReturnOnConsecutiveCalls(false, true);
+        $this->totpService->method('verifyCodeWithTimestep')->willReturnOnConsecutiveCalls(null, 1000);
 
         $this->controller->mfa($this->post('/api/auth/mfa', ['code' => '000000']), new Response());
         $response = $this->controller->mfa($this->post('/api/auth/mfa', ['code' => '123456']), new Response());
@@ -284,5 +287,92 @@ class AuthControllerMfaTest extends TestCase
         $response = $this->controller->mfa($this->post('/api/auth/mfa', ['code' => '123456']), new Response());
 
         $this->assertSame(200, $response->getStatusCode());
+    }
+
+    // ─── Replay protection (#338) ────────────────────────────────────────────
+    //
+    // TotpService::verifyCode allows a ±1 time-step window (~90s), so a captured
+    // code stays structurally valid for its whole window. These pin that the
+    // controller tracks the last time-step it accepted per admin and refuses
+    // any code at or below it — through the exact same rejectMfaCode() path as
+    // a wrong code, so a replay counts against both the rate limiter and the
+    // pending session's attempt cap — while a genuinely newer code still works.
+
+    public function test_valid_code_records_the_accepted_time_step(): void
+    {
+        $this->pendingSession();
+        $this->expectTotpVerification(true, totpLastTimestep: null);
+
+        $this->adminUsersRepository->expects($this->once())
+            ->method('updateTotpLastTimestep')
+            ->with('admin-1', 1000);
+
+        $response = $this->controller->mfa($this->post('/api/auth/mfa', ['code' => '123456']), new Response());
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_a_time_step_newer_than_the_one_last_recorded_is_accepted(): void
+    {
+        $this->pendingSession();
+        $this->expectTotpVerification(true, totpLastTimestep: 999);
+
+        $this->adminUsersRepository->expects($this->once())
+            ->method('updateTotpLastTimestep')
+            ->with('admin-1', 1000);
+
+        $response = $this->controller->mfa($this->post('/api/auth/mfa', ['code' => '123456']), new Response());
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_a_replayed_code_at_the_same_time_step_as_last_recorded_is_rejected(): void
+    {
+        $this->pendingSession();
+        $this->expectTotpVerification(true, totpLastTimestep: 1000);
+
+        $this->adminUsersRepository->expects($this->never())->method('updateTotpLastTimestep');
+        // Goes through rejectMfaCode(), exactly like a wrong code (#338).
+        $this->loginAttempts->expects($this->once())
+            ->method('record')
+            ->with('203.0.113.7', 'admin@example.com');
+        $this->auditService->expects($this->once())
+            ->method('log')
+            ->with(AuditAction::LOGIN_FAILED, EntityType::ADMIN_USER, 'admin-1');
+
+        $response = $this->controller->mfa($this->post('/api/auth/mfa', ['code' => '123456']), new Response());
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('invalid_credentials', $this->decode($response)['error']);
+        // The MFA-pending session must survive — the user may retry with a newer code.
+        $this->assertSame('admin-1', $_SESSION['mfa_pending_user_id'] ?? null);
+    }
+
+    public function test_a_code_older_than_the_one_last_recorded_is_rejected(): void
+    {
+        $this->pendingSession();
+        // verifyCodeWithTimestep matched an earlier step (899) than the one
+        // already recorded (1000) — clock skew replaying a stale code.
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin(['totp_last_timestep' => 1000]));
+        $this->totpService->method('decrypt')->willReturn('plain-secret');
+        $this->totpService->method('verifyCodeWithTimestep')->willReturn(899);
+
+        $this->adminUsersRepository->expects($this->never())->method('updateTotpLastTimestep');
+
+        $response = $this->controller->mfa($this->post('/api/auth/mfa', ['code' => '123456']), new Response());
+
+        $this->assertSame(401, $response->getStatusCode());
+    }
+
+    public function test_a_replayed_code_counts_toward_the_pending_sessions_attempt_cap(): void
+    {
+        $this->pendingSession(failures: AuthController::MFA_MAX_ATTEMPTS - 1);
+        $this->expectTotpVerification(true, totpLastTimestep: 1000);
+
+        $response = $this->controller->mfa($this->post('/api/auth/mfa', ['code' => '123456']), new Response());
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('mfa_attempts_exceeded', $this->decode($response)['error']);
+        $this->assertArrayNotHasKey('mfa_pending_user_id', $_SESSION);
     }
 }

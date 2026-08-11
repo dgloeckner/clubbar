@@ -127,7 +127,22 @@ class TotpService
      */
     public function verifyCode(string $secret, string $code): bool
     {
-        return $this->tfa->verifyCode($secret, $code, 1);
+        return $this->verifyCodeWithTimestep($secret, $code) !== null;
+    }
+
+    /**
+     * Verify a 6-digit TOTP code and return the matched time-step, or null if
+     * invalid. Allows ±1 time window to account for clock skew (~90 seconds).
+     *
+     * The time-step lets callers detect replay: a captured code stays
+     * structurally valid for its whole ±1 window, so the caller must reject
+     * any time-step at or below the last one it already consumed for this
+     * secret (#338).
+     */
+    public function verifyCodeWithTimestep(string $secret, string $code): ?int
+    {
+        $timeslice = null;
+        return $this->tfa->verifyCode($secret, $code, 1, null, $timeslice) ? $timeslice : null;
     }
 
     /**

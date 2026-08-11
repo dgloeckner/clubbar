@@ -253,6 +253,42 @@ class TotpServiceTest extends TestCase
         $this->assertTrue($service->verifyCode($secret, $code));
     }
 
+    public function test_verifyCodeWithTimestep_returns_the_matched_time_step_for_a_valid_code(): void
+    {
+        $service = $this->service();
+        $secret = $service->generateSecret();
+        $now = time();
+        $code = $this->referenceAuthenticator()->getCode($secret, $now);
+
+        $timestep = $service->verifyCodeWithTimestep($secret, $code);
+
+        $this->assertSame((int) floor($now / 30), $timestep);
+    }
+
+    public function test_verifyCodeWithTimestep_returns_null_for_an_invalid_code(): void
+    {
+        $service = $this->service();
+        $secret = $service->generateSecret();
+
+        $this->assertNull($service->verifyCodeWithTimestep($secret, '000000'));
+    }
+
+    public function test_verifyCodeWithTimestep_returns_the_same_time_step_for_a_replayed_code(): void
+    {
+        // Documents why TotpService alone cannot provide replay protection:
+        // the same code always maps to the same time-step, so the caller
+        // (AuthController) must track and compare it externally (#338).
+        $service = $this->service();
+        $secret = $service->generateSecret();
+        $code = $this->referenceAuthenticator()->getCode($secret);
+
+        $first = $service->verifyCodeWithTimestep($secret, $code);
+        $second = $service->verifyCodeWithTimestep($secret, $code);
+
+        $this->assertNotNull($first);
+        $this->assertSame($first, $second);
+    }
+
     public function test_verifyCode_rejects_a_code_outside_the_time_window(): void
     {
         $service = $this->service();

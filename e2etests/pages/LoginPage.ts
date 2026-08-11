@@ -7,6 +7,7 @@
 
 import { Page } from '@playwright/test'
 import { BasePage } from './BasePage'
+import { generateTotp } from '../utils/totp'
 
 export class LoginPage extends BasePage {
   // Locators as private properties - using data-testid for i18n compatibility
@@ -117,6 +118,39 @@ export class LoginPage extends BasePage {
   async submitMfaCode(code: string) {
     await this.mfaCodeInput().fill(code)
     await this.mfaSubmitButton().click()
+  }
+
+  /**
+   * Generate a code from `secret` and submit it via the real UI form,
+   * retrying with a freshly generated one if the server rejects it.
+   *
+   * Guards the shared seeded admin's secret against replay-collisions (#338):
+   * two logins landing in the same 30-second window generate the identical
+   * code, and the second submission is correctly refused as a replay even
+   * though it is not an actual attack. Waits past the next time-step boundary
+   * before retrying, plus random jitter so that several callers who collided
+   * in the same window don't all retry into the next one together and
+   * collide again. Callers must raise the test timeout well past
+   * `maxAttempts * 60s` (e.g. `test.setTimeout(360_000)`) to comfortably fit
+   * the worst case.
+   */
+  async submitMfaCodeWithRetry(secret: string, maxAttempts = 6) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await this.submitMfaCode(generateTotp(secret))
+
+      const outcome = await Promise.race([
+        this.page.waitForURL('**/dashboard', { timeout: 5000 }).then(() => 'success' as const),
+        this.mfaError().waitFor({ state: 'visible', timeout: 5000 }).then(() => 'rejected' as const),
+      ]).catch(() => 'timeout' as const)
+
+      if (outcome === 'success' || attempt === maxAttempts) {
+        return
+      }
+
+      const msUntilNextStep = 30_000 - (Date.now() % 30_000)
+      const jitter = Math.floor(Math.random() * 30_000)
+      await this.page.waitForTimeout(msUntilNextStep + jitter + 250)
+    }
   }
 
   /**

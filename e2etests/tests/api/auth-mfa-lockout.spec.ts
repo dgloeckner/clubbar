@@ -1,6 +1,6 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
-import { generateTotp } from "../../utils/totp";
+import { generateTotp, submitTotpWithRetry } from "../../utils/totp";
 
 /**
  * MFA attempt cap (#78, ruling #145).
@@ -56,6 +56,8 @@ function submitCode(request: APIRequestContext, cookie: string, code: string) {
 
 test.describe("MFA attempt cap", () => {
   test("a wrong code below the cap leaves the pending session usable", async ({ request }) => {
+    // Retries against a same-window replay collision on the shared admin secret (#338).
+    test.setTimeout(360_000);
     const cookie = await startMfaPendingSession(request);
 
     const rejected = await submitCode(request, cookie, WRONG_CODE);
@@ -63,7 +65,9 @@ test.describe("MFA attempt cap", () => {
     expect((await rejected.json()).error).toBe("invalid_credentials");
 
     // A fat-fingered digit must not cost the user their session.
-    const accepted = await submitCode(request, cookie, generateTotp(TEST_CREDENTIALS.totp.adminSecret));
+    const accepted = await submitTotpWithRetry(TEST_CREDENTIALS.totp.adminSecret, (code) =>
+      submitCode(request, cookie, code)
+    );
     expect(accepted.status()).toBe(200);
     expect(await accepted.json()).toHaveProperty("message", "Login successful");
   });
@@ -97,6 +101,8 @@ test.describe("MFA attempt cap", () => {
   });
 
   test("re-entering the password issues a fresh, usable session", async ({ request }) => {
+    // Retries against a same-window replay collision on the shared admin secret (#338).
+    test.setTimeout(360_000);
     const spent = await startMfaPendingSession(request);
     for (let attempt = 0; attempt < MFA_MAX_ATTEMPTS; attempt++) {
       await submitCode(request, spent, WRONG_CODE);
@@ -105,7 +111,9 @@ test.describe("MFA attempt cap", () => {
     // The cap is a session cap, not an account lock — an admin who mistyped five
     // times signs in again rather than phoning someone.
     const fresh = await startMfaPendingSession(request);
-    const response = await submitCode(request, fresh, generateTotp(TEST_CREDENTIALS.totp.adminSecret));
+    const response = await submitTotpWithRetry(TEST_CREDENTIALS.totp.adminSecret, (code) =>
+      submitCode(request, fresh, code)
+    );
 
     expect(response.status()).toBe(200);
     expect(await response.json()).toHaveProperty("message", "Login successful");

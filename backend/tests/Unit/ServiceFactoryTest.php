@@ -7,6 +7,7 @@ namespace Tests\Unit;
 use App\Modules\Terminals\Services\TerminalsService;
 use App\ServiceFactory;
 use App\Shared\Config\AppConfig;
+use App\Shared\Config\Env;
 use App\Shared\Logging\Logger;
 use PDO;
 use PHPUnit\Framework\TestCase;
@@ -20,6 +21,12 @@ use PHPUnit\Framework\TestCase;
  */
 class ServiceFactoryTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        unset($_ENV['DISABLE_LOGIN_RATE_LIMITING']);
+        Env::reset();
+    }
+
     private function factory(): ServiceFactory
     {
         return new ServiceFactory(
@@ -41,5 +48,34 @@ class ServiceFactoryTest extends TestCase
         $factory = $this->factory();
 
         $this->assertSame($factory->getTerminalsService(), $factory->getTerminalsService());
+    }
+
+    // ─── Login rate limiter disable flag (#338) ──────────────────────────────
+    //
+    // A replayed TOTP code records a login_attempts row (rejectMfaCode), and
+    // E2E tests share one seeded admin's TOTP secret across many parallel
+    // logins — benign same-window collisions between them would otherwise
+    // trip this IP-wide limiter and 429 every subsequent login, not just
+    // TOTP ones. DISABLE_LOGIN_RATE_LIMITING is the escape hatch for that.
+
+    private function isDisabled(object $rateLimitMiddleware): bool
+    {
+        $property = new \ReflectionProperty($rateLimitMiddleware, 'disabled');
+        $property->setAccessible(true);
+        return $property->getValue($rateLimitMiddleware);
+    }
+
+    public function test_getRateLimitMiddleware_is_active_by_default(): void
+    {
+        unset($_ENV['DISABLE_LOGIN_RATE_LIMITING']);
+
+        $this->assertFalse($this->isDisabled($this->factory()->getRateLimitMiddleware()));
+    }
+
+    public function test_getRateLimitMiddleware_is_disabled_via_env_var(): void
+    {
+        $_ENV['DISABLE_LOGIN_RATE_LIMITING'] = 'true';
+
+        $this->assertTrue($this->isDisabled($this->factory()->getRateLimitMiddleware()));
     }
 }
