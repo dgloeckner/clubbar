@@ -318,7 +318,7 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
       {state === 'stored' && mandateDoc && (
         <div
           style={{
-            border: `1px solid rgba(34, 197, 94, 0.3)`,
+            border: `1px solid ${theme.badges.success.border}`,
             borderRadius: theme.borderRadius.sm,
             padding: theme.spacing.md,
             background: theme.badges.success.bg,

@@ -51,6 +51,12 @@ describe('theme.activeTint', () => {
   })
 })
 
+describe('theme.badges.success', () => {
+  it('exposes a canonical border tint alongside the existing bg tint', () => {
+    expect(theme.badges.success.border).toBe('rgba(34, 197, 94, 0.3)')
+  })
+})
+
 describe('theme.colors.border.subtle', () => {
   it('exposes a canonical subtle white border/divider tint', () => {
     expect(theme.colors.border.subtle).toBe('rgba(255, 255, 255, 0.08)')
