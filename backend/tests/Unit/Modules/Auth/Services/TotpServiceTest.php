@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\Auth\Services;
 
 use App\Modules\Auth\Services\ChillerlanQrProvider;
 use App\Modules\Auth\Services\TotpService;
+use App\Modules\Instance\Services\InstanceConfigService;
 use App\Shared\Config\Env;
 use PHPUnit\Framework\TestCase;
 use RobThree\Auth\TwoFactorAuth;
@@ -72,7 +73,15 @@ class TotpServiceTest extends TestCase
     {
         $_ENV['TOTP_ENCRYPTION_KEY'] = $key;
         $_ENV['APP_ENV'] = $appEnv;
-        return new TotpService();
+        return new TotpService($this->instanceConfigService());
+    }
+
+    /** A stub with no DB access — TotpService only needs the instance name. */
+    private function instanceConfigService(string $instanceName = 'Test Club'): InstanceConfigService
+    {
+        $stub = $this->createStub(InstanceConfigService::class);
+        $stub->method('getInstanceName')->willReturn($instanceName);
+        return $stub;
     }
 
     /** Independent TwoFactorAuth instance for generating codes to feed into TotpService::verifyCode(). */
@@ -86,7 +95,7 @@ class TotpServiceTest extends TestCase
         $this->hideEncryptionKey();
 
         $this->expectException(\RuntimeException::class);
-        new TotpService();
+        new TotpService($this->instanceConfigService());
     }
 
     public function test_constructor_throws_when_encryption_key_is_not_valid_hex(): void
@@ -95,7 +104,7 @@ class TotpServiceTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('TOTP_ENCRYPTION_KEY');
-        new TotpService();
+        new TotpService($this->instanceConfigService());
     }
 
     /**
@@ -110,7 +119,7 @@ class TotpServiceTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('TOTP_ENCRYPTION_KEY');
-        new TotpService();
+        new TotpService($this->instanceConfigService());
     }
 
     /** @return array<string, array{string}> */
@@ -136,7 +145,7 @@ class TotpServiceTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('openssl rand -hex 32');
-        new TotpService();
+        new TotpService($this->instanceConfigService());
     }
 
     /**
@@ -152,7 +161,7 @@ class TotpServiceTest extends TestCase
         Env::reset();
 
         $this->expectException(\RuntimeException::class);
-        new TotpService();
+        new TotpService($this->instanceConfigService());
     }
 
     /** @dataProvider developmentEnvironments */
@@ -184,6 +193,35 @@ class TotpServiceTest extends TestCase
         $service = $this->service(self::VALID_KEY, 'production');
 
         $this->assertSame('JBSWY3DPEHPK3PXP', $service->decrypt($service->encrypt('JBSWY3DPEHPK3PXP')));
+    }
+
+    // ── Issuer reflects the configured instance name (ADR-0034) ───────────
+
+    /** The otpauth:// issuer, read via reflection since it is only exposed through the QR image. */
+    private function issuerOf(TotpService $service): string
+    {
+        $tfa = (new \ReflectionProperty($service, 'tfa'))->getValue($service);
+        $qrText = $tfa->getQRText('someone@example.com', 'JBSWY3DPEHPK3PXP');
+        parse_str((string) parse_url($qrText, PHP_URL_QUERY), $params);
+        return $params['issuer'];
+    }
+
+    public function test_issuer_uses_the_configured_instance_name_in_production(): void
+    {
+        $_ENV['TOTP_ENCRYPTION_KEY'] = self::VALID_KEY;
+        $_ENV['APP_ENV'] = 'production';
+        $service = new TotpService($this->instanceConfigService('FRGS Ruderbar'));
+
+        $this->assertSame('FRGS Ruderbar', $this->issuerOf($service));
+    }
+
+    public function test_issuer_appends_dev_suffix_outside_production(): void
+    {
+        $_ENV['TOTP_ENCRYPTION_KEY'] = self::VALID_KEY;
+        $_ENV['APP_ENV'] = 'local';
+        $service = new TotpService($this->instanceConfigService('FRGS Ruderbar'));
+
+        $this->assertSame('FRGS Ruderbar (dev)', $this->issuerOf($service));
     }
 
     public function test_generateSecret_returns_a_nonempty_base32_secret(): void

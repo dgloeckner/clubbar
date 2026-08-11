@@ -172,6 +172,14 @@ erDiagram
         datetime updated_at "Last modification"
     }
 
+    instance_config {
+        tinyint id PK "Single row (id=1)"
+        varchar_100 instance_name "Deploying club's display name"
+        binary_16 updated_by_admin_id FK "Who last modified"
+        datetime created_at "Initial configuration"
+        datetime updated_at "Last modification"
+    }
+
     audit_log {
         bigint id PK "Auto-increment"
         binary_16 admin_user_id FK "Acting admin (nullable)"
@@ -205,6 +213,7 @@ erDiagram
     admin_users ||--o{ audit_log : "performs"
     terminals ||--o{ unknown_card_scans : "detects"
     admin_users ||--o{ sepa_config : "modifies"
+    admin_users ||--o{ instance_config : "modifies"
 
     bank_codes {
         char_8 bank_code PK "Bankleitzahl (BLZ)"
@@ -568,6 +577,20 @@ Organization-level SEPA Direct Debit configuration. Single-row table.
 
 ---
 
+### instance_config
+
+Deployment-wide instance branding ([ADR-0034](../adr/0034-instance-branding-configuration.md)). Single-row table, same pattern as `sepa_config`. Read by the admin frontend (login page and header), the Terminal (via `/health`), and `TotpService` (2FA enrollment issuer).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | TINYINT UNSIGNED | PK | Always 1 (single row) |
+| instance_name | VARCHAR(100) | NOT NULL, DEFAULT 'Club Bar' | The deploying club's display name, e.g. "FRGS Ruderbar" |
+| updated_by_admin_id | CHAR(36) | FK → admin_users.id, NULL | Admin who last modified |
+| created_at | TIMESTAMP | NOT NULL | Initial configuration timestamp |
+| updated_at | TIMESTAMP | NOT NULL | Last modification timestamp |
+
+---
+
 ### audit_log
 
 Centralized audit trail for all master data changes.
@@ -663,6 +686,7 @@ flowchart TB
         AU[admin_users]
         AL[audit_log]
         SC[sepa_config]
+        IC[instance_config]
     end
 
     C -->|"1:N"| P
@@ -683,6 +707,7 @@ flowchart TB
     AU -->|"1:N"| AL
     T -->|"1:N"| UC
     AU -->|"1:N"| SC
+    AU -->|"1:N"| IC
 
     M -.->|"audited"| AL
     P -.->|"audited"| AL
@@ -690,6 +715,7 @@ flowchart TB
     T -.->|"audited"| AL
     S -.->|"audited"| AL
     SC -.->|"audited"| AL
+    IC -.->|"audited"| AL
 ```
 
 | Relationship | Cardinality | Description |
@@ -744,6 +770,7 @@ flowchart TB
 | unknown_card_scans | terminal_id | terminals | SET NULL |
 | audit_log | admin_user_id | admin_users | SET NULL |
 | sepa_config | updated_by_admin_id | admin_users | SET NULL |
+| instance_config | updated_by_admin_id | admin_users | SET NULL |
 
 ### Business Rules
 

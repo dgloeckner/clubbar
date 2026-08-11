@@ -8,6 +8,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { theme } from '../../styles/design-system'
 import { useAuth } from '../../context/AuthContext'
 import { useLoading } from '../../context/LoadingContext'
+import { useInstanceConfig } from '../../context/InstanceConfigContext'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { LoadingIndicator } from '../common/LoadingIndicator'
 import { BottomTabBar } from './BottomTabBar'
@@ -35,6 +36,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const location = useLocation()
   const { displayName, logout } = useAuth()
   const { isLoading } = useLoading()
+  const { instanceName } = useInstanceConfig()
   const breakpoint = useBreakpoint()
 
   const handleLogout = async () => {
@@ -128,7 +130,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                   color: theme.colors.text.primary,
                 }}
               >
-                Club Bar
+                {instanceName}
               </h1>
               <p
                 data-testid="header-brand-subtitle"
@@ -335,7 +337,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             color: theme.colors.text.secondary,
           }}
         >
-          Club Bar Admin &copy; 2026 — Open Source POS System
+          {instanceName} Admin &copy; 2026 — Open Source POS System
           {' · '}
           <span data-testid="app-version">{import.meta.env.VITE_APP_VERSION || 'dev'}</span>
           {' · '}

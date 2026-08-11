@@ -379,6 +379,7 @@ void main() async {
     productsProvider: productsProvider,
     networkService: networkService,
     quarantineProvider: quarantineProvider,
+    configService: configService,
   );
 
   runApp(ClubBarTerminalApp(

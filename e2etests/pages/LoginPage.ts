@@ -14,7 +14,9 @@ export class LoginPage extends BasePage {
   private readonly passwordInput = () => this.page.locator('[data-testid="login-password-input"]')
   private readonly loginBtn = () => this.page.locator('[data-testid="login-submit-button"]')
   readonly errorMessage = () => this.page.getByTestId('login-error')
-  private readonly heading = () => this.page.locator('h1:has-text("Club Bar")')
+  // The instance name is configurable (ADR-0034 / UC-A64), so this can no
+  // longer be selected by its former "Club Bar" text — use the stable test ID.
+  private readonly heading = () => this.page.getByTestId('login-brand-name')
 
   // MFA step (requiresMfa branch)
   readonly mfaCodeInput = () => this.page.getByTestId('mfa-code-input')
@@ -58,6 +60,21 @@ export class LoginPage extends BasePage {
         throw new Error('Admin login failed - no admin_id in localStorage')
       }
     }
+  }
+
+  /**
+   * The configured instance name shown on the login screen (ADR-0034 / UC-A64).
+   */
+  async getBrandNameText(): Promise<string> {
+    return ((await this.heading().textContent()) ?? '').trim()
+  }
+
+  /**
+   * Wait for the instance name to finish loading (it fetches on mount, before
+   * any session exists) and be visible.
+   */
+  async waitForBrandName() {
+    await this.heading().waitFor({ state: 'visible' })
   }
 
   /**

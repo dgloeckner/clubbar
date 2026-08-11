@@ -58,6 +58,9 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * Only the fields the request carries are changed. A field being cleared may be sent as `""` as well as `null` — a blank string is read as no value for `phone`, `card_uid`, `iban`, `account_holder_name` and `mandate_signed_at`, so a form that empties an input clears the field rather than storing the empty string.
+ */
 export interface MemberUpdateRequest {
   /** @maxLength 100 */
   first_name?: string;

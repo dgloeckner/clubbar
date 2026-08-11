@@ -58,41 +58,10 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-/**
- * An optional field left empty may be sent as `""` as well as omitted or `null`: a form has no way to send "absent", so a blank string is read as no value for `phone`, `card_uid`, `iban`, `account_holder_name` and `mandate_signed_at`. `mandate_reference` is the exception — a blank one says the member has no mandate, while an omitted one is minted from the member id (ADR-0006).
- */
-export interface MemberCreateRequest {
-  /** @maxLength 100 */
-  first_name: string;
-  /** @maxLength 100 */
-  last_name: string;
-  /** @maxLength 255 */
-  email?: string;
-  /** @maxLength 20 */
-  phone?: string;
-  /** ISO 639-1 language code */
-  preferred_language: string;
+export interface InstanceConfigUpdateRequest {
   /**
-   * ISO 13616 IBAN
-   * @minLength 15
-   * @maxLength 34
+   * @minLength 1
+   * @maxLength 100
    */
-  iban?: string;
-  /**
-   * Account holder name if different from member (for divergent payer)
-   * @maxLength 70
-   */
-  account_holder_name?: string;
-  /** Mandate signature date (not in future) */
-  mandate_signed_at?: string;
-  /**
-   * Optional; defaults to UUID without hyphens
-   * @maxLength 35
-   */
-  mandate_reference?: string;
-  /**
-   * Optional RFID card UID
-   * @pattern ^[0-9A-F]{8,20}$
-   */
-  card_uid?: string;
+  instance_name: string;
 }

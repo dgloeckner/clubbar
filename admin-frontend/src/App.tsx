@@ -3,11 +3,12 @@
  * Sets up routing and renders pages
  */
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { LoadingProvider } from './context/LoadingContext'
+import { InstanceConfigProvider, useInstanceConfig } from './context/InstanceConfigContext'
 import { theme } from './styles/design-system'
 
 // Pages
@@ -191,25 +192,45 @@ function AppRoutes() {
 }
 
 /**
+ * Sets the browser tab title once the instance name has loaded. `index.html`
+ * keeps its own static "Club Bar Admin" title as the pre-JS fallback — this
+ * only ever overwrites it after the fetch resolves.
+ */
+function DocumentTitle() {
+  const { instanceName, loading } = useInstanceConfig()
+
+  useEffect(() => {
+    if (!loading) {
+      document.title = `${instanceName} Admin`
+    }
+  }, [instanceName, loading])
+
+  return null
+}
+
+/**
  * Root App Component
  */
 export default function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <LoadingProvider>
-          <div
-            style={{
-              backgroundColor: theme.colors.bg.primary,
-              color: theme.colors.text.primary,
-              fontFamily: theme.typography.fontFamily.base,
-              minHeight: '100vh',
-            }}
-          >
-            <AppRoutes />
-          </div>
-        </LoadingProvider>
-      </AuthProvider>
-    </Router>
+    <InstanceConfigProvider>
+      <Router>
+        <AuthProvider>
+          <LoadingProvider>
+            <div
+              style={{
+                backgroundColor: theme.colors.bg.primary,
+                color: theme.colors.text.primary,
+                fontFamily: theme.typography.fontFamily.base,
+                minHeight: '100vh',
+              }}
+            >
+              <DocumentTitle />
+              <AppRoutes />
+            </div>
+          </LoadingProvider>
+        </AuthProvider>
+      </Router>
+    </InstanceConfigProvider>
   )
 }

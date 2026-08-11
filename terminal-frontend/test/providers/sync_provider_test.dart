@@ -5,6 +5,7 @@ import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/quarantine_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/services/sync_service.dart';
 
@@ -17,6 +18,8 @@ class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockNetworkService extends Mock implements NetworkService {}
 
 class MockQuarantineProvider extends Mock implements QuarantineProvider {}
+
+class MockConfigService extends Mock implements ConfigService {}
 
 void main() {
   group('SyncProvider', () {
@@ -355,6 +358,89 @@ void main() {
 
         expect(provider.connectionStatus, equals(ConnectionStatus.error));
         expect(provider.degradedSince, isNotNull);
+      });
+    });
+
+    // ADR-0034: the existing health-check cycle is the vehicle for
+    // propagating the backend's instance name into ConfigService.
+    group('instance name propagation (ADR-0034)', () {
+      late MockConfigService mockConfigService;
+      late SyncProvider providerWithConfig;
+
+      setUp(() {
+        mockConfigService = MockConfigService();
+        when(() => mockConfigService.setBackendDisplayName(any()))
+            .thenReturn(null);
+        providerWithConfig = SyncProvider(
+          syncService: mockSyncService,
+          membersProvider: mockMembersProvider,
+          productsProvider: mockProductsProvider,
+          networkService: mockNetworkService,
+          configService: mockConfigService,
+        );
+      });
+
+      tearDown(() {
+        providerWithConfig.stopSync();
+      });
+
+      test('a successful health check feeds the instance name into ConfigService',
+          () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockNetworkService.fetchInstanceName())
+            .thenAnswer((_) async => 'FRGS Ruderbar');
+        when(() => mockSyncService.isSyncNeeded()).thenAnswer((_) async => false);
+
+        await providerWithConfig.startSync();
+
+        verify(() => mockConfigService.setBackendDisplayName('FRGS Ruderbar'))
+            .called(1);
+      });
+
+      test('a failed health check never fetches or sets the instance name',
+          () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => false);
+
+        await providerWithConfig.startSync();
+
+        verifyNever(() => mockNetworkService.fetchInstanceName());
+        verifyNever(() => mockConfigService.setBackendDisplayName(any()));
+      });
+
+      test('a failed instance-name fetch does not break the sync cycle',
+          () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockNetworkService.fetchInstanceName())
+            .thenAnswer((_) async => null);
+        when(() => mockSyncService.isSyncNeeded()).thenAnswer((_) async => true);
+        when(() => mockSyncService.syncAll())
+            .thenAnswer((_) async => SyncResult.success);
+        when(() => mockSyncService.lastTransactionSyncTime).thenReturn(null);
+        when(() => mockSyncService.lastTransactionSyncError).thenReturn(null);
+        when(() => mockMembersProvider.refreshMembers())
+            .thenAnswer((_) async {});
+        when(() => mockProductsProvider.refreshProducts())
+            .thenAnswer((_) async {});
+
+        await providerWithConfig.startSync();
+
+        expect(providerWithConfig.connectionStatus, equals(ConnectionStatus.online));
+        verifyNever(() => mockConfigService.setBackendDisplayName(any()));
+      });
+
+      test('without a ConfigService, the instance name is never fetched',
+          () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockSyncService.isSyncNeeded()).thenAnswer((_) async => false);
+
+        // `provider` (from the outer setUp) has no configService.
+        await provider.startSync();
+
+        verifyNever(() => mockNetworkService.fetchInstanceName());
       });
     });
   });

@@ -14,4 +14,5 @@ enum EntityType: string
     case TERMINAL = 'terminal';
     case SETTLEMENT = 'settlement';
     case SEPA_CONFIG = 'sepa_config';
+    case INSTANCE_CONFIG = 'instance_config';
 }

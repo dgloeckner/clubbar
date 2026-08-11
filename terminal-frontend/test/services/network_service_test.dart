@@ -16,4 +16,18 @@ void main() {
       expect(result, isFalse);
     });
   });
+
+  group('NetworkService.fetchInstanceName', () {
+    test('returns null when no server is running', () async {
+      final service = NetworkService(baseUrl: 'http://localhost:19999/api');
+      final result = await service.fetchInstanceName();
+      expect(result, isNull);
+    });
+
+    test('returns null for invalid URL', () async {
+      final service = NetworkService(baseUrl: 'http://invalid-host-that-does-not-exist.local/api');
+      final result = await service.fetchInstanceName();
+      expect(result, isNull);
+    });
+  });
 }

@@ -9,6 +9,7 @@ import { theme } from '../../styles/design-system'
 import { Button } from '../common/Button'
 import { Input } from '../common/Input'
 import { Card } from '../common/Card'
+import { useInstanceConfig } from '../../context/InstanceConfigContext'
 
 interface LoginFormProps {
   onSubmit: (email: string, password: string) => Promise<void>
@@ -18,6 +19,7 @@ interface LoginFormProps {
 
 export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) {
   const { t } = useTranslation()
+  const { instanceName } = useInstanceConfig()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
@@ -78,6 +80,7 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
             />
           </div>
           <h1
+            data-testid="login-brand-name"
             style={{
               fontSize: theme.typography.fontSize['2xl'],
               fontWeight: theme.typography.fontWeight.bold,
@@ -86,7 +89,7 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
               color: theme.colors.text.primary,
             }}
           >
-            Club Bar
+            {instanceName}
           </h1>
           <p
             style={{

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Auth\Services;
 
+use App\Modules\Instance\Services\InstanceConfigService;
 use App\Shared\Config\Env;
 use RobThree\Auth\TwoFactorAuth;
 
@@ -34,12 +35,13 @@ class TotpService
     private TwoFactorAuth $tfa;
     private string $encryptionKey;
 
-    public function __construct()
+    public function __construct(InstanceConfigService $instanceConfigService)
     {
         $appEnv = strtolower(Env::get('APP_ENV', 'production'));
+        $instanceName = $instanceConfigService->getInstanceName();
 
         $this->tfa = new TwoFactorAuth(
-            issuer: $appEnv === 'production' ? 'Ruderbar' : 'Ruderbar (dev)',
+            issuer: $appEnv === 'production' ? $instanceName : "{$instanceName} (dev)",
             qrcodeprovider: new ChillerlanQrProvider(),
         );
 

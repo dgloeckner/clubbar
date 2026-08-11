@@ -77,6 +77,8 @@ tags:
     description: Settlement creation, preview, finalization, and export
   - name: SEPA Configuration
     description: Organization-level SEPA settings
+  - name: Instance Branding
+    description: Deployment-wide instance name shown in the admin UI, Terminal, and TOTP enrollment
   - name: Admin Users
     description: Admin user management
   - name: Reports
@@ -2382,6 +2384,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  # ============================================================================
+  # INSTANCE BRANDING
+  # ============================================================================
+  /instance-config:
+    get:
+      tags: [Instance Branding]
+      summary: Get instance branding
+      description: |
+        Retrieve the deploying club's instance name.
+
+        **Use Case**: UC-A64
+
+        Public — no authentication required. Read before login (the login
+        page itself shows the instance name) and by the Terminal via
+        `GET /health`, per ADR-0034.
+      operationId: getInstanceConfig
+      security: []
+      responses:
+        '200':
+          description: Instance branding configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstanceConfig'
+
+  /admin/instance-config:
+    patch:
+      tags: [Instance Branding]
+      summary: Update instance branding
+      description: |
+        Update the deploying club's instance name.
+
+        **Use Case**: UC-A64
+      operationId: updateInstanceConfig
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstanceConfigUpdateRequest'
+      responses:
+        '200':
+          description: Instance branding updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstanceConfig'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   # ============================================================================
   # ADMIN USERS
@@ -5142,6 +5198,25 @@ components:
           type: string
           maxLength: 100
           description: Prefix of the payment reference shown on member bank statements
+
+    InstanceConfig:
+      type: object
+      properties:
+        instance_name:
+          type: string
+          maxLength: 100
+          description: The deploying club's display name, shown in the admin UI, Terminal, and as the TOTP issuer
+          example: FRGS Ruderbar
+
+    InstanceConfigUpdateRequest:
+      type: object
+      required: [instance_name]
+      properties:
+        instance_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: FRGS Ruderbar
 
     SepaConfigUpdateRequest:
       type: object
