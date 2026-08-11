@@ -59,6 +59,10 @@ describe('theme.activeTint', () => {
   it('exposes an even stronger primary-blue border tint variant', () => {
     expect(theme.activeTint.primaryBorder).toBe('rgba(59, 130, 246, 0.5)')
   })
+
+  it('exposes the profile-nav-item active tint', () => {
+    expect(theme.activeTint.profileActive).toBe('rgba(59, 130, 246, 0.25)')
+  })
 })
 
 describe('theme.badges.success', () => {

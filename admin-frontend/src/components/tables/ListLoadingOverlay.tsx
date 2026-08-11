@@ -92,7 +92,7 @@ export function ListLoadingOverlay({ loading, label, children, testId }: ListLoa
                   width: '16px',
                   height: '16px',
                   borderRadius: '50%',
-                  border: '2px solid rgba(59, 130, 246, 0.25)',
+                  border: `2px solid ${theme.activeTint.profileActive}`,
                   borderTopColor: theme.colors.semantic.primary,
                   animation: 'listLoadingSpin 0.7s linear infinite',
                 }}
