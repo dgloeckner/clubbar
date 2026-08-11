@@ -68,3 +68,9 @@ describe('theme.colors.text.label', () => {
     expect(theme.colors.text.label).toBe('rgba(255, 255, 255, 0.35)')
   })
 })
+
+describe('theme.shadows.modalStrong', () => {
+  it('exposes a canonical second modal shadow shape', () => {
+    expect(theme.shadows.modalStrong).toBe('0 25px 50px rgba(0, 0, 0, 0.5)')
+  })
+})

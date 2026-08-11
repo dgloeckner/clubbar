@@ -96,7 +96,7 @@ export function ConfirmDialog({
           padding: theme.spacing.xl,
           maxWidth: '420px',
           width: '90%',
-          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
+          boxShadow: theme.shadows.modalStrong,
         }}
         onClick={(e) => e.stopPropagation()}
       >

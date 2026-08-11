@@ -1374,7 +1374,7 @@ export function MembersPage() {
               maxWidth: isMobile ? '100%' : '900px',
               width: isMobile ? '100%' : '90%',
               height: isMobile ? '100%' : 'auto',
-              boxShadow: isMobile ? 'none' : '0 25px 50px rgba(0, 0, 0, 0.5)',
+              boxShadow: isMobile ? 'none' : theme.shadows.modalStrong,
               maxHeight: isMobile ? '100%' : '90vh',
               overflowY: 'auto',
             }}
@@ -1922,7 +1922,7 @@ export function MembersPage() {
               padding: theme.spacing.xl,
               maxWidth: '440px',
               width: '90%',
-              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
+              boxShadow: theme.shadows.modalStrong,
             }}
             onClick={(e) => e.stopPropagation()}
           >

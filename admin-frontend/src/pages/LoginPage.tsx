@@ -133,7 +133,7 @@ function TotpInfoModal({ onClose }: { onClose: () => void }) {
           padding: theme.spacing.xl,
           maxWidth: '480px',
           width: '100%',
-          boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+          boxShadow: theme.shadows.modalStrong,
           maxHeight: '90vh',
           overflowY: 'auto',
         }}
