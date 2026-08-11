@@ -32,7 +32,7 @@ function getActionBadgeStyle(action: string): { backgroundColor: string; color: 
     return { backgroundColor: theme.activeTint.primaryStrong, color: theme.colors.semantic.primary }
   }
   if (action.startsWith('delete') || action === 'login_failed') {
-    return { backgroundColor: 'rgba(239, 68, 68, 0.2)', color: theme.colors.semantic.danger }
+    return { backgroundColor: theme.badges.danger.strong, color: theme.colors.semantic.danger }
   }
   // default blue
   return { backgroundColor: theme.activeTint.primaryStrong, color: theme.colors.semantic.primary }
