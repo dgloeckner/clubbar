@@ -574,7 +574,7 @@ export function JournalPage() {
               transition: 'all 0.15s',
             }}
             onFocus={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)'
+              e.currentTarget.style.borderColor = theme.activeTint.primaryBorder
             }}
             onBlur={(e) => {
               e.currentTarget.style.borderColor = theme.colors.border.input

@@ -281,7 +281,7 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
               style={{
                 flex: 1,
                 padding: theme.spacing.sm,
-                background: state === 'uploading' ? 'rgba(59, 130, 246, 0.5)' : theme.colors.semantic.primary,
+                background: state === 'uploading' ? theme.activeTint.primaryBorder : theme.colors.semantic.primary,
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
