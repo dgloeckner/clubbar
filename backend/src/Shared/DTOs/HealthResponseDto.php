@@ -10,6 +10,7 @@ final readonly class HealthResponseDto
         public string $status,
         public string $timestamp,
         public string $version,
+        public string $instanceName,
     ) {}
 
     public function toArray(): array
@@ -18,6 +19,7 @@ final readonly class HealthResponseDto
             'status' => $this->status,
             'timestamp' => $this->timestamp,
             'version' => $this->version,
+            'instance_name' => $this->instanceName,
         ];
     }
 }

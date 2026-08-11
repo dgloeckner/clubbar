@@ -5,6 +5,7 @@ import 'package:clubbar_terminal/providers/error_signal.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/quarantine_provider.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/services/sync_service.dart';
 
@@ -19,6 +20,11 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
 
   /// Optional: absent in tests and in headless setups that have no UI to warn.
   final QuarantineProvider? _quarantineProvider;
+
+  /// Optional: absent in tests that do not care about instance branding
+  /// (ADR-0034). When present, a successful health check feeds the
+  /// backend-reported instance name into it every sync cycle.
+  final ConfigService? _configService;
 
   bool _isSyncing = false;
   bool _disposed = false;
@@ -35,11 +41,13 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
     required ProductsProvider productsProvider,
     required NetworkService networkService,
     QuarantineProvider? quarantineProvider,
+    ConfigService? configService,
   })  : _syncService = syncService,
         _membersProvider = membersProvider,
         _productsProvider = productsProvider,
         _networkService = networkService,
-        _quarantineProvider = quarantineProvider;
+        _quarantineProvider = quarantineProvider,
+        _configService = configService;
 
   bool get isSyncing => _isSyncing;
   DateTime? get lastSyncTime => _lastSyncTime;
@@ -85,6 +93,22 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
       resetError();
       _retryCount = 0;
       notifyListeners();
+    }
+
+    // Best-effort: propagate the backend's instance name (ADR-0034) into
+    // ConfigService so the header can pick it up on its next rebuild. A
+    // failed/timed-out fetch must not block or fail the sync cycle, matching
+    // checkHealth()'s own fail-soft behaviour — so a caught exception here
+    // simply leaves ConfigService's previously known name in place.
+    if (_configService != null) {
+      try {
+        final instanceName = await _networkService.fetchInstanceName();
+        if (instanceName != null && instanceName.isNotEmpty) {
+          _configService.setBackendDisplayName(instanceName);
+        }
+      } catch (_) {
+        // Fail-soft: keep whatever instance name ConfigService already has.
+      }
     }
 
     // Check if a full sync cycle is needed

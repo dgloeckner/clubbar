@@ -15,6 +15,7 @@ use App\Modules\Transactions\Controllers\AdminController as TransactionsAdminCon
 use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncController;
 use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
 use App\Modules\Settlements\Controllers\SepaConfigController;
+use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
@@ -35,6 +36,10 @@ return function (App $app): void {
 
     // Public health check
     $app->get('/api/health', [HealthController::class, 'check']);
+
+    // Public instance branding read — needed before login (login page) and by
+    // the Terminal, which has no admin session (ADR-0034).
+    $app->get('/api/instance-config', [InstanceConfigController::class, 'show']);
 
     // Auth endpoints (login and mfa are public, rest require session).
     // Both password and second factor are rate-limited on IP and account (#78,
@@ -168,6 +173,9 @@ return function (App $app): void {
         $group->post('/sepa-config', [SepaConfigController::class, 'update']);
         $group->put('/sepa-config', [SepaConfigController::class, 'update']);
         $group->patch('/sepa-config', [SepaConfigController::class, 'update']);
+
+        // Instance branding
+        $group->patch('/instance-config', [InstanceConfigController::class, 'update']);
 
         // Reports
         $group->get('/reports/member-ranking', [ReportsAdminController::class, 'memberRanking']);

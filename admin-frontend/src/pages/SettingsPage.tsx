@@ -11,6 +11,8 @@ import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-c
 import { getAdminUsers } from '../api/generated/admin-users/admin-users'
 import { getTerminals } from '../api/generated/terminals/terminals'
 import { getAuthentication } from '../api/generated/authentication/authentication'
+import { getInstanceBranding } from '../api/generated/instance-branding/instance-branding'
+import { useInstanceConfig } from '../context/InstanceConfigContext'
 import type { SepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
 
 // Required fields that are always present in the API responses
@@ -26,6 +28,7 @@ import { PasswordDisplayModal } from '../components/modals/PasswordDisplayModal'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { TerminalsTab } from '../components/settings/TerminalsTab'
 import { SecurityCheckTab } from '../components/settings/SecurityCheckTab'
+import { InstanceBrandingTab } from '../components/settings/InstanceBrandingTab'
 import { CreateTerminalModal } from '../components/modals/CreateTerminalModal'
 import { EditTerminalModal } from '../components/modals/EditTerminalModal'
 import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
@@ -43,9 +46,10 @@ export function SettingsPage() {
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
+  const { refetch: refetchInstanceConfig } = useInstanceConfig()
 
   // State management
-  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals' | 'security'>('admin-users')
+  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals' | 'security' | 'instance'>('admin-users')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   // Page-level failure, rendered above the tab content. A modal covers that
@@ -125,6 +129,15 @@ export function SettingsPage() {
   const [showTokenModal, setShowTokenModal] = useState(false)
   const [terminalConfirmAction, setTerminalConfirmAction] = useState<{ type: 'deactivate' | 'rotate' | 'revoke'; id: string } | null>(null)
 
+  // Instance Branding State (ADR-0034 / UC-A64) — own load/save state, not
+  // shared with the SEPA tab's, matching how every other tab keeps its own.
+  const [instanceName, setInstanceName] = useState('')
+  const [instanceOriginalName, setInstanceOriginalName] = useState('')
+  const [instanceLoading, setInstanceLoading] = useState(false)
+  const [instanceSaving, setInstanceSaving] = useState(false)
+  const [instanceSuccessMessage, setInstanceSuccessMessage] = useState<string | null>(null)
+  const [instanceFieldErrors, setInstanceFieldErrors] = useState<Record<string, string>>({})
+
   // Load SEPA config on mount
   useEffect(() => {
     const loadConfig = async () => {
@@ -185,6 +198,13 @@ export function SettingsPage() {
     }
   }, [activeTab])
 
+  // Load instance branding when the Instance tab is active
+  useEffect(() => {
+    if (activeTab === 'instance') {
+      loadInstanceConfig()
+    }
+  }, [activeTab])
+
   /**
    * Report a failure on the page banner, preferring what the API said over the
    * generic fallback.
@@ -215,7 +235,7 @@ export function SettingsPage() {
     setModalFieldErrors({})
   }
 
-  const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals' | 'security') => {
+  const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals' | 'security' | 'instance') => {
     // The banner reports what failed on the tab that is being left behind.
     setError(null)
     setActionSuccess(null)
@@ -249,6 +269,20 @@ export function SettingsPage() {
       reportError(err, 'settings.errors.loadTerminals')
     } finally {
       setTerminalsLoading(false)
+    }
+  }
+
+  const loadInstanceConfig = async () => {
+    try {
+      setInstanceLoading(true)
+      const result = await getInstanceBranding().getInstanceConfig()
+      const name = result.instance_name ?? ''
+      setInstanceName(name)
+      setInstanceOriginalName(name)
+    } catch (err: unknown) {
+      reportError(err, 'settings.instance.errors.load')
+    } finally {
+      setInstanceLoading(false)
     }
   }
 
@@ -547,6 +581,84 @@ export function SettingsPage() {
     setError(null)
   }
 
+  // Handle instance name field change
+  const handleInstanceNameChange = (value: string) => {
+    setInstanceName(value)
+
+    if (instanceFieldErrors.instance_name) {
+      setInstanceFieldErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors.instance_name
+        return newErrors
+      })
+    }
+
+    if (instanceSuccessMessage) {
+      setInstanceSuccessMessage(null)
+    }
+  }
+
+  // Validate instance branding form (UC-A64 E1/E2)
+  const validateInstanceForm = (): boolean => {
+    const newErrors: Record<string, string> = {}
+
+    if (!instanceName.trim()) {
+      newErrors.instance_name = t('settings.instance.validation.required')
+    } else if (instanceName.length > 100) {
+      newErrors.instance_name = t('settings.instance.validation.tooLong')
+    }
+
+    setInstanceFieldErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  // Handle instance branding save
+  const handleSaveInstance = async () => {
+    if (!validateInstanceForm()) {
+      return
+    }
+
+    try {
+      setInstanceSaving(true)
+      setError(null)
+      setInstanceSuccessMessage(null)
+
+      const result = await getInstanceBranding().updateInstanceConfig({ instance_name: instanceName })
+      const savedName = result.instance_name ?? instanceName
+      setInstanceName(savedName)
+      setInstanceOriginalName(savedName)
+      setInstanceFieldErrors({})
+      setInstanceSuccessMessage(t('settings.instance.saved'))
+
+      // The header, browser tab title and login page must reflect the new
+      // name immediately in this session, without a reload (UC-A64
+      // postconditions) — refetch the shared context that feeds them.
+      await refetchInstanceConfig()
+
+      // Clear success message after 5 seconds, matching the SEPA tab
+      setTimeout(() => {
+        setInstanceSuccessMessage(null)
+      }, 5000)
+    } catch (err: unknown) {
+      const apiFieldErrors = getApiFieldErrors(err)
+      if (Object.keys(apiFieldErrors).length > 0) {
+        setInstanceFieldErrors(apiFieldErrors)
+        setError(t('settings.instance.errors.validation'))
+      } else {
+        setError(getApiErrorMessage(err, t('settings.instance.errors.save')))
+      }
+    } finally {
+      setInstanceSaving(false)
+    }
+  }
+
+  // Handle instance branding cancel
+  const handleCancelInstance = () => {
+    setInstanceName(instanceOriginalName)
+    setInstanceFieldErrors({})
+    setError(null)
+  }
+
   // Tab styles (prototype styling: button group container)
   const tabContainerStyle: React.CSSProperties = {
     display: 'flex',
@@ -648,6 +760,20 @@ export function SettingsPage() {
             )}
             {t('settings.security.tab')}
           </button>
+          <button
+            data-testid="settings-tab-instance"
+            onClick={() => switchTab('instance')}
+            style={tabStyle(activeTab === 'instance') as any}
+          >
+            {!isMobile && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 4h16v4H4z" />
+                <path d="M9 8v12" />
+                <path d="M15 8v12" />
+              </svg>
+            )}
+            {t('settings.instance.tab')}
+          </button>
         </div>
       </div>
 
@@ -727,6 +853,20 @@ export function SettingsPage() {
       {/* Security self-check (#247): measured, never assumed — so it is fetched
           when the tab is opened rather than cached with the rest of the page. */}
       {activeTab === 'security' && <SecurityCheckTab />}
+
+      {/* Instance Branding Tab (ADR-0034 / UC-A64) */}
+      {activeTab === 'instance' && (
+        <InstanceBrandingTab
+          loading={instanceLoading}
+          saving={instanceSaving}
+          successMessage={instanceSuccessMessage}
+          value={instanceName}
+          fieldErrors={instanceFieldErrors}
+          onChange={handleInstanceNameChange}
+          onSave={handleSaveInstance}
+          onCancel={handleCancelInstance}
+        />
+      )}
 
       {/* Modals */}
       <CreateAdminModal

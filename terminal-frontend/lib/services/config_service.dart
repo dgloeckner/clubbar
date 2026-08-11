@@ -55,6 +55,7 @@ class ConfigService {
   bool _fullscreen = false;
   bool _soundsEnabled = true;
   String? _displayName;
+  String? _backendDisplayName;
   Map<String, dynamic>? _fontSizes;
   bool _rfidReaderMonitor = true;
   String? _rfidReaderVendorId;
@@ -82,10 +83,29 @@ class ConfigService {
   bool get fullscreen => _fullscreen;
   bool get soundsEnabled => _soundsEnabled;
 
-  /// The name a deploying club shows in the terminal header — a per-terminal
-  /// setting so a fork is not needed to show anything but "Club Bar" (#297).
-  String get displayName => _displayName ?? defaultDisplayName;
+  /// The name shown in the terminal header (ADR-0034).
+  ///
+  /// Precedence, highest first:
+  /// 1. An explicit `config.json` `displayName` (#297) — a per-terminal
+  ///    override so a fork is not needed to show anything but "Club Bar",
+  ///    e.g. during a themed event. Always wins when set.
+  /// 2. The org-wide `instance_name` reported by the backend's `/health`
+  ///    endpoint and fed in via [setBackendDisplayName] on each sync cycle.
+  /// 3. The stock [defaultDisplayName] fallback, for an unconfigured
+  ///    terminal that has neither a local override nor a reachable backend.
+  String get displayName =>
+      _displayName ?? _backendDisplayName ?? defaultDisplayName;
   Map<String, dynamic>? get fontSizes => _fontSizes;
+
+  /// Records the org-wide instance name learned from the backend's `/health`
+  /// response (ADR-0034), so [displayName] can fall back to it.
+  ///
+  /// Does not persist to `config.json` and never overrides an explicit local
+  /// `displayName` override — see [displayName]'s precedence. Pass null to
+  /// clear a previously learned name (e.g. after `clear()`).
+  void setBackendDisplayName(String? name) {
+    _backendDisplayName = name;
+  }
 
   /// How the RFID reader is recognised among the machine's input devices.
   RfidReaderIdentity get rfidReaderIdentity => RfidReaderIdentity(
@@ -241,6 +261,7 @@ class ConfigService {
     _fullscreen = false;
     _soundsEnabled = true;
     _displayName = null;
+    _backendDisplayName = null;
     _fontSizes = null;
     _rfidReaderMonitor = true;
     _rfidReaderVendorId = null;

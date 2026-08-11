@@ -1295,4 +1295,104 @@ export class SettingsPage {
   async clickSecurityRecheck() {
     await this.page.getByTestId('security-check-refresh').click()
   }
+
+  // ==================== Instance Branding Tab (ADR-0034 / UC-A64) ====================
+
+  /**
+   * Click the Instance tab to switch to it and wait for its form to load.
+   */
+  async clickInstanceTab() {
+    await this.page.getByTestId('settings-tab-instance').click()
+    await this.page.getByTestId('settings-instance-form').waitFor({ state: 'visible' })
+  }
+
+  /**
+   * Expect the Instance tab button to be visible.
+   */
+  async expectInstanceTabVisible() {
+    await expect(this.page.getByTestId('settings-tab-instance')).toBeVisible()
+  }
+
+  /**
+   * Expect the Instance form to be visible.
+   */
+  async expectInstanceFormVisible() {
+    await expect(this.page.getByTestId('settings-instance-form')).toBeVisible()
+  }
+
+  /**
+   * Get the current value of the instance name input.
+   */
+  async getInstanceNameValue(): Promise<string> {
+    return await this.page.getByTestId('settings-instance-input-name').inputValue()
+  }
+
+  /**
+   * Fill the instance name input.
+   */
+  async fillInstanceName(name: string) {
+    await this.page.getByTestId('settings-instance-input-name').fill(name)
+  }
+
+  /**
+   * Click the Instance tab's save button.
+   */
+  async saveInstance() {
+    await this.page.getByTestId('settings-instance-save-button').click()
+  }
+
+  /**
+   * Click save and wait for the write to reach the backend. Returns the
+   * status of the PATCH, so a test can assert what the frontend actually sent.
+   */
+  async saveInstanceAndWaitForResponse(): Promise<{ status: number }> {
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/instance-config') && resp.request().method() === 'PATCH',
+      { timeout: 15000 },
+    )
+    await this.saveInstance()
+    const response = await responsePromise
+    return { status: response.status() }
+  }
+
+  /**
+   * Click the Instance tab's cancel button.
+   */
+  async cancelInstance() {
+    await this.page.getByTestId('settings-instance-cancel-button').click()
+  }
+
+  /**
+   * Expect the Instance tab's own success message to be visible (#91 split:
+   * distinct from the page-level failure banner).
+   */
+  async expectInstanceSuccessMessage() {
+    await expect(this.page.getByTestId('settings-instance-success-message')).toBeVisible()
+  }
+
+  /**
+   * Expect the instance name field's inline validation error to be visible,
+   * and return its text.
+   */
+  async expectInstanceNameFieldError(): Promise<string> {
+    const fieldError = this.page.getByTestId('settings-instance-error-name')
+    await expect(fieldError).toBeVisible()
+    return (await fieldError.textContent()) ?? ''
+  }
+
+  /**
+   * The admin header's brand name — reflects the instance name (ADR-0034).
+   */
+  async getHeaderBrandName(): Promise<string> {
+    return ((await this.page.getByTestId('header-brand-name').textContent()) ?? '').trim()
+  }
+
+  /**
+   * Expect the admin header's brand name to show the given instance name,
+   * without a page reload (UC-A64 postcondition).
+   */
+  async expectHeaderBrandName(name: string) {
+    await expect(this.page.getByTestId('header-brand-name')).toHaveText(name)
+  }
 }

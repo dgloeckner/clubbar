@@ -97,6 +97,37 @@ class NetworkService {
     }
   }
 
+  /// Fetch the deploying club's instance name from the health endpoint
+  /// (ADR-0034).
+  ///
+  /// Like [fetchBackendVersion], `instance_name` predates the generated
+  /// Chopper client, so this is hand-written: it calls GET /health with a
+  /// plain HTTP client and parses `instance_name` from the raw JSON body.
+  ///
+  /// Returns the instance name, or null on failure (fail-soft: a terminal
+  /// that cannot reach the backend simply keeps whatever name it already
+  /// has, via ConfigService's displayName precedence).
+  Future<String?> fetchInstanceName() async {
+    try {
+      final uri = Uri.parse('$_baseUrl${AppConfig.healthEndpoint}');
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      final token = _tokenInterceptor.token;
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      final response = await http
+          .get(uri, headers: headers)
+          .timeout(AppConfig.healthCheckTimeout);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return data['instance_name'] as String?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Delta sync — members
   // ---------------------------------------------------------------------------

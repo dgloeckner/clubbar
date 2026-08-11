@@ -29,9 +29,13 @@ class ClubBarHeader extends StatefulWidget implements PreferredSizeWidget {
 
   final VoidCallback? onStatusTap;
 
-  /// The deploying club's name shown in the header (#297). Defaults to the
-  /// stock "Club Bar" so existing deployments without a `displayName` in
-  /// `config.json` are unaffected.
+  /// The deploying club's name shown in the header.
+  ///
+  /// Sourced by the caller via `ConfigService.displayName` (ADR-0034), whose
+  /// precedence is: a per-terminal `config.json` `displayName` override
+  /// (#297) first, then the org-wide `instance_name` reported by the
+  /// backend, then the stock "Club Bar" fallback used here by default so
+  /// existing deployments without either source configured are unaffected.
   final String displayName;
 
   const ClubBarHeader({

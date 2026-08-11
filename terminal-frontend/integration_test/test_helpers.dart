@@ -351,6 +351,7 @@ Future<Widget> buildTestApp(
     productsProvider: productsProvider,
     networkService: networkService,
     quarantineProvider: quarantineProvider,
+    configService: configService,
   );
 
   final cartProvider = CartProvider(

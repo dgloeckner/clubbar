@@ -140,6 +140,8 @@ export * from './globalTransactionType';
 export * from './importMembersConfirm201';
 export * from './importMembersConfirmBody';
 export * from './importMembersPreviewBody';
+export * from './instanceConfig';
+export * from './instanceConfigUpdateRequest';
 export * from './listAdminUsers200';
 export * from './listAdminUsersParams';
 export * from './listAuditLog200';

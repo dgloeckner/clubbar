@@ -111,6 +111,15 @@ paths:
                     type: string
                     format: date-time
                     description: Server time (UTC)
+                  version:
+                    type: string
+                    description: Backend version string
+                  instance_name:
+                    type: string
+                    description: |
+                      The deploying club's display name (ADR-0034). The
+                      Terminal shows this in its header unless a per-terminal
+                      `config.json` `displayName` override is set.
                 required:
                   - status
                   - timestamp
@@ -119,6 +128,8 @@ paths:
                   value:
                     status: ok
                     timestamp: '2025-01-23T14:30:45Z'
+                    version: '1.4.0'
+                    instance_name: FRGS Ruderbar
 
   /sync/members:
     get:

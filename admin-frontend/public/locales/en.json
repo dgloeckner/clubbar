@@ -556,6 +556,23 @@
         "runtime": "PHP runtime"
       },
       "footnote": "A row is green only when the effective state was observed. \"Not measurable\" is never reported as passing, and \"your host does not allow this\" is an accepted outcome — the remedy says so where that is the case."
+    },
+    "instance": {
+      "tab": "Instance",
+      "label": "Instance Name",
+      "placeholder": "e.g. FRGS Ruderbar",
+      "helper": "Shown in the admin header, browser tab title, login page, Terminal header, and as the TOTP issuer for new 2FA enrollments (max 100 characters).",
+      "loading": "Loading instance configuration...",
+      "saved": "Instance name saved successfully",
+      "errors": {
+        "load": "Failed to load instance configuration",
+        "save": "Failed to save the instance name. Please try again.",
+        "validation": "Please correct the highlighted field"
+      },
+      "validation": {
+        "required": "Instance name is required",
+        "tooLong": "Instance name must be 100 characters or fewer"
+      }
     }
   },
   "auditLog": {

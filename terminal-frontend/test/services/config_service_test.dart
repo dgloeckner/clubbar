@@ -343,6 +343,55 @@ void main() {
       });
     });
 
+    // ADR-0034: the org-wide backend `instance_name`, fed in from a health
+    // poll, sits between the per-terminal override and the stock fallback.
+    group('displayName precedence with a backend-sourced name (ADR-0034)', () {
+      test('backend name is used when no local override is configured', () async {
+        await configService.load();
+        expect(configService.displayName, 'Club Bar');
+
+        configService.setBackendDisplayName('FRGS Ruderbar');
+
+        expect(configService.displayName, 'FRGS Ruderbar');
+      });
+
+      test('a local config.json displayName still wins over a backend name', () async {
+        File('${tempDir.path}/config.json').writeAsStringSync(
+          jsonEncode({
+            'terminalId': 'T1',
+            'apiUrl': 'http://x',
+            'apiToken': 'tok',
+            'displayName': 'SV Musterverein',
+          }),
+        );
+        await configService.load();
+
+        configService.setBackendDisplayName('FRGS Ruderbar');
+
+        expect(configService.displayName, 'SV Musterverein');
+      });
+
+      test('clearing the backend name (null) falls back to the stock default', () async {
+        await configService.load();
+        configService.setBackendDisplayName('FRGS Ruderbar');
+        expect(configService.displayName, 'FRGS Ruderbar');
+
+        configService.setBackendDisplayName(null);
+
+        expect(configService.displayName, 'Club Bar');
+      });
+
+      test('clear() resets a previously learned backend name', () async {
+        await configService.load();
+        configService.setBackendDisplayName('FRGS Ruderbar');
+        expect(configService.displayName, 'FRGS Ruderbar');
+
+        await configService.clear();
+
+        expect(configService.displayName, 'Club Bar');
+      });
+    });
+
     group('fullscreen configuration', () {
       test('fullscreen defaults to false', () async {
         await configService.load();

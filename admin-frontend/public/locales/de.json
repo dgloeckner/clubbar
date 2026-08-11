@@ -556,6 +556,23 @@
         "runtime": "PHP-Laufzeit"
       },
       "footnote": "Eine Zeile ist nur dann grün, wenn der wirksame Zustand beobachtet wurde. „Nicht messbar“ gilt nie als bestanden, und „Ihr Hoster erlaubt das nicht“ ist ein akzeptiertes Ergebnis — der Hinweis sagt es, wo es zutrifft."
+    },
+    "instance": {
+      "tab": "Instanz",
+      "label": "Name der Instanz",
+      "placeholder": "z. B. FRGS Ruderbar",
+      "helper": "Wird im Admin-Header, im Titel des Browser-Tabs, auf der Login-Seite, im Terminal-Header sowie als TOTP-Aussteller für neue 2FA-Registrierungen angezeigt (max. 100 Zeichen).",
+      "loading": "Instanz-Konfiguration wird geladen...",
+      "saved": "Instanzname erfolgreich gespeichert",
+      "errors": {
+        "load": "Instanz-Konfiguration konnte nicht geladen werden",
+        "save": "Instanzname konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        "validation": "Bitte korrigieren Sie das markierte Feld"
+      },
+      "validation": {
+        "required": "Der Instanzname ist erforderlich",
+        "tooLong": "Der Instanzname darf höchstens 100 Zeichen lang sein"
+      }
     }
   },
   "auditLog": {

@@ -19,6 +19,7 @@ use App\Modules\Members\Repositories\MandateDocumentRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
+use App\Modules\Instance\Repositories\InstanceConfigRepository;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Repositories\SessionRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
@@ -47,6 +48,7 @@ use App\Modules\Members\Services\MandateDocumentService;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
+use App\Modules\Instance\Services\InstanceConfigService;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Modules\Settlements\Services\SettlementReversalService;
 use App\Modules\Settlements\Services\CollectionHoldService;
@@ -75,6 +77,7 @@ use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
 use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
 use App\Modules\Settlements\Controllers\SepaConfigController;
+use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
 use App\Modules\Transactions\Controllers\AdminController as TransactionsAdminController;
 use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncController;
@@ -128,6 +131,7 @@ class ServiceFactory implements ContainerInterface
         // Settlements
         SettlementsAdminController::class => 'getSettlementsAdminController',
         SepaConfigController::class => 'getSepaConfigController',
+        InstanceConfigController::class => 'getInstanceConfigController',
 
         // AdminUsers
         AdminUsersAdminController::class => 'getAdminUsersAdminController',
@@ -228,6 +232,11 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(SepaConfigRepository::class, fn() => new SepaConfigRepository($this->pdo, $this->logger));
     }
 
+    public function getInstanceConfigRepository(): InstanceConfigRepository
+    {
+        return $this->resolve(InstanceConfigRepository::class, fn() => new InstanceConfigRepository($this->pdo, $this->logger));
+    }
+
     public function getLoginAttemptsRepository(): LoginAttemptsRepository
     {
         return $this->resolve(LoginAttemptsRepository::class, fn() => new LoginAttemptsRepository($this->pdo));
@@ -294,7 +303,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getTotpService(): TotpService
     {
-        return $this->resolve(TotpService::class, fn() => new TotpService());
+        return $this->resolve(TotpService::class, fn() => new TotpService($this->getInstanceConfigService()));
     }
 
     public function getAdminUsersService(): AdminUsersService
@@ -365,6 +374,11 @@ class ServiceFactory implements ContainerInterface
     public function getSepaConfigService(): SepaConfigService
     {
         return $this->resolve(SepaConfigService::class, fn() => new SepaConfigService($this->getSepaConfigRepository(), $this->getAuditService()));
+    }
+
+    public function getInstanceConfigService(): InstanceConfigService
+    {
+        return $this->resolve(InstanceConfigService::class, fn() => new InstanceConfigService($this->getInstanceConfigRepository(), $this->getAuditService()));
     }
 
     public function getSepaExportService(): SepaExportService
@@ -551,7 +565,7 @@ class ServiceFactory implements ContainerInterface
     public function getHealthController(): HealthController
     {
         return $this->resolve(HealthController::class, fn() => new HealthController(
-            new \App\Shared\Services\HealthCheckService(),
+            new \App\Shared\Services\HealthCheckService($this->getInstanceConfigService()),
         ));
     }
 
@@ -644,6 +658,11 @@ class ServiceFactory implements ContainerInterface
     public function getSepaConfigController(): SepaConfigController
     {
         return $this->resolve(SepaConfigController::class, fn() => new SepaConfigController($this->getSepaConfigService(), $this->getValidator()));
+    }
+
+    public function getInstanceConfigController(): InstanceConfigController
+    {
+        return $this->resolve(InstanceConfigController::class, fn() => new InstanceConfigController($this->getInstanceConfigService(), $this->getValidator()));
     }
 
     public function getTerminalsAdminController(): TerminalsAdminController

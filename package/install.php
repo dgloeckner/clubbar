@@ -418,6 +418,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 $stmt->execute([$id, $email, $hashedPassword, $email]);
 
+                // Instance branding (ADR-0034): optional at install time — the
+                // migration already seeds a 'Club Bar' row, so an empty field
+                // here just leaves that default in place rather than blocking
+                // the wizard on it.
+                $instanceName = trim($_POST['instance_name'] ?? '');
+                if ($instanceName !== '') {
+                    $stmt = $pdo->prepare(
+                        'UPDATE instance_config SET instance_name = ?, updated_by_admin_id = ?, updated_at = NOW() WHERE id = 1'
+                    );
+                    $stmt->execute([$instanceName, $id]);
+                }
+
                 // Installation complete — delete installer data so next run requires a fresh key
                 @unlink($dataFile);
                 header('Location: ?step=5');
@@ -886,6 +898,10 @@ function renderStep4(bool $isUpdate): void
         <label>
             Confirm Password
             <input type="password" name="admin_password_confirm" minlength="8" required autocomplete="new-password">
+        </label>
+        <label>
+            Instance name <small>(shown in the admin panel, Terminal, and authenticator app — you can change it later in Settings)</small>
+            <input type="text" name="instance_name" maxlength="100" placeholder="Club Bar" autocomplete="organization">
         </label>
         <button type="submit" class="btn">Create Admin &amp; Finish</button>
     </form>
