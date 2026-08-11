@@ -37,7 +37,7 @@ export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
         justifyContent: 'center',
         padding: '20px',
         backgroundColor: 'rgba(30, 41, 59, 0.8)',
-        border: '1px solid rgba(71, 85, 105, 0.4)',
+        border: `1px solid ${theme.colors.border.slate}`,
         borderRadius: '12px',
         minHeight: '140px',
         textAlign: 'center',

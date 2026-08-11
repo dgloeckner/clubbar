@@ -57,7 +57,7 @@ export function PillFilter<T extends string>({
 
         // Idle border/text colours, restored by onMouseLeave. Kept in one place
         // so the hover handlers below cannot drift from the inline style.
-        const idleBorder = variant === 'dot' ? theme.colors.border.muted : 'rgba(71, 85, 105, 0.4)'
+        const idleBorder = variant === 'dot' ? theme.colors.border.muted : theme.colors.border.slate
         const idleText = variant === 'dot' ? theme.colors.text.subtle : theme.colors.text.secondary
         const hoverBorder = variant === 'dot' ? color : 'rgba(71, 85, 105, 0.6)'
         const hoverText = variant === 'dot' ? color : theme.colors.text.primary
