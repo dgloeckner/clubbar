@@ -59,7 +59,7 @@ test.describe('Login (UI)', () => {
 
   test('logs in a TOTP-enrolled admin via the MFA step', async ({ loginPage, page }) => {
     // Retries against a same-window replay collision on the shared admin secret (#338).
-    test.setTimeout(240_000)
+    test.setTimeout(360_000)
     await loginPage.navigate()
     await loginPage.login(TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
 
@@ -90,7 +90,7 @@ test.describe('Login (UI)', () => {
   test('completes first-time TOTP enrollment and reaches the dashboard', async ({ loginPage, page, playwright }) => {
     // createUnenrolledAdmin logs in as the shared seeded admin, which can retry
     // against a same-window replay collision (#338).
-    test.setTimeout(240_000)
+    test.setTimeout(360_000)
     const { email, password } = await createUnenrolledAdmin(playwright, 'login-setup')
 
     await loginPage.navigate()

@@ -94,7 +94,7 @@ test.describe("TOTP 2FA", () => {
     playwright,
   }) => {
     // Retries against a same-window replay collision on the shared admin secret (#338).
-    test.setTimeout(240_000)
+    test.setTimeout(360_000)
     const ctx = await playwright.request.newContext()
 
     try {

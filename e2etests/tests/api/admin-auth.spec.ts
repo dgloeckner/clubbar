@@ -1,9 +1,14 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
+import { readFileSync } from "fs";
+import path from "path";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { submitTotpWithRetry } from "../../utils/totp";
 import { loginAs } from "../../utils/csrf";
 
 const API_BASE = "http://localhost:8080/api";
+const FRONTEND_BASE = "http://localhost:5173";
+// Same path auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
+const ADMIN_STORAGE_STATE_PATH = path.join("playwright", ".auth", "admin.json");
 
 const ADMIN_EMAIL = TEST_CREDENTIALS.admin.email;
 const ADMIN_PASSWORD = TEST_CREDENTIALS.admin.password;
@@ -64,7 +69,7 @@ test.describe("Admin Authentication", () => {
       // Retries against a same-window replay collision on the shared admin
       // secret (#338) — this helper is called repeatedly across this file's
       // tests, which run in quick succession and can land in the same window.
-      test.setTimeout(240_000);
+      test.setTimeout(360_000);
       const mfaResponse = await submitTotpWithRetry(secret, (code) =>
         request.post(`${API_BASE}/auth/mfa`, {
           data: { code },
@@ -101,15 +106,26 @@ test.describe("Admin Authentication", () => {
     return { cookieString, csrfToken: loginData.csrf_token || "" };
   }
 
-  // Session shared by tests that only ever read through it (never logged out) —
-  // logging in as the shared admin performs a real TOTP MFA exchange, and doing
-  // that on every one of this file's tests would race replay protection (#338)
-  // for no reason when the exact same session works for all of them. Tests that
-  // exercise logout call login() directly instead, so they get their own session.
+  // Session shared by tests that only ever read through it (never logged out).
+  // Reuses the ONE session "setup auth" (auth.setup.ts) already established
+  // instead of performing another real password+MFA login — logging in as the
+  // shared admin is a real TOTP exchange, and doing that on every one of this
+  // file's tests would race replay protection (#338) for no reason when the
+  // exact same session works for all of them. Tests that exercise logout call
+  // login() directly instead, so they get their own (real, freshly-obtained) session.
   let cachedSession: Promise<{ cookieString: string; csrfToken: string }> | null = null;
-  function loginCached(request: APIRequestContext): Promise<{ cookieString: string; csrfToken: string }> {
+  function loginCached(): Promise<{ cookieString: string; csrfToken: string }> {
     if (!cachedSession) {
-      cachedSession = login(request, ADMIN_EMAIL, ADMIN_PASSWORD);
+      cachedSession = (async () => {
+        const stored = JSON.parse(readFileSync(ADMIN_STORAGE_STATE_PATH, "utf-8"));
+        const sessionCookie = stored.cookies?.find((c: any) => c.name === "_session");
+        const frontendOrigin = stored.origins?.find((o: any) => o.origin === FRONTEND_BASE);
+        const csrfToken = frontendOrigin?.localStorage?.find((item: any) => item.name === "csrf_token")?.value;
+        if (!sessionCookie || !csrfToken) {
+          throw new Error(`Missing session cookie or csrf_token in ${ADMIN_STORAGE_STATE_PATH}`);
+        }
+        return { cookieString: `${sessionCookie.name}=${sessionCookie.value}`, csrfToken };
+      })();
     }
     return cachedSession;
   }
@@ -171,7 +187,7 @@ test.describe("Admin Authentication", () => {
   test.describe("POST /api/auth/mfa", () => {
     test("should complete login with valid TOTP code", async ({ request }) => {
       // Retries against a same-window replay collision on the shared admin secret (#338).
-      test.setTimeout(240_000);
+      test.setTimeout(360_000);
 
       // Step 1: Initial login
       const loginResponse = await request.post(`${API_BASE}/auth/login`, {
@@ -289,7 +305,7 @@ test.describe("Admin Authentication", () => {
     test("should return admin profile with valid session", async ({
       request,
     }) => {
-      const { cookieString } = await loginCached(request);
+      const { cookieString } = await loginCached();
 
       const profileResponse = await request.get(`${API_BASE}/auth/profile`, {
         headers: { cookie: cookieString },
@@ -347,7 +363,7 @@ test.describe("Admin Authentication", () => {
     test("should allow authenticated access to GET /api/admin/members", async ({
       request,
     }) => {
-      const { cookieString } = await loginCached(request);
+      const { cookieString } = await loginCached();
 
       const response = await request.get(`${API_BASE}/admin/members`, {
         headers: { cookie: cookieString },
@@ -404,7 +420,7 @@ test.describe("Admin Authentication", () => {
     test("should maintain session across multiple requests", async ({
       request,
     }) => {
-      const { cookieString } = await loginCached(request);
+      const { cookieString } = await loginCached();
 
       // Make multiple requests with same session
       const profile1 = await request.get(`${API_BASE}/auth/profile`, {

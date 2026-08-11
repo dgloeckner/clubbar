@@ -7,7 +7,7 @@ const API_BASE = 'http://localhost:8080/api';
 test.describe('CSRF Protection', () => {
   test('POST to admin endpoint without CSRF token returns 403', async ({ playwright }) => {
     // Retries against a same-window replay collision on the shared admin secret (#338).
-    test.setTimeout(240_000)
+    test.setTimeout(360_000)
     // Login fresh to get session, completing TOTP MFA to obtain a fully-authenticated session
     const freshRequest = await playwright.request.newContext({
       baseURL: API_BASE,

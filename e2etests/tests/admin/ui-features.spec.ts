@@ -33,7 +33,7 @@ test.describe('User Badge & Logout', () => {
 
   test('should perform logout and redirect to login', async ({ page }) => {
     // Retries against a same-window replay collision on the shared admin secret (#338).
-    test.setTimeout(240_000)
+    test.setTimeout(360_000)
 
     // Navigate first so localStorage is accessible, then clear auth state
     await page.goto('/dashboard')
@@ -52,7 +52,7 @@ test.describe('User Badge & Logout', () => {
     // (#338) even though it isn't a real attack — retry with a fresh one. Waits
     // past the next window boundary plus random jitter so that several callers
     // who collided in the same window don't retry into the next one together.
-    const MAX_MFA_ATTEMPTS = 4
+    const MAX_MFA_ATTEMPTS = 6
     await expect(page.locator('[data-testid="mfa-code-input"]')).toBeVisible({ timeout: 5000 })
     for (let attempt = 1; attempt <= MAX_MFA_ATTEMPTS; attempt++) {
       await page.locator('[data-testid="mfa-code-input"]').fill(generateTotp(TEST_CREDENTIALS.totp.adminSecret))

@@ -1,6 +1,7 @@
 import { test as base, APIRequestContext } from "@playwright/test";
+import { readFileSync } from "fs";
+import path from "path";
 import { TEST_CREDENTIALS } from "../config/test-credentials";
-import { generateTotp, submitTotpWithRetry } from "../utils/totp";
 import {
   createTestMember,
   createSyncTransaction,
@@ -14,6 +15,9 @@ import { MainLayoutPage } from "../pages/MainLayoutPage";
 import { ProductsPage } from "../pages/ProductsPage";
 
 const API_BASE = "http://localhost:8080/api";
+// Same paths auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
+const FRONTEND_BASE = "http://localhost:5173";
+const ADMIN_STORAGE_STATE_PATH = path.join("playwright", ".auth", "admin.json");
 
 /**
  * Authenticated Request Fixtures
@@ -87,12 +91,12 @@ interface AuthFixtures {
 
 interface AuthWorkerFixtures {
   /**
-   * Worker-scoped (#338): logging in as the shared seeded admin performs a
-   * real TOTP MFA exchange, and TOTP replay protection means two of those
-   * landing in the same 30-second window would otherwise fail one of them —
-   * a near certainty if this logged in fresh for every one of the hundreds
-   * of tests that use it. Authenticating once per worker instead of once per
-   * test avoids that entirely and is also just faster.
+   * Worker-scoped (#338): reuses the ONE session "setup auth" (auth.setup.ts)
+   * already established, instead of performing an independent password+MFA
+   * login. Logging in as the shared seeded admin is a real TOTP exchange, and
+   * TOTP replay protection means two of those landing in the same 30-second
+   * window fail one of them — a near certainty if this logged in fresh for
+   * every one of the hundreds of tests that use it, or even once per worker.
    */
   authenticatedRequest: APIRequestContext & {
     cookieString: string;
@@ -100,7 +104,13 @@ interface AuthWorkerFixtures {
 }
 
 /**
- * Wrapper that adds session cookies to all requests (for admin API)
+ * Wrapper that adds session cookies to all requests (for admin API).
+ *
+ * `cookieString` is optional: when the underlying `request` context was
+ * created with `storageState` (see the `authenticatedRequest` fixture), its
+ * own cookie jar already attaches the session cookie to every request, and
+ * passing an empty `cookie` header here would fight it — so an empty
+ * `cookieString` means "let the context's jar handle it."
  */
 class AuthenticatedRequestContext {
   constructor(
@@ -109,12 +119,16 @@ class AuthenticatedRequestContext {
     private csrfToken: string = ''
   ) {}
 
+  private cookieHeader() {
+    return this.cookieString ? { cookie: this.cookieString } : {};
+  }
+
   get = (url: string, options?: any) =>
     this.request.get(url, {
       ...options,
       headers: {
         ...options?.headers,
-        cookie: this.cookieString,
+        ...this.cookieHeader(),
       },
     });
 
@@ -123,7 +137,7 @@ class AuthenticatedRequestContext {
       ...options,
       headers: {
         ...options?.headers,
-        cookie: this.cookieString,
+        ...this.cookieHeader(),
         'X-CSRF-Token': this.csrfToken,
       },
     });
@@ -133,7 +147,7 @@ class AuthenticatedRequestContext {
       ...options,
       headers: {
         ...options?.headers,
-        cookie: this.cookieString,
+        ...this.cookieHeader(),
         'X-CSRF-Token': this.csrfToken,
       },
     });
@@ -143,7 +157,7 @@ class AuthenticatedRequestContext {
       ...options,
       headers: {
         ...options?.headers,
-        cookie: this.cookieString,
+        ...this.cookieHeader(),
         'X-CSRF-Token': this.csrfToken,
       },
     });
@@ -153,7 +167,7 @@ class AuthenticatedRequestContext {
       ...options,
       headers: {
         ...options?.headers,
-        cookie: this.cookieString,
+        ...this.cookieHeader(),
         'X-CSRF-Token': this.csrfToken,
       },
     });
@@ -163,7 +177,7 @@ class AuthenticatedRequestContext {
       ...options,
       headers: {
         ...options?.headers,
-        cookie: this.cookieString,
+        ...this.cookieHeader(),
       },
     });
 }
@@ -234,127 +248,38 @@ class TerminalRequestContext {
 
 export const test = base.extend<AuthFixtures, AuthWorkerFixtures>({
   authenticatedRequest: [async ({ playwright }, use) => {
-    // Create a fresh request context without storageState to avoid
-    // sending existing session cookies that prevent Set-Cookie from being returned
+    // Reuse the ONE session the "setup auth" project (auth.setup.ts) already
+    // established for the whole run, instead of performing an independent
+    // password+MFA login per worker (#338). Logging in as the shared seeded
+    // admin is a real TOTP exchange, and replay protection correctly refuses
+    // two of those landing in the same 30-second window — a near-certainty
+    // if every worker, let alone every one of the hundreds of tests that use
+    // this fixture, did its own. "api-tests" depends on "setup auth" (see
+    // playwright.config.ts) precisely so this file always exists first.
+    const stored = JSON.parse(readFileSync(ADMIN_STORAGE_STATE_PATH, 'utf-8'));
+
+    const frontendOrigin = stored.origins?.find((o: any) => o.origin === FRONTEND_BASE);
+    const csrfToken = frontendOrigin?.localStorage?.find((item: any) => item.name === 'csrf_token')?.value;
+    if (!csrfToken) {
+      throw new Error(
+        `No csrf_token found in ${ADMIN_STORAGE_STATE_PATH} for origin ${FRONTEND_BASE}. ` +
+        `Did the "setup auth" project run first? It must run before "api-tests" (see playwright.config.ts dependencies).`
+      );
+    }
+
     const freshRequest = await playwright.request.newContext({
       baseURL: API_BASE,
-      storageState: { cookies: [], origins: [] },
+      storageState: ADMIN_STORAGE_STATE_PATH,
     });
 
-    // Login and get session cookie
-    const loginResponse = await freshRequest.post(`${API_BASE}/auth/login`, {
-      data: {
-        email: TEST_CREDENTIALS.admin.email,
-        password: TEST_CREDENTIALS.admin.password,
-      },
-    });
+    // The session cookie travels via freshRequest's own storageState-loaded
+    // cookie jar; only the CSRF token needs to be attached manually.
+    const authenticatedRequest = new AuthenticatedRequestContext(freshRequest, '', csrfToken) as any;
+    authenticatedRequest.cookieString = '';
 
-    // Verify login succeeded (200 is expected for all outcomes: success, requiresMfa, requiresTotpSetup)
-    if (!loginResponse.ok()) {
-      const errorBody = await loginResponse.text();
-      throw new Error(`Admin login failed with status ${loginResponse.status()}: ${errorBody}`);
-    }
-
-    // Extract session cookie from Set-Cookie header (present on login response regardless of TOTP state)
-    const setCookieHeader = loginResponse.headers()["set-cookie"];
-    let fullCookieString = Array.isArray(setCookieHeader)
-      ? setCookieHeader[0]
-      : setCookieHeader || "";
-
-    // Extract just the name=value part (remove expires, path, httponly, etc.)
-    let cookieString = fullCookieString.split(";")[0];
-
-    const loginData = await loginResponse.json();
-    let csrfToken = loginData.csrf_token || '';
-
-    // Handle TOTP MFA: user is enrolled and verification is required
-    if (loginData.requiresMfa) {
-      const mfaResponse = await submitTotpWithRetry(TEST_CREDENTIALS.totp.adminSecret, (code) =>
-        freshRequest.post(`${API_BASE}/auth/mfa`, {
-          data: { code },
-          headers: { cookie: cookieString },
-        })
-      );
-
-      if (!mfaResponse.ok()) {
-        const errorBody = await mfaResponse.text();
-        throw new Error(`TOTP MFA verification failed with status ${mfaResponse.status()}: ${errorBody}`);
-      }
-
-      // Session is regenerated after successful MFA — capture the new cookie
-      const mfaSetCookie = mfaResponse.headers()["set-cookie"];
-      if (mfaSetCookie) {
-        const newCookie = (Array.isArray(mfaSetCookie) ? mfaSetCookie[0] : mfaSetCookie).split(';')[0];
-        if (newCookie) cookieString = newCookie;
-      }
-
-      const mfaData = await mfaResponse.json();
-      csrfToken = mfaData.csrf_token || '';
-    }
-
-    // Handle TOTP setup required: user is not yet enrolled
-    if (loginData.requiresTotpSetup) {
-      const setupResponse = await freshRequest.post(`${API_BASE}/auth/2fa/setup`, {
-        headers: { cookie: cookieString, 'X-CSRF-Token': loginData.csrf_token || '' },
-      });
-
-      if (!setupResponse.ok()) {
-        const errorBody = await setupResponse.text();
-        throw new Error(`TOTP setup failed with status ${setupResponse.status()}: ${errorBody}`);
-      }
-
-      const setupData = await setupResponse.json();
-      const code = generateTotp(setupData.secret);
-
-      const confirmResponse = await freshRequest.post(`${API_BASE}/auth/2fa/confirm`, {
-        data: { code },
-        headers: { cookie: cookieString, 'X-CSRF-Token': loginData.csrf_token || '' },
-      });
-
-      if (!confirmResponse.ok()) {
-        const errorBody = await confirmResponse.text();
-        throw new Error(`TOTP confirm failed with status ${confirmResponse.status()}: ${errorBody}`);
-      }
-
-      // Session is now fully authenticated; CSRF token was issued at login
-      csrfToken = loginData.csrf_token || '';
-    }
-
-    if (!cookieString) {
-      // Fallback: try headersArray() which preserves duplicate headers
-      const headersArray = loginResponse.headersArray();
-      const setCookieFromArray = headersArray.find(h => h.name.toLowerCase() === 'set-cookie');
-      if (setCookieFromArray) {
-        const fallbackCookie = setCookieFromArray.value.split(';')[0];
-        if (fallbackCookie) {
-          const authenticatedRequest = new AuthenticatedRequestContext(
-            freshRequest,
-            fallbackCookie,
-            csrfToken
-          ) as any;
-          authenticatedRequest.cookieString = fallbackCookie;
-          await use(authenticatedRequest);
-          await freshRequest.dispose();
-          return;
-        }
-      }
-      throw new Error('No session cookie received from login response');
-    }
-
-    // Create authenticated request wrapper
-    const authenticatedRequest = new AuthenticatedRequestContext(
-      freshRequest,
-      cookieString,
-      csrfToken
-    ) as any;
-    authenticatedRequest.cookieString = cookieString;
-
-    // Provide the authenticated request to the test
     await use(authenticatedRequest);
-
-    // Cleanup
     await freshRequest.dispose();
-  }, { scope: 'worker', timeout: 240_000 }],
+  }, { scope: 'worker' }],
 
   authenticatedTerminalRequest: async ({ request }, use) => {
     // Create terminal request wrapper with bearer token

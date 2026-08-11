@@ -131,10 +131,10 @@ export class LoginPage extends BasePage {
    * before retrying, plus random jitter so that several callers who collided
    * in the same window don't all retry into the next one together and
    * collide again. Callers must raise the test timeout well past
-   * `maxAttempts * 60s` (e.g. `test.setTimeout(240_000)`) to comfortably fit
+   * `maxAttempts * 60s` (e.g. `test.setTimeout(360_000)`) to comfortably fit
    * the worst case.
    */
-  async submitMfaCodeWithRetry(secret: string, maxAttempts = 4) {
+  async submitMfaCodeWithRetry(secret: string, maxAttempts = 6) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       await this.submitMfaCode(generateTotp(secret))
 

@@ -12,10 +12,15 @@
 
 import { test } from '@playwright/test'
 import type { Page, APIRequestContext, Playwright } from '@playwright/test'
+import { readFileSync } from 'fs'
+import path from 'path'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
 import { generateTotp, submitTotpWithRetry } from './totp'
 
 const API_BASE = 'http://localhost:8080/api'
+const FRONTEND_BASE = 'http://localhost:5173'
+// Same path auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
+const ADMIN_STORAGE_STATE_PATH = path.join('playwright', '.auth', 'admin.json')
 
 /**
  * Get headers object with the CSRF token for use with page.request mutations.
@@ -97,6 +102,26 @@ export async function loginAs(
   password: string,
   totpSecret?: string,
 ): Promise<CsrfAwareContext> {
+  // Fast path: the shared seeded admin, no secret override — reuse the ONE
+  // session "setup auth" (auth.setup.ts) already established instead of
+  // performing another real password+MFA login. That secret is shared by
+  // many callers; racing them against TOTP replay protection for no reason
+  // is how #338 turns benign concurrent test logins into 401s (or, worse,
+  // into login-rate-limiter lockouts once a replay is rejected enough times).
+  if (email === TEST_CREDENTIALS.admin.email && password === TEST_CREDENTIALS.admin.password && !totpSecret) {
+    const stored = JSON.parse(readFileSync(ADMIN_STORAGE_STATE_PATH, 'utf-8'))
+    const frontendOrigin = stored.origins?.find((o: any) => o.origin === FRONTEND_BASE)
+    const csrfToken = frontendOrigin?.localStorage?.find((item: any) => item.name === 'csrf_token')?.value
+    if (!csrfToken) {
+      throw new Error(
+        `No csrf_token found in ${ADMIN_STORAGE_STATE_PATH} for origin ${FRONTEND_BASE}. ` +
+        `Did the "setup auth" project run first?`
+      )
+    }
+    const ctx = await playwright.request.newContext({ baseURL: API_BASE, storageState: ADMIN_STORAGE_STATE_PATH })
+    return new CsrfAwareContext(ctx, csrfToken)
+  }
+
   // baseURL so helpers that address the API with a relative path (the settlement
   // factory, for one) work against this context exactly as they do against the
   // authenticatedRequest fixture. Absolute URLs are unaffected.
@@ -121,7 +146,7 @@ export async function loginAs(
     // Retries on a rejected code (submitTotpWithRetry) — mainly relevant when
     // `secret` is the shared seeded admin's, where a concurrent login can land
     // in the same 30-second window and collide with replay protection (#338).
-    test.setTimeout(240_000)
+    test.setTimeout(360_000)
     const mfaResponse = await submitTotpWithRetry(secret, (code) =>
       ctx.post(`${API_BASE}/auth/mfa`, { data: { code } })
     )

@@ -109,7 +109,7 @@ export function generateTotp(secret: string, timeOffsetSeconds = 0): string {
 export async function submitTotpWithRetry(
   secret: string,
   submit: (code: string) => Promise<APIResponse>,
-  maxAttempts = 4,
+  maxAttempts = 6,
 ): Promise<APIResponse> {
   let response: APIResponse
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {

@@ -53,6 +53,11 @@ export default defineConfig({
       //   npm test -- tests/api/terminal-rate-limit.spec.ts --workers=1
       //   npm test -- tests/api/auth-rate-limit.spec.ts --workers=1
       testIgnore: /(terminal-rate-limit|auth-rate-limit)\.spec\.ts/,
+      // The authenticatedRequest fixture (fixtures/auth.fixture.ts) reuses the
+      // session "setup auth" writes to playwright/.auth/admin.json rather than
+      // logging in itself (#338 — avoids racing TOTP replay protection against
+      // the shared seeded admin's secret), so that file must exist first.
+      dependencies: ['setup auth'],
       use: {
         // No browser needed for API tests
       },
