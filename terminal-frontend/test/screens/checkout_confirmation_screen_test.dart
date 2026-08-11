@@ -398,11 +398,11 @@ void main() {
       // Nothing red: red is this app's danger colour (semanticDanger).
       final style = tester.widget<ElevatedButton>(done).style!;
       final background = style.backgroundColor!.resolve({});
-      expect(background, isNot(hexToColor(AppColors.semanticDanger)));
+      expect(background, isNot(AppColors.semanticDanger));
       // The blue one step darker than semanticPrimary — a filled button
       // carrying white text needs it to clear WCAG AA (#41). Still blue, so
       // #25's point (nothing on this screen reads as "cancel") holds.
-      expect(background, hexToColor(AppColors.semanticPrimaryStrong));
+      expect(background, AppColors.semanticPrimaryStrong);
 
       await tester.tap(done);
       await tester.pumpAndSettle();

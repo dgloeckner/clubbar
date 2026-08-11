@@ -25,7 +25,7 @@ class ErrorBanner extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final danger = hexToColor(AppColors.semanticDanger);
+    final danger = AppColors.semanticDanger;
 
     return Container(
       width: double.infinity,
@@ -52,14 +52,14 @@ class ErrorBanner extends StatelessWidget {
             child: Text(
               message!,
               style: TextStyle(
-                color: hexToColor(AppColors.textPrimary),
+                color: AppColors.textPrimary,
                 fontSize: AppFontSizes.base,
               ),
             ),
           ),
           if (onDismiss != null)
             IconButton(
-              icon: Icon(Icons.close, color: hexToColor(AppColors.textPrimary)),
+              icon: Icon(Icons.close, color: AppColors.textPrimary),
               onPressed: onDismiss,
             ),
         ],

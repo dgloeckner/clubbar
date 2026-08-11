@@ -39,7 +39,7 @@ class PriceDisplay extends StatelessWidget {
         text,
         textAlign: fullWidth ? TextAlign.center : TextAlign.left,
         style: TextStyle(
-          color: hexToColor(AppColors.semanticInfo),  // Cyan
+          color: AppColors.semanticInfo,  // Cyan
           fontSize: _getFontSize(),
           fontWeight: FontWeight.w700,
         ),

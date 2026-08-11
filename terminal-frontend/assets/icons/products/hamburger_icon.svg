@@ -1,4 +1,4 @@
-<svg viewBox="0 0 48 48">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
   <!-- bun bottom -->
   <path d="M7,42Q7,46 24,46Q41,46 41,42L41,38L7,38Z" fill="#FDE68A" stroke="#92400E" stroke-width="2.5" stroke-linejoin="round"/>
   <!-- lettuce -->

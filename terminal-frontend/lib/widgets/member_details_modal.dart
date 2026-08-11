@@ -138,7 +138,8 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       height: screenHeight * 0.75,
       child: Container(
         decoration: const BoxDecoration(
-            color: Color(0xff1e293b),
+            // Was #1e293b — off-token surface next to bgCard #1a2744 (#302).
+            color: AppColors.bgCard,
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(16),
               topRight: Radius.circular(16),
@@ -152,7 +153,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: const Color(0xff475569).withValues(alpha: 0.3),
+                      color: AppColors.borderMuted.withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -181,12 +182,14 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    // Avatar
+                    // Avatar — gradient keyed off the member id so the same
+                    // member always gets the same colours everywhere their
+                    // avatar appears (#302).
                     Container(
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: const Color(0xffFF6B4A),
+                        gradient: avatarGradientFor(member.id),
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: Center(
@@ -236,7 +239,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                     Text(
                       l10n.preferredLanguage,
                       style: TextStyle(
-                        color: const Color(0xffa1a1aa),
+                        color: AppColors.textSecondary,
                         fontSize: AppFontSizes.base,
                         fontWeight: FontWeight.w500,
                       ),
@@ -264,7 +267,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                     Text(
                       l10n.recentTransactions,
                       style: TextStyle(
-                        color: const Color(0xffa1a1aa),
+                        color: AppColors.textSecondary,
                         fontSize: AppFontSizes.base,
                         fontWeight: FontWeight.w500,
                       ),
@@ -275,7 +278,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(Color(0xff3b82f6)),
+                          valueColor: AlwaysStoppedAnimation(AppColors.semanticPrimary),
                         ),
                       ),
                   ],
@@ -301,13 +304,13 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation(Color(0xff3b82f6)),
+              valueColor: AlwaysStoppedAnimation(AppColors.semanticPrimary),
             ),
             const SizedBox(height: 12),
             Text(
               l10n.loadingTransactions,
               style: TextStyle(
-                color: const Color(0xffa1a1aa),
+                color: AppColors.textSecondary,
                 fontSize: AppFontSizes.base,
               ),
             ),
@@ -327,7 +330,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
             children: [
               const Icon(
                 Icons.error_outline,
-                color: Color(0xffef4444),
+                color: AppColors.semanticDanger,
                 size: 48,
               ),
               const SizedBox(height: 12),
@@ -343,22 +346,18 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
               Text(
                 _errorKey!.message(l10n),
                 style: TextStyle(
-                  color: const Color(0xffa1a1aa),
+                  color: AppColors.textSecondary,
                   fontSize: AppFontSizes.sm,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
+              // Strong blue/white/etc. now come from the app theme (#301) —
+              // this used to duplicate elevatedButtonTheme's defaults exactly.
               ElevatedButton.icon(
                 onPressed: _loadTransactions,
                 icon: const Icon(Icons.refresh),
                 label: Text(l10n.retry),
-                style: ElevatedButton.styleFrom(
-                  // Strong blue: white on #3b82f6 is 3.7:1 (#41).
-                  backgroundColor:
-                      hexToColor(AppColors.semanticPrimaryStrong),
-                  foregroundColor: Colors.white,
-                ),
               ),
             ],
           ),
@@ -396,7 +395,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 children: [
                   const Icon(
                     Icons.cloud_off,
-                    color: Color(0xff3b82f6),
+                    color: AppColors.semanticPrimary,
                     size: 48,
                   ),
                   const SizedBox(height: 12),
@@ -412,7 +411,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                   Text(
                     l10n.transactionHistoryUnavailableOffline,
                     style: TextStyle(
-                      color: const Color(0xffa1a1aa),
+                      color: AppColors.textSecondary,
                       fontSize: AppFontSizes.sm,
                     ),
                     textAlign: TextAlign.center,
@@ -430,7 +429,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         child: Text(
           l10n.noTransactions,
           style: TextStyle(
-            color: const Color(0xffa1a1aa),
+            color: AppColors.textSecondary,
             fontSize: AppFontSizes.base,
           ),
         ),
@@ -446,7 +445,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: _transactions.length,
       separatorBuilder: (context, index) => Divider(
-        color: const Color(0xff475569).withValues(alpha: 0.2),
+        color: AppColors.borderMuted.withValues(alpha: 0.2),
         height: 1,
       ),
       itemBuilder: (context, index) {
@@ -462,18 +461,18 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xff3b82f6).withValues(alpha: 0.12),
+        color: AppColors.semanticPrimary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          const Icon(Icons.cloud_off, color: Color(0xff3b82f6), size: 20),
+          const Icon(Icons.cloud_off, color: AppColors.semanticPrimary, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               l10n.offlineLocalTransactionsOnly,
               style: TextStyle(
-                color: const Color(0xffa1a1aa),
+                color: AppColors.textSecondary,
                 fontSize: AppFontSizes.sm,
               ),
             ),
@@ -493,7 +492,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xff334155),
+              color: AppColors.borderLight,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Center(
@@ -521,7 +520,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 Text(
                   _formatTransactionTimestamp(transaction.timestamp, locale),
                   style: TextStyle(
-                    color: const Color(0xffa1a1aa),
+                    color: AppColors.textSecondary,
                     fontSize: AppFontSizes.sm,
                   ),
                 ),
@@ -552,15 +551,15 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
     switch (status) {
       case TransactionSyncStatus.unsynced:
         icon = Icons.sync_disabled;
-        color = const Color(0xfff97316); // Orange
+        color = AppColors.semanticWarning; // Orange
         break;
       case TransactionSyncStatus.open:
         icon = Icons.circle_outlined;
-        color = const Color(0xff3b82f6); // Blue
+        color = AppColors.semanticPrimary; // Blue
         break;
       case TransactionSyncStatus.settled:
         icon = Icons.check_circle;
-        color = const Color(0xff22c55e); // Green
+        color = AppColors.semanticSuccess; // Green
         break;
     }
 
@@ -576,13 +575,13 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         decoration: BoxDecoration(
           // Strong blue: white on #3b82f6 is 3.7:1 (#41).
           color: isSelected
-              ? hexToColor(AppColors.semanticPrimaryStrong)
-              : const Color(0xff334155),
+              ? AppColors.semanticPrimaryStrong
+              : AppColors.borderLight,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
-                ? const Color(0xff60a5fa)
-                : const Color(0xff475569),
+                ? AppColors.semanticPrimaryLight
+                : AppColors.borderMuted,
             width: 1,
           ),
         ),
@@ -591,9 +590,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
           style: TextStyle(
             // #a1a1aa on #334155 was 4.0:1; this is a tappable language
             // label, so it needs to clear AA like any other text (#41).
-            color: isSelected
-                ? Colors.white
-                : hexToColor(AppColors.textPrimary),
+            color: isSelected ? Colors.white : AppColors.textPrimary,
             fontSize: AppFontSizes.base,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           ),

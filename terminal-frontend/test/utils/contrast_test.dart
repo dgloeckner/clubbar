@@ -1,4 +1,4 @@
-import 'dart:ui';
+import 'package:flutter/material.dart';
 
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,7 +55,7 @@ void main() {
   });
 
   group('text tokens clear AA on every background token', () {
-    const backgrounds = <String, String>{
+    const backgrounds = <String, Color>{
       'bgPrimary': AppColors.bgPrimary,
       'bgSecondary': AppColors.bgSecondary,
       'bgTertiary': AppColors.bgTertiary,
@@ -64,7 +64,7 @@ void main() {
       'bgHover': AppColors.bgHover,
     };
 
-    const textTokens = <String, String>{
+    const textTokens = <String, Color>{
       'textPrimary': AppColors.textPrimary,
       'textSecondary': AppColors.textSecondary,
       'textMuted': AppColors.textMuted,
@@ -73,8 +73,7 @@ void main() {
     for (final text in textTokens.entries) {
       for (final bg in backgrounds.entries) {
         test('${text.key} on ${bg.key}', () {
-          _expectText(_c(text.value), _c(bg.value),
-              why: '${text.key} on ${bg.key}');
+          _expectText(text.value, bg.value, why: '${text.key} on ${bg.key}');
         });
       }
     }
@@ -85,23 +84,22 @@ void main() {
       // The old #64748b was 3.8:1 on bgPrimary and 3.1:1 on bgCard. The token
       // is now safe by construction, so a future call site cannot reintroduce
       // the bug simply by picking the "muted" name.
-      _expectText(_c(AppColors.textMuted), _c(AppColors.bgCard),
+      _expectText(AppColors.textMuted, AppColors.bgCard,
           why: 'textMuted on bgCard');
     });
 
     test('textMuted is still visibly quieter than textSecondary', () {
       // Fixing contrast by collapsing the scale would be its own regression:
       // the hierarchy has to survive.
-      final muted =
-          contrastRatio(_c(AppColors.textMuted), _c(AppColors.bgPrimary));
+      final muted = contrastRatio(AppColors.textMuted, AppColors.bgPrimary);
       final secondary =
-          contrastRatio(_c(AppColors.textSecondary), _c(AppColors.bgPrimary));
+          contrastRatio(AppColors.textSecondary, AppColors.bgPrimary);
       expect(muted, lessThan(secondary),
           reason: 'textMuted should read quieter than textSecondary');
     });
 
     test('the header clock uses a token that clears AA on the header', () {
-      _expectText(_c(AppColors.textSecondary), _c(AppColors.bgSecondary),
+      _expectText(AppColors.textSecondary, AppColors.bgSecondary,
           why: 'header clock on the header bar');
     });
 
@@ -117,13 +115,13 @@ void main() {
       // `widgets/clubbar_header_test.dart`. This is only about the tokens.
       for (final alpha in [0.15, 0.25]) {
         final fill = _over(
-          _c(AppColors.semanticDanger).withValues(alpha: alpha),
-          _c(AppColors.bgSecondary),
+          AppColors.semanticDanger.withValues(alpha: alpha),
+          AppColors.bgSecondary,
         );
-        _expectText(_c(AppColors.dangerOnTint), fill,
+        _expectText(AppColors.dangerOnTint, fill,
             why: 'dangerOnTint on a ${alpha * 100}% red fill');
         expect(
-          contrastRatio(_c(AppColors.semanticDanger), fill),
+          contrastRatio(AppColors.semanticDanger, fill),
           lessThan(kTextContrastFloor),
           reason: 'semanticDanger on its own ${alpha * 100}% tint is why '
               'dangerOnTint exists — if this ever passes, the token can go',
@@ -133,25 +131,25 @@ void main() {
 
     test('the cart quantity glyphs read as glyphs, not coloured squares', () {
       // 44×44 buttons whose '−'/'+' were 2.7:1 and 3.1:1 on their fills.
-      const minusFill = '#7f1d1d';
-      const plusFill = '#166534';
-      _expectGlyph(_c('#ffffff'), _c(minusFill), why: 'cart − glyph');
-      _expectGlyph(_c('#ffffff'), _c(plusFill), why: 'cart + glyph');
+      _expectGlyph(Colors.white, AppColors.cartRemoveFill,
+          why: 'cart − glyph');
+      _expectGlyph(Colors.white, AppColors.cartAddFill, why: 'cart + glyph');
 
       // They are text nodes, so hold them to the text floor too — white
       // clears it on both fills with room to spare.
-      _expectText(_c('#ffffff'), _c(minusFill), why: 'cart − glyph');
-      _expectText(_c('#ffffff'), _c(plusFill), why: 'cart + glyph');
+      _expectText(Colors.white, AppColors.cartRemoveFill,
+          why: 'cart − glyph');
+      _expectText(Colors.white, AppColors.cartAddFill, why: 'cart + glyph');
     });
 
     test('white text sits on semanticPrimaryStrong, never semanticPrimary',
         () {
-      _expectText(_c('#ffffff'), _c(AppColors.semanticPrimaryStrong),
+      _expectText(Colors.white, AppColors.semanticPrimaryStrong,
           why: 'white on the strong primary fill');
       // The reason the extra token exists. If plain semanticPrimary ever
       // clears AA with white, collapse the two.
       expect(
-        contrastRatio(_c('#ffffff'), _c(AppColors.semanticPrimary)),
+        contrastRatio(Colors.white, AppColors.semanticPrimary),
         lessThan(4.5),
         reason: 'semanticPrimary is an accent, not a fill for white text',
       );
@@ -159,8 +157,8 @@ void main() {
 
     test('semanticPrimaryStrong is still recognisably the primary blue', () {
       // Guards against "fix" by desaturating into a different colour.
-      final strong = _c(AppColors.semanticPrimaryStrong);
-      final primary = _c(AppColors.semanticPrimary);
+      final strong = AppColors.semanticPrimaryStrong;
+      final primary = AppColors.semanticPrimary;
       expect(strong.b, greaterThan(strong.r),
           reason: 'should still be blue-dominant');
       expect((strong.b - primary.b).abs(), lessThan(0.2),
@@ -169,14 +167,14 @@ void main() {
 
     test('accent colours used as text clear AA on the app background', () {
       // These carry meaning as text (prices, warnings, balances).
-      const accents = <String, String>{
+      const accents = <String, Color>{
         'semanticSuccess': AppColors.semanticSuccess,
         'semanticWarning': AppColors.semanticWarning,
         'semanticInfo': AppColors.semanticInfo,
         'semanticDanger': AppColors.semanticDanger,
       };
       for (final entry in accents.entries) {
-        _expectText(_c(entry.value), _c(AppColors.bgPrimary),
+        _expectText(entry.value, AppColors.bgPrimary,
             why: '${entry.key} as text on bgPrimary');
       }
     });
@@ -216,11 +214,20 @@ void main() {
     test('a deployment can still override the defaults', () {
       // Raising the shipped default must not cost anyone the escape hatch —
       // a club on a larger panel may well want to go back down.
-      AppFontSizes.applyConfig(const {'base': 14, 'xxxl': 30});
+      AppFontSizes.applyConfig(const {'base': 14, 'xxxl': 30, 'display': 64});
       expect(AppFontSizes.base, 14.0);
       expect(AppFontSizes.xxxl, 30.0);
+      expect(AppFontSizes.display, 64.0);
       // Untouched keys keep the shipped default.
       expect(AppFontSizes.lg, 18.0);
+    });
+
+    test('the idle headline defaults to 55 and can still be tuned (#303)', () {
+      expect(AppFontSizes.display, 55.0);
+      AppFontSizes.applyConfig(const {'display': 70});
+      expect(AppFontSizes.display, 70.0);
+      // Untouched keys keep the shipped default.
+      expect(AppFontSizes.xxxl, 26.0);
     });
   });
 }
@@ -235,6 +242,7 @@ void _resetFontSizes() {
   AppFontSizes.xl = 20.0;
   AppFontSizes.xxl = 22.0;
   AppFontSizes.xxxl = 26.0;
+  AppFontSizes.display = 55.0;
 }
 
 Color _c(String hex) => hexToColor(hex);

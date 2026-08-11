@@ -914,7 +914,7 @@ export function MembersPage() {
               width: '100%',
               padding: '8px 12px 8px 32px',
               borderRadius: '7px',
-              border: '1px solid rgba(255,255,255,0.08)',
+              border: `1px solid ${theme.colors.border.subtle}`,
               background: 'rgba(255,255,255,0.04)',
               color: tableColors.cellText,
               fontSize: '13px',
@@ -924,14 +924,14 @@ export function MembersPage() {
         </div>
 
         {/* Divider */}
-        <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.08)' }} />
+        <div style={{ width: '1px', height: '28px', background: theme.colors.border.subtle }} />
 
         {/* Status filter group */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span
             style={{
               fontSize: '12px',
-              color: 'rgba(255,255,255,0.35)',
+              color: theme.colors.text.label,
               marginRight: '4px',
               fontWeight: 500,
               textTransform: 'uppercase',
@@ -1003,14 +1003,14 @@ export function MembersPage() {
         </div>
 
         {/* Divider */}
-        <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.08)' }} />
+        <div style={{ width: '1px', height: '28px', background: theme.colors.border.subtle }} />
 
         {/* Card filter group */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span
             style={{
               fontSize: '12px',
-              color: 'rgba(255,255,255,0.35)',
+              color: theme.colors.text.label,
               marginRight: '4px',
               fontWeight: 500,
               textTransform: 'uppercase',
@@ -1079,14 +1079,14 @@ export function MembersPage() {
         </div>
 
         {/* Divider */}
-        <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.08)' }} />
+        <div style={{ width: '1px', height: '28px', background: theme.colors.border.subtle }} />
 
         {/* SEPA filter group */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span
             style={{
               fontSize: '12px',
-              color: 'rgba(255,255,255,0.35)',
+              color: theme.colors.text.label,
               marginRight: '4px',
               fontWeight: 500,
               textTransform: 'uppercase',
@@ -1167,7 +1167,7 @@ export function MembersPage() {
               style={{
                 padding: '6px 12px',
                 borderRadius: '6px',
-                border: '1px solid rgba(255,255,255,0.08)',
+                border: `1px solid ${theme.colors.border.subtle}`,
                 background: 'transparent',
                 color: 'rgba(255,255,255,0.45)',
                 fontSize: '12px',

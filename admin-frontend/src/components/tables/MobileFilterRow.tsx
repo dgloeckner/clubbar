@@ -33,7 +33,7 @@ export function MobileFilterRow({ label, options, value, onChange, testId }: Mob
       <span
         style={{
           fontSize: '12px',
-          color: 'rgba(255,255,255,0.35)',
+          color: theme.colors.text.label,
           fontWeight: 500,
           textTransform: 'uppercase',
           minWidth: '50px',

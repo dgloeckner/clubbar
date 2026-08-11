@@ -74,8 +74,11 @@
       // Beverages - Beer
       case 'beer-pils':
         return 'assets/icons/products/pils_icon.svg';
+      // Both Weizen names share one asset (#300): the old weizen_icon.svg
+      // was the muddiest tile in the set and visibly receded next to Pils
+      // and Radler; two variants for one product also bloated the registry.
       case 'beer-weizen':
-        return 'assets/icons/products/weizen_icon.svg';
+        return 'assets/icons/products/weizen_new_icon.svg';
       case 'beer-radler':
         return 'assets/icons/products/radler_icon.svg';
       case 'beer-alcohol-free':
@@ -166,7 +169,7 @@
       case 'PilsIcon':
         return 'assets/icons/products/pils_icon.svg';
       case 'WeizenIcon':
-        return 'assets/icons/products/weizen_icon.svg';
+        return 'assets/icons/products/weizen_new_icon.svg';
       case 'BeerAFIcon':
         return 'assets/icons/products/beerAF_icon.svg';
       case 'RadlerIcon':
@@ -242,7 +245,26 @@
   }
 
   /// Map backend category icon name to SVG asset path.
-  /// Categories use the same universal product icon set.
+  ///
+  /// Canonical `category-*` names (documented in docs/icon-registry.md)
+  /// resolve to the dedicated category assets first (#299) — a category chip
+  /// used to be able to wear only a product's icon, so e.g. Sauna wore a
+  /// "sauna token" coin that read as *coin*, not *sauna*. Anything else falls
+  /// through to the product icon set so existing product-icon-on-category
+  /// deployments keep working.
   String? _getCategoryIconPath(String? iconName) {
-    return _getProductIconPath(iconName);
+    switch (iconName) {
+      case 'category-folder':
+        return 'assets/icons/categories/category_folder_icon.svg';
+      case 'category-tags':
+        return 'assets/icons/categories/category_tags_icon.svg';
+      case 'category-layers':
+        return 'assets/icons/categories/category_layers_icon.svg';
+      case 'category-list':
+        return 'assets/icons/categories/category_list_icon.svg';
+      case 'category-generic':
+        return 'assets/icons/categories/category_icon.svg';
+      default:
+        return _getProductIconPath(iconName);
+    }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:clubbar_terminal/app/terminal_theme.dart';
 import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/config/app_router.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
@@ -57,13 +58,7 @@ class _TerminalMaterialAppState extends State<TerminalMaterialApp> {
     return MaterialApp.router(
       title: AppConfig.appName,
       scrollBehavior: widget.scrollBehavior,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF3B82F6),
-          brightness: Brightness.dark,
-        ),
-      ),
+      theme: buildTerminalTheme(),
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

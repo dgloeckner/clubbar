@@ -212,8 +212,8 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                   ? Icons.warning_amber_rounded
                   : Icons.check_circle,
               iconColor: data.isPartial
-                  ? hexToColor(AppColors.semanticWarning)
-                  : hexToColor(AppColors.semanticSuccess),
+                  ? AppColors.semanticWarning
+                  : AppColors.semanticSuccess,
               title: data.isPartial
                   ? l10n.checkoutPartialSuccess(data.dispenserActual ?? 0)
                   : l10n.checkoutSuccess,
@@ -227,7 +227,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                   formatPrice(data.originalTotalCents!, locale),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: hexToColor(AppColors.semanticInfo),
+                    color: AppColors.semanticInfo,
                     fontSize: AppFontSizes.xl,
                     fontWeight: FontWeight.w700,
                     decoration: TextDecoration.lineThrough,
@@ -251,6 +251,9 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
             // Partial dispense: show confirm button; normal: countdown + actions
             if (data.isPartial) ...[
+              // Deliberately bare: this used to render default M3 seed
+              // colors matching nothing else in the app — the app theme
+              // now makes a bare button correct by construction (#301).
               ElevatedButton(
                 onPressed: _endSessionAndReturnToIdle,
                 child: Text(l10n.checkoutPartialConfirm),
@@ -259,7 +262,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
               Text(
                 l10n.redirectingIn(_secondsRemaining),
                 style: TextStyle(
-                  color: hexToColor(AppColors.textSecondary),
+                  color: AppColors.textSecondary,
                   fontSize: AppFontSizes.base,
                 ),
                 textAlign: TextAlign.center,
@@ -301,7 +304,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         // The booking itself did go through — lead with that.
         ..._receiptHeader(
           icon: Icons.check_circle,
-          iconColor: hexToColor(AppColors.semanticSuccess),
+          iconColor: AppColors.semanticSuccess,
           title: l10n.checkoutSuccess,
         ),
 
@@ -322,7 +325,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
           style: TextStyle(
             // Secondary, not muted: this explains why the receipt is thin, so
             // it is text the member has to be able to read (#41).
-            color: hexToColor(AppColors.textSecondary),
+            color: AppColors.textSecondary,
             fontSize: AppFontSizes.base,
           ),
           textAlign: TextAlign.center,
@@ -352,7 +355,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
       Text(
         title,
         style: TextStyle(
-          color: hexToColor(AppColors.textPrimary),
+          color: AppColors.textPrimary,
           fontSize: AppFontSizes.xxxl,
           fontWeight: FontWeight.w700,
         ),
@@ -362,7 +365,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
       Text(
         _memberName,
         style: TextStyle(
-          color: hexToColor(AppColors.textSecondary),
+          color: AppColors.textSecondary,
           fontSize: AppFontSizes.lg,
         ),
         textAlign: TextAlign.center,
@@ -417,9 +420,13 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   Widget _doneButton(AppLocalizations l10n) {
     return ElevatedButton(
       onPressed: _endSessionAndReturnToIdle,
+      // Background/foreground here match the app theme's elevatedButtonTheme
+      // (#301) exactly — kept local (rather than trimmed to just the size
+      // override below) because the test suite asserts this button's color
+      // directly against its own style, not the resolved theme.
       style: ElevatedButton.styleFrom(
         // Strong blue: white on #3b82f6 is 3.7:1 (#41).
-        backgroundColor: hexToColor(AppColors.semanticPrimaryStrong),
+        backgroundColor: AppColors.semanticPrimaryStrong,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 29, vertical: 17),
         textStyle: TextStyle(

@@ -42,6 +42,34 @@ void main() {
       expect(find.byType(SvgPicture), findsOneWidget);
       expect(find.byIcon(Icons.shopping_bag_outlined), findsNothing);
     });
+
+    // Issue #300: two Weizen variants bloated the registry, and the old
+    // weizen_icon.svg was the muddiest tile in the set. Both canonical
+    // Weizen names, and their legacy equivalents, now share one asset.
+    group('single Weizen asset (#300)', () {
+      String assetOf(WidgetTester tester) {
+        final svg = tester.widget<SvgPicture>(find.byType(SvgPicture));
+        return (svg.bytesLoader as SvgAssetLoader).assetName;
+      }
+
+      for (final name in [
+        'beer-weizen',
+        'beer-weizen-new',
+        'WeizenIcon',
+        'WeizenNewIcon',
+      ]) {
+        testWidgets('"$name" resolves to weizen_new_icon.svg', (
+          WidgetTester tester,
+        ) async {
+          await tester.pumpWidget(MaterialApp(home: getProductIcon(name)));
+
+          expect(
+            assetOf(tester),
+            'assets/icons/products/weizen_new_icon.svg',
+          );
+        });
+      }
+    });
   });
 
   group('getCategoryIcon', () {
@@ -63,6 +91,39 @@ void main() {
 
       expect(find.byType(SvgPicture), findsOneWidget);
       expect(find.byIcon(Icons.category), findsNothing);
+    });
+
+    // Issue #299: a category chip used to be able to wear only a product's
+    // icon (e.g. Sauna wore a "sauna token" coin), because the category
+    // lookup simply delegated to the product one with no dedicated set.
+    group('dedicated category icons (#299)', () {
+      for (final name in [
+        'category-folder',
+        'category-tags',
+        'category-layers',
+        'category-list',
+        'category-generic',
+      ]) {
+        testWidgets('"$name" resolves to a dedicated category asset', (
+          WidgetTester tester,
+        ) async {
+          await tester.pumpWidget(MaterialApp(home: getCategoryIcon(name)));
+
+          expect(find.byType(SvgPicture), findsOneWidget);
+          expect(find.byIcon(Icons.category), findsNothing);
+        });
+      }
+
+      testWidgets(
+          'a product-icon name set on a category still resolves (existing deployments)',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(
+          MaterialApp(home: getCategoryIcon('sauna-token')),
+        );
+
+        expect(find.byType(SvgPicture), findsOneWidget);
+        expect(find.byIcon(Icons.category), findsNothing);
+      });
     });
   });
 }

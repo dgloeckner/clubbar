@@ -293,7 +293,58 @@ SET GLOBAL slow_query_log_file = '/var/log/mysql/slow-query.log';
 
 ---
 
+## Automated Production Deployment
+
+The production site is deployed by the **Deploy to Production** workflow
+(`.github/workflows/deploy-production.yaml`), run manually from the Actions tab.
+
+**To deploy:** pick the workflow, click *Run workflow*, and fill in two fields —
+the release tag (or `latest`) and the production hostname as a confirmation. The
+run then waits for an approval on the `ionos-production` environment before it
+touches anything.
+
+What it does, in order:
+
+1. Validates the confirmation and resolves the tag, failing before any upload if
+   the release does not exist or does not carry exactly one package ZIP
+2. Downloads that ZIP **from the release** — the exact bytes CI smoke-tested,
+   not a rebuild
+3. Uploads three files over SFTP: `upgrade.php`, the ZIP, and a one-time secret
+4. Calls `upgrade.php?action=extract` to unpack it server-side
+5. Calls `upgrade.php` to run migrations; the script then deletes itself
+6. Deletes `install.php`, which every extract re-creates
+7. Asserts `/api/health` reports `status: ok` **and** the version equals the
+   deployed tag
+
+**Deploying an older tag fails.** `upgrade.php` compares the package version
+against the installed one and answers `409`, so a mistaken tag cannot silently
+roll the code back underneath a newer database schema. Recovery from a bad
+release is a restore, not a redeploy.
+
+**Back up the database first.** Shared hosting gives the workflow no shell, so
+no pre-migration dump is taken automatically. The run prints a reminder in its
+summary. If the release contains a migration that drops or alters a column, take
+a backup before approving it.
+
+**The upgrade secret is generated per run** and is not stored as a GitHub
+secret. Nothing on the server pre-shares it: the workflow uploads
+`.upgrade-secret`, and `upgrade.php` compares the request key against whatever
+that file holds. A successful run deletes both.
+
+**Nothing of the installation is overwritten.** `config.php`, `data-path.php`,
+`backend/storage/` and `backend/logs/` are excluded from extraction; everything
+else is replaced, and files the new package does not ship are swept away.
+
+> The integration site deploys automatically from `main` via the
+> `deploy-integration` job in `build.yaml`, using the same mechanism against a
+> separate SFTP account.
+
+---
+
 ## Upgrading
+
+> Manual steps, for a self-hosted installation. The project's own production
+> site uses the automated workflow above.
 
 1. Create a pre-upgrade backup (see above)
 2. Download the new release ZIP

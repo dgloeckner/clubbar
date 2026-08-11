@@ -37,7 +37,7 @@ class FailedSalesBanner extends StatelessWidget {
             horizontal: AppSpacing.lg,
             vertical: AppSpacing.md,
           ),
-          color: const Color(0xffb91c1c),
+          color: AppColors.dangerStrong,
           child: Row(
             children: [
               const Icon(Icons.warning_amber_rounded, color: Colors.white),
@@ -81,7 +81,7 @@ class _FailedSalesDialog extends StatelessWidget {
 
     return AlertDialog(
       key: const Key('failed-sales-dialog'),
-      backgroundColor: const Color(0xff1e293b),
+      backgroundColor: AppColors.borderDark,
       title: Text(
         l10n.failedSalesTitle,
         style: const TextStyle(color: Colors.white),
@@ -94,7 +94,7 @@ class _FailedSalesDialog extends StatelessWidget {
           children: [
             Text(
               l10n.failedSalesInstruction,
-              style: const TextStyle(color: Color(0xff94a3b8)),
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.lg),
             Flexible(
@@ -102,7 +102,7 @@ class _FailedSalesDialog extends StatelessWidget {
                 shrinkWrap: true,
                 itemCount: sales.length,
                 separatorBuilder: (_, _) =>
-                    const Divider(color: Color(0xff334155)),
+                    const Divider(color: AppColors.borderLight),
                 itemBuilder: (context, index) {
                   final sale = sales[index];
                   return ListTile(
@@ -113,7 +113,7 @@ class _FailedSalesDialog extends StatelessWidget {
                     ),
                     subtitle: Text(
                       formatDateTime(sale.occurredAt, locale),
-                      style: const TextStyle(color: Color(0xff94a3b8)),
+                      style: const TextStyle(color: AppColors.textSecondary),
                     ),
                     trailing: Text(
                       formatPrice(sale.amountCents, locale),

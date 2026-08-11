@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 class RfidDetectorButton extends StatefulWidget {
   final bool hasError;
@@ -30,10 +31,10 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
   late Animation<double> _opacityAnimation;
 
   // Colors from prototype
-  static const Color _blue = Color(0xff3b82f6);
-  static const Color _teal = Color(0xff14b8a6);
-  static const Color _red = Color(0xffef4444);
-  static const Color _slate = Color(0xff64748b);
+  static const Color _blue = AppColors.semanticPrimary;
+  static const Color _teal = AppColors.accentTeal;
+  static const Color _red = AppColors.semanticDanger;
+  static const Color _slate = AppColors.textDisabled;
 
   @override
   void initState() {

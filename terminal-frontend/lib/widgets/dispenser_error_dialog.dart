@@ -34,11 +34,11 @@ class DispenserErrorDialog extends StatelessWidget {
         : l10n.dispenserOfflineMessage;
 
     return AlertDialog(
-      backgroundColor: const Color(0xff1a2744),
+      backgroundColor: AppColors.bgCard,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppBorderRadius.lg),
         side: const BorderSide(
-          color: Color(0xff334155),
+          color: AppColors.borderLight,
           width: 1,
         ),
       ),
@@ -48,7 +48,7 @@ class DispenserErrorDialog extends StatelessWidget {
             errorType == DispenserErrorType.busy
                 ? Icons.hourglass_empty
                 : Icons.wifi_off,
-            color: const Color(0xfffbbf24),
+            color: AppColors.semanticWarningLight,
             size: 28,
           ),
           const SizedBox(width: AppSpacing.md),
@@ -56,7 +56,7 @@ class DispenserErrorDialog extends StatelessWidget {
             child: Text(
               title,
               style: TextStyle(
-                color: Color(0xfff1f5f9),
+                color: AppColors.textPrimary,
                 fontSize: AppFontSizes.xl,
                 fontWeight: FontWeight.w600,
               ),
@@ -71,7 +71,7 @@ class DispenserErrorDialog extends StatelessWidget {
           Text(
             message,
             style: TextStyle(
-              color: Color(0xff94a3b8),
+              color: AppColors.textSecondary,
               fontSize: AppFontSizes.lg,
             ),
           ),
@@ -79,10 +79,10 @@ class DispenserErrorDialog extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: const Color(0xff0f172a),
+              color: AppColors.bgDeep,
               borderRadius: BorderRadius.circular(AppBorderRadius.md),
               border: Border.all(
-                color: const Color(0xff334155),
+                color: AppColors.borderLight,
                 width: 1,
               ),
             ),
@@ -90,7 +90,7 @@ class DispenserErrorDialog extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.info_outline,
-                  color: Color(0xff0ea5e9),
+                  color: AppColors.semanticInfo,
                   size: 20,
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -98,7 +98,7 @@ class DispenserErrorDialog extends StatelessWidget {
                   child: Text(
                     l10n.dispenserBuyWithoutTokensHint,
                     style: TextStyle(
-                      color: Color(0xff0ea5e9),
+                      color: AppColors.semanticInfo,
                       fontSize: AppFontSizes.base,
                     ),
                   ),
@@ -121,7 +121,7 @@ class DispenserErrorDialog extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppBorderRadius.md),
               side: const BorderSide(
-                color: Color(0xffef4444),
+                color: AppColors.semanticDanger,
                 width: 1,
               ),
             ),
@@ -129,7 +129,7 @@ class DispenserErrorDialog extends StatelessWidget {
           child: Text(
             l10n.dispenserCancelButton,
             style: TextStyle(
-              color: Color(0xffef4444),
+              color: AppColors.semanticDanger,
               fontSize: AppFontSizes.lg,
               fontWeight: FontWeight.w600,
             ),
@@ -140,7 +140,7 @@ class DispenserErrorDialog extends StatelessWidget {
         TextButton(
           onPressed: onBuyWithoutTokens,
           style: TextButton.styleFrom(
-            backgroundColor: const Color(0xff22c55e),
+            backgroundColor: AppColors.semanticSuccess,
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.md,

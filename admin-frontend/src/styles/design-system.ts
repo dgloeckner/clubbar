@@ -63,6 +63,10 @@ export const theme = {
       subtle: '#a0aec0',     // Idle text, slightly lighter than secondary (e.g. dot-variant pill filters)
       muted: '#64748b',      // Muted text
       dark: '#0f172a',       // Dark text on light bg
+      // Uppercase filter/section group label text (e.g. "Status", "SEPA",
+      // journal filter labels) — reimplemented identically at every call
+      // site (#289).
+      label: withAlpha('#ffffff', 0.35),
     },
 
     // Border & divider colors
@@ -72,6 +76,10 @@ export const theme = {
       focus: '#3b82f6',      // Focus border
       input: '#2d3748',      // Input field border
       muted: '#4b5563',      // Muted input/control border
+      // Subtle white tint used for borders and vertical dividers on dark-mode
+      // toolbars (search input, filter group dividers, clear-filters button,
+      // mobile toolbar) — reimplemented identically at every call site (#289).
+      subtle: withAlpha('#ffffff', 0.08),
     },
 
     // Alert/banner colors (opaque, for banners over the dark background)

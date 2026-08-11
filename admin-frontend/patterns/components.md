@@ -674,6 +674,39 @@ theme.activeTint = {
 <button style={{ background: isSelected ? theme.activeTint.primary : 'transparent' }}>
 ```
 
+### Subtle Border/Divider Tint
+
+A translucent white tint used for both `border` and solid vertical divider
+bars on dark-mode toolbars (the `MembersPage.tsx` filter toolbar's search
+input, group dividers, and clear-filters button; `MobileToolbar.tsx`'s
+container border and toggle button):
+
+```typescript
+theme.colors.border.subtle = 'rgba(255, 255, 255, 0.08)' // derived via withAlpha('#ffffff', 0.08)
+```
+
+```tsx
+<div style={{ border: `1px solid ${theme.colors.border.subtle}` }} />
+<div style={{ width: '1px', height: '28px', background: theme.colors.border.subtle }} />
+```
+
+### Uppercase Group Label Text
+
+The small uppercase label above a filter group or picker (`MembersPage.tsx`'s
+Status/Card/SEPA filter labels, `JournalPage.tsx`'s mobile filter labels,
+`MobileFilterRow.tsx`'s row label) all use the same translucent white text
+tint:
+
+```typescript
+theme.colors.text.label = 'rgba(255, 255, 255, 0.35)' // derived via withAlpha('#ffffff', 0.35)
+```
+
+```tsx
+<span style={{ fontSize: '12px', color: theme.colors.text.label, fontWeight: 500, textTransform: 'uppercase' }}>
+  {t('members.filters.status.label')}
+</span>
+```
+
 ---
 
 ## Utility Functions

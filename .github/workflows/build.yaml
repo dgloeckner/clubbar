@@ -878,7 +878,7 @@ jobs:
         run: |
           echo "Uploading $(du -h dist/upload/.upgrade-package.zip | cut -f1) ZIP..."
           lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
-            sftp://home277820902.1and1-data.host:22 << 'LFTP'
+            "sftp://${{ vars.IONOS_SFTP_HOST }}:22" << 'LFTP'
           set sftp:auto-confirm yes
           set net:timeout 30
           set net:max-retries 3

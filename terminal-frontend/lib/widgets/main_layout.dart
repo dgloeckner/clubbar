@@ -79,7 +79,7 @@ class MainLayout extends StatelessWidget {
     final session = context.watch<SessionController>();
 
     return Scaffold(
-      backgroundColor: const Color(0xff0a1628),
+      backgroundColor: AppColors.bgPrimary,
       appBar: ClubBarHeader(
         connectionStatus: effectiveStatus,
         readerStatus: readerStatus,
@@ -150,7 +150,7 @@ class _TimeoutWarningOverlay extends StatelessWidget {
               Text(
                 l10n.sessionTimeoutWarningBody(secondsLeft),
                 style: TextStyle(
-                  color: const Color(0xff94a3b8),
+                  color: AppColors.textSecondary,
                   fontSize: AppFontSizes.lg,
                 ),
               ),
@@ -159,7 +159,7 @@ class _TimeoutWarningOverlay extends StatelessWidget {
                 key: const Key('session-timeout-continue'),
                 style: FilledButton.styleFrom(
                   // Strong blue: white on #3b82f6 is 3.7:1 (#41).
-                  backgroundColor: hexToColor(AppColors.semanticPrimaryStrong),
+                  backgroundColor: AppColors.semanticPrimaryStrong,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.xl,

@@ -292,7 +292,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       return Center(
         child: Text(
           l10n.noProductsInCategory,
-          style: const TextStyle(color: Color(0xff94a3b8)),
+          style: const TextStyle(color: AppColors.textSecondary),
         ),
       );
     }
