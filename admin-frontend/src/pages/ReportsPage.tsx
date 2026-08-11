@@ -657,7 +657,7 @@ export function ReportsPage() {
 
   const exportBtnStyle: React.CSSProperties = {
     padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
-    background: 'rgba(34, 197, 94, 0.15)',
+    background: theme.softTint.success,
     border: '1px solid rgba(34, 197, 94, 0.4)',
     borderRadius: theme.borderRadius.md,
     color: theme.colors.semantic.success,

@@ -492,9 +492,9 @@ export function MembersPage() {
     const field = extractedFields.fields?.[fieldName]
     if (!field?.confidence) return null
     const styles: Record<string, React.CSSProperties> = {
-      high:   { background: 'rgba(34,197,94,0.15)',  color: theme.colors.pastel.green, border: `1px solid ${theme.badges.success.border}`  },
+      high:   { background: theme.softTint.success,  color: theme.colors.pastel.green, border: `1px solid ${theme.badges.success.border}`  },
       medium: { background: 'rgba(234,179,8,0.15)',  color: theme.colors.pastel.yellow, border: '1px solid rgba(234,179,8,0.3)'  },
-      low:    { background: 'rgba(239,68,68,0.15)',   color: theme.colors.banner.dangerText, border: `1px solid ${theme.badges.danger.border}`  },
+      low:    { background: theme.softTint.danger,   color: theme.colors.banner.dangerText, border: `1px solid ${theme.badges.danger.border}`  },
     }
     const labels: Record<string, string> = {
       high:   t('mandateDocument.confidenceHigh'),

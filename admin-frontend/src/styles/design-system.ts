@@ -291,6 +291,18 @@ export const theme = {
     // every call site (#289).
     profileActive: withAlpha('#3b82f6', 0.25),
   },
+
+  // Soft, translucent color-coded backgrounds at a shared 0.15 alpha —
+  // completes the same visual language as `activeTint.primary` (the blue
+  // member of this family, already reused as StatCard's blue variant) for
+  // green/orange/red. Used by StatCard's other variants, credit/held/ok
+  // status chips, and severity-tinted panels — reimplemented identically
+  // (sometimes with drifted comma spacing) at every call site (#289).
+  softTint: {
+    success: withAlpha('#22c55e', 0.15),
+    warning: withAlpha('#f97316', 0.15),
+    danger: withAlpha('#ef4444', 0.15),
+  },
 }
 
 /**
