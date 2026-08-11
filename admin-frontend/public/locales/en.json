@@ -116,6 +116,7 @@
     "invalidEmail": "Invalid email address",
     "minLength": "Minimum {{min}} characters required",
     "maxLength": "Maximum {{max}} characters allowed",
+    "passwordComplexity": "Password must contain at least one lowercase letter, one uppercase letter, and one digit",
     "passwordMismatch": "Passwords do not match",
     "invalidIban": "Invalid IBAN",
     "invalidPrice": "Invalid price",
