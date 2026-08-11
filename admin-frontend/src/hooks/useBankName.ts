@@ -2,15 +2,23 @@
  * useBankName — resolve IBAN → bank name via backend lookup.
  *
  * Debounces the request (400ms) and only queries for valid German IBANs (DE, ≥ 12 chars).
- * Returns the bank name string or null while loading / for non-German IBANs.
+ * `isLoading` is true only while a lookup is pending (debounce or in-flight request), so
+ * callers can tell "still searching" apart from "searched, found nothing" (both leave
+ * bankName as null).
  */
 
 import { useEffect, useState, useRef } from 'react'
 import { validateIban } from '../utils/iban'
 import axiosInstance from '../api/client'
 
-export function useBankName(iban: string): string | null {
+export interface UseBankNameResult {
+  bankName: string | null
+  isLoading: boolean
+}
+
+export function useBankName(iban: string): UseBankNameResult {
   const [bankName, setBankName] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -25,8 +33,11 @@ export function useBankName(iban: string): string | null {
     // Only look up valid German IBANs
     if (!normalized.startsWith('DE') || normalized.length < 12 || !validateIban(normalized)) {
       setBankName(null)
+      setIsLoading(false)
       return
     }
+
+    setIsLoading(true)
 
     timerRef.current = setTimeout(() => {
       const controller = new AbortController()
@@ -41,10 +52,12 @@ export function useBankName(iban: string): string | null {
         })
         .then((res: { data?: { bank_name?: string | null } }) => {
           setBankName(res.data?.bank_name ?? null)
+          setIsLoading(false)
         })
         .catch((err: { name?: string }) => {
           if (err?.name !== 'CanceledError') {
             setBankName(null)
+            setIsLoading(false)
           }
         })
     }, 400)
@@ -55,5 +68,5 @@ export function useBankName(iban: string): string | null {
     }
   }, [iban])
 
-  return bankName
+  return { bankName, isLoading }
 }
