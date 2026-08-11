@@ -659,13 +659,22 @@ items, sort/filter/language toggles, and the blue `StatCard` variant:
 
 ```typescript
 theme.activeTint = {
-  primary: 'rgba(59, 130, 246, 0.15)', // derived via withAlpha('#3b82f6', 0.15)
+  primary: 'rgba(59, 130, 246, 0.15)',       // derived via withAlpha('#3b82f6', 0.15)
+  primaryStrong: 'rgba(59, 130, 246, 0.2)',  // derived via withAlpha('#3b82f6', 0.2)
 }
 ```
 
 ```tsx
 <button style={{ background: isSelected ? theme.activeTint.primary : 'transparent' }}>
 ```
+
+`primaryStrong` is a distinct, more opaque variant of the same hue — used for
+audit-log action badges, the selected state in `MobileFilterRow`, hover
+backgrounds (`LoadingIndicator`, `AdminUsersTab`, `TerminalsTab`), and
+`MainLayout`'s sidebar active-item background. It is a different alpha than
+`primary` above by design (both exist in the app today) — don't conflate the
+two when tokenizing a new call site; match the literal's alpha to the
+correct field.
 
 ### Subtle Border/Divider Tint
 

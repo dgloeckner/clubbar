@@ -45,6 +45,10 @@ describe('theme.activeTint', () => {
   it('exposes a canonical primary-blue active-state tint', () => {
     expect(theme.activeTint.primary).toBe('rgba(59, 130, 246, 0.15)')
   })
+
+  it('exposes a stronger primary-blue tint variant', () => {
+    expect(theme.activeTint.primaryStrong).toBe('rgba(59, 130, 246, 0.2)')
+  })
 })
 
 describe('theme.colors.border.subtle', () => {

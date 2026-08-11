@@ -29,13 +29,13 @@ function getActionBadgeStyle(action: string): { backgroundColor: string; color: 
     return { backgroundColor: 'rgba(34, 197, 94, 0.2)', color: theme.colors.semantic.success }
   }
   if (action.startsWith('update')) {
-    return { backgroundColor: 'rgba(59, 130, 246, 0.2)', color: theme.colors.semantic.primary }
+    return { backgroundColor: theme.activeTint.primaryStrong, color: theme.colors.semantic.primary }
   }
   if (action.startsWith('delete') || action === 'login_failed') {
     return { backgroundColor: 'rgba(239, 68, 68, 0.2)', color: theme.colors.semantic.danger }
   }
   // default blue
-  return { backgroundColor: 'rgba(59, 130, 246, 0.2)', color: theme.colors.semantic.primary }
+  return { backgroundColor: theme.activeTint.primaryStrong, color: theme.colors.semantic.primary }
 }
 
 /** Shared select style for filter dropdowns */
@@ -424,7 +424,7 @@ export function AuditLogPage() {
                     borderRadius: 4,
                     fontSize: 12,
                     fontWeight: 500,
-                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    backgroundColor: theme.activeTint.primaryStrong,
                     color: theme.colors.semantic.primary,
                     display: 'inline-block',
                   }}>

@@ -26,7 +26,7 @@ export function LoadingIndicator({ show }: LoadingIndicatorProps) {
         left: 0,
         right: 0,
         height: '3px',
-        background: 'rgba(59, 130, 246, 0.2)',
+        background: theme.activeTint.primaryStrong,
         zIndex: 9999,
         overflow: 'hidden',
       }}

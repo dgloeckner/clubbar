@@ -200,7 +200,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 gap: '4px',
                 padding: `${theme.spacing.sm} ${theme.spacing.sm}`,
                 borderRadius: theme.borderRadius.md,
-                background: isActive(item.path) ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                background: isActive(item.path) ? theme.activeTint.primaryStrong : 'transparent',
                 color: isActive(item.path) ? theme.colors.semantic.primary : theme.colors.text.secondary,
                 textDecoration: 'none',
                 fontSize: theme.typography.fontSize.xs,
