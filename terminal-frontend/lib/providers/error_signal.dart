@@ -31,7 +31,11 @@ mixin ErrorSignal on ChangeNotifier {
     Object? cause,
     StackTrace? stackTrace,
   }) {
-    _lastError = TerminalError(key: key, sequence: ++_errorSequence);
+    _lastError = TerminalError(
+      key: key,
+      sequence: ++_errorSequence,
+      httpStatusCode: httpStatusCodeOf(cause),
+    );
     logTerminalError(key, cause, stackTrace);
   }
 

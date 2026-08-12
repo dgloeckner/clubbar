@@ -300,6 +300,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get technicalErrorCode => 'Fehlercode';
 
   @override
+  String get technicalHttpStatus => 'HTTP-Status';
+
+  @override
   String get backendVersionUnknown => 'Version unbekannt';
 
   @override

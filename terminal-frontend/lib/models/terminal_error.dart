@@ -63,6 +63,25 @@ void logTerminalError(
   );
 }
 
+/// The HTTP status code behind [cause], or null when it isn't a network
+/// failure (offline, timeout, parse error, ...).
+///
+/// Duck-typed on a `statusCode` getter rather than importing
+/// `NetworkException` from `services/` — this is the one place the status
+/// code is allowed to leave the log for the screen, so it stays a narrow,
+/// dependency-free extraction rather than pulling the network layer into the
+/// error model.
+int? httpStatusCodeOf(Object? cause) {
+  if (cause == null) return null;
+  try {
+    final dynamic d = cause;
+    final code = d.statusCode;
+    return code is int ? code : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 /// A single occurrence of an error, as signalled to the UI.
 ///
 /// [sequence] is what makes this an *event* rather than a state: it increments
@@ -75,7 +94,17 @@ class TerminalError {
   final TerminalErrorKey key;
   final int sequence;
 
-  const TerminalError({required this.key, required this.sequence});
+  /// HTTP status code behind this error, when it was a network failure.
+  ///
+  /// This is deliberately the only piece of the raw [Object] cause that
+  /// reaches the UI — the full exception text stays in `error.log`.
+  final int? httpStatusCode;
+
+  const TerminalError({
+    required this.key,
+    required this.sequence,
+    this.httpStatusCode,
+  });
 
   @override
   bool operator ==(Object other) =>
