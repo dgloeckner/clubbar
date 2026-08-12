@@ -89,6 +89,7 @@
   "statusDegradedSince": "Ongoing since {time}",
   "technicalDetails": "Technical details",
   "technicalErrorCode": "Error code",
+  "technicalHttpStatus": "HTTP status",
   "backendVersionUnknown": "Version unknown",
   "pendingOperationDetails": "Member {member} · Qty {quantity} · Created {date}",
 

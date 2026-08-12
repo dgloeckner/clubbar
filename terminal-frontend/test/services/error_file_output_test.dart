@@ -75,6 +75,16 @@ void main() {
       }
     });
 
+    test('writes reach disk without calling destroy() — survives a kill', () {
+      // A kiosk terminal is routinely stopped with SIGTERM/SIGKILL rather
+      // than a graceful shutdown, so destroy() may never run. The whole
+      // point of this output is that error.log must not depend on it.
+      errorOutput.output(makeEvent(Level.error, 'Crash before shutdown'));
+
+      final contents = logFile.readAsStringSync();
+      expect(contents, contains('Crash before shutdown'));
+    });
+
     test('filters mixed events — only errors reach file', () async {
       errorOutput.output(makeEvent(Level.info, 'info message'));
       errorOutput.output(makeEvent(Level.warning, 'warning message'));

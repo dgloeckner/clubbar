@@ -92,7 +92,10 @@ class SyncService {
         _lastTransactionSyncTime = DateTime.now();
         _lastTransactionSyncError = null;
       } catch (e, stackTrace) {
-        _logger.w('Transaction sync failed (non-fatal): $e', error: e, stackTrace: stackTrace);
+        // Still non-fatal to the sync cycle (no rethrow) — but logged at
+        // error level so it actually reaches error.log instead of being
+        // silently excluded by ErrorFileOutput's level filter.
+        _logger.e('Transaction sync failed (non-fatal): $e', error: e, stackTrace: stackTrace);
         _lastTransactionSyncError = e.toString();
       }
 

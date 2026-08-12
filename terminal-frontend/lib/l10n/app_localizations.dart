@@ -578,6 +578,12 @@ abstract class AppLocalizations {
   /// **'Fehlercode'**
   String get technicalErrorCode;
 
+  /// Label for the HTTP status code of a network failure, shown under technical details
+  ///
+  /// In de, this message translates to:
+  /// **'HTTP-Status'**
+  String get technicalHttpStatus;
+
   /// Backend version badge when the version could not be fetched
   ///
   /// In de, this message translates to:

@@ -419,6 +419,10 @@
   "@technicalErrorCode": {
     "description": "Label for the internal error key, shown under technical details"
   },
+  "technicalHttpStatus": "HTTP-Status",
+  "@technicalHttpStatus": {
+    "description": "Label for the HTTP status code of a network failure, shown under technical details"
+  },
   "backendVersionUnknown": "Version unbekannt",
   "@backendVersionUnknown": {
     "description": "Backend version badge when the version could not be fetched"

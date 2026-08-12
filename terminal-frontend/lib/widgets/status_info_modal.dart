@@ -342,6 +342,14 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     return 'T+${h}h ${m}m ${s}s';
   }
 
+  /// HTTP code plus its family (e.g. "401 (4xx)") — never the exception
+  /// message. The code alone is enough for support to look the failure up;
+  /// the raw text stays in `error.log` (issue #40 masking the same way).
+  String _httpStatusLabel(int statusCode) {
+    final family = '${statusCode ~/ 100}xx';
+    return '$statusCode ($family)';
+  }
+
   int _rssiToPercent(int rssi) {
     return (2 * (rssi + 100)).clamp(0, 100);
   }
@@ -550,6 +558,13 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
         if (_showTechnicalDetails) ...[
           _infoRow(l10n.technicalErrorCode, widget.lastError!.key.name),
           const SizedBox(height: 8),
+          if (widget.lastError!.httpStatusCode != null) ...[
+            _infoRow(
+              l10n.technicalHttpStatus,
+              _httpStatusLabel(widget.lastError!.httpStatusCode!),
+            ),
+            const SizedBox(height: 8),
+          ],
           _infoRow(l10n.retryCount, '${widget.retryCount}'),
           if (widget.backendUrl != null) ...[
             const SizedBox(height: 8),

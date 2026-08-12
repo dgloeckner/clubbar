@@ -110,5 +110,38 @@ void main() {
       expect(emitter.lastErrorKey, equals(TerminalErrorKey.checkoutFailed));
       expect(emitter.lastError.toString(), isNot(contains('SQLITE_BUSY')));
     });
+
+    test('emitError extracts the HTTP status code from a network cause', () {
+      emitter.fail(
+        TerminalErrorKey.syncFailed,
+        cause: _FakeNetworkException('backend down', statusCode: 401),
+      );
+
+      expect(emitter.lastError!.httpStatusCode, equals(401));
+    });
+
+    test('emitError leaves httpStatusCode null for a non-network cause', () {
+      emitter.fail(
+        TerminalErrorKey.syncFailed,
+        cause: Exception('connection reset'),
+      );
+
+      expect(emitter.lastError!.httpStatusCode, isNull);
+    });
+
+    test('emitError leaves httpStatusCode null with no cause at all', () {
+      emitter.fail(TerminalErrorKey.cartEmpty);
+
+      expect(emitter.lastError!.httpStatusCode, isNull);
+    });
   });
+}
+
+/// Mirrors the shape of `NetworkException` (a `statusCode` getter) without
+/// depending on `services/` from a provider-layer test.
+class _FakeNetworkException implements Exception {
+  final String message;
+  final int statusCode;
+
+  _FakeNetworkException(this.message, {required this.statusCode});
 }
