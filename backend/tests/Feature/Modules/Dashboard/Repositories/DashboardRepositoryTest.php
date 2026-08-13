@@ -297,6 +297,11 @@ class DashboardRepositoryTest extends DatabaseTestCase
 
     private function createMandate(string $memberId): string
     {
+        // A sealed mandate names the key generation it was sealed under, and
+        // the FK insists that key exists. CI applies migrations without the
+        // seed, so nothing else puts it there (ADR-0036).
+        $this->ensureActiveEncryptionKey();
+
         $id = $this->generateUuid();
         $this->testMandateIds[] = $id;
 

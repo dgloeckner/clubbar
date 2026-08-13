@@ -84,6 +84,11 @@ class MandateSchemaTest extends SchemaTestCase
      */
     private function insertMandate(string $memberId, array $overrides = []): string
     {
+        // A sealed mandate names the key generation it was sealed under, and
+        // the FK insists that key exists. CI applies migrations without the
+        // seed, so nothing else puts it there (ADR-0036).
+        $this->ensureActiveEncryptionKey();
+
         $row = array_merge([
             'id' => $this->generateUuid(),
             'member_id' => $memberId,
