@@ -534,7 +534,7 @@ export function AuditLogPage() {
   )
 
   return (
-    <div data-testid="audit-log-page" style={{ padding: isMobile ? '12px' : '20px' }}>
+    <div data-testid="audit-log-page" style={{ padding: '20px' }}>
       {/* Page Header */}
       <h1 style={{ margin: '0 0 20px 0' }}>{t('auditLog.title')}</h1>
 
