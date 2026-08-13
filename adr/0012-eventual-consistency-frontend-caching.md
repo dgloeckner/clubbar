@@ -61,9 +61,12 @@ flowchart LR
 | Entity | Direction | Cache Type | Fields Stored |
 |--------|-----------|------------|---------------|
 | Members | Backend → Terminal | Read-only | id, card_uid, first_name, last_name, preferred_language, is_active, deleted_at |
-| Products | Backend → Terminal | Read-only | id, names (JSON), prices_cents, category, is_active |
+| Categories | Backend → Terminal | Read-only | id, names (JSON), icon_name, is_active, deleted_at |
+| Products | Backend → Terminal | Read-only | id, names (JSON), prices_cents, category, is_active, deleted_at |
 | Transactions | Terminal → Backend | Write queue | id, member_id, product_id, amount_cents, created_at, synced (flag) |
 | Member Balances | Backend → Terminal | Read-only | member_id, balance_cents, last_updated_at |
+
+> **Amended 2026-08-13.** The Products row omitted `deleted_at` and Categories had no row at all, contradicting the Deletion Protocol below, which has always required the column on all three tables. The omission was not only editorial: `api/terminal.yaml` declared `deleted_at` on `Member` alone, and since the terminal's Dart client is generated from that spec, `Category` and `Product` had no such field to carry — so a deleted product stayed on sale at the bar indefinitely. See [#414](https://github.com/dgloeckner/clubbar/pull/414).
 
 **Not cached on terminal** (sensitive data remains backend-only):
 - IBAN, BIC, mandate_reference
@@ -89,29 +92,60 @@ sequenceDiagram
         B->>DB: SELECT * WHERE updated_at >= since OR (deleted_at >= since AND deleted_at IS NOT NULL)
         DB-->>B: Changed members + tombstones
         B-->>T: Delta response with cursor
-        T->>T: Filter: deleted_at != null → remove from cache
-        T->>T: Filter: deleted_at == null → UPSERT into members_cache
+        T->>T: UPSERT into members_cache (deleted_at carried through)
 
-        T->>B: 3. GET /sync/products?since={last_sync_ts}
-        B->>DB: SELECT * WHERE updated_at >= since
-        DB-->>B: Changed products
+        T->>B: 3. GET /sync/categories?since={last_sync_ts}
+        B->>DB: SELECT * WHERE updated_at >= since OR (deleted_at >= since AND deleted_at IS NOT NULL)
+        DB-->>B: Changed categories + tombstones
         B-->>T: Delta response
-        T->>T: UPSERT into products_cache
+        T->>T: UPSERT into categories_cache (deleted_at carried through)
 
-        T->>T: 4. SELECT * FROM transactions WHERE synced = false
+        T->>B: 4. GET /sync/products?since={last_sync_ts}
+        B->>DB: SELECT * WHERE updated_at >= since OR (deleted_at >= since AND deleted_at IS NOT NULL)
+        DB-->>B: Changed products + tombstones
+        B-->>T: Delta response
+        T->>T: UPSERT into products_cache (deleted_at carried through)
+
+        T->>T: 5. SELECT * FROM transactions WHERE synced = false AND quarantined_at IS NULL
         T->>B: POST /sync/transactions (batch, max 100)
-        B->>DB: INSERT IGNORE (deduplicate by UUID)
+        B->>DB: INSERT, catching only duplicate-key
         DB-->>B: Accepted UUIDs + member balances
         B-->>T: Response with accepted_ids + member_balances
 
-        T->>T: 5. BEGIN TRANSACTION (atomic update)
+        T->>T: 6. BEGIN TRANSACTION (atomic update)
         T->>T: UPDATE transactions SET synced = true
         T->>T: UPDATE members_balance with new balances
         T->>T: COMMIT (all or nothing)
 
-        T->>T: 6. Persist new sync timestamp
+        T->>T: 7. Persist new sync timestamp
     end
 ```
+
+> **Amended 2026-08-13.** The diagram showed products with a plain upsert and no
+> tombstone step, and omitted categories entirely. All three now take the same
+> path — and it is a **plain upsert with `deleted_at` carried through**, not the
+> filter-and-delete the members step used to describe.
+>
+> A deletion is applied as a *flag*, never as a row removal. The terminal sets
+> `PRAGMA foreign_keys = ON`, and `transactions_local` references
+> `members_cache` and `products_cache` with no `ON DELETE` clause, while synced
+> transactions are retained indefinitely. Deleting a cached row is therefore
+> refused by SQLite, and the throw escapes the sync cycle: the members step used
+> to do exactly this, so a single anonymized member who had ever bought a drink
+> at that terminal stopped members, categories, products *and* the transaction
+> upload, on every cycle, permanently.
+>
+> Keeping the row is not merely a workaround. Transaction history and the
+> quarantine banner resolve product and member names through these caches, and a
+> sale queued before the deletion must keep a referent it can still be uploaded
+> and explained under — which it is, because the server judges a row on whether
+> it can be stored, not on whether the product still exists
+> ([ADR-0033](./0033-terminal-sync-contract.md) §1).
+>
+> Two smaller corrections in the same pass: the upload queue also excludes
+> quarantined rows (ADR-0033 §4), and the server-side insert is a plain `INSERT`
+> catching only the duplicate-key case — `INSERT IGNORE` is prohibited, since it
+> made a discarded row indistinguishable from a stored one (ADR-0033 §5).
 
 **See [ADR-0023: Terminal Balance State Management](./0023-terminal-balance-state-management.md) for details on step 5 balance update.**
 
@@ -244,26 +278,38 @@ deletedAt: json['deleted_at'] as String?,
 'deleted_at': deletedAt,
 ```
 
-**Terminal Sync Service:**
+**Terminal Sync Service** (amended 2026-08-13) — a tombstone arrives in the same delta as any other change and carries every field, so the ordinary upsert applies it. There is no separate delete path, for any of the three entities:
+
 ```dart
-// Filter tombstones (deleted items) and remove from local cache
-final deletedMembers = response.members.where((m) => m.deletedAt != null).toList();
-final activeMembers = response.members.where((m) => m.deletedAt == null).toList();
-
-// Remove deleted members from local cache
-for (final deleted in deletedMembers) {
-    await _membersRepo.deleteById(deleted.id);
-}
-
-// Upsert active members
-await _membersRepo.upsertMembers(activeMembers);
+// Tombstones included: deletedAt is written through to the cache row.
+await _membersRepo.upsertMembers(response.members);
+await _productsRepo.upsertCategories(response.categories);
+await _productsRepo.upsertProducts(response.products);
 ```
 
-**Why soft delete (tombstones) instead of hard delete:**
+Read paths then exclude tombstoned rows — the product grid filters
+`deletedAt.isNull()`, a tombstoned member's card scans as unknown — while
+history and quarantine displays keep resolving names through the retained row.
+
+A tombstoned member additionally gives up their `card_uid`. The column is
+`UNIQUE`, so a dead row holding a released card would block whoever the club
+hands it to next, permanently.
+
+**Why the terminal flags rather than deletes** (amended 2026-08-13):
+- `transactions_local` references `members_cache` and `products_cache` under
+  `PRAGMA foreign_keys = ON`, with no `ON DELETE` clause, and local transactions
+  are never pruned — so SQLite *refuses* the delete and the throw escapes the
+  sync cycle
+- Transaction history and the quarantine banner resolve names through these
+  caches; an evicted row leaves the terminal unable to say what a sale was for
+- A sale queued before the deletion keeps a referent it can still be uploaded
+  and explained under
+
+**Why soft delete (tombstones) instead of hard delete, on the backend:**
 - Terminals must learn about deletions during sync
 - Hard deletes (SQL DELETE) provide no mechanism for sync notification
 - Tombstones appear in delta sync results (deleted_at >= since)
-- Terminal receives deleted items and removes them from local cache
+- Past transactions still resolve their product's name through the retained row
 - Audit trail preserved (who deleted, when)
 
 ### Conflict Avoidance Strategy
