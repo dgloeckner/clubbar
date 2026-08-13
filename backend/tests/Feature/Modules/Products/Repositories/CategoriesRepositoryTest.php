@@ -252,4 +252,129 @@ class CategoriesRepositoryTest extends DatabaseTestCase
         $this->assertTrue($foundUpdated, 'Updated category should be included');
         $this->assertTrue($foundDeleted, 'Deleted category (tombstone) should be included');
     }
+
+    public function test_findById_returns_null_for_soft_deleted_category(): void
+    {
+        // #416: findById() must not resolve a soft-deleted category, otherwise
+        // it stays fetchable, updatable and re-deletable through the admin API.
+        $testCategoryId = $this->generateUuid();
+        $this->testCategoryIds[] = $testCategoryId;
+        $this->categoriesRepository->create([
+            'id' => $testCategoryId,
+            'names' => ['de' => 'Gelöschte Kategorie', 'en' => 'Deleted Category'],
+            'is_active' => true,
+        ]);
+
+        $this->categoriesRepository->updateById($testCategoryId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        $this->assertNull(
+            $this->categoriesRepository->findById($testCategoryId),
+            'findById() should not resolve a soft-deleted category'
+        );
+    }
+
+    public function test_hasProducts_ignores_soft_deleted_products(): void
+    {
+        // #367: hasProducts() previously counted soft-deleted products, so a
+        // category whose products were all deleted was permanently undeletable.
+        $categoriesRepository = $this->categoriesRepository;
+        $productsRepository = new \App\Modules\Products\Repositories\ProductsRepository($this->db, $this->logger);
+
+        $testCategoryId = $this->generateUuid();
+        $this->testCategoryIds[] = $testCategoryId;
+        $categoriesRepository->create([
+            'id' => $testCategoryId,
+            'names' => ['de' => 'Kategorie mit Produkten', 'en' => 'Category with Products'],
+            'is_active' => true,
+        ]);
+
+        $testProductId = $this->generateUuid();
+        $productsRepository->create([
+            'id' => $testProductId,
+            'category_id' => $testCategoryId,
+            'names' => ['de' => 'Gelöschtes Produkt', 'en' => 'Deleted Product'],
+            'price_cents' => 100,
+            'is_active' => true,
+        ]);
+
+        $this->assertTrue(
+            $categoriesRepository->hasProducts($testCategoryId),
+            'Category should be reported as having products while the product is active'
+        );
+
+        $productsRepository->updateById($testProductId, ['deleted_at' => date('Y-m-d H:i:s')]);
+        $this->cleanupTestData('products', [$testProductId]);
+
+        $this->assertFalse(
+            $categoriesRepository->hasProducts($testCategoryId),
+            'Category should no longer be reported as having products once they are all soft-deleted'
+        );
+    }
+
+    public function test_getWithProductCount_excludes_soft_deleted_categories(): void
+    {
+        $testCategoryId = $this->generateUuid();
+        $this->testCategoryIds[] = $testCategoryId;
+        $this->categoriesRepository->create([
+            'id' => $testCategoryId,
+            'names' => ['de' => 'Wird gelöscht', 'en' => 'Will be deleted'],
+            'is_active' => true,
+        ]);
+
+        $this->categoriesRepository->updateById($testCategoryId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        $rows = $this->categoriesRepository->getWithProductCount();
+
+        $this->assertNotContains(
+            $testCategoryId,
+            array_column($rows, 'id'),
+            'Soft-deleted category must not appear in getWithProductCount()'
+        );
+    }
+
+    public function test_getWithProductCount_excludes_soft_deleted_products_from_count(): void
+    {
+        $productsRepository = new \App\Modules\Products\Repositories\ProductsRepository($this->db, $this->logger);
+
+        $testCategoryId = $this->generateUuid();
+        $this->testCategoryIds[] = $testCategoryId;
+        $this->categoriesRepository->create([
+            'id' => $testCategoryId,
+            'names' => ['de' => 'Zählkategorie', 'en' => 'Count Category'],
+            'is_active' => true,
+        ]);
+
+        $keptProductId = $this->generateUuid();
+        $deletedProductId = $this->generateUuid();
+        $productsRepository->create([
+            'id' => $keptProductId,
+            'category_id' => $testCategoryId,
+            'names' => ['de' => 'Bleibt', 'en' => 'Kept'],
+            'price_cents' => 100,
+            'is_active' => true,
+        ]);
+        $productsRepository->create([
+            'id' => $deletedProductId,
+            'category_id' => $testCategoryId,
+            'names' => ['de' => 'Gelöscht', 'en' => 'Deleted'],
+            'price_cents' => 100,
+            'is_active' => true,
+        ]);
+
+        $productsRepository->updateById($deletedProductId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        $rows = $this->categoriesRepository->getWithProductCount();
+        $row = null;
+        foreach ($rows as $candidate) {
+            if ($candidate['id'] === $testCategoryId) {
+                $row = $candidate;
+                break;
+            }
+        }
+
+        $this->assertNotNull($row, 'Category should still be listed');
+        $this->assertSame(1, (int) $row['product_count'], 'product_count must exclude soft-deleted products');
+
+        $this->cleanupTestData('products', [$keptProductId, $deletedProductId]);
+    }
 }

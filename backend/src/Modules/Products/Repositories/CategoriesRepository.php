@@ -19,7 +19,7 @@ class CategoriesRepository
 
     public function findById(string $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM categories WHERE id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM categories WHERE id = ? AND deleted_at IS NULL');
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
@@ -45,13 +45,14 @@ class CategoriesRepository
     public function getWithProductCount(): array
     {
         return $this->db->query(
-            'SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) AS product_count FROM categories c ORDER BY c.created_at ASC'
+            'SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id AND p.deleted_at IS NULL) AS product_count
+             FROM categories c WHERE c.deleted_at IS NULL ORDER BY c.created_at ASC'
         )->fetchAll();
     }
 
     public function hasProducts(string $categoryId): bool
     {
-        $stmt = $this->db->prepare('SELECT 1 FROM products WHERE category_id = ? LIMIT 1');
+        $stmt = $this->db->prepare('SELECT 1 FROM products WHERE category_id = ? AND deleted_at IS NULL LIMIT 1');
         $stmt->execute([$categoryId]);
         return (bool) $stmt->fetch();
     }
