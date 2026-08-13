@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    /* ES2021.Intl is a types-only addition: it declares
+       Intl.DateTimeFormat.formatRange, which the settlements list uses to
+       render a transaction period in the active locale. Available since
+       Safari 14.1 / Firefox 91 / Chrome 76, so it needs no polyfill. */
+    "lib": ["ES2020", "ES2021.Intl", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
 

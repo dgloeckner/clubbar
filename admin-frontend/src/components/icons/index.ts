@@ -37,6 +37,7 @@ export { BankIcon } from './BankIcon'
 export { HomeIcon } from './HomeIcon'
 export { DownloadIcon } from './DownloadIcon'
 export { ScanIcon } from './ScanIcon'
+export { SearchIcon } from './SearchIcon'
 
 // Admin user icons (for future use in members, admin management, etc.)
 export { AdminUserIcon } from './admin-user-icons'
