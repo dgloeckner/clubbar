@@ -13,6 +13,7 @@
 
 import type { APIRequestContext, APIResponse } from '@playwright/test'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
+import { generateTotp } from '../utils/totp'
 
 /** The private half of `dev-key-2026`: 32 raw bytes, base64-encoded. */
 export const DEV_PRIVATE_KEY = '9nj7F7WSwp21TkP4CO50/Wf33VxsQFsk4+MerTjzBYo='
@@ -29,6 +30,11 @@ export interface SepaExportOptions {
   privateKey?: string | null
   /** Defaults to the seeded admin password; pass null to omit it entirely. */
   password?: string | null
+  /**
+   * Defaults to a fresh code for the seeded admin, who has 2FA enrolled — the
+   * step-up asks for one whenever the caller does. Pass null to omit it.
+   */
+  totpCode?: string | null
 }
 
 /**
@@ -40,11 +46,16 @@ export async function exportSepaXml(
   settlementId: string,
   options: SepaExportOptions = {},
 ): Promise<APIResponse> {
-  const { privateKey = DEV_PRIVATE_KEY, password = TEST_CREDENTIALS.admin.password } = options
+  const {
+    privateKey = DEV_PRIVATE_KEY,
+    password = TEST_CREDENTIALS.admin.password,
+    totpCode = generateTotp(TEST_CREDENTIALS.totp.adminSecret),
+  } = options
 
   const data: Record<string, string> = {}
   if (privateKey !== null) data.private_key = privateKey
   if (password !== null) data.current_password = password
+  if (totpCode !== null) data.totp_code = totpCode
 
   return request.post(`/api/admin/settlements/${settlementId}/export/sepa-xml`, { data })
 }

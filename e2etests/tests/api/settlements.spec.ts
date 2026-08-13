@@ -808,16 +808,17 @@ test.describe('Settlements API', () => {
    * SEPA XML Export Tests (4 tests)
    */
   test.describe('SEPA XML Export', () => {
-    test('F1: GET /settlements/{id}/export/sepa-xml requires settlement ID', async ({ authenticatedRequest }) => {
-      const response = await authenticatedRequest.get(
-        '/api/admin/settlements/invalid-uuid-12345678901234567890/export/sepa-xml',
+    test('F1: POST /settlements/{id}/export/sepa-xml requires settlement ID', async ({ authenticatedRequest }) => {
+      const response = await exportSepaXml(
+        authenticatedRequest,
+        'invalid-uuid-12345678901234567890',
       );
 
       // Accept either 404 (not found) or 422 (validation error for invalid UUID)
       expect([404, 422]).toContain(response.status());
     });
 
-    test('F2: GET /settlements/{id}/export/sepa-xml debits the settled member', async ({ authenticatedRequest, settlementFactory }) => {
+    test('F2: POST /settlements/{id}/export/sepa-xml debits the settled member', async ({ authenticatedRequest, settlementFactory }) => {
       // The pain.008 file is the money-critical artefact: it is what the bank
       // acts on. Assert the collection instruction it carries, not just that
       // some XML came back.
@@ -840,7 +841,7 @@ test.describe('Settlements API', () => {
       expect(xml).toContain(`<MndtId>${settlement.mandateReference}</MndtId>`);
     });
 
-    test('F3: GET /settlements/{id}/export/sepa-xml returns correct content type', async ({ authenticatedRequest, settlementFactory }) => {
+    test('F3: POST /settlements/{id}/export/sepa-xml returns correct content type', async ({ authenticatedRequest, settlementFactory }) => {
       const settlement = await settlementFactory.create();
 
       const response = await exportSepaXml(authenticatedRequest, settlement.id);
@@ -850,7 +851,7 @@ test.describe('Settlements API', () => {
       expect(response.headers()['content-disposition']).toContain(settlement.id);
     });
 
-    test('F5: GET /settlements/{id}/export/sepa-xml refuses a non-direct-debit settlement', async ({ authenticatedRequest, settlementFactory }) => {
+    test('F5: POST /settlements/{id}/export/sepa-xml refuses a non-direct-debit settlement', async ({ authenticatedRequest, settlementFactory }) => {
       // Ruling #163: a member who paid by bank transfer is recorded as a
       // bank_transfer settlement, and must never reach the bank as a second
       // collection of the same balance.
@@ -1002,10 +1003,13 @@ test.describe('Settlements API', () => {
       const [header, ...rows] = csv.trim().split('\n');
       expect(header).toBe('Member Name;Email;IBAN;Amount EUR');
       expect(rows).toHaveLength(1);
+      // Masked: the CSV is a reconciliation aid, not a debit instruction, so
+      // last4 is enough to recognise the account (ADR-0036). The full IBAN
+      // exists only in the pain.008, which needs the private key.
       expect(rows[0].split(';')).toEqual([
         settlement.memberName,
         settlement.memberEmail,
-        settlement.iban,
+        `****${settlement.iban.slice(-4)}`,
         '12.34',
       ]);
     });

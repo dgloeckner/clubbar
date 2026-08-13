@@ -19,6 +19,7 @@
 import { expect, type APIRequestContext } from '@playwright/test'
 import { generateUUID } from './transactions'
 import { FACTORY_IBAN, type CreatedSettlement, type SettlementFactory } from './settlements'
+import { exportSepaXml } from '../fixtures/encryption'
 
 export interface SeededMember {
   memberId: string
@@ -196,7 +197,7 @@ export async function seedHeldMember(
   // Export then submit: the point of no return, after which a reversal is the
   // only way to undo the run.
   expect(
-    (await adminRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()
+    (await exportSepaXml(adminRequest, settlement.id)).status()
   ).toBe(200)
   expect((await adminRequest.post(`/api/admin/settlements/${settlement.id}/submit`)).status()).toBe(200)
 

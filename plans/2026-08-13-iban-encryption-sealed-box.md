@@ -36,15 +36,18 @@ Key implementation constraint discovered up front: `MembersRepository::applyMand
 
 ### P3 — last4 API surfaces + leak closure ([#392](https://github.com/dgloeckner/clubbar/issues/392))
 
-- [ ] `MemberAdminDto` drops `iban`, gains `iban_last4`/`bank_name`; `api/admin.yaml` + orval regenerated
-- [ ] Overwrite-only edit form (`****3000`, empty = keep); settlement preview/CSV + GDPR export → last4; sepa-config GET masked with overwrite-only PUT
-- Verify: e2e — list payload has no `iban` key; settlement XML asserts fixture constant; sepa-config keep-on-save flow
+- [x] `MemberAdminDto` drops `iban`, gains `iban_last4`/`bank_name`; `api/admin.yaml` + orval regenerated (4 schemas, no stray diffs)
+- [x] Overwrite-only edit form (`****3000`, empty = keep); settlement preview/CSV + GDPR export → last4; sepa-config GET masked with overwrite-only PUT
+- [x] Blank IBAN leaves `BLANK_MEANS_NULL` on update — it now arrives on every save that was about something else, so blank means "keep" and an explicit `null` revokes
+- Verify: **passed** — `member-blank-fields.spec.ts` covers keep/revoke and asserts no member response carries a full IBAN; settlement XML and CSV assert the fixture constant; 35 member-controller + 41 SEPA-config PHPUnit green
 
 ### P4 — SEPA export with private-key flow ([#393](https://github.com/dgloeckner/clubbar/issues/393))
 
-- [ ] Export endpoint: step-up + `{private_key}` JSON body (no multipart), validator, streaming decrypt closure in `SepaExportService`, `Cache-Control: no-store`, audit `SEPA_EXPORT`; expired key ⇒ 409
-- [ ] Frontend export dialog (key input, step-up prompt, `downloadBlob`); optional privileged full-IBAN view (`IBAN_FULL_VIEW`)
-- Verify: e2e end-to-end proof (create member → raw SQL ciphertext-only → settle → export with dev key → XML has plaintext); wrong key 422, expired 409, no step-up 401/403
+- [x] Export endpoint is now a POST: step-up + `{private_key}` JSON body (no multipart), validation against the registered public half, per-member decrypt closure in `SepaExportService`, `Cache-Control: no-store`, audit `SEPA_EXPORT` (count + settlement only); expired key ⇒ 409
+- [x] `EncryptionKeyService::withActivePrivateKey` owns the key's whole life on the server and wipes it in `finally`
+- [x] Frontend export dialog: `StepUpConfirmDialog` gained a slot, `PrivateKeyInput` takes file or paste, `downloadFile` POSTs a body
+- [ ] Optional privileged full-IBAN view (`IBAN_FULL_VIEW`) — deferred; the enum case exists, no UI yet
+- Verify: **passed** — `sepa-export-encryption.spec.ts` proves the end-to-end path (create → last4-only across every surface → settle → export with the dev key → XML carries the plaintext), plus wrong key 422, malformed key 422, no step-up 401, no session 401, `no-store`, and an audit entry with no account data
 
 ### P5 — Key rotation + Security & Credentials page ([#394](https://github.com/dgloeckner/clubbar/issues/394))
 
@@ -68,6 +71,22 @@ Key implementation constraint discovered up front: `MembersRepository::applyMand
 - [ ] `docs/erm-master.md`, `docs/deployment.md` (ciphertext dumps, key archive = part of backup story, upgrade order, recovery/compromise procedures)
 - [ ] Follow-up issues (plaintext column drop, TotpService on shared crypto, threshold emails); INDEX.md final
 - Verify: full PHPUnit + full Playwright suite green
+
+## Merge with main (2026-08-13)
+
+main shipped ADR-0035 (terminal-backend instance pairing, [#411](https://github.com/dgloeckner/clubbar/issues/411)) and migrations `015_instance_id` / `016_terminal_repair_audit_action` while this branch was open, colliding with both of this plan's numbers:
+
+- ADR-0035 (sealed boxes) → **0036**, ADR-0036 (mandate scans) → **0037**
+- `015_encryption_keys` → **017**, `016_mandates_encrypted_iban` → **018**, `017_audit_log_key_actions` → **019** (relative order preserved)
+- `019_audit_log_key_actions` restates the whole `audit_log.action` ENUM and now runs *after* main's `016`, so it had to absorb `terminal_repair` — otherwise applying it silently un-adds the value and every pairing repair dies on "Data truncated for column 'action'". Git reports no conflict for this; only the test suite does.
+
+## Test isolation (2026-08-13)
+
+Making the export step-up require a TOTP code exposed how many specs log in as the shared seeded admin. `totp_last_timestep` ([#338](https://github.com/dgloeckner/clubbar/issues/338)) hands out one code per 30-second step per account, so those logins cannot run concurrently:
+
+- The specs that log in as that admin are serial within their file.
+- `auth-mfa-lockout.spec.ts` moved into a new **`api-ordered`** project that depends on `api-tests`, so it runs alone after the parallel suite. It is ordered rather than skipped — the per-session MFA cap needs no flag change and passes against a plain dev stack, unlike the two specs in `rate-limit`, which need `DISABLE_*_RATE_LIMITING` removed and therefore stay out of the default run.
+- `auth.setup.ts` retries its MFA across time-steps; failing there took every dependent project with it.
 
 ## Release coupling & rollback
 

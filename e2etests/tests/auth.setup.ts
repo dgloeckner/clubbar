@@ -38,7 +38,7 @@
 
 import { test as setup } from '@playwright/test'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
-import { generateTotp } from '../utils/totp'
+import { generateTotp, submitTotpWithRetry } from '../utils/totp'
 import path from 'path'
 
 // Define auth state paths
@@ -55,6 +55,10 @@ const FRONTEND_BASE = 'http://localhost:5173'
  * reuse in tests. This runs once before tests using the admin auth state.
  */
 setup('authenticate as admin', async ({ page, context }) => {
+  // Generous: the MFA step below may have to wait out a TOTP time-step it
+  // cannot use (#338), and every dependent project is blocked until it does.
+  setup.setTimeout(360_000)
+
   // Step 1: Call login endpoint via page.request so session cookie ends up
   // in the browser's cookie jar (page.request shares cookies with the page).
   const loginResp = await page.request.post(`${API_BASE}/auth/login`, {
@@ -75,11 +79,16 @@ setup('authenticate as admin', async ({ page, context }) => {
   let csrfToken: string
 
   if (loginData.requiresMfa) {
-    // Step 2a: Admin is enrolled — provide TOTP verification code
-    const code = generateTotp(TEST_CREDENTIALS.totp.adminSecret)
-    const mfaResp = await page.request.post(`${API_BASE}/auth/mfa`, {
-      data: { code },
-    })
+    // Step 2a: Admin is enrolled — provide TOTP verification code.
+    //
+    // Retried across time-steps: `totp_last_timestep` (#338) accepts one code
+    // per 30 seconds per account, so a setup that runs straight after another
+    // run — or after any spec that logged in as this admin — is correctly
+    // refused as a replay. Waiting for the next step is the only fix, and
+    // failing here takes every project that depends on this setup with it.
+    const mfaResp = await submitTotpWithRetry(TEST_CREDENTIALS.totp.adminSecret, (code) =>
+      page.request.post(`${API_BASE}/auth/mfa`, { data: { code } }),
+    )
 
     if (!mfaResp.ok()) {
       const body = await mfaResp.text()

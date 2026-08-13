@@ -15,6 +15,7 @@ import { Page, expect } from '@playwright/test'
 import { BasePage } from './BasePage'
 import { DEV_PRIVATE_KEY } from '../fixtures/encryption'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
+import { generateTotp } from '../utils/totp'
 
 export class SettlementsPage extends BasePage {
   // Loading and state indicators (PRIVATE)
@@ -44,6 +45,7 @@ export class SettlementsPage extends BasePage {
   private readonly exportPrivateKeyInput = () => this.page.getByTestId('private-key-paste')
   private readonly exportPrivateKeyFile = () => this.page.getByTestId('private-key-file')
   private readonly exportPasswordInput = () => this.page.getByTestId('step-up-password')
+  private readonly exportTotpInput = () => this.page.getByTestId('step-up-totp-code')
   private readonly exportConfirmButton = () => this.page.getByTestId('confirm-dialog-ok')
   private readonly exportDialogError = () => this.page.getByTestId('step-up-error')
 
@@ -221,9 +223,17 @@ export class SettlementsPage extends BasePage {
     await expect(this.exportPrivateKeyInput()).toBeVisible()
   }
 
-  async fillExportKeyAndPassword(privateKey: string, password: string) {
+  /**
+   * Fill the dialog's secrets. The seeded admin has 2FA enrolled, so the
+   * dialog asks for a code as well — filled only when it is actually shown.
+   */
+  async fillExportKeyAndPassword(privateKey: string, password: string, totpCode?: string) {
     await this.exportPrivateKeyInput().fill(privateKey)
     await this.exportPasswordInput().fill(password)
+
+    if (await this.exportTotpInput().isVisible()) {
+      await this.exportTotpInput().fill(totpCode ?? generateTotp(TEST_CREDENTIALS.totp.adminSecret))
+    }
   }
 
   /** Choose the key from a file rather than pasting it. */

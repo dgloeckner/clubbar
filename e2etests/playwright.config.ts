@@ -47,12 +47,9 @@ export default defineConfig({
     {
       name: 'api-tests',
       testDir: './tests/api',
-      // Exclude serial rate-limit tests — they require an empty attempts table and
-      // the corresponding DISABLE_*_RATE_LIMITING flag removed from docker-compose.yml.
-      // Run explicitly, e.g.:
-      //   npm test -- tests/api/terminal-rate-limit.spec.ts --workers=1
-      //   npm test -- tests/api/auth-rate-limit.spec.ts --workers=1
-      testIgnore: /(terminal-rate-limit|auth-rate-limit)\.spec\.ts/,
+      // Exclude the rate-limit and attempt-cap tests — they are ordered, not
+      // parallel, and live in the `rate-limit` project below.
+      testIgnore: /(terminal-rate-limit|auth-rate-limit|auth-mfa-lockout)\.spec\.ts/,
       // The authenticatedRequest fixture (fixtures/auth.fixture.ts) reuses the
       // session "setup auth" writes to playwright/.auth/admin.json rather than
       // logging in itself (#338 — avoids racing TOTP replay protection against
@@ -99,16 +96,49 @@ export default defineConfig({
       },
     },
 
-    // Serial rate-limit tests — excluded from api-tests above, and not part of the
-    // `npm test` project list, because they deliberately exhaust an attempt window
-    // and would then 429 every other test's login. Run them on their own, against
-    // a truncated attempts table and with the matching DISABLE_*_RATE_LIMITING flag
-    // removed from docker-compose.yml:
+    // Ordered rate-limit tests — excluded from api-tests above, and not part of
+    // the `npm test` project list, because they deliberately exhaust an attempt
+    // window and would then 429 every other test's login. Run them on their
+    // own, one at a time:
     //   npm run test:rate-limit
+    //
+    // `--workers=1` is the point of this project, not an optimisation: each
+    // spec owns a counter that is global to the backend — the login attempt
+    // window, the terminal token window — so two of them running at once
+    // measure each other rather than the limiter.
+    //
+    // They also need an empty attempts table and the matching
+    // DISABLE_*_RATE_LIMITING flag removed from docker-compose.yml, which the
+    // dev stack sets to "true". They therefore cannot pass against a default
+    // dev stack, which is why they stay out of the default run.
     {
       name: 'rate-limit',
       testDir: './tests/api',
       testMatch: /(terminal-rate-limit|auth-rate-limit)\.spec\.ts/,
+      fullyParallel: false,
+      dependencies: ['setup auth'],
+    },
+
+    // Ordered, but part of the default run.
+    //
+    // The MFA attempt cap counts inside a single pending session, so unlike the
+    // two specs above it needs no flag change and passes against a plain dev
+    // stack. What it cannot survive is company: its logins consume the shared
+    // admin's TOTP time-step, which `totp_last_timestep` (#338) hands out once
+    // per 30 seconds, so run 4-wide it races every other spec that logs in as
+    // that admin — and loses for a reason that has nothing to do with the cap.
+    //
+    // `dependencies` is what orders it: the parallel API suite must finish
+    // before this project starts, and with a single spec file
+    // `fullyParallel: false` leaves it alone in one worker. Ordered rather than
+    // skipped — an attempt cap nobody exercises is one nobody knows is still
+    // there.
+    {
+      name: 'api-ordered',
+      testDir: './tests/api',
+      testMatch: /auth-mfa-lockout\.spec\.ts/,
+      fullyParallel: false,
+      dependencies: ['api-tests'],
     },
 
     // Package smoke tests - only run when PACKAGE_TEST=1
