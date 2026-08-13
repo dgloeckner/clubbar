@@ -16,6 +16,11 @@ class MemberBar extends StatelessWidget {
   final VoidCallback? onLogoutPressed;
   final bool showBackButton;
 
+  /// Edge of the cart / back button. This is the tallest control in the row,
+  /// so it alone sets the bar's height — 58 before #369, where the band above
+  /// the product grid had to give six pixels back.
+  static const double _actionButtonSize = 52.0;
+
   const MemberBar({
     required this.member,
     required this.itemCount,
@@ -49,7 +54,14 @@ class MemberBar extends StatelessWidget {
             .toUpperCase();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      // Vertical padding is `sm`, not 12 (#369). The bar is a fixed-height
+      // band above the product grid and both screens already wrap it in
+      // vertical padding of their own, so this was 12 on top of 12 — 24 px of
+      // gap the grid paid for.
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xcc1e293b),
         border: Border.all(
@@ -71,72 +83,73 @@ class MemberBar extends StatelessWidget {
             child: InkWell(
               onTap: () => showMemberDetailsModal(context),
               borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Semantics(
-                  button: true,
-                  label: l10n.viewDetails,
-                  child: Row(
-                    children: [
-                      // Avatar with initials — gradient keyed off the member
-                      // id so the same member always gets the same colours
-                      // across every surface that shows their avatar (#302).
-                      Container(
-                        width: 43,
-                        height: 43,
-                        decoration: BoxDecoration(
-                          gradient: avatarGradientFor(member.id),
-                          borderRadius: BorderRadius.circular(AppBorderRadius.full),
-                        ),
-                        child: Center(
-                          child: Text(
-                            initials,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: AppFontSizes.base,
-                              fontWeight: FontWeight.w600,
-                            ),
+              // No vertical padding around this cluster (#369): the
+              // name/balance column is already two `lg` lines — ~48 px, over
+              // the 44 px touch minimum on its own — so the 4 px that used to
+              // wrap it only made the cluster the tallest thing in the row.
+              child: Semantics(
+                button: true,
+                label: l10n.viewDetails,
+                child: Row(
+                  children: [
+                    // Avatar with initials — gradient keyed off the member
+                    // id so the same member always gets the same colours
+                    // across every surface that shows their avatar (#302).
+                    Container(
+                      width: 43,
+                      height: 43,
+                      decoration: BoxDecoration(
+                        gradient: avatarGradientFor(member.id),
+                        borderRadius: BorderRadius.circular(AppBorderRadius.full),
+                      ),
+                      child: Center(
+                        child: Text(
+                          initials,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: AppFontSizes.base,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      // Member name and balance
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '$firstName $lastName',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: AppFontSizes.lg,
-                              fontWeight: FontWeight.w600,
-                            ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Member name and balance
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$firstName $lastName',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: AppFontSizes.lg,
+                            fontWeight: FontWeight.w600,
                           ),
-                          Text(
-                            formatBalance(
+                        ),
+                        Text(
+                          formatBalance(
+                            deckelCents ?? member.balanceCents,
+                            l10n,
+                            locale,
+                          ),
+                          style: TextStyle(
+                            color: balanceColor(
                               deckelCents ?? member.balanceCents,
-                              l10n,
-                              locale,
                             ),
-                            style: TextStyle(
-                              color: balanceColor(
-                                deckelCents ?? member.balanceCents,
-                              ),
-                              fontSize: AppFontSizes.lg,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            fontSize: AppFontSizes.lg,
+                            fontWeight: FontWeight.w500,
                           ),
-                        ],
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.chevron_right,
-                        color: AppColors.textMuted,
-                        size: 22,
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textMuted,
+                      size: 22,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -196,8 +209,8 @@ class MemberBar extends StatelessWidget {
         child: Opacity(
           opacity: blocked ? 0.4 : 1.0,
           child: Container(
-            width: 58,
-            height: 58,
+            width: _actionButtonSize,
+            height: _actionButtonSize,
             decoration: BoxDecoration(
               color: AppColors.semanticPrimary,
               borderRadius: BorderRadius.circular(AppBorderRadius.lg),
@@ -257,8 +270,8 @@ class MemberBar extends StatelessWidget {
         child: Opacity(
           opacity: blocked ? 0.4 : 1.0,
           child: Container(
-            width: 58,
-            height: 58,
+            width: _actionButtonSize,
+            height: _actionButtonSize,
             decoration: BoxDecoration(
               color: const Color(0x333b82f6),
               border: Border.all(
