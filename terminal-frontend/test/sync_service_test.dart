@@ -557,6 +557,174 @@ void main() {
       verifyNever(() => mockNetworkService.syncTransactions(any()));
     });
 
+    // An admin deletes a product, category or member and the terminal learns
+    // about it as a `deleted_at` tombstone in the next delta. The tombstone is
+    // applied by the ordinary upsert — the row is flagged, never removed, so
+    // that the local sales referencing it keep their foreign key. The
+    // row-level effects are covered in repository_test.dart; these pin the
+    // wiring: that a tombstone reaches the cache at all, and that a delete
+    // landing mid-queue does not disturb the upload.
+    group('tombstones', () {
+      Member memberDto(String id, {DateTime? deletedAt}) => Member(
+            id: id,
+            cardUid: 'CARD-$id',
+            firstName: 'Test',
+            lastName: 'Member',
+            preferredLanguage: 'de',
+            isActive: true,
+            isSepaValid: true,
+            deletedAt: deletedAt,
+            createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+            updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          );
+
+      Category categoryDto(String id, {DateTime? deletedAt}) => Category(
+            id: id,
+            names: const {'de': 'Getränke'},
+            isActive: true,
+            deletedAt: deletedAt,
+            createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+            updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          );
+
+      Product productDto(String id, {DateTime? deletedAt}) => Product(
+            id: id,
+            categoryId: 'cat-1',
+            names: const {'de': 'Pils'},
+            priceCents: 350,
+            isActive: true,
+            deletedAt: deletedAt,
+            createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+            updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          );
+
+      final deletedOn = DateTime.parse('2025-02-02T09:00:00Z');
+
+      test('a deleted product is handed to the cache, tombstone intact',
+          () async {
+        stubReferenceDataSync();
+        when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
+            .thenAnswer((_) async => ProductDeltaResponse(
+                products: [productDto('prod-1', deletedAt: deletedOn)],
+                cursor: 0,
+                count: 1,
+                hasMore: false));
+
+        expect(await syncService.syncAll(), equals(SyncResult.success));
+
+        final upserted =
+            verify(() => mockProductsRepo.upsertProducts(captureAny()))
+                .captured
+                .last as List<Product>;
+        expect(upserted.single.deletedAt, equals(deletedOn));
+      });
+
+      test('a deleted category is handed to the cache, tombstone intact',
+          () async {
+        stubReferenceDataSync();
+        when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
+            .thenAnswer((_) async => CategoryDeltaResponse(
+                categories: [categoryDto('cat-1', deletedAt: deletedOn)],
+                cursor: 0,
+                count: 1,
+                hasMore: false));
+
+        expect(await syncService.syncAll(), equals(SyncResult.success));
+
+        final upserted =
+            verify(() => mockProductsRepo.upsertCategories(captureAny()))
+                .captured
+                .last as List<Category>;
+        expect(upserted.single.deletedAt, equals(deletedOn));
+      });
+
+      // A deleted member used to be split out of the delta and passed to a
+      // `deleteById` that SQLite refused, because `transactions_local` still
+      // referenced the row. The throw escaped `_syncMembers` — the first step of
+      // the cycle — so one anonymized member who had ever bought a drink here
+      // stopped products *and* the transaction upload, every cycle, for good.
+      test('a deleted member is upserted with the rest, not deleted', () async {
+        stubReferenceDataSync();
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenAnswer((_) async => MemberDeltaResponse(members: [
+                  memberDto('member-1'),
+                  memberDto('member-gone', deletedAt: deletedOn),
+                ], cursor: 0, count: 2, hasMore: false));
+
+        expect(await syncService.syncAll(), equals(SyncResult.success));
+
+        final upserted =
+            verify(() => mockMembersRepo.upsertMembers(captureAny()))
+                .captured
+                .last as List<Member>;
+        expect(upserted.map((m) => m.id),
+            containsAll(['member-1', 'member-gone']),
+            reason: 'the tombstone travels the same path as any other change');
+        expect(
+            upserted.firstWhere((m) => m.id == 'member-gone').deletedAt,
+            equals(deletedOn));
+      });
+
+      test('a member tombstone does not stop the rest of the cycle', () async {
+        stubReferenceDataSync();
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenAnswer((_) async => MemberDeltaResponse(
+                members: [memberDto('member-gone', deletedAt: deletedOn)],
+                cursor: 0,
+                count: 1,
+                hasMore: false));
+        when(() => mockTransactionsRepo.getUnsyncedTransactions())
+            .thenAnswer((_) async => [unsyncedTransaction(id: 'txn-queued')]);
+        when(() => mockNetworkService.syncTransactions(any()))
+            .thenAnswer((_) async => TransactionBatchResponse(
+                  acceptedIds: const ['txn-queued'],
+                  rejected:
+                      const TransactionBatchResponse$Rejected(count: 0, errors: []),
+                  memberBalances: const {'member-1': 350},
+                ));
+
+        expect(await syncService.syncAll(), equals(SyncResult.success));
+
+        verify(() => mockProductsRepo.upsertCategories(any())).called(1);
+        verify(() => mockProductsRepo.upsertProducts(any())).called(1);
+        verify(() => mockNetworkService.syncTransactions(any())).called(1);
+      });
+
+      // ADR-0033 §1: by sync time the drink is in the member's hand. A product
+      // deleted after the sale is not a reason to refuse the record of it, so
+      // the queued row is uploaded unchanged and must not be quarantined.
+      test('a sale queued before its product was deleted still uploads',
+          () async {
+        stubReferenceDataSync();
+        when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
+            .thenAnswer((_) async => ProductDeltaResponse(
+                products: [productDto('prod-1', deletedAt: deletedOn)],
+                cursor: 0,
+                count: 1,
+                hasMore: false));
+        when(() => mockTransactionsRepo.getUnsyncedTransactions()).thenAnswer(
+            (_) async =>
+                [unsyncedTransaction(id: 'txn-queued', productId: 'prod-1')]);
+        when(() => mockNetworkService.syncTransactions(any()))
+            .thenAnswer((_) async => TransactionBatchResponse(
+                  acceptedIds: const ['txn-queued'],
+                  rejected:
+                      const TransactionBatchResponse$Rejected(count: 0, errors: []),
+                  memberBalances: const {'member-1': 350},
+                ));
+
+        expect(await syncService.syncAll(), equals(SyncResult.success));
+
+        final payloads =
+            verify(() => mockNetworkService.syncTransactions(captureAny()))
+                .captured
+                .single as List<Map<String, dynamic>>;
+        expect(payloads.single['product_id'], equals('prod-1'),
+            reason: 'the sale still names the product it was sold as');
+        verifyNever(() => mockTransactionsRepo.quarantineTransactions(any()));
+      });
+    });
+
     group('failed transaction logging', () {
       late Directory tempDir;
       late String failedTxnsPath;

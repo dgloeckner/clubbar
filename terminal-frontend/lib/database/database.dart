@@ -45,7 +45,7 @@ class ClubBarDatabase extends _$ClubBarDatabase {
   ClubBarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -150,6 +150,25 @@ class ClubBarDatabase extends _$ClubBarDatabase {
                 m, 'transactions_local', 'quarantined_at', 'TEXT');
             await _addColumnIfNotExists(
                 m, 'transactions_local', 'quarantine_reason', 'TEXT');
+          }
+          if (from < 10) {
+            // Tombstones for members, categories and products. The backend has
+            // always emitted `deleted_at` for all three; only the OpenAPI spec
+            // omitted it for categories and products, so the terminal never saw
+            // a deletion and kept selling deleted products forever.
+            //
+            // Deliberately a flag rather than a physical delete: every one of
+            // these rows is a foreign-key target of a row the terminal keeps
+            // indefinitely, and `PRAGMA foreign_keys = ON` would refuse the
+            // delete and take the whole sync cycle down with it.
+            //
+            // Existing rows get NULL, which is exactly right — nothing cached
+            // before this migration is known to be deleted.
+            await _addColumnIfNotExists(m, 'members_cache', 'deleted_at', 'TEXT');
+            await _addColumnIfNotExists(
+                m, 'categories_cache', 'deleted_at', 'TEXT');
+            await _addColumnIfNotExists(
+                m, 'products_cache', 'deleted_at', 'TEXT');
           }
         },
       );

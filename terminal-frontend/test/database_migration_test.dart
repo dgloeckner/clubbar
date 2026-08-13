@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/repository/products_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 
 void main() {
@@ -162,6 +163,78 @@ void main() {
       expect(await repo.getUnsyncedTransactions(), isEmpty);
       expect((await repo.getQuarantinedTransactions()).single.quarantineReason,
           equals('unstorable'));
+      await db.close();
+    });
+  });
+
+  // Tombstones for members, categories and products. Nothing cached before this
+  // migration is known to be deleted, so every existing row must come through
+  // with a NULL `deleted_at` — a non-null default would blank the terminal's
+  // whole product grid on the first launch after the upgrade.
+  group('schema 10: tombstones', () {
+    test('adds deleted_at to all three cache tables, defaulting to NULL',
+        () async {
+      await seedAtSchemaVersion(9, {'member-1': 'ABCD1234'});
+      var db = openDatabase();
+      await db.into(db.categoriesCache).insert(
+            CategoriesCacheCompanion(
+              id: const Value('cat-1'),
+              names: const Value('{"de":"Getränke"}'),
+              isActive: const Value(1),
+              updatedAt: const Value('2025-02-01T10:00:00Z'),
+            ),
+          );
+      await db.into(db.productsCache).insert(
+            ProductsCacheCompanion(
+              id: const Value('prod-1'),
+              categoryId: const Value('cat-1'),
+              names: const Value('{"de":"Pils"}'),
+              priceCents: const Value(350),
+              isActive: const Value(1),
+              updatedAt: const Value('2025-02-01T10:00:00Z'),
+            ),
+          );
+      await db.customStatement('PRAGMA user_version = 9');
+      await db.close();
+
+      db = openDatabase();
+
+      expect((await db.select(db.membersCache).getSingle()).deletedAt, isNull);
+      expect(
+          (await db.select(db.categoriesCache).getSingle()).deletedAt, isNull);
+      expect((await db.select(db.productsCache).getSingle()).deletedAt, isNull);
+      await db.close();
+    });
+
+    test('a product cached before the upgrade is still sellable after it',
+        () async {
+      await seedAtSchemaVersion(9, {'member-1': 'ABCD1234'});
+      var db = openDatabase();
+      await db.into(db.categoriesCache).insert(
+            CategoriesCacheCompanion(
+              id: const Value('cat-1'),
+              names: const Value('{"de":"Getränke"}'),
+              isActive: const Value(1),
+              updatedAt: const Value('2025-02-01T10:00:00Z'),
+            ),
+          );
+      await db.into(db.productsCache).insert(
+            ProductsCacheCompanion(
+              id: const Value('prod-1'),
+              categoryId: const Value('cat-1'),
+              names: const Value('{"de":"Pils"}'),
+              priceCents: const Value(350),
+              isActive: const Value(1),
+              updatedAt: const Value('2025-02-01T10:00:00Z'),
+            ),
+          );
+      await db.customStatement('PRAGMA user_version = 9');
+      await db.close();
+
+      db = openDatabase();
+      final grid = await ProductsRepository(db).getActiveCategoriesWithProducts();
+
+      expect(grid.single.$2.single.id, equals('prod-1'));
       await db.close();
     });
   });

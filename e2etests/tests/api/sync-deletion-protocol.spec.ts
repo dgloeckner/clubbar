@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { test, expect } from '../../fixtures/auth.fixture';
 
 /**
@@ -399,6 +400,176 @@ test.describe('Deletion Protocol - Products', () => {
     const deleted = body.products.find((p: any) => p.id === productToDelete.id);
     expect(deleted).toBeDefined();
     expect(deleted.deleted_at).toBeTruthy();
+  });
+});
+
+/**
+ * A terminal is offline for a weekend, sells a round, and an admin deletes one
+ * of the products in the meantime. The queued sale still has to land.
+ *
+ * ADR-0033 §1 draws the line: a row is refused only when it is structurally
+ * unstorable, never because a business rule changed after the drink was poured.
+ * A deleted product is squarely on the "already happened" side — the member saw
+ * the tile, accepted the price and drank it. Refusing the upload would not undo
+ * the sale, it would only lose the record of one, and the terminal would
+ * quarantine a row that can never become storable.
+ *
+ * This is also what lets the terminal keep a tombstoned product in its cache
+ * rather than evicting it: the product_id stays meaningful on both sides.
+ */
+test.describe('Deletion Protocol - Sales queued against a deleted product', () => {
+  test('a sale uploaded after its product was deleted is accepted', async ({
+    authenticatedTerminalRequest,
+    authenticatedRequest,
+    testTransactions,
+  }) => {
+    const member = await testTransactions.createMember('PendingSale', 'Member');
+    const product = await testTransactions.createProduct(
+      `DeletedWhileQueued_${randomUUID().substring(0, 8)}`,
+      350
+    );
+
+    const deleteResponse = await authenticatedRequest.delete(
+      `http://localhost:8080/api/admin/products/${product.id}`
+    );
+    expect(deleteResponse.ok()).toBeTruthy();
+
+    // The sale happened at the bar before the delete landed; only the upload is
+    // after it.
+    const transactionId = randomUUID();
+    const upload = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: {
+        transactions: [
+          {
+            id: transactionId,
+            member_id: member.id,
+            product_id: product.id,
+            amount_cents: 350,
+            created_at: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+
+    expect(upload.ok()).toBeTruthy();
+    const body = await upload.json();
+    expect(body.accepted_ids).toContain(transactionId);
+    expect(body.rejected.count).toBe(0);
+    expect(body.rejected.errors).toEqual([]);
+  });
+
+  test('the sale is still billable and still names its deleted product', async ({
+    authenticatedTerminalRequest,
+    authenticatedRequest,
+    testTransactions,
+  }) => {
+    const member = await testTransactions.createMember('PendingSale', 'Billable');
+    const productName = `DeletedButBilled_${randomUUID().substring(0, 8)}`;
+    const product = await testTransactions.createProduct(productName, 275);
+
+    const transactionId = randomUUID();
+    const upload = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: {
+        transactions: [
+          {
+            id: transactionId,
+            member_id: member.id,
+            product_id: product.id,
+            amount_cents: 275,
+            created_at: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+    expect(upload.ok()).toBeTruthy();
+
+    const deleteResponse = await authenticatedRequest.delete(
+      `http://localhost:8080/api/admin/products/${product.id}`
+    );
+    expect(deleteResponse.ok()).toBeTruthy();
+
+    // Deleting the product must not take the sale, nor its provenance, with it:
+    // the club is still owed the money and the member is entitled to see what
+    // for. Resolving the name is what the soft delete buys — a hard delete
+    // would leave the row pointing at nothing.
+    const history = await authenticatedRequest.get(
+      `http://localhost:8080/api/admin/members/${member.id}/transactions`
+    );
+    expect(history.ok()).toBeTruthy();
+    const body = await history.json();
+
+    const sale = body.transactions.find((t: any) => t.id === transactionId);
+    expect(sale).toBeDefined();
+    expect(sale.amount_cents).toBe(275);
+    expect(body.current_balance_cents).toBe(275);
+
+    // The history joins the product to name it. That join is the reason the
+    // delete has to stay soft: a hard delete would leave every past sale of the
+    // product pointing at nothing, on a ledger that is meant to be permanent.
+    const names =
+      typeof sale.product_names === 'string'
+        ? JSON.parse(sale.product_names)
+        : sale.product_names;
+    expect(names?.de).toBe(productName);
+  });
+
+  // A retry of the same batch is what the terminal does after a dropped
+  // connection. It must stay idempotent across the delete, or the member is
+  // billed twice for one drink.
+  test('re-uploading the batch after the delete creates no duplicate', async ({
+    authenticatedTerminalRequest,
+    authenticatedRequest,
+    testTransactions,
+  }) => {
+    const member = await testTransactions.createMember('PendingSale', 'Retry');
+    const product = await testTransactions.createProduct(
+      `DeletedThenRetried_${randomUUID().substring(0, 8)}`,
+      420
+    );
+
+    const transactionId = randomUUID();
+    const batch = {
+      transactions: [
+        {
+          id: transactionId,
+          member_id: member.id,
+          product_id: product.id,
+          amount_cents: 420,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    };
+
+    const first = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: batch,
+    });
+    expect(first.ok()).toBeTruthy();
+
+    const deleteResponse = await authenticatedRequest.delete(
+      `http://localhost:8080/api/admin/products/${product.id}`
+    );
+    expect(deleteResponse.ok()).toBeTruthy();
+
+    const retry = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: batch,
+    });
+
+    expect(retry.ok()).toBeTruthy();
+    const retryBody = await retry.json();
+    // A duplicate is reported as accepted: the terminal only needs to know it
+    // may drop the row (ADR-0033 §5).
+    expect(retryBody.accepted_ids).toContain(transactionId);
+    expect(retryBody.rejected.count).toBe(0);
+
+    const history = await authenticatedRequest.get(
+      `http://localhost:8080/api/admin/members/${member.id}/transactions`
+    );
+    expect(history.ok()).toBeTruthy();
+    const body = await history.json();
+    expect(
+      body.transactions.filter((t: any) => t.id === transactionId)
+    ).toHaveLength(1);
+    expect(body.current_balance_cents).toBe(420);
   });
 });
 

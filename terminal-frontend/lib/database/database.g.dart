@@ -110,6 +110,17 @@ class $MembersCacheTable extends MembersCache
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<String> deletedAt = GeneratedColumn<String>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -121,6 +132,7 @@ class $MembersCacheTable extends MembersCache
     isSepaValid,
     balanceCents,
     updatedAt,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -202,6 +214,12 @@ class $MembersCacheTable extends MembersCache
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -247,6 +265,10 @@ class $MembersCacheTable extends MembersCache
         DriftSqlType.string,
         data['${effectivePrefix}updated_at'],
       )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -267,6 +289,15 @@ class MembersCacheData extends DataClass
   final int isSepaValid;
   final int balanceCents;
   final String updatedAt;
+
+  /// Server tombstone (ISO 8601). Set means the member was anonymized (GDPR
+  /// erasure); their card must scan as unknown.
+  ///
+  /// The row itself is never removed — see the same field on `ProductsCache`.
+  /// `transactions_local.member_id` references it, and deleting the row used to
+  /// throw `FOREIGN KEY constraint failed` out of the first step of the sync
+  /// cycle, wedging every later step with it.
+  final String? deletedAt;
   const MembersCacheData({
     required this.id,
     this.cardUid,
@@ -277,6 +308,7 @@ class MembersCacheData extends DataClass
     required this.isSepaValid,
     required this.balanceCents,
     required this.updatedAt,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -296,6 +328,9 @@ class MembersCacheData extends DataClass
     map['is_sepa_valid'] = Variable<int>(isSepaValid);
     map['balance_cents'] = Variable<int>(balanceCents);
     map['updated_at'] = Variable<String>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<String>(deletedAt);
+    }
     return map;
   }
 
@@ -316,6 +351,9 @@ class MembersCacheData extends DataClass
       isSepaValid: Value(isSepaValid),
       balanceCents: Value(balanceCents),
       updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -334,6 +372,7 @@ class MembersCacheData extends DataClass
       isSepaValid: serializer.fromJson<int>(json['isSepaValid']),
       balanceCents: serializer.fromJson<int>(json['balanceCents']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
+      deletedAt: serializer.fromJson<String?>(json['deletedAt']),
     );
   }
   @override
@@ -349,6 +388,7 @@ class MembersCacheData extends DataClass
       'isSepaValid': serializer.toJson<int>(isSepaValid),
       'balanceCents': serializer.toJson<int>(balanceCents),
       'updatedAt': serializer.toJson<String>(updatedAt),
+      'deletedAt': serializer.toJson<String?>(deletedAt),
     };
   }
 
@@ -362,6 +402,7 @@ class MembersCacheData extends DataClass
     int? isSepaValid,
     int? balanceCents,
     String? updatedAt,
+    Value<String?> deletedAt = const Value.absent(),
   }) => MembersCacheData(
     id: id ?? this.id,
     cardUid: cardUid.present ? cardUid.value : this.cardUid,
@@ -372,6 +413,7 @@ class MembersCacheData extends DataClass
     isSepaValid: isSepaValid ?? this.isSepaValid,
     balanceCents: balanceCents ?? this.balanceCents,
     updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   MembersCacheData copyWithCompanion(MembersCacheCompanion data) {
     return MembersCacheData(
@@ -390,6 +432,7 @@ class MembersCacheData extends DataClass
           ? data.balanceCents.value
           : this.balanceCents,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -404,7 +447,8 @@ class MembersCacheData extends DataClass
           ..write('isActive: $isActive, ')
           ..write('isSepaValid: $isSepaValid, ')
           ..write('balanceCents: $balanceCents, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -420,6 +464,7 @@ class MembersCacheData extends DataClass
     isSepaValid,
     balanceCents,
     updatedAt,
+    deletedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -433,7 +478,8 @@ class MembersCacheData extends DataClass
           other.isActive == this.isActive &&
           other.isSepaValid == this.isSepaValid &&
           other.balanceCents == this.balanceCents &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
 }
 
 class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
@@ -446,6 +492,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
   final Value<int> isSepaValid;
   final Value<int> balanceCents;
   final Value<String> updatedAt;
+  final Value<String?> deletedAt;
   final Value<int> rowid;
   const MembersCacheCompanion({
     this.id = const Value.absent(),
@@ -457,6 +504,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     this.isSepaValid = const Value.absent(),
     this.balanceCents = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MembersCacheCompanion.insert({
@@ -469,6 +517,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     required int isSepaValid,
     this.balanceCents = const Value.absent(),
     required String updatedAt,
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        preferredLanguage = Value(preferredLanguage),
@@ -484,6 +533,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     Expression<int>? isSepaValid,
     Expression<int>? balanceCents,
     Expression<String>? updatedAt,
+    Expression<String>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -496,6 +546,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
       if (isSepaValid != null) 'is_sepa_valid': isSepaValid,
       if (balanceCents != null) 'balance_cents': balanceCents,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -510,6 +561,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     Value<int>? isSepaValid,
     Value<int>? balanceCents,
     Value<String>? updatedAt,
+    Value<String?>? deletedAt,
     Value<int>? rowid,
   }) {
     return MembersCacheCompanion(
@@ -522,6 +574,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
       isSepaValid: isSepaValid ?? this.isSepaValid,
       balanceCents: balanceCents ?? this.balanceCents,
       updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -556,6 +609,9 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<String>(updatedAt.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<String>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -574,6 +630,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
           ..write('isSepaValid: $isSepaValid, ')
           ..write('balanceCents: $balanceCents, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -638,6 +695,17 @@ class $CategoriesCacheTable extends CategoriesCache
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<String> deletedAt = GeneratedColumn<String>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -645,6 +713,7 @@ class $CategoriesCacheTable extends CategoriesCache
     isActive,
     iconName,
     updatedAt,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -691,6 +760,12 @@ class $CategoriesCacheTable extends CategoriesCache
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -720,6 +795,10 @@ class $CategoriesCacheTable extends CategoriesCache
         DriftSqlType.string,
         data['${effectivePrefix}updated_at'],
       )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -736,12 +815,21 @@ class CategoriesCacheData extends DataClass
   final int isActive;
   final String? iconName;
   final String updatedAt;
+
+  /// Server tombstone (ISO 8601). Set means the category was deleted in the admin
+  /// panel; it and all its products are hidden from the purchase UI.
+  ///
+  /// The row itself is never removed — see the same field on `ProductsCache`.
+  /// Products reference the category, and those products are in turn referenced
+  /// by local transactions.
+  final String? deletedAt;
   const CategoriesCacheData({
     required this.id,
     required this.names,
     required this.isActive,
     this.iconName,
     required this.updatedAt,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -753,6 +841,9 @@ class CategoriesCacheData extends DataClass
       map['icon_name'] = Variable<String>(iconName);
     }
     map['updated_at'] = Variable<String>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<String>(deletedAt);
+    }
     return map;
   }
 
@@ -765,6 +856,9 @@ class CategoriesCacheData extends DataClass
           ? const Value.absent()
           : Value(iconName),
       updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -779,6 +873,7 @@ class CategoriesCacheData extends DataClass
       isActive: serializer.fromJson<int>(json['isActive']),
       iconName: serializer.fromJson<String?>(json['iconName']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
+      deletedAt: serializer.fromJson<String?>(json['deletedAt']),
     );
   }
   @override
@@ -790,6 +885,7 @@ class CategoriesCacheData extends DataClass
       'isActive': serializer.toJson<int>(isActive),
       'iconName': serializer.toJson<String?>(iconName),
       'updatedAt': serializer.toJson<String>(updatedAt),
+      'deletedAt': serializer.toJson<String?>(deletedAt),
     };
   }
 
@@ -799,12 +895,14 @@ class CategoriesCacheData extends DataClass
     int? isActive,
     Value<String?> iconName = const Value.absent(),
     String? updatedAt,
+    Value<String?> deletedAt = const Value.absent(),
   }) => CategoriesCacheData(
     id: id ?? this.id,
     names: names ?? this.names,
     isActive: isActive ?? this.isActive,
     iconName: iconName.present ? iconName.value : this.iconName,
     updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   CategoriesCacheData copyWithCompanion(CategoriesCacheCompanion data) {
     return CategoriesCacheData(
@@ -813,6 +911,7 @@ class CategoriesCacheData extends DataClass
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       iconName: data.iconName.present ? data.iconName.value : this.iconName,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -823,13 +922,15 @@ class CategoriesCacheData extends DataClass
           ..write('names: $names, ')
           ..write('isActive: $isActive, ')
           ..write('iconName: $iconName, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, names, isActive, iconName, updatedAt);
+  int get hashCode =>
+      Object.hash(id, names, isActive, iconName, updatedAt, deletedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -838,7 +939,8 @@ class CategoriesCacheData extends DataClass
           other.names == this.names &&
           other.isActive == this.isActive &&
           other.iconName == this.iconName &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
 }
 
 class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
@@ -847,6 +949,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
   final Value<int> isActive;
   final Value<String?> iconName;
   final Value<String> updatedAt;
+  final Value<String?> deletedAt;
   final Value<int> rowid;
   const CategoriesCacheCompanion({
     this.id = const Value.absent(),
@@ -854,6 +957,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     this.isActive = const Value.absent(),
     this.iconName = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CategoriesCacheCompanion.insert({
@@ -862,6 +966,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     this.isActive = const Value.absent(),
     this.iconName = const Value.absent(),
     required String updatedAt,
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        names = Value(names),
@@ -872,6 +977,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     Expression<int>? isActive,
     Expression<String>? iconName,
     Expression<String>? updatedAt,
+    Expression<String>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -880,6 +986,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
       if (isActive != null) 'is_active': isActive,
       if (iconName != null) 'icon_name': iconName,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -890,6 +997,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     Value<int>? isActive,
     Value<String?>? iconName,
     Value<String>? updatedAt,
+    Value<String?>? deletedAt,
     Value<int>? rowid,
   }) {
     return CategoriesCacheCompanion(
@@ -898,6 +1006,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
       isActive: isActive ?? this.isActive,
       iconName: iconName ?? this.iconName,
       updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -920,6 +1029,9 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<String>(updatedAt.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<String>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -934,6 +1046,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
           ..write('isActive: $isActive, ')
           ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1046,6 +1159,17 @@ class $ProductsCacheTable extends ProductsCache
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<String> deletedAt = GeneratedColumn<String>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1057,6 +1181,7 @@ class $ProductsCacheTable extends ProductsCache
     requiresDispenser,
     iconName,
     updatedAt,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1137,6 +1262,12 @@ class $ProductsCacheTable extends ProductsCache
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -1182,6 +1313,10 @@ class $ProductsCacheTable extends ProductsCache
         DriftSqlType.string,
         data['${effectivePrefix}updated_at'],
       )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -1202,6 +1337,16 @@ class ProductsCacheData extends DataClass
   final int requiresDispenser;
   final String? iconName;
   final String updatedAt;
+
+  /// Server tombstone (ISO 8601). Set means the product was deleted in the admin
+  /// panel and must be hidden from the purchase UI.
+  ///
+  /// The row itself is never removed. `transactions_local.product_id` references
+  /// it under `PRAGMA foreign_keys = ON` with no `ON DELETE` clause, and synced
+  /// transactions are retained indefinitely — so a physical delete would be
+  /// refused by SQLite and abort the whole sync cycle. Keeping the row also lets
+  /// transaction history and the quarantine banner still name the product.
+  final String? deletedAt;
   const ProductsCacheData({
     required this.id,
     required this.categoryId,
@@ -1212,6 +1357,7 @@ class ProductsCacheData extends DataClass
     required this.requiresDispenser,
     this.iconName,
     required this.updatedAt,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1229,6 +1375,9 @@ class ProductsCacheData extends DataClass
       map['icon_name'] = Variable<String>(iconName);
     }
     map['updated_at'] = Variable<String>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<String>(deletedAt);
+    }
     return map;
   }
 
@@ -1247,6 +1396,9 @@ class ProductsCacheData extends DataClass
           ? const Value.absent()
           : Value(iconName),
       updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -1265,6 +1417,7 @@ class ProductsCacheData extends DataClass
       requiresDispenser: serializer.fromJson<int>(json['requiresDispenser']),
       iconName: serializer.fromJson<String?>(json['iconName']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
+      deletedAt: serializer.fromJson<String?>(json['deletedAt']),
     );
   }
   @override
@@ -1280,6 +1433,7 @@ class ProductsCacheData extends DataClass
       'requiresDispenser': serializer.toJson<int>(requiresDispenser),
       'iconName': serializer.toJson<String?>(iconName),
       'updatedAt': serializer.toJson<String>(updatedAt),
+      'deletedAt': serializer.toJson<String?>(deletedAt),
     };
   }
 
@@ -1293,6 +1447,7 @@ class ProductsCacheData extends DataClass
     int? requiresDispenser,
     Value<String?> iconName = const Value.absent(),
     String? updatedAt,
+    Value<String?> deletedAt = const Value.absent(),
   }) => ProductsCacheData(
     id: id ?? this.id,
     categoryId: categoryId ?? this.categoryId,
@@ -1303,6 +1458,7 @@ class ProductsCacheData extends DataClass
     requiresDispenser: requiresDispenser ?? this.requiresDispenser,
     iconName: iconName.present ? iconName.value : this.iconName,
     updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   ProductsCacheData copyWithCompanion(ProductsCacheCompanion data) {
     return ProductsCacheData(
@@ -1323,6 +1479,7 @@ class ProductsCacheData extends DataClass
           : this.requiresDispenser,
       iconName: data.iconName.present ? data.iconName.value : this.iconName,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -1337,7 +1494,8 @@ class ProductsCacheData extends DataClass
           ..write('isActive: $isActive, ')
           ..write('requiresDispenser: $requiresDispenser, ')
           ..write('iconName: $iconName, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -1353,6 +1511,7 @@ class ProductsCacheData extends DataClass
     requiresDispenser,
     iconName,
     updatedAt,
+    deletedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -1366,7 +1525,8 @@ class ProductsCacheData extends DataClass
           other.isActive == this.isActive &&
           other.requiresDispenser == this.requiresDispenser &&
           other.iconName == this.iconName &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
 }
 
 class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
@@ -1379,6 +1539,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
   final Value<int> requiresDispenser;
   final Value<String?> iconName;
   final Value<String> updatedAt;
+  final Value<String?> deletedAt;
   final Value<int> rowid;
   const ProductsCacheCompanion({
     this.id = const Value.absent(),
@@ -1390,6 +1551,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     this.requiresDispenser = const Value.absent(),
     this.iconName = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProductsCacheCompanion.insert({
@@ -1402,6 +1564,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     this.requiresDispenser = const Value.absent(),
     this.iconName = const Value.absent(),
     required String updatedAt,
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        categoryId = Value(categoryId),
@@ -1418,6 +1581,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     Expression<int>? requiresDispenser,
     Expression<String>? iconName,
     Expression<String>? updatedAt,
+    Expression<String>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1430,6 +1594,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
       if (requiresDispenser != null) 'requires_dispenser': requiresDispenser,
       if (iconName != null) 'icon_name': iconName,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1444,6 +1609,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     Value<int>? requiresDispenser,
     Value<String?>? iconName,
     Value<String>? updatedAt,
+    Value<String?>? deletedAt,
     Value<int>? rowid,
   }) {
     return ProductsCacheCompanion(
@@ -1456,6 +1622,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
       requiresDispenser: requiresDispenser ?? this.requiresDispenser,
       iconName: iconName ?? this.iconName,
       updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1490,6 +1657,9 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<String>(updatedAt.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<String>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1508,6 +1678,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
           ..write('requiresDispenser: $requiresDispenser, ')
           ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3615,6 +3786,7 @@ typedef $$MembersCacheTableCreateCompanionBuilder =
       required int isSepaValid,
       Value<int> balanceCents,
       required String updatedAt,
+      Value<String?> deletedAt,
       Value<int> rowid,
     });
 typedef $$MembersCacheTableUpdateCompanionBuilder =
@@ -3628,6 +3800,7 @@ typedef $$MembersCacheTableUpdateCompanionBuilder =
       Value<int> isSepaValid,
       Value<int> balanceCents,
       Value<String> updatedAt,
+      Value<String?> deletedAt,
       Value<int> rowid,
     });
 
@@ -3722,6 +3895,11 @@ class $$MembersCacheTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> transactionsLocalRefs(
     Expression<bool> Function($$TransactionsLocalTableFilterComposer f) f,
   ) {
@@ -3801,6 +3979,11 @@ class $$MembersCacheTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MembersCacheTableAnnotationComposer
@@ -3844,6 +4027,9 @@ class $$MembersCacheTableAnnotationComposer
 
   GeneratedColumn<String> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   Expression<T> transactionsLocalRefs<T extends Object>(
     Expression<T> Function($$TransactionsLocalTableAnnotationComposer a) f,
@@ -3911,6 +4097,7 @@ class $$MembersCacheTableTableManager
                 Value<int> isSepaValid = const Value.absent(),
                 Value<int> balanceCents = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
+                Value<String?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MembersCacheCompanion(
                 id: id,
@@ -3922,6 +4109,7 @@ class $$MembersCacheTableTableManager
                 isSepaValid: isSepaValid,
                 balanceCents: balanceCents,
                 updatedAt: updatedAt,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3935,6 +4123,7 @@ class $$MembersCacheTableTableManager
                 required int isSepaValid,
                 Value<int> balanceCents = const Value.absent(),
                 required String updatedAt,
+                Value<String?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MembersCacheCompanion.insert(
                 id: id,
@@ -3946,6 +4135,7 @@ class $$MembersCacheTableTableManager
                 isSepaValid: isSepaValid,
                 balanceCents: balanceCents,
                 updatedAt: updatedAt,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -4013,6 +4203,7 @@ typedef $$CategoriesCacheTableCreateCompanionBuilder =
       Value<int> isActive,
       Value<String?> iconName,
       required String updatedAt,
+      Value<String?> deletedAt,
       Value<int> rowid,
     });
 typedef $$CategoriesCacheTableUpdateCompanionBuilder =
@@ -4022,6 +4213,7 @@ typedef $$CategoriesCacheTableUpdateCompanionBuilder =
       Value<int> isActive,
       Value<String?> iconName,
       Value<String> updatedAt,
+      Value<String?> deletedAt,
       Value<int> rowid,
     });
 
@@ -4095,6 +4287,11 @@ class $$CategoriesCacheTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> productsCacheRefs(
     Expression<bool> Function($$ProductsCacheTableFilterComposer f) f,
   ) {
@@ -4154,6 +4351,11 @@ class $$CategoriesCacheTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CategoriesCacheTableAnnotationComposer
@@ -4179,6 +4381,9 @@ class $$CategoriesCacheTableAnnotationComposer
 
   GeneratedColumn<String> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   Expression<T> productsCacheRefs<T extends Object>(
     Expression<T> Function($$ProductsCacheTableAnnotationComposer a) f,
@@ -4241,6 +4446,7 @@ class $$CategoriesCacheTableTableManager
                 Value<int> isActive = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
+                Value<String?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CategoriesCacheCompanion(
                 id: id,
@@ -4248,6 +4454,7 @@ class $$CategoriesCacheTableTableManager
                 isActive: isActive,
                 iconName: iconName,
                 updatedAt: updatedAt,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4257,6 +4464,7 @@ class $$CategoriesCacheTableTableManager
                 Value<int> isActive = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 required String updatedAt,
+                Value<String?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CategoriesCacheCompanion.insert(
                 id: id,
@@ -4264,6 +4472,7 @@ class $$CategoriesCacheTableTableManager
                 isActive: isActive,
                 iconName: iconName,
                 updatedAt: updatedAt,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -4335,6 +4544,7 @@ typedef $$ProductsCacheTableCreateCompanionBuilder =
       Value<int> requiresDispenser,
       Value<String?> iconName,
       required String updatedAt,
+      Value<String?> deletedAt,
       Value<int> rowid,
     });
 typedef $$ProductsCacheTableUpdateCompanionBuilder =
@@ -4348,6 +4558,7 @@ typedef $$ProductsCacheTableUpdateCompanionBuilder =
       Value<int> requiresDispenser,
       Value<String?> iconName,
       Value<String> updatedAt,
+      Value<String?> deletedAt,
       Value<int> rowid,
     });
 
@@ -4463,6 +4674,11 @@ class $$ProductsCacheTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$CategoriesCacheTableFilterComposer get categoryId {
     final $$CategoriesCacheTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -4561,6 +4777,11 @@ class $$ProductsCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$CategoriesCacheTableOrderingComposer get categoryId {
     final $$CategoriesCacheTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -4623,6 +4844,9 @@ class $$ProductsCacheTableAnnotationComposer
 
   GeneratedColumn<String> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   $$CategoriesCacheTableAnnotationComposer get categoryId {
     final $$CategoriesCacheTableAnnotationComposer composer = $composerBuilder(
@@ -4713,6 +4937,7 @@ class $$ProductsCacheTableTableManager
                 Value<int> requiresDispenser = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
+                Value<String?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProductsCacheCompanion(
                 id: id,
@@ -4724,6 +4949,7 @@ class $$ProductsCacheTableTableManager
                 requiresDispenser: requiresDispenser,
                 iconName: iconName,
                 updatedAt: updatedAt,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4737,6 +4963,7 @@ class $$ProductsCacheTableTableManager
                 Value<int> requiresDispenser = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 required String updatedAt,
+                Value<String?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProductsCacheCompanion.insert(
                 id: id,
@@ -4748,6 +4975,7 @@ class $$ProductsCacheTableTableManager
                 requiresDispenser: requiresDispenser,
                 iconName: iconName,
                 updatedAt: updatedAt,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
