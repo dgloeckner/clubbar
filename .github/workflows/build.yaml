@@ -493,12 +493,13 @@ jobs:
         working-directory: e2etests
 
       - name: Run E2E tests
-        # `api-ordered` carries the specs that cannot run alongside anything
-        # else — see the project in playwright.config.ts. It depends on
-        # `api-tests`, so it runs after it rather than beside it. Listing it
-        # explicitly matters: those specs are excluded from `api-tests`, so
-        # leaving it out drops them from CI silently.
-        run: npx playwright test --project=api-tests --project=api-ordered --project=admin-chromium --project=admin-mobile --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        # `api-ordered` and `api-rotation` carry the specs that cannot run
+        # alongside anything else — see the projects in playwright.config.ts.
+        # Each depends on the suites it must follow, so they run after them
+        # rather than beside them. Listing them explicitly matters: those specs
+        # are excluded from `api-tests`, so leaving one out drops it from CI
+        # silently.
+        run: npx playwright test --project=api-tests --project=api-ordered --project=api-rotation --project=admin-chromium --project=admin-mobile --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
         working-directory: e2etests
         env:
           CI: true

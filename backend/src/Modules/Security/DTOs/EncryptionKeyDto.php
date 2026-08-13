@@ -21,9 +21,15 @@ class EncryptionKeyDto
         public readonly ?string $retiredAt,
         public readonly ?int $daysUntilExpiry,
         public readonly string $lifecycleState,
+        /**
+         * Mandate rows still sealed under this key — the rotation backlog
+         * (#394). Null when the caller did not ask for it; the listing does,
+         * single-key responses do not.
+         */
+        public readonly ?int $sealedRecordCount = null,
     ) {}
 
-    public static function fromRow(array $row, ?\DateTimeImmutable $now = null): self
+    public static function fromRow(array $row, ?\DateTimeImmutable $now = null, ?int $sealedRecordCount = null): self
     {
         $expiresAt = $row['expires_at'] ?? null;
         $status = $row['status'];
@@ -46,6 +52,7 @@ class EncryptionKeyDto
             retiredAt: $row['retired_at'] ?? null,
             daysUntilExpiry: $operational ? CredentialLifecycle::daysUntilExpiry($expiresAt, $now) : null,
             lifecycleState: $operational ? CredentialLifecycle::state($expiresAt, $now) : CredentialLifecycle::STATE_OK,
+            sealedRecordCount: $sealedRecordCount,
         );
     }
 
@@ -64,6 +71,7 @@ class EncryptionKeyDto
             'retired_at' => $this->retiredAt,
             'days_until_expiry' => $this->daysUntilExpiry,
             'lifecycle_state' => $this->lifecycleState,
+            'sealed_record_count' => $this->sealedRecordCount,
         ];
     }
 }

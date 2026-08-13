@@ -30,6 +30,7 @@ import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { StepUpConfirmDialog, type StepUpCredentials } from '../components/modals/StepUpConfirmDialog'
 import { TerminalsTab } from '../components/settings/TerminalsTab'
 import { SecurityCheckTab } from '../components/settings/SecurityCheckTab'
+import { CredentialsTab } from '../components/settings/CredentialsTab'
 import { InstanceBrandingTab } from '../components/settings/InstanceBrandingTab'
 import { CreateTerminalModal } from '../components/modals/CreateTerminalModal'
 import { EditTerminalModal } from '../components/modals/EditTerminalModal'
@@ -51,7 +52,7 @@ export function SettingsPage() {
   const { refetch: refetchInstanceConfig } = useInstanceConfig()
 
   // State management
-  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals' | 'security' | 'instance'>('admin-users')
+  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals' | 'security' | 'credentials' | 'instance'>('admin-users')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   // Page-level failure, rendered above the tab content. A modal covers that
@@ -273,7 +274,7 @@ export function SettingsPage() {
     setModalFieldErrors({})
   }
 
-  const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals' | 'security' | 'instance') => {
+  const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals' | 'security' | 'credentials' | 'instance') => {
     // The banner reports what failed on the tab that is being left behind.
     setError(null)
     setActionSuccess(null)
@@ -817,6 +818,19 @@ export function SettingsPage() {
             {t('settings.security.tab')}
           </button>
           <button
+            data-testid="settings-tab-credentials"
+            onClick={() => switchTab('credentials')}
+            style={tabStyle(activeTab === 'credentials') as any}
+          >
+            {!isMobile && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 2l-2 2m-3.5 3.5a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78z" />
+                <path d="M15.5 7.5L19 4l3 3-3.5 3.5" />
+              </svg>
+            )}
+            {t('settings.credentials.tab')}
+          </button>
+          <button
             data-testid="settings-tab-instance"
             onClick={() => switchTab('instance')}
             style={tabStyle(activeTab === 'instance') as any}
@@ -910,6 +924,11 @@ export function SettingsPage() {
       {/* Security self-check (#247): measured, never assumed — so it is fetched
           when the tab is opened rather than cached with the rest of the page. */}
       {activeTab === 'security' && <SecurityCheckTab />}
+
+      {/* IBAN encryption keys and their lifecycle (#394). Like the self-check
+          it fetches when its tab is opened: warning tiers are computed at
+          request time, so a cached list would be a stale warning. */}
+      {activeTab === 'credentials' && <CredentialsTab callerTotpEnabled={callerTotpEnabled} />}
 
       {/* Instance Branding Tab (ADR-0034 / UC-A64) */}
       {activeTab === 'instance' && (

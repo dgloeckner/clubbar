@@ -61,9 +61,26 @@ class EncryptionKeysRepository
             ->fetchAll();
     }
 
+    /**
+     * The ACTIVE key.
+     *
+     * Ordered and limited rather than "the row that comes back", because the
+     * one-ACTIVE invariant lives in {@see activateExclusive()} and not in the
+     * schema — MariaDB has no partial unique index. Anything that writes the
+     * table without going through this class (a re-applied `seed.sql`, a
+     * hand-run UPDATE during an incident) can leave two rows ACTIVE, and an
+     * unordered query would then hand different callers different keys within
+     * one request: the write path would seal under one and the export validate
+     * against the other. Newest activation wins; `id` is the final tiebreaker
+     * because `activated_at` is a DATETIME and two activations inside the same
+     * second are otherwise indistinguishable. Which key an arbitrary tie
+     * resolves to matters less than that every caller resolves it the same way.
+     */
     public function findActive(): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM encryption_keys WHERE status = 'active'");
+        $stmt = $this->db->prepare(
+            "SELECT * FROM encryption_keys WHERE status = 'active' ORDER BY activated_at DESC, created_at DESC, id DESC LIMIT 1"
+        );
         $stmt->execute();
         return $stmt->fetch() ?: null;
     }

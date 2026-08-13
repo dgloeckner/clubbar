@@ -165,6 +165,11 @@ return function (App $app): void {
         $group->post('/encryption-keys', [EncryptionKeysController::class, 'store'])->add($stepUpRateLimit);
         $group->post('/encryption-keys/{id}/activate', [EncryptionKeysController::class, 'activate'])->add($stepUpRateLimit);
         $group->post('/encryption-keys/{id}/revoke', [EncryptionKeysController::class, 'revoke'])->add($stepUpRateLimit);
+        // Rotation (#394): one request per batch of 100 rows, each carrying the
+        // private half of the key being rotated away from. The wizard calls
+        // rotate-batch until nothing is left, then complete-rotation retires it.
+        $group->post('/encryption-keys/{id}/rotate-batch', [EncryptionKeysController::class, 'rotateBatch'])->add($stepUpRateLimit);
+        $group->post('/encryption-keys/{id}/complete-rotation', [EncryptionKeysController::class, 'completeRotation'])->add($stepUpRateLimit);
 
         // Settlements
         // Static segments must stay above /settlements/{id} so they are not

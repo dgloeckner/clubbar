@@ -47,9 +47,12 @@ export default defineConfig({
     {
       name: 'api-tests',
       testDir: './tests/api',
-      // Exclude the rate-limit and attempt-cap tests — they are ordered, not
-      // parallel, and live in the `rate-limit` project below.
-      testIgnore: /(terminal-rate-limit|auth-rate-limit|auth-mfa-lockout)\.spec\.ts/,
+      // Exclude the rate-limit, attempt-cap and key-rotation tests — they are
+      // ordered, not parallel, and live in the `rate-limit` and `api-ordered`
+      // projects below. Leaving `key-rotation` in would be the worst of them:
+      // it changes the installation's ACTIVE encryption key, so it would move
+      // the ground under every other spec's member writes mid-run.
+      testIgnore: /(terminal-rate-limit|auth-rate-limit|auth-mfa-lockout|key-rotation)\.spec\.ts/,
       // The authenticatedRequest fixture (fixtures/auth.fixture.ts) reuses the
       // session "setup auth" writes to playwright/.auth/admin.json rather than
       // logging in itself (#338 — avoids racing TOTP replay protection against
@@ -129,16 +132,41 @@ export default defineConfig({
     // that admin — and loses for a reason that has nothing to do with the cap.
     //
     // `dependencies` is what orders it: the parallel API suite must finish
-    // before this project starts, and with a single spec file
-    // `fullyParallel: false` leaves it alone in one worker. Ordered rather than
+    // before this project starts, and with `fullyParallel: false` the specs
+    // here run one after another in a single worker. Ordered rather than
     // skipped — an attempt cap nobody exercises is one nobody knows is still
     // there.
+    //
     {
       name: 'api-ordered',
       testDir: './tests/api',
       testMatch: /auth-mfa-lockout\.spec\.ts/,
       fullyParallel: false,
       dependencies: ['api-tests'],
+    },
+
+    // Last of all, and for a stronger reason than the project above.
+    //
+    // Rotating the encryption key changes what the *whole installation* seals
+    // under (#394). Between activating the successor and draining the last
+    // batch, the active key and the key the stored rows are sealed under are
+    // deliberately different — and any SEPA export landing in that window
+    // brings the new private key to rows still holding the old ciphertext.
+    // That is correct behaviour and a broken test, so it waits for every
+    // project that exports one: `tests/api` and `tests/admin`. Writing a
+    // member during a rotation is harmless by contrast — a write always seals
+    // under whatever key is active — which is why `admin-mobile` is not in the
+    // list, and why this does not drag WebKit into an otherwise Chromium run.
+    //
+    // The cost is that `--project=api-rotation` on its own pulls those suites
+    // in as dependencies. That is the right way round: this spec is meaningful
+    // as the tail of a full run, not on its own.
+    {
+      name: 'api-rotation',
+      testDir: './tests/api',
+      testMatch: /key-rotation\.spec\.ts/,
+      fullyParallel: false,
+      dependencies: ['api-tests', 'api-ordered', 'admin-chromium'],
     },
 
     // Package smoke tests - only run when PACKAGE_TEST=1

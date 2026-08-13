@@ -591,6 +591,76 @@
         "required": "Instance name is required",
         "tooLong": "Instance name must be 100 characters or fewer"
       }
+    },
+    "credentials": {
+      "tab": "Credentials",
+      "title": "IBAN encryption keys",
+      "intro": "Member bank details are sealed with the club's public key, and this server holds no private key — it can encrypt an IBAN but never read one back. The key that does the sealing expires after a year, so it is a thing the club owns and has to replace on time. Everything below is measured as this page loaded; nothing runs on a schedule.",
+      "register": "Register key",
+      "registerHint": "Paste the public half of a keypair you generated offline with tools/keypair-generator.html. Keep the private half in the club's archive — it is the only thing that can ever read these IBANs again, and no copy of it reaches this server.",
+      "identifierLabel": "Key name, e.g. club-key-2027",
+      "publicKeyLabel": "Public key (base64)",
+      "registered": "Key registered. Activate it when you are ready to seal new IBANs under it.",
+      "activate": "Activate",
+      "activateHint": "Every IBAN saved from now on is sealed under this key, and its 365-day lifetime starts. Any key that was active moves to retiring — its stored rows still need re-encrypting before it can be retired.",
+      "activated": "Key activated. Re-encrypt the rows still held under the previous key to finish the rotation.",
+      "revoke": "Revoke",
+      "revokeHint": "Withdraw this key from use immediately, regardless of how much lifetime is left. Rows sealed under it stay readable only with its private half, so re-encrypt them onto the replacement.",
+      "revoked": "Key revoked.",
+      "compromise": "Mark compromised",
+      "compromiseHint": "Use this when the private key may have leaked. The key is withdrawn at once and the reason is recorded permanently. Register and activate a replacement, then re-encrypt every row — ciphertext already copied together with the leaked key cannot be protected retroactively.",
+      "compromised": "Key marked as compromised. Activate a replacement and re-encrypt the affected rows.",
+      "empty": "No encryption key is registered yet. Until one is registered and activated, no member's bank details can be stored.",
+      "activatedAt": "Activated",
+      "expiresAt": "Expires",
+      "daysLeft_one": "{{count}} day left",
+      "daysLeft_other": "{{count}} days left",
+      "sealedRecords_one": "{{count}} mandate sealed under it",
+      "sealedRecords_other": "{{count}} mandates sealed under it",
+      "status": {
+        "pending": "Pending",
+        "active": "Active",
+        "retiring": "Retiring",
+        "retired": "Retired",
+        "revoked": "Revoked",
+        "compromised": "Compromised"
+      },
+      "banner": {
+        "missingTitle": "No active encryption key",
+        "missing": "Bank details cannot be stored until a key is registered and activated.",
+        "infoTitle": "Encryption key expires this year",
+        "warningTitle": "Encryption key expires soon",
+        "criticalTitle": "Encryption key expires within days",
+        "expiredTitle": "Encryption key has expired",
+        "expiring_one": "Key {{key}} expires in {{count}} day. Register and activate a replacement, then re-encrypt the stored rows.",
+        "expiring_other": "Key {{key}} expires in {{count}} days. Register and activate a replacement, then re-encrypt the stored rows.",
+        "expired": "Key {{key}} has expired. No new bank details can be stored and no SEPA file can be exported until you rotate."
+      },
+      "rotation": {
+        "title": "Re-encrypt rows held under {{key}}",
+        "intro_one": "{{count}} mandate is still sealed under {{key}}. Supply that key's private half so it can be re-sealed under the active key — 100 rows per step.",
+        "intro_other": "{{count}} mandates are still sealed under {{key}}. Supply that key's private half so they can be re-sealed under the active key — 100 rows per step.",
+        "keyHint": "The private half of the key being replaced — the only thing that can open these rows. It is used for this one request and never stored on the server. Stopping here loses nothing: the next step picks up where this one ended.",
+        "runBatch": "Re-encrypt next 100",
+        "batchDone_one": "{{count}} row re-encrypted.",
+        "batchDone_other": "{{count}} rows re-encrypted.",
+        "skipped_one": "{{count}} row was already moved by a member edit and was left alone.",
+        "skipped_other": "{{count}} rows were already moved by member edits and were left alone.",
+        "remaining_one": "{{count}} row still to go. With two-factor enabled, the next step needs a fresh code.",
+        "remaining_other": "{{count}} rows still to go. With two-factor enabled, the next step needs a fresh code.",
+        "allMoved": "Nothing is sealed under this key any more.",
+        "readyToRetire": "Nothing is sealed under {{key}} any more. Retiring it records that the rotation is finished; keep the private half archived anyway, in case an older backup ever has to be read.",
+        "retire": "Retire this key",
+        "completed": "Rotation complete — the old key is retired."
+      },
+      "errors": {
+        "load": "The encryption keys could not be loaded.",
+        "register": "The key could not be registered.",
+        "activate": "The key could not be activated.",
+        "revoke": "The key could not be withdrawn.",
+        "rotate": "The batch could not be re-encrypted.",
+        "completeRotation": "The key could not be retired."
+      }
     }
   },
   "auditLog": {
@@ -776,7 +846,8 @@
     "membersNeedSepaData_one": "{{count}} member missing SEPA data",
     "membersNeedSepaData_other": "{{count}} members missing SEPA data",
     "stale": "The last refresh failed — these figures may be out of date.",
-    "staleSince": "The last refresh failed — these figures are from {{time}}."
+    "staleSince": "The last refresh failed — these figures are from {{time}}.",
+    "manageKeys": "Manage keys"
   },
   "pagination": {
     "firstPage": "First page",

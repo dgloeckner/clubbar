@@ -591,6 +591,76 @@
         "required": "Der Instanzname ist erforderlich",
         "tooLong": "Der Instanzname darf höchstens 100 Zeichen lang sein"
       }
+    },
+    "credentials": {
+      "tab": "Schlüssel",
+      "title": "IBAN-Verschlüsselungsschlüssel",
+      "intro": "Bankdaten der Mitglieder werden mit dem öffentlichen Schlüssel des Vereins versiegelt; dieser Server besitzt keinen privaten Schlüssel — er kann eine IBAN verschlüsseln, aber nie wieder lesen. Der versiegelnde Schlüssel läuft nach einem Jahr ab und muss rechtzeitig ersetzt werden. Alle Angaben unten wurden beim Laden dieser Seite ermittelt; nichts läuft zeitgesteuert.",
+      "register": "Schlüssel registrieren",
+      "registerHint": "Fügen Sie die öffentliche Hälfte eines Schlüsselpaars ein, das Sie offline mit tools/keypair-generator.html erzeugt haben. Bewahren Sie die private Hälfte im Vereinsarchiv auf — nur sie kann diese IBANs jemals wieder lesen, und keine Kopie davon erreicht diesen Server.",
+      "identifierLabel": "Name des Schlüssels, z. B. vereinsschluessel-2027",
+      "publicKeyLabel": "Öffentlicher Schlüssel (Base64)",
+      "registered": "Schlüssel registriert. Aktivieren Sie ihn, sobald neue IBANs damit versiegelt werden sollen.",
+      "activate": "Aktivieren",
+      "activateHint": "Ab sofort wird jede gespeicherte IBAN mit diesem Schlüssel versiegelt, und seine Laufzeit von 365 Tagen beginnt. Ein bisher aktiver Schlüssel wechselt in den Status „wird abgelöst“ — seine gespeicherten Datensätze müssen noch neu verschlüsselt werden.",
+      "activated": "Schlüssel aktiviert. Verschlüsseln Sie die Datensätze des bisherigen Schlüssels neu, um die Rotation abzuschließen.",
+      "revoke": "Zurückziehen",
+      "revokeHint": "Diesen Schlüssel sofort außer Kraft setzen, unabhängig von der Restlaufzeit. Damit versiegelte Datensätze bleiben nur mit seiner privaten Hälfte lesbar — verschlüsseln Sie sie auf den Nachfolger um.",
+      "revoked": "Schlüssel zurückgezogen.",
+      "compromise": "Als kompromittiert melden",
+      "compromiseHint": "Verwenden Sie dies, wenn der private Schlüssel abgeflossen sein könnte. Der Schlüssel wird sofort außer Kraft gesetzt und der Grund dauerhaft festgehalten. Registrieren und aktivieren Sie einen Ersatz und verschlüsseln Sie alle Datensätze neu — bereits zusammen mit dem Schlüssel kopierte Chiffrate lassen sich nachträglich nicht mehr schützen.",
+      "compromised": "Schlüssel als kompromittiert vermerkt. Aktivieren Sie einen Ersatz und verschlüsseln Sie die betroffenen Datensätze neu.",
+      "empty": "Es ist noch kein Verschlüsselungsschlüssel registriert. Bis einer registriert und aktiviert ist, können keine Bankdaten gespeichert werden.",
+      "activatedAt": "Aktiviert",
+      "expiresAt": "Läuft ab",
+      "daysLeft_one": "noch {{count}} Tag",
+      "daysLeft_other": "noch {{count}} Tage",
+      "sealedRecords_one": "{{count}} Mandat damit versiegelt",
+      "sealedRecords_other": "{{count}} Mandate damit versiegelt",
+      "status": {
+        "pending": "Vorbereitet",
+        "active": "Aktiv",
+        "retiring": "Wird abgelöst",
+        "retired": "Außer Dienst",
+        "revoked": "Zurückgezogen",
+        "compromised": "Kompromittiert"
+      },
+      "banner": {
+        "missingTitle": "Kein aktiver Verschlüsselungsschlüssel",
+        "missing": "Bankdaten können erst gespeichert werden, wenn ein Schlüssel registriert und aktiviert ist.",
+        "infoTitle": "Verschlüsselungsschlüssel läuft in diesem Jahr ab",
+        "warningTitle": "Verschlüsselungsschlüssel läuft bald ab",
+        "criticalTitle": "Verschlüsselungsschlüssel läuft in wenigen Tagen ab",
+        "expiredTitle": "Verschlüsselungsschlüssel ist abgelaufen",
+        "expiring_one": "Schlüssel {{key}} läuft in {{count}} Tag ab. Registrieren und aktivieren Sie einen Ersatz und verschlüsseln Sie die gespeicherten Datensätze neu.",
+        "expiring_other": "Schlüssel {{key}} läuft in {{count}} Tagen ab. Registrieren und aktivieren Sie einen Ersatz und verschlüsseln Sie die gespeicherten Datensätze neu.",
+        "expired": "Schlüssel {{key}} ist abgelaufen. Bis zur Rotation können weder neue Bankdaten gespeichert noch SEPA-Dateien erzeugt werden."
+      },
+      "rotation": {
+        "title": "Datensätze von {{key}} neu verschlüsseln",
+        "intro_one": "{{count}} Mandat ist noch mit {{key}} versiegelt. Geben Sie die private Hälfte dieses Schlüssels an, damit es mit dem aktiven Schlüssel neu versiegelt werden kann — 100 Datensätze pro Schritt.",
+        "intro_other": "{{count}} Mandate sind noch mit {{key}} versiegelt. Geben Sie die private Hälfte dieses Schlüssels an, damit sie mit dem aktiven Schlüssel neu versiegelt werden können — 100 Datensätze pro Schritt.",
+        "keyHint": "Die private Hälfte des abzulösenden Schlüssels — nur sie kann diese Datensätze öffnen. Sie wird für diese eine Anfrage verwendet und nie auf dem Server gespeichert. Ein Abbruch kostet nichts: Der nächste Schritt setzt genau dort an, wo dieser endete.",
+        "runBatch": "Nächste 100 neu verschlüsseln",
+        "batchDone_one": "{{count}} Datensatz neu verschlüsselt.",
+        "batchDone_other": "{{count}} Datensätze neu verschlüsselt.",
+        "skipped_one": "{{count}} Datensatz wurde bereits durch eine Mitgliederänderung umgestellt und blieb unangetastet.",
+        "skipped_other": "{{count}} Datensätze wurden bereits durch Mitgliederänderungen umgestellt und blieben unangetastet.",
+        "remaining_one": "Noch {{count}} Datensatz. Mit Zwei-Faktor-Anmeldung benötigt der nächste Schritt einen neuen Code.",
+        "remaining_other": "Noch {{count}} Datensätze. Mit Zwei-Faktor-Anmeldung benötigt der nächste Schritt einen neuen Code.",
+        "allMoved": "Mit diesem Schlüssel ist nichts mehr versiegelt.",
+        "readyToRetire": "Mit {{key}} ist nichts mehr versiegelt. Das Außerdienststellen hält fest, dass die Rotation abgeschlossen ist; bewahren Sie die private Hälfte dennoch auf — für den Fall, dass eine ältere Sicherung gelesen werden muss.",
+        "retire": "Schlüssel außer Dienst stellen",
+        "completed": "Rotation abgeschlossen — der alte Schlüssel ist außer Dienst."
+      },
+      "errors": {
+        "load": "Die Verschlüsselungsschlüssel konnten nicht geladen werden.",
+        "register": "Der Schlüssel konnte nicht registriert werden.",
+        "activate": "Der Schlüssel konnte nicht aktiviert werden.",
+        "revoke": "Der Schlüssel konnte nicht außer Kraft gesetzt werden.",
+        "rotate": "Der Stapel konnte nicht neu verschlüsselt werden.",
+        "completeRotation": "Der Schlüssel konnte nicht außer Dienst gestellt werden."
+      }
     }
   },
   "auditLog": {
@@ -776,7 +846,8 @@
     "membersNeedSepaData_one": "{{count}} Mitglied ohne SEPA-Daten",
     "membersNeedSepaData_other": "{{count}} Mitglieder ohne SEPA-Daten",
     "stale": "Die letzte Aktualisierung ist fehlgeschlagen – die Werte sind möglicherweise veraltet.",
-    "staleSince": "Die letzte Aktualisierung ist fehlgeschlagen – die Werte stammen von {{time}} Uhr."
+    "staleSince": "Die letzte Aktualisierung ist fehlgeschlagen – die Werte stammen von {{time}} Uhr.",
+    "manageKeys": "Schlüssel verwalten"
   },
   "pagination": {
     "firstPage": "Erste Seite",

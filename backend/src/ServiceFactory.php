@@ -20,7 +20,9 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Modules\Security\Repositories\SealedIbanRepository;
 use App\Modules\Security\Services\EncryptionKeyService;
+use App\Modules\Security\Services\KeyRotationService;
 use App\Modules\Security\Controllers\EncryptionKeysController;
 use App\Shared\Security\IbanSealedBox;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
@@ -343,10 +345,27 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(EncryptionKeysRepository::class, fn() => new EncryptionKeysRepository($this->pdo, $this->logger));
     }
 
+    public function getSealedIbanRepository(): SealedIbanRepository
+    {
+        return $this->resolve(SealedIbanRepository::class, fn() => new SealedIbanRepository($this->pdo));
+    }
+
     public function getEncryptionKeyService(): EncryptionKeyService
     {
         return $this->resolve(EncryptionKeyService::class, fn() => new EncryptionKeyService(
             $this->getEncryptionKeysRepository(),
+            $this->getSealedIbanRepository(),
+            $this->getIbanSealedBox(),
+            $this->getAuditService(),
+        ));
+    }
+
+    public function getKeyRotationService(): KeyRotationService
+    {
+        return $this->resolve(KeyRotationService::class, fn() => new KeyRotationService(
+            $this->getEncryptionKeysRepository(),
+            $this->getSealedIbanRepository(),
+            $this->getEncryptionKeyService(),
             $this->getIbanSealedBox(),
             $this->getAuditService(),
         ));
@@ -356,6 +375,7 @@ class ServiceFactory implements ContainerInterface
     {
         return $this->resolve(EncryptionKeysController::class, fn() => new EncryptionKeysController(
             $this->getEncryptionKeyService(),
+            $this->getKeyRotationService(),
             $this->getStepUpAuthService(),
             $this->getValidator(),
         ));
@@ -795,6 +815,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTransactionsRepository(),
             $this->getSettlementsRepository(),
             $this->getTerminalsRepository(),
+            $this->getEncryptionKeysRepository(),
         ));
     }
 

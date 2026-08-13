@@ -51,9 +51,12 @@ Key implementation constraint discovered up front: `MembersRepository::applyMand
 
 ### P5 — Key rotation + Security & Credentials page ([#394](https://github.com/dgloeckner/clubbar/issues/394))
 
-- [ ] `KeyRotationService` (handoff §15 sequence, 100-row batches, optimistic `WHERE encryption_key_id = :old`, browser holds old key per batch, audit per step)
-- [ ] Security & Credentials page + dashboard warning banner (request-time tiers); compromise flow
-- Verify: resumable-rotation test, concurrent-edit survives, one-ACTIVE enforced; e2e rotate → export only with new key
+- [x] `KeyRotationService` + `SealedIbanRepository`: 100-row batches selected by "still on the old key" (never by offset, so a batch is resumable by construction), optimistic `WHERE encryption_key_id = :old` per row, old private key supplied per request and wiped in `finally`, `KEY_ROTATION_BATCH_COMPLETED` / `KEY_ROTATION_COMPLETED` / `KEY_RETIRED` with `affected_record_count`
+- [x] `POST /admin/encryption-keys/{id}/rotate-batch` and `/complete-rotation` (step-up + rate-limit dimension); the listing gained `sealed_record_count` — the backlog is what makes it a status board. Completion re-counts rather than trusting the last batch's `remaining`
+- [x] Compromise path: a COMPROMISED or REVOKED key is drained by the same machinery and keeps its status — finishing the clean-up does not resolve the incident
+- [x] Settings → Credentials tab: key cards with status, warning tier, days remaining and backlog; register / activate / revoke / mark-compromised, all behind step-up; rotation wizard that loops batches and then retires. Dashboard banner from a new `alerts.encryption_key` (request-time tiers, `missing` loudest)
+- [x] `findActive()` is now ordered and limited: the one-ACTIVE rule lives in the service, not the schema, and a re-applied `seed.sql` after a rotation left two ACTIVE rows — the write path sealing under one key while the export validated against the other. `seed.sql` stands the others down first
+- Verify: **passed** — 14 `KeyRotationServiceTest` cases (re-seal roundtrip, old key can no longer open, resume across an aborted batch, concurrent member edit survives, refused keys consume nothing, state transitions, compromise path, two-ACTIVE resolution) + 12 `EncryptionKeysHttpTest`; `key-rotation.spec.ts` in `api-ordered` rotates the whole installation and proves the export works with the new key only; `settings-credentials.spec.ts` covers the page. Full API + admin suites green (841 specs)
 
 ### P6 — Terminal-token lifecycle ([#395](https://github.com/dgloeckner/clubbar/issues/395))
 
@@ -79,6 +82,28 @@ main shipped ADR-0035 (terminal-backend instance pairing, [#411](https://github.
 - ADR-0035 (sealed boxes) → **0036**, ADR-0036 (mandate scans) → **0037**
 - `015_encryption_keys` → **017**, `016_mandates_encrypted_iban` → **018**, `017_audit_log_key_actions` → **019** (relative order preserved)
 - `019_audit_log_key_actions` restates the whole `audit_log.action` ENUM and now runs *after* main's `016`, so it had to absorb `terminal_repair` — otherwise applying it silently un-adds the value and every pairing repair dies on "Data truncated for column 'action'". Git reports no conflict for this; only the test suite does.
+
+## Rotation is installation-wide state (2026-08-13)
+
+`key-rotation.spec.ts` changes which key the *whole installation* seals under,
+so from its second step onwards every other spec's member writes would land on
+the new key mid-run. It therefore lives in `api-ordered` (alone, after the
+parallel suite) and is excluded from `api-tests` — leaving it in that project
+once was enough to rotate the database out from under 500 specs.
+
+Two consequences worth knowing before touching it:
+
+- The successor is a **committed** keypair (`dev-key-rotated` in
+  `fixtures/encryption.ts`, blocklisted in `IbanSealedBox` like the first). A
+  keypair invented inside the test process would vanish with it and leave a
+  database nothing could read. The export fixture resolves the private half
+  from whichever key the server reports as ACTIVE, so the export specs are
+  correct on either side of a rotation.
+- A rotation cannot be undone through the API, and a public key registers only
+  once, so the spec needs a database that has not been rotated. Every CI shard
+  seeds its own; locally that is `docker compose down -v && scripts/dev-setup.sh`.
+  It is not gated on a runtime check — ruling #146 bans data-dependent skips —
+  so the registration assertion says this instead.
 
 ## Test isolation (2026-08-13)
 

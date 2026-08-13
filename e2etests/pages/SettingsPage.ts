@@ -1319,6 +1319,54 @@ export class SettingsPage {
     await this.page.getByTestId('security-check-refresh').click()
   }
 
+  // ==================== Credentials Tab (#394, ADR-0036) ====================
+
+  /**
+   * Open the Security & Credentials tab and wait for the key list to land.
+   *
+   * Like the self-check it is fetched when the tab is opened rather than cached
+   * with the page: the warning tiers are computed at request time, so a list
+   * from five minutes ago would be a stale warning.
+   */
+  async clickCredentialsTab() {
+    await this.page.getByTestId('settings-tab-credentials').click()
+    await expect(this.page.getByTestId('credentials-tab')).toBeVisible({ timeout: 15000 })
+    await expect(this.page.getByTestId('credentials-loading')).toBeHidden({ timeout: 15000 })
+  }
+
+  /** Every key the page rendered, found by its stable id (Pattern 003). */
+  async getEncryptionKeys(): Promise<
+    Array<{ id: string; status: string; lifecycleState: string; sealedRecordCount: number }>
+  > {
+    return await this.page.locator('[data-testid^="credentials-key-"]').evaluateAll((nodes) =>
+      nodes
+        // The status badge and backlog line carry the same prefix; only the
+        // card itself declares a status attribute.
+        .filter((node) => node.hasAttribute('data-status'))
+        .map((node) => ({
+          id: (node.getAttribute('data-testid') ?? '').replace('credentials-key-', ''),
+          status: node.getAttribute('data-status') ?? '',
+          lifecycleState: node.getAttribute('data-lifecycle-state') ?? '',
+          sealedRecordCount: Number(node.getAttribute('data-sealed-record-count') ?? '0'),
+        }))
+    )
+  }
+
+  async expectEncryptionKeyVisible(id: string) {
+    await expect(this.page.getByTestId(`credentials-key-${id}`)).toBeVisible()
+  }
+
+  /** Open the "register a key" dialog, which collects a step-up credential. */
+  async clickRegisterKey() {
+    await this.page.getByTestId('credentials-register-button').click()
+    await expect(this.page.getByTestId('credentials-public-key')).toBeVisible()
+  }
+
+  /** Start the rotation wizard for a key that still has rows under it. */
+  async clickRotateKey(id: string) {
+    await this.page.getByTestId(`credentials-rotate-${id}`).click()
+  }
+
   // ==================== Instance Branding Tab (ADR-0034 / UC-A64) ====================
 
   /**

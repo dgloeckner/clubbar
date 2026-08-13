@@ -7,9 +7,11 @@ namespace App\Modules\Dashboard\Services;
 use App\Modules\Dashboard\DTOs\DashboardDto;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
+use App\Shared\Security\CredentialLifecycle;
 
 /**
  * Everything the dashboard and the monthly statistics page mean, as opposed to
@@ -38,6 +40,7 @@ class DashboardService
         private TransactionsRepository $transactionsRepository,
         private SettlementsRepository $settlementsRepository,
         private TerminalsRepository $terminalsRepository,
+        private EncryptionKeysRepository $encryptionKeysRepository,
     ) {}
 
     public function getDashboard(): DashboardDto
@@ -91,7 +94,10 @@ class DashboardService
                 'total_transactions' => $recentTransactionCount,
                 'database_health' => 'ok',
             ],
-            alerts: ['sepa_issues' => self::sepaAlert($sepaIssueCount)],
+            alerts: [
+                'sepa_issues' => self::sepaAlert($sepaIssueCount),
+                'encryption_key' => self::encryptionKeyAlert($this->encryptionKeysRepository->findActive()),
+            ],
         );
     }
 
@@ -162,6 +168,52 @@ class DashboardService
         }
 
         return ($now - strtotime($lastSyncAt)) <= self::TERMINAL_ONLINE_WINDOW_SECONDS ? 'online' : 'offline';
+    }
+
+    /**
+     * The IBAN encryption key's remaining lifetime, as the dashboard shows it
+     * (ADR-0036 warnings, #394).
+     *
+     * This is the "no cron on shared hosting" answer: nothing evaluates expiry
+     * on a schedule, so the warning is computed on every dashboard load. An
+     * admin who opens the panel at all cannot miss that the key needs rotating
+     * — and a *missing* key is the loudest case, because until one is
+     * activated no member's bank details can be stored at all.
+     *
+     * @param array|null $activeKey the ACTIVE encryption_keys row, or null
+     * @return array{state: string, severity: string, key_identifier: ?string, days_until_expiry: ?int, message: string}
+     */
+    public static function encryptionKeyAlert(?array $activeKey, ?\DateTimeImmutable $now = null): array
+    {
+        if ($activeKey === null) {
+            return [
+                'state' => 'missing',
+                'severity' => 'error',
+                'key_identifier' => null,
+                'days_until_expiry' => null,
+                'message' => 'No active IBAN encryption key — bank details cannot be stored until one is activated',
+            ];
+        }
+
+        $state = CredentialLifecycle::state($activeKey['expires_at'] ?? null, $now);
+        $days = CredentialLifecycle::daysUntilExpiry($activeKey['expires_at'] ?? null, $now);
+        $identifier = $activeKey['key_identifier'];
+
+        return [
+            'state' => $state,
+            'severity' => match ($state) {
+                CredentialLifecycle::STATE_OK => 'none',
+                CredentialLifecycle::STATE_INFO, CredentialLifecycle::STATE_WARNING => 'warning',
+                default => 'error',
+            },
+            'key_identifier' => $identifier,
+            'days_until_expiry' => $days,
+            'message' => match ($state) {
+                CredentialLifecycle::STATE_OK => "IBAN encryption key {$identifier} is valid",
+                CredentialLifecycle::STATE_EXPIRED => "IBAN encryption key {$identifier} has expired — rotate it before storing IBANs or exporting SEPA files",
+                default => "IBAN encryption key {$identifier} expires in {$days} day(s) — plan a rotation",
+            },
+        ];
     }
 
     /**

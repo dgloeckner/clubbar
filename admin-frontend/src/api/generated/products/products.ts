@@ -142,7 +142,13 @@ const updateProduct = (
       options);
     }
   /**
- * Permanently delete a product.
+ * Delete a product.
+
+This is a **soft delete**: `deleted_at` is stamped and the row is kept, so
+the transactions that reference it still resolve their product name, and so
+terminals learn about the deletion through the delta sync tombstone. A hard
+delete would be invisible to an offline terminal, which would keep selling
+the product indefinitely.
 
 **Use Case**: UC-A43
 
@@ -212,6 +218,9 @@ const updateCategory = (
 **Use Case**: UC-A44
 
 Category can only be deleted if it has no products.
+
+This is a **soft delete**: `deleted_at` is stamped and the row is kept so
+terminals learn about the deletion through the delta sync tombstone.
 
  * @summary Delete category
  */

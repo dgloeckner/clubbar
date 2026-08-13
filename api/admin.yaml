@@ -3437,6 +3437,313 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  # ============================================================================
+  # IBAN ENCRYPTION KEYS (ADR-0036)
+  # ============================================================================
+  /admin/encryption-keys:
+    get:
+      summary: List IBAN encryption keys
+      operationId: listEncryptionKeys
+      description: |
+        Every registered keypair with its lifecycle state, remaining days and
+        rotation backlog — what the Security & Credentials page shows.
+
+        Plain session auth: the response carries metadata and **public** keys
+        only. Warning tiers are computed at request time (ADR-0031: no cron).
+      tags:
+        - Security
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: The registered keys, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EncryptionKey'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Register an encryption key
+      operationId: registerEncryptionKey
+      description: |
+        Register the **public** half of a keypair generated offline with
+        `tools/keypair-generator.html`. The key starts as `pending`; activating
+        it is a separate, deliberate step.
+
+        Requires a fresh step-up credential (the caller's own password, plus
+        their TOTP code when 2FA is enrolled) on top of the session: what is
+        registered here decides what every future IBAN is sealed under.
+      tags:
+        - Security
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [public_key, key_identifier, current_password]
+              properties:
+                public_key:
+                  type: string
+                  description: The 32-byte Curve25519 public key, base64-encoded
+                key_identifier:
+                  type: string
+                  maxLength: 100
+                  example: club-key-2027
+                current_password:
+                  type: string
+                  format: password
+                totp_code:
+                  type: string
+                  description: Required when the calling admin has 2FA enrolled
+      responses:
+        '201':
+          description: Key registered in `pending` state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    $ref: '#/components/schemas/EncryptionKey'
+        '401':
+          description: Step-up credential missing or wrong
+        '422':
+          description: |
+            Not a 32-byte public key, already registered, or the development
+            keypair published in this repository (refused outside development).
+
+  /admin/encryption-keys/{id}/activate:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Activate a pending key
+      operationId: activateEncryptionKey
+      description: |
+        Promote a `pending` key to ACTIVE and start its 365-day cryptoperiod.
+        Any previously active key moves to `retiring` — that transition **is**
+        the start of a rotation: new IBANs are sealed under the new key
+        immediately, while the existing rows still need re-encrypting.
+
+        Requires a fresh step-up credential.
+      tags:
+        - Security
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepUpCredentials'
+      responses:
+        '200':
+          description: The activated key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    $ref: '#/components/schemas/EncryptionKey'
+        '401':
+          description: Step-up credential missing or wrong
+        '404':
+          description: Unknown key
+        '409':
+          description: The key is not pending; only a pending key can be activated
+
+  /admin/encryption-keys/{id}/revoke:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Revoke or mark a key compromised
+      operationId: revokeEncryptionKey
+      description: |
+        Withdraw a key immediately, regardless of remaining lifetime. Pass
+        `compromised: true` for the incident path — it records the reason
+        permanently, and the rows sealed under it should be re-encrypted onto a
+        replacement as soon as practical (stolen ciphertext plus a stolen key
+        is not retroactively fixable).
+
+        Requires a fresh step-up credential.
+      tags:
+        - Security
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/StepUpCredentials'
+                - type: object
+                  properties:
+                    compromised:
+                      type: boolean
+                      default: false
+                      description: True when the private key is known or suspected to have leaked
+      responses:
+        '200':
+          description: The withdrawn key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    $ref: '#/components/schemas/EncryptionKey'
+        '401':
+          description: Step-up credential missing or wrong
+        '404':
+          description: Unknown key
+
+  /admin/encryption-keys/{id}/rotate-batch:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: The key being rotated **away from** (retiring, revoked or compromised)
+    post:
+      summary: Re-encrypt one batch of stored IBANs
+      operationId: rotateEncryptionKeyBatch
+      description: |
+        Re-seal up to 100 mandate rows from this key onto the ACTIVE one. The
+        rotation wizard calls it repeatedly until `drained` is true, then calls
+        `complete-rotation`.
+
+        **The body carries the private half of the old key** — the only thing
+        that can open what is being rotated away from. As with the SEPA export
+        it is sent as a JSON field rather than a multipart upload (PHP writes
+        multipart parts to temporary files), validated against the registered
+        public half, and wiped before the response is written. Between two
+        batches the server holds no decryption capability at all.
+
+        Resumable by construction: a batch is selected by "still on the old
+        key", never by offset, and each row is committed as it moves. Closing
+        the browser mid-rotation loses nothing; the next batch resumes where
+        this one stopped.
+
+        Each row moves with an optimistic `WHERE encryption_key_id = :old`, so
+        a member edit landing mid-rotation wins — it already sealed the row
+        under the active key, and this endpoint counts it as `skipped` rather
+        than restoring what it read.
+
+        Requires a fresh step-up credential.
+      tags:
+        - Security
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/StepUpCredentials'
+                - type: object
+                  required: [private_key]
+                  properties:
+                    private_key:
+                      type: string
+                      description: |
+                        The 32-byte private key of the key being rotated away
+                        from, base64-encoded. Never persisted server-side.
+      responses:
+        '200':
+          description: What the batch moved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rotation]
+                properties:
+                  rotation:
+                    $ref: '#/components/schemas/KeyRotationBatch'
+        '401':
+          description: Step-up credential missing or wrong
+        '409':
+          description: |
+            The key is not in a state that can be rotated away from (e.g. it is
+            still the ACTIVE one), or no usable ACTIVE key exists to seal onto.
+        '422':
+          description: |
+            `private_key_mismatch` — the supplied key belongs to a different
+            keypair, or is not 32 base64-encoded bytes. Nothing was decrypted.
+
+  /admin/encryption-keys/{id}/complete-rotation:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Retire a fully re-encrypted key
+      operationId: completeEncryptionKeyRotation
+      description: |
+        Verify that nothing is sealed under this key any more, then retire it.
+
+        The zero-row check is re-run here rather than trusted from the last
+        batch's `remaining`: a row written under the old key in the meantime
+        must block the transition instead of being stranded. A `compromised` or
+        `revoked` key keeps its status — finishing the clean-up does not
+        resolve the incident that caused it.
+
+        No private key: counting rows is not decryption. Requires a fresh
+        step-up credential.
+      tags:
+        - Security
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepUpCredentials'
+      responses:
+        '200':
+          description: The retired key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    $ref: '#/components/schemas/EncryptionKey'
+        '401':
+          description: Step-up credential missing or wrong
+        '404':
+          description: Unknown key
+        '409':
+          description: Rows are still sealed under this key, or it is not being rotated away from
+
   /admin/dashboard:
     get:
       summary: Get Dashboard Metrics
@@ -3713,6 +4020,26 @@ components:
           type: string
           format: password
           description: The caller's own current password (step-up re-authentication, #337)
+        totp_code:
+          type: string
+          description: |
+            The caller's own fresh 6-digit TOTP code. Required only when the
+            caller has 2FA enabled; ignored otherwise.
+          pattern: '^\d{6}$'
+
+    StepUpCredentials:
+      type: object
+      description: |
+        A fresh proof of who the caller is, on top of the session — the flat
+        admin model's stand-in for a permission system (ADR-0036 deviations
+        table). Every operation that changes what IBANs are sealed under, or
+        that declares an incident, asks for one.
+      required: [current_password]
+      properties:
+        current_password:
+          type: string
+          format: password
+          description: The caller's own current password
         totp_code:
           type: string
           description: |
@@ -5668,6 +5995,103 @@ components:
           items:
             $ref: '#/components/schemas/SecurityFinding'
 
+    EncryptionKey:
+      type: object
+      description: |
+        One IBAN encryption keypair as the server knows it
+        ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)) — metadata
+        and the **public** half only. The database never contains a private
+        key: it lives in the club's offline archive and is supplied per
+        privileged request.
+      required: [id, key_identifier, algorithm, public_key, fingerprint_sha256, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        key_identifier:
+          type: string
+          description: Human-facing name given when the key was registered
+          example: club-key-2027
+        algorithm:
+          type: string
+          example: SODIUM_CRYPTO_BOX_SEAL
+        public_key:
+          type: string
+          description: The 32-byte Curve25519 public key, base64-encoded
+        fingerprint_sha256:
+          type: string
+          description: SHA-256 of the raw public key — how a key is identified to humans
+        status:
+          type: string
+          enum: [pending, active, retiring, retired, revoked, compromised]
+          description: |
+            `pending` — registered, not yet in use.
+            `active` — every new IBAN is sealed under it; exactly one key is active.
+            `retiring` — superseded; its rows are being re-encrypted.
+            `retired` — rotation finished, nothing sealed under it any more.
+            `revoked` / `compromised` — withdrawn immediately, regardless of remaining lifetime.
+        created_at:
+          type: string
+          format: date-time
+        activated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the 365-day cryptoperiod started
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        retired_at:
+          type: string
+          format: date-time
+          nullable: true
+        days_until_expiry:
+          type: integer
+          nullable: true
+          description: |
+            Whole days left, negative once expired; null for a key that is not
+            operational (pending, retired, revoked, compromised). Computed at
+            request time — shared hosting has no cron (ADR-0031).
+        lifecycle_state:
+          type: string
+          enum: [ok, info, warning, critical, expired]
+          description: Warning tier — `info` ≤ 90 days, `warning` ≤ 30, `critical` ≤ 7
+        sealed_record_count:
+          type: integer
+          nullable: true
+          description: |
+            Mandate rows still sealed under this key. On a retiring key this is
+            the rotation backlog; it must reach 0 before the key can be retired.
+
+    KeyRotationBatch:
+      type: object
+      description: What one re-encryption batch moved from the old key to the active one.
+      required: [source_key_id, target_key_id, processed, skipped, remaining, drained]
+      properties:
+        source_key_id:
+          type: string
+          format: uuid
+        target_key_id:
+          type: string
+          format: uuid
+          description: The ACTIVE key the rows were re-sealed under
+        processed:
+          type: integer
+          description: Rows re-sealed by this batch
+        skipped:
+          type: integer
+          description: |
+            Rows a concurrent member edit had already moved to the active key.
+            Not a failure — the edit wins by design, and the row has left the
+            backlog either way.
+        remaining:
+          type: integer
+          description: Rows still sealed under the source key after this batch
+        drained:
+          type: boolean
+          description: True when `remaining` is 0 and the rotation can be completed
+
     DashboardResponse:
       type: object
       description: Complete dashboard response with aggregated metrics and system data
@@ -5805,6 +6229,38 @@ components:
                     - none: 0 members with issues
                     - warning: 1-5 members with issues
                     - error: 6+ members with issues
+                message:
+                  type: string
+                  description: Human-readable alert message
+            encryption_key:
+              type: object
+              description: |
+                Remaining lifetime of the ACTIVE IBAN encryption key
+                ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)).
+
+                Computed on every dashboard load rather than by a scheduler:
+                shared hosting guarantees no cron (ADR-0031), and this is the
+                warning an admin cannot miss. `missing` is the loudest state —
+                until a key is activated, no member's bank details can be
+                stored at all.
+              properties:
+                state:
+                  type: string
+                  enum: [missing, ok, info, warning, critical, expired]
+                  description: Warning tier — `info` ≤ 90 days, `warning` ≤ 30, `critical` ≤ 7
+                severity:
+                  type: string
+                  enum: [none, warning, error]
+                  description: |
+                    - none: `ok`
+                    - warning: `info` or `warning`
+                    - error: `critical`, `expired` or `missing`
+                key_identifier:
+                  type: string
+                  nullable: true
+                days_until_expiry:
+                  type: integer
+                  nullable: true
                 message:
                   type: string
                   description: Human-readable alert message
