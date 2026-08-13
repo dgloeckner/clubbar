@@ -18,6 +18,44 @@
  */
 
 import { test, expect } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { randomUUID } from 'crypto'
+import { csrfHeaders } from '../../utils/csrf'
+
+const API_BASE = 'http://localhost:8080/api'
+
+/**
+ * A catalogue entry of this test's own, so a card list has something to show.
+ *
+ * The card views render only when their list is non-empty, and `seed.sql`
+ * ships neither products nor categories — the club's own catalogue is the
+ * first thing an admin creates. Borrowing whatever another spec left behind
+ * makes the assertion depend on the order Playwright happened to shard the
+ * suite in (Pattern 001).
+ */
+async function createCategory(page: Page): Promise<string> {
+  const suffix = randomUUID().substring(0, 8)
+  const response = await page.request.post(`${API_BASE}/admin/categories`, {
+    data: { names: { de: `Mobil ${suffix}`, en: `Mobile ${suffix}` } },
+    headers: await csrfHeaders(page),
+  })
+  expect(response.status(), await response.text()).toBe(201)
+
+  return (await response.json()).id as string
+}
+
+async function createProduct(page: Page, categoryId: string): Promise<void> {
+  const suffix = randomUUID().substring(0, 8)
+  const response = await page.request.post(`${API_BASE}/admin/products`, {
+    data: {
+      names: { de: `Mobilprodukt ${suffix}`, en: `Mobile product ${suffix}` },
+      price_cents: 350,
+      category_id: categoryId,
+    },
+    headers: await csrfHeaders(page),
+  })
+  expect(response.status(), await response.text()).toBe(201)
+}
 
 test.describe('Mobile Responsive Layout', () => {
   test.describe('Bottom Tab Bar Navigation', () => {
@@ -103,7 +141,19 @@ test.describe('Mobile Responsive Layout', () => {
     })
 
     test('should show mobile cards on Products page', async ({ page }) => {
+      // The card container only renders for a non-empty list — an empty one is
+      // the `products-empty-state` instead. `seed.sql` ships no products, so
+      // this used to pass only when some other spec happened to have created
+      // one first, and failed whenever sharding put those specs elsewhere
+      // (Pattern 001: a test owns the data it asserts on).
+      //
+      // The page is opened before the catalogue entry is created because the
+      // CSRF token comes out of the app's own localStorage, which is not
+      // readable until something has been loaded from the origin.
       await page.goto('/products')
+      await createProduct(page, await createCategory(page))
+      await page.reload()
+
       await page.getByTestId('products-mobile-cards').waitFor({ state: 'visible', timeout: 15000 })
       await expect(page.getByTestId('products-mobile-cards')).toBeVisible()
     })
@@ -121,7 +171,12 @@ test.describe('Mobile Responsive Layout', () => {
     })
 
     test('should show mobile cards on Categories page', async ({ page }) => {
+      // Same as Products above: no seeded categories, so the list is empty
+      // until this test puts something in it.
       await page.goto('/categories')
+      await createCategory(page)
+      await page.reload()
+
       await page.getByTestId('categories-mobile-cards').waitFor({ state: 'visible', timeout: 15000 })
       await expect(page.getByTestId('categories-mobile-cards')).toBeVisible()
     })
