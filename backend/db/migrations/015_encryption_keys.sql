@@ -22,4 +22,4 @@ CREATE TABLE IF NOT EXISTS encryption_keys (
     retired_at DATETIME NULL,
     created_by_admin_id CHAR(36) NULL,
     INDEX idx_encryption_keys_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -133,7 +133,9 @@ class SettlementsService
                 // How many rows this member would contribute to the run — the
                 // number their row on the New Settlement screen shows.
                 'transaction_count' => $unsettledCounts[$mid] ?? 0,
-                'iban' => $member['iban'] ?? null,
+                // Last four characters only — the preview identifies the
+                // account, it never needs to debit it (ADR-0035).
+                'iban_last4' => $member['iban_last4'] ?? null,
                 'mandate_reference' => $member['mandate_reference'] ?? null,
             ];
 
@@ -195,7 +197,7 @@ class SettlementsService
      */
     private function hasActiveMandate(array $member): bool
     {
-        return !empty($member['mandate_reference']) && !empty($member['iban']);
+        return !empty($member['mandate_reference']) && !empty($member['has_iban']);
     }
 
     /**
@@ -572,7 +574,10 @@ class SettlementsService
                 $memberData[$mid] = [
                     'name' => trim(($item['first_name'] ?? '') . ' ' . ($item['last_name'] ?? '')),
                     'email' => $member['email'] ?? '',
-                    'iban' => $member['iban'] ?? '',
+                    // ****3000 — the CSV is a reconciliation aid, not a debit
+                    // instruction; last4 identifies the account (ADR-0035).
+                    'iban' => isset($member['iban_last4']) && $member['iban_last4'] !== null
+                        ? '****' . $member['iban_last4'] : '',
                     'amount_cents' => 0,
                 ];
             }

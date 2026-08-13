@@ -7,6 +7,7 @@ namespace App\Modules\Security\Controllers;
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Security\DTOs\EncryptionKeyDto;
 use App\Modules\Security\Services\EncryptionKeyService;
+use App\Modules\Security\Services\IbanEncryptionMigrationService;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Validation\Validator;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -28,6 +29,7 @@ class EncryptionKeysController
         private EncryptionKeyService $encryptionKeyService,
         private StepUpAuthService $stepUpAuthService,
         private Validator $validator,
+        private IbanEncryptionMigrationService $migrationService,
     ) {}
 
     public function index(Request $request, Response $response): Response
@@ -104,6 +106,24 @@ class EncryptionKeysController
         }
 
         return $this->json($response, ['key' => $dto->toArray()]);
+    }
+
+    /**
+     * One batch of the one-time legacy-plaintext sealing (ADR-0035). The
+     * frontend loops until `remaining` reaches 0; each call is independently
+     * step-up-authenticated and idempotent.
+     */
+    public function encryptExisting(Request $request, Response $response): Response
+    {
+        $body = $request->getParsedBody() ?? [];
+
+        if (!$this->requireStepUp($request, $response, $body, $failed)) {
+            return $failed;
+        }
+
+        $result = $this->migrationService->encryptBatch($request->getAttribute('admin_user_id'));
+
+        return $this->json($response, $result);
     }
 
     /** Shared step-up gate; on failure fills $failed with the 401 response. */

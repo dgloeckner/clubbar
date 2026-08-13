@@ -33,6 +33,23 @@ class MembersService
         private ?BankCodeService $bankCodeService = null,
     ) {}
 
+    /**
+     * An IBAN write is the last moment the plaintext exists (ADR-0035), so the
+     * bank name is resolved from the BLZ here — a sealed row can never answer
+     * that question again. The sealing itself (and the refusal to write
+     * without an operational key) lives in the repository.
+     */
+    private function enrichIbanWrite(array $data): array
+    {
+        if (($data['iban'] ?? null) === null || $data['iban'] === '') {
+            return $data;
+        }
+
+        $data['bank_name'] = $this->resolveBankName($data['iban']);
+
+        return $data;
+    }
+
     public function syncSince(int $since): SyncResultDto
     {
         // Taken before the query, not after: it decides whether the newest
@@ -65,17 +82,10 @@ class MembersService
     {
         $result = $this->membersRepository->listPaginated($limit, $offset, $filters, $sortKey, $sortOrder, $search);
 
-        // Batch lookup: resolve bank names for all IBANs in one query
-        $bankNames = [];
-        if ($this->bankCodeService !== null) {
-            $ibans = array_filter(array_column($result['items'], 'iban'));
-            if (!empty($ibans)) {
-                $bankNames = $this->bankCodeService->getBankNamesForIbans($ibans);
-            }
-        }
-
+        // Bank names are stored on the mandate at write time (ADR-0035) —
+        // there is no plaintext IBAN left to derive them from on read.
         $items = array_map(
-            fn($row) => MemberAdminDto::fromRow($row, $bankNames[$row['iban'] ?? ''] ?? null)->toArray(),
+            fn($row) => MemberAdminDto::fromRow($row)->toArray(),
             $result['items'],
         );
 
@@ -94,8 +104,7 @@ class MembersService
         if ($member['deleted_at'] !== null && !$isAnonymized) {
             throw NotFoundException::forResource('Member', $memberId);
         }
-        $bankName = $this->resolveBankName($member['iban'] ?? null);
-        return MemberAdminDto::fromRow($member, $bankName);
+        return MemberAdminDto::fromRow($member);
     }
 
     public function exportMember(string $memberId): array
@@ -104,8 +113,7 @@ class MembersService
         if (!$row) {
             throw NotFoundException::forResource('Member', $memberId);
         }
-        $bankName = $this->resolveBankName($row['iban'] ?? null);
-        $member = MemberAdminDto::fromRow($row, $bankName);
+        $member = MemberAdminDto::fromRow($row);
         $transactions = $this->transactionsRepository->findByMemberId($memberId, limit: 1000);
 
         return [
@@ -146,7 +154,7 @@ class MembersService
         if ($mandateReference !== null) {
             $memberData['mandate_reference'] = $mandateReference;
         }
-        $member = $this->membersRepository->create($memberData);
+        $member = $this->membersRepository->create($this->enrichIbanWrite($memberData));
 
         $this->auditService->log(
             action: AuditAction::CREATE,
@@ -161,8 +169,7 @@ class MembersService
             adminUserId: $adminUserId,
         );
 
-        $bankName = $this->resolveBankName($member['iban'] ?? null);
-        return MemberAdminDto::fromRow($member, $bankName);
+        return MemberAdminDto::fromRow($member);
     }
 
     public function updateMember(string $memberId, array $updateData, ?string $adminUserId = null): MemberAdminDto
@@ -195,7 +202,7 @@ class MembersService
             }
         }
 
-        $member = $this->membersRepository->updateById($memberId, $dbUpdateData);
+        $member = $this->membersRepository->updateById($memberId, $this->enrichIbanWrite($dbUpdateData));
 
         $changes = $this->detectChanges($oldMember, $member);
         if (!empty($changes['old'])) {
@@ -209,8 +216,7 @@ class MembersService
             );
         }
 
-        $bankName = $this->resolveBankName($member['iban'] ?? null);
-        return MemberAdminDto::fromRow($member, $bankName);
+        return MemberAdminDto::fromRow($member);
     }
 
     public function deleteMember(string $memberId, ?string $adminUserId = null): bool

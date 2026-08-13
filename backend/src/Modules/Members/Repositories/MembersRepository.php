@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Members\Repositories;
 
+use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Shared\Security\IbanSealedBox;
 use App\Shared\Utils\Uuid;
 use PDO;
 use App\Shared\Logging\Logger;
@@ -16,19 +18,30 @@ class MembersRepository
     /**
      * Banking data lives on the append-only `mandates` record, not on the
      * mutable member row (#164). Every read joins the member's active mandate
-     * back in under the field names the API has always used, so the contract is
-     * unchanged while the storage is not; renaming the contract belongs to
-     * #164's implementation and #172.
+     * back in.
+     *
+     * Since ADR-0035 the IBAN itself is sealed (iban_ciphertext) and reads
+     * expose only what routine operation needs: the last four characters, the
+     * bank name resolved at write time, and presence (`has_iban`). The
+     * COALESCE arms cover legacy rows that still carry plaintext `iban`
+     * because the one-time batch encryption has not sealed them yet — their
+     * last4 is derived on read so the UI is complete either way. The
+     * plaintext itself is deliberately NOT selected here; the SEPA export
+     * reads it through findSealedIban() only.
      */
     private const MANDATE_JOIN =
         'LEFT JOIN mandates md ON md.active_member_id = m.id';
 
     private const MANDATE_COLUMNS =
-        'md.iban, md.reference AS mandate_reference, md.signed_at AS mandate_signed_at';
+        "COALESCE(md.iban_last4, RIGHT(REPLACE(UPPER(md.iban), ' ', ''), 4)) AS iban_last4, "
+        . '(md.iban_ciphertext IS NOT NULL OR md.iban IS NOT NULL) AS has_iban, '
+        . 'md.bank_name, md.reference AS mandate_reference, md.signed_at AS mandate_signed_at';
 
     public function __construct(
         private PDO $db,
         private Logger $logger,
+        private IbanSealedBox $sealedBox,
+        private EncryptionKeysRepository $encryptionKeys,
     ) {}
 
     public function findById(string $id): ?array
@@ -156,7 +169,25 @@ class MembersRepository
         }
 
         $current = $this->findActiveMandate($id);
-        $iban = array_key_exists('iban', $data) ? ($data['iban'] ?: null) : ($current['iban'] ?? null);
+
+        // The stored IBAN is sealed and this code cannot open it (ADR-0035);
+        // identity is decided by the keyed fingerprint instead. Legacy rows the
+        // batch encryption has not sealed yet still hold plaintext, so their
+        // fingerprint is computed on the fly — treating them as "always
+        // changed" would end and re-open a mandate on every save, silently
+        // churning the MREFs the bank already knows.
+        $currentFingerprint = null;
+        if ($current !== null) {
+            $currentFingerprint = $current['iban_fingerprint']
+                ?? ($current['iban'] !== null ? $this->sealedBox->fingerprint($current['iban']) : null);
+        }
+
+        $submittedIban = array_key_exists('iban', $data) ? ($data['iban'] ?: null) : null;
+        $submittedFingerprint = $submittedIban !== null ? $this->sealedBox->fingerprint($submittedIban) : null;
+
+        $keepsCurrentAccount = !array_key_exists('iban', $data)
+            || ($submittedFingerprint !== null && $submittedFingerprint === $currentFingerprint);
+
         $reference = array_key_exists('mandate_reference', $data)
             ? ($data['mandate_reference'] ?: null)
             : ($current['reference'] ?? null);
@@ -164,7 +195,7 @@ class MembersRepository
             ? ($data['mandate_signed_at'] ?: null)
             : ($current['signed_at'] ?? null);
 
-        if ($current !== null && $iban === $current['iban']) {
+        if ($current !== null && $keepsCurrentAccount) {
             if ($reference === $current['reference'] && $signedAt === $current['signed_at']) {
                 return;
             }
@@ -176,15 +207,16 @@ class MembersRepository
         }
 
         if ($current !== null) {
-            $this->endMandate($current['id'], $iban === null ? 'revoked' : 'bank_change');
+            $this->endMandate($current['id'], $submittedIban === null ? 'revoked' : 'bank_change');
         }
 
-        if ($iban !== null) {
+        if ($submittedIban !== null) {
             // A new account gets a freshly minted reference unless the caller
             // named one; carrying the old one forward is impossible anyway,
             // since the superseded mandate still holds it.
             $this->openMandate($id, [
-                'iban' => $iban,
+                'iban' => $submittedIban,
+                'bank_name' => $data['bank_name'] ?? null,
                 'mandate_reference' => $current === null ? $reference : ($data['mandate_reference'] ?? null),
                 'mandate_signed_at' => $signedAt,
             ]);
@@ -214,16 +246,27 @@ class MembersRepository
         // a member without banking data has no reference at all.
         $reference = ($data['mandate_reference'] ?? null) ?: str_replace('-', '', $mandateId);
 
+        // ADR-0035: the plaintext IBAN is sealed under the ACTIVE public key
+        // and never stored. Writing plaintext "just this once" is exactly the
+        // regression the schema keeps nullable `iban` around to migrate away
+        // from, not to feed — so a missing or expired key refuses the write
+        // with an actionable 409 rather than storing anything.
+        $key = $this->encryptionKeys->requireOperationalActive();
+
         $stmt = $this->db->prepare(
-            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban, signed_at, created_by_admin_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban, iban_ciphertext, iban_last4, iban_fingerprint, encryption_key_id, bank_name, signed_at, created_by_admin_id)
+             VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $mandateId,
             $memberId,
             $memberId,
             $reference,
-            $data['iban'],
+            $this->sealedBox->seal($data['iban'], $key['public_key']),
+            IbanSealedBox::lastFour($data['iban']),
+            $this->sealedBox->fingerprint($data['iban']),
+            $key['id'],
+            $data['bank_name'] ?? null,
             ($data['mandate_signed_at'] ?? null) ?: null,
             $data['created_by_admin_id'] ?? null,
         ]);
@@ -240,6 +283,22 @@ class MembersRepository
     public function findActiveMandate(string $memberId): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM mandates WHERE active_member_id = ?');
+        $stmt->execute([$memberId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * The sealed IBAN material of a member's active mandate — the ONLY read
+     * that touches the ciphertext (and, until the batch encryption finishes, a
+     * legacy plaintext remnant). Sole consumer is the SEPA export, which either
+     * opens the ciphertext with the temporarily supplied private key or uses
+     * the legacy plaintext directly (ADR-0035).
+     */
+    public function findSealedIban(string $memberId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT iban_ciphertext, iban AS legacy_iban, encryption_key_id FROM mandates WHERE active_member_id = ?'
+        );
         $stmt->execute([$memberId]);
         return $stmt->fetch() ?: null;
     }

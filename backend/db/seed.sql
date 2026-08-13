@@ -86,3 +86,26 @@ VALUES (
     NOW() - INTERVAL 91 DAY,
     NOW()
 );
+
+-- ---------------------------------------------------------------------------
+-- Development IBAN encryption key (ADR-0035)
+--
+-- The PUBLIC half of the dev keypair published in this repository; the
+-- matching private key lives in the e2e fixtures. IbanSealedBox refuses this
+-- key outside development environments, so a production install can never
+-- run on it. Active with a full 365-day cryptoperiod so member writes work
+-- out of the box.
+-- ---------------------------------------------------------------------------
+INSERT INTO encryption_keys (id, key_identifier, algorithm, public_key, fingerprint_sha256, status, created_at, activated_at, expires_at)
+VALUES (
+    '99999991-9999-9999-9999-999999999991',
+    'dev-key-2026',
+    'SODIUM_CRYPTO_BOX_SEAL',
+    UNHEX('7479840773cdbd0f57bacf5c8488818e55845ee19207aaf685b74869c1682155'),
+    '82ebd93f662cb26a5293137a00fbb6d0c239579c8df5855df1d00bcd1e092717',
+    'active',
+    NOW(),
+    NOW(),
+    NOW() + INTERVAL 365 DAY
+)
+ON DUPLICATE KEY UPDATE status = 'active', activated_at = NOW(), expires_at = NOW() + INTERVAL 365 DAY;

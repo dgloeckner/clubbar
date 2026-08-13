@@ -157,6 +157,7 @@ return function (App $app): void {
         $group->post('/encryption-keys', [EncryptionKeysController::class, 'store'])->add($stepUpRateLimit);
         $group->post('/encryption-keys/{id}/activate', [EncryptionKeysController::class, 'activate'])->add($stepUpRateLimit);
         $group->post('/encryption-keys/{id}/revoke', [EncryptionKeysController::class, 'revoke'])->add($stepUpRateLimit);
+        $group->post('/encryption-keys/encrypt-existing', [EncryptionKeysController::class, 'encryptExisting'])->add($stepUpRateLimit);
 
         // Settlements
         // Static segments must stay above /settlements/{id} so they are not

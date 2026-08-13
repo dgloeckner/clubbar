@@ -364,6 +364,6 @@ class TransactionsService
 
     private function hasActiveMandate(array $member): bool
     {
-        return !empty($member['mandate_reference']) && !empty($member['iban']);
+        return !empty($member['mandate_reference']) && !empty($member['has_iban']);
     }
 }

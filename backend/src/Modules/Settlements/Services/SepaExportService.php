@@ -34,8 +34,16 @@ class SepaExportService
      * file deliberately omits. Callers get both or neither: the omissions are
      * not recoverable from the XML, and #114 records what happens when they
      * are dropped on the floor.
+     *
+     * $openIban opens a sealed IBAN ciphertext with the temporarily supplied
+     * private key (ADR-0035): `fn(string $ciphertext): string`. It is invoked
+     * per row, right where the plaintext goes into the XML segment, so no
+     * plaintext collection ever exists. Rows the batch encryption has not
+     * sealed yet still carry legacy plaintext and bypass it. Without the
+     * callable, a sealed row is a hard error — never a silent exclusion, which
+     * would ship a short file that reads as complete.
      */
-    public function export(string $settlementId): SepaExportResultDto
+    public function export(string $settlementId, ?callable $openIban = null): SepaExportResultDto
     {
         $settlement = $this->settlementsRepository->findById($settlementId);
         if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
@@ -200,7 +208,7 @@ class SepaExportService
             // The mandate is read again here, not trusted from settlement
             // creation: it can be revoked or its IBAN cleared in between, and
             // a direct debit without a live mandate is one the bank returns.
-            if (empty($member['iban']) || empty($member['mandate_reference'])) {
+            if (empty($member['has_iban']) || empty($member['mandate_reference'])) {
                 $excludedMembers[] = ExcludedMemberDto::fromMember(
                     $entry['member_id'],
                     $member,
@@ -209,6 +217,8 @@ class SepaExportService
                 );
                 continue;
             }
+
+            $plainIban = $this->resolvePlainIban($entry['member_id'], $openIban);
 
             $collectedAmountCents += $amountCents;
             $endToEndId = EndToEndId::forCollection($settlement['id'], $entry['member_id']);
@@ -219,7 +229,7 @@ class SepaExportService
                 [
                     'amount' => $amountCents,
                     'endToEndId' => $endToEndId,
-                    'debtorIban' => $this->sanitizeIban($member['iban']),
+                    'debtorIban' => $this->sanitizeIban($plainIban),
                     // No debtorBic: see the CdtrAgt note above — the omitted BIC
                     // yields <DbtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id>.
                     'debtorName' => $this->sanitizeName($member['account_holder_name'] ?? ($member['first_name'] . ' ' . $member['last_name'])),
@@ -296,6 +306,34 @@ class SepaExportService
     public function sanitizeIban(string $iban): string
     {
         return SepaSanitizer::sanitizeIban($iban);
+    }
+
+    /**
+     * The plaintext IBAN for one member, alive only for the XML segment being
+     * built: legacy rows read it directly, sealed rows go through $openIban
+     * with the private key the caller supplied for this request (ADR-0035).
+     */
+    private function resolvePlainIban(string $memberId, ?callable $openIban): string
+    {
+        $sealed = $this->membersRepository->findSealedIban($memberId);
+
+        if ($sealed === null) {
+            // has_iban said a mandate exists; losing it between the two reads
+            // is a race worth failing loudly on, not exporting around.
+            throw new BusinessRuleException(sprintf('Active mandate for member %s vanished during export', $memberId));
+        }
+
+        if ($sealed['legacy_iban'] !== null && $sealed['legacy_iban'] !== '') {
+            return $sealed['legacy_iban'];
+        }
+
+        if ($openIban === null) {
+            throw new BusinessRuleException(
+                'This settlement contains sealed IBANs; the SEPA export requires the club\'s private key (ADR-0035).'
+            );
+        }
+
+        return $openIban($sealed['iban_ciphertext']);
     }
 
     private function validateSepaXml(string $xml): void

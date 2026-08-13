@@ -17,7 +17,7 @@ final readonly class MemberAdminDto
         public bool $isActive,
         public bool $isSepaValid,
         public ?string $ibanMasked,
-        public ?string $iban,
+        public ?string $ibanLast4,
         public ?string $accountHolderName,
         public ?string $mandateReference,
         public ?string $mandateSignedAt,
@@ -27,9 +27,14 @@ final readonly class MemberAdminDto
         public string $updatedAt,
     ) {}
 
-    public static function fromRow(array $row, ?string $bankName = null): self
+    /**
+     * The stored IBAN is sealed (ADR-0035); the API exposes only its last
+     * four characters — enough to recognize the account, useless to debit it.
+     * `iban_masked` keeps its established shape (`****3000`) for display.
+     */
+    public static function fromRow(array $row): self
     {
-        $iban = $row['iban'] ?? null;
+        $last4 = $row['iban_last4'] ?? null;
         return new self(
             id: $row['id'],
             cardUid: $row['card_uid'] ?? null,
@@ -39,13 +44,13 @@ final readonly class MemberAdminDto
             phone: $row['phone'] ?? null,
             preferredLanguage: $row['preferred_language'],
             isActive: (bool) $row['is_active'],
-            isSepaValid: !empty($row['iban']) && !empty($row['mandate_reference']),
-            ibanMasked: $iban ? substr($iban, 0, 2) . '****' . substr($iban, -4) : null,
-            iban: $iban,
+            isSepaValid: !empty($row['has_iban']) && !empty($row['mandate_reference']),
+            ibanMasked: $last4 ? '****' . $last4 : null,
+            ibanLast4: $last4,
             accountHolderName: $row['account_holder_name'] ?? null,
             mandateReference: $row['mandate_reference'] ?? null,
             mandateSignedAt: $row['mandate_signed_at'] ?? null,
-            bankName: $bankName,
+            bankName: $row['bank_name'] ?? null,
             deletedAt: $row['deleted_at'] ?? null,
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],
@@ -64,7 +69,7 @@ final readonly class MemberAdminDto
             'preferred_language' => $this->preferredLanguage,
             'is_active' => $this->isActive,
             'is_sepa_valid' => $this->isSepaValid,
-            'iban' => $this->iban,
+            'iban_last4' => $this->ibanLast4,
             'iban_masked' => $this->ibanMasked,
             'account_holder_name' => $this->accountHolderName,
             'mandate_reference' => $this->mandateReference,

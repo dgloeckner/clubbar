@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Security\Repositories;
 
+use App\Modules\Security\Services\EncryptionKeyExpiredException;
+use App\Modules\Security\Services\EncryptionNotConfiguredException;
 use App\Shared\Logging\Logger;
+use App\Shared\Security\CredentialLifecycle;
 use App\Shared\Utils\Uuid;
 use PDO;
 
@@ -63,6 +66,32 @@ class EncryptionKeysRepository
         $stmt = $this->db->prepare("SELECT * FROM encryption_keys WHERE status = 'active'");
         $stmt->execute();
         return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * The ACTIVE key, verified operational — the gate in front of sealing any
+     * IBAN and of the SEPA export. Expiry is a hard stop (ADR-0035 strict
+     * policy): the cryptoperiod must be a real security boundary, not only an
+     * export restriction. Key management itself stays reachable so the admin
+     * can always rotate out of this state.
+     */
+    public function requireOperationalActive(): array
+    {
+        $key = $this->findActive();
+
+        if ($key === null) {
+            throw new EncryptionNotConfiguredException(
+                'No active IBAN encryption key is registered. Register and activate a key under Settings → Security & Credentials before storing IBANs.'
+            );
+        }
+
+        if (CredentialLifecycle::isExpired($key['expires_at'] ?? null)) {
+            throw new EncryptionKeyExpiredException(
+                'The active IBAN encryption key has expired. Rotate the encryption key before storing IBANs or creating another SEPA export.'
+            );
+        }
+
+        return $key;
     }
 
     public function findByStatus(string $status): array

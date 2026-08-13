@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature\Modules\Members\Repositories;
 
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Shared\Security\IbanSealedBox;
 use Tests\Feature\DatabaseTestCase;
 
 class MembersRepositoryTest extends DatabaseTestCase
@@ -18,7 +20,14 @@ class MembersRepositoryTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->membersRepository = new MembersRepository($this->db, $this->logger);
+        // Same fingerprint key as the dev stack so fingerprints stay
+        // comparable across API-created and test-created rows.
+        $this->membersRepository = new MembersRepository(
+            $this->db,
+            $this->logger,
+            new IbanSealedBox('0000000000000000000000000000000000000000000000000000000000000002', 'test'),
+            new EncryptionKeysRepository($this->db, $this->logger),
+        );
     }
 
     protected function tearDown(): void
@@ -477,9 +486,19 @@ class MembersRepositoryTest extends DatabaseTestCase
             'mandate_signed_at' => '2025-01-01',
         ]);
 
-        $this->assertSame('DE89370400440532013000', $member['iban']);
+        // Reads never expose the IBAN itself any more (ADR-0035): the row
+        // holds a sealed ciphertext, the API surface gets the last four.
+        $this->assertSame('3000', $member['iban_last4']);
+        $this->assertNotEmpty($member['has_iban']);
         $this->assertNotEmpty($member['mandate_reference']);
         $this->assertSame('2025-01-01', $member['mandate_signed_at']);
+
+        $raw = $this->db->prepare('SELECT iban, iban_ciphertext, iban_fingerprint FROM mandates WHERE active_member_id = ?');
+        $raw->execute([$id]);
+        $mandate = $raw->fetch();
+        $this->assertNull($mandate['iban'], 'no plaintext IBAN may be stored');
+        $this->assertStringStartsWith('v1:', (string) $mandate['iban_ciphertext']);
+        $this->assertNotEmpty($mandate['iban_fingerprint']);
     }
 
     public function test_a_member_without_an_iban_has_no_mandate_reference(): void
@@ -494,7 +513,7 @@ class MembersRepositoryTest extends DatabaseTestCase
             'email' => "nobank-{$id}@example.com",
         ]);
 
-        $this->assertNull($member['iban']);
+        $this->assertNull($member['iban_last4']);
         $this->assertNull(
             $member['mandate_reference'],
             'a reference minted from an IBAN-less member would assert a mandate that does not exist'
@@ -509,7 +528,7 @@ class MembersRepositoryTest extends DatabaseTestCase
         $member = $this->createMemberWithBankingData(['mandate_reference' => '']);
 
         $this->assertNull($member['mandate_reference']);
-        $this->assertNull($member['iban']);
+        $this->assertNull($member['iban_last4']);
         $this->assertSame(0, $this->countMandates($member['id']));
     }
 
@@ -517,7 +536,7 @@ class MembersRepositoryTest extends DatabaseTestCase
     {
         $member = $this->createMemberWithBankingData(['iban' => '']);
 
-        $this->assertNull($member['iban']);
+        $this->assertNull($member['iban_last4']);
         $this->assertSame(0, $this->countMandates($member['id']));
     }
 
@@ -530,9 +549,12 @@ class MembersRepositoryTest extends DatabaseTestCase
         $member = $this->createMemberWithBankingData();
         $reference = $member['mandate_reference'];
 
+        // The edit form re-sends the plaintext the admin re-typed (or, since
+        // ADR-0035's overwrite-only form, the same account typed again) — the
+        // read model cannot echo it back, so the test re-sends the fixture.
         $updated = $this->membersRepository->updateById($member['id'], [
             'first_name' => 'Renamed',
-            'iban' => $member['iban'],
+            'iban' => 'DE89370400440532013000',
             'mandate_reference' => $reference,
             'mandate_signed_at' => $member['mandate_signed_at'],
         ]);
@@ -551,7 +573,7 @@ class MembersRepositoryTest extends DatabaseTestCase
             'iban' => 'DE02120300000000202051',
         ]);
 
-        $this->assertSame('DE02120300000000202051', $updated['iban']);
+        $this->assertSame('2051', $updated['iban_last4']);
         $this->assertNotSame(
             $originalReference,
             $updated['mandate_reference'],
@@ -570,7 +592,7 @@ class MembersRepositoryTest extends DatabaseTestCase
 
         $updated = $this->membersRepository->updateById($member['id'], ['iban' => null]);
 
-        $this->assertNull($updated['iban']);
+        $this->assertNull($updated['iban_last4']);
         $this->assertNull($updated['mandate_reference']);
         $this->assertSame(1, $this->countMandates($member['id']), 'the ended mandate is kept, not deleted');
     }
@@ -582,7 +604,7 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->assertTrue($this->membersRepository->anonymize($member['id']));
 
         $anonymized = $this->membersRepository->findByIdIncludingDeleted($member['id']);
-        $this->assertNull($anonymized['iban']);
+        $this->assertNull($anonymized['iban_last4']);
         $this->assertNull($anonymized['mandate_reference']);
         // Read through the active-mandate join like the other two, so ending
         // the mandate is what erases the signing date from the member (#115).

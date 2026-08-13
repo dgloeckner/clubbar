@@ -118,7 +118,7 @@ class SepaExportServiceTest extends TestCase
         $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
         $this->givenMembers([
             self::MEMBER_ID => self::member('Ada', 'Lovelace'),
-            self::OTHER_MEMBER_ID => ['iban' => null, 'mandate_reference' => null]
+            self::OTHER_MEMBER_ID => ['has_iban' => 0, 'iban_last4' => null, 'mandate_reference' => null]
                 + self::member('Grace', 'Hopper'),
         ]);
 
@@ -237,7 +237,7 @@ class SepaExportServiceTest extends TestCase
         $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
         $this->givenItems([[self::MEMBER_ID, 1500]]);
         $this->givenMembers([
-            self::MEMBER_ID => ['iban' => null] + self::member('Ada', 'Lovelace'),
+            self::MEMBER_ID => ['has_iban' => 0, 'iban_last4' => null] + self::member('Ada', 'Lovelace'),
         ]);
 
         $this->logger
@@ -417,6 +417,18 @@ class SepaExportServiceTest extends TestCase
     {
         $this->membersRepository->method('findByIdIncludingDeleted')
             ->willReturnCallback(static fn(string $id): ?array => $members[$id] ?? null);
+
+        // The export resolves the plaintext through the dedicated sealed-IBAN
+        // read (ADR-0035); these fixtures model legacy rows the batch
+        // encryption has not sealed yet, so they answer with plaintext.
+        $this->membersRepository->method('findSealedIban')
+            ->willReturnCallback(static function (string $id) use ($members): ?array {
+                $member = $members[$id] ?? null;
+                if ($member === null || empty($member['has_iban'])) {
+                    return null;
+                }
+                return ['iban_ciphertext' => null, 'legacy_iban' => 'DE02120300000000202051', 'encryption_key_id' => null];
+            });
     }
 
     /** @return array<string, mixed> */
@@ -426,7 +438,8 @@ class SepaExportServiceTest extends TestCase
             'first_name' => $first,
             'last_name' => $last,
             'account_holder_name' => null,
-            'iban' => 'DE02120300000000202051',
+            'has_iban' => 1,
+            'iban_last4' => '2051',
             'mandate_reference' => 'MND-' . strtoupper($last),
             'mandate_signed_at' => '2025-01-15',
         ];
