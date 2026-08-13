@@ -38,7 +38,10 @@ const uniqueMemberBody = (overrides: Record<string, unknown> = {}) => {
 }
 
 test.describe('Clearing an optional member field', () => {
-  const clearable = ['phone', 'card_uid', 'iban', 'account_holder_name', 'mandate_signed_at']
+  // `iban` is deliberately absent: it is sealed and never returned, so blank
+  // means "keep" rather than "clear" for that one field. Its own contract is
+  // covered below.
+  const clearable = ['phone', 'card_uid', 'account_holder_name', 'mandate_signed_at']
 
   for (const field of clearable) {
     test(`PATCH /admin/members/{id} clears ${field} to null`, async ({ authenticatedRequest }) => {
@@ -105,6 +108,76 @@ test.describe('Clearing an optional member field', () => {
     const member = await response.json()
     for (const field of clearable) {
       expect(member[field], `${field} must be stored as no value, not as ""`).toBeNull()
+    }
+    // Blank on create still means "no mandate" — there is nothing stored to keep.
+    expect(member.iban_last4).toBeNull()
+    expect(member.is_sepa_valid).toBe(false)
+  })
+
+  /**
+   * Overwrite-only IBAN (#392).
+   *
+   * The IBAN is sealed at rest (ADR-0036) and the API returns only its last four
+   * characters, so the edit form cannot prefill it and the field arrives blank on
+   * every save that did not deliberately retype it. Blank therefore has to mean
+   * "keep the stored account" — the previous "clear it" reading would revoke the
+   * mandate of every member whose phone number an admin corrected.
+   */
+  test('PATCH /admin/members/{id} with a blank IBAN keeps the stored account', async ({
+    authenticatedRequest,
+  }) => {
+    const created = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
+      data: uniqueMemberBody(),
+    })
+    expect(created.status()).toBe(201)
+    const member = await created.json()
+    expect(member.iban_last4).toBe('3000')
+
+    const patched = await authenticatedRequest.patch(`${API_BASE}/admin/members/${member.id}`, {
+      data: { iban: '', phone: '+49 170 7654321' },
+    })
+
+    expect(patched.status()).toBe(200)
+    const updated = await patched.json()
+    expect(updated.phone).toBe('+49 170 7654321')
+    expect(updated.iban_last4, 'a blank IBAN must not revoke the mandate').toBe('3000')
+    expect(updated.mandate_reference).toBe(member.mandate_reference)
+    expect(updated.is_sepa_valid).toBe(true)
+  })
+
+  test('PATCH /admin/members/{id} with an explicit null IBAN revokes the mandate', async ({
+    authenticatedRequest,
+  }) => {
+    const created = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
+      data: uniqueMemberBody(),
+    })
+    expect(created.status()).toBe(201)
+    const member = await created.json()
+    expect(member.iban_last4).toBe('3000')
+
+    const patched = await authenticatedRequest.patch(`${API_BASE}/admin/members/${member.id}`, {
+      data: { iban: null },
+    })
+
+    expect(patched.status()).toBe(200)
+    const updated = await patched.json()
+    expect(updated.iban_last4).toBeNull()
+    expect(updated.is_sepa_valid).toBe(false)
+  })
+
+  test('no member response carries a full IBAN', async ({ authenticatedRequest }) => {
+    const created = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
+      data: uniqueMemberBody(),
+    })
+    expect(created.status()).toBe(201)
+    const member = await created.json()
+
+    for (const body of [
+      member,
+      await (await authenticatedRequest.get(`${API_BASE}/admin/members/${member.id}`)).json(),
+      await (await authenticatedRequest.get(`${API_BASE}/admin/members/${member.id}/export`)).json(),
+    ]) {
+      expect(JSON.stringify(body)).not.toContain('DE89370400440532013000')
     }
   })
 })

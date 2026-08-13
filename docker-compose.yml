@@ -89,6 +89,8 @@ services:
       # Matches the key used to pre-encrypt the test admin's TOTP secret in
       # backend/db/seed.sql. Safe to commit — dev-only, never used in production.
       TOTP_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000001"
+      # Published dev fingerprint key (ADR-0036) — IbanSealedBox refuses it outside dev envs.
+      IBAN_FINGERPRINT_KEY: "0000000000000000000000000000000000000000000000000000000000000002"
 
       # CORS — local dev: allow admin (5173) and terminal (5174) frontends. Never use * in production.
       CORS_ORIGINS: "http://localhost:5173,http://localhost:5174"

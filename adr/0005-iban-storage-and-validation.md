@@ -1,6 +1,6 @@
 # ADR-0005: IBAN Storage and Validation
 
-**Status**: Accepted
+**Status**: Accepted (amended by [ADR-0036](./0036-iban-encryption-sealed-box.md): IBANs are now encrypted at rest; this ADR's rejection of at-rest encryption is revoked. Validation and audit-masking decisions stand. The schema below predates the move to the `mandates` table.)
 
 **Date**: 2025-01-23
 
@@ -127,6 +127,8 @@ Store IBAN encrypted with database-level encryption or application encryption.
 
 **Rejected**: HTTPS + access control sufficient. Additional complexity not justified.
 
+> **Amended 2026-08-13**: This rejection is revoked by [ADR-0036](./0036-iban-encryption-sealed-box.md). IBANs are encrypted at rest with libsodium sealed boxes; the key-management objection is resolved by keeping the private key offline with the club rather than on the server.
+
 ### Alternative 2: Store IBAN in Separate Table
 
 Create dedicated banking table (1:1 with members).
@@ -236,6 +238,8 @@ UPDATE members SET iban = AES_ENCRYPT('DE89...', 'encryption_key');
 - Typical deployments don't require field-level encryption
 
 **Rejected**: HTTPS + access control sufficient. Additional complexity not justified.
+
+> **Amended 2026-08-13**: This rejection is revoked by [ADR-0036](./0036-iban-encryption-sealed-box.md).
 
 ### Alternative 2: Store IBAN in Separate Table
 

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
+import { generateKeyPairSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { generateTotp } from '../../utils/totp';
@@ -19,6 +20,52 @@ import { generateTotp } from '../../utils/totp';
 const PACKAGE_URL = process.env.PACKAGE_URL || 'http://localhost:8080';
 const CI_INSTALL_KEY = 'ci-package-install-key-0000';
 const CI_DEPLOY_SECRET = 'ci-deploy-secret-0000';
+
+/**
+ * Register and activate an IBAN encryption keypair, the way a club does after
+ * installing (ADR-0036).
+ *
+ * A fresh install has no key, and that is the design rather than an oversight:
+ * the server only ever learns the public half, so nothing it could generate
+ * on its own would be safe to seal with. Until an admin registers one, storing
+ * an IBAN is refused — which is why this has to happen before the first member
+ * with bank details can be created.
+ *
+ * The dev keypair published in this repository is deliberately unusable here:
+ * the package runs with APP_ENV=production and `IbanSealedBox` refuses it, so
+ * the test generates a real X25519 pair. Only the public half is sent; the
+ * private half is discarded, as the club's would go into a safe.
+ */
+async function registerAndActivateEncryptionKey(
+  request: import('@playwright/test').APIRequestContext,
+  csrfToken: string,
+  totpSecret: string,
+): Promise<void> {
+  const { publicKey } = generateKeyPairSync('x25519');
+  // X25519 SPKI DER is 12 bytes of header followed by the raw 32-byte key.
+  const spki = publicKey.export({ type: 'spki', format: 'der' });
+  const rawPublicKey = spki.subarray(spki.length - 32);
+
+  const headers = { 'X-CSRF-Token': csrfToken };
+  const stepUp = () => ({ current_password: 'password123', totp_code: generateTotp(totpSecret) });
+
+  const registered = await request.post(`${PACKAGE_URL}/api/admin/encryption-keys`, {
+    data: {
+      public_key: rawPublicKey.toString('base64'),
+      key_identifier: `package-smoke-${Date.now()}`,
+      ...stepUp(),
+    },
+    headers,
+  });
+  expect(registered.status(), await registered.text()).toBe(201);
+
+  const keyId = (await registered.json()).key.id;
+  const activated = await request.post(`${PACKAGE_URL}/api/admin/encryption-keys/${keyId}/activate`, {
+    data: stepUp(),
+    headers,
+  });
+  expect(activated.status(), await activated.text()).toBe(200);
+}
 
 test.describe('Package: Install Wizard', () => {
   test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
@@ -476,6 +523,12 @@ test.describe.serial('Package: Admin SPA under the enforcing CSP', () => {
     await page.waitForURL(/dashboard/, { timeout: 10000 });
 
     const csrfToken = await page.evaluate(() => localStorage.getItem('csrf_token') ?? '');
+
+    // No IBAN can be stored until the club's public key is registered
+    // (ADR-0036), so a fresh install has to do this before its first member
+    // with bank details — the member create below is a 409 without it.
+    await registerAndActivateEncryptionKey(page.request, csrfToken, secret);
+
     const ts = Date.now();
     const memberResp = await page.request.post(`${PACKAGE_URL}/api/admin/members`, {
       data: {

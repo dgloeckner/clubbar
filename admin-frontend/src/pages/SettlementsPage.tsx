@@ -20,7 +20,7 @@
  * Settlement details view was removed - no additional value beyond list view.
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
@@ -28,6 +28,9 @@ import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { UndoSettlementDialog } from '../components/modals/UndoSettlementDialog'
+import { StepUpConfirmDialog, type StepUpCredentials } from '../components/modals/StepUpConfirmDialog'
+import { PrivateKeyInput } from '../components/modals/PrivateKeyInput'
+import { getProfile } from '../auth/session'
 import { useFormatters } from '../hooks/useFormatters'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { PillFilter, type PillFilterOption } from '../components/forms/PillFilter'
@@ -181,6 +184,13 @@ export function SettlementsPage() {
   // file downloaded and is valid — but the treasurer has to be told it asks
   // the bank for less than the settlement records.
   const [exportWarning, setExportWarning] = useState<string | null>(null)
+  // The SEPA export asks for the club's archived private key plus a fresh
+  // step-up before it decrypts anything (#393). `exportTarget` is the
+  // settlement the dialog is open for.
+  const [exportTarget, setExportTarget] = useState<string | null>(null)
+  const [exportPrivateKey, setExportPrivateKey] = useState('')
+  const [exportStepUpError, setExportStepUpError] = useState<string | null>(null)
+  const [callerTotpEnabled, setCallerTotpEnabled] = useState(false)
 
   // Undoing a settlement only flips a badge in one row. On a long list that is
   // easy to miss, so the outcome is stated outright (#130).
@@ -218,16 +228,40 @@ export function SettlementsPage() {
     [setFilters]
   )
 
-  const handleExportSepa = async (settlementId: string) => {
+  // Whether the signed-in admin has 2FA enrolled, which decides whether the
+  // export dialog asks for a TOTP code alongside the password. Fetched once.
+  useEffect(() => {
+    getProfile()
+      .then((profile) => setCallerTotpEnabled(!!profile.totp_enabled))
+      .catch(() => setCallerTotpEnabled(false))
+  }, [])
+
+  const handleExportSepa = (settlementId: string) => {
+    setExportWarning(null)
+    setExportStepUpError(null)
+    setExportPrivateKey('')
+    setExportTarget(settlementId)
+  }
+
+  const handleExportSepaConfirmed = async (credentials: StepUpCredentials) => {
+    const settlementId = exportTarget
+    if (!settlementId) return
+
     try {
       setExportWarning(null)
       // Routed through downloadFile rather than the generated client because
       // the omissions ride on response headers, and the generated call returns
       // the blob alone (#114). The bank file itself cannot carry a warning.
+      // A POST, because the private key rides in the body (ADR-0036).
       const headers = await downloadFile(
         `/admin/settlements/${settlementId}/export/sepa-xml`,
-        `sepa-${settlementId}.xml`
+        `sepa-${settlementId}.xml`,
+        { ...credentials, private_key: exportPrivateKey }
       )
+
+      // Only now: a failed attempt keeps the dialog open with the key intact.
+      setExportTarget(null)
+      setExportPrivateKey('')
 
       const uncollectable = headers['x-uncollectable-members']
       if (uncollectable) {
@@ -244,13 +278,20 @@ export function SettlementsPage() {
       // Reload list so status updates to "Exported"
       await list.reload()
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message ?? err.message)
-      } else if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError(t('settlements.errors.exportSepa'))
+      // A rejected credential or key keeps the dialog open so the admin can
+      // retry without fetching the key sheet out of the safe again; anything
+      // else is a page-level failure and the dialog has nothing to add.
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined
+      const message = err instanceof Error ? err.message : t('settlements.errors.exportSepa')
+
+      if (status === 401 || status === 422) {
+        setExportStepUpError(message)
+        return
       }
+
+      setExportTarget(null)
+      setExportPrivateKey('')
+      setError(message)
     }
   }
 
@@ -889,6 +930,30 @@ export function SettlementsPage() {
         settlement={undoTarget}
         onConfirm={handleUndoSettlementConfirmed}
         onCancel={() => setUndoTarget(null)}
+      />
+
+      {/*
+        Building the bank file is the one place member IBANs are decrypted in
+        bulk (ADR-0036), so it asks for the club's archived private key on top
+        of the usual step-up. The key is held in page state for the length of
+        the request and dropped as soon as the download succeeds or is
+        abandoned — never stored.
+      */}
+      <StepUpConfirmDialog
+        isOpen={exportTarget !== null}
+        title={t('settlements.export.title')}
+        message={t('settlements.export.message')}
+        confirmLabel={t('settlements.export.confirm')}
+        requiresTotp={callerTotpEnabled}
+        error={exportStepUpError}
+        confirmDisabled={exportPrivateKey.trim() === ''}
+        extraFields={<PrivateKeyInput value={exportPrivateKey} onChange={setExportPrivateKey} />}
+        onConfirm={handleExportSepaConfirmed}
+        onCancel={() => {
+          setExportTarget(null)
+          setExportPrivateKey('')
+          setExportStepUpError(null)
+        }}
       />
       </div>
     )

@@ -23,8 +23,42 @@ class ServiceFactoryTest extends TestCase
 {
     protected function tearDown(): void
     {
-        unset($_ENV['DISABLE_LOGIN_RATE_LIMITING']);
+        unset($_ENV['DISABLE_LOGIN_RATE_LIMITING'], $_ENV['IBAN_FINGERPRINT_KEY'], $_ENV['APP_ENV']);
         Env::reset();
+    }
+
+    // ─── ADR-0036 crypto wiring ──────────────────────────────────────────────
+
+    public function test_the_encryption_stack_resolves_and_is_singleton(): void
+    {
+        // A non-published key: the sealed box refuses the repo's dev key
+        // outside development APP_ENVs, and this test runs as "production".
+        $_ENV['IBAN_FINGERPRINT_KEY'] = str_repeat('ab', 32);
+        $_ENV['APP_ENV'] = 'production';
+        Env::reset();
+
+        $factory = $this->factory();
+
+        $this->assertSame($factory->getIbanSealedBox(), $factory->getIbanSealedBox());
+        $this->assertSame($factory->getEncryptionKeysRepository(), $factory->getEncryptionKeysRepository());
+        $this->assertSame($factory->getEncryptionKeyService(), $factory->getEncryptionKeyService());
+        $this->assertSame($factory->getIbanEncryptionMigrationService(), $factory->getIbanEncryptionMigrationService());
+        // Not the controllers: their chains construct TotpService (via
+        // StepUpAuthService), which reads the instance name from the database
+        // at construction — impossible on this test's mocked PDO. The HTTP
+        // suite resolves them through the real container instead.
+    }
+
+    public function test_members_repository_carries_the_sealed_box(): void
+    {
+        $_ENV['IBAN_FINGERPRINT_KEY'] = str_repeat('ab', 32);
+        $_ENV['APP_ENV'] = 'production';
+        Env::reset();
+
+        $factory = $this->factory();
+
+        $this->assertSame($factory->getMembersRepository(), $factory->getMembersRepository());
+        $this->assertSame($factory->getMembersService(), $factory->getMembersService());
     }
 
     private function factory(): ServiceFactory

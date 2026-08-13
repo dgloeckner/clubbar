@@ -59,6 +59,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type {
   CreateSettlementByFiltersBody,
+  DownloadSepaXmlBody,
   ExecutionDateInfo,
   ListSettlements200,
   ListSettlementsParams,
@@ -267,13 +268,33 @@ const reverseSettlement = (
       options);
     }
   /**
- * Download the settlement as a SEPA Direct Debit XML file (pain.008.001.08).
+ * Build and download the settlement as a SEPA Direct Debit XML file
+(pain.008.001.08).
 
 **Use Cases**: UC-A31, UC-SEPA-08
+
+**This is a POST because it carries the club's private key.** Member
+IBANs are sealed at rest and the server holds no private key
+([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)); building a
+pain.008 is the one legitimate bulk decryption. The key lives offline in
+the club's archive and is supplied for the length of this one request,
+validated against the registered public half, used through a per-member
+opener so no plaintext collection is ever assembled, and wiped before
+the response is written. It is sent as a JSON field rather than a
+multipart upload deliberately: PHP writes multipart parts to temporary
+files on disk.
+
+A fresh step-up credential (the caller's own password, plus their TOTP
+code when 2FA is enrolled) is required on top of the session, and the
+response is `Cache-Control: no-store` — the body is a list of plaintext
+IBANs. The decryption is recorded as a `sepa_export` audit entry
+carrying the settlement and how many IBANs were opened, never an
+account or the XML.
 
 **Requirements**:
 - Settlement method must be `direct_debit` (ruling #163)
 - Settlement must be neither cancelled nor reversed
+- The active encryption key's cryptoperiod must not have expired
 
 **XML format**: pain.008.001.08 (SEPA Core Direct Debit)
 - Sequence type: Always RCUR
@@ -303,9 +324,12 @@ See [ADR-0008](../../adr/0008-sepa-xml-export-format-selection.md) for details.
  */
 const downloadSepaXml = (
     settlementId: string,
+    downloadSepaXmlBody: DownloadSepaXmlBody,
  options?: SecondParameter<typeof customInstance<Blob>>,) => {
       return customInstance<Blob>(
-      {url: `/admin/settlements/${settlementId}/export/sepa-xml`, method: 'GET',
+      {url: `/admin/settlements/${settlementId}/export/sepa-xml`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: downloadSepaXmlBody,
         responseType: 'blob'
     },
       options);

@@ -118,7 +118,7 @@ class SepaExportServiceTest extends TestCase
         $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
         $this->givenMembers([
             self::MEMBER_ID => self::member('Ada', 'Lovelace'),
-            self::OTHER_MEMBER_ID => ['iban' => null, 'mandate_reference' => null]
+            self::OTHER_MEMBER_ID => ['has_iban' => 0, 'iban_last4' => null, 'mandate_reference' => null]
                 + self::member('Grace', 'Hopper'),
         ]);
 
@@ -237,7 +237,7 @@ class SepaExportServiceTest extends TestCase
         $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
         $this->givenItems([[self::MEMBER_ID, 1500]]);
         $this->givenMembers([
-            self::MEMBER_ID => ['iban' => null] + self::member('Ada', 'Lovelace'),
+            self::MEMBER_ID => ['has_iban' => 0, 'iban_last4' => null] + self::member('Ada', 'Lovelace'),
         ]);
 
         $this->logger
@@ -417,6 +417,18 @@ class SepaExportServiceTest extends TestCase
     {
         $this->membersRepository->method('findByIdIncludingDeleted')
             ->willReturnCallback(static fn(string $id): ?array => $members[$id] ?? null);
+
+        // The export resolves the plaintext through the dedicated sealed-IBAN
+        // read (ADR-0036); these fixtures model legacy rows the batch
+        // encryption has not sealed yet, so they answer with plaintext.
+        $this->membersRepository->method('findSealedIban')
+            ->willReturnCallback(static function (string $id) use ($members): ?array {
+                $member = $members[$id] ?? null;
+                if ($member === null || empty($member['has_iban'])) {
+                    return null;
+                }
+                return ['iban_ciphertext' => null, 'legacy_iban' => 'DE02120300000000202051', 'encryption_key_id' => null];
+            });
     }
 
     /** @return array<string, mixed> */
@@ -426,7 +438,8 @@ class SepaExportServiceTest extends TestCase
             'first_name' => $first,
             'last_name' => $last,
             'account_holder_name' => null,
-            'iban' => 'DE02120300000000202051',
+            'has_iban' => 1,
+            'iban_last4' => '2051',
             'mandate_reference' => 'MND-' . strtoupper($last),
             'mandate_signed_at' => '2025-01-15',
         ];
@@ -450,6 +463,59 @@ class SepaExportServiceTest extends TestCase
         $this->givenMembers($members);
 
         return $this->endToEndIds($this->service->export(self::SETTLEMENT_ID)->xml);
+    }
+
+    public function test_a_sealed_iban_is_opened_through_the_supplied_closure(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn(self::member('Ada', 'Lovelace'));
+        $this->membersRepository->method('findSealedIban')
+            ->willReturn(['iban_ciphertext' => 'v1:sealed', 'legacy_iban' => null, 'encryption_key_id' => 'key-1']);
+
+        $opened = [];
+        $result = $this->service->export(self::SETTLEMENT_ID, function (string $ciphertext) use (&$opened): string {
+            $opened[] = $ciphertext;
+            return 'DE02120300000000202051';
+        });
+
+        $this->assertSame(['v1:sealed'], $opened, 'the closure gets exactly the stored ciphertext');
+        $this->assertStringContainsString('DE02120300000000202051', $result->xml);
+    }
+
+    public function test_a_sealed_iban_without_a_private_key_is_a_hard_error_not_an_exclusion(): void
+    {
+        // A short file that reads as complete is the #114 failure mode all over
+        // again — sealed rows must stop the export, not fall out of it.
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn(self::member('Ada', 'Lovelace'));
+        $this->membersRepository->method('findSealedIban')
+            ->willReturn(['iban_ciphertext' => 'v1:sealed', 'legacy_iban' => null, 'encryption_key_id' => 'key-1']);
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/private key/i');
+
+        $this->service->export(self::SETTLEMENT_ID);
+    }
+
+    public function test_a_mandate_vanishing_between_the_two_reads_fails_loudly(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn(self::member('Ada', 'Lovelace'));
+        $this->membersRepository->method('findSealedIban')->willReturn(null);
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/vanished/i');
+
+        $this->service->export(self::SETTLEMENT_ID);
     }
 
     /** @return list<string> the EndToEndIds the file carries, in document order */

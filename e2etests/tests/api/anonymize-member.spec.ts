@@ -47,7 +47,13 @@ test.describe('GDPR Member Anonymization', () => {
     expect(anonBody.first_name).toBeNull();
     expect(anonBody.last_name).toBeNull();
     expect(anonBody.email).toBeNull();
-    expect(anonBody.iban).toBeNull();
+    // The IBAN is sealed and never returned (ADR-0036), so what has to be gone
+    // is the last four characters the API does expose — and the key that says
+    // an account exists at all.
+    expect(anonBody).not.toHaveProperty('iban');
+    expect(anonBody.iban_last4).toBeNull();
+    expect(anonBody.iban_masked).toBeNull();
+    expect(anonBody.is_sepa_valid).toBe(false);
     expect(anonBody.account_holder_name).toBeNull();
     expect(anonBody.mandate_reference).toBeNull();
 
@@ -65,7 +71,9 @@ test.describe('GDPR Member Anonymization', () => {
     expect(getBody.first_name).toBeNull();
     expect(getBody.last_name).toBeNull();
     expect(getBody.email).toBeNull();
-    expect(getBody.iban).toBeNull();
+    expect(getBody).not.toHaveProperty('iban');
+    expect(getBody.iban_last4).toBeNull();
+    expect(getBody.is_sepa_valid).toBe(false);
   });
 
   test('4.2 - scrubs historical audit log entries', async ({ authenticatedRequest, testTransactions }) => {

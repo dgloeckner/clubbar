@@ -66,8 +66,18 @@ export type GdprExportPersonalData = {
   /** @nullable */
   card_uid?: string | null;
   preferred_language?: string;
-  /** Full IBAN (unmasked) */
-  iban?: string;
+  /**
+   * Last four characters only. GDPR Art. 15 asks for the personal
+data the controller holds, and what is held is a sealed
+ciphertext the server cannot open
+([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md));
+`mandate_reference` identifies the mandate the account belongs to.
+
+   * @nullable
+   */
+  iban_last4?: string | null;
+  /** @nullable */
+  iban_masked?: string | null;
   mandate_reference?: string;
   member_since?: string;
   is_active?: boolean;

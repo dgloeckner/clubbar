@@ -235,7 +235,10 @@
     "countFound_one": "{{count}} Mitglied gefunden",
     "countFound_other": "{{count}} Mitglieder gefunden",
     "downloadSepaTemplate": "SEPA-Vorlage",
-    "sepaTemplateError": "Die SEPA-Konfiguration ist unvollständig. Bitte hinterlegen Sie zuerst die Gläubigerdaten in den Einstellungen."
+    "sepaTemplateError": "Die SEPA-Konfiguration ist unvollständig. Bitte hinterlegen Sie zuerst die Gläubigerdaten in den Einstellungen.",
+    "storedIban": "Gespeichert: {{masked}}",
+    "removeStoredIban": "Bankdaten entfernen",
+    "storedIbanWillBeRemoved": "Bankdaten werden beim Speichern entfernt, das Mandat wird widerrufen."
   },
   "products": {
     "title": "Produkte",
@@ -396,7 +399,16 @@
       "undo": "Abrechnung konnte nicht rückgängig gemacht werden"
     },
     "exportShortfall_one": "Die SEPA-Datei lässt {{count}} Mitglied aus: Sie zieht {{collected}} von {{total}} dieser Abrechnung ein, {{shortfall}} zu wenig. Prüfen Sie die Bankdaten des Mitglieds, das im Audit-Log-Eintrag zu diesem Export genannt ist.",
-    "exportShortfall_other": "Die SEPA-Datei lässt {{count}} Mitglieder aus: Sie zieht {{collected}} von {{total}} dieser Abrechnung ein, {{shortfall}} zu wenig. Prüfen Sie die Bankdaten der Mitglieder, die im Audit-Log-Eintrag zu diesem Export genannt sind."
+    "exportShortfall_other": "Die SEPA-Datei lässt {{count}} Mitglieder aus: Sie zieht {{collected}} von {{total}} dieser Abrechnung ein, {{shortfall}} zu wenig. Prüfen Sie die Bankdaten der Mitglieder, die im Audit-Log-Eintrag zu diesem Export genannt sind.",
+    "export": {
+      "title": "SEPA-Datei erzeugen",
+      "message": "Zum Erzeugen der Bankdatei werden die IBANs der Mitglieder einmalig entschlüsselt. Dafür wird der privaten Schlüssel des Vereins benötigt.",
+      "confirm": "Erzeugen und herunterladen",
+      "keyHint": "Schlüsseldatei auswählen oder den Schlüssel einfügen. Er wird nur für diesen Export verwendet und nicht gespeichert.",
+      "keyPastePlaceholder": "Privater Schlüssel (Base64)",
+      "keyFileInvalid": "Diese Datei enthält keinen gültigen Schlüssel (32 Byte, Base64).",
+      "keyFileUnreadable": "Die Datei konnte nicht gelesen werden."
+    }
   },
   "statistics": {
     "title": "Statistik",
@@ -472,7 +484,8 @@
       "street": "Straße und Hausnummer (max 70 Zeichen)",
       "city": "Stadtname (max 70 Zeichen)",
       "country": "2-stelliger ISO-Ländercode (DE, AT, CH)",
-      "paymentPrefix": "Präfix für den Verwendungszweck. Das Abrechnungsdatum wird automatisch angehängt."
+      "paymentPrefix": "Präfix für den Verwendungszweck. Das Abrechnungsdatum wird automatisch angehängt.",
+      "creditorIbanStored": "Gespeichert: {{masked}}. Leer lassen, um sie zu behalten, oder vollständige IBAN eingeben, um sie zu ersetzen."
     },
     "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?",
     "terminals": "Terminals",

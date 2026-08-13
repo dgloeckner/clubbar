@@ -19,6 +19,7 @@ import { NewSettlementPage } from '../../pages/NewSettlementPage'
 import { JournalPage } from '../../pages/JournalPage'
 import { seedMember } from '../../utils/exclusions'
 import type { APIRequestContext } from '@playwright/test'
+import { exportSepaXml } from '../../fixtures/encryption'
 
 async function openTransactionCount(
   adminRequest: APIRequestContext,
@@ -206,7 +207,7 @@ test.describe('New Settlement — the selection is members', () => {
     // never be silent — a held member is skipped run after run otherwise.
     const settlement = await settlementFactory.create({ amountCents: 1700 })
 
-    expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200)
+    expect((await exportSepaXml(authenticatedRequest, settlement.id)).status()).toBe(200)
     expect((await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/submit`)).status()).toBe(200)
 
     const reversed = await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/reverse`, {

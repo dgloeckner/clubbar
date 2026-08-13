@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature\Modules\Settlements\Services;
 
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Shared\Security\IbanSealedBox;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
@@ -41,6 +43,7 @@ class SepaExportPersistenceTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->ensureActiveEncryptionKey();
 
         $this->settlementsRepository = new SettlementsRepository($this->db, $this->logger);
 
@@ -54,7 +57,7 @@ class SepaExportPersistenceTest extends DatabaseTestCase
 
         $this->service = new SepaExportService(
             $sepaConfig,
-            new MembersRepository($this->db, $this->logger),
+            new MembersRepository($this->db, $this->logger, new IbanSealedBox('0000000000000000000000000000000000000000000000000000000000000002', 'test'), new EncryptionKeysRepository($this->db, $this->logger)),
             $this->settlementsRepository,
             new SettlementReversalsRepository($this->db, $this->logger),
             $this->logger,

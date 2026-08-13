@@ -78,10 +78,23 @@ export interface Member {
   /** ISO 639-1 language code */
   preferred_language?: string;
   /**
-   * Full IBAN (unmasked in detail view)
+   * The last four characters of the IBAN. The stored IBAN is sealed
+under the club's public key ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md))
+and the server holds no private key, so no admin endpoint can
+return the full value — enough to recognize the account, useless
+to debit it. The plaintext is reachable only through the SEPA
+export, which takes the private key for the length of one request.
+
+   * @minLength 4
+   * @maxLength 4
    * @nullable
    */
-  iban?: string | null;
+  iban_last4?: string | null;
+  /**
+   * `iban_last4` in the established display shape, e.g. ****3000
+   * @nullable
+   */
+  iban_masked?: string | null;
   /**
    * Account holder name if different from member. Used in SEPA XML.
    * @maxLength 70

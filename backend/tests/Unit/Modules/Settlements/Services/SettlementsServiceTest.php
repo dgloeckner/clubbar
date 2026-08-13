@@ -54,11 +54,18 @@ class SettlementsServiceTest extends TestCase
 
     private function member(string $id, array $overrides = []): array
     {
+        // The read model exposes sealed-IBAN derivatives, never the IBAN
+        // itself (ADR-0036). Tests keep overriding 'iban' as before; the
+        // helper translates that into what repository reads actually return.
+        $iban = array_key_exists('iban', $overrides) ? $overrides['iban'] : 'DE89370400440532013000';
+        unset($overrides['iban']);
+
         return array_merge([
             'id' => $id,
             'first_name' => 'Max',
             'last_name' => 'Mustermann',
-            'iban' => 'DE89370400440532013000',
+            'has_iban' => empty($iban) ? 0 : 1,
+            'iban_last4' => empty($iban) ? null : substr(str_replace(' ', '', $iban), -4),
             'mandate_reference' => 'F3332CA866B249E7A202BFBF4836B605',
             'is_active' => 1,
         ], $overrides);
@@ -1957,8 +1964,8 @@ class SettlementsServiceTest extends TestCase
             ->expects($this->exactly(2))
             ->method('findByIdIncludingDeleted')
             ->willReturnMap([
-                ['member-a', ['id' => 'member-a', 'email' => 'max@example.com', 'iban' => 'DE89370400440532013000']],
-                ['member-b', ['id' => 'member-b', 'email' => 'erika@example.com', 'iban' => 'DE02100100100006820101']],
+                ['member-a', ['id' => 'member-a', 'email' => 'max@example.com', 'iban_last4' => '3000']],
+                ['member-b', ['id' => 'member-b', 'email' => 'erika@example.com', 'iban_last4' => '0101']],
             ]);
 
         $result = $this->service->getCsvData('settlement-1');
@@ -1966,7 +1973,7 @@ class SettlementsServiceTest extends TestCase
         $this->assertCount(2, $result);
         $this->assertSame('Max Mustermann', $result[0]['name']);
         $this->assertSame('max@example.com', $result[0]['email']);
-        $this->assertSame('DE89370400440532013000', $result[0]['iban']);
+        $this->assertSame('****3000', $result[0]['iban']);
         $this->assertSame(750, $result[0]['amount_cents']);
         $this->assertSame('Erika Musterfrau', $result[1]['name']);
         $this->assertSame(1000, $result[1]['amount_cents']);

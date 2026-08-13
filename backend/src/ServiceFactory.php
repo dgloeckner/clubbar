@@ -19,6 +19,11 @@ use App\Modules\Members\Repositories\MandateDocumentRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
+use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Modules\Security\Services\EncryptionKeyService;
+use App\Modules\Security\Services\IbanEncryptionMigrationService;
+use App\Modules\Security\Controllers\EncryptionKeysController;
+use App\Shared\Security\IbanSealedBox;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Repositories\SessionRepository;
@@ -116,6 +121,7 @@ class ServiceFactory implements ContainerInterface
         // Shared
         HealthController::class => 'getHealthController',
         SecurityCheckController::class => 'getSecurityCheckController',
+        EncryptionKeysController::class => 'getEncryptionKeysController',
 
         // Members
         MembersAdminController::class => 'getMembersAdminController',
@@ -218,7 +224,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getMembersRepository(): MembersRepository
     {
-        return $this->resolve(MembersRepository::class, fn() => new MembersRepository($this->pdo, $this->logger));
+        return $this->resolve(MembersRepository::class, fn() => new MembersRepository($this->pdo, $this->logger, $this->getIbanSealedBox(), $this->getEncryptionKeysRepository()));
     }
 
     public function getMandateDocumentRepository(): MandateDocumentRepository
@@ -322,6 +328,49 @@ class ServiceFactory implements ContainerInterface
             $this->getTotpService(),
             $this->getAuditService(),
             $this->getLoginAttemptsRepository(),
+        ));
+    }
+
+    public function getIbanSealedBox(): IbanSealedBox
+    {
+        return $this->resolve(IbanSealedBox::class, fn() => new IbanSealedBox(
+            Env::get('IBAN_FINGERPRINT_KEY', ''),
+            Env::get('APP_ENV', 'production'),
+        ));
+    }
+
+    public function getEncryptionKeysRepository(): EncryptionKeysRepository
+    {
+        return $this->resolve(EncryptionKeysRepository::class, fn() => new EncryptionKeysRepository($this->pdo, $this->logger));
+    }
+
+    public function getEncryptionKeyService(): EncryptionKeyService
+    {
+        return $this->resolve(EncryptionKeyService::class, fn() => new EncryptionKeyService(
+            $this->getEncryptionKeysRepository(),
+            $this->getIbanSealedBox(),
+            $this->getAuditService(),
+        ));
+    }
+
+    public function getIbanEncryptionMigrationService(): IbanEncryptionMigrationService
+    {
+        return $this->resolve(IbanEncryptionMigrationService::class, fn() => new IbanEncryptionMigrationService(
+            $this->pdo,
+            $this->getIbanSealedBox(),
+            $this->getEncryptionKeyService(),
+            $this->getAuditService(),
+            $this->getBankCodeService(),
+        ));
+    }
+
+    public function getEncryptionKeysController(): EncryptionKeysController
+    {
+        return $this->resolve(EncryptionKeysController::class, fn() => new EncryptionKeysController(
+            $this->getEncryptionKeyService(),
+            $this->getStepUpAuthService(),
+            $this->getValidator(),
+            $this->getIbanEncryptionMigrationService(),
         ));
     }
 
@@ -616,7 +665,7 @@ class ServiceFactory implements ContainerInterface
     public function getSecurityCheckController(): SecurityCheckController
     {
         return $this->resolve(SecurityCheckController::class, fn() => new SecurityCheckController(
-            new SecurityCheckService($this->config),
+            new SecurityCheckService($this->config, $this->getIbanEncryptionMigrationService()),
         ));
     }
 
@@ -701,7 +750,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getSettlementsAdminController(): SettlementsAdminController
     {
-        return $this->resolve(SettlementsAdminController::class, fn() => new SettlementsAdminController($this->getSettlementsService(), $this->getSepaExportService(), $this->getValidator(), $this->getSettlementReversalService()));
+        return $this->resolve(SettlementsAdminController::class, fn() => new SettlementsAdminController($this->getSettlementsService(), $this->getSepaExportService(), $this->getValidator(), $this->getSettlementReversalService(), $this->getEncryptionKeyService(), $this->getStepUpAuthService(), $this->getAuditService()));
     }
 
     public function getSepaConfigController(): SepaConfigController

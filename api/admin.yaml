@@ -2116,17 +2116,37 @@ paths:
         schema:
           type: string
           format: uuid
-    get:
+    post:
       tags: [Settlements]
       summary: Download SEPA XML
       description: |
-        Download the settlement as a SEPA Direct Debit XML file (pain.008.001.08).
+        Build and download the settlement as a SEPA Direct Debit XML file
+        (pain.008.001.08).
 
         **Use Cases**: UC-A31, UC-SEPA-08
+
+        **This is a POST because it carries the club's private key.** Member
+        IBANs are sealed at rest and the server holds no private key
+        ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)); building a
+        pain.008 is the one legitimate bulk decryption. The key lives offline in
+        the club's archive and is supplied for the length of this one request,
+        validated against the registered public half, used through a per-member
+        opener so no plaintext collection is ever assembled, and wiped before
+        the response is written. It is sent as a JSON field rather than a
+        multipart upload deliberately: PHP writes multipart parts to temporary
+        files on disk.
+
+        A fresh step-up credential (the caller's own password, plus their TOTP
+        code when 2FA is enrolled) is required on top of the session, and the
+        response is `Cache-Control: no-store` — the body is a list of plaintext
+        IBANs. The decryption is recorded as a `sepa_export` audit entry
+        carrying the settlement and how many IBANs were opened, never an
+        account or the XML.
 
         **Requirements**:
         - Settlement method must be `direct_debit` (ruling #163)
         - Settlement must be neither cancelled nor reversed
+        - The active encryption key's cryptoperiod must not have expired
 
         **XML format**: pain.008.001.08 (SEPA Core Direct Debit)
         - Sequence type: Always RCUR
@@ -2154,6 +2174,28 @@ paths:
       operationId: downloadSepaXml
       security:
         - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [private_key, current_password]
+              properties:
+                private_key:
+                  type: string
+                  description: |
+                    The club's archived private key: 32 raw bytes, base64-encoded,
+                    as produced by `tools/keypair-generator.html`. Validated by
+                    deriving its public half and comparing that against the
+                    registered ACTIVE key — never by trial decryption.
+                current_password:
+                  type: string
+                  format: password
+                  description: The caller's own password, for the step-up check.
+                totp_code:
+                  type: string
+                  description: The caller's current TOTP code. Required when they have 2FA enrolled.
       responses:
         '200':
           description: SEPA XML file
@@ -2204,7 +2246,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: |
+            No session, or the step-up credential was missing or wrong. Nothing
+            was decrypted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -2212,12 +2260,27 @@ paths:
             Settlement is cancelled, has reversed collections, or does not use
             the `direct_debit` method. Re-exporting a reversed settlement would
             hand the bank a file that debits every member on it a second time.
+
+            Also returned as `encryption_key_expired` when the active key's
+            365-day cryptoperiod is over: rotate the encryption key before
+            creating another SEPA export. Key management itself stays reachable
+            in that state, so rotating out of it is always possible.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '412':
           description: Settlement not of SEPA type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: |
+            `private_key` missing, or `private_key_mismatch` — the supplied key
+            does not belong to the registered active key, so it would decrypt
+            nothing. No file is produced and the settlement is not marked
+            exported.
           content:
             application/json:
               schema:
@@ -4049,10 +4112,23 @@ components:
         preferred_language:
           type: string
           description: ISO 639-1 language code
-        iban:
+        iban_last4:
           type: string
           nullable: true
-          description: Full IBAN (unmasked in detail view)
+          minLength: 4
+          maxLength: 4
+          description: |
+            The last four characters of the IBAN. The stored IBAN is sealed
+            under the club's public key ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md))
+            and the server holds no private key, so no admin endpoint can
+            return the full value — enough to recognize the account, useless
+            to debit it. The plaintext is reachable only through the SEPA
+            export, which takes the private key for the length of one request.
+          example: '3000'
+        iban_masked:
+          type: string
+          nullable: true
+          description: '`iban_last4` in the established display shape, e.g. ****3000'
         account_holder_name:
           type: string
           nullable: true
@@ -4152,9 +4228,15 @@ components:
       description: >-
         Only the fields the request carries are changed. A field being cleared
         may be sent as `""` as well as `null` — a blank string is read as no
-        value for `phone`, `card_uid`, `iban`, `account_holder_name` and
+        value for `phone`, `card_uid`, `account_holder_name` and
         `mandate_signed_at`, so a form that empties an input clears the field
         rather than storing the empty string.
+
+        `iban` is the exception, because it is the one field the form cannot
+        prefill: it is sealed at rest and never returned, so it arrives blank
+        on every save that did not deliberately retype it. A blank `iban`
+        therefore keeps the stored account, and only an explicit `null` removes
+        it. See the field for the three cases.
       properties:
         first_name:
           type: string
@@ -4178,7 +4260,17 @@ components:
           minLength: 15
           maxLength: 34
           nullable: true
-          description: null to remove the stored bank details
+          description: |
+            Overwrite-only. The stored IBAN is sealed and never returned
+            ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)), so the
+            edit form cannot prefill this field:
+
+            - **omitted or `""`** — keep the stored account. This is what a save
+              that did not deliberately retype the IBAN sends.
+            - **a full IBAN** — replace the account. The current mandate is
+              ended and a new one opened, so a collection made under the old
+              account still resolves to the mandate it was made under.
+            - **`null`** — remove the stored bank details and revoke the mandate.
         account_holder_name:
           type: string
           maxLength: 70
@@ -4787,9 +4879,16 @@ components:
             How many unsettled transactions this member would contribute to
             the run — the count shown on their row in the New Settlement
             screen. Counted over their whole position, like the balance.
-        iban:
+        iban_last4:
           type: string
           nullable: true
+          minLength: 4
+          maxLength: 4
+          description: |
+            Last four characters only — the preview identifies the account, it
+            never needs to debit it ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)).
+            `null` means the member has no stored account, which is what the
+            missing-IBAN badge on the New Settlement screen reads.
         mandate_reference:
           type: string
           nullable: true
@@ -5442,9 +5541,18 @@ components:
               nullable: true
             preferred_language:
               type: string
-            iban:
+            iban_last4:
               type: string
-              description: Full IBAN (unmasked)
+              nullable: true
+              description: |
+                Last four characters only. GDPR Art. 15 asks for the personal
+                data the controller holds, and what is held is a sealed
+                ciphertext the server cannot open
+                ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md));
+                `mandate_reference` identifies the mandate the account belongs to.
+            iban_masked:
+              type: string
+              nullable: true
             mandate_reference:
               type: string
             member_since:

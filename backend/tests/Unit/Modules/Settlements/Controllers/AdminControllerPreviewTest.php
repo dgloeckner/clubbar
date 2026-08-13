@@ -7,7 +7,10 @@ namespace Tests\Unit\Modules\Settlements\Controllers;
 use App\Modules\Settlements\Controllers\AdminController;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
 use App\Modules\Settlements\Services\SepaExportService;
+use App\Modules\Auth\Services\StepUpAuthService;
+use App\Modules\Security\Services\EncryptionKeyService;
 use App\Modules\Settlements\Services\SettlementReversalService;
+use App\Shared\Services\AuditService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Shared\Validation\Validator;
 use PHPUnit\Framework\TestCase;
@@ -38,6 +41,9 @@ class AdminControllerPreviewTest extends TestCase
             $this->createMock(SepaExportService::class),
             new Validator($this->createMock(\PDO::class)),
             $this->createMock(SettlementReversalService::class),
+            $this->createMock(EncryptionKeyService::class),
+            $this->createMock(StepUpAuthService::class),
+            $this->createMock(AuditService::class),
         );
     }
 

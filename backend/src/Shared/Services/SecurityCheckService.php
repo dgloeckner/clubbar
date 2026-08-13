@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Shared\Services;
 
+use App\Modules\Security\Services\IbanEncryptionMigrationService;
 use App\Shared\Config\AppConfig;
 use App\Shared\Config\DataDirectory;
 use App\Shared\DTOs\SecurityReportDto;
 use App\Shared\Security\SecurityCheckContext;
+use App\Shared\Security\SecurityFinding;
 use App\Shared\Security\SecuritySelfCheck;
 
 /**
@@ -26,6 +28,7 @@ class SecurityCheckService
 {
     public function __construct(
         private readonly AppConfig $config,
+        private readonly ?IbanEncryptionMigrationService $ibanMigration = null,
     ) {}
 
     /**
@@ -34,11 +37,60 @@ class SecurityCheckService
     public function check(array $serverParams): SecurityReportDto
     {
         $findings = SecuritySelfCheck::run($this->context($serverParams));
+        $findings[] = $this->ibanEncryptionFinding();
 
         return new SecurityReportDto(
             generatedAt: (new \DateTimeImmutable())->format('Y-m-d\TH:i:s\Z'),
             findings: $findings,
             summary: SecuritySelfCheck::summarize($findings),
+        );
+    }
+
+    /**
+     * ADR-0036: rows the one-time batch encryption has not sealed yet still
+     * hold plaintext IBANs. That state is expected right after the upgrade and
+     * a standing weakness afterwards — this row is what keeps it visible until
+     * the count reaches zero.
+     */
+    private function ibanEncryptionFinding(): SecurityFinding
+    {
+        if ($this->ibanMigration === null) {
+            return SecurityFinding::unknown(
+                'iban-encryption-backfill',
+                SecuritySelfCheck::CATEGORY_DATA,
+                'IBAN encryption backfill',
+                'Not measurable: the migration service is unavailable.',
+                'Check the deployment wiring.',
+            );
+        }
+
+        try {
+            $remaining = $this->ibanMigration->countRemaining();
+        } catch (\Throwable) {
+            return SecurityFinding::unknown(
+                'iban-encryption-backfill',
+                SecuritySelfCheck::CATEGORY_DATA,
+                'IBAN encryption backfill',
+                'Not measurable: the mandates table could not be queried.',
+                'Check the database connection and that migrations have run.',
+            );
+        }
+
+        if ($remaining === 0) {
+            return SecurityFinding::pass(
+                'iban-encryption-backfill',
+                SecuritySelfCheck::CATEGORY_DATA,
+                'IBAN encryption backfill',
+                'Every stored IBAN is sealed; no plaintext remains in the database.',
+            );
+        }
+
+        return SecurityFinding::warn(
+            'iban-encryption-backfill',
+            SecuritySelfCheck::CATEGORY_DATA,
+            'IBAN encryption backfill',
+            sprintf('%d mandate row(s) still hold a plaintext IBAN.', $remaining),
+            'Run "Encrypt existing IBANs" under Settings → Security & Credentials until no rows remain.',
         );
     }
 

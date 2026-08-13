@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Shared\Controllers\HealthController;
 use App\Shared\Controllers\SecurityCheckController;
+use App\Modules\Security\Controllers\EncryptionKeysController;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
 use App\Modules\Members\Controllers\MandateDocumentController;
@@ -158,6 +159,14 @@ return function (App $app): void {
         // Audit log
         $group->get('/audit-log', [AuditLogAdminController::class, 'index']);
 
+        // IBAN encryption keys (ADR-0036). Mutations carry a step-up
+        // credential in the body and share the step-up rate-limit dimension.
+        $group->get('/encryption-keys', [EncryptionKeysController::class, 'index']);
+        $group->post('/encryption-keys', [EncryptionKeysController::class, 'store'])->add($stepUpRateLimit);
+        $group->post('/encryption-keys/{id}/activate', [EncryptionKeysController::class, 'activate'])->add($stepUpRateLimit);
+        $group->post('/encryption-keys/{id}/revoke', [EncryptionKeysController::class, 'revoke'])->add($stepUpRateLimit);
+        $group->post('/encryption-keys/encrypt-existing', [EncryptionKeysController::class, 'encryptExisting'])->add($stepUpRateLimit);
+
         // Settlements
         // Static segments must stay above /settlements/{id} so they are not
         // swallowed by the placeholder route.
@@ -177,7 +186,10 @@ return function (App $app): void {
         // The other end of #81: once submitted, a settlement is reversed, not
         // cancelled. Per member, or every member for a whole-settlement undo.
         $group->post('/settlements/{id}/reverse', [SettlementsAdminController::class, 'reverse']);
-        $group->get('/settlements/{id}/export/sepa-xml', [SettlementsAdminController::class, 'exportSepa']);
+        // POST, not GET: the club's private key travels in the body so the
+        // sealed IBANs can be opened for this one request (ADR-0036, #393).
+        // Step-up-rate-limited like every other credential-bearing endpoint.
+        $group->post('/settlements/{id}/export/sepa-xml', [SettlementsAdminController::class, 'exportSepa'])->add($stepUpRateLimit);
         $group->get('/settlements/{id}/export/csv', [SettlementsAdminController::class, 'exportCsv']);
         $group->get('/settlements/{id}/export-transactions', [SettlementsAdminController::class, 'exportTransactionsCsv']);
 

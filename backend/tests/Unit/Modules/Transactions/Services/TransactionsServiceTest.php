@@ -48,7 +48,9 @@ class TransactionsServiceTest extends TestCase
     {
         return [
             'id' => $id,
-            'iban' => 'DE89370400440532013000',
+            // What repository reads expose since ADR-0036 — presence, not the IBAN.
+            'has_iban' => 1,
+            'iban_last4' => '3000',
             'mandate_reference' => 'MANDATE-' . $id,
         ];
     }

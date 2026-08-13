@@ -65,7 +65,10 @@ test.describe('Admin Members Page', () => {
     expect(await authenticatedMembersPage.getFormFirstNameValue()).toBe(createData.firstName)
     expect(await authenticatedMembersPage.getFormLastNameValue()).toBe(createData.lastName)
     expect(await authenticatedMembersPage.getFormEmailValue()).toBe(createData.email)
-    expect(await authenticatedMembersPage.getFormIbanValue()).toBe(createData.iban.toUpperCase())
+    // Overwrite-only (#392): the field is blank because the stored IBAN is
+    // sealed and never returned (ADR-0036). What persisted is shown beside it.
+    expect(await authenticatedMembersPage.getFormIbanValue()).toBe('')
+    await authenticatedMembersPage.expectStoredIbanContains(`****${createData.iban.slice(-4)}`)
     expect(await authenticatedMembersPage.getFormAccountHolderNameValue()).toBe(createData.accountHolder)
     expect(await authenticatedMembersPage.getFormMandateReferenceValue()).toBe(createData.mandateRef.toUpperCase())
     expect(await authenticatedMembersPage.getFormMandateDateValue()).toBe(createData.mandateDate)
@@ -118,7 +121,10 @@ test.describe('Admin Members Page', () => {
     expect(await authenticatedMembersPage.getFormFirstNameValue()).toBe(editData.firstName)
     expect(await authenticatedMembersPage.getFormLastNameValue()).toBe(editData.lastName)
     expect(await authenticatedMembersPage.getFormEmailValue()).toBe(editData.email)
-    expect(await authenticatedMembersPage.getFormIbanValue()).toBe(editData.iban.toUpperCase())
+    // The edit did retype the IBAN, so the replacement is what is stored now —
+    // a new mandate on the new account, still shown only as its last four.
+    expect(await authenticatedMembersPage.getFormIbanValue()).toBe('')
+    await authenticatedMembersPage.expectStoredIbanContains(`****${editData.iban.slice(-4)}`)
     expect(await authenticatedMembersPage.getFormMandateDateValue()).toBe(editData.mandateDate)
 
     await authenticatedMembersPage.cancelForm()

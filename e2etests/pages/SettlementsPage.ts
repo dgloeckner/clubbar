@@ -13,6 +13,9 @@
 
 import { Page, expect } from '@playwright/test'
 import { BasePage } from './BasePage'
+import { DEV_PRIVATE_KEY } from '../fixtures/encryption'
+import { TEST_CREDENTIALS } from '../config/test-credentials'
+import { generateTotp } from '../utils/totp'
 
 export class SettlementsPage extends BasePage {
   // Loading and state indicators (PRIVATE)
@@ -33,6 +36,18 @@ export class SettlementsPage extends BasePage {
     this.page.getByTestId(`settlements-badge-status-${settlementId}`)
   private readonly settlementRows = () => this.page.locator('[data-testid^="settlements-table-row-"]')
   private readonly exportWarning = () => this.page.getByTestId('settlements-export-warning')
+
+  // SEPA export dialog (#393). The bank file is the one legitimate bulk
+  // decryption, so it asks for the club's archived private key on top of the
+  // usual step-up credential.
+  private readonly exportSepaButton = (settlementId: string) =>
+    this.page.getByTestId(`settlements-export-sepa-btn-${settlementId}`)
+  private readonly exportPrivateKeyInput = () => this.page.getByTestId('private-key-paste')
+  private readonly exportPrivateKeyFile = () => this.page.getByTestId('private-key-file')
+  private readonly exportPasswordInput = () => this.page.getByTestId('step-up-password')
+  private readonly exportTotpInput = () => this.page.getByTestId('step-up-totp-code')
+  private readonly exportConfirmButton = () => this.page.getByTestId('confirm-dialog-ok')
+  private readonly exportDialogError = () => this.page.getByTestId('step-up-error')
 
   // Undo confirmation dialog (#127). It states what is about to be undone —
   // date, amount, members, transactions — and, once a SEPA file exists for the
@@ -184,12 +199,67 @@ export class SettlementsPage extends BasePage {
    * Click the "Export SEPA XML" button and wait for the download response.
    * Returns the Response so tests can assert on content-type and body.
    */
+  /**
+   * Export the bank file through the UI.
+   *
+   * Since #393 the export opens a dialog first: member IBANs are sealed and
+   * the server cannot open them, so the club's archived private key and a
+   * fresh step-up credential are collected here and travel with the request.
+   */
   async clickExportSepa(settlementId: string): Promise<import('@playwright/test').Response> {
+    await this.openExportSepaDialog(settlementId)
+    await this.fillExportKeyAndPassword(DEV_PRIVATE_KEY, TEST_CREDENTIALS.admin.password)
+
     const responsePromise = this.page.waitForResponse(
       (resp) => resp.url().includes('/export/sepa-xml') && resp.status() === 200
     )
-    await this.page.getByTestId(`settlements-export-sepa-btn-${settlementId}`).click()
+    await this.exportConfirmButton().click()
     return responsePromise
+  }
+
+  /** Open the export dialog without submitting it. */
+  async openExportSepaDialog(settlementId: string) {
+    await this.exportSepaButton(settlementId).click()
+    await expect(this.exportPrivateKeyInput()).toBeVisible()
+  }
+
+  /**
+   * Fill the dialog's secrets. The seeded admin has 2FA enrolled, so the
+   * dialog asks for a code as well — filled only when it is actually shown.
+   */
+  async fillExportKeyAndPassword(privateKey: string, password: string, totpCode?: string) {
+    await this.exportPrivateKeyInput().fill(privateKey)
+    await this.exportPasswordInput().fill(password)
+
+    if (await this.exportTotpInput().isVisible()) {
+      await this.exportTotpInput().fill(totpCode ?? generateTotp(TEST_CREDENTIALS.totp.adminSecret))
+    }
+  }
+
+  /** Choose the key from a file rather than pasting it. */
+  async chooseExportKeyFile(path: string) {
+    await this.exportPrivateKeyFile().setInputFiles(path)
+  }
+
+  async getExportKeyFieldValue(): Promise<string> {
+    return await this.exportPrivateKeyInput().inputValue()
+  }
+
+  /** Submit the export dialog and wait for whatever the API answers. */
+  async submitExportSepaDialog(): Promise<import('@playwright/test').Response> {
+    const responsePromise = this.page.waitForResponse((resp) => resp.url().includes('/export/sepa-xml'))
+    await this.exportConfirmButton().click()
+    return responsePromise
+  }
+
+  /** The dialog stays open on a rejected key or credential, and says why. */
+  async expectExportDialogError(expected: RegExp | string) {
+    await expect(this.exportDialogError()).toBeVisible()
+    await expect(this.exportDialogError()).toHaveText(expected)
+  }
+
+  async expectExportConfirmDisabled() {
+    await expect(this.exportConfirmButton()).toBeDisabled()
   }
 
   /**

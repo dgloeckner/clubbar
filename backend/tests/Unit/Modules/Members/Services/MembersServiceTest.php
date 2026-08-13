@@ -136,6 +136,10 @@ class MembersServiceTest extends TestCase
                 'first_name' => 'Erika',
                 'iban' => 'DE02120300000000202051',
                 'mandate_signed_at' => '2026-02-02',
+                // Added by the service at write time (ADR-0036): the sealed row
+                // cannot answer the bank-name question later. Null here because
+                // the test wires no BankCodeService.
+                'bank_name' => null,
             ])
             ->willReturn($this->member('member-1', ['first_name' => 'Erika']));
 

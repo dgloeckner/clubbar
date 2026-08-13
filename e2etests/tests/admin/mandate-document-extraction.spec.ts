@@ -662,7 +662,13 @@ test.describe('UI — IBAN candidates picker', () => {
     await page.locator('[data-testid="members-form-submit-button"]').click()
     const response = await createResponse
     const body = await response.json()
-    expect(body.iban).toBe(candidate2)
+    // The response cannot echo the IBAN back — it is sealed on write and only
+    // its last four characters are ever returned (ADR-0036). Those identify
+    // which of the two candidates was actually stored, which is what this test
+    // is about.
+    expect(body).not.toHaveProperty('iban')
+    expect(body.iban_last4).toBe(candidate2.slice(-4))
+    expect(body.is_sepa_valid).toBe(true)
 
     // Form closes after successful creation
     await expect(page.locator('[data-testid="members-form-modal"]')).not.toBeVisible({ timeout: 5000 })

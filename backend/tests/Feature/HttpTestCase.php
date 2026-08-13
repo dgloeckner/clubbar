@@ -98,6 +98,10 @@ abstract class HttpTestCase extends TestCase
             // Matches the encrypted TOTP secret seeded by db/seed.sql. Test-only.
             'TOTP_ENCRYPTION_KEY' => getenv('TOTP_ENCRYPTION_KEY')
                 ?: '0000000000000000000000000000000000000000000000000000000000000001',
+            // The published dev fingerprint key (ADR-0036); accepted because
+            // APP_ENV is a development value here.
+            'IBAN_FINGERPRINT_KEY' => getenv('IBAN_FINGERPRINT_KEY')
+                ?: '0000000000000000000000000000000000000000000000000000000000000002',
         ];
     }
 
@@ -106,15 +110,21 @@ abstract class HttpTestCase extends TestCase
      *
      * @param array<string, mixed> $body   JSON request body
      * @param array<string, string> $server extra server params, e.g. REMOTE_ADDR
+     * @param array<string, string> $headers extra request headers, e.g. X-CSRF-Token
      */
     protected function request(
         string $method,
         string $path,
         array $body = [],
         array $server = [],
+        array $headers = [],
     ): ResponseInterface {
         $request = (new ServerRequestFactory())
             ->createServerRequest($method, $path, $server + ['REMOTE_ADDR' => '127.0.0.1']);
+
+        foreach ($headers as $name => $value) {
+            $request = $request->withHeader($name, $value);
+        }
 
         if ($body !== []) {
             $request = $request

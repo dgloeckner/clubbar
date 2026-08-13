@@ -40,7 +40,7 @@ class AuditService
     {
         if ($values === null) return null;
 
-        $sensitive = ['password', 'api_token', 'api_token_hash'];
+        $sensitive = ['password', 'api_token', 'api_token_hash', 'private_key', 'iban_fingerprint'];
         foreach ($sensitive as $field) {
             if (isset($values[$field])) {
                 $values[$field] = '[MASKED]';

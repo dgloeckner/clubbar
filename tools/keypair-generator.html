@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Club Bar — IBAN Encryption Keypair Generator</title>
+<!--
+  Offline keypair generator for ADR-0036 (IBAN encryption at rest).
+
+  Open this file locally in a browser on a trusted computer — it works from
+  file://, loads only the vendored tweetnacl (./vendor/nacl-fast.min.js,
+  public domain), and makes no network requests. Nothing you generate here
+  leaves this page.
+
+  The keys are Curve25519 keypairs compatible with libsodium's
+  crypto_box_seal, which is what the backend uses to seal IBANs.
+
+  Procedure (see docs/deployment.md):
+    1. Generate a keypair.
+    2. Archive the PRIVATE key in the club's secure key archive
+       (password manager / sealed envelope in the safe). It never goes
+       to the server, the webspace, or email.
+    3. Register the PUBLIC key in the admin panel under
+       Settings -> Security & Credentials, then activate it.
+    4. Verify the fingerprint shown in the admin panel matches the one
+       shown here.
+-->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    max-width: 46rem; margin: 3rem auto; padding: 0 1.25rem; line-height: 1.55;
+  }
+  h1 { font-size: 1.4rem; }
+  button {
+    font-size: 1rem; padding: .6rem 1.2rem; border-radius: .4rem;
+    border: 1px solid #888; cursor: pointer;
+  }
+  .key-block { margin: 1.25rem 0; }
+  .key-block label { font-weight: 600; display: block; margin-bottom: .3rem; }
+  .value {
+    font-family: ui-monospace, monospace; font-size: .9rem; word-break: break-all;
+    padding: .6rem .8rem; border: 1px solid #aaa; border-radius: .4rem;
+    background: rgba(127,127,127,.08); min-height: 1.4em;
+  }
+  .copy { font-size: .8rem; padding: .25rem .7rem; margin-top: .35rem; }
+  .warn {
+    border-left: 4px solid #c33; padding: .6rem .9rem; margin: 1.5rem 0;
+    background: rgba(200,50,50,.07);
+  }
+  .muted { color: #777; font-size: .9rem; }
+  #offline-note { display: none; }
+</style>
+</head>
+<body>
+<h1>IBAN Encryption Keypair Generator</h1>
+<p>
+  Generates a Curve25519 keypair for the club's IBAN encryption (ADR-0036).
+  Runs entirely in this page — no network, nothing stored, nothing sent.
+  Close the tab and the keys are gone unless you copied them.
+</p>
+
+<p id="offline-note" class="warn">
+  This page could not load its bundled crypto library
+  (<code>vendor/nacl-fast.min.js</code>). Keep the <code>tools/</code>
+  directory together — the HTML file alone is not enough.
+</p>
+
+<button id="generate">Generate keypair</button>
+
+<div class="key-block">
+  <label>Public key (base64) — register this in the admin panel</label>
+  <div class="value" id="pk"></div>
+  <button class="copy" data-target="pk">Copy</button>
+</div>
+
+<div class="key-block">
+  <label>Fingerprint (SHA-256 of the raw public key)</label>
+  <div class="value" id="fp"></div>
+  <p class="muted">Compare this against the fingerprint the admin panel shows after registering.</p>
+</div>
+
+<div class="key-block">
+  <label>Private key (base64) — archive offline, NEVER upload to the server</label>
+  <div class="value" id="sk"></div>
+  <button class="copy" data-target="sk">Copy</button>
+</div>
+
+<div class="warn">
+  <strong>The private key is the only way to ever read the club's IBANs again.</strong>
+  Store it in the club's secure archive (password manager entry or sealed
+  envelope in the safe), document who may access it, and test the recovery copy
+  periodically. Losing the last private key makes every IBAN sealed under it
+  unrecoverable. It is needed only for SEPA exports and key rotation — it is
+  never stored on the server.
+</div>
+
+<script src="vendor/nacl-fast.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  if (typeof nacl === 'undefined') {
+    document.getElementById('offline-note').style.display = 'block';
+    document.getElementById('generate').disabled = true;
+    return;
+  }
+
+  function b64(bytes) {
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s);
+  }
+
+  function hex(buffer) {
+    return Array.from(new Uint8Array(buffer))
+      .map(function (b) { return b.toString(16).padStart(2, '0'); })
+      .join('');
+  }
+
+  document.getElementById('generate').addEventListener('click', function () {
+    var pair = nacl.box.keyPair();
+
+    document.getElementById('pk').textContent = b64(pair.publicKey);
+    document.getElementById('sk').textContent = b64(pair.secretKey);
+
+    var fpEl = document.getElementById('fp');
+    if (window.crypto && crypto.subtle) {
+      crypto.subtle.digest('SHA-256', pair.publicKey).then(function (digest) {
+        fpEl.textContent = hex(digest);
+      });
+    } else {
+      fpEl.textContent = '(SHA-256 unavailable in this browser context — verify via the admin panel instead)';
+    }
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.copy'), function (btn) {
+    btn.addEventListener('click', function () {
+      var text = document.getElementById(btn.dataset.target).textContent;
+      if (!text) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+      } else {
+        var range = document.createRange();
+        range.selectNodeContents(document.getElementById(btn.dataset.target));
+        var sel = getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('copy');
+        sel.removeAllRanges();
+      }
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+    });
+  });
+})();
+</script>
+</body>
+</html>

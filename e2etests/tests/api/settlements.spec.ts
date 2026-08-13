@@ -8,6 +8,7 @@ import {
   tuesdayAfterNextEaster,
 } from '../../utils/dates';
 import { ensureSepaConfigured } from '../../utils/settlements';
+import { exportSepaXml } from '../../fixtures/encryption'
 
 test.describe('Settlements API', () => {
   /**
@@ -695,7 +696,7 @@ test.describe('Settlements API', () => {
       // (I9), and it is `submitted_at` that records it.
       const settlement = await settlementFactory.create({ amountCents: 3100 });
 
-      expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200);
+      expect((await exportSepaXml(authenticatedRequest, settlement.id)).status()).toBe(200);
 
       const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
 
@@ -717,7 +718,7 @@ test.describe('Settlements API', () => {
       // transactions would let a later run collect the same money twice.
       const settlement = await settlementFactory.create({ amountCents: 2600 });
 
-      expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200);
+      expect((await exportSepaXml(authenticatedRequest, settlement.id)).status()).toBe(200);
       expect((await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/submit`)).status()).toBe(200);
 
       const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
@@ -796,7 +797,7 @@ test.describe('Settlements API', () => {
 
       expect((await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`)).status()).toBe(200);
 
-      const response = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`);
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(409);
       expect((await response.json()).message).toMatch(/cancelled/i);
@@ -807,24 +808,23 @@ test.describe('Settlements API', () => {
    * SEPA XML Export Tests (4 tests)
    */
   test.describe('SEPA XML Export', () => {
-    test('F1: GET /settlements/{id}/export/sepa-xml requires settlement ID', async ({ authenticatedRequest }) => {
-      const response = await authenticatedRequest.get(
-        '/api/admin/settlements/invalid-uuid-12345678901234567890/export/sepa-xml',
+    test('F1: POST /settlements/{id}/export/sepa-xml requires settlement ID', async ({ authenticatedRequest }) => {
+      const response = await exportSepaXml(
+        authenticatedRequest,
+        'invalid-uuid-12345678901234567890',
       );
 
       // Accept either 404 (not found) or 422 (validation error for invalid UUID)
       expect([404, 422]).toContain(response.status());
     });
 
-    test('F2: GET /settlements/{id}/export/sepa-xml debits the settled member', async ({ authenticatedRequest, settlementFactory }) => {
+    test('F2: POST /settlements/{id}/export/sepa-xml debits the settled member', async ({ authenticatedRequest, settlementFactory }) => {
       // The pain.008 file is the money-critical artefact: it is what the bank
       // acts on. Assert the collection instruction it carries, not just that
       // some XML came back.
       const settlement = await settlementFactory.create({ amountCents: 4250 });
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(200);
       const xml = await response.text();
@@ -841,27 +841,23 @@ test.describe('Settlements API', () => {
       expect(xml).toContain(`<MndtId>${settlement.mandateReference}</MndtId>`);
     });
 
-    test('F3: GET /settlements/{id}/export/sepa-xml returns correct content type', async ({ authenticatedRequest, settlementFactory }) => {
+    test('F3: POST /settlements/{id}/export/sepa-xml returns correct content type', async ({ authenticatedRequest, settlementFactory }) => {
       const settlement = await settlementFactory.create();
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(200);
       expect(response.headers()['content-type']).toContain('xml');
       expect(response.headers()['content-disposition']).toContain(settlement.id);
     });
 
-    test('F5: GET /settlements/{id}/export/sepa-xml refuses a non-direct-debit settlement', async ({ authenticatedRequest, settlementFactory }) => {
+    test('F5: POST /settlements/{id}/export/sepa-xml refuses a non-direct-debit settlement', async ({ authenticatedRequest, settlementFactory }) => {
       // Ruling #163: a member who paid by bank transfer is recorded as a
       // bank_transfer settlement, and must never reach the bank as a second
       // collection of the same balance.
       const settlement = await settlementFactory.create({ method: 'bank_transfer' });
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(409);
       expect(JSON.stringify(await response.json())).toContain('direct_debit');
@@ -882,20 +878,22 @@ test.describe('Settlements API', () => {
       const expectedId = `E2E-${half(settlement.id)}-${half(settlement.memberId)}`;
       expect(expectedId.length).toBeLessThanOrEqual(35);
 
-      const first = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`);
+      const first = await exportSepaXml(authenticatedRequest, settlement.id);
       expect(first.status()).toBe(200);
       expect(await first.text()).toContain(`<EndToEndId>${expectedId}</EndToEndId>`);
 
       // The same settlement exported again must instruct the bank under the
       // same reference — the treasurer resolves a return against whichever
       // file actually went out.
-      const second = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`);
+      const second = await exportSepaXml(authenticatedRequest, settlement.id);
       expect(second.status()).toBe(200);
       expect(await second.text()).toContain(`<EndToEndId>${expectedId}</EndToEndId>`);
     });
 
-    test('F4: GET /settlements/{id}/export/sepa-xml requires authentication', async ({ request }) => {
-      const response = await request.get('/api/admin/settlements/test-id/export/sepa-xml');
+    test('F4: POST /settlements/{id}/export/sepa-xml requires authentication', async ({ request }) => {
+      // Unauthenticated, but carrying a valid key — the session check must come
+      // first, so a stolen key alone opens nothing (ADR-0036).
+      const response = await exportSepaXml(request, 'test-id');
 
       expect([301, 302, 401, 403]).toContain(response.status());
     });
@@ -914,12 +912,10 @@ test.describe('Settlements API', () => {
       // Clearing the IBAN revokes the mandate — the member can no longer be
       // direct-debited even though the settlement already claimed their rows.
       expect(
-        (await authenticatedRequest.patch(`/api/admin/members/${dropped.id}`, { data: { iban: '' } })).status()
+        (await authenticatedRequest.patch(`/api/admin/members/${dropped.id}`, { data: { iban: null } })).status()
       ).toBe(200);
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(200);
       const headers = response.headers();
@@ -947,9 +943,7 @@ test.describe('Settlements API', () => {
       // wrong, or they stop meaning anything.
       const settlement = await settlementFactory.create({ amountCents: 1500, memberCount: 2 });
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(200);
       const headers = response.headers();
@@ -970,7 +964,7 @@ test.describe('Settlements API', () => {
       const settlement = await settlementFactory.create({ amountCents: 1500, memberCount: 2 });
       const [alice] = settlement.members;
 
-      expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200);
+      expect((await exportSepaXml(authenticatedRequest, settlement.id)).status()).toBe(200);
       expect((await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/submit`)).status()).toBe(200);
 
       const reversal = await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/reverse`, {
@@ -978,9 +972,7 @@ test.describe('Settlements API', () => {
       });
       expect(reversal.status(), await reversal.text()).toBe(201);
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(409);
       expect((await response.json()).message).toMatch(/reversed collection/i);
@@ -1011,10 +1003,13 @@ test.describe('Settlements API', () => {
       const [header, ...rows] = csv.trim().split('\n');
       expect(header).toBe('Member Name;Email;IBAN;Amount EUR');
       expect(rows).toHaveLength(1);
+      // Masked: the CSV is a reconciliation aid, not a debit instruction, so
+      // last4 is enough to recognise the account (ADR-0036). The full IBAN
+      // exists only in the pain.008, which needs the private key.
       expect(rows[0].split(';')).toEqual([
         settlement.memberName,
         settlement.memberEmail,
-        settlement.iban,
+        `****${settlement.iban.slice(-4)}`,
         '12.34',
       ]);
     });
@@ -1607,7 +1602,7 @@ test.describe('Settlements API', () => {
       const transactionId = await syncPurchase(authenticatedTerminalRequest, member.id, 900);
 
       const revoke = await authenticatedRequest.patch(`/api/admin/members/${member.id}`, {
-        data: { iban: '' },
+        data: { iban: null },
       });
       expect(revoke.status(), await revoke.text()).toBe(200);
       expect((await revoke.json()).is_sepa_valid).toBe(false);
@@ -1649,7 +1644,7 @@ test.describe('Settlements API', () => {
       const settledMembers = new Set((await detail.json()).items.map((item: any) => item.member_id));
       expect(settledMembers.has(netZero.id)).toBe(true);
 
-      const xml = await (await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).text();
+      const xml = await (await exportSepaXml(authenticatedRequest, settlement.id)).text();
       expect(xml).toContain(`<NbOfTxs>1</NbOfTxs>`);
       expect(xml).toContain(paying.last_name);
       expect(xml).not.toContain(netZero.last_name);

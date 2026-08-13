@@ -71,6 +71,8 @@ export class MembersPage extends BasePage {
   private readonly ibanError = () => this.page.getByTestId('members-form-iban-error')
   private readonly emailError = () => this.page.getByTestId('members-form-email-error')
   private readonly bankNameDisplay = () => this.page.getByTestId('members-form-bank-name')
+  private readonly storedIbanDisplay = () => this.page.getByTestId('members-form-iban-stored')
+  private readonly removeStoredIbanButton = () => this.page.getByTestId('members-form-iban-remove')
 
   // Filter controls
   private readonly clearFiltersBtn = () => this.page.getByTestId('members-clear-filters')
@@ -462,6 +464,25 @@ export class MembersPage extends BasePage {
 
   async expectBankNameContains(text: string) {
     await expect(this.bankNameDisplay()).toContainText(text)
+  }
+
+  /**
+   * The stored account shown beside the (empty) IBAN field when editing a
+   * member who has one — '****3000 · Commerzbank'. The IBAN itself is sealed
+   * and never returned (ADR-0036), so this line is the whole of what the form
+   * can display, and it is why leaving the field blank keeps the account.
+   */
+  async expectStoredIbanContains(text: string) {
+    await expect(this.storedIbanDisplay()).toContainText(text)
+  }
+
+  async expectStoredIbanHidden() {
+    await expect(this.storedIbanDisplay()).toBeHidden()
+  }
+
+  /** Queue removal of the stored bank details — the explicit revoke path. */
+  async removeStoredIban() {
+    await this.removeStoredIbanButton().click()
   }
 
   async selectLanguage(language: string) {

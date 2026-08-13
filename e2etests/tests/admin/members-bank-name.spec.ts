@@ -75,12 +75,13 @@ test.describe('Bank Name Display', () => {
     await authenticatedMembersPage.clickEditButtonForMember(`BankEdit${ts}`)
     await authenticatedMembersPage.expectFormModalVisible()
 
-    // Verify IBAN is populated
-    expect(await authenticatedMembersPage.getFormIbanValue()).toBe('DE89370400440532013000')
-
-    // Bank name should appear after lookup completes
-    await authenticatedMembersPage.expectBankNameVisible()
-    await authenticatedMembersPage.expectBankNameContains('Commerzbank')
+    // The IBAN field starts empty and stays that way unless it is retyped: the
+    // stored value is sealed and never returned (ADR-0036), so leaving the
+    // field alone keeps the account (#392). What the form can show is the last
+    // four characters and the bank resolved when the IBAN was written.
+    expect(await authenticatedMembersPage.getFormIbanValue()).toBe('')
+    await authenticatedMembersPage.expectStoredIbanContains('****3000')
+    await authenticatedMembersPage.expectStoredIbanContains('Commerzbank')
 
     // ── Change IBAN in edit mode → bank name updates ────────────────
     const ibanInput = page.getByTestId('members-form-iban-input')

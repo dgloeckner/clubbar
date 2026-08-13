@@ -30,12 +30,17 @@ final readonly class SepaExportResultDto
      *        the settlement that got no line in the file, with the reason.
      * @param int $collectedAmountCents The sum of the file's collection lines.
      * @param int $settlementAmountCents The settlement's own recorded total.
+     * @param int $collectedMemberCount How many members got a collection line —
+     *        i.e. how many IBANs the export had to decrypt (ADR-0036). The
+     *        SEPA_EXPORT audit entry records this count and nothing else about
+     *        the accounts themselves.
      */
     public function __construct(
         public string $xml,
         public array $excludedMembers = [],
         public int $collectedAmountCents = 0,
         public int $settlementAmountCents = 0,
+        public int $collectedMemberCount = 0,
     ) {}
 
     /** @return list<ExcludedMemberDto> */

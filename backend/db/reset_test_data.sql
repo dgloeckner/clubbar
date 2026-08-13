@@ -41,6 +41,7 @@ DELETE FROM audit_log;
 DELETE FROM sessions;
 DELETE FROM sepa_config;
 DELETE FROM admin_users;
+DELETE FROM encryption_keys;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -526,3 +527,22 @@ SELECT COUNT(*) AS categories FROM categories;
 SELECT COUNT(*) AS products FROM products;
 SELECT COUNT(*) AS members FROM members;
 SELECT COUNT(*) AS terminals FROM terminals;
+
+-- ---------------------------------------------------------------------------
+-- Development IBAN encryption key (ADR-0036) — the published dev keypair's
+-- PUBLIC half; e2e export tests hold the private half. Mandate fixtures above
+-- stay legacy plaintext on purpose: they exercise the pre-batch-encryption
+-- read paths, while members created through the API get sealed rows.
+-- ---------------------------------------------------------------------------
+INSERT INTO encryption_keys (id, key_identifier, algorithm, public_key, fingerprint_sha256, status, created_at, activated_at, expires_at)
+VALUES (
+    '99999991-9999-9999-9999-999999999991',
+    'dev-key-2026',
+    'SODIUM_CRYPTO_BOX_SEAL',
+    UNHEX('7479840773cdbd0f57bacf5c8488818e55845ee19207aaf685b74869c1682155'),
+    '82ebd93f662cb26a5293137a00fbb6d0c239579c8df5855df1d00bcd1e092717',
+    'active',
+    NOW(),
+    NOW(),
+    NOW() + INTERVAL 365 DAY
+);

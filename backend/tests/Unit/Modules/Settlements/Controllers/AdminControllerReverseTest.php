@@ -9,7 +9,10 @@ use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Services\SepaExportService;
+use App\Modules\Auth\Services\StepUpAuthService;
+use App\Modules\Security\Services\EncryptionKeyService;
 use App\Modules\Settlements\Services\SettlementReversalService;
+use App\Shared\Services\AuditService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Shared\Validation\Validator;
 use PHPUnit\Framework\TestCase;
@@ -43,6 +46,9 @@ class AdminControllerReverseTest extends TestCase
             $this->createMock(SepaExportService::class),
             new Validator($this->createMock(\PDO::class)),
             $this->reversalService,
+            $this->createMock(EncryptionKeyService::class),
+            $this->createMock(StepUpAuthService::class),
+            $this->createMock(AuditService::class),
         );
     }
 

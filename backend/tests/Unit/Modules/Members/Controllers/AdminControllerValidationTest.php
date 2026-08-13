@@ -177,10 +177,12 @@ class AdminControllerValidationTest extends TestCase
     /** @return array<string, array{0: string}> */
     public static function clearableFields(): array
     {
+        // `iban` left this list with #392: it is sealed, never returned, and so
+        // arrives blank on every save that did not retype it. Blank means "keep"
+        // there — see the overwrite-only tests below.
         return [
             'phone' => ['phone'],
             'card_uid' => ['card_uid'],
-            'iban' => ['iban'],
             'account_holder_name' => ['account_holder_name'],
             'mandate_signed_at' => ['mandate_signed_at'],
         ];
@@ -292,6 +294,74 @@ class AdminControllerValidationTest extends TestCase
         $response = $this->controller->update($this->patch([]), new Response(), ['memberId' => 'm-1']);
 
         $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * Overwrite-only IBAN on update (#392).
+     *
+     * The field is sealed and never returned, so the edit form sends it blank
+     * unless it was deliberately retyped. Blank must reach the service as
+     * "absent" — the repository reads an absent key as "keep the current
+     * account", while a present null revokes the mandate.
+     */
+    public function test_a_blank_iban_on_update_is_dropped_rather_than_clearing_the_mandate(): void
+    {
+        $this->membersService->expects($this->once())
+            ->method('updateMember')
+            ->with(
+                'm-1',
+                $this->callback(fn (array $data) => !array_key_exists('iban', $data) && $data['phone'] === '+49 170 1234567'),
+                'admin-1',
+            )
+            ->willReturn($this->member());
+
+        $response = $this->controller->update(
+            $this->patch(['iban' => '', 'phone' => '+49 170 1234567']),
+            new Response(),
+            ['memberId' => 'm-1'],
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_an_explicit_null_iban_on_update_still_revokes_the_mandate(): void
+    {
+        $this->membersService->expects($this->once())
+            ->method('updateMember')
+            ->with(
+                'm-1',
+                $this->callback(fn (array $data) => array_key_exists('iban', $data) && $data['iban'] === null),
+                'admin-1',
+            )
+            ->willReturn($this->member());
+
+        $response = $this->controller->update(
+            $this->patch(['iban' => null]),
+            new Response(),
+            ['memberId' => 'm-1'],
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_a_blank_iban_on_create_still_means_no_mandate(): void
+    {
+        $this->membersService->expects($this->once())
+            ->method('createMember')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                null,
+            )
+            ->willReturn($this->member());
+
+        $response = $this->controller->store($this->post(self::validBody(['iban' => ''])), new Response());
+
+        $this->assertSame(201, $response->getStatusCode());
     }
 
     private function member(): MemberAdminDto

@@ -3,6 +3,16 @@ import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { generateTotp, submitTotpWithRetry } from "../../utils/totp";
 
 /**
+ * Serial within this file: these tests perform full password+MFA logins as the
+ * shared seeded admin, and `totp_last_timestep` (#338) accepts one TOTP code
+ * per 30-second step per account. Run 4-wide, the second login in a step is
+ * correctly rejected as a replay and the test fails for a reason that has
+ * nothing to do with what it is testing. E2E Pattern 004: a test that cannot
+ * be made independent of a shared resource is run in order instead.
+ */
+test.describe.configure({ mode: 'default' })
+
+/**
  * MFA attempt cap (#78, ruling #145).
  *
  * `/api/auth/mfa` used to accept unlimited 6-digit guesses inside its 300s

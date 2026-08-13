@@ -6,6 +6,8 @@ namespace Tests\Feature\Modules\Settlements\Services;
 
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Shared\Security\IbanSealedBox;
 use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Enums\SettlementStatus;
@@ -55,11 +57,12 @@ class SettlementReversalTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->ensureActiveEncryptionKey();
 
         $this->settlementsRepository = new SettlementsRepository($this->db, $this->logger);
         $this->reversalsRepository = new SettlementReversalsRepository($this->db, $this->logger);
         $this->collectionHoldRepository = new CollectionHoldRepository($this->db, $this->logger);
-        $this->membersRepository = new MembersRepository($this->db, $this->logger);
+        $this->membersRepository = new MembersRepository($this->db, $this->logger, new IbanSealedBox('0000000000000000000000000000000000000000000000000000000000000002', 'test'), new EncryptionKeysRepository($this->db, $this->logger));
 
         $auditService = new AuditService(new AuditLogRepository($this->db, $this->logger));
 
