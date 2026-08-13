@@ -24,6 +24,7 @@ class IbanEncryptionMigrationServiceTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->ensureActiveEncryptionKey();
 
         $this->box = new IbanSealedBox(self::FINGERPRINT_KEY, 'test');
         $keysRepository = new EncryptionKeysRepository($this->db, $this->logger);

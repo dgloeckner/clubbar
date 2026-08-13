@@ -56,6 +56,34 @@ abstract class DatabaseTestCase extends TestCase
     }
 
     /**
+     * Make sure an ACTIVE IBAN encryption key exists (ADR-0035).
+     *
+     * Storing an IBAN seals it under the ACTIVE key, so every test that
+     * creates banking data needs one. The dev/e2e seeds provide it, but CI's
+     * phpunit job applies only the migrations — this inserts the same
+     * published dev keypair's public half idempotently.
+     */
+    protected function ensureActiveEncryptionKey(): void
+    {
+        $active = $this->db
+            ->query("SELECT COUNT(*) FROM encryption_keys WHERE status = 'active'")
+            ->fetchColumn();
+
+        if ((int) $active > 0) {
+            return;
+        }
+
+        $this->db->prepare(
+            "INSERT INTO encryption_keys (id, key_identifier, algorithm, public_key, fingerprint_sha256, status, created_at, activated_at, expires_at)
+             VALUES ('99999991-9999-9999-9999-999999999991', 'dev-key-2026', 'SODIUM_CRYPTO_BOX_SEAL',
+                     UNHEX('7479840773cdbd0f57bacf5c8488818e55845ee19207aaf685b74869c1682155'),
+                     '82ebd93f662cb26a5293137a00fbb6d0c239579c8df5855df1d00bcd1e092717',
+                     'active', NOW(), NOW(), NOW() + INTERVAL 365 DAY)
+             ON DUPLICATE KEY UPDATE status = 'active', activated_at = NOW(), expires_at = NOW() + INTERVAL 365 DAY"
+        )->execute();
+    }
+
+    /**
      * Clean up test data by deleting records with specific IDs
      */
     protected function cleanupTestData(string $table, array $ids): void

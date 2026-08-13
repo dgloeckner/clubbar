@@ -20,6 +20,7 @@ class MembersRepositoryTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->ensureActiveEncryptionKey();
         // Same fingerprint key as the dev stack so fingerprints stay
         // comparable across API-created and test-created rows.
         $this->membersRepository = new MembersRepository(

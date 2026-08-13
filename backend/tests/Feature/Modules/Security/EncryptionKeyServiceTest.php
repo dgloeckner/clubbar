@@ -21,6 +21,7 @@ class EncryptionKeyServiceTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->ensureActiveEncryptionKey();
 
         $this->repository = new EncryptionKeysRepository($this->db, $this->logger);
         $this->service = new EncryptionKeyService(

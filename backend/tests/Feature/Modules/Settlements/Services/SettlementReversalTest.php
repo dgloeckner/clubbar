@@ -57,6 +57,7 @@ class SettlementReversalTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->ensureActiveEncryptionKey();
 
         $this->settlementsRepository = new SettlementsRepository($this->db, $this->logger);
         $this->reversalsRepository = new SettlementReversalsRepository($this->db, $this->logger);
