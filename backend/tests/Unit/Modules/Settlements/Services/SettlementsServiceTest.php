@@ -1295,15 +1295,48 @@ class SettlementsServiceTest extends TestCase
     }
 
     /**
-     * Ruling #141: zero settles. The rows close out — which the GDPR
-     * zero-balance anonymisation check depends on — and the export writes no
-     * line for it.
+     * #372: a run that adds up to nothing is refused. The case is ordinary —
+     * every one of the member's sales was stornoed — and what it used to
+     * produce was a settlement of 0.00 EUR whose SEPA file had no direct debit
+     * in it at all.
      */
-    public function test_createSettlement_settles_a_net_zero_member(): void
+    public function test_createSettlement_refuses_a_run_that_collects_nothing(): void
     {
         $wholePosition = [
             ['id' => 'tx-purchase', 'member_id' => 'member-a', 'amount_cents' => 500],
-            ['id' => 'tx-payout', 'member_id' => 'member-a', 'amount_cents' => -500],
+            ['id' => 'tx-storno', 'member_id' => 'member-a', 'amount_cents' => -500],
+        ];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($wholePosition);
+        $this->stubEligibleSweep($wholePosition);
+
+        // Nothing is written: not the settlement, not its items.
+        $this->settlementsRepository->expects($this->never())->method('create');
+        $this->settlementsRepository->expects($this->never())->method('createItem');
+        $this->db->expects($this->once())->method('rollBack');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('totals 0.00 EUR');
+
+        $this->service->createSettlement(
+            ['tx-purchase', 'tx-storno'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1'
+        );
+    }
+
+    /**
+     * The other half of the same rule, and the part ruling #141 §5 already
+     * settled: a member who owes nothing still rides along in a run that
+     * collects from somebody else, and their rows close out. It is the run's
+     * own total that may not be zero, because that total is what goes to the
+     * bank.
+     */
+    public function test_createSettlement_settles_a_net_zero_member_alongside_one_who_owes(): void
+    {
+        $wholePosition = [
+            ['id' => 'tx-purchase', 'member_id' => 'member-a', 'amount_cents' => 500],
+            ['id' => 'tx-storno', 'member_id' => 'member-a', 'amount_cents' => -500],
+            ['id' => 'tx-other', 'member_id' => 'member-b', 'amount_cents' => 750],
         ];
 
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
@@ -1314,17 +1347,19 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository
             ->expects($this->once())
             ->method('create')
-            ->with($this->callback(fn(array $data) => $data['total_amount_cents'] === 0 && $data['member_count'] === 1))
-            ->willReturn($this->settlementRow(['total_amount_cents' => 0, 'member_count' => 1]));
+            ->with($this->callback(fn(array $data) => $data['total_amount_cents'] === 750 && $data['member_count'] === 2))
+            ->willReturn($this->settlementRow(['total_amount_cents' => 750, 'member_count' => 2]));
 
-        $this->settlementsRepository->expects($this->exactly(2))->method('createItem');
+        // All three rows are claimed, the net-zero member's two included.
+        $this->settlementsRepository->expects($this->exactly(3))->method('createItem');
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
         $result = $this->service->createSettlement(
-            ['tx-purchase', 'tx-payout'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1'
+            ['tx-purchase', 'tx-storno', 'tx-other'],
+            '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
         );
 
-        $this->assertSame(0, $result->totalAmountCents);
+        $this->assertSame(750, $result->totalAmountCents);
     }
 
     // ── createSettlementByFilters ────────────────────────────────────

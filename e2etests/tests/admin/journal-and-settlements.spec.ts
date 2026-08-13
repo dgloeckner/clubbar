@@ -89,10 +89,13 @@ test.describe('Journal & Settlements', () => {
     const txToSettle = await testTransactions.createStorno(memberA.id, 1000, `${prefix} corr3`, purchaseA3)
 
     // Member B: 1 purchase with real product (verify product name in Details column)
-    await testTransactions.createSyncTransaction(memberB.id, 350, `${prefix} purchase`, product.id)
+    const purchaseB = await testTransactions.createSyncTransaction(memberB.id, 350, `${prefix} purchase`, product.id)
 
-    // Settle one of member A's transactions (for settlement filter + date column)
-    await testTransactions.createSettlement([txToSettle])
+    // Settle one of member A's transactions (for settlement filter + date column).
+    // Member B comes along because member A's pairs net to zero and a run that
+    // collects nothing is refused (#372) — B's purchase is what the run
+    // collects, while A's six rows are swept and closed out beside it.
+    await testTransactions.createSettlement([txToSettle, purchaseB])
 
     const journalPage = new JournalPage(page)
     await journalPage.navigate()
@@ -432,10 +435,15 @@ test.describe('Journal & Settlements', () => {
     const txn1Id = await testTransactions.createStorno(memberA.id, 1000, `${prefix} txn1`)
     const txn2Id = await testTransactions.createStorno(memberA.id, 2000, `${prefix} txn2`)
     const txn3Id = await testTransactions.createStorno(memberB.id, 3000, `${prefix} txn3`)
+    // A run that collects nothing is refused (#372), and memberA's two pairs
+    // net to zero on their own — so memberA also owes for one plain purchase,
+    // which is what the settlement below actually collects.
+    await testTransactions.createSyncTransaction(memberA.id, 1500, `${prefix} owed`)
 
     // First settlement: names memberA via txn1 + txn2, sweeping ALL of
-    // memberA's open transactions — 4 items (2 anchors + 2 stornos). Each
-    // anchor purchase nets to zero against its own storno, so the total is 0.
+    // memberA's open transactions — 5 items (2 anchors + 2 stornos + the
+    // purchase). Each anchor nets to zero against its own storno, so the
+    // total is the one purchase nothing reverses.
     const settlement1Id = await testTransactions.createSettlement([txn1Id, txn2Id])
 
     // ── Attempt duplicate: txn2 (already settled) + txn3 → must reject ─
@@ -456,9 +464,10 @@ test.describe('Journal & Settlements', () => {
     expect(s1Resp.status()).toBe(200)
     const s1 = await s1Resp.json()
     expect(s1.id).toBe(settlement1Id)
-    // memberA's anchor+storno pairs each net to zero: (1000-1000)+(2000-2000)=0
-    expect(s1.total_amount_cents).toBe(0)
-    expect(s1.items.length).toBe(4)
+    // memberA's anchor+storno pairs each net to zero: (1000-1000)+(2000-2000),
+    // leaving the plain purchase as the whole of what the run collects.
+    expect(s1.total_amount_cents).toBe(1500)
+    expect(s1.items.length).toBe(5)
     expect(s1.is_cancelled).toBe(false)
 
     // ── Verify memberB's txn3 (and its auto anchor purchase) still unsettled ──
@@ -498,6 +507,12 @@ test.describe('Journal & Settlements', () => {
     const purchase2 = await testTransactions.createSyncTransaction(member2.id, 800, `${prefix} purchase2`)
     const txn2Id = await testTransactions.createStorno(member2.id, 800, `${prefix} charge2`, purchase2)
 
+    // …and one plain purchase each, because a run whose members all net to
+    // zero collects nothing and is refused (#372). These are what the run
+    // collects; the pairs above ride along and close out.
+    await testTransactions.createSyncTransaction(member1.id, 1500, `${prefix} owed1`)
+    await testTransactions.createSyncTransaction(member2.id, 500, `${prefix} owed2`)
+
     // ── Settle these two members, then undo ──────────────────────────
     // "Settle all" is no longer a separate button: the New Settlement screen
     // opens with every eligible member selected, so the whole-club run is the
@@ -511,8 +526,8 @@ test.describe('Journal & Settlements', () => {
     await newSettlement.selectMember(member2.id)
 
     const summary = await newSettlement.getRunSummary()
-    // 2 purchases + 2 stornos (each purchase stays open alongside its storno).
-    expect(summary.transactions).toBe(4)
+    // 2 stornoed purchases + their 2 stornos + the 2 plain purchases.
+    expect(summary.transactions).toBe(6)
     expect(summary.members).toBe(2)
 
     const settlementId = await newSettlement.create()
@@ -525,8 +540,9 @@ test.describe('Journal & Settlements', () => {
     await settlementsPage.expectSettlementRowVisible(settlementId)
     expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Aktiv')
     expect((await settlementsPage.getSettlementMemberCount(settlementId))?.trim()).toMatch(/^2\s/)
-    // Each member's purchase and its storno net to zero: 1200-1200 + 800-800 = 0.
-    expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/0[,.]00/)
+    // Each stornoed purchase nets to zero (1200-1200, 800-800), so the total is
+    // the two plain purchases: 15.00 + 5.00.
+    expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/20[,.]00/)
 
     // ── Undo settlement ───────────────────────────────────────────────
     await settlementsPage.undoSettlement(settlementId)

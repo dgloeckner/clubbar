@@ -23,6 +23,7 @@ export class NewSettlementPage extends BasePage {
   private readonly loading = () => this.page.getByTestId('new-settlement-loading')
   private readonly errorMessage = () => this.page.getByTestId('new-settlement-error-message')
   private readonly submitError = () => this.page.getByTestId('new-settlement-submit-error')
+  private readonly nothingToCollect = () => this.page.getByTestId('new-settlement-nothing-to-collect')
 
   private readonly summaryMembers = () => this.page.getByTestId('new-settlement-summary-members')
   private readonly summaryTransactions = () => this.page.getByTestId('new-settlement-summary-transactions')
@@ -224,6 +225,18 @@ export class NewSettlementPage extends BasePage {
 
   async expectCreateEnabled() {
     await expect(this.createBtn()).toBeEnabled()
+  }
+
+  /**
+   * The reason a selection that adds up to 0.00 € cannot be posted (#372) —
+   * said on the screen rather than left to come back as a 409.
+   */
+  async expectNothingToCollectShown() {
+    await expect(this.nothingToCollect()).toBeVisible()
+  }
+
+  async expectNothingToCollectHidden() {
+    await expect(this.nothingToCollect()).toHaveCount(0)
   }
 
   async getSubmitError(): Promise<string | null> {

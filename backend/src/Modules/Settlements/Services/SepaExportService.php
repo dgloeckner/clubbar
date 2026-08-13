@@ -239,6 +239,28 @@ class SepaExportService
             );
         }
 
+        $settlementAmountCents = (int) ($settlement['total_amount_cents'] ?? 0);
+
+        // #372: pain.008 cannot say "collect nothing". A PmtInf has to carry at
+        // least one DrctDbtTxInf, so with no collection left the library still
+        // emits a file — one with an empty payment block that a bank portal
+        // rejects, and that the caller would meanwhile stamp onto the
+        // settlement as exported. Refuse instead, and say which of the two
+        // reasons applies: the settlement nets to zero, or every member in it
+        // dropped out between creation and now (#114's exclusions, all at once).
+        if ($sentEndToEndIds === []) {
+            // Logged before the refusal, not instead of it: #114 is about a
+            // divergence nobody could see afterwards, and an export that failed
+            // is no reason to stop recording why.
+            $this->warnAboutShortfall($settlementId, $excludedMembers, $settlementAmountCents, 0);
+
+            throw new BusinessRuleException(sprintf(
+                'Settlement %s has no collection left to export — %s. A SEPA file needs at least one direct debit.',
+                $settlementId,
+                $this->describeEmptyFile($excludedMembers),
+            ));
+        }
+
         $xml = $directDebit->asXML();
         $this->validateSepaXml($xml);
 
@@ -251,13 +273,45 @@ class SepaExportService
             xml: $xml,
             excludedMembers: $excludedMembers,
             collectedAmountCents: $collectedAmountCents,
-            settlementAmountCents: (int) ($settlement['total_amount_cents'] ?? 0),
+            settlementAmountCents: $settlementAmountCents,
             collectedMemberCount: count($sentEndToEndIds),
         );
 
-        $this->warnAboutShortfall($settlementId, $result);
+        $this->warnAboutShortfall($settlementId, $excludedMembers, $settlementAmountCents, $collectedAmountCents);
 
         return $result;
+    }
+
+    /**
+     * Why the file came out with nothing in it.
+     *
+     * Reasons and counts, never names or ids: this text becomes an exception
+     * message, and every exception message is written to the application log,
+     * which no erasure reaches (#115). The members themselves are on the
+     * settlement, which is where the treasurer goes next.
+     *
+     * @param list<ExcludedMemberDto> $excludedMembers
+     */
+    private function describeEmptyFile(array $excludedMembers): string
+    {
+        if ($excludedMembers === []) {
+            // No exclusions and no collection means every member in the run
+            // owes exactly nothing — the storno-cancels-the-sale case (#372).
+            return 'every member in it owes 0.00 EUR';
+        }
+
+        $counts = [];
+        foreach ($excludedMembers as $member) {
+            $label = $member->reason->label();
+            $counts[$label] = ($counts[$label] ?? 0) + 1;
+        }
+
+        $reasons = [];
+        foreach ($counts as $label => $count) {
+            $reasons[] = $count . ' × ' . $label;
+        }
+
+        return 'every member in it is excluded (' . implode('; ', $reasons) . ')';
     }
 
     /**
@@ -269,19 +323,35 @@ class SepaExportService
      *
      * Ids only, for the reason the audit summary gives: no erasure reaches a
      * rotated log file, so a name written here is a name kept forever (#115).
+     *
+     * Takes the pieces rather than the result DTO because the refusal path of
+     * #372 has no file to put in one, and its exclusions still have to be
+     * recorded.
+     *
+     * @param list<ExcludedMemberDto> $excludedMembers
      */
-    private function warnAboutShortfall(string $settlementId, SepaExportResultDto $result): void
-    {
-        $uncollectable = $result->uncollectableMembers();
+    private function warnAboutShortfall(
+        string $settlementId,
+        array $excludedMembers,
+        int $settlementAmountCents,
+        int $collectedAmountCents,
+    ): void {
+        $uncollectable = array_values(array_filter(
+            $excludedMembers,
+            static fn(ExcludedMemberDto $member): bool => $member->reason->isShortfall(),
+        ));
         if ($uncollectable === []) {
             return;
         }
 
         $this->logger->warning('SEPA export collects less than the settlement records', [
             'settlement_id' => $settlementId,
-            'settlement_amount_cents' => $result->settlementAmountCents,
-            'collected_amount_cents' => $result->collectedAmountCents,
-            'shortfall_amount_cents' => $result->shortfallAmountCents(),
+            'settlement_amount_cents' => $settlementAmountCents,
+            'collected_amount_cents' => $collectedAmountCents,
+            'shortfall_amount_cents' => array_sum(array_map(
+                static fn(ExcludedMemberDto $member): int => $member->amountCents,
+                $uncollectable,
+            )),
             'excluded_members' => array_map(
                 static fn(ExcludedMemberDto $member): array => $member->toAuditArray(),
                 $uncollectable,

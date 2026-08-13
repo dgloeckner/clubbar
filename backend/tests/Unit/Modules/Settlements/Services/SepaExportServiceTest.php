@@ -147,10 +147,11 @@ class SepaExportServiceTest extends TestCase
     public function test_export_reports_a_member_deleted_after_the_settlement_was_created(): void
     {
         $this->givenSepaConfig();
-        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
-        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 3500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
         $this->givenMembers([
             self::MEMBER_ID => ['deleted_at' => '2026-08-07 09:00:00'] + self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => self::member('Grace', 'Hopper'),
         ]);
 
         $result = $this->service->export(self::SETTLEMENT_ID, self::opener());
@@ -158,9 +159,92 @@ class SepaExportServiceTest extends TestCase
         $this->assertSame(SepaExclusionReason::MEMBER_DELETED, $result->excludedMembers[0]->reason);
         // Named, not a bare UUID: the treasurer has to act on this.
         $this->assertSame('Ada Lovelace', $result->excludedMembers[0]->displayName());
-        $this->assertSame(0, $result->collectedAmountCents);
+        $this->assertSame(2000, $result->collectedAmountCents);
         $this->assertSame(1500, $result->shortfallAmountCents());
-        $this->assertSame([], $this->endToEndIds($result->xml));
+        // Grace is still collected; the deletion is reported alongside the run.
+        $this->assertSame(['E2E-111111112222-999999998888'], $this->endToEndIds($result->xml));
+    }
+
+    /**
+     * #372, the storno case: every member's sales were cancelled, so the run
+     * owes nothing and there is no direct debit to write.
+     *
+     * pain.008 has no way to say that — a PmtInf must carry at least one
+     * DrctDbtTxInf — so what came out was a file with an empty payment block
+     * that a bank portal rejects, and the caller stamped the settlement as
+     * exported on the way past.
+     */
+    public function test_export_refuses_a_settlement_whose_members_all_owe_nothing(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 0);
+        $this->givenItems([[self::MEMBER_ID, 0], [self::OTHER_MEMBER_ID, 0]]);
+        $this->givenMembers([
+            self::MEMBER_ID => self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => self::member('Grace', 'Hopper'),
+        ]);
+
+        // Owing nothing is not an exclusion, so there is no shortfall to log.
+        $this->logger->expects($this->never())->method('warning');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('every member in it owes 0.00 EUR');
+
+        $this->service->export(self::SETTLEMENT_ID, self::opener());
+    }
+
+    /**
+     * The same refusal reached the other way: the members owed money, and every
+     * one of them dropped out between creation and export. The exclusions are
+     * still logged — #114 is about a divergence nobody could see afterwards,
+     * and an export that failed is no reason to stop recording why.
+     */
+    public function test_export_refuses_a_file_in_which_every_member_is_excluded(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 3500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
+        $this->givenMembers([
+            self::MEMBER_ID => ['has_iban' => 0, 'iban_last4' => null] + self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => ['deleted_at' => '2026-08-07 09:00:00'] + self::member('Grace', 'Hopper'),
+        ]);
+
+        $this->logger
+            ->expects($this->once())
+            ->method('warning')
+            ->with(
+                $this->stringContains('collects less than the settlement records'),
+                $this->callback(static fn(array $ctx): bool => $ctx['shortfall_amount_cents'] === 3500
+                    && $ctx['collected_amount_cents'] === 0),
+            );
+
+        $this->expectException(BusinessRuleException::class);
+        // Reasons and counts, never names: the message is logged verbatim by
+        // the error handler, and no erasure reaches a log file (#115).
+        $this->expectExceptionMessage('every member in it is excluded');
+
+        $this->service->export(self::SETTLEMENT_ID, self::opener());
+    }
+
+    /** The refusal must carry no member PII into the log (#115). */
+    public function test_the_empty_file_refusal_names_reasons_not_members(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->givenMembers([
+            self::MEMBER_ID => ['has_iban' => 0, 'iban_last4' => null] + self::member('Ada', 'Lovelace'),
+        ]);
+
+        try {
+            $this->service->export(self::SETTLEMENT_ID, self::opener());
+            $this->fail('An export with nothing to collect must be refused');
+        } catch (BusinessRuleException $e) {
+            $this->assertStringContainsString('1 × No active SEPA mandate at export time', $e->getMessage());
+            foreach (['Ada', 'Lovelace'] as $pii) {
+                $this->assertStringNotContainsString($pii, $e->getMessage());
+            }
+        }
     }
 
     public function test_a_credit_member_is_reported_in_their_own_bucket_and_is_not_a_shortfall(): void
@@ -234,10 +318,11 @@ class SepaExportServiceTest extends TestCase
         // the divergence lived only there, #114's "nobody is notified" would
         // survive the fix.
         $this->givenSepaConfig();
-        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
-        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 3500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
         $this->givenMembers([
             self::MEMBER_ID => ['has_iban' => 0, 'iban_last4' => null] + self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => self::member('Grace', 'Hopper'),
         ]);
 
         $this->logger
@@ -246,8 +331,8 @@ class SepaExportServiceTest extends TestCase
             ->with(
                 $this->stringContains('collects less than the settlement records'),
                 $this->callback(static fn(array $ctx): bool => $ctx['shortfall_amount_cents'] === 1500
-                    && $ctx['collected_amount_cents'] === 0
-                    && $ctx['settlement_amount_cents'] === 1500
+                    && $ctx['collected_amount_cents'] === 2000
+                    && $ctx['settlement_amount_cents'] === 3500
                     // Ids, not names: no erasure reaches a log file (#115).
                     && $ctx['excluded_members'] === [[
                         'member_id' => self::MEMBER_ID,
