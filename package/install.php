@@ -42,11 +42,17 @@ require_once __DIR__ . '/backend/src/Shared/Security/SecuritySelfCheck.php';
 // the same reason.
 require_once __DIR__ . '/backend/src/Shared/Security/FileModes.php';
 
+// Club Bar keeps every instant in UTC (#365). The installer writes timestamps of
+// its own — the first admin's created_at among them — so it pins the runtime
+// before it writes anything. Required by path for the same reason as the above.
+require_once __DIR__ . '/backend/src/Shared/Time/Utc.php';
+
 use App\Shared\Config\DataDirectory;
 use App\Shared\Security\FileModes;
 use App\Shared\Security\SecurityCheckContext;
 use App\Shared\Security\SecurityFinding;
 use App\Shared\Security\SecuritySelfCheck;
+use App\Shared\Time\Utc;
 
 // The wizard takes the database password, generates the TOTP encryption key and
 // prints both back into a form — and it is the one page of this deployment that
@@ -60,6 +66,10 @@ use App\Shared\Security\SecuritySelfCheck;
 foreach (SecuritySelfCheck::EXPECTED_DIRECTIVES as $directive => $enabled) {
     ini_set($directive, $enabled ? '1' : '0');
 }
+
+// Same reasoning, for the clock rather than the error output: the wizard runs
+// before bootstrap.php ever does, and the rows it writes are timestamped.
+Utc::apply();
 
 $configFile = DataDirectory::configPath(__DIR__);
 $isInstalled = file_exists($configFile);
@@ -102,7 +112,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_db') {
             ),
             $_GET['user'] ?? '',
             $_GET['pass'] ?? '',
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '" . Utc::SQL_OFFSET . "'",
+            ]
         );
         echo json_encode(['success' => true]);
     } catch (\PDOException $e) {
@@ -230,7 +243,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $dbHost, $dbPort, $dbName),
                     $dbUser,
                     $dbPass,
-                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                    [
+                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                        PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '" . Utc::SQL_OFFSET . "'",
+                    ]
                 );
 
                 // Connection works — write config
@@ -344,6 +360,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     [
                         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                        // Every timestamp this installer writes must be UTC (#365);
+                        // NOW() is resolved by the server in the session zone.
+                        PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '" . Utc::SQL_OFFSET . "'",
                     ]
                 );
 
@@ -414,6 +433,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     [
                         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                        // Every timestamp this installer writes must be UTC (#365);
+                        // NOW() is resolved by the server in the session zone.
+                        PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '" . Utc::SQL_OFFSET . "'",
                     ]
                 );
 

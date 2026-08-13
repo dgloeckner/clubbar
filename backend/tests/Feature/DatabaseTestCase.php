@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use PHPUnit\Framework\TestCase;
+use App\Shared\Database\ConnectionFactory;
 use PDO;
 use App\Shared\Logging\Logger;
 use App\Shared\Utils\Uuid;
@@ -29,14 +30,10 @@ abstract class DatabaseTestCase extends TestCase
         $user = getenv('DB_USER') ?: 'clubbar';
         $password = getenv('DB_PASS') ?: 'clubbar';
 
-        $dsn = "mysql:host={$host};dbname={$dbname};charset=utf8mb4";
-        $this->db = new PDO($dsn, $user, $password, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            // Match production bootstrap.php: emulated prepares quote bound LIMIT/OFFSET
-            // integers as strings, which MariaDB rejects. Native prepares avoid this.
-            PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
+        // The same factory bootstrap.php uses, so tests inherit the production
+        // connection settings — native prepares and a UTC session time zone —
+        // instead of a copy of them that can drift.
+        $this->db = ConnectionFactory::create($host, $dbname, $user, $password);
 
         // Create mock logger (logs nothing during tests)
         $this->logger = $this->createMock(Logger::class);

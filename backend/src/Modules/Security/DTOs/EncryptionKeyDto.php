@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Security\DTOs;
 
 use App\Shared\Security\CredentialLifecycle;
+use App\Shared\Utils\DateFormatter;
 
 class EncryptionKeyDto
 {
@@ -58,10 +59,13 @@ class EncryptionKeyDto
             'public_key' => $this->publicKeyBase64,
             'fingerprint_sha256' => $this->fingerprintSha256,
             'status' => $this->status,
-            'created_at' => $this->createdAt,
-            'activated_at' => $this->activatedAt,
-            'expires_at' => $this->expiresAt,
-            'retired_at' => $this->retiredAt,
+            // Labelled UTC like every other timestamp the API emits (#365). A
+            // bare "2026-08-12 16:46:00" is parsed by the browser as *local*
+            // time, which shifts the rendered value by the reader's own offset.
+            'created_at' => DateFormatter::toUtcIso($this->createdAt),
+            'activated_at' => DateFormatter::toUtcIso($this->activatedAt),
+            'expires_at' => DateFormatter::toUtcIso($this->expiresAt),
+            'retired_at' => DateFormatter::toUtcIso($this->retiredAt),
             'days_until_expiry' => $this->daysUntilExpiry,
             'lifecycle_state' => $this->lifecycleState,
         ];

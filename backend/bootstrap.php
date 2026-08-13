@@ -6,10 +6,18 @@ require __DIR__ . '/vendor/autoload.php';
 
 use App\Shared\Config\Env;
 use App\Shared\Config\AppConfig;
+use App\Shared\Database\ConnectionFactory;
 use App\Shared\Logging\Logger;
 use App\Shared\Security\RuntimeHardening;
+use App\Shared\Time\Utc;
 use App\ServiceFactory;
 use Slim\Factory\AppFactory;
+
+// Before anything reads the clock — the Logger below names its file after the
+// current date, and every repository timestamps with date(). On a host whose
+// php.ini is set to a local zone, those values would be written as local time
+// into columns the API labels as UTC (#365).
+Utc::apply();
 
 // Load environment
 $envFile = __DIR__ . '/.env';
@@ -34,15 +42,11 @@ foreach ($hardeningWarnings as $warning) {
     $logger->warning($warning);
 }
 
-$pdo = new PDO(
-    sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', Env::get('DB_HOST'), Env::get('DB_NAME')),
+$pdo = ConnectionFactory::create(
+    Env::get('DB_HOST'),
+    Env::get('DB_NAME'),
     Env::get('DB_USER'),
     Env::get('DB_PASS'),
-    [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
-    ]
 );
 
 // Wire the service factory (DI container)

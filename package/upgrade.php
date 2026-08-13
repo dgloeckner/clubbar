@@ -35,12 +35,19 @@ declare(strict_types=1);
 // off the ground without duplicating either class's logic here.
 bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Config/DataDirectory.php');
 bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Security/FileModes.php');
+bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Time/Utc.php');
 
 require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
 require_once __DIR__ . '/backend/src/Shared/Security/FileModes.php';
+// Club Bar keeps every instant in UTC (#365); migrations run from here.
+require_once __DIR__ . '/backend/src/Shared/Time/Utc.php';
 
 use App\Shared\Config\DataDirectory;
 use App\Shared\Security\FileModes;
+use App\Shared\Time\Utc;
+
+// This script never goes through bootstrap.php, so it pins its own clock.
+Utc::apply();
 
 function bootstrapSharedClass(string $documentRoot, string $zipFile, string $relativePath): void
 {
@@ -620,6 +627,9 @@ function runMigrations(string $configFile): array
             [
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                // NOW() is resolved by the server in the session zone, so the
+                // migrations below would otherwise stamp rows in the host's zone.
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '" . Utc::SQL_OFFSET . "'",
             ]
         );
 
