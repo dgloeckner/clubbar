@@ -41,7 +41,9 @@ const memberName = (m: SettlementPreviewMember) =>
 
 /** "Missing IBAN" / "Missing Mandate" / "Both" — UC-A30's issue column. */
 function mandateIssue(m: SettlementPreviewMember): 'iban' | 'mandate' | 'both' {
-  const hasIban = !!m.iban
+  // The preview carries only the last four characters of a sealed IBAN
+  // (ADR-0036); their presence is what "has an account on file" means here.
+  const hasIban = !!m.iban_last4
   const hasMandate = !!m.mandate_reference
   if (!hasIban && !hasMandate) return 'both'
   return hasIban ? 'mandate' : 'iban'

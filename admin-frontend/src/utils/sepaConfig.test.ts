@@ -89,4 +89,31 @@ describe('buildUpdateSepaConfigRequest', () => {
       payment_reference_prefix: 'Club Bar Settlement',
     })
   })
+
+  /**
+   * Overwrite-only creditor IBAN (#392). The GET masks it, so the form starts
+   * blank and stays blank unless the admin retypes the IBAN. Sending that blank
+   * would empty the account the collection is paid into; omitting the key is
+   * what the backend reads as "keep the stored one".
+   */
+  it('omits a blank creditor IBAN rather than clearing the stored one', () => {
+    expect('creditor_iban' in buildUpdateSepaConfigRequest({ ...form, creditor_iban: '' })).toBe(false)
+    expect('creditor_iban' in buildUpdateSepaConfigRequest({ ...form, creditor_iban: undefined })).toBe(false)
+    expect('creditor_iban' in buildUpdateSepaConfigRequest({ ...form, creditor_iban: '   ' })).toBe(false)
+  })
+
+  it('still carries a retyped creditor IBAN', () => {
+    expect(buildUpdateSepaConfigRequest({ ...form, creditor_iban: 'DE02120300000000202051' }).creditor_iban)
+      .toBe('DE02120300000000202051')
+  })
+
+  it('leaves the other fields editable while the IBAN is kept', () => {
+    expect(buildUpdateSepaConfigRequest({ ...form, creditor_iban: '', creditor_name: 'New Name e.V.' })).toEqual({
+      creditor_name: 'New Name e.V.',
+      creditor_address_street: 'Main Street 123',
+      creditor_address_city: 'Munich',
+      creditor_address_country: 'DE',
+      payment_reference_prefix: 'Club Bar Settlement',
+    })
+  })
 })

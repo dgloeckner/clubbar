@@ -69,8 +69,17 @@ the run — the count shown on their row in the New Settlement
 screen. Counted over their whole position, like the balance.
  */
   transaction_count?: number;
-  /** @nullable */
-  iban?: string | null;
+  /**
+   * Last four characters only — the preview identifies the account, it
+never needs to debit it ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)).
+`null` means the member has no stored account, which is what the
+missing-IBAN badge on the New Settlement screen reads.
+
+   * @minLength 4
+   * @maxLength 4
+   * @nullable
+   */
+  iban_last4?: string | null;
   /** @nullable */
   mandate_reference?: string | null;
   /**

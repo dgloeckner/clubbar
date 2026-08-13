@@ -120,6 +120,7 @@ function FormField({
 
       {helperText && (
         <p
+          data-testid={`settings-sepa-helper-${fieldKey}`}
           style={{
             margin: 0,
             fontSize: theme.typography.fontSize.xs,
@@ -148,6 +149,12 @@ function FormField({
 export interface SepaConfigTabProps {
   /** True once the creditor ID has been set — it is immutable from then on (ADR-0007). */
   creditorIdLocked: boolean
+  /**
+   * The stored creditor IBAN as the API returns it — masked (#392). Shown
+   * beside the input, which stays blank because there is no full value to
+   * prefill it with. Empty when nothing is configured yet.
+   */
+  storedCreditorIban?: string | null
   loading: boolean
   saving: boolean
   /**
@@ -166,6 +173,7 @@ export interface SepaConfigTabProps {
 
 export function SepaConfigTab({
   creditorIdLocked,
+  storedCreditorIban,
   loading,
   saving,
   successMessage,
@@ -279,7 +287,11 @@ export function SepaConfigTab({
             value={formData.creditor_iban}
             placeholder={t('settings.sepaPlaceholders.creditorIban')}
             monospace={true}
-            helperText={t('settings.sepaHelpers.creditorIban')}
+            helperText={
+              storedCreditorIban
+                ? t('settings.sepaHelpers.creditorIbanStored', { masked: storedCreditorIban })
+                : t('settings.sepaHelpers.creditorIban')
+            }
             showValidation={true}
             fieldErrors={fieldErrors}
             onFieldChange={onFieldChange}

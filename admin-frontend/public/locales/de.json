@@ -234,7 +234,10 @@
     "countFound_one": "{{count}} Mitglied gefunden",
     "countFound_other": "{{count}} Mitglieder gefunden",
     "downloadSepaTemplate": "SEPA-Vorlage",
-    "sepaTemplateError": "Die SEPA-Konfiguration ist unvollständig. Bitte hinterlegen Sie zuerst die Gläubigerdaten in den Einstellungen."
+    "sepaTemplateError": "Die SEPA-Konfiguration ist unvollständig. Bitte hinterlegen Sie zuerst die Gläubigerdaten in den Einstellungen.",
+    "storedIban": "Gespeichert: {{masked}}",
+    "removeStoredIban": "Bankdaten entfernen",
+    "storedIbanWillBeRemoved": "Bankdaten werden beim Speichern entfernt, das Mandat wird widerrufen."
   },
   "products": {
     "title": "Produkte",
@@ -471,7 +474,8 @@
       "street": "Straße und Hausnummer (max 70 Zeichen)",
       "city": "Stadtname (max 70 Zeichen)",
       "country": "2-stelliger ISO-Ländercode (DE, AT, CH)",
-      "paymentPrefix": "Präfix für den Verwendungszweck. Das Abrechnungsdatum wird automatisch angehängt."
+      "paymentPrefix": "Präfix für den Verwendungszweck. Das Abrechnungsdatum wird automatisch angehängt.",
+      "creditorIbanStored": "Gespeichert: {{masked}}. Leer lassen, um sie zu behalten, oder vollständige IBAN eingeben, um sie zu ersetzen."
     },
     "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?",
     "terminals": "Terminals",

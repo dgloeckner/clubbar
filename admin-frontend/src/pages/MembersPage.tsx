@@ -139,6 +139,9 @@ export function MembersPage() {
     card_uid: '',
   })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  // Removing the stored account is its own act, because a blank IBAN field now
+  // means "keep" (#392). Reset wherever the form is opened or cleared.
+  const [removeStoredIban, setRemoveStoredIban] = useState(false)
   const [extractedFields, setExtractedFields] = useState<ExtractionResult | null>(null)
   const [preExtractionFormData, setPreExtractionFormData] = useState<typeof formData | null>(null)
   const [scanFile, setScanFile] = useState<File | null>(null)
@@ -248,7 +251,14 @@ export function MembersPage() {
           // Now that these fields can be left empty, clearing one has to reach
           // the backend as an explicit null — `undefined` would drop the key
           // and silently keep the old value (#131).
-          iban: formData.iban || null,
+          //
+          // The IBAN is the one field where that rule inverts (#392). It cannot
+          // be prefilled, so a blank input is the normal state of a save that
+          // was about something else; sending null there would revoke the
+          // mandate of every member whose phone number was corrected. Blank
+          // therefore drops the key, and removing the account is its own
+          // deliberate action.
+          iban: removeStoredIban ? null : formData.iban || undefined,
           account_holder_name: formData.account_holder_name || null,
           mandate_reference: formData.mandate_reference || undefined,
           mandate_signed_at: formData.mandate_signed_at || null,
@@ -292,6 +302,7 @@ export function MembersPage() {
       setPreExtractionFormData(null)
       setScanFile(null)
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
+      setRemoveStoredIban(false)
 
       // Reload members list with the active filters still applied
       await list.reload()
@@ -401,11 +412,16 @@ export function MembersPage() {
       // was open then — leaving it behind renders it under this member's fields
       // (#131).
       setFormErrors({})
+      setRemoveStoredIban(false)
       setFormData({
         first_name: fullMember.first_name ?? '',
         last_name: fullMember.last_name ?? '',
         email: fullMember.email ?? '',
-        iban: fullMember.iban ?? '',
+        // Deliberately blank: the stored IBAN is sealed and the API returns
+        // only its last four characters (ADR-0036), so there is nothing to
+        // prefill. Blank means "keep" on save; the stored account is shown
+        // beside the field instead (#392).
+        iban: '',
         account_holder_name: fullMember.account_holder_name ?? '',
         mandate_reference: fullMember.mandate_reference ?? '',
         mandate_signed_at: fullMember.mandate_signed_at ?? '',
@@ -670,6 +686,7 @@ export function MembersPage() {
               setEditingMember(null)
               setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
               setFormErrors({})
+              setRemoveStoredIban(false)
               setShowModal(true)
             }}
             title={t('common.add')}
@@ -1607,6 +1624,73 @@ export function MembersPage() {
                   />
                   {confidenceBadge('iban')}
                 </div>
+                {/*
+                  The stored account, for a member who has one. The IBAN itself
+                  is sealed (ADR-0036), so this is the whole of what the admin
+                  panel can show — and it is why the input above is empty:
+                  leaving it that way keeps this account, typing replaces it.
+                */}
+                {editingMember?.iban_last4 && !removeStoredIban && (
+                  <p
+                    data-testid="members-form-iban-stored"
+                    style={{
+                      fontSize: theme.typography.fontSize.sm,
+                      color: theme.colors.text.secondary,
+                      marginTop: theme.spacing.xs,
+                    }}
+                  >
+                    {t('members.storedIban', {
+                      masked: editingMember.iban_masked ?? `****${editingMember.iban_last4}`,
+                    })}
+                    {editingMember.bank_name ? ` · ${editingMember.bank_name}` : ''}
+                    {' — '}
+                    <button
+                      type="button"
+                      data-testid="members-form-iban-remove"
+                      onClick={() => { setRemoveStoredIban(true); setFormData((prev) => ({ ...prev, iban: '' })) }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: theme.colors.semantic.danger,
+                        cursor: 'pointer',
+                        font: 'inherit',
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      {t('members.removeStoredIban')}
+                    </button>
+                  </p>
+                )}
+                {removeStoredIban && (
+                  <p
+                    data-testid="members-form-iban-removal-pending"
+                    style={{
+                      fontSize: theme.typography.fontSize.sm,
+                      color: theme.colors.semantic.danger,
+                      marginTop: theme.spacing.xs,
+                    }}
+                  >
+                    {t('members.storedIbanWillBeRemoved')}
+                    {' — '}
+                    <button
+                      type="button"
+                      data-testid="members-form-iban-remove-undo"
+                      onClick={() => setRemoveStoredIban(false)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: theme.colors.text.secondary,
+                        cursor: 'pointer',
+                        font: 'inherit',
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      {t('common.undo')}
+                    </button>
+                  </p>
+                )}
                 {formData.iban.length >= 12 && formData.iban.toUpperCase().startsWith('DE') && (
                   <p
                     data-testid="members-form-bank-name"

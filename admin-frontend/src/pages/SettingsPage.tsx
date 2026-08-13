@@ -173,11 +173,14 @@ export function SettingsPage() {
 
         if (config) {
           setExistingConfig(config)
-          // Pre-fill form with full unmasked values (admin-only page, no need to mask)
+          // The IBAN is deliberately not prefilled: the GET masks it (#392), so
+          // the only value available here is `DE89****3000` — round-tripping
+          // that on save would be refused. Blank means "keep the stored one";
+          // the masked value is shown beside the field instead.
           const formValues: SepaConfigFormData = {
             creditor_id: config.creditor_id,
             creditor_name: config.creditor_name,
-            creditor_iban: config.creditor_iban,
+            creditor_iban: '',
             creditor_address_street: config.creditor_address_street,
             creditor_address_city: config.creditor_address_city,
             creditor_address_country: config.creditor_address_country,
@@ -511,8 +514,13 @@ export function SettingsPage() {
       newErrors.creditor_name = t('settings.validation.creditorNameTooLong')
     }
 
+    // Overwrite-only (#392): a blank field keeps the stored IBAN, so it is only
+    // required when there is nothing stored to keep, and only checked when the
+    // admin actually typed a replacement.
     if (!formData.creditor_iban?.trim()) {
-      newErrors.creditor_iban = t('settings.validation.creditorIbanRequired')
+      if (!existingConfig?.creditor_iban?.trim()) {
+        newErrors.creditor_iban = t('settings.validation.creditorIbanRequired')
+      }
     } else if (!validateIban(formData.creditor_iban)) {
       newErrors.creditor_iban = t('settings.validation.creditorIbanInvalid')
     }
@@ -838,6 +846,7 @@ export function SettingsPage() {
       {activeTab === 'sepa' && (
         <SepaConfigTab
           creditorIdLocked={creditorIdLocked}
+          storedCreditorIban={existingConfig?.creditor_iban}
           loading={false}
           saving={saving}
           successMessage={successMessage}

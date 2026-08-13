@@ -398,7 +398,7 @@ test.describe('Journal & Settlements', () => {
     // Clearing the IBAN revokes the mandate; the settlement still claims the
     // member's transactions and still records their €15.00.
     expect(
-      (await authenticatedRequest.patch(`/api/admin/members/${dropped.id}`, { data: { iban: '' } })).status()
+      (await authenticatedRequest.patch(`/api/admin/members/${dropped.id}`, { data: { iban: null } })).status()
     ).toBe(200)
 
     await settlementsPage.navigate()

@@ -78,7 +78,17 @@ export interface MemberUpdateRequest {
   phone?: string | null;
   preferred_language?: string;
   /**
-   * null to remove the stored bank details
+   * Overwrite-only. The stored IBAN is sealed and never returned
+([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)), so the
+edit form cannot prefill this field:
+
+- **omitted or `""`** — keep the stored account. This is what a save
+  that did not deliberately retype the IBAN sends.
+- **a full IBAN** — replace the account. The current mandate is
+  ended and a new one opened, so a collection made under the old
+  account still resolves to the mandate it was made under.
+- **`null`** — remove the stored bank details and revoke the mandate.
+
    * @minLength 15
    * @maxLength 34
    * @nullable

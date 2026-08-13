@@ -914,7 +914,7 @@ test.describe('Settlements API', () => {
       // Clearing the IBAN revokes the mandate — the member can no longer be
       // direct-debited even though the settlement already claimed their rows.
       expect(
-        (await authenticatedRequest.patch(`/api/admin/members/${dropped.id}`, { data: { iban: '' } })).status()
+        (await authenticatedRequest.patch(`/api/admin/members/${dropped.id}`, { data: { iban: null } })).status()
       ).toBe(200);
 
       const response = await authenticatedRequest.get(
@@ -1607,7 +1607,7 @@ test.describe('Settlements API', () => {
       const transactionId = await syncPurchase(authenticatedTerminalRequest, member.id, 900);
 
       const revoke = await authenticatedRequest.patch(`/api/admin/members/${member.id}`, {
-        data: { iban: '' },
+        data: { iban: null },
       });
       expect(revoke.status(), await revoke.text()).toBe(200);
       expect((await revoke.json()).is_sepa_valid).toBe(false);

@@ -166,4 +166,127 @@ class SepaConfigControllerTest extends TestCase
 
         $this->assertSame(200, $response->getStatusCode());
     }
+
+    /**
+     * Overwrite-only creditor IBAN (#392).
+     *
+     * The GET is masked, so the settings form has nothing to prefill the field
+     * with. Every save that did not deliberately retype the IBAN therefore sends
+     * it blank, and blank has to mean "keep" — otherwise renaming the creditor
+     * would silently empty the account the collection is paid into.
+     */
+    public function test_show_masks_the_creditor_iban(): void
+    {
+        $this->service->expects($this->once())
+            ->method('getConfig')
+            ->with(true)
+            ->willReturn(new SepaConfigDto(
+                creditorId: 'DE98****9999',
+                creditorName: 'Musterverein e.V.',
+                creditorIban: 'DE89****3000',
+                creditorAddressStreet: 'Vereinsweg 1',
+                creditorAddressCity: 'Musterstadt',
+                creditorAddressCountry: 'DE',
+                paymentReferencePrefix: 'Club Bar',
+                isConfigured: true,
+            ));
+
+        $response = $this->controller->show($this->write('GET', []), new Response());
+        $body = $this->decode($response);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertStringNotContainsString('DE89370400440532013000', json_encode($body));
+        $this->assertSame('DE89****3000', $body['creditor_iban']);
+    }
+
+    public function test_an_omitted_creditor_iban_keeps_the_stored_one(): void
+    {
+        $this->service->method('getConfig')->willReturn($this->dto());
+
+        $this->service->expects($this->once())
+            ->method('updateConfig')
+            ->with(
+                $this->callback(fn (array $attributes) => !array_key_exists('creditor_iban', $attributes)),
+                'admin-1',
+            )
+            ->willReturn($this->dto());
+
+        $response = $this->controller->update(
+            $this->write('PATCH', ['creditor_name' => 'Neuer Name e.V.']),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_a_blank_creditor_iban_keeps_the_stored_one(): void
+    {
+        $this->service->method('getConfig')->willReturn($this->dto());
+
+        $this->service->expects($this->once())
+            ->method('updateConfig')
+            ->with(
+                $this->callback(fn (array $attributes) => !array_key_exists('creditor_iban', $attributes)),
+                'admin-1',
+            )
+            ->willReturn($this->dto());
+
+        $response = $this->controller->update(
+            $this->write('PATCH', ['creditor_name' => 'Musterverein e.V.', 'creditor_iban' => '']),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_a_masked_creditor_iban_is_refused_with_an_actionable_message(): void
+    {
+        $this->service->method('getConfig')->willReturn($this->dto());
+        $this->service->expects($this->never())->method('updateConfig');
+
+        $response = $this->controller->update(
+            $this->write('PATCH', $this->validBody(['creditor_iban' => 'DE89****3000'])),
+            new Response(),
+        );
+
+        $body = $this->decode($response);
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertStringContainsString('empty to keep', $body['messages']['creditor_iban'][0]);
+    }
+
+    public function test_a_filled_creditor_iban_still_replaces_the_stored_one(): void
+    {
+        $this->service->method('getConfig')->willReturn($this->dto());
+
+        $this->service->expects($this->once())
+            ->method('updateConfig')
+            ->with(
+                $this->callback(fn (array $attributes) => ($attributes['creditor_iban'] ?? null) === 'DE02120300000000202051'),
+                'admin-1',
+            )
+            ->willReturn($this->dto());
+
+        $response = $this->controller->update(
+            $this->write('PATCH', $this->validBody(['creditor_iban' => 'DE02120300000000202051'])),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_a_blank_creditor_iban_is_still_refused_when_nothing_is_stored_yet(): void
+    {
+        $this->service->method('getConfig')->willReturn(null);
+        $this->service->expects($this->never())->method('updateConfig');
+
+        $response = $this->controller->update(
+            $this->write('POST', ['creditor_id' => 'DE98ZZZ09999999999', 'creditor_name' => 'X e.V.', 'creditor_iban' => '']),
+            new Response(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('creditor_iban', $this->decode($response)['messages']);
+    }
 }

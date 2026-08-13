@@ -234,7 +234,10 @@
     "countFound_one": "{{count}} member found",
     "countFound_other": "{{count}} members found",
     "downloadSepaTemplate": "SEPA Template",
-    "sepaTemplateError": "SEPA configuration is incomplete. Please configure creditor details in Settings first."
+    "sepaTemplateError": "SEPA configuration is incomplete. Please configure creditor details in Settings first.",
+    "storedIban": "On file: {{masked}}",
+    "removeStoredIban": "Remove bank details",
+    "storedIbanWillBeRemoved": "Bank details will be removed on save, revoking the mandate."
   },
   "products": {
     "title": "Products",
@@ -471,7 +474,8 @@
       "street": "Street and house number (max 70 characters)",
       "city": "City name (max 70 characters)",
       "country": "2-letter ISO country code (DE, AT, CH)",
-      "paymentPrefix": "Prefix for the payment reference. The settlement date is appended automatically."
+      "paymentPrefix": "Prefix for the payment reference. The settlement date is appended automatically.",
+      "creditorIbanStored": "On file: {{masked}}. Leave empty to keep it, or enter the full IBAN to replace it."
     },
     "deactivateAdminConfirm": "Are you sure you want to deactivate this admin user?",
     "terminals": "Terminals",

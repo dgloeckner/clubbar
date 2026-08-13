@@ -46,14 +46,27 @@ export function buildCreateSepaConfigRequest(form: SepaConfigFormData): SepaConf
   }
 }
 
-/** Payload for a later edit (PATCH) — every field except the immutable creditor_id. */
+/**
+ * Payload for a later edit (PATCH) — every field except the immutable creditor_id.
+ *
+ * The creditor IBAN is overwrite-only (#392). The GET masks it, so the form has
+ * nothing to prefill the field with and it is blank on every save that did not
+ * deliberately retype it; sending that blank on would empty the account the
+ * collection is paid into. Omitting the key is what the backend reads as "keep
+ * the stored IBAN", so a blank field drops out of the payload entirely.
+ */
 export function buildUpdateSepaConfigRequest(form: SepaConfigFormData): SepaConfigUpdateRequest {
-  return {
+  const payload: SepaConfigUpdateRequest = {
     creditor_name: form.creditor_name,
-    creditor_iban: form.creditor_iban,
     creditor_address_street: form.creditor_address_street,
     creditor_address_city: form.creditor_address_city,
     creditor_address_country: form.creditor_address_country,
     payment_reference_prefix: form.payment_reference_prefix ?? '',
   }
+
+  if (form.creditor_iban?.trim()) {
+    payload.creditor_iban = form.creditor_iban
+  }
+
+  return payload
 }

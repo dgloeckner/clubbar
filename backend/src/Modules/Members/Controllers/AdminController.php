@@ -104,6 +104,35 @@ class AdminController
         return $body;
     }
 
+    /**
+     * On update, a blank IBAN field means "keep the stored account".
+     *
+     * The edit form cannot prefill the IBAN any more — it is sealed and the API
+     * returns only the last four characters (ADR-0036) — so the field arrives
+     * blank on every save that did not deliberately retype it. Under
+     * `BLANK_MEANS_NULL` that blank read as "clear it", which would revoke the
+     * mandate of every member whose phone number an admin corrected (#392).
+     *
+     * Dropping the key entirely is what `applyMandateChange` already reads as
+     * "the caller said nothing about banking data". Revoking a mandate stays
+     * possible and stays explicit: a JSON `null` still means clear, and it
+     * survives this because it is not the empty string.
+     *
+     * Create is deliberately untouched. There is nothing stored to keep, so a
+     * blank there means the member has no mandate — the existing meaning.
+     *
+     * @param array<string, mixed> $body
+     * @return array<string, mixed>
+     */
+    private static function withBlankIbanAsAbsent(array $body): array
+    {
+        if (array_key_exists('iban', $body) && $body['iban'] === '') {
+            unset($body['iban']);
+        }
+
+        return $body;
+    }
+
     public function __construct(
         private MembersService $membersService,
         private Validator $validator,
@@ -221,7 +250,7 @@ class AdminController
     public function update(Request $request, Response $response, array $args): Response
     {
         $memberId = $args['memberId'];
-        $body = self::withBlanksAsNull($request->getParsedBody() ?? []);
+        $body = self::withBlanksAsNull(self::withBlankIbanAsAbsent($request->getParsedBody() ?? []));
         $adminId = $request->getAttribute('admin_user_id');
 
         // Only the fields the request carries are checked — three of them used

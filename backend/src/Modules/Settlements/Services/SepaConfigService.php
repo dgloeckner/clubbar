@@ -43,7 +43,9 @@ class SepaConfigService
             adminUserId: $adminUserId,
         );
 
-        return SepaConfigDto::fromRow($config);
+        // Masked like the GET it mirrors — a save is not a reason to hand the
+        // full creditor IBAN back to the browser (#392).
+        return SepaConfigDto::fromRow($config, masked: true);
     }
 
     public function isConfigured(): bool
