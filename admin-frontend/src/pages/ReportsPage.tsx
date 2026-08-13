@@ -969,7 +969,7 @@ export function ReportsPage() {
 
   return (
     <div data-testid="reports-page" style={{ padding: isMobile ? '12px' : '20px' }}>
-      <h1 style={{ margin: '0 0 20px 0', fontSize: isMobile ? '20px' : undefined }}>{t('reports.title')}</h1>
+      <h1 style={{ margin: '0 0 20px 0' }}>{t('reports.title')}</h1>
 
       {/* Tab Bar */}
       <div
