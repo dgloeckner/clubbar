@@ -120,6 +120,18 @@ paths:
                       The deploying club's display name (ADR-0034). The
                       Terminal shows this in its header unless a per-terminal
                       `config.json` `displayName` override is set.
+                  instance_id:
+                    type: string
+                    nullable: true
+                    description: |
+                      Stable random identifier for this backend's data
+                      (ADR-0035). Generated once when instance_config is
+                      created and never changed by normal operation, so a
+                      Terminal can tell this backend apart from one at the
+                      same URL with a different, discontinuous history (e.g.
+                      after a reset/reseed/restore) and refuse to sync
+                      against it silently. `null` only when instance_config
+                      does not exist yet (pre-migration).
                 required:
                   - status
                   - timestamp
@@ -130,6 +142,7 @@ paths:
                     timestamp: '2025-01-23T14:30:45Z'
                     version: '1.4.0'
                     instance_name: FRGS Ruderbar
+                    instance_id: 'a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7'
 
   /sync/members:
     get:
@@ -658,6 +671,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /terminal/pairing/ack:
+    post:
+      tags:
+        - Health
+      summary: Acknowledge a pairing mismatch and resume sync
+      description: |
+        Called only after staff at the bar have confirmed it is safe to trust
+        this backend again, following a `GET /health` `instance_id` mismatch
+        (ADR-0035). There is nothing to clear server-side — the mismatch is
+        entirely local terminal state — this endpoint exists so the moment is
+        audited, and hands back the `instance_id` the terminal should now
+        store as paired.
+      operationId: acknowledgeTerminalPairing
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Acknowledged; re-pair against the returned instance_id
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instance_id:
+                    type: string
+                    nullable: true
+                required:
+                  - instance_id
+              examples:
+                success:
+                  value:
+                    instance_id: 'a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
 
 components:
   schemas:

@@ -35,6 +35,20 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
   ConnectionStatus _connectionStatus = ConnectionStatus.online;
   DateTime? _degradedSince;
 
+  // ADR-0035: set the moment a synced backend reports a different
+  // instance_id than the one this terminal last paired with. Never cleared
+  // by startSync() itself — only acknowledgePairingMismatch() may clear it,
+  // after staff have deliberately confirmed it is safe.
+  bool _pairingMismatch = false;
+  int _pairingMismatchTransactionCount = 0;
+
+  // Guards startSync() and acknowledgePairingMismatch() from interleaving.
+  // Both read and write the same paired-instance state; without this, a
+  // background timer tick racing a staff-initiated acknowledgement could
+  // read a stale local value and re-flag a mismatch the instant it was
+  // just cleared.
+  bool _syncCycleInFlight = false;
+
   SyncProvider({
     required SyncService syncService,
     required MembersProvider membersProvider,
@@ -54,6 +68,8 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
   DateTime? get lastSuccessfulTransactionSync => _lastSuccessfulTransactionSync;
   int get retryCount => _retryCount;
   ConnectionStatus get connectionStatus => _connectionStatus;
+  bool get pairingMismatch => _pairingMismatch;
+  int get pairingMismatchTransactionCount => _pairingMismatchTransactionCount;
 
   /// When the terminal first stopped being healthy, or null while online.
   ///
@@ -75,6 +91,16 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
 
   /// Manually trigger sync
   Future<void> startSync() async {
+    if (_syncCycleInFlight) return;
+    _syncCycleInFlight = true;
+    try {
+      await _runSyncCycle();
+    } finally {
+      _syncCycleInFlight = false;
+    }
+  }
+
+  Future<void> _runSyncCycle() async {
     // Always run health check to keep connectionStatus accurate
     final healthy = await _networkService.checkHealth();
     if (!healthy) {
@@ -93,6 +119,27 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
       resetError();
       _retryCount = 0;
       notifyListeners();
+    }
+
+    // ADR-0035: a backend with a different instance_id than the one this
+    // terminal last synced with has a discontinuous history — hard-block
+    // before any push or pull, including the instance-name propagation and
+    // member/product delta sync below. A mismatch never auto-clears; only
+    // acknowledgePairingMismatch() may.
+    final remoteInstanceId = await _networkService.fetchInstanceId();
+    final pairing = await _syncService.checkPairing(remoteInstanceId);
+    if (pairing == PairingResult.mismatch) {
+      _pairingMismatch = true;
+      try {
+        _pairingMismatchTransactionCount = await _syncService.getUnsyncedCount();
+      } catch (_) {
+        // The count is a nicety for the warning dialog, not a precondition
+        // for the block itself — staff must still be told about the
+        // mismatch even if this particular read fails.
+      } finally {
+        notifyListeners();
+      }
+      return;
     }
 
     // Best-effort: propagate the backend's instance name (ADR-0034) into
@@ -164,6 +211,34 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
     } finally {
       _isSyncing = false;
       notifyListeners();
+    }
+  }
+
+  /// Staff at the bar confirmed the current pairing mismatch is safe to
+  /// trust (ADR-0035). Calls the backend to record the acknowledgement and
+  /// get back the instance_id to re-pair against; a failure — the whole
+  /// point of not being fail-soft here — leaves the terminal blocked rather
+  /// than silently clearing state the backend never actually recorded.
+  Future<void> acknowledgePairingMismatch() async {
+    if (_syncCycleInFlight) return;
+    _syncCycleInFlight = true;
+    try {
+      final instanceId = await _networkService.acknowledgePairing();
+      if (instanceId == null) {
+        // The backend's own /health contract is fail-soft — instance_id can
+        // be null if instance_config wasn't readable at that instant. That
+        // is not a confirmed acknowledgement, so stay blocked rather than
+        // clearing state for a re-pair that never actually happened.
+        return;
+      }
+      await _syncService.acknowledgePairing(instanceId);
+      _pairingMismatch = false;
+      _pairingMismatchTransactionCount = 0;
+      notifyListeners();
+    } catch (_) {
+      // Stays blocked — the whole point of this not being fail-soft.
+    } finally {
+      _syncCycleInFlight = false;
     }
   }
 

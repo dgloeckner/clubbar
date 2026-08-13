@@ -17,6 +17,14 @@ class TransactionsRepository {
         .get();
   }
 
+  /// How many sales are queued to sync — the count a pairing-mismatch
+  /// warning (ADR-0035) shows staff as "at risk" if this terminal keeps
+  /// trusting a backend with a discontinuous history.
+  Future<int> getUnsyncedCount() async {
+    final rows = await getUnsyncedTransactions();
+    return rows.length;
+  }
+
   /// Move permanently rejected sales out of the sync queue, keyed by
   /// transaction id with the rejection code as value.
   ///

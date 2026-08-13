@@ -80,6 +80,8 @@ use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminContr
 use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
+use App\Modules\Terminals\Controllers\PairingController;
+use App\Modules\Terminals\Services\PairingService;
 use App\Modules\Transactions\Controllers\AdminController as TransactionsAdminController;
 use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncController;
 
@@ -143,6 +145,7 @@ class ServiceFactory implements ContainerInterface
 
         // Terminals
         TerminalsAdminController::class => 'getTerminalsAdminController',
+        PairingController::class => 'getPairingController',
 
         // Dashboard
         DashboardAdminController::class => 'getDashboardAdminController',
@@ -444,6 +447,14 @@ class ServiceFactory implements ContainerInterface
         ));
     }
 
+    public function getPairingService(): PairingService
+    {
+        return $this->resolve(PairingService::class, fn() => new PairingService(
+            $this->getInstanceConfigService(),
+            $this->getAuditService(),
+        ));
+    }
+
     public function getTransactionsService(): TransactionsService
     {
         return $this->resolve(TransactionsService::class, fn() => new TransactionsService($this->getTransactionsRepository(), $this->getMembersRepository(), $this->getAuditService(), $this->logger));
@@ -706,6 +717,11 @@ class ServiceFactory implements ContainerInterface
     public function getTerminalsAdminController(): TerminalsAdminController
     {
         return $this->resolve(TerminalsAdminController::class, fn() => new TerminalsAdminController($this->getTerminalsService(), $this->getValidator()));
+    }
+
+    public function getPairingController(): PairingController
+    {
+        return $this->resolve(PairingController::class, fn() => new PairingController($this->getPairingService()));
     }
 
     public function getReportsRepository(): ReportsRepository

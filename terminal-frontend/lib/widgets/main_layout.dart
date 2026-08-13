@@ -10,6 +10,7 @@ import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/clubbar_header.dart';
 import 'package:clubbar_terminal/widgets/failed_sales_banner.dart';
+import 'package:clubbar_terminal/widgets/pairing_mismatch_banner.dart';
 import 'package:clubbar_terminal/widgets/status_info_modal.dart';
 
 /// Main layout with persistent header across all screens.
@@ -94,8 +95,15 @@ class MainLayout extends StatelessWidget {
         onPointerDown: (_) => session.recordActivity(),
         child: Column(
           children: [
-            // Above everything, on every screen: a sale the backend refused is
-            // money nobody will ever bill unless staff act (issue #152).
+            // Above everything else, on every screen: the terminal is now
+            // talking to a backend with a different history than before, and
+            // sync is hard-blocked until staff confirm it is safe (ADR-0035,
+            // #380). Placed above the quarantine warning — a pairing
+            // mismatch calls the whole quarantine list into question too.
+            const PairingMismatchBanner(),
+            // Above everything else, on every screen: a sale the backend
+            // refused is money nobody will ever bill unless staff act (issue
+            // #152).
             const FailedSalesBanner(),
             Expanded(
               child: Stack(

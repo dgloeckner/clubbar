@@ -764,5 +764,28 @@
   "failedSalesUnknownMember": "Unbekanntes Mitglied",
   "@failedSalesUnknownMember": {
     "description": "Shown instead of a name when the local cache no longer knows the member"
+  },
+  "pairingMismatchWarning": "Dieses Terminal spricht mit einem anderen Server als zuvor – die Synchronisierung ist pausiert. Bitte einen Admin informieren.",
+  "@pairingMismatchWarning": {
+    "description": "Persistent staff warning while the terminal's backend instance_id does not match what it last synced with (ADR-0035, #380)"
+  },
+  "pairingMismatchTitle": "Server hat sich geändert",
+  "@pairingMismatchTitle": {
+    "description": "Title of the pairing-mismatch dialog"
+  },
+  "pairingMismatchInstruction": "{count, plural, =0{Es warten keine lokalen Verkäufe auf Synchronisierung.} =1{1 lokaler Verkauf wartet auf Synchronisierung und wurde von diesem Server noch nicht bestätigt.} other{{count} lokale Verkäufe warten auf Synchronisierung und wurden von diesem Server noch nicht bestätigt.}} Nur fortsetzen, wenn ein Admin bestätigt hat, dass dieser Server die Historie dieses Terminals noch kennt.",
+  "@pairingMismatchInstruction": {
+    "description": "Explains the risk and what staff must confirm before resuming sync",
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "pairingMismatchResume": "Synchronisierung fortsetzen",
+  "@pairingMismatchResume": {
+    "description": "Button that calls the backend to acknowledge the mismatch and re-pair"
+  },
+  "pairingMismatchResumeFailed": "Bestätigung durch den Server fehlgeschlagen — weiterhin pausiert. Bitte Verbindung prüfen und erneut versuchen.",
+  "@pairingMismatchResumeFailed": {
+    "description": "Shown when acknowledgePairingMismatch fails and the terminal stays blocked"
   }
 }

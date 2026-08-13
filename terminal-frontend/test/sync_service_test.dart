@@ -880,5 +880,77 @@ void main() {
       expect(syncService.lastSyncTime, isNull);
       verify(() => mockSyncRepo.clearAllSyncState()).called(1);
     });
+
+    /// ADR-0035: a terminal must be able to tell "the backend I've always
+    /// synced with" apart from one at the same URL with a different,
+    /// discontinuous history (#380).
+    group('checkPairing', () {
+      test('proceeds when the backend has no instance_id yet (pre-migration)', () async {
+        final result = await syncService.checkPairing(null);
+
+        expect(result, equals(PairingResult.paired));
+        verifyNever(() => mockSyncRepo.setPairedBackendInstanceId(any()));
+      });
+
+      test('trust-on-first-use: stores the id when nothing was paired before', () async {
+        when(() => mockSyncRepo.getPairedBackendInstanceId())
+            .thenAnswer((_) async => null);
+        when(() => mockSyncRepo.setPairedBackendInstanceId(any()))
+            .thenAnswer((_) async => {});
+
+        final result = await syncService.checkPairing('instance-a');
+
+        expect(result, equals(PairingResult.paired));
+        verify(() => mockSyncRepo.setPairedBackendInstanceId('instance-a')).called(1);
+      });
+
+      test('is paired when the id matches what was stored before', () async {
+        when(() => mockSyncRepo.getPairedBackendInstanceId())
+            .thenAnswer((_) async => 'instance-a');
+
+        final result = await syncService.checkPairing('instance-a');
+
+        expect(result, equals(PairingResult.paired));
+        verifyNever(() => mockSyncRepo.setPairedBackendInstanceId(any()));
+      });
+
+      test('is a mismatch when the id differs from what was stored before', () async {
+        when(() => mockSyncRepo.getPairedBackendInstanceId())
+            .thenAnswer((_) async => 'instance-a');
+
+        final result = await syncService.checkPairing('instance-b');
+
+        expect(result, equals(PairingResult.mismatch));
+      });
+
+      test('a mismatch never overwrites the stored pairing', () async {
+        when(() => mockSyncRepo.getPairedBackendInstanceId())
+            .thenAnswer((_) async => 'instance-a');
+
+        await syncService.checkPairing('instance-b');
+
+        verifyNever(() => mockSyncRepo.setPairedBackendInstanceId(any()));
+      });
+    });
+
+    group('getUnsyncedCount', () {
+      test('delegates to the transactions repository', () async {
+        when(() => mockTransactionsRepo.getUnsyncedCount())
+            .thenAnswer((_) async => 3);
+
+        expect(await syncService.getUnsyncedCount(), equals(3));
+      });
+    });
+
+    group('acknowledgePairing', () {
+      test('stores the newly-confirmed instance id as paired', () async {
+        when(() => mockSyncRepo.setPairedBackendInstanceId(any()))
+            .thenAnswer((_) async => {});
+
+        await syncService.acknowledgePairing('instance-b');
+
+        verify(() => mockSyncRepo.setPairedBackendInstanceId('instance-b')).called(1);
+      });
+    });
   });
 }

@@ -101,6 +101,7 @@ void main() {
 
     when(() => syncProvider.isSyncing).thenReturn(false);
     when(() => syncProvider.connectionStatus).thenReturn(ConnectionStatus.online);
+    when(() => syncProvider.pairingMismatch).thenReturn(false);
     when(() => syncProvider.addListener(any())).thenReturn(null);
     when(() => syncProvider.removeListener(any())).thenReturn(null);
 

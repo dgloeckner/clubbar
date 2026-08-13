@@ -79,6 +79,35 @@ class InstanceConfigServiceTest extends TestCase
         $this->assertSame('Club Bar', $this->service->getInstanceName());
     }
 
+    // ── getInstanceId ────────────────────────────────────
+
+    public function test_getInstanceId_returns_the_stored_id(): void
+    {
+        $this->instanceConfigRepository->method('getConfig')
+            ->willReturn(['instance_id' => 'a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7']);
+
+        $this->assertSame('a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7', $this->service->getInstanceId());
+    }
+
+    public function test_getInstanceId_returns_null_when_no_row_exists(): void
+    {
+        $this->instanceConfigRepository->method('getConfig')->willReturn(null);
+
+        $this->assertNull($this->service->getInstanceId());
+    }
+
+    /**
+     * Same fail-soft contract as getInstanceName(): /health must answer even
+     * before instance_config exists.
+     */
+    public function test_getInstanceId_returns_null_when_the_table_does_not_exist_yet(): void
+    {
+        $this->instanceConfigRepository->method('getConfig')
+            ->willThrowException(new \PDOException("SQLSTATE[42S02]: Base table or view not found"));
+
+        $this->assertNull($this->service->getInstanceId());
+    }
+
     // ── updateConfig ────────────────────────────────────
 
     public function test_updateConfig_returns_null_when_repository_reports_no_row(): void

@@ -13,6 +13,10 @@ import 'network_service.dart';
 /// Result of a sync operation
 enum SyncResult { success, failure, alreadyInProgress }
 
+/// Result of comparing a backend's reported instance_id against the one this
+/// terminal last synced with (ADR-0035).
+enum PairingResult { paired, mismatch }
+
 class SyncService {
   /// Largest batch `POST /sync/transactions` accepts, per `api/terminal.yaml`.
   ///
@@ -445,6 +449,44 @@ class SyncService {
     } catch (e) {
       _logger.w('Failed to write failed transactions log: $e');
     }
+  }
+
+  /// Compare the backend's reported instance_id against the one this
+  /// terminal last synced with (ADR-0035).
+  ///
+  /// [remoteInstanceId] null means the backend has no instance_config row
+  /// yet (pre-migration) — there is nothing to compare against, so this
+  /// proceeds rather than blocking; the same fail-soft contract as the
+  /// backend's own getInstanceId().
+  ///
+  /// A first-ever pairing is trust-on-first-use: nothing was stored before,
+  /// so the reported id is simply adopted. Once something is stored, a
+  /// mismatch is never auto-corrected here — only [acknowledgePairing] may
+  /// overwrite it, after a human has deliberately confirmed it is safe.
+  Future<PairingResult> checkPairing(String? remoteInstanceId) async {
+    if (remoteInstanceId == null) {
+      return PairingResult.paired;
+    }
+
+    final paired = await _syncRepo.getPairedBackendInstanceId();
+    if (paired == null) {
+      await _syncRepo.setPairedBackendInstanceId(remoteInstanceId);
+      return PairingResult.paired;
+    }
+
+    return paired == remoteInstanceId ? PairingResult.paired : PairingResult.mismatch;
+  }
+
+  /// Staff confirmed a pairing mismatch is safe to trust — re-pair against
+  /// the given instance_id so sync can resume.
+  Future<void> acknowledgePairing(String instanceId) async {
+    await _syncRepo.setPairedBackendInstanceId(instanceId);
+  }
+
+  /// How many local sales are queued to sync — the count a pairing-mismatch
+  /// warning shows staff as "at risk" (ADR-0035).
+  Future<int> getUnsyncedCount() async {
+    return _transactionsRepo.getUnsyncedCount();
   }
 
   /// Reset sync state and cache (for logout or reset)

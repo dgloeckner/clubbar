@@ -34,4 +34,6 @@ enum AuditAction: string
     case TOTP_RESET = 'totp_reset';
     case MANDATE_DOCUMENT_UPLOAD = 'mandate_document_upload';
     case MANDATE_DOCUMENT_DELETE = 'mandate_document_delete';
+    /** A terminal resumed sync after its instance_id pairing mismatched (ADR-0035, #380). */
+    case TERMINAL_REPAIR = 'terminal_repair';
 }
