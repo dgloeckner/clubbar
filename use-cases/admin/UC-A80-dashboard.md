@@ -42,6 +42,29 @@ are not expected to move together.
 
 Badge color: Yellow (1-5 members), Red (6+ members). No badge if all members have valid SEPA data.
 
+### Members Close to Their Limit
+
+Lists the members whose Deckel has reached the terminal's credit-limit warning
+band, biggest tab first — the people the bar is about to have to turn away.
+Without it the club hears of a blocked card at the worst possible moment: from
+the member standing at the bar.
+
+| Element | Content |
+|---------|---------|
+| Heading | The limit itself, so the amounts have a scale |
+| Row | Member name, their unsettled tab, and a bar showing its share of the limit |
+| Row status | "X % of the limit used" while inside the band; "over the limit" once past it |
+| Empty state | "No member is close to their limit" |
+| Overflow | The list is capped; a trailing line names how many further members are over the threshold |
+
+The band and the ceiling are the terminal's own — 80 % of the limit to warn,
+past the limit to block ([UC-T11](../terminal/UC-T11-shopping-cart.md) E3,
+[UC-T12](../terminal/UC-T12-error-scenarios.md)) — so a member appears here
+exactly when the terminal has started warning them. Deactivated and deleted
+members are left out: the terminal serves neither, so there is nothing to warn
+about. What they still owe stays in Outstanding Balance and in the next
+settlement run.
+
 ### Recent Transactions
 - Last 10 transactions
 - Shows: time, member, product, amount
@@ -75,3 +98,7 @@ Badge color: Yellow (1-5 members), Red (6+ members). No badge if all members hav
 - SEPA badge click: verify navigates to SEPA Issues report
 - SEPA badge colors: 1 member = yellow, 6 members = red
 - No SEPA badge: all members have SEPA data, verify no badge
+- Near-limit list: a member inside the warning band is named with their tab and share
+- Near-limit verdict: a member past the limit reads as over it, not merely warned
+- Near-limit threshold: a member one cent below the band does not appear
+- Near-limit scope: deactivating a member takes them off the list

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Dashboard\Repositories;
 
+use App\Shared\Repository\UnsettledTransactions;
 use PDO;
 
 /**
@@ -35,6 +36,20 @@ class DashboardRepository
      * deliberately sums every type.
      */
     private const REVENUE_FILTER = "transaction_type = 'purchase'";
+
+    /**
+     * Whose tab the credit-limit list is about, and what the tab is (#385).
+     *
+     * One tab per active, undeleted member, summed over their unsettled
+     * transactions. Shared by the list and its count because the two must
+     * describe the same set of members: a count taken over a wider set would
+     * promise names the list can never show.
+     */
+    private const NEAR_LIMIT_SOURCE =
+        'FROM members m
+         JOIN transactions t ON t.member_id = m.id AND ' . UnsettledTransactions::UNSETTLED . '
+        WHERE m.deleted_at IS NULL AND m.is_active = 1
+        GROUP BY m.id';
 
     public function __construct(private PDO $db) {}
 
@@ -90,6 +105,61 @@ class DashboardRepository
               LEFT JOIN mandates md ON md.active_member_id = m.id
               WHERE md.id IS NULL AND m.deleted_at IS NULL'
         )->fetchColumn();
+    }
+
+    /**
+     * Active members whose Deckel has reached `$thresholdCents`, biggest tab
+     * first (#385).
+     *
+     * The balance is the same unsettled sum
+     * `TransactionsRepository::getUnsettledMemberBalanceCents()` reports for a
+     * single member — every transaction type, settled rows dropped — so the
+     * dashboard cannot disagree with the member's own page about what they owe.
+     *
+     * Deactivated and deleted members are left out on purpose: the question the
+     * list answers is who the terminal is about to stop serving, and it serves
+     * neither. What they still owe is not lost — it stays in the outstanding
+     * balance and in the next settlement run.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function findMembersNearCreditLimit(int $thresholdCents, int $limit): array
+    {
+        $stmt = $this->db->prepare(
+            // CONCAT_WS, not CONCAT: either name column may be NULL, and CONCAT
+            // would turn the whole label into NULL rather than the half we have.
+            "SELECT m.id, CONCAT_WS(' ', m.first_name, m.last_name) as name,
+                    COALESCE(SUM(t.amount_cents), 0) as balance_cents
+             " . self::NEAR_LIMIT_SOURCE . '
+             HAVING balance_cents >= :threshold
+             ORDER BY balance_cents DESC, m.id ASC
+             LIMIT :limit'
+        );
+        $stmt->bindValue('threshold', $thresholdCents, PDO::PARAM_INT);
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * How many members `findMembersNearCreditLimit()` would return without the
+     * cap — what the list needs to admit that it is showing only the top of a
+     * longer one.
+     */
+    public function countMembersNearCreditLimit(int $thresholdCents): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) FROM (
+                SELECT m.id, COALESCE(SUM(t.amount_cents), 0) as balance_cents
+                ' . self::NEAR_LIMIT_SOURCE . '
+                HAVING balance_cents >= :threshold
+             ) near_limit'
+        );
+        $stmt->bindValue('threshold', $thresholdCents, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return (int) $stmt->fetchColumn();
     }
 
     /**

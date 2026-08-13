@@ -113,6 +113,14 @@ const listSettlements = (
 - Must cover exactly one member
 - No SEPA XML export available
 
+**The run must collect something** (issue #372). A settlement sweeps
+each named member's whole unsettled position, and if those positions
+add up to 0.00 EUR — the ordinary case being a storno that cancels each
+of a member's sales — the run is refused with `409`. A member who owes
+nothing still settles *alongside* one who owes money: their rows close
+out and they get no line in the SEPA file. It is the run's own total
+that may not be zero, because that total is what goes to the bank.
+
  * @summary Create settlement
  */
 const createSettlement = (

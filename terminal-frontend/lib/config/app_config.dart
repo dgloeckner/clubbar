@@ -25,9 +25,17 @@ class AppConfig {
   // Enforced by `CreditLimitCheck` (UC-T11 E3, UC-T12): a checkout that would
   // push the tab *past* this is blocked; landing exactly on it is allowed.
   // Zero or less turns enforcement off.
+  //
+  // **The backend keeps a copy** in `App\Modules\Dashboard\Domain\CreditLimit`,
+  // so the admin dashboard can name the same line when it lists the members
+  // close to it (#385). Change both together, or the dashboard will warn about
+  // members this terminal is still serving without a word — the terminal cannot
+  // read the value from the backend, because it has to decide this with nothing
+  // reachable.
   static const int balanceLimitCents = 10000; // €100.00
 
   // Share of the limit at which the member is warned but not yet blocked.
+  // Copied backend-side as well — see above.
   static const int balanceWarnThresholdPercent = 80; // €80.00 of €100.00
 
   // Backend API

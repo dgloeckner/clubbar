@@ -58,6 +58,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type { DashboardResponseAlerts } from './dashboardResponseAlerts';
+import type { DashboardResponseMembersNearLimit } from './dashboardResponseMembersNearLimit';
 import type { DashboardResponseMetrics } from './dashboardResponseMetrics';
 import type { DashboardResponseRecentTransactionsItem } from './dashboardResponseRecentTransactionsItem';
 import type { DashboardResponseSystemStatus } from './dashboardResponseSystemStatus';
@@ -77,4 +78,14 @@ export interface DashboardResponse {
   system_status?: DashboardResponseSystemStatus;
   /** Admin alerts requiring attention */
   alerts?: DashboardResponseAlerts;
+  /** Active members whose Deckel has reached the terminal's warning band,
+biggest tab first — who the bar is about to have to turn away.
+
+The band and the ceiling are the terminal's own (UC-T11 E3, UC-T12):
+a member appears here exactly when the terminal has started warning
+them, and carries `status: exceeded` once it refuses their next
+checkout. Members who are deactivated or deleted are left out — the
+terminal serves neither, so there is nothing to warn about.
+ */
+  members_near_limit?: DashboardResponseMembersNearLimit;
 }

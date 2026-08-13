@@ -9,11 +9,21 @@ export class DashboardPage extends BasePage {
   private readonly alertsSection = () => this.page.getByTestId('dashboard-alerts')
   private readonly systemStatusSection = () => this.page.getByTestId('dashboard-system-status')
   private readonly sepaAlertMessage = () => this.page.getByTestId('dashboard-sepa-alert-message')
+  private readonly membersNearLimitSection = () => this.page.getByTestId('dashboard-members-near-limit')
+  private readonly noMembersNearLimit = () => this.page.getByTestId('dashboard-no-members-near-limit')
+  private readonly memberNearLimit = (memberId: string) =>
+    this.page.getByTestId(`dashboard-member-near-limit-${memberId}`)
   private readonly loadingIndicator = () => this.page.getByTestId('dashboard-loading')
   private readonly staleWarning = () => this.page.getByTestId('dashboard-stale-warning')
 
   constructor(page: Page) {
     super(page)
+  }
+
+  async goto() {
+    await this.navigate('/dashboard')
+    await expect(this.pageRoot()).toBeVisible()
+    await expect(this.loadingIndicator()).toHaveCount(0)
   }
 
   async expectPageVisible() {
@@ -64,6 +74,40 @@ export class DashboardPage extends BasePage {
 
   async getSepaAlertMessage(): Promise<string> {
     return (await this.sepaAlertMessage().textContent()) ?? ''
+  }
+
+  /** Members whose tab has reached the terminal's credit-limit warning band (#385). */
+  async expectMembersNearLimitVisible() {
+    await expect(this.membersNearLimitSection()).toBeVisible()
+  }
+
+  async expectMemberNearLimit(memberId: string) {
+    await expect(this.memberNearLimit(memberId)).toBeVisible()
+  }
+
+  async expectMemberNotNearLimit(memberId: string) {
+    await expect(this.memberNearLimit(memberId)).toBeHidden()
+  }
+
+  async expectNoMembersNearLimit() {
+    await expect(this.noMembersNearLimit()).toBeVisible()
+  }
+
+  async getMemberNearLimitBalance(memberId: string): Promise<string> {
+    return (
+      (await this.page.getByTestId(`dashboard-member-near-limit-balance-${memberId}`).textContent()) ?? ''
+    ).trim()
+  }
+
+  /** The verdict itself — `approaching` or `exceeded` — free of the locale's wording. */
+  async getMemberNearLimitState(memberId: string): Promise<string | null> {
+    return this.memberNearLimit(memberId).getAttribute('data-status')
+  }
+
+  async getMemberNearLimitStatus(memberId: string): Promise<string> {
+    return (
+      (await this.page.getByTestId(`dashboard-member-near-limit-status-${memberId}`).textContent()) ?? ''
+    ).trim()
   }
 
   async getTransactionCount(): Promise<number> {

@@ -12,6 +12,7 @@ final readonly class DashboardDto
         public array $terminalStatus,
         public array $systemStatus,
         public array $alerts,
+        public array $membersNearLimit,
     ) {}
 
     public function toArray(): array
@@ -22,6 +23,7 @@ final readonly class DashboardDto
             'terminal_status' => $this->terminalStatus,
             'system_status' => $this->systemStatus,
             'alerts' => $this->alerts,
+            'members_near_limit' => $this->membersNearLimit,
         ];
     }
 }

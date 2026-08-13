@@ -94,6 +94,11 @@ export function DashboardPage() {
   // An alert whose severity the API left out is treated as nothing to say,
   // rather than as an unstyled banner shouting a blank message.
   const encryptionKeySeverity = encryptionKeyAlert?.severity ?? 'none'
+  const members_near_limit = data.members_near_limit
+  const near_limit_members = members_near_limit?.members ?? []
+  // The list is capped by the backend; the total says whether it is the whole
+  // story, so a quiet-looking panel is never hiding a queue of blocked members.
+  const near_limit_hidden = Math.max(0, (members_near_limit?.total ?? 0) - near_limit_members.length)
 
   const statusColor = (status: string) => {
     switch (status) {
@@ -103,6 +108,11 @@ export function DashboardPage() {
       default: return theme.colors.text.secondary
     }
   }
+
+  // Past the limit the terminal has already stopped serving them; inside the
+  // band it is still only a warning.
+  const limitStatusColor = (status: string) =>
+    status === 'exceeded' ? theme.colors.semantic.danger : theme.colors.semantic.warning
 
   const severityColor = (severity: string) => {
     switch (severity) {
@@ -366,6 +376,94 @@ export function DashboardPage() {
                     </span>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Members near their credit limit (#385) — who the terminal is about
+              to turn away, while there is still time to say so beforehand. */}
+          <div data-testid="dashboard-members-near-limit" style={{
+            background: theme.colors.bg.card,
+            border: `1px solid ${theme.colors.border.light}`,
+            borderRadius: theme.borderRadius.lg,
+            padding: isMobile ? theme.spacing.md : theme.spacing.xl,
+          }}>
+            <h2 style={{
+              fontSize: theme.typography.fontSize.lg,
+              fontWeight: theme.typography.fontWeight.semibold,
+              color: theme.colors.text.primary,
+              margin: 0,
+            }}>
+              {t('dashboard.membersNearLimit')}
+            </h2>
+            <div style={{
+              fontSize: theme.typography.fontSize.xs,
+              color: theme.colors.text.muted,
+              margin: `${theme.spacing.xs} 0 ${theme.spacing.lg} 0`,
+            }}>
+              {t('dashboard.creditLimitOf', { amount: formatPrice(members_near_limit?.limit_cents ?? 0) })}
+            </div>
+
+            {near_limit_members.length === 0 ? (
+              <div data-testid="dashboard-no-members-near-limit" style={{ color: theme.colors.text.muted, fontSize: theme.typography.fontSize.sm }}>
+                {t('dashboard.noMembersNearLimit')}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.sm }}>
+                {near_limit_members.map((member) => (
+                  <div key={member.id} data-testid={`dashboard-member-near-limit-${member.id}`} data-status={member.status} style={{
+                    padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                    borderRadius: theme.borderRadius.sm,
+                    background: theme.colors.bg.secondary,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: theme.spacing.sm }}>
+                      <span style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                        {member.name}
+                      </span>
+                      <span data-testid={`dashboard-member-near-limit-balance-${member.id}`} style={{
+                        fontSize: theme.typography.fontSize.sm,
+                        fontWeight: theme.typography.fontWeight.semibold,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        color: limitStatusColor(member.status),
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {formatPrice(member.balance_cents)}
+                      </span>
+                    </div>
+                    {/* The bar fills, it never overflows: a tab past the limit
+                        is already said in words by the status line below. */}
+                    <div style={{
+                      height: '4px',
+                      borderRadius: '2px',
+                      background: theme.colors.border.dark,
+                      margin: `${theme.spacing.xs} 0`,
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        width: `${Math.min(100, Math.max(0, member.percent_of_limit))}%`,
+                        height: '100%',
+                        background: limitStatusColor(member.status),
+                      }} />
+                    </div>
+                    <div data-testid={`dashboard-member-near-limit-status-${member.id}`} style={{
+                      fontSize: theme.typography.fontSize.xs,
+                      color: theme.colors.text.muted,
+                    }}>
+                      {member.status === 'exceeded'
+                        ? t('dashboard.limitExceeded', { percent: member.percent_of_limit })
+                        : t('dashboard.limitApproaching', { percent: member.percent_of_limit })}
+                    </div>
+                  </div>
+                ))}
+                {near_limit_hidden > 0 && (
+                  <div data-testid="dashboard-members-near-limit-more" style={{
+                    fontSize: theme.typography.fontSize.xs,
+                    color: theme.colors.text.muted,
+                  }}>
+                    {t('dashboard.membersNearLimitMore', { count: near_limit_hidden })}
+                  </div>
+                )}
               </div>
             )}
           </div>
