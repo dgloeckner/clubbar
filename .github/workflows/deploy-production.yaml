@@ -167,6 +167,10 @@ jobs:
           set net:timeout 30
           set net:max-retries 3
           set net:reconnect-interval-base 5
+          # Without this a failed `put` prints its error, lftp carries on to the
+          # next command and exits 0 — an upload step that goes green having
+          # transferred nothing.
+          set cmd:fail-exit yes
           put dist/upload/upgrade.php
           put dist/upload/.upgrade-package.zip
           put dist/upload/.upgrade-secret

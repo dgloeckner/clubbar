@@ -844,6 +844,10 @@ jobs:
     environment: ionos-integration
 
     steps:
+      # The deploy needs scripts/deploy-request.sh; every other job in this
+      # workflow checks out for its own reasons, this one only for that.
+      - uses: actions/checkout@v4
+
       - name: Download package artifact
         uses: actions/download-artifact@v4
         with:
@@ -883,9 +887,33 @@ jobs:
           set net:timeout 30
           set net:max-retries 3
           set net:reconnect-interval-base 5
+          # Without this a failed `put` prints its error, lftp carries on to the
+          # next command and exits 0 — so the step goes green while nothing
+          # reached the server, and the failure only surfaces one step later as
+          # an unexplained non-JSON answer from an upgrade.php that was never
+          # uploaded.
+          set cmd:fail-exit yes
           put dist/upload/upgrade.php
           put dist/upload/.upgrade-package.zip
           put dist/upload/.upgrade-secret
+          bye
+          LFTP
+
+      # Which directory did the upload actually land in, and is it the one the
+      # site serves? An upload into the wrong directory is indistinguishable
+      # from a successful one until upgrade.php answers with the SPA shell, so
+      # the evidence is collected here rather than guessed at afterwards.
+      # Never fails the job: this is diagnostics, and the two steps below are
+      # the ones that decide whether the deploy worked.
+      - name: List the deploy target
+        if: always()
+        continue-on-error: true
+        run: |
+          lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
+            "sftp://${{ vars.IONOS_SFTP_HOST }}:22" << 'LFTP'
+          set sftp:auto-confirm yes
+          pwd
+          cls -l upgrade.php .upgrade-package.zip .upgrade-secret index.php spa.html .htaccess
           bye
           LFTP
 
@@ -893,16 +921,12 @@ jobs:
         timeout-minutes: 2
         run: |
           echo "Extracting package..."
-          RESPONSE=$(curl -sf --max-time 120 \
-            "${{ secrets.IONOS_SITE_URL }}/upgrade.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}&action=extract&force=1")
-          echo "$RESPONSE" | jq .
-          [ "$(echo "$RESPONSE" | jq -r '.ok')" = "true" ]
+          scripts/deploy-request.sh "Extract" \
+            "${{ secrets.IONOS_SITE_URL }}/upgrade.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}&action=extract&force=1"
 
       - name: Run migrations
         timeout-minutes: 2
         run: |
           echo "Running migrations..."
-          RESPONSE=$(curl -sf --max-time 120 \
-            "${{ secrets.IONOS_SITE_URL }}/upgrade.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}")
-          echo "$RESPONSE" | jq .
-          [ "$(echo "$RESPONSE" | jq -r '.ok')" = "true" ]
+          scripts/deploy-request.sh "Migrate" \
+            "${{ secrets.IONOS_SITE_URL }}/upgrade.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}"
