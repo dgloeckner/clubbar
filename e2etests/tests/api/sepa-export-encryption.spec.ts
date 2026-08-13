@@ -83,18 +83,27 @@ test.describe('SEPA export decrypts sealed IBANs', () => {
     expect(await response.text()).not.toContain(FACTORY_IBAN)
   })
 
+  /**
+   * Exactly one wrong credential, deliberately.
+   *
+   * A failed step-up is recorded against the same 5-per-15-minutes login
+   * limiter as a failed login (ruling #145), keyed on the caller — and the
+   * caller here is the shared seeded admin every other spec logs in as. CI
+   * runs with the limiter enabled, so a spec that spends several attempts
+   * proving the same point locks that admin out and fails tests that have
+   * nothing to do with it. The omitted-password and malformed-credential
+   * cases are covered in AdminControllerExportSepaTest, which costs nothing.
+   */
   test('the step-up credential is required on top of the session', async ({
     authenticatedRequest,
     settlementFactory,
   }) => {
     const settlement = await settlementFactory.create()
 
-    const missing = await exportSepaXml(authenticatedRequest, settlement.id, { password: null })
-    expect(missing.status()).toBe(401)
-
     const wrong = await exportSepaXml(authenticatedRequest, settlement.id, {
       password: 'definitely-not-the-password',
     })
+
     expect(wrong.status()).toBe(401)
     expect(await wrong.text()).not.toContain(FACTORY_IBAN)
   })
