@@ -208,14 +208,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // config, wherever this installation currently keeps it.
             $configTarget = DataDirectory::configPathIn(__DIR__, $placement['path']);
 
-            // Generate a fresh TOTP encryption key for this installation
+            // Generate fresh security keys for this installation
             $totpKey = bin2hex(random_bytes(32));
+            $ibanFingerprintKey = bin2hex(random_bytes(32));
 
-            // Preserve existing TOTP key if re-running step 2 on an already-installed instance
+            // Preserve existing keys if re-running step 2 on an already-installed
+            // instance — regenerating the fingerprint key would break bank-change
+            // detection for every stored mandate (ADR-0035).
             if (file_exists($configFile)) {
                 $existingConfig = require $configFile;
                 if (!empty($existingConfig['security']['totp_encryption_key'])) {
                     $totpKey = $existingConfig['security']['totp_encryption_key'];
+                }
+                if (!empty($existingConfig['security']['iban_fingerprint_key'])) {
+                    $ibanFingerprintKey = $existingConfig['security']['iban_fingerprint_key'];
                 }
             }
 
@@ -253,6 +259,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ],
                     'security' => [
                         'totp_encryption_key' => $totpKey,
+                        'iban_fingerprint_key' => $ibanFingerprintKey,
                     ],
                     'llm' => [
                         'provider' => $llmProvider,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Shared\Controllers\HealthController;
 use App\Shared\Controllers\SecurityCheckController;
+use App\Modules\Security\Controllers\EncryptionKeysController;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
 use App\Modules\Members\Controllers\MandateDocumentController;
@@ -149,6 +150,13 @@ return function (App $app): void {
 
         // Audit log
         $group->get('/audit-log', [AuditLogAdminController::class, 'index']);
+
+        // IBAN encryption keys (ADR-0035). Mutations carry a step-up
+        // credential in the body and share the step-up rate-limit dimension.
+        $group->get('/encryption-keys', [EncryptionKeysController::class, 'index']);
+        $group->post('/encryption-keys', [EncryptionKeysController::class, 'store'])->add($stepUpRateLimit);
+        $group->post('/encryption-keys/{id}/activate', [EncryptionKeysController::class, 'activate'])->add($stepUpRateLimit);
+        $group->post('/encryption-keys/{id}/revoke', [EncryptionKeysController::class, 'revoke'])->add($stepUpRateLimit);
 
         // Settlements
         // Static segments must stay above /settlements/{id} so they are not

@@ -46,6 +46,7 @@ if (!empty($config['session']['save_path'])) {
 }
 $_ENV['API_TOKEN_TTL_DAYS'] = (string) ($config['api_token']['ttl_days'] ?? 90);
 $_ENV['TOTP_ENCRYPTION_KEY'] = $config['security']['totp_encryption_key'] ?? '';
+$_ENV['IBAN_FINGERPRINT_KEY'] = $config['security']['iban_fingerprint_key'] ?? '';
 $_ENV['LLM_PROVIDER']        = $config['llm']['provider'] ?? '';
 $_ENV['LLM_API_KEY']         = $config['llm']['api_key'] ?? '';
 $_ENV['LLM_MODEL']           = $config['llm']['model'] ?? '';

@@ -532,6 +532,50 @@ function extractPackage(string $zipFile, string $extractDir): array
     ];
 }
 
+/**
+ * Backfill security.iban_fingerprint_key into an existing config.php.
+ *
+ * A mangled config bricks the whole install, so the rewrite is atomic:
+ * write a sibling temp file, require it back to prove it parses to the same
+ * structure, then rename over the original and re-narrow the mode. Returns an
+ * error message, or null when the key exists or was written successfully.
+ */
+function ensureIbanFingerprintKey(string $configFile, array &$config): ?string
+{
+    if (!empty($config['security']['iban_fingerprint_key'])) {
+        return null;
+    }
+
+    if (!is_writable($configFile) || !is_writable(dirname($configFile))) {
+        return 'config.php needs a new security key (iban_fingerprint_key) but is not writable. '
+            . 'Make it writable for this upgrade, or add the key manually: openssl rand -hex 32';
+    }
+
+    $config['security']['iban_fingerprint_key'] = bin2hex(random_bytes(32));
+
+    $tmpFile = $configFile . '.tmp';
+    $content = "<?php\n\nreturn " . var_export($config, true) . ";\n";
+
+    if (file_put_contents($tmpFile, $content) === false) {
+        return 'Failed to write the updated config.php (temp file). Check directory permissions.';
+    }
+
+    $reread = @require $tmpFile;
+    if (!is_array($reread) || ($reread['security']['iban_fingerprint_key'] ?? null) !== $config['security']['iban_fingerprint_key']) {
+        @unlink($tmpFile);
+        return 'The rewritten config.php failed verification; the original was left untouched.';
+    }
+
+    if (!rename($tmpFile, $configFile)) {
+        @unlink($tmpFile);
+        return 'Failed to replace config.php with the updated version. The original was left untouched.';
+    }
+
+    \App\Shared\Security\FileModes::narrowConfigFile($configFile);
+
+    return null;
+}
+
 function runMigrations(string $configFile): array
 {
     if (!file_exists($configFile)) {
@@ -552,6 +596,16 @@ function runMigrations(string $configFile): array
     }
 
     require_once $autoload;
+
+    // Existing installs predate the IBAN fingerprint key (ADR-0035): install.php
+    // only writes config.php on a fresh install, so the upgrade path has to
+    // backfill it. This must happen — and be able to fail — BEFORE migrations
+    // run: shipping the encryption release with an install that cannot store
+    // the key would leave every subsequent IBAN write broken.
+    $keyError = ensureIbanFingerprintKey($configFile, $config);
+    if ($keyError !== null) {
+        return ['ok' => false, 'error' => $keyError];
+    }
 
     try {
         $pdo = new PDO(
