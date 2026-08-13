@@ -36,6 +36,11 @@ class TransactionHistoryService {
   /// the member's balance already includes them, so hiding them would make
   /// balance and history contradict each other (issue #32).
   ///
+  /// That invariant is why quarantined rows are left out: the balance stopped
+  /// counting them (issue #417), so showing them is now what contradicts it,
+  /// and after staff re-enter the sale the remote list carries it anyway —
+  /// keeping the local row would show the member one drink twice.
+  ///
   /// Throws [TransactionFetchException] on network, API, or timeout errors.
   Future<TransactionHistoryResult> fetchTransactionHistory({
     required String memberId,
@@ -115,7 +120,8 @@ class TransactionHistoryService {
       ),
     ])
       ..where(database.transactionsLocal.memberId.equals(memberId) &
-          database.transactionsLocal.synced.equals(0))
+          database.transactionsLocal.synced.equals(0) &
+          drift.isNull(database.transactionsLocal.quarantinedAt))
       ..orderBy([drift.OrderingTerm.desc(database.transactionsLocal.createdAt)]);
 
     final rows = await query.get();

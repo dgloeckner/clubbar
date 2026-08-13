@@ -118,11 +118,33 @@ class TransactionsRepository {
     return transactions.fold<int>(0, (sum, txn) => sum + txn.amountCents);
   }
 
-  /// Get sum of amountCents for unsynced transactions for a specific member
+  /// Sum of amountCents for sales this member has bought that the backend has
+  /// not confirmed yet.
+  ///
+  /// "Not confirmed yet" means the same thing here as in
+  /// [getUnsyncedTransactions]: still in the sync queue. Quarantined rows are
+  /// excluded from both, because a row that has left the queue is no longer
+  /// something this terminal can reason about — it will never be resent, so
+  /// `synced` stays 0 for the life of this database and the terminal cannot
+  /// tell whether the backend has the sale or not.
+  ///
+  /// Counting them would be wrong in both directions. Before staff act, the
+  /// member's tab is inflated forever by money the backend has no record of,
+  /// which can push them over their credit limit. After staff re-enter the
+  /// sale by hand — the recovery ADR-0033 §4 prescribes — the backend balance
+  /// includes it, syncs into `members_cache.balanceCents`, and adding the
+  /// local row on top bills the member twice for one drink (issue #417).
+  ///
+  /// "The drink was drunk, so the member owes it" is the defensible reading
+  /// this drops, and the double-count is what it grows out of. A quarantined
+  /// sale is surfaced by the failed-sales banner instead, which is where staff
+  /// read it off to report it.
   Future<int> getUnsyncedAmountForMember(String memberId) async {
     final transactions = await (_db.select(_db.transactionsLocal)
           ..where((t) =>
-              t.memberId.equals(memberId) & t.synced.equals(0)))
+              t.memberId.equals(memberId) &
+              t.synced.equals(0) &
+              t.quarantinedAt.isNull()))
         .get();
     return transactions.fold<int>(0, (sum, txn) => sum + txn.amountCents);
   }
@@ -134,6 +156,9 @@ class TransactionsRepository {
   /// bar, the cart's balance preview and the credit-limit check all read it
   /// from here, so an offline terminal cannot show one number and enforce
   /// against another.
+  ///
+  /// A quarantined sale is not part of it: it has left the sync queue for
+  /// good, so the failed-sales banner owns it, not the tab (issue #417).
   Future<int> getEffectiveBalance(MembersCacheData member) async {
     return member.balanceCents + await getUnsyncedAmountForMember(member.id);
   }

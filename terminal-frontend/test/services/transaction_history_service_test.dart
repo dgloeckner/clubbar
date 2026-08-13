@@ -64,6 +64,7 @@ void main() {
     required String createdAt,
     int amountCents = 350,
     int synced = 0,
+    String? quarantinedAt,
   }) {
     return db.into(db.transactionsLocal).insert(
           TransactionsLocalCompanion.insert(
@@ -74,6 +75,7 @@ void main() {
             transactionType: 'purchase',
             createdAt: createdAt,
             synced: Value(synced),
+            quarantinedAt: Value(quarantinedAt),
           ),
         );
   }
@@ -98,6 +100,25 @@ void main() {
       expect(result.transactions.single.details, 'Pils');
       expect(result.transactions.single.syncStatus,
           TransactionSyncStatus.unsynced);
+    });
+
+    // Issue #417: the balance stopped counting quarantined sales, so history
+    // has to stop showing them — otherwise it contradicts the balance again,
+    // just from the other side.
+    test('leaves out a sale the backend refused for good', () async {
+      await insertLocalPurchase(id: 'tx-1', createdAt: '2026-01-02T18:00:00Z');
+      await insertLocalPurchase(
+        id: 'tx-quarantined',
+        createdAt: '2026-01-02T19:00:00Z',
+        quarantinedAt: '2026-01-02T19:05:00Z',
+      );
+
+      final result = await service.fetchTransactionHistory(
+        memberId: 'member-1',
+        preferredLanguage: 'de',
+      );
+
+      expect(result.transactions.map((t) => t.id), ['tx-1']);
     });
 
     test('never asks the backend', () async {
@@ -188,6 +209,25 @@ void main() {
       );
 
       expect(result.transactions.map((t) => t.id), ['tx-1', 'tx-remote-1']);
+    });
+
+    // Issue #417: staff re-enter a quarantined sale in the admin panel, so it
+    // comes back from the backend. Keeping the local row would show the member
+    // one drink twice.
+    test('a re-entered quarantined sale appears once, not twice', () async {
+      respondWith([remoteItem(id: 'tx-remote-1')]);
+      await insertLocalPurchase(
+        id: 'tx-quarantined',
+        createdAt: '2026-01-01T18:00:00Z',
+        quarantinedAt: '2026-01-01T18:05:00Z',
+      );
+
+      final result = await service.fetchTransactionHistory(
+        memberId: 'member-1',
+        preferredLanguage: 'de',
+      );
+
+      expect(result.transactions.map((t) => t.id), ['tx-remote-1']);
     });
   });
 

@@ -694,6 +694,67 @@ void main() {
       expect(balance, equals(1550));
     });
 
+    group('a quarantined sale and the tab (#417)', () {
+      /// The sale that gets refused: 550 cents, unsynced, member-1.
+      Future<MembersCacheData> seedRefusedSale() async {
+        await createTestMember('member-1');
+        await db.into(db.transactionsLocal).insert(
+              TransactionsLocalCompanion(
+                id: const Value('txn-refused'),
+                memberId: const Value('member-1'),
+                amountCents: const Value(550),
+                transactionType: const Value('purchase'),
+                createdAt: const Value('2025-02-01T12:01:00Z'),
+                synced: const Value(0),
+              ),
+            );
+
+        return (db.select(db.membersCache)
+              ..where((m) => m.id.equals('member-1')))
+            .getSingle();
+      }
+
+      test('stops counting once it leaves the sync queue', () async {
+        final member = await seedRefusedSale();
+
+        // While it is still queued it is money the member owes.
+        expect(
+          await repo.getEffectiveBalance(member.copyWith(balanceCents: 1000)),
+          equals(1550),
+        );
+
+        await repo.quarantineTransactions({'txn-refused': 'unstorable'});
+
+        // Out of the queue, the backend will never hear about it, so the
+        // terminal stops claiming the member owes it.
+        expect(
+          await repo.getEffectiveBalance(member.copyWith(balanceCents: 1000)),
+          equals(1000),
+        );
+      });
+
+      test('is counted once, not twice, after staff re-enter it', () async {
+        final member = await seedRefusedSale();
+        await repo.quarantineTransactions({'txn-refused': 'unstorable'});
+
+        // Staff re-enter the sale in the admin panel (ADR-0033 §4), so the
+        // next sync brings back a balance that already includes the 550.
+        expect(
+          await repo.getEffectiveBalance(member.copyWith(balanceCents: 1550)),
+          equals(1550),
+        );
+      });
+
+      test('still names itself in the failed-sales list', () async {
+        await seedRefusedSale();
+        await repo.quarantineTransactions({'txn-refused': 'unstorable'});
+
+        final quarantined = await repo.getQuarantinedTransactions();
+        expect(quarantined.map((t) => t.id), equals(['txn-refused']));
+        expect(quarantined.single.amountCents, equals(550));
+      });
+    });
+
     test('getUnsyncedTransactions returns only unsynced', () async {
       await createTestMember('member-1');
 
