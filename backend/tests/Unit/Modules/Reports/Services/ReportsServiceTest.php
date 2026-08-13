@@ -167,48 +167,6 @@ class ReportsServiceTest extends TestCase
         $this->assertSame(333, $this->service->getReport('revenue', null, null)->avgTransactionCents);
     }
 
-    // ── Member ranking ──────────────────────────────────────────────────────
-
-    public function test_the_ranking_numbers_members_from_one(): void
-    {
-        $this->repository->method('memberRanking')->willReturn([
-            ['total_amount_cents' => 900, 'transaction_count' => 3],
-            ['total_amount_cents' => 100, 'transaction_count' => 1],
-        ]);
-
-        $ranking = $this->service->getMemberRanking(null, null);
-
-        $this->assertSame([1, 2], array_column($ranking['data'], 'rank'));
-        $this->assertSame([900, 100], array_column($ranking['data'], 'total_amount_cents'));
-    }
-
-    /**
-     * #177: there is no named mode to fall back to. The label is the row's
-     * position in this response, and the repository hands over no identity for
-     * the service to leak even if it wanted to.
-     */
-    public function test_the_ranking_names_nobody(): void
-    {
-        $this->repository->method('memberRanking')->willReturn([
-            ['total_amount_cents' => 900, 'transaction_count' => 3],
-            ['total_amount_cents' => 100, 'transaction_count' => 1],
-        ]);
-
-        $ranking = $this->service->getMemberRanking(null, null);
-
-        $this->assertSame(['Member 1', 'Member 2'], array_column($ranking['data'], 'member_name'));
-    }
-
-    public function test_the_ranking_length_is_clamped_to_the_cap(): void
-    {
-        $this->repository->expects($this->once())
-            ->method('memberRanking')
-            ->with($this->anything(), 100)
-            ->willReturn([]);
-
-        $this->service->getMemberRanking(null, null, 9999);
-    }
-
     // ── Terminal sessions ───────────────────────────────────────────────────
 
     public function test_no_transactions_means_no_sessions(): void

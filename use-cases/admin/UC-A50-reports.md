@@ -26,7 +26,6 @@ Unified reporting interface for analyzing transaction data. Supports multiple re
 5. Admin can:
    - Switch visualizations (table/chart)
    - Drill down into details
-   - Export data
 
 ## Report Types
 
@@ -138,18 +137,9 @@ Click any row or chart segment to drill down:
 
 ## Export
 
-### CSV Export
-- Exports current table view
-- Respects all filters and sorting
-- Includes all visible columns
-- UTF-8 with BOM (Excel-compatible)
-
-### Export Options
-| Option | Description |
-|--------|-------------|
-| Current View | Only visible columns and rows |
-| Full Data | All columns, all filtered rows |
-| Summary Only | Only summary cards data |
+CSV export was removed from the implementation — it produced a plain, largely
+unused download with none of the options described below, and was cut rather
+than built out.
 
 ## Saved Reports
 
@@ -167,7 +157,6 @@ Click any row or chart segment to drill down:
 
 ## Postconditions
 - Report displayed based on configuration
-- Export creates downloadable file
 
 ## Variants
 
@@ -220,12 +209,6 @@ Click any row or chart segment to drill down:
 - Bar chart: bars match table values
 - Line chart: data points match
 - Pie chart: segments = 100%
-
-**Export:**
-- CSV: all filtered data included
-- Column headers present
-- Numbers formatted correctly
-- UTF-8 encoding correct
 
 **Saved Reports:**
 - Save: configuration persisted

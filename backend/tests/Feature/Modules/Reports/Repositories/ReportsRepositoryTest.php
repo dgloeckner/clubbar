@@ -231,47 +231,6 @@ class ReportsRepositoryTest extends DatabaseTestCase
         $this->assertSame('Cider', $rows[0]['dimension']);
     }
 
-    // ── Member ranking ──────────────────────────────────────────────────────
-
-    public function test_memberRanking_groups_per_member_and_orders_by_spend(): void
-    {
-        $anna = $this->createMember('Anna', 'Meier');
-        $ben = $this->createMember('Ben', 'Schulz');
-        $this->createTransaction($anna, 900, '2019-03-05 10:00:00');
-        $this->createTransaction($anna, 100, '2019-03-06 10:00:00');
-        $this->createTransaction($ben, 500, '2019-03-05 10:00:00');
-
-        $ranking = $this->repository->memberRanking($this->window(), 25);
-
-        // Two rows, so the grouping is still per member; Anna's two purchases are
-        // one row of 1000, ahead of Ben's 500.
-        $this->assertCount(2, $ranking);
-        $this->assertSame(1000, $ranking[0]['total_amount_cents']);
-        $this->assertSame(2, $ranking[0]['transaction_count']);
-        $this->assertSame(500, $ranking[1]['total_amount_cents']);
-    }
-
-    /**
-     * #177/ADR-0029: identity is left out of the SELECT, not stripped afterwards.
-     * A row that never carried a name cannot leak one through a new caller.
-     */
-    public function test_memberRanking_returns_no_column_that_identifies_the_member(): void
-    {
-        $this->createTransaction($this->createMember('Anna', 'Meier'), 900, '2019-03-05 10:00:00');
-
-        $ranking = $this->repository->memberRanking($this->window(), 25);
-
-        $this->assertSame(['total_amount_cents', 'transaction_count'], array_keys($ranking[0]));
-    }
-
-    public function test_memberRanking_honours_the_limit(): void
-    {
-        $this->createTransaction($this->createMember('Anna', 'Meier'), 900, '2019-03-05 10:00:00');
-        $this->createTransaction($this->createMember('Ben', 'Schulz'), 500, '2019-03-05 10:00:00');
-
-        $this->assertCount(1, $this->repository->memberRanking($this->window(), 1));
-    }
-
     // ── Terminal activity ───────────────────────────────────────────────────
 
     public function test_transactionsForActivity_returns_every_type_in_time_order(): void

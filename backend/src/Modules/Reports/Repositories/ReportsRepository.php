@@ -142,43 +142,6 @@ class ReportsRepository
     }
 
     /**
-     * Spend totals ordered highest first, one row per member (UC-A51).
-     *
-     * No column identifies whose row it is — not the name, not even the id. That
-     * is the point of #177: a named ranking of who drinks most is a consumption
-     * profile ADR-0029 prohibits, and leaving identity out of the SELECT means it
-     * never reaches the aggregate rather than being dropped on the way out. The
-     * grouping still happens per member; only the label is withheld.
-     *
-     * @return list<array{total_amount_cents: int, transaction_count: int}>
-     */
-    public function memberRanking(ReportFilters $filters, int $limit): array
-    {
-        // Date range only: this query joins members, not products, so it has no
-        // `p` to filter a category on. The ranking has never been narrowable by
-        // product and the endpoint does not offer it.
-        [$where, $params] = $this->purchaseDateConditions($filters);
-        $bounds = $this->limitOffset($limit);
-
-        $stmt = $this->db->prepare(
-            "SELECT SUM(t.amount_cents) as total_amount_cents,
-                    COUNT(*) as transaction_count
-             FROM transactions t
-             JOIN members m ON t.member_id = m.id
-             WHERE {$where}
-             GROUP BY m.id
-             ORDER BY total_amount_cents DESC
-             {$bounds}"
-        );
-        $stmt->execute($params);
-
-        return array_map(static fn(array $row): array => [
-            'total_amount_cents' => (int) $row['total_amount_cents'],
-            'transaction_count' => (int) $row['transaction_count'],
-        ], $stmt->fetchAll());
-    }
-
-    /**
      * Every transaction in the window, oldest first, for session grouping.
      *
      * occurred_at (not received_at) drives the ordering: back-to-back sales at
@@ -233,14 +196,19 @@ class ReportsRepository
     /**
      * Per-terminal totals for the window, busiest first.
      *
-     * @return list<array{id: string, name: string, transaction_count: int, last_sync_at: ?string}>
+     * last_sync_at is deliberately not selected here: terminals sync on a fixed
+     * background timer regardless of whether anyone is using them, so it
+     * reflects heartbeat rather than business activity. It stays available on
+     * the terminal settings page instead.
+     *
+     * @return list<array{id: string, name: string, transaction_count: int}>
      */
     public function terminalSummary(ReportFilters $filters): array
     {
         [$where, $params] = $this->activityConditions($filters);
 
         $stmt = $this->db->prepare(
-            "SELECT te.id, te.name, COUNT(t.id) as transaction_count, MAX(te.last_sync_at) as last_sync_at
+            "SELECT te.id, te.name, COUNT(t.id) as transaction_count
              FROM transactions t
              JOIN terminals te ON t.created_by_terminal_id = te.id
              WHERE {$where}
@@ -253,7 +221,6 @@ class ReportsRepository
             'id' => (string) $row['id'],
             'name' => (string) $row['name'],
             'transaction_count' => (int) $row['transaction_count'],
-            'last_sync_at' => $row['last_sync_at'],
         ], $stmt->fetchAll());
     }
 

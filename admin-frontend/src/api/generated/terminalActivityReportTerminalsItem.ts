@@ -62,5 +62,4 @@ export type TerminalActivityReportTerminalsItem = {
   id?: string;
   name?: string;
   transaction_count?: number;
-  last_sync_at?: string;
 };

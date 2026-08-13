@@ -77,7 +77,7 @@ Complete index of all use cases across domains, with implementation status.
 | ID | Name | Status | Link |
 |----|------|--------|------|
 | UC-A50 | Reports | Partial — action needed | [UC-A50](./admin/UC-A50-reports.md) |
-| UC-A51 | Member Ranking | Partial — action needed | [UC-A51](./admin/UC-A51-member-ranking.md) |
+| UC-A51 | Member Ranking | Removed | [UC-A51](./admin/UC-A51-member-ranking.md) |
 | UC-A52 | Terminal Activity | Not implemented — action needed | [UC-A52](./admin/UC-A52-terminal-activity.md) |
 
 ### Settings

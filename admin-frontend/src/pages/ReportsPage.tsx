@@ -1,8 +1,8 @@
 /**
  * Reports Page
  * Advanced reporting dashboard for revenue, consumption, transactions,
- * member ranking, and terminal activity.
- * Implements UC-A50, UC-A51, UC-A52
+ * and terminal activity.
+ * Implements UC-A50, UC-A52
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -18,7 +18,6 @@ import {
 } from 'recharts'
 import { getReports } from '../api/generated/reports/reports'
 import type { GetReportGroupBy } from '../api/generated'
-import { downloadFile } from '../api/client'
 import { toIsoDate } from '../utils/dates'
 
 // ─── Local Types (UI-facing, mapped from generated API types) ─────────────────
@@ -55,30 +54,6 @@ interface ReportResponse {
   rows: ReportRow[]
 }
 
-interface MemberRankingParams {
-  date_from?: string
-  date_to?: string
-  limit?: number
-}
-
-interface MemberRankingRow {
-  rank: number
-  /** Always the ordinal label "Member N" — the ranking has no named mode (#177). */
-  member_name: string
-  total_amount_cents: number
-  transaction_count: number
-}
-
-interface MemberRankingResponse {
-  rows: MemberRankingRow[]
-  metadata: {
-    date_from: string
-    date_to: string
-    limit: number
-    total_members: number
-  }
-}
-
 interface TerminalActivityParams {
   date_from: string
   date_to: string
@@ -103,7 +78,6 @@ interface TerminalSummary {
   transaction_count: number
   // Not computed by the backend's terminal-activity aggregation — always 0.
   revenue_cents: number
-  last_sync: string | null
 }
 
 interface TerminalActivityResponse {
@@ -142,26 +116,6 @@ async function getReport(reportType: ReportType, params: ReportParams = {}, sign
   }
 }
 
-async function getMemberRanking(params: MemberRankingParams = {}, signal?: AbortSignal): Promise<MemberRankingResponse> {
-  const raw = await getReports().getMemberRanking(params, { signal })
-  const rows = raw.data ?? []
-  return {
-    rows: rows.map((row) => ({
-      rank: row.rank ?? 0,
-      member_name: row.member_name ?? '',
-      total_amount_cents: row.total_amount_cents ?? 0,
-      transaction_count: row.transaction_count ?? 0,
-    })),
-    // The backend doesn't echo metadata for this endpoint — derive it from the request.
-    metadata: {
-      date_from: params.date_from ?? '',
-      date_to: params.date_to ?? '',
-      limit: params.limit ?? 25,
-      total_members: rows.length,
-    },
-  }
-}
-
 async function getTerminalActivity(params: TerminalActivityParams, signal?: AbortSignal): Promise<TerminalActivityResponse> {
   const raw = await getReports().getTerminalActivity(params, { signal })
   const sessions = raw.sessions ?? []
@@ -183,7 +137,6 @@ async function getTerminalActivity(params: TerminalActivityParams, signal?: Abor
       transaction_count: t.transaction_count ?? 0,
       // Not computed by the backend's terminal-activity aggregation — always 0.
       revenue_cents: 0,
-      last_sync: t.last_sync_at ?? null,
     })),
     // The backend doesn't echo metadata for this endpoint — derive it from the sessions.
     metadata: {
@@ -195,30 +148,6 @@ async function getTerminalActivity(params: TerminalActivityParams, signal?: Abor
   }
 }
 
-type ExportableReport = ReportType | 'member-ranking' | 'terminal-activity'
-
-/**
- * Every report has a `/export` sibling that answers with CSV; the list endpoints
- * only ever answer with JSON. Going through downloadFile keeps session auth, the
- * global loading indicator and the 401 redirect intact, honours the filename the
- * backend puts in Content-Disposition, and — unlike a bare anchor click — rejects
- * on failure so the caller can tell the user.
- */
-async function exportReport(
-  reportType: ExportableReport,
-  params: Record<string, string | number | boolean | undefined> = {}
-): Promise<void> {
-  const query = Object.entries(params)
-    .filter(([, v]) => v !== undefined && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-    .join('&')
-  // The fallback name only applies if the backend omits Content-Disposition;
-  // it still stamps the admin's calendar day, not Greenwich's (#95).
-  await downloadFile(
-    `/admin/reports/${reportType}/export${query ? `?${query}` : ''}`,
-    `report-${reportType}-${toIsoDate(new Date())}.csv`
-  )
-}
 import { theme } from '../styles/design-system'
 import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -450,7 +379,7 @@ function FilterSelect({ value, onChange, options, testId, label, minWidth = 80 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-type TabId = 'revenue' | 'consumption' | 'member-ranking' | 'terminal-activity'
+type TabId = 'revenue' | 'consumption' | 'terminal-activity'
 
 export function ReportsPage() {
   const { t } = useTranslation()
@@ -461,7 +390,6 @@ export function ReportsPage() {
   // One per tab: each tab owns its own in-flight request, so switching tabs or
   // re-applying a filter can only ever discard the tab's own stale answer.
   const reportRequest = useLatestRequest()
-  const rankingRequest = useLatestRequest()
   const terminalRequest = useLatestRequest()
 
   const [activeTab, setActiveTab] = useState<TabId>('revenue')
@@ -477,19 +405,10 @@ export function ReportsPage() {
   const [reportLoading, setReportLoading] = useState(false)
   const [reportError, setReportError] = useState<string | null>(null)
 
-  // ── Member ranking (tab 4) state ──
-  const [rankingLimit, setRankingLimit] = useState<number>(25)
-  const [rankingData, setRankingData] = useState<MemberRankingResponse | null>(null)
-  const [rankingLoading, setRankingLoading] = useState(false)
-  const [rankingError, setRankingError] = useState<string | null>(null)
-
-  // ── Terminal activity (tab 5) state ──
+  // ── Terminal activity (tab 4) state ──
   const [terminalData, setTerminalData] = useState<TerminalActivityResponse | null>(null)
   const [terminalLoading, setTerminalLoading] = useState(false)
   const [terminalError, setTerminalError] = useState<string | null>(null)
-
-  // ── CSV export state (shared by every tab's export button) ──
-  const [exportError, setExportError] = useState<string | null>(null)
 
   // ─── Load data ───────────────────────────────────────────────────────────
 
@@ -513,27 +432,6 @@ export function ReportsPage() {
     }
   }, [activeTab, dateFrom, dateTo, groupBy, reportRequest, t])
 
-  const loadRanking = useCallback(async () => {
-    const signal = rankingRequest.next()
-    setRankingLoading(true)
-    setRankingError(null)
-    try {
-      const params: MemberRankingParams = {
-        date_from: dateFrom,
-        date_to: dateTo,
-        limit: rankingLimit,
-      }
-      const data = await getMemberRanking(params, signal)
-      if (signal.aborted) return
-      setRankingData(data)
-    } catch (err) {
-      if (signal.aborted) return
-      setRankingError(err instanceof Error ? err.message : t('errors.generic'))
-    } finally {
-      if (!signal.aborted) setRankingLoading(false)
-    }
-  }, [dateFrom, dateTo, rankingLimit, rankingRequest, t])
-
   const loadTerminalActivity = useCallback(async () => {
     const signal = terminalRequest.next()
     setTerminalLoading(true)
@@ -554,14 +452,9 @@ export function ReportsPage() {
   // Load data when tab changes. Leaving a tab abandons its request, so a slow
   // answer cannot land on the tab the admin switched to.
   useEffect(() => {
-    setExportError(null)
     if (activeTab === 'revenue' || activeTab === 'consumption') {
       loadReport()
       return () => reportRequest.abort()
-    }
-    if (activeTab === 'member-ranking') {
-      loadRanking()
-      return () => rankingRequest.abort()
     }
     if (activeTab === 'terminal-activity') {
       loadTerminalActivity()
@@ -574,28 +467,8 @@ export function ReportsPage() {
   const handleApplyFilter = () => {
     if (activeTab === 'revenue' || activeTab === 'consumption') {
       loadReport()
-    } else if (activeTab === 'member-ranking') {
-      loadRanking()
     } else if (activeTab === 'terminal-activity') {
       loadTerminalActivity()
-    }
-  }
-
-  const handleExportCsv = async () => {
-    setExportError(null)
-    const params: Record<string, string | number | boolean | undefined> = {
-      date_from: dateFrom,
-      date_to: dateTo,
-    }
-    if (activeTab === 'revenue' || activeTab === 'consumption') {
-      params.group_by = groupBy
-    } else if (activeTab === 'member-ranking') {
-      params.limit = rankingLimit
-    }
-    try {
-      await exportReport(activeTab, params)
-    } catch (err) {
-      setExportError(err instanceof Error ? err.message : t('errors.generic'))
     }
   }
 
@@ -655,19 +528,6 @@ export function ReportsPage() {
     ...(isMobile ? { width: '100%' } : {}),
   }
 
-  const exportBtnStyle: React.CSSProperties = {
-    padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
-    background: theme.softTint.success,
-    border: '1px solid rgba(34, 197, 94, 0.4)',
-    borderRadius: theme.borderRadius.md,
-    color: theme.colors.semantic.success,
-    fontWeight: 600,
-    fontSize: theme.typography.fontSize.sm,
-    cursor: 'pointer',
-    marginBottom: theme.spacing.lg,
-    ...(isMobile ? { width: '100%' } : {}),
-  }
-
   const errorStyle: React.CSSProperties = {
     padding: theme.spacing.md,
     background: theme.badges.danger.bg,
@@ -684,21 +544,6 @@ export function ReportsPage() {
     padding: isMobile ? theme.spacing.md : theme.spacing.xl,
     marginBottom: theme.spacing.xl,
   }
-
-  // Every tab renders the same export control, and a failed export has to say so
-  // rather than leaving the button looking like it worked.
-  const exportSection = (
-    <>
-      <button data-testid="report-export-csv" onClick={handleExportCsv} style={exportBtnStyle}>
-        {t('reports.exportCsv')}
-      </button>
-      {exportError && (
-        <div data-testid="report-export-error" style={errorStyle}>
-          {t('reports.exportFailed', { message: exportError })}
-        </div>
-      )}
-    </>
-  )
 
   // ─── Render: Standard Report Tabs (1-3) ──────────────────────────────────
 
@@ -862,9 +707,6 @@ export function ReportsPage() {
               )}
             </div>
 
-            {/* Export Button */}
-            {exportSection}
-
             {/* Data Table */}
             <div data-testid="report-table" style={cardStyle}>
               <h3 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('reports.tableTitle')}</h3>
@@ -922,145 +764,7 @@ export function ReportsPage() {
     )
   }
 
-  // ─── Render: Member Ranking (tab 4) ──────────────────────────────────────
-
-  const renderMemberRanking = () => {
-    const locale = formatters.intlLocale
-
-    return (
-      <>
-        {/* Filters */}
-        <div style={filterGroupStyle}>
-          {/* Date row: side-by-side on mobile, inline on desktop */}
-          <div style={isMobile ? { display: 'flex', gap: theme.spacing.sm } : { display: 'contents' }}>
-            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
-              <label style={labelStyle}>{t('reports.dateFrom')}</label>
-              <input
-                type="date"
-                data-testid="report-filter-date-from"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
-              />
-            </div>
-            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
-              <label style={labelStyle}>{t('reports.dateTo')}</label>
-              <input
-                type="date"
-                data-testid="report-filter-date-to"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
-              />
-            </div>
-          </div>
-          <FilterSelect
-            value={String(rankingLimit)}
-            onChange={(v) => setRankingLimit(Number(v))}
-            testId="ranking-limit"
-            label={t('reports.limit')}
-            options={[
-              { value: '10', label: '10' },
-              { value: '25', label: '25' },
-              { value: '50', label: '50' },
-              { value: '100', label: '100' },
-            ]}
-          />
-          <button
-            data-testid="report-apply-filter"
-            onClick={handleApplyFilter}
-            style={applyBtnStyle}
-          >
-            {t('reports.applyFilter')}
-          </button>
-        </div>
-
-        {/* Error */}
-        {rankingError && <div style={errorStyle}>{rankingError}</div>}
-
-        {/* Loading */}
-        {rankingLoading && (
-          <div style={{ textAlign: 'center', color: theme.colors.text.secondary, padding: theme.spacing.xl }}>
-            {t('common.loading')}
-          </div>
-        )}
-
-        {/* Export + Table */}
-        {!rankingLoading && rankingData && (
-          <>
-            {exportSection}
-
-            <div data-testid="ranking-table" style={cardStyle}>
-              <h3 style={{ margin: 0, marginBottom: theme.spacing.xs }}>{t('reports.memberRankingTitle')}</h3>
-              {/* The ranking has no named mode (#177) — say so, so nobody hunts for the toggle. */}
-              <p
-                data-testid="ranking-anonymous-note"
-                style={{
-                  margin: 0,
-                  marginBottom: theme.spacing.lg,
-                  fontSize: theme.typography.fontSize.xs,
-                  color: theme.colors.text.secondary,
-                }}
-              >
-                {t('reports.rankingAnonymousNote')}
-              </p>
-              {rankingData.rows.length > 0 ? (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={tableElementStyles}>
-                    <thead>
-                      <tr style={headerRowStyle}>
-                        <th style={{ ...headerCellBaseStyle, width: '50px' }}>{t('reports.colRank')}</th>
-                        <th style={headerCellBaseStyle}>{t('reports.colMemberName')}</th>
-                        <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('reports.colTotalAmount')}</th>
-                        <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('reports.colTransactionCount')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rankingData.rows.map((row, index) => (
-                        <tr
-                          key={`ranking-${row.rank}-${index}`}
-                          data-testid={`report-row-${index}`}
-                          style={{
-                            borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
-                            color: tableColors.cellText,
-                          }}
-                        >
-                          <td style={{ padding: tableSpacing.cellPadding, color: theme.colors.text.muted }}>
-                            {row.rank}
-                          </td>
-                          <td style={{ padding: tableSpacing.cellPadding, fontWeight: index < 3 ? 600 : 400 }}>
-                            {row.member_name}
-                          </td>
-                          <td
-                            style={{
-                              padding: tableSpacing.cellPadding,
-                              textAlign: 'right',
-                              fontFamily: 'JetBrains Mono, monospace',
-                            }}
-                          >
-                            {formatters.formatPrice(row.total_amount_cents)}
-                          </td>
-                          <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right' }}>
-                            {row.transaction_count.toLocaleString(locale)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', color: theme.colors.text.muted, padding: theme.spacing.lg }}>
-                  {t('reports.noData')}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </>
-    )
-  }
-
-  // ─── Render: Terminal Activity (tab 5) ───────────────────────────────────
+  // ─── Render: Terminal Activity (tab 4) ───────────────────────────────────
 
   const renderTerminalActivity = () => {
     const locale = formatters.intlLocale
@@ -1118,9 +822,6 @@ export function ReportsPage() {
 
         {!terminalLoading && terminalData && (
           <>
-            {/* Export */}
-            {exportSection}
-
             {/* Sessions Table */}
             <div data-testid="terminal-sessions" style={cardStyle}>
               <h3 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('reports.sessionsTitle')}</h3>
@@ -1220,7 +921,6 @@ export function ReportsPage() {
                         <th style={headerCellBaseStyle}>{t('reports.colTerminalName')}</th>
                         <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('reports.colTransactions')}</th>
                         <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('reports.colRevenue')}</th>
-                        <th style={headerCellBaseStyle}>{t('reports.colLastSync')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1248,9 +948,6 @@ export function ReportsPage() {
                           >
                             {formatters.formatPrice(ts.revenue_cents)}
                           </td>
-                          <td style={{ padding: tableSpacing.cellPadding, color: theme.colors.text.secondary }}>
-                            {ts.last_sync ?? '—'}
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1272,7 +969,7 @@ export function ReportsPage() {
 
   return (
     <div data-testid="reports-page" style={{ padding: isMobile ? '12px' : '20px' }}>
-      <h2 style={{ margin: 0, marginBottom: theme.spacing.xl, fontSize: isMobile ? '20px' : undefined }}>{t('reports.title')}</h2>
+      <h1 style={{ margin: '0 0 20px 0', fontSize: isMobile ? '20px' : undefined }}>{t('reports.title')}</h1>
 
       {/* Tab Bar */}
       <div
@@ -1302,13 +999,6 @@ export function ReportsPage() {
           {t('reports.tabConsumption')}
         </button>
         <button
-          data-testid="report-tab-member-ranking"
-          onClick={() => setActiveTab('member-ranking')}
-          style={tabStyle('member-ranking')}
-        >
-          {t('reports.tabMemberRanking')}
-        </button>
-        <button
           data-testid="report-tab-terminal-activity"
           onClick={() => setActiveTab('terminal-activity')}
           style={tabStyle('terminal-activity')}
@@ -1319,7 +1009,6 @@ export function ReportsPage() {
 
       {/* Tab Content */}
       {(activeTab === 'revenue' || activeTab === 'consumption') && renderStandardReport()}
-      {activeTab === 'member-ranking' && renderMemberRanking()}
       {activeTab === 'terminal-activity' && renderTerminalActivity()}
     </div>
   )

@@ -1,6 +1,8 @@
 # UC-A51: Member Ranking
 
-**Implementation Status**: Implemented
+**Implementation Status**: Removed — the tab, its API endpoints, and its CSV
+export were removed from the admin panel. This document is kept as a record
+of why the feature existed and why it was withdrawn rather than restricted.
 
 ## Actor
 Admin

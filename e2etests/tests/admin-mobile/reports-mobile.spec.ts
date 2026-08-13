@@ -7,7 +7,6 @@
  * - Filter bar stacks vertically on mobile
  * - Summary cards display in 2-column layout on mobile
  * - Tab switching works on mobile (touch-friendly targets)
- * - Member Ranking tab renders on mobile
  * - Terminal Activity tab renders on mobile
  *
  * Implements E2E Testing Patterns:
@@ -32,11 +31,6 @@ test.describe('Reports Page - Mobile', () => {
     await expect(page.getByTestId('report-summary-revenue')).toBeVisible({ timeout: 15000 })
   }
 
-  /** Wait for ranking table to appear */
-  async function waitForRankingLoaded(page: import('@playwright/test').Page) {
-    await expect(page.getByTestId('ranking-table')).toBeVisible({ timeout: 15000 })
-  }
-
   /** Wait for terminal activity sessions section to appear */
   async function waitForTerminalLoaded(page: import('@playwright/test').Page) {
     await expect(page.getByTestId('terminal-sessions')).toBeVisible({ timeout: 15000 })
@@ -51,10 +45,9 @@ test.describe('Reports Page - Mobile', () => {
       await expect(page.getByTestId('report-tabs')).toBeVisible()
     })
 
-    test('should display four tab buttons on mobile', async ({ page }) => {
+    test('should display three tab buttons on mobile', async ({ page }) => {
       await expect(page.getByTestId('report-tab-revenue')).toBeVisible()
       await expect(page.getByTestId('report-tab-consumption')).toBeVisible()
-      await expect(page.getByTestId('report-tab-member-ranking')).toBeVisible()
       await expect(page.getByTestId('report-tab-terminal-activity')).toBeVisible()
     })
   })
@@ -158,38 +151,6 @@ test.describe('Reports Page - Mobile', () => {
     test('revenue tab should load data and display chart on mobile', async ({ page }) => {
       await waitForReportLoaded(page)
       await expect(page.getByTestId('report-chart')).toBeVisible()
-    })
-  })
-
-  test.describe('Member Ranking Tab on Mobile', () => {
-    test('should switch to member ranking tab on mobile', async ({ page }) => {
-      const rankingTab = page.getByTestId('report-tab-member-ranking')
-      await rankingTab.scrollIntoViewIfNeeded()
-      await rankingTab.click()
-
-      // Ranking-specific filters should appear. There is no display-mode
-      // toggle — the ranking is always anonymous (#177).
-      await expect(page.getByTestId('ranking-limit-trigger')).toBeVisible()
-      await expect(page.getByTestId('ranking-anonymize')).toHaveCount(0)
-    })
-
-    test('should load ranking table on mobile', async ({ page }) => {
-      const rankingTab = page.getByTestId('report-tab-member-ranking')
-      await rankingTab.scrollIntoViewIfNeeded()
-      await rankingTab.click()
-
-      await waitForRankingLoaded(page)
-      await expect(page.getByTestId('ranking-table')).toBeVisible()
-    })
-
-    test('should display date filters on member ranking tab on mobile', async ({ page }) => {
-      const rankingTab = page.getByTestId('report-tab-member-ranking')
-      await rankingTab.scrollIntoViewIfNeeded()
-      await rankingTab.click()
-
-      await expect(page.getByTestId('report-filter-date-from')).toBeVisible()
-      await expect(page.getByTestId('report-filter-date-to')).toBeVisible()
-      await expect(page.getByTestId('report-apply-filter')).toBeVisible()
     })
   })
 

@@ -191,11 +191,7 @@ return function (App $app): void {
         $group->patch('/instance-config', [InstanceConfigController::class, 'update']);
 
         // Reports
-        $group->get('/reports/member-ranking', [ReportsAdminController::class, 'memberRanking']);
-        $group->get('/reports/member-ranking/export', [ReportsAdminController::class, 'exportMemberRanking']);
         $group->get('/reports/terminal-activity', [ReportsAdminController::class, 'terminalActivity']);
-        $group->get('/reports/terminal-activity/export', [ReportsAdminController::class, 'exportTerminalActivity']);
-        $group->get('/reports/{reportType}/export', [ReportsAdminController::class, 'exportReport']);
         $group->get('/reports/{reportType}', [ReportsAdminController::class, 'getReport']);
 
         // Bank lookup
