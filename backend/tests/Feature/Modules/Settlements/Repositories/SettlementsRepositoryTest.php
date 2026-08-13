@@ -1157,15 +1157,18 @@ class SettlementsRepositoryTest extends DatabaseTestCase
     private function giveTestMandate(string $memberId): void
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban, signed_at)
-             VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_ciphertext, iban_last4, iban_fingerprint, encryption_key_id, signed_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $this->generateUuid(),
             $memberId,
             $memberId,
             'MND-' . substr($memberId, 0, 12),
-            'DE89370400440532013000',
+            $this->sealIban('DE89370400440532013000'),
+            '3000',
+            $this->ibanFingerprint('DE89370400440532013000'),
+            self::DEV_KEY_ID,
             '2024-01-01',
         ]);
     }

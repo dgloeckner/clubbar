@@ -22,19 +22,18 @@ class MembersRepository
      *
      * Since ADR-0036 the IBAN itself is sealed (iban_ciphertext) and reads
      * expose only what routine operation needs: the last four characters, the
-     * bank name resolved at write time, and presence (`has_iban`). The
-     * COALESCE arms cover legacy rows that still carry plaintext `iban`
-     * because the one-time batch encryption has not sealed them yet — their
-     * last4 is derived on read so the UI is complete either way. The
-     * plaintext itself is deliberately NOT selected here; the SEPA export
-     * reads it through findSealedIban() only.
+     * bank name resolved at write time, and presence (`has_iban`). There is no
+     * plaintext column to fall back to — it was dropped in migration 020 — so
+     * these columns are the whole of what any read can learn about the
+     * account. The ciphertext itself is deliberately NOT selected here; the
+     * SEPA export reads it through findSealedIban() only.
      */
     private const MANDATE_JOIN =
         'LEFT JOIN mandates md ON md.active_member_id = m.id';
 
     private const MANDATE_COLUMNS =
-        "COALESCE(md.iban_last4, RIGHT(REPLACE(UPPER(md.iban), ' ', ''), 4)) AS iban_last4, "
-        . '(md.iban_ciphertext IS NOT NULL OR md.iban IS NOT NULL) AS has_iban, '
+        'md.iban_last4, '
+        . '(md.iban_ciphertext IS NOT NULL) AS has_iban, '
         . 'md.bank_name, md.reference AS mandate_reference, md.signed_at AS mandate_signed_at';
 
     public function __construct(
@@ -171,16 +170,9 @@ class MembersRepository
         $current = $this->findActiveMandate($id);
 
         // The stored IBAN is sealed and this code cannot open it (ADR-0036);
-        // identity is decided by the keyed fingerprint instead. Legacy rows the
-        // batch encryption has not sealed yet still hold plaintext, so their
-        // fingerprint is computed on the fly — treating them as "always
-        // changed" would end and re-open a mandate on every save, silently
-        // churning the MREFs the bank already knows.
-        $currentFingerprint = null;
-        if ($current !== null) {
-            $currentFingerprint = $current['iban_fingerprint']
-                ?? ($current['iban'] !== null ? $this->sealedBox->fingerprint($current['iban']) : null);
-        }
+        // identity is decided by the keyed fingerprint instead. Every stored
+        // mandate has one, so the comparison is a straight lookup.
+        $currentFingerprint = $current['iban_fingerprint'] ?? null;
 
         $submittedIban = array_key_exists('iban', $data) ? ($data['iban'] ?: null) : null;
         $submittedFingerprint = $submittedIban !== null ? $this->sealedBox->fingerprint($submittedIban) : null;
@@ -254,8 +246,8 @@ class MembersRepository
         $key = $this->encryptionKeys->requireOperationalActive();
 
         $stmt = $this->db->prepare(
-            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban, iban_ciphertext, iban_last4, iban_fingerprint, encryption_key_id, bank_name, signed_at, created_by_admin_id)
-             VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_ciphertext, iban_last4, iban_fingerprint, encryption_key_id, bank_name, signed_at, created_by_admin_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $mandateId,
@@ -289,15 +281,15 @@ class MembersRepository
 
     /**
      * The sealed IBAN material of a member's active mandate — the ONLY read
-     * that touches the ciphertext (and, until the batch encryption finishes, a
-     * legacy plaintext remnant). Sole consumer is the SEPA export, which either
-     * opens the ciphertext with the temporarily supplied private key or uses
-     * the legacy plaintext directly (ADR-0036).
+     * that touches the ciphertext. Sole consumer is the SEPA export, which
+     * opens it with the temporarily supplied private key (ADR-0036). There is
+     * no other way back to the plaintext: no column holds it, and this process
+     * has no key.
      */
     public function findSealedIban(string $memberId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT iban_ciphertext, iban AS legacy_iban, encryption_key_id FROM mandates WHERE active_member_id = ?'
+            'SELECT iban_ciphertext, encryption_key_id FROM mandates WHERE active_member_id = ?'
         );
         $stmt->execute([$memberId]);
         return $stmt->fetch() ?: null;

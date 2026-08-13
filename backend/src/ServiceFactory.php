@@ -21,7 +21,6 @@ use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Security\Services\EncryptionKeyService;
-use App\Modules\Security\Services\IbanEncryptionMigrationService;
 use App\Modules\Security\Controllers\EncryptionKeysController;
 use App\Shared\Security\IbanSealedBox;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
@@ -353,24 +352,12 @@ class ServiceFactory implements ContainerInterface
         ));
     }
 
-    public function getIbanEncryptionMigrationService(): IbanEncryptionMigrationService
-    {
-        return $this->resolve(IbanEncryptionMigrationService::class, fn() => new IbanEncryptionMigrationService(
-            $this->pdo,
-            $this->getIbanSealedBox(),
-            $this->getEncryptionKeyService(),
-            $this->getAuditService(),
-            $this->getBankCodeService(),
-        ));
-    }
-
     public function getEncryptionKeysController(): EncryptionKeysController
     {
         return $this->resolve(EncryptionKeysController::class, fn() => new EncryptionKeysController(
             $this->getEncryptionKeyService(),
             $this->getStepUpAuthService(),
             $this->getValidator(),
-            $this->getIbanEncryptionMigrationService(),
         ));
     }
 
@@ -665,7 +652,7 @@ class ServiceFactory implements ContainerInterface
     public function getSecurityCheckController(): SecurityCheckController
     {
         return $this->resolve(SecurityCheckController::class, fn() => new SecurityCheckController(
-            new SecurityCheckService($this->config, $this->getIbanEncryptionMigrationService()),
+            new SecurityCheckService($this->config),
         ));
     }
 

@@ -52,7 +52,14 @@ Documented residual risks (not addressed by this design):
 | iban_fingerprint | CHAR(64) | Keyed `sodium_crypto_generichash(normalized_iban, IBAN_FINGERPRINT_KEY)`, hex |
 | encryption_key_id | CHAR(36) FK | The key generation this row is sealed under |
 | bank_name | VARCHAR(255) | Resolved from the BLZ at write time (list display can no longer derive it) |
-| iban | VARCHAR(34) NULL | Legacy plaintext; nulled row-by-row by the one-time batch encryption; column drop is a follow-up release |
+
+There is deliberately **no plaintext IBAN column**. `018` created one as a
+nullable remnant so an existing install could seal what it already held; `020`
+dropped it, along with the one-time batch encryption that would have filled it
+in. Nothing had shipped, so there was no stored IBAN anywhere to migrate — and
+while the column existed, "the server cannot read an IBAN" held only for as
+long as the column stayed empty. With it gone, no row shape yields a readable
+IBAN without the private half of the club's keypair.
 
 The IBAN is normalized (uppercase, no spaces) and mod-97-validated before sealing — validation happens while the plaintext is transiently in memory at write time, exactly as before.
 
@@ -129,13 +136,13 @@ Full IBANs leave the system in exactly one place: the SEPA XML handed to the ban
 - ❌ **Losing the last valid private key makes all IBANs sealed under it unrecoverable.** The club's key archive is now part of the backup story; recovery copies must be tested periodically (operational procedure in `docs/deployment.md`).
 - ❌ SEPA export gains a step: the treasurer must supply the private key (step-up + file/paste) on each export.
 - ❌ The treasurer's workstation becomes security-relevant during key operations — documented residual risk.
-- ❌ After the one-time batch encryption, rolling back to a pre-encryption release is unsafe (old code would find no plaintext); a DB backup from before the upgrade is the only rollback path.
+- ❌ Rolling back to a pre-encryption release is unsafe: old code would look for a plaintext column that no longer exists, and the values cannot be recovered from the ciphertext without the private key. A DB backup taken before the upgrade, or a SEPA export taken with the key, is the only path back.
+- ❌ A fresh install cannot store an IBAN until an admin registers and activates a key. That is inherent — the server never holds a private key, so nothing it generated for itself would be safe to seal with — but it is a real step between installing and entering the first member's bank details, and the installer cannot do it for the club.
 - ❌ Bank-name display depends on write-time resolution; names change only when the mandate is next touched.
 
 ### Residual risks kept open (tracked as follow-ups)
 
 - `mysqldump` backups are unencrypted (they now contain ciphertext, but the rest of the row set is still personal data) — recommend `gpg -c` in the backup procedure.
-- The legacy plaintext `iban` column is dropped in a later release, after all installs have run the batch encryption.
 - `TotpService` still uses its own AES-256-CBC path; migrating it onto a shared abstraction is out of scope here.
 
 ## Alternatives Considered

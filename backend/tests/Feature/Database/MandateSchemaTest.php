@@ -26,7 +26,7 @@ class MandateSchemaTest extends SchemaTestCase
     public function test_a_bank_change_ends_the_old_mandate_and_adds_a_new_one(): void
     {
         $memberId = $this->createMember();
-        $oldId = $this->insertMandate($memberId, ['iban' => 'DE89370400440532013000']);
+        $oldId = $this->insertMandate($memberId);
 
         // Append-only: the superseded mandate is ended in place, never rewritten,
         // so a return quoting its MREF+ still resolves after the member moves bank.
@@ -37,17 +37,20 @@ class MandateSchemaTest extends SchemaTestCase
         );
         $stmt->execute([$oldId]);
 
-        $newId = $this->insertMandate($memberId, ['iban' => 'DE02120300000000202051']);
+        $newId = $this->insertMandate($memberId, ['iban_last4' => '2051']);
 
         $stmt = $this->db->prepare(
-            'SELECT id, iban, is_active FROM mandates WHERE member_id = ? ORDER BY is_active ASC'
+            'SELECT id, iban_last4, is_active FROM mandates WHERE member_id = ? ORDER BY is_active ASC'
         );
         $stmt->execute([$memberId]);
         $mandates = $stmt->fetchAll();
 
         $this->assertCount(2, $mandates, 'the old mandate must survive the bank change');
         $this->assertSame($oldId, $mandates[0]['id']);
-        $this->assertSame('DE89370400440532013000', $mandates[0]['iban']);
+        // The IBAN itself is sealed (ADR-0036); the last four characters are
+        // what any read can see, and they are enough to tell the superseded
+        // account from the new one.
+        $this->assertSame('3000', $mandates[0]['iban_last4']);
         $this->assertSame($newId, $mandates[1]['id']);
         $this->assertSame(1, (int) $mandates[1]['is_active']);
     }
@@ -86,7 +89,9 @@ class MandateSchemaTest extends SchemaTestCase
             'member_id' => $memberId,
             'active_member_id' => $memberId,
             'reference' => str_replace('-', '', $this->generateUuid()),
-            'iban' => 'DE89370400440532013000',
+            'iban_ciphertext' => $this->sealIban('DE89370400440532013000'),
+            'iban_last4' => '3000',
+            'encryption_key_id' => self::DEV_KEY_ID,
             'signed_at' => '2026-01-15',
         ], $overrides);
 

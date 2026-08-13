@@ -301,8 +301,16 @@ class DashboardRepositoryTest extends DatabaseTestCase
         $this->testMandateIds[] = $id;
 
         $this->db->prepare(
-            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban) VALUES (?, ?, ?, ?, ?)'
-        )->execute([$id, $memberId, $memberId, substr(str_replace('-', '', $id), 0, 35), 'DE89370400440532013000']);
+            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_ciphertext, iban_last4, encryption_key_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        )->execute([
+            $id,
+            $memberId,
+            $memberId,
+            substr(str_replace('-', '', $id), 0, 35),
+            $this->sealIban('DE89370400440532013000'),
+            '3000',
+            self::DEV_KEY_ID,
+        ]);
 
         return $id;
     }

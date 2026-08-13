@@ -57,7 +57,7 @@ class SepaExportServiceTest extends TestCase
 
         $this->expectException(NotFoundException::class);
 
-        $this->service->export('missing-id');
+        $this->service->export('missing-id', self::opener());
     }
 
     public function test_export_refuses_a_cancelled_settlement_with_an_accurate_error(): void
@@ -80,7 +80,7 @@ class SepaExportServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessageMatches('/was cancelled and cannot be exported/i');
 
-        $this->service->export('settlement-1');
+        $this->service->export('settlement-1', self::opener());
     }
 
     public function test_export_refuses_a_settlement_whose_collections_were_reversed(): void
@@ -104,7 +104,7 @@ class SepaExportServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessageMatches('/reversed collection/i');
 
-        $this->service->export(self::SETTLEMENT_ID);
+        $this->service->export(self::SETTLEMENT_ID, self::opener());
     }
 
     public function test_export_reports_a_member_whose_mandate_is_gone_instead_of_dropping_them(): void
@@ -122,7 +122,7 @@ class SepaExportServiceTest extends TestCase
                 + self::member('Grace', 'Hopper'),
         ]);
 
-        $result = $this->service->export(self::SETTLEMENT_ID);
+        $result = $this->service->export(self::SETTLEMENT_ID, self::opener());
 
         $this->assertSame(
             [self::OTHER_MEMBER_ID],
@@ -153,7 +153,7 @@ class SepaExportServiceTest extends TestCase
             self::MEMBER_ID => ['deleted_at' => '2026-08-07 09:00:00'] + self::member('Ada', 'Lovelace'),
         ]);
 
-        $result = $this->service->export(self::SETTLEMENT_ID);
+        $result = $this->service->export(self::SETTLEMENT_ID, self::opener());
 
         $this->assertSame(SepaExclusionReason::MEMBER_DELETED, $result->excludedMembers[0]->reason);
         // Named, not a bare UUID: the treasurer has to act on this.
@@ -177,7 +177,7 @@ class SepaExportServiceTest extends TestCase
             self::OTHER_MEMBER_ID => self::member('Grace', 'Hopper'),
         ]);
 
-        $result = $this->service->export(self::SETTLEMENT_ID);
+        $result = $this->service->export(self::SETTLEMENT_ID, self::opener());
 
         $this->assertSame(
             [self::OTHER_MEMBER_ID],
@@ -201,7 +201,7 @@ class SepaExportServiceTest extends TestCase
             self::OTHER_MEMBER_ID => self::member('Grace', 'Hopper'),
         ]);
 
-        $result = $this->service->export(self::SETTLEMENT_ID);
+        $result = $this->service->export(self::SETTLEMENT_ID, self::opener());
 
         $this->assertSame([], $result->excludedMembers);
         $this->assertSame(1500, $result->collectedAmountCents);
@@ -221,7 +221,7 @@ class SepaExportServiceTest extends TestCase
         // Nothing to warn about, so nothing is written to the log.
         $this->logger->expects($this->never())->method('warning');
 
-        $result = $this->service->export(self::SETTLEMENT_ID);
+        $result = $this->service->export(self::SETTLEMENT_ID, self::opener());
 
         $this->assertSame([], $result->excludedMembers);
         $this->assertSame($result->settlementAmountCents, $result->collectedAmountCents);
@@ -256,7 +256,7 @@ class SepaExportServiceTest extends TestCase
                     ]]),
             );
 
-        $this->service->export(self::SETTLEMENT_ID);
+        $this->service->export(self::SETTLEMENT_ID, self::opener());
     }
 
     public function test_the_audit_summary_carries_every_exclusion_and_both_totals(): void
@@ -271,7 +271,7 @@ class SepaExportServiceTest extends TestCase
             self::OTHER_MEMBER_ID => ['mandate_reference' => null] + self::member('Grace', 'Hopper'),
         ]);
 
-        $summary = $this->service->export(self::SETTLEMENT_ID)->toAuditSummary();
+        $summary = $this->service->export(self::SETTLEMENT_ID, self::opener())->toAuditSummary();
 
         $this->assertSame(1500, $summary['collected_amount_cents']);
         $this->assertSame(3500, $summary['settlement_amount_cents']);
@@ -300,7 +300,7 @@ class SepaExportServiceTest extends TestCase
             self::OTHER_MEMBER_ID => ['mandate_reference' => null] + self::member('Grace', 'Hopper'),
         ]);
 
-        $summary = $this->service->export(self::SETTLEMENT_ID)->toAuditSummary();
+        $summary = $this->service->export(self::SETTLEMENT_ID, self::opener())->toAuditSummary();
 
         $encoded = json_encode($summary, JSON_THROW_ON_ERROR);
         foreach (['Grace', 'Hopper', 'Ada', 'Lovelace', 'first_name', 'last_name'] as $pii) {
@@ -319,7 +319,7 @@ class SepaExportServiceTest extends TestCase
         $this->givenItems([[self::MEMBER_ID, 1500]]);
         $this->givenMembers([self::MEMBER_ID => self::member('Ada', 'Lovelace')]);
 
-        $xml = $this->service->export(self::SETTLEMENT_ID)->xml;
+        $xml = $this->service->export(self::SETTLEMENT_ID, self::opener())->xml;
 
         // Worked by hand from the two UUIDs: hyphens stripped, first 12 hex
         // digits of each. 29 characters, inside the ISO 20022 cap of 35.
@@ -419,16 +419,26 @@ class SepaExportServiceTest extends TestCase
             ->willReturnCallback(static fn(string $id): ?array => $members[$id] ?? null);
 
         // The export resolves the plaintext through the dedicated sealed-IBAN
-        // read (ADR-0036); these fixtures model legacy rows the batch
-        // encryption has not sealed yet, so they answer with plaintext.
+        // read (ADR-0036). Every stored mandate is sealed, so these fixtures
+        // answer with ciphertext and the tests supply an opener for it.
         $this->membersRepository->method('findSealedIban')
             ->willReturnCallback(static function (string $id) use ($members): ?array {
                 $member = $members[$id] ?? null;
                 if ($member === null || empty($member['has_iban'])) {
                     return null;
                 }
-                return ['iban_ciphertext' => null, 'legacy_iban' => 'DE02120300000000202051', 'encryption_key_id' => null];
+                return ['iban_ciphertext' => 'v1:sealed', 'encryption_key_id' => 'key-1'];
             });
+    }
+
+    /**
+     * Stands in for the club's private key: the export opens every ciphertext
+     * through this closure, so a test that does not care which IBAN comes out
+     * can hand it one fixed answer.
+     */
+    private static function opener(string $iban = 'DE02120300000000202051'): \Closure
+    {
+        return static fn(string $ciphertext): string => $iban;
     }
 
     /** @return array<string, mixed> */
@@ -462,7 +472,7 @@ class SepaExportServiceTest extends TestCase
         $this->givenItems($memberAmounts);
         $this->givenMembers($members);
 
-        return $this->endToEndIds($this->service->export(self::SETTLEMENT_ID)->xml);
+        return $this->endToEndIds($this->service->export(self::SETTLEMENT_ID, self::opener())->xml);
     }
 
     public function test_a_sealed_iban_is_opened_through_the_supplied_closure(): void
@@ -473,7 +483,7 @@ class SepaExportServiceTest extends TestCase
         $this->membersRepository->method('findByIdIncludingDeleted')
             ->willReturn(self::member('Ada', 'Lovelace'));
         $this->membersRepository->method('findSealedIban')
-            ->willReturn(['iban_ciphertext' => 'v1:sealed', 'legacy_iban' => null, 'encryption_key_id' => 'key-1']);
+            ->willReturn(['iban_ciphertext' => 'v1:sealed', 'encryption_key_id' => 'key-1']);
 
         $opened = [];
         $result = $this->service->export(self::SETTLEMENT_ID, function (string $ciphertext) use (&$opened): string {
@@ -495,7 +505,7 @@ class SepaExportServiceTest extends TestCase
         $this->membersRepository->method('findByIdIncludingDeleted')
             ->willReturn(self::member('Ada', 'Lovelace'));
         $this->membersRepository->method('findSealedIban')
-            ->willReturn(['iban_ciphertext' => 'v1:sealed', 'legacy_iban' => null, 'encryption_key_id' => 'key-1']);
+            ->willReturn(['iban_ciphertext' => 'v1:sealed', 'encryption_key_id' => 'key-1']);
 
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessageMatches('/private key/i');
@@ -515,7 +525,7 @@ class SepaExportServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessageMatches('/vanished/i');
 
-        $this->service->export(self::SETTLEMENT_ID);
+        $this->service->export(self::SETTLEMENT_ID, self::opener());
     }
 
     /** @return list<string> the EndToEndIds the file carries, in document order */

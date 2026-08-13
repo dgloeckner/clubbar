@@ -38,10 +38,9 @@ class SepaExportService
      * $openIban opens a sealed IBAN ciphertext with the temporarily supplied
      * private key (ADR-0036): `fn(string $ciphertext): string`. It is invoked
      * per row, right where the plaintext goes into the XML segment, so no
-     * plaintext collection ever exists. Rows the batch encryption has not
-     * sealed yet still carry legacy plaintext and bypass it. Without the
-     * callable, a sealed row is a hard error — never a silent exclusion, which
-     * would ship a short file that reads as complete.
+     * plaintext collection ever exists. Every stored IBAN is sealed, so without
+     * the callable no file can be built at all — a hard error, never a silent
+     * exclusion, which would ship a short file that reads as complete.
      */
     public function export(string $settlementId, ?callable $openIban = null): SepaExportResultDto
     {
@@ -324,13 +323,9 @@ class SepaExportService
             throw new BusinessRuleException(sprintf('Active mandate for member %s vanished during export', $memberId));
         }
 
-        if ($sealed['legacy_iban'] !== null && $sealed['legacy_iban'] !== '') {
-            return $sealed['legacy_iban'];
-        }
-
         if ($openIban === null) {
             throw new BusinessRuleException(
-                'This settlement contains sealed IBANs; the SEPA export requires the club\'s private key (ADR-0036).'
+                'Every stored IBAN is sealed; the SEPA export requires the club\'s private key (ADR-0036).'
             );
         }
 

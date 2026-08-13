@@ -494,12 +494,17 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->assertNotEmpty($member['mandate_reference']);
         $this->assertSame('2025-01-01', $member['mandate_signed_at']);
 
-        $raw = $this->db->prepare('SELECT iban, iban_ciphertext, iban_fingerprint FROM mandates WHERE active_member_id = ?');
+        $raw = $this->db->prepare('SELECT iban_ciphertext, iban_fingerprint FROM mandates WHERE active_member_id = ?');
         $raw->execute([$id]);
         $mandate = $raw->fetch();
-        $this->assertNull($mandate['iban'], 'no plaintext IBAN may be stored');
         $this->assertStringStartsWith('v1:', (string) $mandate['iban_ciphertext']);
         $this->assertNotEmpty($mandate['iban_fingerprint']);
+
+        // Stronger than asserting the old plaintext column is null: since
+        // migration 020 there is no such column, so there is no shape a row
+        // can take that holds a readable IBAN (ADR-0036).
+        $columns = $this->db->query('SHOW COLUMNS FROM mandates')->fetchAll(\PDO::FETCH_COLUMN);
+        $this->assertNotContains('iban', $columns, 'no column may hold a plaintext IBAN');
     }
 
     public function test_a_member_without_an_iban_has_no_mandate_reference(): void

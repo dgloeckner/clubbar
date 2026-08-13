@@ -422,16 +422,59 @@ VALUES (
 -- ---------------------------------------------------------------------------
 -- 6b. Create Mandates — one active mandate per member, moved off `members` (#164, #165)
 -- ---------------------------------------------------------------------------
-INSERT INTO mandates (id, member_id, active_member_id, reference, iban, signed_at)
+-- Development IBAN encryption key (ADR-0036) — the published dev keypair's
+-- PUBLIC half; e2e export tests hold the private half. Every mandate fixture
+-- below is sealed under it, exactly like a row written through the API —
+-- there is no plaintext IBAN column left to put one in. It is registered
+-- here, ahead of the mandates, because they carry it as a foreign key.
+-- ---------------------------------------------------------------------------
+INSERT INTO encryption_keys (id, key_identifier, algorithm, public_key, fingerprint_sha256, status, created_at, activated_at, expires_at)
+VALUES (
+    '99999991-9999-9999-9999-999999999991',
+    'dev-key-2026',
+    'SODIUM_CRYPTO_BOX_SEAL',
+    UNHEX('7479840773cdbd0f57bacf5c8488818e55845ee19207aaf685b74869c1682155'),
+    '82ebd93f662cb26a5293137a00fbb6d0c239579c8df5855df1d00bcd1e092717',
+    'active',
+    NOW(),
+    NOW(),
+    NOW() + INTERVAL 365 DAY
+);
+
+-- ---------------------------------------------------------------------------
+-- Sealed under the development public key registered above (ADR-0036). SQL
+-- cannot call libsodium, so these ciphertexts are pre-computed literals; the
+-- matching private half lives in e2etests/fixtures/encryption.ts, which is
+-- what a SEPA export opens them with. `iban_fingerprint` is the keyed BLAKE2b
+-- of the same IBAN under the dev IBAN_FINGERPRINT_KEY from docker-compose.yml
+-- — change that key and bank-change detection stops recognising these rows,
+-- which in a dev fixture costs one extra mandate row and nothing else.
+INSERT INTO mandates (id, member_id, active_member_id, reference, iban_ciphertext, iban_last4, iban_fingerprint, encryption_key_id, bank_name, signed_at)
 VALUES
-    ('77777771-7777-7777-7777-777777777771', '55555551-5555-5555-5555-555555555551', '55555551-5555-5555-5555-555555555551', 'MANDATE001HANSMUELLER', 'DE89370400440532013000', '2024-01-15'),
-    ('77777772-7777-7777-7777-777777777772', '55555552-5555-5555-5555-555555555552', '55555552-5555-5555-5555-555555555552', 'MANDATE002MARIASCHMIDT', 'DE02120300000000202051', '2024-02-20'),
-    ('77777773-7777-7777-7777-777777777773', '55555553-5555-5555-5555-555555555553', '55555553-5555-5555-5555-555555555553', 'MANDATE003THOMASWEBER', 'DE89370400440532013000', '2024-03-10'),
-    ('77777774-7777-7777-7777-777777777774', '55555554-5555-5555-5555-555555555554', '55555554-5555-5555-5555-555555555554', 'MANDATE004ANNAFISCHER', 'DE02120300000000202051', '2024-01-05'),
-    ('77777775-7777-7777-7777-777777777775', '55555555-5555-5555-5555-555555555555', '55555555-5555-5555-5555-555555555555', 'MANDATE005MICHAELBAUER', 'DE89370400440532013000', '2023-11-20'),
-    ('77777776-7777-7777-7777-777777777776', '55555556-5555-5555-5555-555555555556', '55555556-5555-5555-5555-555555555556', 'MANDATE006SABINEKLEIN', 'DE02120300000000202051', '2024-06-01'),
-    ('77777777-7777-7777-7777-777777777777', '55555557-5555-5555-5555-555555555557', '55555557-5555-5555-5555-555555555557', 'MANDATE007PETERHOFFMANN', 'DE89370400440532013000', '2023-08-15'),
-    ('77777778-7777-7777-7777-777777777778', '55555558-5555-5555-5555-555555555558', '55555558-5555-5555-5555-555555555558', 'MANDATE008JULIAWAGNER', 'DE02120300000000202051', '2024-04-22');
+    ('77777771-7777-7777-7777-777777777771', '55555551-5555-5555-5555-555555555551', '55555551-5555-5555-5555-555555555551', 'MANDATE001HANSMUELLER',
+     'v1:1TJKtXHHFirNTK0Z3C1O2EkOzYMcZUhaNG8LZ+TYpD1MfKNDT7I3iJxs1f4Bcid0f3qzqdKA+o4Dn+MGpyG0x/4D3+YYxw==',
+     '3000', '9097558dbbe5b67916225e27d2275e30c2162eeda978a177eb78bb3860d79ce8', '99999991-9999-9999-9999-999999999991', 'Commerzbank', '2024-01-15'),
+    ('77777772-7777-7777-7777-777777777772', '55555552-5555-5555-5555-555555555552', '55555552-5555-5555-5555-555555555552', 'MANDATE002MARIASCHMIDT',
+     'v1:QyOraWkqL8PtYMSocM6HvcK0HmcYRGHWAJX07WuXZDZNlzWw1xGVPCGkvAjNLdJcjtWnpru8x9MdS4uTzFS+PufunCDPoQ==',
+     '2051', '678acb5d2b5057e27d8f4e55c465bbb8fd8000fc41e1f74391918dade828778e', '99999991-9999-9999-9999-999999999991', 'Deutsche Bank', '2024-02-20'),
+    ('77777773-7777-7777-7777-777777777773', '55555553-5555-5555-5555-555555555553', '55555553-5555-5555-5555-555555555553', 'MANDATE003THOMASWEBER',
+     'v1:hqsdAH5UuvWwNJDWWSxuLKl4zeAo7HPlOsnQ13IHVTsSAgmGRHIMefHknxZbTXapHoRZ9u8vMG4NfIukH36mDFMYNnK8tA==',
+     '3000', '9097558dbbe5b67916225e27d2275e30c2162eeda978a177eb78bb3860d79ce8', '99999991-9999-9999-9999-999999999991', 'Commerzbank', '2024-03-10'),
+    ('77777774-7777-7777-7777-777777777774', '55555554-5555-5555-5555-555555555554', '55555554-5555-5555-5555-555555555554', 'MANDATE004ANNAFISCHER',
+     'v1:utgr2l/bC4JyE6p82iXxStxBeL2Ez8RfQDDPfLS7s348uQSGM40yeMqoHaus91itniwuXHypijAtoJfF8cLdIyYCLc7ZEA==',
+     '2051', '678acb5d2b5057e27d8f4e55c465bbb8fd8000fc41e1f74391918dade828778e', '99999991-9999-9999-9999-999999999991', 'Deutsche Bank', '2024-01-05'),
+    ('77777775-7777-7777-7777-777777777775', '55555555-5555-5555-5555-555555555555', '55555555-5555-5555-5555-555555555555', 'MANDATE005MICHAELBAUER',
+     'v1:hq9ApNl9sYyTEqE/R0cyxJtt580Oc7v+xlVK42wrbAL62qNKJ8S8vjeDPBu9FgEx0o3fsFfCNfCYiNjUfZB0C9ndU/fLLw==',
+     '3000', '9097558dbbe5b67916225e27d2275e30c2162eeda978a177eb78bb3860d79ce8', '99999991-9999-9999-9999-999999999991', 'Commerzbank', '2023-11-20'),
+    ('77777776-7777-7777-7777-777777777776', '55555556-5555-5555-5555-555555555556', '55555556-5555-5555-5555-555555555556', 'MANDATE006SABINEKLEIN',
+     'v1:hWxiwCLYriGVp8vcTTBz4OOzB8gx+GS2kBVGk9F9q12EpFRjo/H3pe1/3P+D1in3IE4EwWOWgM6yruu8Vrgzub1P8CCv4w==',
+     '2051', '678acb5d2b5057e27d8f4e55c465bbb8fd8000fc41e1f74391918dade828778e', '99999991-9999-9999-9999-999999999991', 'Deutsche Bank', '2024-06-01'),
+    ('77777777-7777-7777-7777-777777777777', '55555557-5555-5555-5555-555555555557', '55555557-5555-5555-5555-555555555557', 'MANDATE007PETERHOFFMANN',
+     'v1:jTooSlQUL27qOpW8TKBnztRcAfzjLz6gFPqkj5SG/hVeRreMUr5pgrMWB3OXpA/q4PW7VSdOcHWIiQPsgkgeU38Y0U3RQw==',
+     '3000', '9097558dbbe5b67916225e27d2275e30c2162eeda978a177eb78bb3860d79ce8', '99999991-9999-9999-9999-999999999991', 'Commerzbank', '2023-08-15'),
+    ('77777778-7777-7777-7777-777777777778', '55555558-5555-5555-5555-555555555558', '55555558-5555-5555-5555-555555555558', 'MANDATE008JULIAWAGNER',
+     'v1:Ku/akDjdpOGf38GrPoDARvXQr7J44oQzLRzpCZQ3XldjFE4hujPhWbc9VMOPEfbS/0IRM5Ifu6NnH6hpZ2mQJbOAqU5f9g==',
+     '2051', '678acb5d2b5057e27d8f4e55c465bbb8fd8000fc41e1f74391918dade828778e', '99999991-9999-9999-9999-999999999991', 'Deutsche Bank', '2024-04-22');
 
 -- ---------------------------------------------------------------------------
 -- 7. Create Terminals
@@ -528,21 +571,4 @@ SELECT COUNT(*) AS products FROM products;
 SELECT COUNT(*) AS members FROM members;
 SELECT COUNT(*) AS terminals FROM terminals;
 
--- ---------------------------------------------------------------------------
--- Development IBAN encryption key (ADR-0036) — the published dev keypair's
--- PUBLIC half; e2e export tests hold the private half. Mandate fixtures above
--- stay legacy plaintext on purpose: they exercise the pre-batch-encryption
--- read paths, while members created through the API get sealed rows.
--- ---------------------------------------------------------------------------
-INSERT INTO encryption_keys (id, key_identifier, algorithm, public_key, fingerprint_sha256, status, created_at, activated_at, expires_at)
-VALUES (
-    '99999991-9999-9999-9999-999999999991',
-    'dev-key-2026',
-    'SODIUM_CRYPTO_BOX_SEAL',
-    UNHEX('7479840773cdbd0f57bacf5c8488818e55845ee19207aaf685b74869c1682155'),
-    '82ebd93f662cb26a5293137a00fbb6d0c239579c8df5855df1d00bcd1e092717',
-    'active',
-    NOW(),
-    NOW(),
-    NOW() + INTERVAL 365 DAY
-);
+
