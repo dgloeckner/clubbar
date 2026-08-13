@@ -75,7 +75,7 @@ The admin panel provides management and accounting functions for the bar system:
 | ID | Name | Description |
 |----|------|-------------|
 | [UC-A50](./UC-A50-reports.md) | Reports | Unified reporting (revenue, consumption, trends) |
-| [UC-A51](./UC-A51-member-ranking.md) | Member Ranking | Top consumers by period |
+| [UC-A51](./UC-A51-member-ranking.md) | Member Ranking | Removed — see the use case for why |
 | [UC-A52](./UC-A52-terminal-activity.md) | Terminal Activity | Transaction sessions |
 
 ### Settings

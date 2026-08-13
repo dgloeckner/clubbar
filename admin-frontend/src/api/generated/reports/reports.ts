@@ -58,11 +58,6 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type {
-  ExportMemberRankingParams,
-  ExportReportParams,
-  ExportTerminalActivityParams,
-  GetMemberRanking200,
-  GetMemberRankingParams,
   GetReportParams,
   GetTerminalActivityParams,
   Report,
@@ -95,66 +90,6 @@ const getReport = (
       options);
     }
   /**
- * Export report data as CSV.
-
-**Use Case**: UC-A50
-**Status**: Not implemented — action needed (2026-03-07 audit)
-
- * @summary Export report as CSV
- */
-const exportReport = (
-    reportType: 'revenue' | 'consumption' | 'transactions',
-    params?: ExportReportParams,
- options?: SecondParameter<typeof customInstance<Blob>>,) => {
-      return customInstance<Blob>(
-      {url: `/admin/reports/${reportType}/export`, method: 'GET',
-        params,
-        responseType: 'blob'
-    },
-      options);
-    }
-  /**
- * Retrieve the anonymous member ranking by consumption.
-
-Rows are labelled by their ordinal position in this response
-("Member 1", "Member 2", …) and never by member name. The label is not
-stable across reports, so rows cannot be re-identified by
-cross-referencing two responses. There is no named mode: a named
-consumption ranking is a profile, which ADR-0029 prohibits.
-
-**Use Case**: UC-A51
-
- * @summary Get member ranking
- */
-const getMemberRanking = (
-    params?: GetMemberRankingParams,
- options?: SecondParameter<typeof customInstance<GetMemberRanking200>>,) => {
-      return customInstance<GetMemberRanking200>(
-      {url: `/admin/reports/member-ranking`, method: 'GET',
-        params
-    },
-      options);
-    }
-  /**
- * Export the anonymous member ranking as CSV, with the same filters as the
-list endpoint. The Member column carries the same ordinal labels
-("Member 1", "Member 2", …) — the export has no named mode either.
-
-**Use Case**: UC-A51
-
- * @summary Export member ranking as CSV
- */
-const exportMemberRanking = (
-    params?: ExportMemberRankingParams,
- options?: SecondParameter<typeof customInstance<Blob>>,) => {
-      return customInstance<Blob>(
-      {url: `/admin/reports/member-ranking/export`, method: 'GET',
-        params,
-        responseType: 'blob'
-    },
-      options);
-    }
-  /**
  * Retrieve terminal activity statistics.
 
 **Use Case**: UC-A52
@@ -171,28 +106,6 @@ const getTerminalActivity = (
     },
       options);
     }
-  /**
- * Export the terminal activity report as CSV. The file carries the same three
-blocks the report shows: sessions, hourly distribution, and terminal summary.
-
-**Use Case**: UC-A52
-
- * @summary Export terminal activity as CSV
- */
-const exportTerminalActivity = (
-    params: ExportTerminalActivityParams,
- options?: SecondParameter<typeof customInstance<Blob>>,) => {
-      return customInstance<Blob>(
-      {url: `/admin/reports/terminal-activity/export`, method: 'GET',
-        params,
-        responseType: 'blob'
-    },
-      options);
-    }
-  return {getReport,exportReport,getMemberRanking,exportMemberRanking,getTerminalActivity,exportTerminalActivity}};
+  return {getReport,getTerminalActivity}};
 export type GetReportResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['getReport']>>>
-export type ExportReportResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['exportReport']>>>
-export type GetMemberRankingResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['getMemberRanking']>>>
-export type ExportMemberRankingResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['exportMemberRanking']>>>
 export type GetTerminalActivityResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['getTerminalActivity']>>>
-export type ExportTerminalActivityResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['exportTerminalActivity']>>>
