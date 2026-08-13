@@ -5,6 +5,15 @@ import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 
 class MembersService {
+  /// How long a card scan may wait for the backend to answer with a fresh
+  /// balance before the cached one is used instead (#374).
+  ///
+  /// Short on purpose: this sits between the card touching the reader and the
+  /// product grid appearing. An unreachable backend usually fails fast, but a
+  /// network that accepts the connection and then goes quiet would otherwise
+  /// hold the member at the idle screen for the full HTTP timeout.
+  static const Duration balanceRefreshTimeout = Duration(seconds: 3);
+
   final MembersRepository _repository;
   final TransactionsRepository _transactionsRepository;
   final NetworkService? _networkService;
@@ -18,53 +27,51 @@ class MembersService {
         _networkService = networkService;
 
   /// Look up member by RFID card UID.
-  /// On success, opportunistically syncs pending transactions for a fresh balance.
+  /// On success, refreshes the member's balance from the backend.
   Future<(MembersCacheData?, TerminalErrorKey?)> lookupByRfid(
       String cardUid) async {
     final (member, error) = await _repository.findByCardUid(cardUid);
     if (member == null) return (member, error);
 
-    await _refreshBalance(member.id);
-
-    // Re-read from DB so any updated balance is reflected
-    final updated = await _repository.findById(member.id);
-    return (updated ?? member, null);
+    return (await refreshBalance(member.id) ?? member, null);
   }
 
-  /// Attempt to refresh member balance from backend via opportunistic sync.
-  /// Sends any unsynced transactions and applies the returned memberBalances.
-  /// Silently swallows all errors — offline is fine.
+  /// Ask the backend what [memberId] owes right now and store the answer.
   ///
-  /// The request always *names* the scanned member (#191). The backend reports
-  /// balances only for members it was asked about, and the common case here is
-  /// an empty batch: after a settlement collects the tab there is nothing left
-  /// to upload and no next purchase to reveal the change, so a request that did
-  /// not name the member left the pre-settlement Deckel on screen.
-  Future<void> _refreshBalance(String memberId) async {
+  /// Returns the refreshed cache row, or null when the member is not in the
+  /// cache at all. Every failure is swallowed: offline is a normal state for
+  /// this terminal, and the cached balance is what it degrades to (ADR-0023).
+  ///
+  /// The request names the member in `member_ids` and uploads **nothing**
+  /// (#191). Naming is what makes an empty batch a question, and it is the
+  /// only way to learn about a change the terminal did not cause — a storno,
+  /// a settlement, a sale on another terminal (#374).
+  ///
+  /// Uploading the pending queue from here would be wrong twice over: the
+  /// returned balance would count rows this method does not mark as synced, so
+  /// [TransactionsRepository.getEffectiveBalance] would add them a second time,
+  /// and a queue over the 100-row batch limit would be refused whole, leaving
+  /// the scan with no balance at all. Uploading belongs to `SyncService`.
+  Future<MembersCacheData?> refreshBalance(String memberId) async {
     final network = _networkService;
-    if (network == null) return;
+    if (network == null) return _repository.findById(memberId);
+
     try {
-      final unsynced = await _transactionsRepository.getUnsyncedTransactions();
-      final payload = unsynced
-          .map((t) => {
-                'id': t.id,
-                'member_id': t.memberId,
-                'product_id': t.productId,
-                'amount_cents': t.amountCents,
-                'transaction_type': t.transactionType,
-                'notes': t.notes,
-                'created_at': t.createdAt,
-              })
-          .toList();
-      final response =
-          await network.syncTransactions(payload, memberIds: [memberId]);
-      final freshBalance = response.memberBalances[memberId];
-      if (freshBalance != null) {
-        await _repository.updateMemberBalance(memberId, freshBalance);
+      final response = await network
+          .syncTransactions(const [], memberIds: [memberId])
+          .timeout(balanceRefreshTimeout);
+
+      // An unknown member is omitted from the map rather than reported as 0,
+      // so an absent key must leave the cached balance alone (ADR-0023).
+      final fresh = response.memberBalances[memberId];
+      if (fresh is num) {
+        await _repository.updateMemberBalance(memberId, fresh.toInt());
       }
     } catch (_) {
-      // Network unavailable or error — silent fallback to cached balance
+      // Network unavailable, slow or erroring — keep the cached balance.
     }
+
+    return _repository.findById(memberId);
   }
 
   /// Compute effective balance (Deckel) for a member:

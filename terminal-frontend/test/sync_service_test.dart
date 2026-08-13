@@ -98,6 +98,11 @@ void main() {
           )).thenAnswer((_) async => {});
       when(() => mockMembersRepo.upsertMembers(any()))
           .thenAnswer((_) async => {});
+      // No open tabs unless a test says so — the #374 refresh is then a no-op.
+      when(() => mockMembersRepo.getMemberIdsWithOpenBalance())
+          .thenAnswer((_) async => []);
+      when(() => mockMembersRepo.updateMemberBalance(any(), any()))
+          .thenAnswer((_) async => {});
       when(() => mockProductsRepo.upsertCategories(any()))
           .thenAnswer((_) async => {});
       when(() => mockProductsRepo.upsertProducts(any()))
@@ -767,6 +772,101 @@ void main() {
         // The default syncService has no path — no file should exist
         final file = File(failedTxnsPath);
         expect(file.existsSync(), isFalse);
+      });
+    });
+
+    /// #374: a storno, a settlement or a sale on another terminal moves a
+    /// balance without this terminal doing anything, and `member_balances` only
+    /// reports members a request *names*. Without this the cached tab was left
+    /// at its pre-storno value until the member happened to buy something.
+    group('open balance refresh (#374)', () {
+      TransactionBatchResponse balances(Map<String, dynamic> byMember) =>
+          TransactionBatchResponse(
+            acceptedIds: [],
+            rejected: const TransactionBatchResponse$Rejected(),
+            memberBalances: byMember,
+          );
+
+      test('re-asks for every open tab and stores what comes back', () async {
+        stubReferenceDataSync();
+        when(() => mockMembersRepo.getMemberIdsWithOpenBalance())
+            .thenAnswer((_) async => ['member-1', 'member-2']);
+        when(() => mockNetworkService.syncTransactions(any(),
+                memberIds: any(named: 'memberIds')))
+            .thenAnswer((_) async => balances({'member-1': 0, 'member-2': 750}));
+
+        await syncService.syncAll();
+
+        verify(() => mockNetworkService.syncTransactions(
+              [],
+              memberIds: ['member-1', 'member-2'],
+            )).called(1);
+        verify(() => mockMembersRepo.updateMemberBalance('member-1', 0))
+            .called(1);
+        verify(() => mockMembersRepo.updateMemberBalance('member-2', 750))
+            .called(1);
+      });
+
+      test('asks about nobody when no tab is open', () async {
+        stubReferenceDataSync();
+
+        await syncService.syncAll();
+
+        verifyNever(() => mockNetworkService.syncTransactions(any(),
+            memberIds: any(named: 'memberIds')));
+      });
+
+      /// An id the backend does not know is omitted from the map rather than
+      /// reported as 0. Writing that absence as a zero would wipe a real tab.
+      test('leaves a member the backend did not report alone', () async {
+        stubReferenceDataSync();
+        when(() => mockMembersRepo.getMemberIdsWithOpenBalance())
+            .thenAnswer((_) async => ['member-1']);
+        when(() => mockNetworkService.syncTransactions(any(),
+                memberIds: any(named: 'memberIds')))
+            .thenAnswer((_) async => balances({}));
+
+        await syncService.syncAll();
+
+        verifyNever(() => mockMembersRepo.updateMemberBalance(any(), any()));
+      });
+
+      /// Same cap as an upload: the server refuses an oversized request whole,
+      /// so a club with more than 100 open tabs must be asked in chunks or no
+      /// balance would ever be refreshed again.
+      test('splits an ask larger than the batch limit', () async {
+        stubReferenceDataSync();
+        final ids = List.generate(
+            SyncService.maxSyncBatchSize + 5, (i) => 'member-$i');
+        when(() => mockMembersRepo.getMemberIdsWithOpenBalance())
+            .thenAnswer((_) async => ids);
+
+        final asked = <List<String>>[];
+        when(() => mockNetworkService.syncTransactions(any(),
+            memberIds: any(named: 'memberIds'))).thenAnswer((invocation) async {
+          asked.add(List<String>.from(
+              invocation.namedArguments[#memberIds] as List<String>));
+          return balances({});
+        });
+
+        await syncService.syncAll();
+
+        expect(asked.map((chunk) => chunk.length).toList(),
+            equals([SyncService.maxSyncBatchSize, 5]));
+        expect(asked.expand((chunk) => chunk).toList(), equals(ids));
+      });
+
+      /// The refresh is a nicety; members and products are not. A backend that
+      /// refuses the ask must not take the whole cycle down with it.
+      test('a failed refresh does not fail the sync cycle', () async {
+        stubReferenceDataSync();
+        when(() => mockMembersRepo.getMemberIdsWithOpenBalance())
+            .thenAnswer((_) async => ['member-1']);
+        when(() => mockNetworkService.syncTransactions(any(),
+                memberIds: any(named: 'memberIds')))
+            .thenThrow(NetworkException('offline'));
+
+        expect(await syncService.syncAll(), equals(SyncResult.success));
       });
     });
 
