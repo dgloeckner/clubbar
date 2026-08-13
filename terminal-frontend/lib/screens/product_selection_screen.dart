@@ -55,7 +55,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   // screen instead of stretching.
   static const double _tileMaxWidth = 240.0;
 
-  // [_tileHeight] is what the card actually needs — 72 px icon + two lines of
+  // [_tileHeight] is what the card actually needs — 60 px icon + two lines of
   // name at `xl` + price at `xxl` + the card's padding — with a little slack.
   //
   // Computed, not a constant (#41): the type scale is a *deployment setting*
@@ -70,7 +70,13 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   // scale with type (icon, gaps, padding, card border). See the grid sizing
   // tests in `test/screens/product_selection_screen_test.dart`, which pin the
   // relationship at three different scales.
-  static const double _tileChrome = 143.0;
+  //
+  // 143 -> 119 with #369, which took 24 px off ProductCard (icon 72 -> 60,
+  // padding lg -> md, the gap under the icon lg -> md). Move this by exactly
+  // what the card moved and no more: the constant carries ~7 px of *measured*
+  // slack over the card's nominal height, and re-deriving it from first
+  // principles would spend the slack that #41 put there.
+  static const double _tileChrome = 119.0;
   static const double _tileTextLineHeight = 1.34;
   static const double _tileSlack = 4.0;
 
@@ -80,7 +86,6 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       _tileSlack;
   static const double _gridSpacing = 12.0;
   static const double _horizontalPadding = 16.0;
-  static const double _verticalSpacing = 12.0;
 
   @override
   Widget build(BuildContext context) {
@@ -124,7 +129,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: _horizontalPadding,
-                    vertical: _verticalSpacing,
+                    vertical: AppSpacing.sm,
                   ),
                   child: MemberBar(
                     member: selectedMember,
@@ -216,7 +221,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                   },
                 ),
               ),
-              const SizedBox(height: _verticalSpacing),
+              const SizedBox(height: AppSpacing.sm),
 
               // Product grid — constant tile size, scrolls past the fold.
               //
@@ -229,23 +234,14 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 child: LoadingOverlay(
                   isLoading: isCheckoutInFlight,
                   child: Padding(
-                    padding: const EdgeInsets.only(
-                      left: _horizontalPadding,
-                      right: _horizontalPadding,
-                      bottom: 10,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _horizontalPadding,
                     ),
                     child: _buildProductGrid(
                       context,
                       categories[_selectedCategoryIndex],
                       productsProvider,
                       cartProvider,
-                      // The summary bar (#34) is sticky below the grid, not
-                      // part of its scroll extent — without matching bottom
-                      // padding here the last row can never scroll clear of
-                      // it (#293).
-                      bottomPadding: cartProvider.items.isNotEmpty
-                          ? CartSummaryBar.height
-                          : 0.0,
                     ),
                   ),
                 ),
@@ -274,9 +270,8 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     BuildContext context,
     CategoriesCacheData category,
     ProductsProvider productsProvider,
-    CartProvider cartProvider, {
-    required double bottomPadding,
-  }) {
+    CartProvider cartProvider,
+  ) {
     final l10n = AppLocalizations.of(context)!;
     // Get member's preferred language (needed for display)
     final memberLang = context.read<MembersProvider>().selectedMember?.preferredLanguage ?? 'de';
@@ -298,7 +293,14 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     }
 
     return GridView.builder(
-      padding: EdgeInsets.only(bottom: bottomPadding),
+      // A flat `md`, not `CartSummaryBar.height` (#369). #293 reserved a whole
+      // bar's worth of space here on the premise that the bar was "sticky
+      // below the grid, not part of its scroll extent" — but the bar is a
+      // plain Column sibling *after* the Expanded, so the grid's viewport
+      // already ends where the bar begins and the two can never overlap. The
+      // 93 px was dead scroll at the end of the list. What #293 actually
+      // wanted — the last row visibly clearing the bar's top border — is 12.
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: _tileMaxWidth,
         // A pinned height, rather than an aspect ratio: the card's contents

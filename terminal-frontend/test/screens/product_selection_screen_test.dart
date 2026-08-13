@@ -657,11 +657,17 @@ void main() {
       });
     });
 
-    // Issue #293: the grid used `padding: EdgeInsets.zero`, so the sticky
-    // summary bar below it (#34) got no compensating space — the last row
-    // could never scroll fully clear of it. The fix mirrors the bar's own
-    // fixed height back onto the grid's bottom padding whenever the bar is
-    // showing, and removes it again once the cart (and the bar) are gone.
+    // Issue #293: the grid used `padding: EdgeInsets.zero`, so the last row sat
+    // flush against the bottom of the viewport with nothing between it and the
+    // summary bar below (#34).
+    //
+    // #369 corrected the size of the fix, not the fix. #293 reserved a whole
+    // CartSummaryBar.height on the premise that the bar was "sticky below the
+    // grid, not part of its scroll extent" — but the bar is a plain Column
+    // sibling *after* the Expanded, so the grid's viewport already ends where
+    // the bar begins and the two can never overlap. That reservation was 93 px
+    // of dead scroll at the end of the list, on a screen that could not spare
+    // 19. What is left is a flat `md` gap, applied in both cart states.
     group('grid bottom padding clears the summary bar (#293)', () {
       Future<void> pumpCatalog(
         WidgetTester tester, {
@@ -756,17 +762,24 @@ void main() {
 
         expect(find.byType(CartSummaryBar), findsNothing);
         final grid = tester.widget<GridView>(find.byType(GridView));
-        expect(grid.padding, EdgeInsets.zero);
+        expect(grid.padding, const EdgeInsets.only(bottom: AppSpacing.md));
       });
 
       testWidgets(
-          'the grid reserves exactly the bar\'s height once the cart is not empty',
+          'the gap stays a gap once the cart is not empty, not a whole bar',
           (WidgetTester tester) async {
         await pumpCatalog(tester, productCount: 40, cartHasItems: true);
 
         expect(find.byType(CartSummaryBar), findsOneWidget);
         final grid = tester.widget<GridView>(find.byType(GridView));
-        expect(grid.padding, EdgeInsets.only(bottom: CartSummaryBar.height));
+        expect(grid.padding, const EdgeInsets.only(bottom: AppSpacing.md));
+        // The regression this guards: reserving the bar's height here does not
+        // move the last row anywhere the viewport can see, it just adds that
+        // much emptiness to the scroll.
+        expect(
+          (grid.padding as EdgeInsets).bottom,
+          lessThan(CartSummaryBar.height),
+        );
       });
 
       // Same three type scales as #41 — the reserved space is a fixed
@@ -830,9 +843,206 @@ void main() {
           final barTop = tester.getTopLeft(find.byType(CartSummaryBar)).dy;
 
           expect(tileBottom, lessThanOrEqualTo(barTop));
+          // `lessThanOrEqualTo` alone passes for free (#369): at max scroll
+          // extent the last tile's bottom *is* the viewport bottom less the
+          // grid's own bottom padding, and the viewport bottom is barTop
+          // whatever that padding happens to be — so the assertion above held
+          // at 93 px, at 12 px and at 0. Pin the gap itself, which does not.
+          expect(barTop - tileBottom, closeTo(AppSpacing.md, 1));
           expect(tester.takeException(), isNull);
         });
       }
+    });
+
+    // Issue #369: the screen is a non-scrolling Column whose only flexible
+    // child is the grid, so every fixed band above it — member bar, banners,
+    // category bar — is height the grid does not get, and nothing was checking
+    // what was left. On a 1280x800 kiosk the grid ended up 19 px short of two
+    // whole tile rows with no warning showing, and 111 px short with the
+    // credit-limit banner up: the member saw one row of products and the top
+    // half of another, prices sliced off.
+    //
+    // The surface is 744, not 800, and the screen is pumped bare: MainLayout
+    // owns a fixed 56 px ClubBarHeader (ClubBarHeader.preferredSize) and hands
+    // its child exactly what is left, so 800 - 56 is the body this screen
+    // actually gets. Modelling it as the surface keeps the test off
+    // MainLayout's provider surface without understating the chrome.
+    //
+    // Note the test font: flutter_test renders with a 1.0 line-height factor
+    // where production measures ~1.34, so this harness under-reports the
+    // font-driven chrome by a few px. There is ~39 px of real headroom behind
+    // these assertions — do not trim the layout down to what the test font
+    // says fits.
+    group('two full product rows fit on the kiosk (#369)', () {
+      const kioskBody = Size(1280, 744);
+
+      /// Lays out the screen the way the issue's screenshots did: a member with
+      /// a tab, one item already in the cart, a full catalogue.
+      ///
+      /// [deckelCents] drives the banner — 0 keeps it away, 8000 puts the
+      /// member in the warning band (80% of AppConfig.balanceLimitCents).
+      Future<void> pumpKiosk(
+        WidgetTester tester, {
+        required int deckelCents,
+      }) async {
+        tester.view.physicalSize = kioskBody;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final categories = [
+          CategoriesCacheData(
+            id: 'cat-1',
+            names: jsonEncode({'de': 'Getränke'}),
+            isActive: 1,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        ];
+        final products = List.generate(
+          40,
+          (i) => ProductsCacheData(
+            id: 'prod-$i',
+            categoryId: 'cat-1',
+            names: jsonEncode({'de': 'Alkoholfreies Bier $i'}),
+            descriptions: null,
+            priceCents: 250 + i,
+            isActive: 1,
+            requiresDispenser: 0,
+            iconName: null,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        );
+
+        when(() => mockProductsProvider.categories).thenReturn(categories);
+        when(() => mockProductsProvider.products).thenReturn(products);
+        when(() => mockProductsProvider.getVisibleProducts(any()))
+            .thenReturn(products);
+        when(() => mockProductsProvider.isProductAvailable(any()))
+            .thenReturn(true);
+        when(() => mockProductsProvider.lastError).thenReturn(null);
+        when(() => mockProductsProvider.getTranslatedName(any(), any()))
+            .thenAnswer((invocation) {
+          final product =
+              invocation.positionalArguments[0] as ProductsCacheData;
+          return 'Alkoholfreies Bier ${product.id}';
+        });
+
+        when(() => mockMembersProvider.selectedMember).thenReturn(
+          MembersCacheData(
+            id: 'member-1',
+            cardUid: 'card-123',
+            firstName: 'Daniel',
+            lastName: 'Glöckner',
+            preferredLanguage: 'de',
+            isActive: 1,
+            isSepaValid: 1,
+            balanceCents: deckelCents,
+            updatedAt: '2024-01-01T00:00:00Z',
+          ),
+        );
+        when(() => mockMembersProvider.memberDeckel).thenReturn(deckelCents);
+
+        when(() => mockCartProvider.items).thenReturn([
+          CartItem(
+            productId: 'prod-0',
+            productName: 'Alkoholfreies Bier 0',
+            quantity: 1,
+            priceCents: 350,
+            language: 'de',
+          ),
+        ]);
+        when(() => mockCartProvider.itemCount).thenReturn(1);
+        when(() => mockCartProvider.total).thenReturn(350);
+
+        await tester.pumpWidget(
+          createTestApp(
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ProductsProvider>.value(
+                    value: mockProductsProvider),
+                ChangeNotifierProvider<CartProvider>.value(
+                    value: mockCartProvider),
+                ChangeNotifierProvider<SyncProvider>.value(
+                    value: mockSyncProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                    value: mockMembersProvider),
+                ChangeNotifierProvider<SessionController>.value(
+                    value: mockSessionController),
+                Provider<SoundService>.value(value: mockSoundService),
+              ],
+              child: const Scaffold(body: ProductSelectionScreen()),
+            ),
+          ),
+        );
+      }
+
+      /// Bottom edge of the last tile in the second row, unscrolled.
+      ///
+      /// The column count follows the screen width, so it is counted rather
+      /// than assumed: every card sharing the first card's top edge is row one.
+      /// `getBottomLeft` reports geometry even for a tile the viewport is
+      /// clipping, which is the whole point — a clipped row still has a bottom,
+      /// it is just below the fold.
+      double secondRowBottom(WidgetTester tester) {
+        final cards = find.byType(ProductCard);
+        final firstTop = tester.getTopLeft(cards.first).dy;
+        var columns = 0;
+        while (columns < tester.widgetList(cards).length &&
+            tester.getTopLeft(cards.at(columns)).dy == firstTop) {
+          columns++;
+        }
+        return tester.getBottomLeft(cards.at(2 * columns - 1)).dy;
+      }
+
+      testWidgets('both rows are whole while the credit-limit banner is up',
+          (WidgetTester tester) async {
+        await pumpKiosk(tester, deckelCents: 8200);
+
+        expect(find.byKey(const Key('credit-limit-banner')), findsOneWidget);
+        expect(find.byType(CartSummaryBar), findsOneWidget);
+
+        final gridBottom =
+            tester.getBottomLeft(find.byType(GridView)).dy;
+        expect(secondRowBottom(tester), lessThanOrEqualTo(gridBottom));
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('both rows are whole with no banner at all',
+          (WidgetTester tester) async {
+        await pumpKiosk(tester, deckelCents: 0);
+
+        expect(find.byKey(const Key('credit-limit-banner')), findsNothing);
+        expect(find.byType(CartSummaryBar), findsOneWidget);
+
+        final gridBottom =
+            tester.getBottomLeft(find.byType(GridView)).dy;
+        expect(secondRowBottom(tester), lessThanOrEqualTo(gridBottom));
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('and at the legacy small type scale',
+          (WidgetTester tester) async {
+        final shipped = {
+          'xs': AppFontSizes.xs,
+          'sm': AppFontSizes.sm,
+          'base': AppFontSizes.base,
+          'lg': AppFontSizes.lg,
+          'xl': AppFontSizes.xl,
+          'xxl': AppFontSizes.xxl,
+          'xxxl': AppFontSizes.xxxl,
+        };
+        addTearDown(() => AppFontSizes.applyConfig(shipped));
+        AppFontSizes.applyConfig({
+          'xs': 12.0, 'sm': 13.0, 'base': 14.0,
+          'lg': 16.0, 'xl': 18.0, 'xxl': 20.0, 'xxxl': 24.0,
+        });
+
+        await pumpKiosk(tester, deckelCents: 8200);
+
+        final gridBottom =
+            tester.getBottomLeft(find.byType(GridView)).dy;
+        expect(secondRowBottom(tester), lessThanOrEqualTo(gridBottom));
+        expect(tester.takeException(), isNull);
+      });
     });
 
     // Issue #30: the bar was a plain Row of Expanded chips sized for two tabs.

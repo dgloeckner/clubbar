@@ -49,13 +49,18 @@ class CartSummaryBar extends StatelessWidget {
   static const double _buttonHeight = 67.0;
   static const double _borderWidth = 1.0;
 
+  /// Tightened from `AppSpacing.md` (#369) — the bar is the last of five fixed
+  /// bands stacked above the product grid, and on a 1280x800 kiosk the grid was
+  /// 19 px short of showing two whole rows of tiles. The buttons still set the
+  /// bar's height, so this costs the controls nothing.
+  static const double _verticalPadding = AppSpacing.sm;
+
   /// The bar's fixed content height, computed from the same tokens the bar
   /// itself renders with (button height, vertical padding, border) rather
   /// than measured and pinned separately — so a caller that needs to reserve
-  /// space for the bar (the product grid's bottom padding, issue #293)
-  /// cannot drift out of sync with it.
+  /// space for the bar cannot drift out of sync with it.
   static const double height =
-      _buttonHeight + 2 * AppSpacing.md + 2 * _borderWidth;
+      _buttonHeight + 2 * _verticalPadding + 2 * _borderWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +80,7 @@ class CartSummaryBar extends StatelessWidget {
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
+        vertical: _verticalPadding,
       ),
       child: Row(
         children: [

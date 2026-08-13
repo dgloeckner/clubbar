@@ -106,7 +106,12 @@ class _ProductCardState extends State<ProductCard>
                   ),
                 ),
                 child: Container(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  // `md`, not `lg` (#369). Together with the smaller icon
+                  // below this takes 24 px off every tile, which is what buys
+                  // the grid a whole second row on a 1280x800 kiosk. Any
+                  // change here must move `_tileChrome` in
+                  // ProductSelectionScreen by the same amount.
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppBorderRadius.lg),
                     boxShadow: const [],
@@ -116,8 +121,8 @@ class _ProductCardState extends State<ProductCard>
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       // Icon (larger for better visibility)
-                      getProductIcon(widget.product.iconName, size: 72),
-                      const SizedBox(height: AppSpacing.lg),
+                      getProductIcon(widget.product.iconName, size: 60),
+                      const SizedBox(height: AppSpacing.md),
 
                       // Product name (larger font)
                       Text(

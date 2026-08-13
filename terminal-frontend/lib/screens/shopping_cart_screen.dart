@@ -22,7 +22,6 @@ class ShoppingCartScreen extends StatelessWidget {
   const ShoppingCartScreen({super.key});
 
   static const double _horizontalPadding = 16.0;
-  static const double _verticalSpacing = 12.0;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +56,7 @@ class ShoppingCartScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: _horizontalPadding,
-                    vertical: _verticalSpacing,
+                    vertical: AppSpacing.sm,
                   ),
                   child: MemberBar(
                     member: selectedMember,
@@ -103,7 +102,7 @@ class ShoppingCartScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: _horizontalPadding,
-                  vertical: _verticalSpacing,
+                  vertical: AppSpacing.sm,
                 ),
                 child: MemberBar(
                   member: selectedMember,

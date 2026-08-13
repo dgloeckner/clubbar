@@ -31,9 +31,15 @@ class CategoryChip extends StatelessWidget {
       onTap: onSelected,
       child: AnimatedContainer(
         duration: AppAnimations.normal,
+        // Vertical padding is `sm`, not the `14` this used to carry (#369):
+        // the chip is a fixed-height band above the product grid, and at 38 px
+        // of icon plus 28 px of padding it was costing 68 px for one word. The
+        // 52 px that is left still clears the app's 44 px touch-target floor
+        // (see kHeaderPillTouchTarget), and the icon still sets the height, so
+        // the chip stays the same size whatever type scale a club configures.
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
-          vertical: 14, // 20% taller than AppSpacing.md (12)
+          vertical: AppSpacing.sm,
         ),
         decoration: BoxDecoration(
           color: backgroundColor,
@@ -48,7 +54,7 @@ class CategoryChip extends StatelessWidget {
           children: [
             getCategoryIcon(
               category.iconName,
-              size: 38,
+              size: 34,
             ),
             const SizedBox(width: AppSpacing.sm),
             // Issue #30: a long German category name ("Alkoholfreie Getränke")
