@@ -58,6 +58,9 @@ Each ADR follows this structure:
 | [0031](./0031-production-hardening-on-shared-hosting.md) | Production Hardening on Shared Hosting | Accepted | 2026-08-09 |
 | [0032](./0032-settlement-lifecycle.md) | Settlement Lifecycle | Accepted | 2026-08-09 |
 | [0033](./0033-terminal-sync-contract.md) | Terminal Sync Contract | Accepted | 2026-08-09 |
+| [0034](./0034-instance-branding-configuration.md) | Instance Branding Configuration | Accepted | 2026-08-11 |
+| [0035](./0035-iban-encryption-sealed-box.md) | IBAN Encryption at Rest with libsodium Sealed Boxes | Accepted | 2026-08-13 |
+| [0036](./0036-mandate-documents-not-retained.md) | Mandate Documents Are Not Retained in the System | Accepted | 2026-08-13 |
 
 ## Creating a New ADR
 
