@@ -346,6 +346,27 @@ test.describe("TOTP 2FA", () => {
     expect(afterReset).toBeDefined()
     expect(afterReset.totp_enabled).toBe(false)
 
+    // Audit trail must carry enough context to tell entries apart without a
+    // lookup (#381): a totp_enrolled entry for the new admin's own action,
+    // and a totp_reset entry naming *which* admin's 2FA the caller reset —
+    // entity_id alone is just the target's UUID.
+    const enrolledAudit = await authenticatedRequest.get(
+      `${API_BASE}/admin/audit-log?filters[entity_type]=admin_user&filters[action]=totp_enrolled&limit=100`
+    )
+    expect(enrolledAudit.ok()).toBeTruthy()
+    const enrolledAuditData = await enrolledAudit.json()
+    const enrolledEntry = enrolledAuditData.data.find((entry: any) => entry.entity_id === newAdmin.id)
+    expect(enrolledEntry).toBeDefined()
+
+    const resetAudit = await authenticatedRequest.get(
+      `${API_BASE}/admin/audit-log?filters[entity_type]=admin_user&filters[action]=totp_reset&limit=100`
+    )
+    expect(resetAudit.ok()).toBeTruthy()
+    const resetAuditData = await resetAudit.json()
+    const resetEntry = resetAuditData.data.find((entry: any) => entry.entity_id === newAdmin.id)
+    expect(resetEntry).toBeDefined()
+    expect(resetEntry.new_values.target_email).toBe(newAdmin.email)
+
     // Step 5: User must now re-enroll — login returns requiresTotpSetup, not requiresMfa
     const reloginCtx = await playwright.request.newContext()
     try {

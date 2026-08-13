@@ -63,6 +63,7 @@ class AuthController
                 action: AuditAction::LOGIN_FAILED,
                 entityType: EntityType::ADMIN_USER,
                 entityId: $body['email'],
+                newValues: ['attempted_email' => $body['email']],
             );
             return $this->json($response, ['error' => 'invalid_credentials', 'message' => 'Invalid credentials'], 401);
         }
@@ -227,6 +228,7 @@ class AuthController
             action: AuditAction::LOGIN_FAILED,
             entityType: EntityType::ADMIN_USER,
             entityId: $admin['id'],
+            newValues: ['attempted_email' => $admin['email']],
         );
 
         $failures = ((int) ($_SESSION['mfa_failed_attempts'] ?? 0)) + 1;
@@ -377,6 +379,7 @@ class AuthController
             action: AuditAction::TOTP_RESET,
             entityType: EntityType::ADMIN_USER,
             entityId: $body['userId'],
+            newValues: ['target_email' => $target['email'] ?? null],
             adminUserId: $callerAdminId,
         );
 

@@ -65,8 +65,10 @@ export const ListAuditLogEntityType = {
   member: 'member',
   product: 'product',
   category: 'category',
+  transaction: 'transaction',
   admin_user: 'admin_user',
   terminal: 'terminal',
   settlement: 'settlement',
   sepa_config: 'sepa_config',
+  instance_config: 'instance_config',
 } as const;

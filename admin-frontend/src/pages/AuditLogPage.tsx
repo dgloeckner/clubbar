@@ -22,6 +22,7 @@ import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { useListQuery } from '../hooks/useListQuery'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { formatDateTime } from '../styles/design-system'
+import { getAuditLogSummary } from '../utils/auditLogSummary'
 
 /** Return a color pair for action badges */
 function getActionBadgeStyle(action: string): { backgroundColor: string; color: string } {
@@ -85,10 +86,13 @@ interface AuditLogFilters {
 }
 
 export function AuditLogPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const breakpoint = useBreakpoint()
 
   const isMobile = breakpoint === 'mobile' || breakpoint === 'smallMobile'
+
+  /** Translated badge text for an action; falls back to the raw slug for anything not yet mapped */
+  const actionLabel = (action: string) => t(`auditLog.actionLabel.${action}`, { defaultValue: action })
 
   // Paging, filters and the debounced search all live in the shared list-query
   // state (#121).
@@ -325,7 +329,7 @@ export function AuditLogPage() {
               <span style={{ fontSize: '13px', color: theme.colors.text.secondary }}>
                 {formatDateTime(entry.created_at ?? '')}
               </span>
-              <span style={{
+              <span data-action={entry.action} style={{
                 padding: '3px 8px',
                 borderRadius: 4,
                 fontSize: 11,
@@ -333,8 +337,16 @@ export function AuditLogPage() {
                 backgroundColor: badgeStyle.backgroundColor,
                 color: badgeStyle.color,
               }}>
-                {entry.action}
+                {actionLabel(entry.action ?? '')}
               </span>
+            </div>
+
+            {/* Row 1.5: Human-readable summary (#381) */}
+            <div
+              data-testid={`audit-log-summary-${entry.id}`}
+              style={{ fontSize: '13px', color: theme.colors.text.primary, marginBottom: '6px' }}
+            >
+              {getAuditLogSummary(entry, t, i18n.language)}
             </div>
 
             {/* Row 2: Admin user name + Entity type */}
@@ -418,7 +430,7 @@ export function AuditLogPage() {
                 <td style={{ padding: '12px 16px' }} data-testid={`audit-log-admin-${entry.id}`}>
                   {entry.admin_user_email || (entry.action === 'login_failed' ? t('auditLog.failedLogin') : '\u2014')}
                 </td>
-                <td style={{ padding: '12px 16px' }} data-testid={`audit-log-action-${entry.id}`}>
+                <td style={{ padding: '12px 16px' }} data-testid={`audit-log-action-${entry.id}`} data-action={entry.action}>
                   <span style={{
                     padding: '4px 8px',
                     borderRadius: 4,
@@ -428,7 +440,7 @@ export function AuditLogPage() {
                     color: theme.colors.semantic.primary,
                     display: 'inline-block',
                   }}>
-                    {entry.action}
+                    {actionLabel(entry.action ?? '')}
                   </span>
                 </td>
                 <td style={{ padding: '12px 16px' }} data-testid={`audit-log-entity-type-${entry.id}`}>
@@ -461,6 +473,10 @@ export function AuditLogPage() {
                     padding: theme.spacing.lg,
                     borderTop: `1px solid ${tableColors.border}`,
                   }}>
+                    {/* Human-readable summary (#381) */}
+                    <div data-testid={`audit-log-summary-${entry.id}`} style={{ marginBottom: theme.spacing.md, fontSize: '14px', color: theme.colors.text.primary }}>
+                      {getAuditLogSummary(entry, t, i18n.language)}
+                    </div>
                     {/* IP Address */}
                     <div style={{ marginBottom: theme.spacing.md, fontSize: '13px' }}>
                       <span style={{ color: theme.colors.text.secondary }}>{t('auditLog.ipAddress')}: </span>

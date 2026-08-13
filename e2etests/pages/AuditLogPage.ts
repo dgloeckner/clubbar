@@ -312,10 +312,15 @@ export class AuditLogPage extends BasePage {
     return await this.page.getByTestId(`audit-log-admin-${entryId}`).textContent() || ''
   }
 
+  /**
+   * Raw action slug (e.g. "create", "login_failed"), read from `data-action`
+   * rather than the badge's visible text — the badge shows a translated,
+   * human-readable label (#381) which would make this assertion locale-dependent.
+   */
   async getAction(rowIndex: number = 0): Promise<string> {
     const row = this.page.locator('[data-testid^="audit-log-table-row-"]').nth(rowIndex)
     const cell = row.locator('[data-testid^="audit-log-action-"]')
-    return await cell.textContent() || ''
+    return await cell.getAttribute('data-action') || ''
   }
 
   async getEntityType(rowIndex: number = 0): Promise<string> {
@@ -374,7 +379,9 @@ export class AuditLogPage extends BasePage {
     return {
       timestamp: await this.page.getByTestId(`audit-log-timestamp-${entryId}`).textContent() || '',
       admin: await this.page.getByTestId(`audit-log-admin-${entryId}`).textContent() || '',
-      action: await this.page.getByTestId(`audit-log-action-${entryId}`).textContent() || '',
+      // Raw action slug via `data-action` — the cell's visible text is a translated,
+      // human-readable label (#381), not the raw value.
+      action: await this.page.getByTestId(`audit-log-action-${entryId}`).getAttribute('data-action') || '',
       entityType: await this.page.getByTestId(`audit-log-entity-type-${entryId}`).textContent() || '',
       entityId: await this.page.getByTestId(`audit-log-entity-id-${entryId}`).textContent() || '',
     }
