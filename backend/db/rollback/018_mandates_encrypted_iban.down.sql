@@ -1,10 +1,10 @@
--- Rollback of 016_mandates_encrypted_iban.sql.
+-- Rollback of 018_mandates_encrypted_iban.sql.
 --
 -- SAFE ONLY while no row has been sealed (iban_ciphertext still NULL
 -- everywhere): dropping the ciphertext columns destroys any IBAN whose
 -- plaintext was already NULLed by the batch encryption. After the batch has
 -- run, the only rollback is restoring the pre-upgrade database backup
--- (ADR-0035).
+-- (ADR-0036).
 
 ALTER TABLE mandates
     DROP FOREIGN KEY fk_mandates_encryption_key,

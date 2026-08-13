@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
@@ -40,6 +42,13 @@ void main() {
         productsProvider: mockProductsProvider,
         networkService: mockNetworkService,
       );
+
+      // ADR-0035 default: no instance_id reported / nothing to compare
+      // against, so ordinary sync proceeds unless a test says otherwise.
+      when(() => mockNetworkService.fetchInstanceId())
+          .thenAnswer((_) async => null);
+      when(() => mockSyncService.checkPairing(any()))
+          .thenAnswer((_) async => PairingResult.paired);
     });
 
     tearDown(() {
@@ -441,6 +450,189 @@ void main() {
         await provider.startSync();
 
         verifyNever(() => mockNetworkService.fetchInstanceName());
+      });
+    });
+
+    // ADR-0035: a terminal must hard-block sync — no push, no pull — the
+    // moment the backend reports a different instance_id than the one it
+    // last synced with (#380), and never auto-clear the block.
+    group('pairing mismatch (ADR-0035)', () {
+      test('pairingMismatch defaults to false', () {
+        expect(provider.pairingMismatch, isFalse);
+        expect(provider.pairingMismatchTransactionCount, equals(0));
+      });
+
+      test('a mismatch hard-blocks the sync cycle', () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockNetworkService.fetchInstanceId())
+            .thenAnswer((_) async => 'instance-b');
+        when(() => mockSyncService.checkPairing('instance-b'))
+            .thenAnswer((_) async => PairingResult.mismatch);
+        when(() => mockSyncService.getUnsyncedCount())
+            .thenAnswer((_) async => 3);
+
+        await provider.startSync();
+
+        expect(provider.pairingMismatch, isTrue);
+        expect(provider.pairingMismatchTransactionCount, equals(3));
+        verifyNever(() => mockSyncService.isSyncNeeded());
+        verifyNever(() => mockSyncService.syncAll());
+      });
+
+      test('a matched pairing proceeds with sync as normal', () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockNetworkService.fetchInstanceId())
+            .thenAnswer((_) async => 'instance-a');
+        when(() => mockSyncService.checkPairing('instance-a'))
+            .thenAnswer((_) async => PairingResult.paired);
+        when(() => mockSyncService.isSyncNeeded()).thenAnswer((_) async => false);
+
+        await provider.startSync();
+
+        expect(provider.pairingMismatch, isFalse);
+        verify(() => mockSyncService.isSyncNeeded()).called(1);
+      });
+
+      test('a failed health check never checks pairing', () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => false);
+
+        await provider.startSync();
+
+        verifyNever(() => mockNetworkService.fetchInstanceId());
+        verifyNever(() => mockSyncService.checkPairing(any()));
+      });
+
+      test('acknowledgePairingMismatch re-pairs and unblocks sync', () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockNetworkService.fetchInstanceId())
+            .thenAnswer((_) async => 'instance-b');
+        when(() => mockSyncService.checkPairing('instance-b'))
+            .thenAnswer((_) async => PairingResult.mismatch);
+        when(() => mockSyncService.getUnsyncedCount())
+            .thenAnswer((_) async => 1);
+        await provider.startSync();
+        expect(provider.pairingMismatch, isTrue);
+
+        when(() => mockNetworkService.acknowledgePairing())
+            .thenAnswer((_) async => 'instance-b');
+        when(() => mockSyncService.acknowledgePairing('instance-b'))
+            .thenAnswer((_) async {});
+
+        await provider.acknowledgePairingMismatch();
+
+        expect(provider.pairingMismatch, isFalse);
+        verify(() => mockSyncService.acknowledgePairing('instance-b')).called(1);
+      });
+
+      test('a failed acknowledgement leaves the terminal blocked', () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockNetworkService.fetchInstanceId())
+            .thenAnswer((_) async => 'instance-b');
+        when(() => mockSyncService.checkPairing('instance-b'))
+            .thenAnswer((_) async => PairingResult.mismatch);
+        when(() => mockSyncService.getUnsyncedCount())
+            .thenAnswer((_) async => 1);
+        await provider.startSync();
+        expect(provider.pairingMismatch, isTrue);
+
+        when(() => mockNetworkService.acknowledgePairing())
+            .thenThrow(NetworkException('offline'));
+
+        await provider.acknowledgePairingMismatch();
+
+        expect(provider.pairingMismatch, isTrue);
+        verifyNever(() => mockSyncService.acknowledgePairing(any()));
+      });
+
+      // The backend's own /health contract is fail-soft: instance_id can be
+      // null if instance_config isn't readable at that instant (e.g. a
+      // transient PDOException), and the ack endpoint mirrors that. A null
+      // is not a confirmed acknowledgement — clearing the block on it would
+      // silently reopen the exact hole ADR-0035 exists to close.
+      test('an ack response with a null instance_id leaves the terminal blocked',
+          () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockNetworkService.fetchInstanceId())
+            .thenAnswer((_) async => 'instance-b');
+        when(() => mockSyncService.checkPairing('instance-b'))
+            .thenAnswer((_) async => PairingResult.mismatch);
+        when(() => mockSyncService.getUnsyncedCount())
+            .thenAnswer((_) async => 1);
+        await provider.startSync();
+        expect(provider.pairingMismatch, isTrue);
+
+        when(() => mockNetworkService.acknowledgePairing())
+            .thenAnswer((_) async => null);
+
+        await provider.acknowledgePairingMismatch();
+
+        expect(provider.pairingMismatch, isTrue);
+        verifyNever(() => mockSyncService.acknowledgePairing(any()));
+      });
+
+      // A getUnsyncedCount() failure must not swallow the mismatch signal —
+      // the count is a nicety for the dialog, not a precondition for the
+      // block itself or for staff being told about it at all.
+      test('a count-fetch failure still surfaces the mismatch to the UI',
+          () async {
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) async => true);
+        when(() => mockNetworkService.fetchInstanceId())
+            .thenAnswer((_) async => 'instance-b');
+        when(() => mockSyncService.checkPairing('instance-b'))
+            .thenAnswer((_) async => PairingResult.mismatch);
+        when(() => mockSyncService.getUnsyncedCount())
+            .thenThrow(Exception('database is locked'));
+
+        var notified = false;
+        provider.addListener(() => notified = true);
+
+        await provider.startSync();
+
+        expect(provider.pairingMismatch, isTrue);
+        expect(notified, isTrue);
+      });
+
+      // Closes the race the reviewer flagged: a background timer tick must
+      // not be able to interleave with startSync()/acknowledgePairingMismatch()
+      // and re-flag a mismatch the moment staff just cleared it.
+      test('startSync no-ops while another sync cycle is already running',
+          () async {
+        final gate = Completer<bool>();
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) => gate.future);
+        when(() => mockSyncService.isSyncNeeded()).thenAnswer((_) async => false);
+
+        final first = provider.startSync();
+        final second = provider.startSync();
+
+        gate.complete(false);
+        await first;
+        await second;
+
+        // Only the first call's checkHealth() should ever have run.
+        verify(() => mockNetworkService.checkHealth()).called(1);
+      });
+
+      test('acknowledgePairingMismatch no-ops while a sync cycle is running',
+          () async {
+        final gate = Completer<bool>();
+        when(() => mockNetworkService.checkHealth())
+            .thenAnswer((_) => gate.future);
+
+        final syncing = provider.startSync();
+        await provider.acknowledgePairingMismatch();
+
+        verifyNever(() => mockNetworkService.acknowledgePairing());
+
+        gate.complete(false);
+        await syncing;
       });
     });
   });

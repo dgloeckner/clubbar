@@ -214,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Preserve existing keys if re-running step 2 on an already-installed
             // instance — regenerating the fingerprint key would break bank-change
-            // detection for every stored mandate (ADR-0035).
+            // detection for every stored mandate (ADR-0036).
             if (file_exists($configFile)) {
                 $existingConfig = require $configFile;
                 if (!empty($existingConfig['security']['totp_encryption_key'])) {

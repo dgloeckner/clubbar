@@ -49,6 +49,26 @@ class InstanceConfigService
         return $name !== null && $name !== '' ? $name : self::DEFAULT_NAME;
     }
 
+    /**
+     * The instance's stable identity, used by /health so a terminal can
+     * detect it is now talking to a backend with a different history than
+     * the one it last synced with (ADR-0035). Same fail-soft contract as
+     * getInstanceName() — no table yet is expected, not exceptional, and a
+     * terminal treats a missing instance_id as "nothing to compare against
+     * yet" rather than a mismatch.
+     */
+    public function getInstanceId(): ?string
+    {
+        try {
+            $config = $this->instanceConfigRepository->getConfig();
+        } catch (\PDOException) {
+            return null;
+        }
+
+        $id = $config['instance_id'] ?? null;
+        return $id !== null && $id !== '' ? $id : null;
+    }
+
     public function updateConfig(array $attributes, string $adminUserId): ?InstanceConfigDto
     {
         $old = $this->instanceConfigRepository->getConfig();

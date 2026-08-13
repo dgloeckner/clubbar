@@ -6,7 +6,7 @@ namespace App\Shared\Security;
 
 /**
  * The shared expiry policy for long-lived credentials — IBAN encryption keys
- * and terminal tokens alike (ADR-0035): 365-day operational lifetime, advance
+ * and terminal tokens alike (ADR-0036): 365-day operational lifetime, advance
  * warnings at 90/30/7 days, hard enforcement at expiry.
  *
  * Computed at request time on purpose: shared hosting guarantees no cron

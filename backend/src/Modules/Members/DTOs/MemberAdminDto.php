@@ -28,7 +28,7 @@ final readonly class MemberAdminDto
     ) {}
 
     /**
-     * The stored IBAN is sealed (ADR-0035); the API exposes only its last
+     * The stored IBAN is sealed (ADR-0036); the API exposes only its last
      * four characters — enough to recognize the account, useless to debit it.
      * `iban_masked` keeps its established shape (`****3000`) for display.
      */

@@ -55,7 +55,7 @@ class SettlementsServiceTest extends TestCase
     private function member(string $id, array $overrides = []): array
     {
         // The read model exposes sealed-IBAN derivatives, never the IBAN
-        // itself (ADR-0035). Tests keep overriding 'iban' as before; the
+        // itself (ADR-0036). Tests keep overriding 'iban' as before; the
         // helper translates that into what repository reads actually return.
         $iban = array_key_exists('iban', $overrides) ? $overrides['iban'] : 'DE89370400440532013000';
         unset($overrides['iban']);

@@ -11,7 +11,7 @@ use App\Shared\Services\SecurityCheckService;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The ADR-0035 backfill row of the security report: plaintext IBAN remnants
+ * The ADR-0036 backfill row of the security report: plaintext IBAN remnants
  * must stay visible until the batch encryption sealed every last one.
  */
 class SecurityCheckServiceTest extends TestCase

@@ -98,7 +98,7 @@ abstract class HttpTestCase extends TestCase
             // Matches the encrypted TOTP secret seeded by db/seed.sql. Test-only.
             'TOTP_ENCRYPTION_KEY' => getenv('TOTP_ENCRYPTION_KEY')
                 ?: '0000000000000000000000000000000000000000000000000000000000000001',
-            // The published dev fingerprint key (ADR-0035); accepted because
+            // The published dev fingerprint key (ADR-0036); accepted because
             // APP_ENV is a development value here.
             'IBAN_FINGERPRINT_KEY' => getenv('IBAN_FINGERPRINT_KEY')
                 ?: '0000000000000000000000000000000000000000000000000000000000000002',

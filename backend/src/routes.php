@@ -20,6 +20,7 @@ use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
+use App\Modules\Terminals\Controllers\PairingController;
 use App\Modules\BankCodes\Controllers\AdminController as BankCodesAdminController;
 use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminController;
 use App\Modules\Reports\Controllers\AdminController as ReportsAdminController;
@@ -74,6 +75,13 @@ return function (App $app): void {
     })->add(TerminalTokenAuth::class)->add($terminalRateLimit);
 
     $app->get('/api/terminal/transactions/{memberId}', [TransactionsSyncController::class, 'transactionHistory'])
+        ->add(TerminalTokenAuth::class)
+        ->add($terminalRateLimit);
+
+    // ADR-0035: staff at the bar confirming a pairing mismatch is safe to
+    // clear. Terminal-authenticated, not admin-authenticated — the terminal
+    // itself is the one whose local state changes.
+    $app->post('/api/terminal/pairing/ack', [PairingController::class, 'acknowledge'])
         ->add(TerminalTokenAuth::class)
         ->add($terminalRateLimit);
 
@@ -151,7 +159,7 @@ return function (App $app): void {
         // Audit log
         $group->get('/audit-log', [AuditLogAdminController::class, 'index']);
 
-        // IBAN encryption keys (ADR-0035). Mutations carry a step-up
+        // IBAN encryption keys (ADR-0036). Mutations carry a step-up
         // credential in the body and share the step-up rate-limit dimension.
         $group->get('/encryption-keys', [EncryptionKeysController::class, 'index']);
         $group->post('/encryption-keys', [EncryptionKeysController::class, 'store'])->add($stepUpRateLimit);

@@ -70,7 +70,7 @@ class EncryptionKeysRepository
 
     /**
      * The ACTIVE key, verified operational — the gate in front of sealing any
-     * IBAN and of the SEPA export. Expiry is a hard stop (ADR-0035 strict
+     * IBAN and of the SEPA export. Expiry is a hard stop (ADR-0036 strict
      * policy): the cryptoperiod must be a real security boundary, not only an
      * export restriction. Key management itself stays reachable so the admin
      * can always rotate out of this state.

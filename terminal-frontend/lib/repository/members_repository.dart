@@ -80,6 +80,20 @@ class MembersRepository {
         .getSingleOrNull();
   }
 
+  /// Ids of cached members whose last known tab is not zero.
+  ///
+  /// The set the periodic sync re-asks the backend about (#374). A cached zero
+  /// cannot go stale in a way the member sees — it only grows again through a
+  /// purchase, and a purchase brings its own balance back in the sync response
+  /// — whereas a cached debt goes stale the moment an admin stornos or settles
+  /// it, which is exactly the number the credit-limit banner shouts about.
+  Future<List<String>> getMemberIdsWithOpenBalance() async {
+    final rows = await (_db.select(_db.membersCache)
+          ..where((m) => m.balanceCents.equals(0).not()))
+        .get();
+    return rows.map((m) => m.id).toList();
+  }
+
   /// Update member balance (called during atomic sync completion)
   Future<void> updateMemberBalance(String memberId, int balanceCents) async {
     await (_db.update(_db.membersCache)

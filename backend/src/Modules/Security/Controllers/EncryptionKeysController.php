@@ -14,7 +14,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * Admin management of IBAN encryption keys (ADR-0035).
+ * Admin management of IBAN encryption keys (ADR-0036).
  *
  * Every mutation requires a fresh step-up credential (own password + own TOTP)
  * on top of the session: registering or activating a key changes what every
@@ -109,7 +109,7 @@ class EncryptionKeysController
     }
 
     /**
-     * One batch of the one-time legacy-plaintext sealing (ADR-0035). The
+     * One batch of the one-time legacy-plaintext sealing (ADR-0036). The
      * frontend loops until `remaining` reaches 0; each call is independently
      * step-up-authenticated and idempotent.
      */

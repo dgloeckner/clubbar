@@ -1,4 +1,4 @@
-# ADR-0035: IBAN Encryption at Rest with libsodium Sealed Boxes
+# ADR-0036: IBAN Encryption at Rest with libsodium Sealed Boxes
 
 **Status**: Accepted
 
@@ -159,7 +159,7 @@ Strongest storage posture, but SEPA export would require re-typing every IBAN pe
 - [ADR-0016](./0016-transport-security.md) — TLS remains the transport layer under all flows here
 - [ADR-0029](./0029-two-tier-retention-and-erasure.md) — mandate rows (now ciphertext-bearing) remain retained per its rules
 - [ADR-0031](./0031-production-hardening-on-shared-hosting.md) — the hosting constraints this design works within
-- [ADR-0036](./0036-mandate-documents-not-retained.md) — removes the other at-rest IBAN copy (scanned documents)
+- [ADR-0037](./0037-mandate-documents-not-retained.md) — removes the other at-rest IBAN copy (scanned documents)
 
 ## References
 

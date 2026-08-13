@@ -20,7 +20,7 @@ class MembersRepository
      * mutable member row (#164). Every read joins the member's active mandate
      * back in.
      *
-     * Since ADR-0035 the IBAN itself is sealed (iban_ciphertext) and reads
+     * Since ADR-0036 the IBAN itself is sealed (iban_ciphertext) and reads
      * expose only what routine operation needs: the last four characters, the
      * bank name resolved at write time, and presence (`has_iban`). The
      * COALESCE arms cover legacy rows that still carry plaintext `iban`
@@ -170,7 +170,7 @@ class MembersRepository
 
         $current = $this->findActiveMandate($id);
 
-        // The stored IBAN is sealed and this code cannot open it (ADR-0035);
+        // The stored IBAN is sealed and this code cannot open it (ADR-0036);
         // identity is decided by the keyed fingerprint instead. Legacy rows the
         // batch encryption has not sealed yet still hold plaintext, so their
         // fingerprint is computed on the fly — treating them as "always
@@ -246,7 +246,7 @@ class MembersRepository
         // a member without banking data has no reference at all.
         $reference = ($data['mandate_reference'] ?? null) ?: str_replace('-', '', $mandateId);
 
-        // ADR-0035: the plaintext IBAN is sealed under the ACTIVE public key
+        // ADR-0036: the plaintext IBAN is sealed under the ACTIVE public key
         // and never stored. Writing plaintext "just this once" is exactly the
         // regression the schema keeps nullable `iban` around to migrate away
         // from, not to feed — so a missing or expired key refuses the write
@@ -292,7 +292,7 @@ class MembersRepository
      * that touches the ciphertext (and, until the batch encryption finishes, a
      * legacy plaintext remnant). Sole consumer is the SEPA export, which either
      * opens the ciphertext with the temporarily supplied private key or uses
-     * the legacy plaintext directly (ADR-0035).
+     * the legacy plaintext directly (ADR-0036).
      */
     public function findSealedIban(string $memberId): ?array
     {

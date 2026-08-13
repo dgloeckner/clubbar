@@ -12,7 +12,7 @@ use App\Shared\Services\AuditService;
 use PDO;
 
 /**
- * One-time sealing of legacy plaintext IBANs (ADR-0035).
+ * One-time sealing of legacy plaintext IBANs (ADR-0036).
  *
  * Runs as an admin-triggered action in resumable batches, not as a deploy
  * migration: sealing needs the ACTIVE public key, which exists only after the

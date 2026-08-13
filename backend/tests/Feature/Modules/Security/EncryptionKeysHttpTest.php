@@ -9,7 +9,7 @@ use RobThree\Auth\TwoFactorAuth;
 use Tests\Feature\HttpTestCase;
 
 /**
- * The encryption-key management API through the real stack (ADR-0035):
+ * The encryption-key management API through the real stack (ADR-0036):
  * session auth, CSRF, and — on every mutation — the step-up credential.
  */
 class EncryptionKeysHttpTest extends HttpTestCase

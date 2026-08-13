@@ -1,6 +1,6 @@
 # ADR-0029: Two-Tier Retention and Erasure
 
-**Status**: Accepted (amended by [ADR-0036](./0036-mandate-documents-not-retained.md): the mandate *document* is no longer stored in the system — the treasurer-archived paper original is the Beleg. The mandate record fields, now ciphertext-bearing per [ADR-0035](./0035-iban-encryption-sealed-box.md), remain in the retention tier.)
+**Status**: Accepted (amended by [ADR-0037](./0037-mandate-documents-not-retained.md): the mandate *document* is no longer stored in the system — the treasurer-archived paper original is the Beleg. The mandate record fields, now ciphertext-bearing per [ADR-0036](./0036-iban-encryption-sealed-box.md), remain in the retention tier.)
 **Date**: 2026-08-07
 
 ## Context
@@ -39,7 +39,7 @@ Retention is bounded by the *recording* duty — **GoBD Rz. 113**: *„Der sachl
 |---|---|
 | Email, phone, `preferred_language` | Per-transaction records: item, quantity, price, timestamp, member link |
 | RFID/NFC card UID, PIN, credentials, sessions | Settlement and monthly totals; payment, return and reversal records |
-| Photo/avatar, free-text notes, marketing flags | IBAN, mandate reference (UMR), ~~the mandate document~~ (moved out of the system by [ADR-0036](./0036-mandate-documents-not-retained.md); the paper original is the Beleg) |
+| Photo/avatar, free-text notes, marketing flags | IBAN, mandate reference (UMR), ~~the mandate document~~ (moved out of the system by [ADR-0037](./0037-mandate-documents-not-retained.md); the paper original is the Beleg) |
 | Postal address, date of birth ⚠️ | The identifier tying transactions to the record (GoBD Rz. 64 Ordnungskriterium) |
 
 ⚠️ **Address and date of birth are deletable only because this club issues no invoices.** If it ever issues a Rechnung with USt, § 14 Abs. 4 Nr. 1 UStG pulls the address onto a retained Beleg and it moves columns.

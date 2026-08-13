@@ -597,7 +597,7 @@ function runMigrations(string $configFile): array
 
     require_once $autoload;
 
-    // Existing installs predate the IBAN fingerprint key (ADR-0035): install.php
+    // Existing installs predate the IBAN fingerprint key (ADR-0036): install.php
     // only writes config.php on a fresh install, so the upgrade path has to
     // backfill it. This must happen — and be able to fail — BEFORE migrations
     // run: shipping the encryption release with an install that cannot store

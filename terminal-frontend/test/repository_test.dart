@@ -104,6 +104,42 @@ void main() {
       expect(error, equals(TerminalErrorKey.sepaMissing));
     });
 
+    // #374: the set the periodic sync re-asks the backend about. A cached debt
+    // goes stale the moment an admin stornos or settles it; a cached zero
+    // cannot go stale in a way the member sees, so it is not worth asking about.
+    group('getMemberIdsWithOpenBalance (#374)', () {
+      Future<void> insertMember(String id, int balanceCents) {
+        return db.into(db.membersCache).insert(
+              MembersCacheCompanion(
+                id: Value(id),
+                cardUid: Value('CARD-$id'),
+                firstName: const Value('Test'),
+                lastName: const Value('Member'),
+                preferredLanguage: const Value('de'),
+                isActive: const Value(1),
+                isSepaValid: const Value(1),
+                balanceCents: Value(balanceCents),
+                updatedAt: const Value('2025-02-01T12:00:00Z'),
+              ),
+            );
+      }
+
+      test('reports debts and credits but not settled tabs', () async {
+        await insertMember('owes', 4500);
+        await insertMember('settled', 0);
+        await insertMember('in-credit', -2000);
+
+        final ids = await repo.getMemberIdsWithOpenBalance();
+
+        expect(ids, containsAll(['owes', 'in-credit']));
+        expect(ids, isNot(contains('settled')));
+      });
+
+      test('is empty when nothing is cached', () async {
+        expect(await repo.getMemberIdsWithOpenBalance(), isEmpty);
+      });
+    });
+
     // Issue #18: the lookup is an exact string match, so before normalization a
     // reader that typed lower-case hex was told "Unknown token" for a member
     // that exists — a failure that depended purely on the reader hardware.
@@ -1071,6 +1107,41 @@ void main() {
         expect(await repo.getQuarantinedCount(), equals(0));
       });
     });
+
+    group('getUnsyncedCount', () {
+      Future<void> insertUnsynced(String id, {String member = 'member-1'}) async {
+        await db.into(db.transactionsLocal).insert(
+              TransactionsLocalCompanion(
+                id: Value(id),
+                memberId: Value(member),
+                amountCents: const Value(350),
+                transactionType: const Value('purchase'),
+                createdAt: const Value('2025-02-01T12:00:00Z'),
+                synced: const Value(0),
+              ),
+            );
+      }
+
+      test('counts unsynced transactions — the pairing-mismatch blast radius (ADR-0035)', () async {
+        await createTestMember('member-1');
+        await insertUnsynced('txn-1');
+        await insertUnsynced('txn-2');
+
+        expect(await repo.getUnsyncedCount(), equals(2));
+      });
+
+      test('is zero when everything is synced', () async {
+        expect(await repo.getUnsyncedCount(), equals(0));
+      });
+
+      test('excludes quarantined rows, matching getUnsyncedTransactions', () async {
+        await createTestMember('member-1');
+        await insertUnsynced('txn-1');
+        await repo.quarantineTransactions({'txn-1': 'unstorable'});
+
+        expect(await repo.getUnsyncedCount(), equals(0));
+      });
+    });
   });
 
   group('SyncRepository', () {
@@ -1229,6 +1300,29 @@ void main() {
       final count = await repo.getSyncRetryCount();
 
       expect(count, equals(0));
+    });
+
+    test('getPairedBackendInstanceId returns null before first pairing', () async {
+      final id = await repo.getPairedBackendInstanceId();
+
+      expect(id, isNull);
+    });
+
+    test('setPairedBackendInstanceId stores and getPairedBackendInstanceId returns it', () async {
+      await repo.setPairedBackendInstanceId('a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7');
+
+      final id = await repo.getPairedBackendInstanceId();
+
+      expect(id, equals('a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7'));
+    });
+
+    test('setPairedBackendInstanceId overwrites a previous pairing', () async {
+      await repo.setPairedBackendInstanceId('old-instance');
+      await repo.setPairedBackendInstanceId('new-instance');
+
+      final id = await repo.getPairedBackendInstanceId();
+
+      expect(id, equals('new-instance'));
     });
   });
 }

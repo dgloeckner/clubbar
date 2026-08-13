@@ -620,4 +620,32 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get failedSalesUnknownMember => 'Unknown member';
+
+  @override
+  String get pairingMismatchWarning =>
+      'This terminal is talking to a different backend than before — sync is paused. Please tell an admin.';
+
+  @override
+  String get pairingMismatchTitle => 'Backend has changed';
+
+  @override
+  String pairingMismatchInstruction(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count local sales are waiting to sync and have not been confirmed by this backend.',
+      one:
+          '1 local sale is waiting to sync and has not been confirmed by this backend.',
+      zero: 'No local sales are waiting to sync.',
+    );
+    return '$_temp0 Only resume if an admin has confirmed this backend still has this terminal\'s history.';
+  }
+
+  @override
+  String get pairingMismatchResume => 'Resume syncing';
+
+  @override
+  String get pairingMismatchResumeFailed =>
+      'Could not confirm with the server — still paused. Please check the connection and try again.';
 }

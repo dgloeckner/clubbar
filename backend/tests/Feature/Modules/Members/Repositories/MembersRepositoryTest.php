@@ -487,7 +487,7 @@ class MembersRepositoryTest extends DatabaseTestCase
             'mandate_signed_at' => '2025-01-01',
         ]);
 
-        // Reads never expose the IBAN itself any more (ADR-0035): the row
+        // Reads never expose the IBAN itself any more (ADR-0036): the row
         // holds a sealed ciphertext, the API surface gets the last four.
         $this->assertSame('3000', $member['iban_last4']);
         $this->assertNotEmpty($member['has_iban']);
@@ -551,7 +551,7 @@ class MembersRepositoryTest extends DatabaseTestCase
         $reference = $member['mandate_reference'];
 
         // The edit form re-sends the plaintext the admin re-typed (or, since
-        // ADR-0035's overwrite-only form, the same account typed again) — the
+        // ADR-0036's overwrite-only form, the same account typed again) — the
         // read model cannot echo it back, so the test re-sends the fixture.
         $updated = $this->membersRepository->updateById($member['id'], [
             'first_name' => 'Renamed',

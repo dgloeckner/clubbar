@@ -75,15 +75,24 @@ class MembersProvider extends ChangeNotifier with ErrorSignal {
     notifyListeners();
   }
 
-  /// Set selected member directly and compute effective balance
+  /// Start a session for [member]: refresh what they owe, then compute the
+  /// effective balance.
+  ///
+  /// The cached balance is only ever written by a sync response, so it is stale
+  /// for every change the terminal did not cause itself — a storno, a
+  /// settlement, a sale on another terminal. Login is the moment that number
+  /// starts being displayed and enforced against, so it is the moment to ask
+  /// the backend for it (#374, ADR-0023). Offline the cached value stands.
   Future<void> setSelectedMember(MembersCacheData member) async {
-    _selectedMember = member;
+    final refreshed = await _service.refreshBalance(member.id) ?? member;
+
+    _selectedMember = refreshed;
     _sessionId = _uuid.v4();
-    _memberDeckel = await _service.getEffectiveBalance(member);
+    _memberDeckel = await _service.getEffectiveBalance(refreshed);
     resetError();
 
     // Update app locale based on member's preferred language
-    _localeProvider?.setLocaleFromMember(member.preferredLanguage);
+    _localeProvider?.setLocaleFromMember(refreshed.preferredLanguage);
 
     notifyListeners();
   }

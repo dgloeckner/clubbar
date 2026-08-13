@@ -34,11 +34,27 @@ Admin opens Settings → Audit Log
 | create | New record created |
 | update | Record modified |
 | delete | Record removed/deactivated |
+| activate | Record reactivated |
+| deactivate | Record deactivated |
 | login | Admin logged in |
 | logout | Admin logged out |
-| export | Data exported |
-| settlement | Settlement created |
-| anonymize | Member data anonymized |
+| login_failed | Failed login, or a failed step-up re-authentication |
+| export | Data exported (reserved, not currently emitted) |
+| transaction_storno | A booking reversed in full |
+| settlement_create | Settlement created |
+| settlement_cancel | Settlement cancelled |
+| settlement_export | Settlement exported |
+| settlement_submit | Settlement submitted to the bank |
+| settlement_reverse | Settlement payment reversed, per member |
+| collection_hold_placed | A collection hold placed on a member after a bank return |
+| collection_hold_cleared | A collection hold cleared |
+| totp_enrolled | Admin enabled two-factor authentication |
+| totp_reset | An admin reset another admin's two-factor authentication |
+| mandate_document_upload | SEPA mandate document uploaded |
+| mandate_document_delete | SEPA mandate document deleted |
+| anonymize | Member data anonymized (GDPR) |
+
+See [ADR-0013](../../adr/0013-audit-logging.md#audit-actions) for the full old_values/new_values shape of each action.
 
 ## Filters
 

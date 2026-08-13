@@ -2972,12 +2972,12 @@ paths:
           in: query
           schema:
             type: string
-            enum: [create, update, delete, anonymize, login, logout, login_failed, export, settlement_create, settlement_cancel, settlement_export]
+            enum: [create, update, delete, activate, deactivate, anonymize, login, logout, login_failed, export, transaction_storno, settlement_create, settlement_cancel, settlement_export, settlement_submit, settlement_reverse, collection_hold_placed, collection_hold_cleared, totp_enrolled, totp_reset, mandate_document_upload, mandate_document_delete]
         - name: entity_type
           in: query
           schema:
             type: string
-            enum: [member, product, category, admin_user, terminal, settlement, sepa_config]
+            enum: [member, product, category, transaction, admin_user, terminal, settlement, sepa_config, instance_config]
         - name: entity_id
           in: query
           schema:
@@ -5541,7 +5541,7 @@ components:
           nullable: true
         action:
           type: string
-          enum: [create, update, delete, anonymize, login, logout, login_failed, export, settlement_create, settlement_cancel, settlement_export]
+          enum: [create, update, delete, activate, deactivate, anonymize, login, logout, login_failed, export, transaction_storno, settlement_create, settlement_cancel, settlement_export, settlement_submit, settlement_reverse, collection_hold_placed, collection_hold_cleared, totp_enrolled, totp_reset, mandate_document_upload, mandate_document_delete]
         entity_type:
           type: string
         entity_id:

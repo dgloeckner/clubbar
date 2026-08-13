@@ -34,7 +34,7 @@ class MembersService
     ) {}
 
     /**
-     * An IBAN write is the last moment the plaintext exists (ADR-0035), so the
+     * An IBAN write is the last moment the plaintext exists (ADR-0036), so the
      * bank name is resolved from the BLZ here — a sealed row can never answer
      * that question again. The sealing itself (and the refusal to write
      * without an operational key) lives in the repository.
@@ -82,7 +82,7 @@ class MembersService
     {
         $result = $this->membersRepository->listPaginated($limit, $offset, $filters, $sortKey, $sortOrder, $search);
 
-        // Bank names are stored on the mandate at write time (ADR-0035) —
+        // Bank names are stored on the mandate at write time (ADR-0036) —
         // there is no plaintext IBAN left to derive them from on read.
         $items = array_map(
             fn($row) => MemberAdminDto::fromRow($row)->toArray(),

@@ -128,6 +128,79 @@ class NetworkService {
     }
   }
 
+  /// Fetch the backend's stable instance identity from the health endpoint
+  /// (ADR-0035), used to detect a pairing mismatch — this backend now has a
+  /// different, discontinuous history than the one this terminal last synced
+  /// with (see #380).
+  ///
+  /// Like [fetchInstanceName], `instance_id` predates the generated Chopper
+  /// client, so this is hand-written the same way.
+  ///
+  /// Returns the instance id, or null on failure or before instance_config
+  /// exists — fail-soft, same as [fetchInstanceName]: a terminal that cannot
+  /// reach the backend has nothing new to compare against, so it is not a
+  /// mismatch.
+  Future<String?> fetchInstanceId() async {
+    try {
+      final uri = Uri.parse('$_baseUrl${AppConfig.healthEndpoint}');
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      final token = _tokenInterceptor.token;
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      final response = await http
+          .get(uri, headers: headers)
+          .timeout(AppConfig.healthCheckTimeout);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return data['instance_id'] as String?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Confirm a pairing mismatch is safe to trust (ADR-0035) — staff at the
+  /// bar decided this backend's history is genuine despite reporting a
+  /// different instance_id than the one this terminal last synced with.
+  ///
+  /// Unlike [fetchInstanceId]/[fetchInstanceName] this is deliberately NOT
+  /// fail-soft: it is a one-off staff action, not a background poll, and
+  /// swallowing a failure into null would let the terminal locally clear a
+  /// mismatch the backend never actually recorded the acknowledgement for.
+  /// Callers must catch [NetworkException] and keep the terminal blocked.
+  ///
+  /// Returns the instance_id to store as newly paired.
+  Future<String?> acknowledgePairing() async {
+    final uri = Uri.parse('$_baseUrl/terminal/pairing/ack');
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    final token = _tokenInterceptor.token;
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    try {
+      final response = await http
+          .post(uri, headers: headers)
+          .timeout(AppConfig.healthCheckTimeout);
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw NetworkException(
+          'Acknowledge pairing failed: HTTP ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['instance_id'] as String?;
+    } on NetworkException {
+      rethrow;
+    } catch (e) {
+      throw NetworkException('Acknowledge pairing failed: $e');
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Delta sync — members
   // ---------------------------------------------------------------------------

@@ -1105,6 +1105,36 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Unbekanntes Mitglied'**
   String get failedSalesUnknownMember;
+
+  /// Persistent staff warning while the terminal's backend instance_id does not match what it last synced with (ADR-0035, #380)
+  ///
+  /// In de, this message translates to:
+  /// **'Dieses Terminal spricht mit einem anderen Server als zuvor – die Synchronisierung ist pausiert. Bitte einen Admin informieren.'**
+  String get pairingMismatchWarning;
+
+  /// Title of the pairing-mismatch dialog
+  ///
+  /// In de, this message translates to:
+  /// **'Server hat sich geändert'**
+  String get pairingMismatchTitle;
+
+  /// Explains the risk and what staff must confirm before resuming sync
+  ///
+  /// In de, this message translates to:
+  /// **'{count, plural, =0{Es warten keine lokalen Verkäufe auf Synchronisierung.} =1{1 lokaler Verkauf wartet auf Synchronisierung und wurde von diesem Server noch nicht bestätigt.} other{{count} lokale Verkäufe warten auf Synchronisierung und wurden von diesem Server noch nicht bestätigt.}} Nur fortsetzen, wenn ein Admin bestätigt hat, dass dieser Server die Historie dieses Terminals noch kennt.'**
+  String pairingMismatchInstruction(int count);
+
+  /// Button that calls the backend to acknowledge the mismatch and re-pair
+  ///
+  /// In de, this message translates to:
+  /// **'Synchronisierung fortsetzen'**
+  String get pairingMismatchResume;
+
+  /// Shown when acknowledgePairingMismatch fails and the terminal stays blocked
+  ///
+  /// In de, this message translates to:
+  /// **'Bestätigung durch den Server fehlgeschlagen — weiterhin pausiert. Bitte Verbindung prüfen und erneut versuchen.'**
+  String get pairingMismatchResumeFailed;
 }
 
 class _AppLocalizationsDelegate

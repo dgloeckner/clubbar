@@ -1,4 +1,4 @@
--- ADR-0035: sealed-box IBAN storage on the mandate record.
+-- ADR-0036: sealed-box IBAN storage on the mandate record.
 --
 -- New writes fill iban_ciphertext (libsodium sealed box, 'v1:' + base64),
 -- iban_last4 (routine display without decryption), iban_fingerprint (keyed

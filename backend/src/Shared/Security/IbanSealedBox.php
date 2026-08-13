@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Shared\Security;
 
 /**
- * Sealed-box encryption for IBANs (ADR-0035).
+ * Sealed-box encryption for IBANs (ADR-0036).
  *
  * The construction is asymmetric on purpose: this class can seal with the
  * registered public key on every write, but opening requires the private key,
@@ -48,7 +48,7 @@ class IbanSealedBox
 
     public function __construct(string $fingerprintKeyHex, string $appEnv)
     {
-        // Fail closed: without sodium there is no weaker fallback (ADR-0035).
+        // Fail closed: without sodium there is no weaker fallback (ADR-0036).
         // A silent downgrade to plaintext or homemade crypto is exactly the
         // failure this check exists to make loud.
         if (!function_exists('sodium_crypto_box_seal')) {

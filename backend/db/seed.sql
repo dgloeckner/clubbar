@@ -88,7 +88,7 @@ VALUES (
 );
 
 -- ---------------------------------------------------------------------------
--- Development IBAN encryption key (ADR-0035)
+-- Development IBAN encryption key (ADR-0036)
 --
 -- The PUBLIC half of the dev keypair published in this repository; the
 -- matching private key lives in the e2e fixtures. IbanSealedBox refuses this

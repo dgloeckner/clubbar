@@ -1,12 +1,12 @@
 # IBAN Encryption at Rest (Sealed Boxes), Credential Lifecycle, Mandate-Scan Non-Retention
 
-**Epic**: [#388](https://github.com/dgloeckner/clubbar/issues/388) · **ADRs**: [0035](../adr/0035-iban-encryption-sealed-box.md), [0036](../adr/0036-mandate-documents-not-retained.md) · **Branch**: `claude/iban-storage-security-dlg0ts`
+**Epic**: [#388](https://github.com/dgloeckner/clubbar/issues/388) · **ADRs**: [0035](../adr/0036-iban-encryption-sealed-box.md), [0036](../adr/0037-mandate-documents-not-retained.md) · **Branch**: `claude/iban-storage-security-dlg0ts`
 
 Status legend: `[ ]` not started · `[~]` in progress · `[x]` passed (test verified) · `[!]` failed (reason documented)
 
 ## Why
 
-IBANs sit in plaintext in `mandates.iban` while the DB password sits in `config.php` on the shared host — a DB-only compromise (SQLi, stolen dump/backup, co-tenant) exposes every member's bank account. Agreed architecture (security handoff 2026-08-12, verified on IONOS PHP 8.4.24): libsodium sealed boxes — the server holds only the public key and can encrypt but never decrypt; the private key stays offline with the club and is supplied temporarily (fresh TOTP step-up) only for SEPA export, exceptional full-IBAN view, and rotation. See ADR-0035 for the full threat model and deviations.
+IBANs sit in plaintext in `mandates.iban` while the DB password sits in `config.php` on the shared host — a DB-only compromise (SQLi, stolen dump/backup, co-tenant) exposes every member's bank account. Agreed architecture (security handoff 2026-08-12, verified on IONOS PHP 8.4.24): libsodium sealed boxes — the server holds only the public key and can encrypt but never decrypt; the private key stays offline with the club and is supplied temporarily (fresh TOTP step-up) only for SEPA export, exceptional full-IBAN view, and rotation. See ADR-0036 for the full threat model and deviations.
 
 Key implementation constraint discovered up front: `MembersRepository::applyMandateChange()` compares submitted vs. stored IBAN to tell bank changes from corrections — with undecryptable ciphertext this needs the keyed fingerprint, and a regression test that an unchanged-IBAN save opens no new mandate.
 
@@ -14,21 +14,21 @@ Key implementation constraint discovered up front: `MembersRepository::applyMand
 
 ### P0 — ADRs + plan scaffolding ([#389](https://github.com/dgloeckner/clubbar/issues/389))
 
-- [x] ADR-0035, ADR-0036 written; ADR-0005 and ADR-0029 amended in place; `adr/README.md` index updated (incl. missing 0034 row)
+- [x] ADR-0036, ADR-0037 written; ADR-0005 and ADR-0029 amended in place; `adr/README.md` index updated (incl. missing 0034 row)
 - [x] This plan file + `plans/INDEX.md` row
 - Verify: docs review only; no code
 
 ### P1 — Crypto foundation + key management ([#390](https://github.com/dgloeckner/clubbar/issues/390))
 
 - [x] `Shared/Security/IbanSealedBox` (seal/open/fingerprint, `v1:` format, fail-closed without sodium, dev-key blocklist)
-- [x] Migration `015_encryption_keys.sql`; `EncryptionKeyRepository`/`EncryptionKeyService` (PENDING→ACTIVE, one-ACTIVE invariant, revoke/compromise), `PrivateKeyValidator`, `CredentialLifecycleService` (90/30/7 tiers)
+- [x] Migration `017_encryption_keys.sql`; `EncryptionKeyRepository`/`EncryptionKeyService` (PENDING→ACTIVE, one-ACTIVE invariant, revoke/compromise), `PrivateKeyValidator`, `CredentialLifecycleService` (90/30/7 tiers)
 - [x] Step-up endpoints POST/GET `admin/encryption-keys`, activate/revoke; new AuditActions; `maskSensitiveFields` covers key material
 - [x] `IBAN_FINGERPRINT_KEY` in install.php/upgrade.php/index.php/docker-compose; `tools/keypair-generator.html`
 - Verify: PHPUnit in container — roundtrip, tamper, wrong key, fingerprint determinism, state machine, expiry math, published-key refusal
 
 ### P2 — Encrypt-on-write + existing data ([#391](https://github.com/dgloeckner/clubbar/issues/391))
 
-- [x] Migration `016_mandates_encrypted_iban.sql` (ciphertext/last4/fingerprint/key-id/bank_name columns; legacy `iban` nullable)
+- [x] Migration `018_mandates_encrypted_iban.sql` (ciphertext/last4/fingerprint/key-id/bank_name columns; legacy `iban` nullable)
 - [x] `MembersRepository`: openMandate seals; applyMandateChange compares fingerprints (**regression test: unchanged IBAN ⇒ no new mandate**); reads expose last4/bank_name
 - [x] Bank name resolved at write time; no-ACTIVE-key blocks IBAN writes with clear message
 - [x] Step-up admin batch action "encrypt existing IBANs" (100/batch, idempotent, optimistic update, nulls legacy plaintext per row); SecuritySelfCheck finding for plaintext remnants

@@ -47,7 +47,7 @@ class SecurityCheckService
     }
 
     /**
-     * ADR-0035: rows the one-time batch encryption has not sealed yet still
+     * ADR-0036: rows the one-time batch encryption has not sealed yet still
      * hold plaintext IBANs. That state is expected right after the upgrade and
      * a standing weakness afterwards — this row is what keeps it visible until
      * the count reaches zero.

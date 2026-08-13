@@ -36,7 +36,7 @@ class SepaExportService
      * are dropped on the floor.
      *
      * $openIban opens a sealed IBAN ciphertext with the temporarily supplied
-     * private key (ADR-0035): `fn(string $ciphertext): string`. It is invoked
+     * private key (ADR-0036): `fn(string $ciphertext): string`. It is invoked
      * per row, right where the plaintext goes into the XML segment, so no
      * plaintext collection ever exists. Rows the batch encryption has not
      * sealed yet still carry legacy plaintext and bypass it. Without the
@@ -311,7 +311,7 @@ class SepaExportService
     /**
      * The plaintext IBAN for one member, alive only for the XML segment being
      * built: legacy rows read it directly, sealed rows go through $openIban
-     * with the private key the caller supplied for this request (ADR-0035).
+     * with the private key the caller supplied for this request (ADR-0036).
      */
     private function resolvePlainIban(string $memberId, ?callable $openIban): string
     {
@@ -329,7 +329,7 @@ class SepaExportService
 
         if ($openIban === null) {
             throw new BusinessRuleException(
-                'This settlement contains sealed IBANs; the SEPA export requires the club\'s private key (ADR-0035).'
+                'This settlement contains sealed IBANs; the SEPA export requires the club\'s private key (ADR-0036).'
             );
         }
 

@@ -134,7 +134,7 @@ class SettlementsService
                 // number their row on the New Settlement screen shows.
                 'transaction_count' => $unsettledCounts[$mid] ?? 0,
                 // Last four characters only — the preview identifies the
-                // account, it never needs to debit it (ADR-0035).
+                // account, it never needs to debit it (ADR-0036).
                 'iban_last4' => $member['iban_last4'] ?? null,
                 'mandate_reference' => $member['mandate_reference'] ?? null,
             ];
@@ -575,7 +575,7 @@ class SettlementsService
                     'name' => trim(($item['first_name'] ?? '') . ' ' . ($item['last_name'] ?? '')),
                     'email' => $member['email'] ?? '',
                     // ****3000 — the CSV is a reconciliation aid, not a debit
-                    // instruction; last4 identifies the account (ADR-0035).
+                    // instruction; last4 identifies the account (ADR-0036).
                     'iban' => isset($member['iban_last4']) && $member['iban_last4'] !== null
                         ? '****' . $member['iban_last4'] : '',
                     'amount_cents' => 0,

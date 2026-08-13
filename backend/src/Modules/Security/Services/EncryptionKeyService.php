@@ -13,7 +13,7 @@ use App\Shared\Security\IbanSealedBox;
 use App\Shared\Services\AuditService;
 
 /**
- * Lifecycle of the IBAN encryption keypairs (ADR-0035).
+ * Lifecycle of the IBAN encryption keypairs (ADR-0036).
  *
  * The database holds public keys and metadata only. Registering a key means
  * the admin generated a keypair offline (tools/keypair-generator.html),

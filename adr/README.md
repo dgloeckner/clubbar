@@ -59,8 +59,9 @@ Each ADR follows this structure:
 | [0032](./0032-settlement-lifecycle.md) | Settlement Lifecycle | Accepted | 2026-08-09 |
 | [0033](./0033-terminal-sync-contract.md) | Terminal Sync Contract | Accepted | 2026-08-09 |
 | [0034](./0034-instance-branding-configuration.md) | Instance Branding Configuration | Accepted | 2026-08-11 |
-| [0035](./0035-iban-encryption-sealed-box.md) | IBAN Encryption at Rest with libsodium Sealed Boxes | Accepted | 2026-08-13 |
-| [0036](./0036-mandate-documents-not-retained.md) | Mandate Documents Are Not Retained in the System | Accepted | 2026-08-13 |
+| [0035](./0035-terminal-backend-instance-pairing.md) | Terminal-Backend Instance Pairing | Accepted | 2026-08-12 |
+| [0036](./0036-iban-encryption-sealed-box.md) | IBAN Encryption at Rest with libsodium Sealed Boxes | Accepted | 2026-08-13 |
+| [0037](./0037-mandate-documents-not-retained.md) | Mandate Documents Are Not Retained in the System | Accepted | 2026-08-13 |
 
 ## Creating a New ADR
 

@@ -1,4 +1,4 @@
-# ADR-0036: Mandate Documents Are Not Retained in the System
+# ADR-0037: Mandate Documents Are Not Retained in the System
 
 **Status**: Accepted
 
@@ -12,7 +12,7 @@
 
 Scanned SEPA mandates — each one a member's name, full IBAN and handwritten signature — are stored as PDFs under `storage/mandates/{memberId}.pdf` (0700 directory, `mandate_documents` metadata table). They exist to (a) feed the IBAN/name extraction when creating a member from a scan and (b) serve as the retained Beleg per ADR-0029's retention tier.
 
-With ADR-0035 the database copy of every IBAN becomes ciphertext the server cannot read — while the scan directory would keep a plaintext copy of exactly the same data, plus a signature, protected only by file modes. Encrypting the scans too would drag the whole document pipeline (upload, dompdf conversion, streaming download, LLM extraction) into the key flow.
+With ADR-0036 the database copy of every IBAN becomes ciphertext the server cannot read — while the scan directory would keep a plaintext copy of exactly the same data, plus a signature, protected only by file modes. Encrypting the scans too would drag the whole document pipeline (upload, dompdf conversion, streaming download, LLM extraction) into the key flow.
 
 The club decided the simpler, older answer instead: the **signed paper original, archived by the treasurer outside the system, is the Beleg**. Superseded ADR-0010 already reached the same conclusion for mandate compliance in general ("document retention is performed outside the system"); #164 later pulled a *minimal* mandate record (reference, IBAN, signature date) back in — but never the document itself as a load-bearing artifact. The stateless extraction endpoint (`POST /admin/mandate-document/extract`) already exists and stores nothing.
 
@@ -50,5 +50,5 @@ The deletion migration is **destructive and announced**: upgrade notes instruct 
 
 - [ADR-0010](./0010-mandate-lifecycle-and-retention.md) — superseded ADR that already placed document retention outside the system
 - [ADR-0029](./0029-two-tier-retention-and-erasure.md) — amended: mandate *record* stays in the retention tier, the document leaves it
-- [ADR-0035](./0035-iban-encryption-sealed-box.md) — companion decision for the database copy of IBANs
+- [ADR-0036](./0036-iban-encryption-sealed-box.md) — companion decision for the database copy of IBANs
 - #360 — the blank mandate template is likewise moving out of the app

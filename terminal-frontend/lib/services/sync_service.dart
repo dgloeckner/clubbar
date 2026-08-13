@@ -13,6 +13,10 @@ import 'network_service.dart';
 /// Result of a sync operation
 enum SyncResult { success, failure, alreadyInProgress }
 
+/// Result of comparing a backend's reported instance_id against the one this
+/// terminal last synced with (ADR-0035).
+enum PairingResult { paired, mismatch }
+
 class SyncService {
   /// Largest batch `POST /sync/transactions` accepts, per `api/terminal.yaml`.
   ///
@@ -97,6 +101,15 @@ class SyncService {
         // silently excluded by ErrorFileOutput's level filter.
         _logger.e('Transaction sync failed (non-fatal): $e', error: e, stackTrace: stackTrace);
         _lastTransactionSyncError = e.toString();
+      }
+
+      // Refresh open tabs last, so it sees the balances the upload just moved.
+      // Non-fatal for the same reason: a stale balance must not cost the
+      // terminal its member and product data.
+      try {
+        await _refreshOpenBalances();
+      } catch (e, stackTrace) {
+        _logger.e('Balance refresh failed (non-fatal): $e', error: e, stackTrace: stackTrace);
       }
 
       // Update last sync time
@@ -340,6 +353,50 @@ class SyncService {
     }
   }
 
+  /// Re-ask the backend for every cached tab that is not zero (#374).
+  ///
+  /// `member_balances` only ever reports the members a request *names*, and
+  /// until now the only way to name one was to sell them something. So a
+  /// balance the terminal did not move itself — an admin's storno, a
+  /// settlement, a sale on another terminal — never reached this cache, and the
+  /// credit-limit banner went on warning about money the member had already
+  /// paid. `member_ids` is the ask (#191, ADR-0023), and an empty `transactions`
+  /// array makes it a pure read.
+  ///
+  /// Only non-zero tabs are asked about: a cached zero cannot be visibly stale
+  /// (it grows again only through a purchase, which reports its own balance
+  /// back), and a scan refreshes the scanned member regardless.
+  Future<void> _refreshOpenBalances() async {
+    final memberIds = await _membersRepo.getMemberIdsWithOpenBalance();
+    if (memberIds.isEmpty) {
+      _logger.i('No open balances to refresh');
+      return;
+    }
+
+    // Same cap as an upload: the server refuses an oversized request whole.
+    var refreshed = 0;
+    for (var start = 0; start < memberIds.length; start += maxSyncBatchSize) {
+      final end = start + maxSyncBatchSize;
+      final chunk = memberIds.sublist(
+          start, end < memberIds.length ? end : memberIds.length);
+
+      final response =
+          await _networkService.syncTransactions(const [], memberIds: chunk);
+
+      // An id the backend does not know is omitted rather than reported as 0;
+      // writing a phantom zero would wipe a real tab (ADR-0023).
+      for (final entry in response.memberBalances.entries) {
+        final value = entry.value;
+        if (value is num) {
+          await _membersRepo.updateMemberBalance(entry.key, value.toInt());
+          refreshed++;
+        }
+      }
+    }
+
+    _logger.i('Balances refreshed: $refreshed of ${memberIds.length} open tabs');
+  }
+
   /// Normalize a timestamp to ISO 8601 UTC format (with Z suffix) as expected by the backend.
   String _normalizeTimestamp(String timestamp) {
     try {
@@ -392,6 +449,44 @@ class SyncService {
     } catch (e) {
       _logger.w('Failed to write failed transactions log: $e');
     }
+  }
+
+  /// Compare the backend's reported instance_id against the one this
+  /// terminal last synced with (ADR-0035).
+  ///
+  /// [remoteInstanceId] null means the backend has no instance_config row
+  /// yet (pre-migration) — there is nothing to compare against, so this
+  /// proceeds rather than blocking; the same fail-soft contract as the
+  /// backend's own getInstanceId().
+  ///
+  /// A first-ever pairing is trust-on-first-use: nothing was stored before,
+  /// so the reported id is simply adopted. Once something is stored, a
+  /// mismatch is never auto-corrected here — only [acknowledgePairing] may
+  /// overwrite it, after a human has deliberately confirmed it is safe.
+  Future<PairingResult> checkPairing(String? remoteInstanceId) async {
+    if (remoteInstanceId == null) {
+      return PairingResult.paired;
+    }
+
+    final paired = await _syncRepo.getPairedBackendInstanceId();
+    if (paired == null) {
+      await _syncRepo.setPairedBackendInstanceId(remoteInstanceId);
+      return PairingResult.paired;
+    }
+
+    return paired == remoteInstanceId ? PairingResult.paired : PairingResult.mismatch;
+  }
+
+  /// Staff confirmed a pairing mismatch is safe to trust — re-pair against
+  /// the given instance_id so sync can resume.
+  Future<void> acknowledgePairing(String instanceId) async {
+    await _syncRepo.setPairedBackendInstanceId(instanceId);
+  }
+
+  /// How many local sales are queued to sync — the count a pairing-mismatch
+  /// warning shows staff as "at risk" (ADR-0035).
+  Future<int> getUnsyncedCount() async {
+    return _transactionsRepo.getUnsyncedCount();
   }
 
   /// Reset sync state and cache (for logout or reset)

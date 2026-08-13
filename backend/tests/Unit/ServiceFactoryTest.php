@@ -27,7 +27,7 @@ class ServiceFactoryTest extends TestCase
         Env::reset();
     }
 
-    // ─── ADR-0035 crypto wiring ──────────────────────────────────────────────
+    // ─── ADR-0036 crypto wiring ──────────────────────────────────────────────
 
     public function test_the_encryption_stack_resolves_and_is_singleton(): void
     {

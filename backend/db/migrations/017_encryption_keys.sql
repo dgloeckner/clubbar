@@ -1,4 +1,4 @@
--- ADR-0035: IBAN encryption at rest with libsodium sealed boxes.
+-- ADR-0036: IBAN encryption at rest with libsodium sealed boxes.
 -- Key METADATA only — the database never contains a private key. The public
 -- key is stored raw (32 bytes); the SHA-256 fingerprint identifies a key to
 -- humans and validates a supplied private key against its registered public

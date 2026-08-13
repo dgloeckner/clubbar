@@ -1,4 +1,4 @@
--- ADR-0035: audit actions for the IBAN encryption key lifecycle and the
+-- ADR-0036: audit actions for the IBAN encryption key lifecycle and the
 -- privileged decryption operations. Follows the 008/009/010 pattern of
 -- restating the full ENUM — MariaDB has no ADD VALUE for enums.
 --

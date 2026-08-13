@@ -529,7 +529,7 @@ SELECT COUNT(*) AS members FROM members;
 SELECT COUNT(*) AS terminals FROM terminals;
 
 -- ---------------------------------------------------------------------------
--- Development IBAN encryption key (ADR-0035) — the published dev keypair's
+-- Development IBAN encryption key (ADR-0036) — the published dev keypair's
 -- PUBLIC half; e2e export tests hold the private half. Mandate fixtures above
 -- stay legacy plaintext on purpose: they exercise the pre-batch-encryption
 -- read paths, while members created through the API get sealed rows.

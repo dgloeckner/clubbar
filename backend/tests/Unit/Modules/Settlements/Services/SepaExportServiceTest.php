@@ -419,7 +419,7 @@ class SepaExportServiceTest extends TestCase
             ->willReturnCallback(static fn(string $id): ?array => $members[$id] ?? null);
 
         // The export resolves the plaintext through the dedicated sealed-IBAN
-        // read (ADR-0035); these fixtures model legacy rows the batch
+        // read (ADR-0036); these fixtures model legacy rows the batch
         // encryption has not sealed yet, so they answer with plaintext.
         $this->membersRepository->method('findSealedIban')
             ->willReturnCallback(static function (string $id) use ($members): ?array {

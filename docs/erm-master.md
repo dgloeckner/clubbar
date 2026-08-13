@@ -175,6 +175,7 @@ erDiagram
     instance_config {
         tinyint id PK "Single row (id=1)"
         varchar_100 instance_name "Deploying club's display name"
+        binary_16 instance_id "Stable random identity (ADR-0035); set once, read via /health"
         binary_16 updated_by_admin_id FK "Who last modified"
         datetime created_at "Initial configuration"
         datetime updated_at "Last modification"
@@ -183,7 +184,7 @@ erDiagram
     audit_log {
         bigint id PK "Auto-increment"
         binary_16 admin_user_id FK "Acting admin (nullable)"
-        enum action "create, update, delete, etc."
+        enum action "create, update, delete, terminal_repair, etc."
         varchar_50 entity_type "Affected table"
         varchar_36 entity_id "Affected record ID"
         json old_values "Values before change"
@@ -588,6 +589,7 @@ Deployment-wide instance branding ([ADR-0034](../adr/0034-instance-branding-conf
 |--------|------|-------------|-------------|
 | id | TINYINT UNSIGNED | PK | Always 1 (single row) |
 | instance_name | VARCHAR(100) | NOT NULL, DEFAULT 'Club Bar' | The deploying club's display name, e.g. "FRGS Ruderbar" |
+| instance_id | CHAR(36) | NOT NULL | Random UUID set once when this row is created (install/reseed); read via `/health` so a Terminal can tell this backend apart from one with a discontinuous history ([ADR-0035](../adr/0035-terminal-backend-instance-pairing.md)) |
 | updated_by_admin_id | CHAR(36) | FK → admin_users.id, NULL | Admin who last modified |
 | created_at | TIMESTAMP | NOT NULL | Initial configuration timestamp |
 | updated_at | TIMESTAMP | NOT NULL | Last modification timestamp |
@@ -631,6 +633,7 @@ Centralized audit trail for all master data changes.
 - `totp_enrolled` / `totp_reset` — Second factor enrolled or reset
 - `mandate_document_upload` / `mandate_document_delete` — Mandate scan stored or removed
 - `activate` / `deactivate` / `reorder` — Status and ordering changes
+- `terminal_repair` — A terminal resumed sync after staff confirmed a pairing (instance_id) mismatch was safe to trust ([ADR-0035](../adr/0035-terminal-backend-instance-pairing.md), [#380](https://github.com/dgloeckner/clubbar/issues/380))
 
 **Indexes:**
 - `admin_user_id`

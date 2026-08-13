@@ -121,12 +121,12 @@ class AuthControllerReset2faTest extends TestCase
     public function test_success_still_clears_the_targets_totp_and_writes_the_existing_audit_entry(): void
     {
         $this->stepUpAuthService->method('verify')->willReturn(true);
-        $this->adminUsersRepository->method('findById')->with('target-1')->willReturn(['id' => 'target-1']);
+        $this->adminUsersRepository->method('findById')->with('target-1')->willReturn(['id' => 'target-1', 'email' => 'target@example.com']);
 
         $this->adminUsersRepository->expects($this->once())->method('clearTotp')->with('target-1');
         $this->auditService->expects($this->once())
             ->method('log')
-            ->with(AuditAction::TOTP_RESET, EntityType::ADMIN_USER, 'target-1', null, null, 'caller-1');
+            ->with(AuditAction::TOTP_RESET, EntityType::ADMIN_USER, 'target-1', null, ['target_email' => 'target@example.com'], 'caller-1');
 
         $this->controller->reset2fa(
             $this->post(['userId' => 'target-1', 'current_password' => 'correct']),

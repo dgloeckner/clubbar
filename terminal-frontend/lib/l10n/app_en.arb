@@ -207,5 +207,10 @@
   "failedSalesWarning": "{count, plural, =1{1 sale was not saved — please report it to an admin} other{{count} sales were not saved — please report them to an admin}}",
   "failedSalesTitle": "Sales that were not saved",
   "failedSalesInstruction": "These sales never reached the server and will not be settled. Please report them to an admin.",
-  "failedSalesUnknownMember": "Unknown member"
+  "failedSalesUnknownMember": "Unknown member",
+  "pairingMismatchWarning": "This terminal is talking to a different backend than before — sync is paused. Please tell an admin.",
+  "pairingMismatchTitle": "Backend has changed",
+  "pairingMismatchInstruction": "{count, plural, =0{No local sales are waiting to sync.} =1{1 local sale is waiting to sync and has not been confirmed by this backend.} other{{count} local sales are waiting to sync and have not been confirmed by this backend.}} Only resume if an admin has confirmed this backend still has this terminal's history.",
+  "pairingMismatchResume": "Resume syncing",
+  "pairingMismatchResumeFailed": "Could not confirm with the server — still paused. Please check the connection and try again."
 }

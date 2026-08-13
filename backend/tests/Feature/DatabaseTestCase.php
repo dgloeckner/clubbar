@@ -56,7 +56,7 @@ abstract class DatabaseTestCase extends TestCase
     }
 
     /**
-     * Make sure an ACTIVE IBAN encryption key exists (ADR-0035).
+     * Make sure an ACTIVE IBAN encryption key exists (ADR-0036).
      *
      * Storing an IBAN seals it under the ACTIVE key, so every test that
      * creates banking data needs one. The dev/e2e seeds provide it, but CI's
