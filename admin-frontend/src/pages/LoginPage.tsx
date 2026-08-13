@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext'
 import { Card } from '../components/common/Card'
 import { Input } from '../components/common/Input'
 import { Button } from '../components/common/Button'
+import { SecretBox } from '../components/common/SecretBox'
 import { theme } from '../styles/design-system'
 import { useModalEscape } from '../hooks/useModalDialog'
 
@@ -330,18 +331,54 @@ function TotpSetupStep() {
         </div>
       )}
 
+      {/*
+        The key is the only way back into the account if the authenticator app
+        is lost — there are no recovery codes, so an admin who misses it needs
+        direct database recovery (#386). It is therefore presented as its own
+        bordered block with a copy button, not as a caption under the QR code.
+      */}
       {secret && (
-        <p
+        <section
+          data-testid="totp-setup-backup-key"
           style={{
-            textAlign: 'center',
-            fontSize: theme.typography.fontSize.xs,
-            color: theme.colors.text.secondary,
-            wordBreak: 'break-all',
+            border: `1px solid ${theme.colors.semantic.warning}`,
+            borderRadius: theme.borderRadius.md,
+            padding: theme.spacing.md,
             marginBottom: theme.spacing.lg,
           }}
         >
-          {t('auth.setupManualKey')}: <strong data-testid="totp-setup-secret">{secret}</strong>
-        </p>
+          <h2
+            style={{
+              margin: 0,
+              marginBottom: theme.spacing.xs,
+              fontSize: theme.typography.fontSize.base,
+              fontWeight: theme.typography.fontWeight.semibold,
+              color: theme.colors.semantic.warning,
+            }}
+          >
+            {t('auth.setupBackupKeyTitle')}
+          </h2>
+          <p
+            style={{
+              margin: 0,
+              marginBottom: theme.spacing.md,
+              fontSize: theme.typography.fontSize.sm,
+              color: theme.colors.semantic.warningLight,
+            }}
+          >
+            {t('auth.setupBackupKeyHint')}
+          </p>
+          {/*
+            valueTestId keeps the historical `totp-setup-secret` ID on the value
+            element alone, so the page object's getTotpSetupSecret() still reads
+            back the bare secret and not the surrounding label.
+          */}
+          <SecretBox
+            secret={secret}
+            testIdPrefix="totp-setup-backup-key"
+            valueTestId="totp-setup-secret"
+          />
+        </section>
       )}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>

@@ -154,7 +154,7 @@ For terminal app deployment on Raspberry Pi or Linux, see the **[Terminal Instal
 ### Admin Panel
 
 - **Mandatory two-factor authentication (TOTP)** — Every admin account must enroll a TOTP authenticator app on first login. 2FA cannot be bypassed.
-- **Back up your TOTP secret** — During enrollment, a manual backup key is shown below the QR code. Store it in a password manager. Without it, losing access to your authenticator app requires direct database recovery.
+- **Back up your TOTP secret** — During enrollment, a **backup key** is shown below the QR code, with a button to copy it. Store it in a password manager before finishing enrollment. There are no recovery codes: without this key, losing access to your authenticator app requires direct database recovery.
 - **Use HTTPS in production** — Admin credentials and session cookies must be transmitted over TLS. See the [Deployment Guide](./docs/deployment.md) for certificate setup.
 - **Sessions expire** — Admin sessions time out after 2 hours of inactivity.
 

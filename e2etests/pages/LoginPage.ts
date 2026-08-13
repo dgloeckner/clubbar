@@ -26,7 +26,10 @@ export class LoginPage extends BasePage {
 
   // TOTP enrollment step (requiresTotpSetup branch)
   readonly totpQrCode = () => this.page.getByTestId('totp-qr-code')
+  readonly totpSetupBackupKey = () => this.page.getByTestId('totp-setup-backup-key')
   readonly totpSetupSecret = () => this.page.getByTestId('totp-setup-secret')
+  readonly totpSetupBackupKeyCopyButton = () =>
+    this.page.getByTestId('totp-setup-backup-key-copy-button')
   readonly totpSetupCodeInput = () => this.page.getByTestId('setup-code-input')
   readonly totpSetupConfirmButton = () => this.page.getByTestId('setup-confirm-button')
   readonly totpSetupError = () => this.page.getByTestId('totp-setup-error')
