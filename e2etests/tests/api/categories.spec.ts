@@ -257,6 +257,97 @@ test.describe('Categories API - Delete', () => {
 
     expect(response.status()).toBe(404);
   });
+
+  test('DELETE /api/admin/categories/{id} returns 404 for already-deleted category', async ({ authenticatedRequest }) => {
+    const createResponse = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory(),
+    });
+    const category = await createResponse.json();
+
+    await authenticatedRequest.delete(`/api/admin/categories/${category.id}`);
+    const response = await authenticatedRequest.delete(`/api/admin/categories/${category.id}`);
+
+    expect(response.status()).toBe(404);
+  });
+
+  test('DELETE /api/admin/categories/{id} refuses category with active products', async ({ authenticatedRequest }) => {
+    const category = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory(),
+    }).then((r) => r.json());
+
+    await authenticatedRequest.post('/api/admin/products', {
+      data: {
+        names: { de: `Produkt ${randomUUID().substring(0, 8)}` },
+        price_cents: 100,
+        category_id: category.id,
+      },
+    });
+
+    const response = await authenticatedRequest.delete(`/api/admin/categories/${category.id}`);
+
+    expect(response.status()).toBe(500);
+  });
+
+  // #367: hasProducts() ignored deleted_at, so a category whose products were
+  // all soft-deleted was permanently undeletable ("Cannot delete category
+  // with products" for a category with no visible products).
+  test('DELETE /api/admin/categories/{id} succeeds once all its products are soft-deleted', async ({ authenticatedRequest }) => {
+    const category = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory(),
+    }).then((r) => r.json());
+
+    const product = await authenticatedRequest.post('/api/admin/products', {
+      data: {
+        names: { de: `Produkt ${randomUUID().substring(0, 8)}` },
+        price_cents: 100,
+        category_id: category.id,
+      },
+    }).then((r) => r.json());
+
+    const deleteProductResponse = await authenticatedRequest.delete(`/api/admin/products/${product.id}`);
+    expect(deleteProductResponse.status()).toBe(204);
+
+    const deleteCategoryResponse = await authenticatedRequest.delete(`/api/admin/categories/${category.id}`);
+    expect(deleteCategoryResponse.status()).toBe(204);
+  });
+
+  // #416: getWithProductCount() applied no deleted_at filter, so a deleted
+  // category stayed in the admin list and deleted products stayed counted.
+  test('DELETE /api/admin/categories/{id} removes it from GET /api/admin/categories', async ({ authenticatedRequest }) => {
+    const category = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory(),
+    }).then((r) => r.json());
+
+    await authenticatedRequest.delete(`/api/admin/categories/${category.id}`);
+
+    const listResponse = await authenticatedRequest.get('/api/admin/categories');
+    const body = await listResponse.json();
+
+    expect(body.data.find((c: any) => c.id === category.id)).toBeUndefined();
+  });
+
+  test('GET /api/admin/categories product_count excludes soft-deleted products', async ({ authenticatedRequest }) => {
+    const category = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory(),
+    }).then((r) => r.json());
+
+    const product = await authenticatedRequest.post('/api/admin/products', {
+      data: {
+        names: { de: `Produkt ${randomUUID().substring(0, 8)}` },
+        price_cents: 100,
+        category_id: category.id,
+      },
+    }).then((r) => r.json());
+
+    await authenticatedRequest.delete(`/api/admin/products/${product.id}`);
+
+    const listResponse = await authenticatedRequest.get('/api/admin/categories');
+    const body = await listResponse.json();
+    const found = body.data.find((c: any) => c.id === category.id);
+
+    expect(found).toBeDefined();
+    expect(found.product_count).toBe(0);
+  });
 });
 
 // Test: Terminal Sync

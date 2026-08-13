@@ -19,7 +19,7 @@ class ProductsRepository
 
     public function findById(string $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM products WHERE id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM products WHERE id = ? AND deleted_at IS NULL');
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }

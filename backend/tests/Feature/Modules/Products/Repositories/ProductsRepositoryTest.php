@@ -328,4 +328,34 @@ class ProductsRepositoryTest extends DatabaseTestCase
         $this->assertTrue($foundUpdated, 'Updated product should be included');
         $this->assertTrue($foundDeleted, 'Deleted product (tombstone) should be included');
     }
+
+    public function test_findById_returns_null_for_soft_deleted_product(): void
+    {
+        // #416: findById() must not resolve a soft-deleted product, otherwise
+        // it stays fetchable, updatable and re-deletable through the admin API.
+        $testCategoryId = $this->generateUuid();
+        $this->testCategoryIds[] = $testCategoryId;
+        $this->categoriesRepository->create([
+            'id' => $testCategoryId,
+            'names' => ['de' => 'Test Kategorie', 'en' => 'Test Category'],
+            'is_active' => true,
+        ]);
+
+        $testProductId = $this->generateUuid();
+        $this->testProductIds[] = $testProductId;
+        $this->productsRepository->create([
+            'id' => $testProductId,
+            'category_id' => $testCategoryId,
+            'names' => ['de' => 'Gelöschtes Produkt', 'en' => 'Deleted Product'],
+            'price_cents' => 100,
+            'is_active' => true,
+        ]);
+
+        $this->productsRepository->updateById($testProductId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        $this->assertNull(
+            $this->productsRepository->findById($testProductId),
+            'findById() should not resolve a soft-deleted product'
+        );
+    }
 }
