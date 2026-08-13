@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/database/database.dart';
@@ -110,8 +112,6 @@ void main() {
 
         when(() => mockRepo.findByCardUid('card-123'))
             .thenAnswer((_) async => (testMember, null));
-        when(() => mockTxnRepo.getUnsyncedTransactions())
-            .thenAnswer((_) async => []);
         when(() => mockNetwork.syncTransactions(any(), memberIds: any(named: 'memberIds')))
             .thenAnswer((_) async => TransactionBatchResponse(
                   acceptedIds: [],
@@ -136,8 +136,6 @@ void main() {
 
         when(() => mockRepo.findByCardUid('card-123'))
             .thenAnswer((_) async => (testMember, null));
-        when(() => mockTxnRepo.getUnsyncedTransactions())
-            .thenAnswer((_) async => []);
         when(() => mockNetwork.syncTransactions(any(), memberIds: any(named: 'memberIds')))
             .thenThrow(NetworkException('offline'));
         when(() => mockRepo.findById('member-1'))
@@ -161,8 +159,6 @@ void main() {
 
         when(() => mockRepo.findByCardUid('card-123'))
             .thenAnswer((_) async => (testMember, null));
-        when(() => mockTxnRepo.getUnsyncedTransactions())
-            .thenAnswer((_) async => []);
         when(() => mockNetwork.syncTransactions(any(),
                 memberIds: any(named: 'memberIds')))
             .thenAnswer((_) async => TransactionBatchResponse(
@@ -191,8 +187,6 @@ void main() {
 
         when(() => mockRepo.findByCardUid('card-123'))
             .thenAnswer((_) async => (testMember, null));
-        when(() => mockTxnRepo.getUnsyncedTransactions())
-            .thenAnswer((_) async => []);
         when(() => mockNetwork.syncTransactions(any(), memberIds: any(named: 'memberIds')))
             .thenAnswer((_) async => TransactionBatchResponse(
                   acceptedIds: [],
@@ -204,6 +198,57 @@ void main() {
 
         await serviceWithNetwork.lookupByRfid('card-123');
 
+        verifyNever(() => mockRepo.updateMemberBalance(any(), any()));
+      });
+
+      /// #374: the pending queue is SyncService's to upload. Sending it from
+      /// here would have the backend count rows this method never marks as
+      /// synced, and `getEffectiveBalance` adds unsynced rows on top of the
+      /// balance — so every scan with a queue behind it would double them.
+      test('uploads nothing, so a pending queue cannot be counted twice',
+          () async {
+        final testMember = makeMember(balanceCents: 1000);
+
+        when(() => mockRepo.findByCardUid('card-123'))
+            .thenAnswer((_) async => (testMember, null));
+        when(() => mockNetwork.syncTransactions(any(),
+                memberIds: any(named: 'memberIds')))
+            .thenAnswer((_) async => TransactionBatchResponse(
+                  acceptedIds: [],
+                  rejected: const TransactionBatchResponse$Rejected(),
+                  memberBalances: {'member-1': 1000},
+                ));
+        when(() => mockRepo.updateMemberBalance('member-1', 1000))
+            .thenAnswer((_) async {});
+        when(() => mockRepo.findById('member-1'))
+            .thenAnswer((_) async => testMember);
+
+        await serviceWithNetwork.lookupByRfid('card-123');
+
+        verify(() => mockNetwork.syncTransactions([],
+            memberIds: ['member-1'])).called(1);
+        verifyNever(() => mockTxnRepo.getUnsyncedTransactions());
+      });
+
+      /// A balance that never arrives must not hold the member at the idle
+      /// screen: the scan falls through to the cached value instead (#374).
+      test('gives up on a slow backend and keeps the cached balance', () async {
+        final testMember = makeMember(balanceCents: 2500);
+
+        when(() => mockRepo.findByCardUid('card-123'))
+            .thenAnswer((_) async => (testMember, null));
+        when(() => mockNetwork.syncTransactions(any(),
+                memberIds: any(named: 'memberIds')))
+            .thenAnswer((_) => Completer<TransactionBatchResponse>().future);
+        when(() => mockRepo.findById('member-1'))
+            .thenAnswer((_) async => testMember);
+
+        final (member, error) = await serviceWithNetwork
+            .lookupByRfid('card-123')
+            .timeout(MembersService.balanceRefreshTimeout * 3);
+
+        expect(error, isNull);
+        expect(member?.balanceCents, equals(2500));
         verifyNever(() => mockRepo.updateMemberBalance(any(), any()));
       });
     });

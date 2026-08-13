@@ -83,6 +83,10 @@ void main() {
       final membersService = MockMembersService();
       when(() => membersService.getEffectiveBalance(any()))
           .thenAnswer((_) async => -1250);
+      // Offline: the balance refresh finds nothing fresh, so the cached
+      // member stands (#374).
+      when(() => membersService.refreshBalance(any()))
+          .thenAnswer((_) async => null);
       final membersProvider = MembersProvider(service: membersService);
       await membersProvider.setSelectedMember(anna);
 

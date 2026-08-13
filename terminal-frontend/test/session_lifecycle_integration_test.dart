@@ -48,6 +48,10 @@ void main() {
     final membersService = MockMembersService();
     when(() => membersService.getEffectiveBalance(any()))
         .thenAnswer((_) async => 0);
+    // Offline: the balance refresh finds nothing fresh, so the cached
+    // member stands (#374).
+    when(() => membersService.refreshBalance(any()))
+        .thenAnswer((_) async => null);
 
     final soundService = MockSoundService();
     when(() => soundService.play(any())).thenAnswer((_) async {});

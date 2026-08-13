@@ -193,6 +193,8 @@ void main() {
 
     test('setSelectedMember sets a new UUID sessionId on each login', () async {
       final fakeMember = createTestMember();
+      when(() => mockService.refreshBalance(any()))
+          .thenAnswer((_) async => null);
       when(() => mockService.getEffectiveBalance(any()))
           .thenAnswer((_) async => 0);
 
@@ -204,6 +206,45 @@ void main() {
 
       expect(first, matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')));
       expect(second, isNot(equals(first)));
+    });
+
+    /// #374: an admin stornos the member's whole tab. Nothing about that
+    /// reaches this terminal on its own — the cached balance is only ever
+    /// written by a sync response, and the terminal has nothing to sell or
+    /// upload. Unless login asks, the credit-limit banner keeps warning about
+    /// money that has already been reversed.
+    group('balance refresh at login (#374)', () {
+      test('shows the balance the backend reports, not the cached one',
+          () async {
+        final stale = createTestMember(balanceCents: 8500);
+        final stornoed = createTestMember(balanceCents: 0);
+
+        when(() => mockService.refreshBalance('member-1'))
+            .thenAnswer((_) async => stornoed);
+        when(() => mockService.getEffectiveBalance(stornoed))
+            .thenAnswer((_) async => 0);
+
+        await provider.setSelectedMember(stale);
+
+        expect(provider.selectedMember?.balanceCents, equals(0));
+        expect(provider.memberDeckel, equals(0));
+        verify(() => mockService.refreshBalance('member-1')).called(1);
+      });
+
+      test('falls back to the cached member when the backend says nothing',
+          () async {
+        final cached = createTestMember(balanceCents: 8500);
+
+        when(() => mockService.refreshBalance('member-1'))
+            .thenAnswer((_) async => null);
+        when(() => mockService.getEffectiveBalance(cached))
+            .thenAnswer((_) async => 8500);
+
+        await provider.setSelectedMember(cached);
+
+        expect(provider.selectedMember, equals(cached));
+        expect(provider.memberDeckel, equals(8500));
+      });
     });
   });
 }
