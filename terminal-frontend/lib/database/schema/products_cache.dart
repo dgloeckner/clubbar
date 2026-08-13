@@ -12,6 +12,16 @@ class ProductsCache extends Table {
   TextColumn get iconName => text().nullable()(); // Canonical kebab-case icon name (e.g., "beer-pils")
   TextColumn get updatedAt => text()();
 
+  /// Server tombstone (ISO 8601). Set means the product was deleted in the admin
+  /// panel and must be hidden from the purchase UI.
+  ///
+  /// The row itself is never removed. `transactions_local.product_id` references
+  /// it under `PRAGMA foreign_keys = ON` with no `ON DELETE` clause, and synced
+  /// transactions are retained indefinitely — so a physical delete would be
+  /// refused by SQLite and abort the whole sync cycle. Keeping the row also lets
+  /// transaction history and the quarantine banner still name the product.
+  TextColumn get deletedAt => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

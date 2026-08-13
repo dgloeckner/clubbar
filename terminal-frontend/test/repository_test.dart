@@ -1325,4 +1325,259 @@ void main() {
       expect(id, equals('new-instance'));
     });
   });
+
+  // An admin deletes a product, category or member; the terminal learns about it
+  // through a `deleted_at` tombstone in the next delta.
+  //
+  // The deletion is applied as a *flag*, never as a row removal, and these tests
+  // exist to keep it that way. `PRAGMA foreign_keys = ON` is set on the real
+  // database and on this test's, and every one of these rows is the target of a
+  // reference from `transactions_local` — which the terminal retains
+  // indefinitely, synced or not. A physical delete is therefore refused by
+  // SQLite, and the throw propagates out of the sync cycle.
+  group('Tombstones (deleted_at)', () {
+    late ClubBarDatabase db;
+    late MembersRepository membersRepo;
+    late ProductsRepository productsRepo;
+    late TransactionsRepository transactionsRepo;
+
+    setUp(() async {
+      db = createTestDatabase();
+      membersRepo = MembersRepository(db);
+      productsRepo = ProductsRepository(db);
+      transactionsRepo = TransactionsRepository(db);
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    Member memberDto(String id, {String? cardUid, DateTime? deletedAt}) => Member(
+          id: id,
+          cardUid: cardUid ?? 'CARD-$id',
+          firstName: 'Test',
+          lastName: 'Member',
+          preferredLanguage: 'de',
+          isActive: true,
+          isSepaValid: true,
+          deletedAt: deletedAt,
+          createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
+        );
+
+    Category categoryDto(String id, {DateTime? deletedAt}) => Category(
+          id: id,
+          names: {'de': 'Getränke'},
+          isActive: true,
+          deletedAt: deletedAt,
+          createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
+        );
+
+    Product productDto(String id,
+            {String categoryId = 'cat-1', DateTime? deletedAt}) =>
+        Product(
+          id: id,
+          categoryId: categoryId,
+          names: {'de': 'Pils'},
+          priceCents: 350,
+          isActive: true,
+          deletedAt: deletedAt,
+          createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
+        );
+
+    final deletedOn = DateTime.parse('2025-02-02T09:00:00Z');
+
+    /// A member, a category, a product and one unsynced sale of that product —
+    /// the state a terminal is actually in when a delete lands.
+    Future<void> seedPendingSale() async {
+      await membersRepo.upsertMembers([memberDto('member-1')]);
+      await productsRepo.upsertCategories([categoryDto('cat-1')]);
+      await productsRepo.upsertProducts([productDto('prod-1')]);
+      await transactionsRepo.insertTransactionCompanion(
+        TransactionsLocalCompanion(
+          id: const Value('txn-queued'),
+          memberId: const Value('member-1'),
+          productId: const Value('prod-1'),
+          amountCents: const Value(350),
+          transactionType: const Value('purchase'),
+          createdAt: const Value('2025-02-01T20:15:00Z'),
+          synced: const Value(0),
+        ),
+      );
+    }
+
+    // The premise the rest of this group rests on. If SQLite ever stopped
+    // refusing these deletes — the pragma dropped, an `ON DELETE` clause added —
+    // the tests below would still pass while quietly testing nothing, so the
+    // constraint itself is asserted rather than assumed.
+    group('the constraint that forces a flag rather than a delete', () {
+      test('SQLite refuses to delete a product a local sale references',
+          () async {
+        await seedPendingSale();
+
+        await expectLater(
+          (db.delete(db.productsCache)..where((p) => p.id.equals('prod-1'))).go(),
+          throwsA(isA<Exception>()),
+        );
+      });
+
+      test('SQLite refuses to delete a member a local sale references',
+          () async {
+        await seedPendingSale();
+
+        await expectLater(
+          (db.delete(db.membersCache)..where((m) => m.id.equals('member-1')))
+              .go(),
+          throwsA(isA<Exception>()),
+        );
+      });
+
+      test('SQLite refuses to delete a category a product references', () async {
+        await seedPendingSale();
+
+        await expectLater(
+          (db.delete(db.categoriesCache)..where((c) => c.id.equals('cat-1')))
+              .go(),
+          throwsA(isA<Exception>()),
+        );
+      });
+    });
+
+    group('products', () {
+      test('a deleted product leaves the grid but stays in the cache', () async {
+        await productsRepo.upsertCategories([categoryDto('cat-1')]);
+        await productsRepo.upsertProducts([productDto('prod-1')]);
+        expect(await productsRepo.getActiveCategoriesWithProducts(),
+            isNotEmpty, reason: 'sellable before the delete');
+
+        await productsRepo
+            .upsertProducts([productDto('prod-1', deletedAt: deletedOn)]);
+
+        expect(await productsRepo.getActiveCategoriesWithProducts(), isEmpty,
+            reason: 'no longer sellable');
+        expect(await productsRepo.getProduct('prod-1'), isNotNull,
+            reason: 'still resolvable for history and quarantine');
+      });
+
+      test('a queued sale survives its product being deleted', () async {
+        await seedPendingSale();
+
+        await productsRepo
+            .upsertProducts([productDto('prod-1', deletedAt: deletedOn)]);
+
+        final queued = await transactionsRepo.getUnsyncedTransactions();
+        expect(queued.single.id, equals('txn-queued'),
+            reason: 'still in the upload queue');
+        expect(queued.single.productId, equals('prod-1'),
+            reason: 'still names the product it was sold as');
+      });
+
+      test('an already-synced sale survives its product being deleted',
+          () async {
+        await seedPendingSale();
+        await transactionsRepo.markAsSynced(['txn-queued']);
+
+        await productsRepo
+            .upsertProducts([productDto('prod-1', deletedAt: deletedOn)]);
+
+        expect(await transactionsRepo.getTransaction('txn-queued'), isNotNull);
+      });
+
+      test('a restored product becomes sellable again', () async {
+        await productsRepo.upsertCategories([categoryDto('cat-1')]);
+        await productsRepo
+            .upsertProducts([productDto('prod-1', deletedAt: deletedOn)]);
+        expect(await productsRepo.getActiveCategoriesWithProducts(), isEmpty);
+
+        await productsRepo.upsertProducts([productDto('prod-1')]);
+
+        expect(await productsRepo.getActiveCategoriesWithProducts(), isNotEmpty);
+      });
+    });
+
+    group('categories', () {
+      test('a deleted category hides itself and its products', () async {
+        await productsRepo.upsertCategories([categoryDto('cat-1')]);
+        await productsRepo.upsertProducts([productDto('prod-1')]);
+
+        await productsRepo
+            .upsertCategories([categoryDto('cat-1', deletedAt: deletedOn)]);
+
+        expect(await productsRepo.getActiveCategoriesWithProducts(), isEmpty);
+        expect(await productsRepo.getProduct('prod-1'), isNotNull,
+            reason: 'the product is hidden, not evicted');
+      });
+
+      test('a queued sale survives its category being deleted', () async {
+        await seedPendingSale();
+
+        await productsRepo
+            .upsertCategories([categoryDto('cat-1', deletedAt: deletedOn)]);
+
+        expect((await transactionsRepo.getUnsyncedTransactions()).single.id,
+            equals('txn-queued'));
+      });
+    });
+
+    group('members', () {
+      // The regression this whole design exists for. Deleting the cached row
+      // raised `FOREIGN KEY constraint failed` out of `_syncMembers` — the first
+      // step of the cycle — so one anonymized member who had ever bought a drink
+      // at this terminal stopped members, categories, products *and* the
+      // transaction upload, on every cycle, permanently.
+      test('a tombstone for a member with a retained sale does not throw',
+          () async {
+        await seedPendingSale();
+
+        await expectLater(
+          membersRepo.upsertMembers([memberDto('member-1', deletedAt: deletedOn)]),
+          completes,
+        );
+
+        expect((await transactionsRepo.getUnsyncedTransactions()).single.id,
+            equals('txn-queued'),
+            reason: 'the sale is still owed and still uploadable');
+      });
+
+      test('a deleted member scans as unknown', () async {
+        await membersRepo.upsertMembers([memberDto('member-1', cardUid: 'ABCD1234')]);
+        expect((await membersRepo.findByCardUid('ABCD1234')).$1, isNotNull);
+
+        await membersRepo.upsertMembers(
+            [memberDto('member-1', cardUid: 'ABCD1234', deletedAt: deletedOn)]);
+
+        final (member, error) = await membersRepo.findByCardUid('ABCD1234');
+        expect(member, isNull);
+        expect(error, equals(TerminalErrorKey.unknownCard));
+      });
+
+      // card_uid is UNIQUE. A tombstoned row that kept the card would block the
+      // member the club hands it to next, and the block would be permanent.
+      test('a deleted member releases their card for reassignment', () async {
+        await membersRepo.upsertMembers([memberDto('member-1', cardUid: 'ABCD1234')]);
+        await membersRepo.upsertMembers(
+            [memberDto('member-1', cardUid: 'ABCD1234', deletedAt: deletedOn)]);
+
+        await membersRepo.upsertMembers([memberDto('member-2', cardUid: 'ABCD1234')]);
+
+        expect((await membersRepo.findByCardUid('ABCD1234')).$1?.id,
+            equals('member-2'));
+      });
+
+      test('a deleted member is not asked about again', () async {
+        await membersRepo.upsertMembers([memberDto('member-1')]);
+        await membersRepo.updateMemberBalance('member-1', 4500);
+        expect(await membersRepo.getMemberIdsWithOpenBalance(),
+            equals(['member-1']));
+
+        await membersRepo
+            .upsertMembers([memberDto('member-1', deletedAt: deletedOn)]);
+
+        expect(await membersRepo.getMemberIdsWithOpenBalance(), isEmpty);
+        expect(await membersRepo.getAllActive(), isEmpty);
+      });
+    });
+  });
 }

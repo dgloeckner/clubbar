@@ -154,7 +154,8 @@ paths:
         `updated_at >= since`. This enables efficient delta sync on slow networks.
 
         **Deletion handling**: Deleted members are returned with `deleted_at` set.
-        Terminal should remove from local cache when `deleted_at` is not null.
+        The terminal keeps the cached row — its local transactions reference it —
+        and treats the card as unknown on scan.
 
         **Rate limiting**: Recommended sync interval is 60 seconds.
       operationId: syncMembers
@@ -212,6 +213,11 @@ paths:
 
         **Inactive categories**: Returned with `is_active: false`. Terminal should hide these
         categories AND all products in them, regardless of product's own `is_active` status.
+
+        **Deletion handling**: Deleted categories are returned with `deleted_at` set.
+        The terminal keeps the cached row — its products reference it, and those
+        products are referenced by local transactions — and hides the category and
+        all its products from the purchase UI.
 
         **Rate limiting**: Recommended sync interval is 60 seconds.
       operationId: syncCategories
@@ -277,6 +283,11 @@ paths:
 
         **Inactive products**: Returned with `is_active: false`. Terminal may hide
         from UI but should maintain in cache for transaction history integrity.
+
+        **Deletion handling**: Deleted products are returned with `deleted_at` set.
+        The terminal keeps the cached row for the same reason it keeps an inactive
+        one — local transactions reference it — and hides it from the purchase UI.
+        A sale queued before the delete is still uploaded and still accepted.
 
         **Rate limiting**: Recommended sync interval is 60 seconds.
       operationId: syncProducts
@@ -769,7 +780,11 @@ components:
           nullable: true
           description: |
             If set, member has been anonymized (GDPR deletion).
-            Terminal should remove from local cache and show "Unknown member" on scan.
+            Terminal must treat the card as unknown on scan.
+
+            The cached row is retained rather than removed: queued and already-synced
+            local transactions reference it, so dropping it would break the terminal's
+            own foreign keys and the names shown in transaction history.
         created_at:
           type: string
           format: date-time
@@ -839,6 +854,18 @@ components:
             Canonical icon identifier (kebab-case, e.g., "beer-pils", "sauna-cabin").
             Terminal maps this to the appropriate SVG asset for display.
             Null if no icon has been assigned.
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            If set, the category was deleted in the admin panel.
+            Terminal must hide it and all its products from the purchase UI.
+
+            The cached row is retained rather than removed: products reference the
+            category, and those products are in turn referenced by local
+            transactions, so dropping it would break the terminal's own foreign
+            keys and the names shown in transaction history.
         created_at:
           type: string
           format: date-time
@@ -861,6 +888,7 @@ components:
           fr: Boissons
         is_active: true
         icon_name: beer-pils
+        deleted_at: null
         created_at: '2024-01-01T00:00:00Z'
         updated_at: '2025-01-10T10:15:30Z'
 
@@ -931,6 +959,20 @@ components:
             If true, purchasing this product triggers the physical dispenser hardware.
             Terminal must confirm dispenser readiness before allowing checkout.
           default: false
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            If set, the product was deleted in the admin panel.
+            Terminal must hide it from the purchase UI.
+
+            The cached row is retained rather than removed: local transactions
+            reference it, so dropping it would break the terminal's own foreign
+            keys and the names shown in transaction history. A queued sale for a
+            deleted product is still uploaded and still accepted — by sync time the
+            drink is already in the member's hand
+            ([ADR-0033](../../adr/0033-terminal-sync-contract.md) §1).
         created_at:
           type: string
           format: date-time
@@ -962,6 +1004,7 @@ components:
         is_active: true
         icon_name: beer-pils
         requires_dispenser: false
+        deleted_at: null
         created_at: '2024-01-01T00:00:00Z'
         updated_at: '2025-01-10T10:15:30Z'
 
@@ -1618,6 +1661,22 @@ security:
 x-internal-notes: |
   ## Implementation Notes for Backend Developers
 
+  ### Delta Sync Window (all three entities)
+
+  Every syncable entity uses the same window and the same cursor rule, so the
+  logic lives in one shared helper (`App\Shared\Sync\SyncCursor`) rather than
+  being restated per module. See
+  [ADR-0012](../../adr/0012-eventual-consistency-frontend-caching.md).
+
+  - The lower bound is **inclusive** on both columns. `TIMESTAMP` has second
+    precision, so an exclusive bound silently drops every row written later in
+    the cursor's own second, permanently (#84).
+  - Deleted rows are **not** filtered out. They are the tombstones, and they are
+    the only way a terminal can learn about a deletion — which is why the
+    `deleted_at` column is matched as well as `updated_at`.
+  - The cursor only steps past a second once that second is over, which is what
+    keeps the inclusive bound from re-delivering the boundary row forever.
+
   ### Delta Sync Algorithm (Members)
   ```
   SELECT
@@ -1629,39 +1688,29 @@ x-internal-notes: |
     ) AS is_sepa_valid,
     deleted_at, created_at, updated_at
   FROM members
-  WHERE updated_at >= {since_timestamp}
-  ORDER BY updated_at ASC
-  LIMIT {limit}
+  WHERE updated_at >= {since} OR (deleted_at >= {since} AND deleted_at IS NOT NULL)
+  ORDER BY COALESCE(updated_at, deleted_at) ASC
 
-  # Return cursor as UNIX_TIMESTAMP(max(updated_at)) from result set
   # Cursor is int64 (Unix timestamp in milliseconds) - clients store and reuse directly
-  # has_more = (COUNT > 0 AND COUNT == limit)
+  # Taken across BOTH columns of EVERY returned row: a tombstone may carry only deleted_at
+  # has_more is always false; the full delta is returned
   ```
 
   ### Delta Sync Algorithm (Categories)
   ```
-  SELECT id, names, is_active, created_at, updated_at
+  SELECT id, names, is_active, icon_name, deleted_at, created_at, updated_at
   FROM categories
-  WHERE updated_at >= {since_timestamp}
-  ORDER BY updated_at ASC
-  LIMIT {limit}
-
-  # Return cursor as UNIX_TIMESTAMP(max(updated_at)) from result set
-  # Cursor is int64 (Unix timestamp in milliseconds) - clients store and reuse directly
-  # has_more = (COUNT > 0 AND COUNT == limit)
+  WHERE updated_at >= {since} OR (deleted_at >= {since} AND deleted_at IS NOT NULL)
+  ORDER BY COALESCE(updated_at, deleted_at) ASC
   ```
 
   ### Delta Sync Algorithm (Products)
   ```
-  SELECT id, category_id, names, descriptions, price_cents, is_active, created_at, updated_at
+  SELECT id, category_id, names, descriptions, price_cents, is_active,
+         icon_name, requires_dispenser, deleted_at, created_at, updated_at
   FROM products
-  WHERE updated_at >= {since_timestamp}
-  ORDER BY updated_at ASC
-  LIMIT {limit}
-
-  # Return cursor as UNIX_TIMESTAMP(max(updated_at)) from result set
-  # Cursor is int64 (Unix timestamp in milliseconds) - clients store and reuse directly
-  # has_more = (COUNT > 0 AND COUNT == limit)
+  WHERE updated_at >= {since} OR (deleted_at >= {since} AND deleted_at IS NOT NULL)
+  ORDER BY COALESCE(updated_at, deleted_at) ASC
   ```
 
   ### Transaction Deduplication
@@ -1680,11 +1729,27 @@ x-internal-notes: |
   ```
 
   ### Validation Rules
-  - `member_id`: Must exist (even if inactive; terminal already validated at scan time)
-  - `product_id`: Must exist (even if inactive; terminal may have cached old product)
-  - `amount_cents`: Must be positive integer, > 0 and < 999999 (terminal only creates purchases)
-  - `created_at`: Must not be in the future (allow small clock skew, e.g., ±5 minutes)
-  - `id`: Must be valid UUIDv4; duplicates silently ignored (idempotency)
+
+  A row is refused only when it is *structurally unstorable* — never because a
+  business rule now says the sale should not have happened. By sync time the
+  drink is already in the member's hand, so a refusal does not undo the sale, it
+  only loses the record of one. See
+  [ADR-0033](../../adr/0033-terminal-sync-contract.md) §1.
+
+  - `id`: required — it is the client-generated idempotency key. A row without
+    one cannot be deduplicated, so it cannot be stored. A duplicate is reported
+    as **accepted**: "already stored" and "just stored" are equally safe for the
+    terminal.
+  - `member_id`: required, and must resolve.
+  - `product_id`: required. It is **not** checked for existence, and a deleted
+    product does not refuse the sale — the product may have been deactivated or
+    deleted after the terminal cached it, and the drink was still poured.
+  - `amount_cents`: must be a positive whole number of cents. Stored as sent
+    even when it diverges from the product's current price: the terminal charged
+    what the member saw at the bar.
+  - `created_at`: stored as sent (into `occurred_at`). An implausible value is
+    flagged for review, never rewritten and never rejected — a terminal with a
+    dead clock battery must not lose an evening's revenue to a hardware fault.
 
   ### Audit Logging
   - Log all transaction uploads with terminal_id, count, timestamp

@@ -149,18 +149,19 @@ class SyncService {
         return;
       }
 
-      // Separate deleted members (tombstones) from active/updated members
-      final deletedMembers = response.members.where((m) => m.deletedAt != null).toList();
-      final activeMembers = response.members.where((m) => m.deletedAt == null).toList();
+      // Upsert everything, tombstones included. A deleted member is flagged in
+      // place rather than removed: `transactions_local.member_id` references the
+      // cached row under `PRAGMA foreign_keys = ON`, and synced transactions are
+      // retained indefinitely, so deleting the row raised `FOREIGN KEY
+      // constraint failed` out of this method — the first step of the cycle —
+      // and took categories, products and the transaction upload down with it.
+      await _membersRepo.upsertMembers(response.members);
 
-      // Remove deleted members from local cache
-      for (final deleted in deletedMembers) {
-        await _membersRepo.deleteById(deleted.id);
-        _logger.i('Member deleted: ${deleted.id}');
+      final deletedCount =
+          response.members.where((m) => m.deletedAt != null).length;
+      if (deletedCount > 0) {
+        _logger.i('Members: $deletedCount tombstone(s) applied');
       }
-
-      // Upsert active members into local database
-      await _membersRepo.upsertMembers(activeMembers);
 
       // Store cursor for next delta sync (API returns int, store as string)
       if (response.cursor != null) {
@@ -197,10 +198,15 @@ class SyncService {
         return;
       }
 
-      // Upsert categories into local database
-      // Note: the generated Category type does not include deleted_at; tombstone
-      // handling is not available for categories in this API version.
+      // Upsert categories into local database, tombstones included — a deleted
+      // category carries `deleted_at` and is flagged in place, never removed.
       await _productsRepo.upsertCategories(response.categories);
+
+      final deletedCount =
+          response.categories.where((c) => c.deletedAt != null).length;
+      if (deletedCount > 0) {
+        _logger.i('Categories: $deletedCount tombstone(s) applied');
+      }
 
       // Store cursor for next delta sync (API returns int, store as string)
       if (response.cursor != null) {
@@ -233,10 +239,17 @@ class SyncService {
         return;
       }
 
-      // Upsert products into local database
-      // Note: the generated Product type does not include deleted_at; tombstone
-      // handling is not available for products in this API version.
+      // Upsert products into local database, tombstones included. A deleted
+      // product stops being sellable but stays in the cache: a sale queued
+      // before the delete still references it, still uploads and is still
+      // accepted (ADR-0033 §1).
       await _productsRepo.upsertProducts(response.products);
+
+      final deletedCount =
+          response.products.where((p) => p.deletedAt != null).length;
+      if (deletedCount > 0) {
+        _logger.i('Products: $deletedCount tombstone(s) applied');
+      }
 
       // Store cursor for next delta sync (API returns int, store as string)
       if (response.cursor != null) {

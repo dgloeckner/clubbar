@@ -21,7 +21,7 @@ class MembersRepository {
     try {
       final normalizedUid = normalizeCardUid(cardUid);
       final member = await (_db.select(_db.membersCache)
-            ..where((m) => m.cardUid.equals(normalizedUid)))
+            ..where((m) => m.cardUid.equals(normalizedUid) & m.deletedAt.isNull()))
           .getSingleOrNull();
 
       if (member == null) {
@@ -49,18 +49,32 @@ class MembersRepository {
   /// Card UIDs are canonicalized on the way in, so the cache never holds a
   /// value a scan cannot match — whatever case the backend stores them in
   /// (issue #18).
+  ///
+  /// Tombstones travel this path too: a deleted member arrives in the same delta
+  /// as any other change, and writing [Member.deletedAt] through is the whole of
+  /// the deletion handling. The row is kept because `transactions_local`
+  /// references it — see [MembersCache.deletedAt].
+  ///
+  /// A tombstoned member also gives up their card UID. `card_uid` is UNIQUE, so
+  /// a row that keeps a released card would block the member it gets reassigned
+  /// to; and a card with no member to resolve to is exactly what a scan should
+  /// treat as unknown.
   Future<void> upsertMembers(List<Member> members) async {
     for (final dto in members) {
+      final isDeleted = dto.deletedAt != null;
       await _db.into(_db.membersCache).insertOnConflictUpdate(
         MembersCacheCompanion(
           id: Value(dto.id),
-          cardUid: Value(normalizeCardUidOrNull(dto.cardUid)),
+          cardUid: isDeleted
+              ? const Value(null)
+              : Value(normalizeCardUidOrNull(dto.cardUid)),
           firstName: Value(dto.firstName),
           lastName: Value(dto.lastName),
           preferredLanguage: Value(dto.preferredLanguage),
           isActive: Value(dto.isActive ? 1 : 0),
           isSepaValid: Value(dto.isSepaValid ? 1 : 0),
           updatedAt: Value(dto.updatedAt.toIso8601String()),
+          deletedAt: Value(dto.deletedAt?.toIso8601String()),
         ),
       );
     }
@@ -69,7 +83,7 @@ class MembersRepository {
   /// Get all active members (for testing/debugging)
   Future<List<MembersCacheData>> getAllActive() async {
     return (_db.select(_db.membersCache)
-          ..where((m) => m.isActive.equals(1)))
+          ..where((m) => m.isActive.equals(1) & m.deletedAt.isNull()))
         .get();
   }
 
@@ -87,9 +101,11 @@ class MembersRepository {
   /// purchase, and a purchase brings its own balance back in the sync response
   /// — whereas a cached debt goes stale the moment an admin stornos or settles
   /// it, which is exactly the number the credit-limit banner shouts about.
+  /// Anonymized members are excluded: there is no tab to show for a member the
+  /// terminal will never resolve a card to again.
   Future<List<String>> getMemberIdsWithOpenBalance() async {
     final rows = await (_db.select(_db.membersCache)
-          ..where((m) => m.balanceCents.equals(0).not()))
+          ..where((m) => m.balanceCents.equals(0).not() & m.deletedAt.isNull()))
         .get();
     return rows.map((m) => m.id).toList();
   }
@@ -99,13 +115,6 @@ class MembersRepository {
     await (_db.update(_db.membersCache)
           ..where((m) => m.id.equals(memberId)))
         .write(MembersCacheCompanion(balanceCents: Value(balanceCents)));
-  }
-
-  /// Delete member by ID (for tombstone handling)
-  Future<void> deleteById(String memberId) async {
-    await (_db.delete(_db.membersCache)
-          ..where((m) => m.id.equals(memberId)))
-        .go();
   }
 
   /// Update member's preferred language in local cache
