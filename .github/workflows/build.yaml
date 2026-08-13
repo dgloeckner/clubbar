@@ -877,45 +877,75 @@ jobs:
       - name: Install lftp
         run: sudo apt-get install -y lftp
 
+      # The upload used to `put` straight into the SFTP login directory, on the
+      # assumption — true when this was set up, recorded in the design spec —
+      # that the login directory *is* the document root. It is not. The account
+      # logs in at `/clubbar-integration`, and the site is served one level
+      # below that, from its `root/`. Run #689 proved it: upgrade.php, the ZIP
+      # and the secret all transferred, and index.php, spa.html and .htaccess
+      # were nowhere beside them — so every extract since has been answered by
+      # index.php with the SPA shell.
+      #
+      # Deliberately relative, not `/clubbar-integration/root`: the path is
+      # resolved against wherever this account lands, so it survives the login
+      # directory being the chroot root (what it is today) or the webspace
+      # directory above it. IONOS_SFTP_PATH on the ionos-integration
+      # environment overrides it without another commit if the site moves.
       - name: Upload ZIP via SFTP
         timeout-minutes: 3
+        env:
+          REMOTE_DIR: ${{ vars.IONOS_SFTP_PATH || 'root' }}
         run: |
+          set -euo pipefail
           echo "Uploading $(du -h dist/upload/.upgrade-package.zip | cut -f1) ZIP..."
+          {
+            echo "set sftp:auto-confirm yes"
+            echo "set net:timeout 30"
+            echo "set net:max-retries 3"
+            echo "set net:reconnect-interval-base 5"
+            # Without this a failed `put` prints its error, lftp carries on to
+            # the next command and exits 0 — so the step goes green while
+            # nothing reached the server, and the failure only surfaces one step
+            # later as an unexplained non-JSON answer from an upgrade.php that
+            # was never uploaded.
+            echo "set cmd:fail-exit yes"
+            if [ -n "$REMOTE_DIR" ]; then
+              echo "Uploading into $REMOTE_DIR" >&2
+              echo "cd $REMOTE_DIR"
+            fi
+            echo "put dist/upload/upgrade.php"
+            echo "put dist/upload/.upgrade-package.zip"
+            echo "put dist/upload/.upgrade-secret"
+            echo "bye"
+          } > lftp-upload.txt
+          # Fed on stdin, exactly as the here-document used to be — `-f` is a
+          # different invocation form that does not take a site argument.
           lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
-            "sftp://${{ vars.IONOS_SFTP_HOST }}:22" << 'LFTP'
-          set sftp:auto-confirm yes
-          set net:timeout 30
-          set net:max-retries 3
-          set net:reconnect-interval-base 5
-          # Without this a failed `put` prints its error, lftp carries on to the
-          # next command and exits 0 — so the step goes green while nothing
-          # reached the server, and the failure only surfaces one step later as
-          # an unexplained non-JSON answer from an upgrade.php that was never
-          # uploaded.
-          set cmd:fail-exit yes
-          put dist/upload/upgrade.php
-          put dist/upload/.upgrade-package.zip
-          put dist/upload/.upgrade-secret
-          bye
-          LFTP
+            "sftp://${{ vars.IONOS_SFTP_HOST }}:22" < lftp-upload.txt
 
-      # Which directory did the upload actually land in, and is it the one the
-      # site serves? An upload into the wrong directory is indistinguishable
-      # from a successful one until upgrade.php answers with the SPA shell, so
-      # the evidence is collected here rather than guessed at afterwards.
-      # Never fails the job: this is diagnostics, and the two steps below are
-      # the ones that decide whether the deploy worked.
+      # Did the files land next to the installation? That is the whole question
+      # an upload into the wrong directory hides: it is indistinguishable from a
+      # successful one until upgrade.php answers with the SPA shell. The
+      # listing shows upgrade.php beside index.php and spa.html when the target
+      # is right, and names what is actually there when it is not.
+      #
+      # Never fails the job — it is diagnostics, and the two steps below are the
+      # ones that decide whether the deploy worked.
       - name: List the deploy target
         if: always()
         continue-on-error: true
+        env:
+          REMOTE_DIR: ${{ vars.IONOS_SFTP_PATH || 'root' }}
         run: |
+          {
+            echo "set sftp:auto-confirm yes"
+            echo "cd $REMOTE_DIR"
+            echo "pwd"
+            echo "cls -la"
+            echo "bye"
+          } > lftp-list.txt
           lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
-            "sftp://${{ vars.IONOS_SFTP_HOST }}:22" << 'LFTP'
-          set sftp:auto-confirm yes
-          pwd
-          cls -l upgrade.php .upgrade-package.zip .upgrade-secret index.php spa.html .htaccess
-          bye
-          LFTP
+            "sftp://${{ vars.IONOS_SFTP_HOST }}:22" < lftp-list.txt 2>&1 | head -200 || true
 
       - name: Extract package on server
         timeout-minutes: 2
@@ -930,3 +960,34 @@ jobs:
           echo "Running migrations..."
           scripts/deploy-request.sh "Migrate" \
             "${{ secrets.IONOS_SITE_URL }}/upgrade.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}"
+
+      # Two messes to clear, and the same three names in both places. Both
+      # paths are relative to the login directory, for the same reason the
+      # upload's is.
+      #
+      # The login directory holds what every run since 2026-08-11 uploaded into
+      # it by mistake: an upgrade wizard, the deploy secret and an 8 MB ZIP,
+      # left in a directory whose exposure we do not control.
+      #
+      # The document root is production's reasoning (see its own cleanup step):
+      # a run that dies between upload and migrate leaves upgrade.php — a
+      # ZIP-upload wizard — sitting in a served directory. A successful run has
+      # already self-destructed all three, so this is a no-op then.
+      - name: Clean up upload artefacts
+        if: always()
+        continue-on-error: true
+        env:
+          REMOTE_DIR: ${{ vars.IONOS_SFTP_PATH || 'root' }}
+        run: |
+          {
+            echo "set sftp:auto-confirm yes"
+            for dir in "" "$REMOTE_DIR"; do
+              prefix="${dir:+${dir%/}/}"
+              echo "rm -f ${prefix}upgrade.php"
+              echo "rm -f ${prefix}.upgrade-package.zip"
+              echo "rm -f ${prefix}.upgrade-secret"
+            done
+            echo "bye"
+          } > lftp-cleanup.txt
+          lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
+            "sftp://${{ vars.IONOS_SFTP_HOST }}:22" < lftp-cleanup.txt || true

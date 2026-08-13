@@ -347,7 +347,7 @@ job log says, and what each one means:
 
 | Message | What happened |
 |---------|---------------|
-| `served HTML, not JSON` | The request reached the site but not `upgrade.php`. `.htaccess` hands any path that is not a file on disk to `index.php`, which answers with the SPA shell at HTTP **200** — so this is what a missing `upgrade.php` looks like. Either the upload did not land, or the SFTP account's login directory is not the document root the site URL serves. The **List the deploy target** step prints `pwd` and the remote listing, which settles which of the two it is |
+| `served HTML, not JSON` | The request reached the site but not `upgrade.php`. `.htaccess` hands any path that is not a file on disk to `index.php`, which answers with the SPA shell at HTTP **200** — so this is what a missing `upgrade.php` looks like. Either the upload did not land, or the SFTP account's login directory is not the document root the site URL serves. The **List the deploy target** step prints `pwd`, the login directory and a two-level `find`, which settles which of the two it is — and names the directory holding `index.php` |
 | `answered HTTP 3xx (redirect to …)` | The request never reached PHP. Usually the forced-HTTPS rule in `.htaccess` answering an `http://` site URL |
 | `failed (HTTP 403): Invalid upgrade key.` | `.upgrade-secret` on the server does not match the key in the request |
 | `refused a downgrade` | The package is older than what is installed (production only; integration passes `force=1`) |
@@ -356,6 +356,23 @@ job log says, and what each one means:
 Uploads fail loudly: both workflows set `cmd:fail-exit yes`, without which lftp
 prints a failed `put`, carries on and exits `0` — an upload step that goes green
 having transferred nothing.
+
+**Where integration uploads to.** The integration account logs in at
+`/clubbar-integration` and the site is served one level below that, from its
+`root/` — so the upload `cd`s into `root` before it `put`s anything. The path is
+kept **relative** to the login directory on purpose, so it holds whether the
+account is chrooted at `/clubbar-integration` (what it is today) or lands in the
+webspace directory above it.
+
+This is what caused the three-day outage in August 2026: the workflow was
+written when login directory and document root were the same, kept uploading
+into the login directory after they diverged, and every extract was answered by
+the SPA shell because `upgrade.php` was never in the directory the site serves.
+
+Set the **`IONOS_SFTP_PATH`** variable on the `ionos-integration` environment to
+override the directory without a commit, should the site move again. The symptom
+to watch for is the listing showing the three uploaded files with no
+`index.php`, `spa.html` or `.htaccess` beside them.
 
 Run the same request by hand with the same diagnosis:
 
