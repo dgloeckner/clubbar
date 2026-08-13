@@ -622,4 +622,32 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get failedSalesUnknownMember => 'Unbekanntes Mitglied';
+
+  @override
+  String get pairingMismatchWarning =>
+      'Dieses Terminal spricht mit einem anderen Server als zuvor – die Synchronisierung ist pausiert. Bitte einen Admin informieren.';
+
+  @override
+  String get pairingMismatchTitle => 'Server hat sich geändert';
+
+  @override
+  String pairingMismatchInstruction(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count lokale Verkäufe warten auf Synchronisierung und wurden von diesem Server noch nicht bestätigt.',
+      one:
+          '1 lokaler Verkauf wartet auf Synchronisierung und wurde von diesem Server noch nicht bestätigt.',
+      zero: 'Es warten keine lokalen Verkäufe auf Synchronisierung.',
+    );
+    return '$_temp0 Nur fortsetzen, wenn ein Admin bestätigt hat, dass dieser Server die Historie dieses Terminals noch kennt.';
+  }
+
+  @override
+  String get pairingMismatchResume => 'Synchronisierung fortsetzen';
+
+  @override
+  String get pairingMismatchResumeFailed =>
+      'Bestätigung durch den Server fehlgeschlagen — weiterhin pausiert. Bitte Verbindung prüfen und erneut versuchen.';
 }

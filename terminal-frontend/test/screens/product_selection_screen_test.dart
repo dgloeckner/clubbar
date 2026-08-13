@@ -80,6 +80,7 @@ void main() {
       when(() => mockSyncProvider.isSyncing).thenReturn(false);
       when(() => mockSyncProvider.addListener(any())).thenReturn(null);
       when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
+      when(() => mockSyncProvider.pairingMismatch).thenReturn(false);
 
       // Setup members provider mocks
       when(() => mockMembersProvider.selectedMember).thenReturn(null);

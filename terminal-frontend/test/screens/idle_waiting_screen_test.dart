@@ -74,6 +74,7 @@ void main() {
           .thenReturn(null);
       when(() => mockSyncProvider.addListener(any())).thenReturn(null);
       when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
+      when(() => mockSyncProvider.pairingMismatch).thenReturn(false);
     });
 
     Widget buildTestApp() {
@@ -150,6 +151,7 @@ void main() {
           intervalSeconds: any(named: 'intervalSeconds'))).thenReturn(null);
       when(() => mockSyncProvider.addListener(any())).thenReturn(null);
       when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
+      when(() => mockSyncProvider.pairingMismatch).thenReturn(false);
     });
 
     Widget buildTestApp({RfidReaderHealthService? readerHealth}) {
@@ -239,6 +241,7 @@ void main() {
           intervalSeconds: any(named: 'intervalSeconds'))).thenReturn(null);
       when(() => mockSyncProvider.addListener(any())).thenReturn(null);
       when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
+      when(() => mockSyncProvider.pairingMismatch).thenReturn(false);
     });
 
     Widget buildTestApp() {

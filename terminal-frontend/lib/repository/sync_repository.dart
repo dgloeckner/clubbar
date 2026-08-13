@@ -127,6 +127,19 @@ class SyncRepository {
     await _db.delete(_db.syncState).go();
   }
 
+  /// The instance_id (ADR-0035) of the backend this terminal last synced
+  /// with. Null before the terminal's first-ever successful health check —
+  /// there is nothing to compare a future response against yet.
+  Future<String?> getPairedBackendInstanceId() async {
+    return getSyncState('paired_backend_instance_id');
+  }
+
+  /// Records the backend this terminal is now trusting — either the
+  /// trust-on-first-use pairing, or a deliberate re-pair after a mismatch.
+  Future<void> setPairedBackendInstanceId(String instanceId) async {
+    return setSyncState('paired_backend_instance_id', instanceId);
+  }
+
   /// Get sync retry count
   Future<int> getSyncRetryCount() async {
     final count = await getSyncState('sync_retry_count');

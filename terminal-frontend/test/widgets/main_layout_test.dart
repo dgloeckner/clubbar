@@ -34,6 +34,7 @@ void main() {
       when(() => syncProvider.connectionStatus)
           .thenReturn(ConnectionStatus.online);
       when(() => syncProvider.isSyncing).thenReturn(false);
+      when(() => syncProvider.pairingMismatch).thenReturn(false);
 
       session = MockSessionController();
       when(() => session.addListener(any())).thenReturn(null);

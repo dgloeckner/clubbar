@@ -1107,6 +1107,41 @@ void main() {
         expect(await repo.getQuarantinedCount(), equals(0));
       });
     });
+
+    group('getUnsyncedCount', () {
+      Future<void> insertUnsynced(String id, {String member = 'member-1'}) async {
+        await db.into(db.transactionsLocal).insert(
+              TransactionsLocalCompanion(
+                id: Value(id),
+                memberId: Value(member),
+                amountCents: const Value(350),
+                transactionType: const Value('purchase'),
+                createdAt: const Value('2025-02-01T12:00:00Z'),
+                synced: const Value(0),
+              ),
+            );
+      }
+
+      test('counts unsynced transactions — the pairing-mismatch blast radius (ADR-0035)', () async {
+        await createTestMember('member-1');
+        await insertUnsynced('txn-1');
+        await insertUnsynced('txn-2');
+
+        expect(await repo.getUnsyncedCount(), equals(2));
+      });
+
+      test('is zero when everything is synced', () async {
+        expect(await repo.getUnsyncedCount(), equals(0));
+      });
+
+      test('excludes quarantined rows, matching getUnsyncedTransactions', () async {
+        await createTestMember('member-1');
+        await insertUnsynced('txn-1');
+        await repo.quarantineTransactions({'txn-1': 'unstorable'});
+
+        expect(await repo.getUnsyncedCount(), equals(0));
+      });
+    });
   });
 
   group('SyncRepository', () {
@@ -1265,6 +1300,29 @@ void main() {
       final count = await repo.getSyncRetryCount();
 
       expect(count, equals(0));
+    });
+
+    test('getPairedBackendInstanceId returns null before first pairing', () async {
+      final id = await repo.getPairedBackendInstanceId();
+
+      expect(id, isNull);
+    });
+
+    test('setPairedBackendInstanceId stores and getPairedBackendInstanceId returns it', () async {
+      await repo.setPairedBackendInstanceId('a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7');
+
+      final id = await repo.getPairedBackendInstanceId();
+
+      expect(id, equals('a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7'));
+    });
+
+    test('setPairedBackendInstanceId overwrites a previous pairing', () async {
+      await repo.setPairedBackendInstanceId('old-instance');
+      await repo.setPairedBackendInstanceId('new-instance');
+
+      final id = await repo.getPairedBackendInstanceId();
+
+      expect(id, equals('new-instance'));
     });
   });
 }

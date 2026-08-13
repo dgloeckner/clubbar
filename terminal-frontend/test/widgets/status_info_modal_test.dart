@@ -25,6 +25,7 @@ void main() {
       mockSyncProvider = MockSyncProvider();
       when(() => mockSyncProvider.addListener(any())).thenReturn(null);
       when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
+      when(() => mockSyncProvider.pairingMismatch).thenReturn(false);
     });
 
     // Issue #27: this used to render `statusLoadError(e.toString())` — the

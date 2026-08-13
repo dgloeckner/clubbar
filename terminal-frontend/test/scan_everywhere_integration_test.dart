@@ -143,6 +143,7 @@ void main() {
 
     final syncProvider = MockSyncProvider();
     when(() => syncProvider.isSyncing).thenReturn(false);
+    when(() => syncProvider.pairingMismatch).thenReturn(false);
     when(() => syncProvider.connectionStatus)
         .thenReturn(ConnectionStatus.online);
     when(() => syncProvider.startBackgroundSync(

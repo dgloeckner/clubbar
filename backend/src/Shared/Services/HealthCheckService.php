@@ -20,6 +20,7 @@ class HealthCheckService
             timestamp: (new \DateTimeImmutable())->format('Y-m-d\TH:i:s\Z'),
             version: $this->getVersion(),
             instanceName: $this->instanceConfigService->getInstanceName(),
+            instanceId: $this->instanceConfigService->getInstanceId(),
         );
     }
 
