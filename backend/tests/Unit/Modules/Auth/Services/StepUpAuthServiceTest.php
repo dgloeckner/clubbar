@@ -85,7 +85,7 @@ class StepUpAuthServiceTest extends TestCase
 
         $this->auditService->expects($this->once())
             ->method('log')
-            ->with(AuditAction::LOGIN_FAILED, EntityType::ADMIN_USER, 'admin-1', null, null, 'admin-1');
+            ->with(AuditAction::LOGIN_FAILED, EntityType::ADMIN_USER, 'admin-1', null, ['attempted_email' => 'admin@example.com', 'context' => 'step_up_reauth'], 'admin-1');
 
         $result = $this->service->verify($this->caller(), ['current_password' => 'wrong'], $this->request());
 

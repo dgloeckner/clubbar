@@ -68,15 +68,28 @@ The Club Bar system manages sensitive member data (personal information, banking
 |--------|-------------|------------|------------|
 | `create` | New record created | NULL | All fields |
 | `update` | Record modified | Changed fields (before) | Changed fields (after) |
-| `delete` | Record hard-deleted | All fields | NULL |
-| `anonymize` | GDPR anonymization | Anonymized fields (masked) | New anonymized values |
+| `delete` | Record hard/soft-deleted | All fields | NULL |
+| `activate` | Record reactivated (product, category, admin user, terminal) | NULL | `{ "is_active": true }` |
+| `deactivate` | Record deactivated | NULL | `{ "is_active": false }` |
+| `anonymize` | GDPR anonymization | NULL | `{ "deleted_at": "..." }` — no PII, per [What the scrub cannot reach](#what-the-scrub-cannot-reach) |
 | `login` | Admin login successful | NULL | NULL |
 | `logout` | Admin logout | NULL | NULL |
-| `login_failed` | Failed login attempt | NULL | `{ "attempted_email": "..." }` |
-| `export` | Data export generated | NULL | `{ "export_type": "...", "format": "..." }` |
-| `settlement_create` | Settlement created | NULL | `{ "settlement_id": "...", "total_amount": ... }` |
-| `settlement_cancel` | Settlement cancelled | `{ "settlement_id": "..." }` | NULL |
-| `settlement_export` | Settlement exported | NULL | `{ "settlement_id": "...", "format": "csv/xml" }` |
+| `login_failed` | Failed login, or a failed step-up re-authentication before a sensitive cross-account action (#337) | NULL | `{ "attempted_email": "...", "context": "step_up_reauth" }` — `context` present only for the step-up case |
+| `export` | Data export generated. Reserved: declared in the `AuditAction` enum but not currently emitted by any endpoint | NULL | `{ "export_type": "...", "format": "..." }` |
+| `transaction_storno` | A booking reversed in full — the only admin-initiated transaction (#169); see [Out of scope](#scope) for why ordinary purchases are not logged here | NULL | `{ "related_transaction_id": "...", "member_id": "...", "amount_cents": ..., "reason": "..." }` |
+| `settlement_create` | Settlement created | NULL | `{ "total_amount_cents": ..., "member_count": ..., "transaction_count": ... }` |
+| `settlement_cancel` | Settlement cancelled | `{ "is_cancelled": false }` | `{ "is_cancelled": true, "reason": "..." }` |
+| `settlement_export` | Settlement exported | NULL | `{ "exported_at": "...", ... }` |
+| `settlement_submit` | The exported file reached the bank — the point cancellation ends (#81) | NULL | `{ "submitted_at": "...", "submitted_by_admin_id": "..." }` |
+| `settlement_reverse` | Money that already moved has come back, per member (#196, ruling #148) | NULL | `{ "reason": "...", "member_ids": [...], "member_count": ..., "amount_cents": ... }` |
+| `collection_hold_placed` | A bank return stopped the next run re-debiting this member (#196 §3) | NULL | `{ "collection_hold": true, "reason": "..." }` |
+| `collection_hold_cleared` | An admin released that member back into the next run (#196 §5) | `{ "collection_hold": true, "reason": "..." }` | `{ "collection_hold": false }` |
+| `totp_enrolled` | Admin enabled 2FA on their own account | NULL | NULL |
+| `totp_reset` | An admin, after step-up re-authentication, removed 2FA from another admin's account (#337) | NULL | `{ "target_email": "..." }` |
+| `mandate_document_upload` | SEPA mandate document uploaded for a member | NULL | `{ "original_filename": "...", "file_size_bytes": ... }` |
+| `mandate_document_delete` | SEPA mandate document deleted | `{ "original_filename": "..." }` | NULL |
+
+`reorder` is declared in the `AuditAction` enum but not currently emitted anywhere — reserved for a future product/category ordering feature.
 
 ### Audited Entities
 

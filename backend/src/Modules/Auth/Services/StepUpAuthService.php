@@ -85,6 +85,7 @@ class StepUpAuthService
             action: AuditAction::LOGIN_FAILED,
             entityType: EntityType::ADMIN_USER,
             entityId: $caller['id'],
+            newValues: ['attempted_email' => $caller['email'], 'context' => 'step_up_reauth'],
             adminUserId: $caller['id'],
         );
     }
