@@ -93,7 +93,8 @@
     "tooManyAttempts": "Zu viele fehlgeschlagene Versuche. Bitte versuchen Sie es in 15 Minuten erneut.",
     "setupTitle": "Zwei-Faktor-Authentifizierung einrichten",
     "setupInstruction": "Scannen Sie den QR-Code mit Ihrer Authenticator-App (Google Authenticator, Authy etc.) und geben Sie dann den 6-stelligen Code zur Bestätigung ein.",
-    "setupManualKey": "Manueller Schlüssel",
+    "setupBackupKeyTitle": "Backup-Schlüssel",
+    "setupBackupKeyHint": "Speichern Sie diesen Schlüssel in einem Passwortmanager, bevor Sie fortfahren. Sie können ihn auch in Ihrer Authenticator-App eingeben, statt den QR-Code zu scannen. Wenn Sie Ihre Authenticator-App verlieren, ist dieser Schlüssel der einzige Weg zurück in Ihr Konto.",
     "setupCodeLabel": "Bestätigungscode",
     "setupConfirm": "2FA aktivieren",
     "setupConfirming": "Wird aktiviert...",
@@ -108,7 +109,7 @@
     "setupInfoFutureTitle": "Wie funktionieren zukünftige Anmeldungen?",
     "setupInfoFutureText": "Bei jeder Anmeldung geben Sie zunächst E-Mail-Adresse und Passwort ein. Anschließend werden Sie nach dem 6-stelligen Code gefragt – den entnehmen Sie einfach Ihrer Authenticator-App.",
     "setupInfoKeepTitle": "Was müssen Sie sicher aufbewahren?",
-    "setupInfoKeepText": "Bewahren Sie den manuellen Schlüssel (unterhalb des QR-Codes angezeigt) an einem sicheren Ort auf, z. B. in einem Passwortmanager. Falls Sie den Zugang zu Ihrer Authenticator-App verlieren, benötigen Sie diesen Schlüssel zur Wiederherstellung.",
+    "setupInfoKeepText": "Bewahren Sie den Backup-Schlüssel (unterhalb des QR-Codes angezeigt) an einem sicheren Ort auf, z. B. in einem Passwortmanager. Falls Sie den Zugang zu Ihrer Authenticator-App verlieren, benötigen Sie diesen Schlüssel zur Wiederherstellung.",
     "logoutFailed": "Abmeldung fehlgeschlagen"
   },
   "validation": {

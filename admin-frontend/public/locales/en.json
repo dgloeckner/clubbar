@@ -93,7 +93,8 @@
     "tooManyAttempts": "Too many failed attempts. Please try again in 15 minutes.",
     "setupTitle": "Set Up Two-Factor Authentication",
     "setupInstruction": "Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code to confirm.",
-    "setupManualKey": "Manual entry key",
+    "setupBackupKeyTitle": "Backup key",
+    "setupBackupKeyHint": "Save this key in a password manager before you continue. You can also type it into your authenticator app instead of scanning. If you lose your authenticator app, this key is the only way back into your account.",
     "setupCodeLabel": "Confirmation Code",
     "setupConfirm": "Enable 2FA",
     "setupConfirming": "Enabling...",
@@ -108,7 +109,7 @@
     "setupInfoFutureTitle": "How do future logins work?",
     "setupInfoFutureText": "Each time you log in, you first enter your email address and password. You will then be asked for a 6-digit code — simply open your authenticator app to get it.",
     "setupInfoKeepTitle": "What should you keep safe?",
-    "setupInfoKeepText": "Store the manual key (shown below the QR code) in a safe place, e.g. a password manager. If you ever lose access to your authenticator app, you will need this key to recover your account.",
+    "setupInfoKeepText": "Store the backup key (shown below the QR code) in a safe place, e.g. a password manager. If you ever lose access to your authenticator app, you will need this key to recover your account.",
     "logoutFailed": "Logout failed"
   },
   "validation": {

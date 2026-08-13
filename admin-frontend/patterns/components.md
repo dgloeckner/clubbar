@@ -228,18 +228,66 @@ export function SettingsPage() {
 
 ---
 
+#### SecretBox Component
+
+The value + copy button for a secret the user must capture before it becomes
+unrecoverable. Use it directly when the secret belongs **inline** on a page;
+use `SecretDisplayModal` when it belongs in a dialog (that component wraps this
+one, so both behave identically).
+
+**File**: `src/components/common/SecretBox.tsx`
+
+**Rules** (issues #126, #386):
+- The clipboard write is **awaited** (`useClipboardCopy`) — a rejected write
+  (non-secure origin, unfocused document, denied permission) is reported, never
+  mistaken for success.
+- A failed copy selects the value so it can still be copied by keyboard.
+- A new `secret` resets the previous copy verdict.
+- Never present such a value as a caption. It gets its own block, at readable
+  size, with the copy button — that was the #386 bug.
+
+**Props**:
+- `secret` (string, required): The value to display
+- `testIdPrefix` (string, required): Prefix for this box's test IDs
+- `valueTestId` (string, optional): Test ID of the value element; defaults to
+  `${testIdPrefix}-display`. Use it to keep a pre-existing ID stable
+- `actions` (ReactNode, optional): Extra buttons rendered next to the copy button
+- `variant` ('primary' | 'secondary', default: 'primary'): Weight of the copy
+  button. Use `secondary` when the surrounding form has its own primary action —
+  two saturated buttons make the real one recede
+
+**Test IDs** derived from the prefix: `-copy-button`, `-copy-status`,
+`-copy-error`, plus the value element (`-display` unless overridden).
+
+**Button labels** reuse the shared `settings.secret*` strings (`secretCopy`,
+`secretCopyAgain`, `secretCopied`, `secretCopyFailed`) — they are not
+settings-page-specific.
+
+**Example** (TOTP enrollment, `src/pages/LoginPage.tsx`):
+```typescript
+import { SecretBox } from '@/components/common/SecretBox'
+
+<SecretBox
+  secret={secret}
+  testIdPrefix="totp-setup-backup-key"
+  valueTestId="totp-setup-secret"
+  variant="secondary"
+/>
+```
+
+---
+
 #### SecretDisplayModal Component
 
-Modal for a value the backend shows exactly once (terminal API token, generated
-admin password). Such a value cannot be recovered, so the modal is deliberately
-harder to dismiss than an ordinary one.
+Modal shell around `SecretBox` for a value the backend shows exactly once
+(terminal API token, generated admin password). Such a value cannot be
+recovered, so the modal is deliberately harder to dismiss than an ordinary one.
 
 **File**: `src/components/modals/SecretDisplayModal.tsx`
 
 **Rules** (issue #126):
-- The clipboard write is **awaited** (`useClipboardCopy`) — a rejected write
-  (non-secure origin, unfocused document, denied permission) is reported, never
-  mistaken for success.
+- The value, the awaited clipboard write and its confirmed/failed verdict come
+  from `SecretBox` (see above).
 - A failed copy keeps the modal open and selects the value so it can be copied
   by hand.
 - The backdrop is **inert**. Only the explicit "I have saved it" button closes

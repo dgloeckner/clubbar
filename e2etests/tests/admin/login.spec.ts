@@ -100,6 +100,14 @@ test.describe('Login (UI)', () => {
     await expect(loginPage.totpQrCode()).toBeVisible()
     await expect(loginPage.totpSetupCodeInput()).toBeVisible()
 
+    // The backup key is the account's only recovery path — there are no
+    // recovery codes. Assert it is actually *visible* and copyable: reading it
+    // with textContent() alone (as this test used to) also passes on an
+    // element hidden by CSS, which is how #386 went unnoticed.
+    await expect(loginPage.totpSetupBackupKey()).toBeVisible()
+    await expect(loginPage.totpSetupSecret()).toBeVisible()
+    await expect(loginPage.totpSetupBackupKeyCopyButton()).toBeVisible()
+
     const secret = await loginPage.getTotpSetupSecret()
     expect(secret.length).toBeGreaterThan(0)
 
