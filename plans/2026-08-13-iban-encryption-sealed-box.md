@@ -20,18 +20,18 @@ Key implementation constraint discovered up front: `MembersRepository::applyMand
 
 ### P1 — Crypto foundation + key management ([#390](https://github.com/dgloeckner/clubbar/issues/390))
 
-- [ ] `Shared/Security/IbanSealedBox` (seal/open/fingerprint, `v1:` format, fail-closed without sodium, dev-key blocklist)
-- [ ] Migration `015_encryption_keys.sql`; `EncryptionKeyRepository`/`EncryptionKeyService` (PENDING→ACTIVE, one-ACTIVE invariant, revoke/compromise), `PrivateKeyValidator`, `CredentialLifecycleService` (90/30/7 tiers)
-- [ ] Step-up endpoints POST/GET `admin/encryption-keys`, activate/revoke; new AuditActions; `maskSensitiveFields` covers key material
-- [ ] `IBAN_FINGERPRINT_KEY` in install.php/upgrade.php/index.php/docker-compose; `tools/keypair-generator.html`
+- [x] `Shared/Security/IbanSealedBox` (seal/open/fingerprint, `v1:` format, fail-closed without sodium, dev-key blocklist)
+- [x] Migration `015_encryption_keys.sql`; `EncryptionKeyRepository`/`EncryptionKeyService` (PENDING→ACTIVE, one-ACTIVE invariant, revoke/compromise), `PrivateKeyValidator`, `CredentialLifecycleService` (90/30/7 tiers)
+- [x] Step-up endpoints POST/GET `admin/encryption-keys`, activate/revoke; new AuditActions; `maskSensitiveFields` covers key material
+- [x] `IBAN_FINGERPRINT_KEY` in install.php/upgrade.php/index.php/docker-compose; `tools/keypair-generator.html`
 - Verify: PHPUnit in container — roundtrip, tamper, wrong key, fingerprint determinism, state machine, expiry math, published-key refusal
 
 ### P2 — Encrypt-on-write + existing data ([#391](https://github.com/dgloeckner/clubbar/issues/391))
 
-- [ ] Migration `016_mandates_encrypted_iban.sql` (ciphertext/last4/fingerprint/key-id/bank_name columns; legacy `iban` nullable)
-- [ ] `MembersRepository`: openMandate seals; applyMandateChange compares fingerprints (**regression test: unchanged IBAN ⇒ no new mandate**); reads expose last4/bank_name
-- [ ] Bank name resolved at write time; no-ACTIVE-key blocks IBAN writes with clear message
-- [ ] Step-up admin batch action "encrypt existing IBANs" (100/batch, idempotent, optimistic update, nulls legacy plaintext per row); SecuritySelfCheck finding for plaintext remnants
+- [x] Migration `016_mandates_encrypted_iban.sql` (ciphertext/last4/fingerprint/key-id/bank_name columns; legacy `iban` nullable)
+- [x] `MembersRepository`: openMandate seals; applyMandateChange compares fingerprints (**regression test: unchanged IBAN ⇒ no new mandate**); reads expose last4/bank_name
+- [x] Bank name resolved at write time; no-ACTIVE-key blocks IBAN writes with clear message
+- [x] Step-up admin batch action "encrypt existing IBANs" (100/batch, idempotent, optimistic update, nulls legacy plaintext per row); SecuritySelfCheck finding for plaintext remnants
 - Verify: repository feature tests incl. raw-SQL ciphertext assertions; batch run twice; full member CRUD e2e green
 
 ### P3 — last4 API surfaces + leak closure ([#392](https://github.com/dgloeckner/clubbar/issues/392))
