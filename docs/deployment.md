@@ -339,6 +339,31 @@ else is replaced, and files the new package does not ship are swept away.
 > `deploy-integration` job in `build.yaml`, using the same mechanism against a
 > separate SFTP account.
 
+### Reading a Failed Deploy
+
+Both workflows call `upgrade.php` through `scripts/deploy-request.sh`, which
+turns the server's answer into a named cause rather than a parse error. What the
+job log says, and what each one means:
+
+| Message | What happened |
+|---------|---------------|
+| `served HTML, not JSON` | The request reached the site but not `upgrade.php`. `.htaccess` hands any path that is not a file on disk to `index.php`, which answers with the SPA shell at HTTP **200** — so this is what a missing `upgrade.php` looks like. Either the upload did not land, or the SFTP account's login directory is not the document root the site URL serves. The **List the deploy target** step prints `pwd` and the remote listing, which settles which of the two it is |
+| `answered HTTP 3xx (redirect to …)` | The request never reached PHP. Usually the forced-HTTPS rule in `.htaccess` answering an `http://` site URL |
+| `failed (HTTP 403): Invalid upgrade key.` | `.upgrade-secret` on the server does not match the key in the request |
+| `refused a downgrade` | The package is older than what is installed (production only; integration passes `force=1`) |
+| `could not be reached` | DNS, TLS or connectivity — the response never arrived |
+
+Uploads fail loudly: both workflows set `cmd:fail-exit yes`, without which lftp
+prints a failed `put`, carries on and exits `0` — an upload step that goes green
+having transferred nothing.
+
+Run the same request by hand with the same diagnosis:
+
+```bash
+scripts/deploy-request.sh "Extract" \
+  "https://your-site.example/upgrade.php?key=<secret>&action=extract&force=1"
+```
+
 ---
 
 ## Upgrading
