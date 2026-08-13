@@ -27,12 +27,24 @@ export interface SecretBoxProps {
   valueTestId?: string
   /** Extra buttons rendered alongside the copy button, e.g. an acknowledge button. */
   actions?: ReactNode
+  /**
+   * Weight of the copy button. Use `secondary` when the surrounding form has
+   * its own primary action — two saturated buttons make the real one recede.
+   */
+  variant?: 'primary' | 'secondary'
 }
 
-export function SecretBox({ secret, testIdPrefix, valueTestId, actions }: SecretBoxProps) {
+export function SecretBox({
+  secret,
+  testIdPrefix,
+  valueTestId,
+  actions,
+  variant = 'primary',
+}: SecretBoxProps) {
   const { t } = useTranslation()
   const { status, copy, reset } = useClipboardCopy()
   const secretRef = useRef<HTMLDivElement>(null)
+  const isPrimary = variant === 'primary'
 
   // A new secret is a new copy attempt — never inherit the previous verdict.
   useEffect(() => {
@@ -121,19 +133,23 @@ export function SecretBox({ secret, testIdPrefix, valueTestId, actions }: Secret
           style={{
             flex: 1,
             padding: theme.spacing.md,
-            background: theme.colors.semantic.primary,
-            color: 'white',
-            border: 'none',
+            background: isPrimary ? theme.colors.semantic.primary : theme.colors.bg.tertiary,
+            color: isPrimary ? 'white' : theme.colors.text.primary,
+            border: isPrimary ? 'none' : `1px solid ${theme.colors.border.light}`,
             borderRadius: theme.borderRadius.md,
             cursor: 'pointer',
             transition: `all ${theme.transitions.default}`,
             fontWeight: theme.typography.fontWeight.semibold,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = theme.colors.semantic.primaryHover
+            e.currentTarget.style.background = isPrimary
+              ? theme.colors.semantic.primaryHover
+              : theme.colors.bg.hover
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = theme.colors.semantic.primary
+            e.currentTarget.style.background = isPrimary
+              ? theme.colors.semantic.primary
+              : theme.colors.bg.tertiary
           }}
         >
           {status === 'copied' ? t('settings.secretCopyAgain') : t('settings.secretCopy')}

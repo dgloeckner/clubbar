@@ -252,6 +252,9 @@ one, so both behave identically).
 - `valueTestId` (string, optional): Test ID of the value element; defaults to
   `${testIdPrefix}-display`. Use it to keep a pre-existing ID stable
 - `actions` (ReactNode, optional): Extra buttons rendered next to the copy button
+- `variant` ('primary' | 'secondary', default: 'primary'): Weight of the copy
+  button. Use `secondary` when the surrounding form has its own primary action —
+  two saturated buttons make the real one recede
 
 **Test IDs** derived from the prefix: `-copy-button`, `-copy-status`,
 `-copy-error`, plus the value element (`-display` unless overridden).
@@ -268,6 +271,7 @@ import { SecretBox } from '@/components/common/SecretBox'
   secret={secret}
   testIdPrefix="totp-setup-backup-key"
   valueTestId="totp-setup-secret"
+  variant="secondary"
 />
 ```
 

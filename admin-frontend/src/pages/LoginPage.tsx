@@ -377,6 +377,7 @@ function TotpSetupStep() {
             secret={secret}
             testIdPrefix="totp-setup-backup-key"
             valueTestId="totp-setup-secret"
+            variant="secondary"
           />
         </section>
       )}
