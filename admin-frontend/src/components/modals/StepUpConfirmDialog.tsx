@@ -19,7 +19,7 @@
  * `-cancel`), plus `step-up-password`, `step-up-totp-code`, `step-up-error`.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ModalError, modalInputStyle } from './ModalError'
@@ -41,6 +41,14 @@ export interface StepUpConfirmDialogProps {
   requiresTotp: boolean
   /** Message from the last failed step-up attempt, e.g. a wrong password. */
   error?: string | null
+  /**
+   * Extra input rendered above the credential fields, for an action that needs
+   * something of its own alongside the step-up. The SEPA export uses it for the
+   * club's private key (#393): same credential prompt, one more secret.
+   */
+  extraFields?: ReactNode
+  /** Additional reason to keep the confirm button disabled, e.g. no key chosen yet. */
+  confirmDisabled?: boolean
   onConfirm: (credentials: StepUpCredentials) => void
   onCancel: () => void
 }
@@ -52,6 +60,8 @@ export function StepUpConfirmDialog({
   confirmLabel,
   requiresTotp,
   error,
+  extraFields,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: StepUpConfirmDialogProps) {
@@ -68,7 +78,8 @@ export function StepUpConfirmDialog({
     }
   }, [isOpen])
 
-  const canConfirm = password.trim() !== '' && (!requiresTotp || /^\d{6}$/.test(totpCode))
+  const canConfirm =
+    !confirmDisabled && password.trim() !== '' && (!requiresTotp || /^\d{6}$/.test(totpCode))
 
   return (
     <ConfirmDialog
@@ -83,6 +94,8 @@ export function StepUpConfirmDialog({
           <p style={{ margin: 0, marginBottom: theme.spacing.md }}>{message}</p>
 
           <ModalError message={error} testId="step-up-error" />
+
+          {extraFields}
 
           <input
             data-testid="step-up-password"

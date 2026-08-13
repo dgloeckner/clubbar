@@ -750,7 +750,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getSettlementsAdminController(): SettlementsAdminController
     {
-        return $this->resolve(SettlementsAdminController::class, fn() => new SettlementsAdminController($this->getSettlementsService(), $this->getSepaExportService(), $this->getValidator(), $this->getSettlementReversalService()));
+        return $this->resolve(SettlementsAdminController::class, fn() => new SettlementsAdminController($this->getSettlementsService(), $this->getSepaExportService(), $this->getValidator(), $this->getSettlementReversalService(), $this->getEncryptionKeyService(), $this->getStepUpAuthService(), $this->getAuditService()));
     }
 
     public function getSepaConfigController(): SepaConfigController

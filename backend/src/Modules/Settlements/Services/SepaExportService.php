@@ -253,6 +253,7 @@ class SepaExportService
             excludedMembers: $excludedMembers,
             collectedAmountCents: $collectedAmountCents,
             settlementAmountCents: (int) ($settlement['total_amount_cents'] ?? 0),
+            collectedMemberCount: count($sentEndToEndIds),
         );
 
         $this->warnAboutShortfall($settlementId, $result);

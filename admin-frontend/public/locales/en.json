@@ -398,7 +398,16 @@
       "undo": "Failed to undo settlement"
     },
     "exportShortfall_one": "The SEPA file leaves out {{count}} member: it collects {{collected}} of the {{total}} this settlement records, {{shortfall}} short. Check the bank details of the member named in the audit log entry for this export.",
-    "exportShortfall_other": "The SEPA file leaves out {{count}} members: it collects {{collected}} of the {{total}} this settlement records, {{shortfall}} short. Check the bank details of the members named in the audit log entry for this export."
+    "exportShortfall_other": "The SEPA file leaves out {{count}} members: it collects {{collected}} of the {{total}} this settlement records, {{shortfall}} short. Check the bank details of the members named in the audit log entry for this export.",
+    "export": {
+      "title": "Generate SEPA file",
+      "message": "Generating the bank file decrypts the members' IBANs once. This needs the club's private key.",
+      "confirm": "Generate and download",
+      "keyHint": "Choose the key file or paste the key. It is used for this export only and never stored.",
+      "keyPastePlaceholder": "Private key (base64)",
+      "keyFileInvalid": "That file does not contain a valid key (32 bytes, base64).",
+      "keyFileUnreadable": "The file could not be read."
+    }
   },
   "statistics": {
     "title": "Statistics",

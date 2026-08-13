@@ -172,14 +172,22 @@ async function readDownloadError(error: unknown): Promise<Error> {
  * left out of the bank file on `X-Uncollectable-Members` and friends, because
  * the body is the pain.008 document and has nowhere to put a warning (#114).
  * Callers with nothing to read may ignore the return value.
+ *
+ * `body` switches the request to POST. The SEPA export needs it: the club's
+ * private key travels in the request so the sealed IBANs can be opened for
+ * that one file (ADR-0036), which a GET has nowhere to carry.
  */
 export async function downloadFile(
   url: string,
-  fallbackFilename: string
+  fallbackFilename: string,
+  body?: unknown
 ): Promise<Record<string, string>> {
   let response
   try {
-    response = await axiosInstance.get(url, { responseType: 'blob' })
+    response =
+      body === undefined
+        ? await axiosInstance.get(url, { responseType: 'blob' })
+        : await axiosInstance.post(url, body, { responseType: 'blob' })
   } catch (error) {
     throw await readDownloadError(error)
   }

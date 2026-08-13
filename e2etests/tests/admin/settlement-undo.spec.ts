@@ -24,6 +24,7 @@
 
 import { test, expect } from '../../fixtures/auth.fixture'
 import { SettlementsPage } from '../../pages/SettlementsPage'
+import { exportSepaXml } from '../../fixtures/encryption'
 
 test.describe('Settlement undo confirmation', () => {
   test('the confirmation states the date, total, members and transactions of the run', async ({
@@ -73,9 +74,7 @@ test.describe('Settlement undo confirmation', () => {
     // Generate the pain.008 file, exactly as the SEPA button does. Exporting
     // is deliberately not a cancellation blocker (ruling #142 §1 — generating
     // a file is not sending it), which is why the dialog has to ask.
-    const exportResponse = await authenticatedRequest.get(
-      `/api/admin/settlements/${settlement.id}/export/sepa-xml`
-    )
+    const exportResponse = await exportSepaXml(authenticatedRequest, settlement.id)
     expect(exportResponse.status()).toBe(200)
 
     const settlementsPage = new SettlementsPage(page)
@@ -110,9 +109,7 @@ test.describe('Settlement undo confirmation', () => {
     settlementFactory,
   }) => {
     const settlement = await settlementFactory.create()
-    const exportResponse = await authenticatedRequest.get(
-      `/api/admin/settlements/${settlement.id}/export/sepa-xml`
-    )
+    const exportResponse = await exportSepaXml(authenticatedRequest, settlement.id)
     expect(exportResponse.status()).toBe(200)
 
     const settlementsPage = new SettlementsPage(page)
@@ -142,9 +139,7 @@ test.describe('Settlement undo confirmation', () => {
     // shuts and reversal is the only remaining remedy (ruling #142 §1).
     // Submitting requires an exported file — there is nothing at the bank
     // otherwise — so the export comes first.
-    const exportResponse = await authenticatedRequest.get(
-      `/api/admin/settlements/${settlement.id}/export/sepa-xml`
-    )
+    const exportResponse = await exportSepaXml(authenticatedRequest, settlement.id)
     expect(exportResponse.status()).toBe(200)
 
     const submitResponse = await authenticatedRequest.post(

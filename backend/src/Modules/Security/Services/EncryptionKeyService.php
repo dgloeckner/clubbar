@@ -155,6 +155,41 @@ class EncryptionKeyService
     }
 
     /**
+     * Run $work with an opener for IBANs sealed under the ACTIVE key.
+     *
+     * This is the whole of the private key's life on the server (ADR-0036): it
+     * arrives in one request body, is checked against the registered public
+     * half, is held in a local for the length of the callback, and is wiped in
+     * `finally` — so an exception thrown mid-export cannot leave key material
+     * behind in a variable that outlives the request.
+     *
+     * The opener is handed to the caller rather than a list of plaintexts on
+     * purpose: SEPA export invokes it per member, right where the IBAN goes
+     * into the XML, so no plaintext collection is ever assembled.
+     *
+     * @template T
+     * @param callable(callable(string): string): T $work
+     * @return T
+     *
+     * @throws EncryptionNotConfiguredException when no key was ever activated
+     * @throws EncryptionKeyExpiredException when the cryptoperiod is over — the
+     *         export is refused until the admin rotates, while key management
+     *         itself stays reachable so that rotation is always possible
+     * @throws \InvalidArgumentException when the key does not match the ACTIVE one
+     */
+    public function withActivePrivateKey(string $privateKeyBase64, callable $work): mixed
+    {
+        $keyRow = $this->requireOperationalActiveKey();
+        $secretRaw = $this->validatePrivateKeyFor($keyRow, $privateKeyBase64);
+
+        try {
+            return $work(fn(string $ciphertext): string => $this->sealedBox->open($ciphertext, $secretRaw));
+        } finally {
+            sodium_memzero($secretRaw);
+        }
+    }
+
+    /**
      * Validate a temporarily supplied private key against a registered key row
      * (by deriving its public half — never by trial decryption) and return the
      * raw 32-byte secret. Throws on any mismatch; the caller decides which row

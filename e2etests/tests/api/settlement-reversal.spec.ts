@@ -1,6 +1,7 @@
 import { test, expect } from '../../fixtures/auth.fixture'
 import type { APIRequestContext } from '@playwright/test'
 import type { CreatedSettlement } from '../../utils/settlements'
+import { exportSepaXml } from '../../fixtures/encryption'
 
 /**
  * Settlement reversal, end to end (issue #196, ruling #148).
@@ -18,7 +19,7 @@ import type { CreatedSettlement } from '../../utils/settlements'
 
 /** Export the file and tell the API it reached the bank — the point of no return. */
 async function submitToBank(request: APIRequestContext, settlementId: string): Promise<void> {
-  expect((await request.get(`/api/admin/settlements/${settlementId}/export/sepa-xml`)).status()).toBe(200)
+  expect((await exportSepaXml(request, settlementId)).status()).toBe(200)
   expect((await request.post(`/api/admin/settlements/${settlementId}/submit`)).status()).toBe(200)
 }
 

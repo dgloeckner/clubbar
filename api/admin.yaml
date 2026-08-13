@@ -2107,17 +2107,37 @@ paths:
         schema:
           type: string
           format: uuid
-    get:
+    post:
       tags: [Settlements]
       summary: Download SEPA XML
       description: |
-        Download the settlement as a SEPA Direct Debit XML file (pain.008.001.08).
+        Build and download the settlement as a SEPA Direct Debit XML file
+        (pain.008.001.08).
 
         **Use Cases**: UC-A31, UC-SEPA-08
+
+        **This is a POST because it carries the club's private key.** Member
+        IBANs are sealed at rest and the server holds no private key
+        ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)); building a
+        pain.008 is the one legitimate bulk decryption. The key lives offline in
+        the club's archive and is supplied for the length of this one request,
+        validated against the registered public half, used through a per-member
+        opener so no plaintext collection is ever assembled, and wiped before
+        the response is written. It is sent as a JSON field rather than a
+        multipart upload deliberately: PHP writes multipart parts to temporary
+        files on disk.
+
+        A fresh step-up credential (the caller's own password, plus their TOTP
+        code when 2FA is enrolled) is required on top of the session, and the
+        response is `Cache-Control: no-store` — the body is a list of plaintext
+        IBANs. The decryption is recorded as a `sepa_export` audit entry
+        carrying the settlement and how many IBANs were opened, never an
+        account or the XML.
 
         **Requirements**:
         - Settlement method must be `direct_debit` (ruling #163)
         - Settlement must be neither cancelled nor reversed
+        - The active encryption key's cryptoperiod must not have expired
 
         **XML format**: pain.008.001.08 (SEPA Core Direct Debit)
         - Sequence type: Always RCUR
@@ -2145,6 +2165,28 @@ paths:
       operationId: downloadSepaXml
       security:
         - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [private_key, current_password]
+              properties:
+                private_key:
+                  type: string
+                  description: |
+                    The club's archived private key: 32 raw bytes, base64-encoded,
+                    as produced by `tools/keypair-generator.html`. Validated by
+                    deriving its public half and comparing that against the
+                    registered ACTIVE key — never by trial decryption.
+                current_password:
+                  type: string
+                  format: password
+                  description: The caller's own password, for the step-up check.
+                totp_code:
+                  type: string
+                  description: The caller's current TOTP code. Required when they have 2FA enrolled.
       responses:
         '200':
           description: SEPA XML file
@@ -2195,7 +2237,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: |
+            No session, or the step-up credential was missing or wrong. Nothing
+            was decrypted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -2203,12 +2251,27 @@ paths:
             Settlement is cancelled, has reversed collections, or does not use
             the `direct_debit` method. Re-exporting a reversed settlement would
             hand the bank a file that debits every member on it a second time.
+
+            Also returned as `encryption_key_expired` when the active key's
+            365-day cryptoperiod is over: rotate the encryption key before
+            creating another SEPA export. Key management itself stays reachable
+            in that state, so rotating out of it is always possible.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '412':
           description: Settlement not of SEPA type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: |
+            `private_key` missing, or `private_key_mismatch` — the supplied key
+            does not belong to the registered active key, so it would decrypt
+            nothing. No file is produced and the settlement is not marked
+            exported.
           content:
             application/json:
               schema:

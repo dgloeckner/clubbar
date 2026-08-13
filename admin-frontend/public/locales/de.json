@@ -398,7 +398,16 @@
       "undo": "Abrechnung konnte nicht rückgängig gemacht werden"
     },
     "exportShortfall_one": "Die SEPA-Datei lässt {{count}} Mitglied aus: Sie zieht {{collected}} von {{total}} dieser Abrechnung ein, {{shortfall}} zu wenig. Prüfen Sie die Bankdaten des Mitglieds, das im Audit-Log-Eintrag zu diesem Export genannt ist.",
-    "exportShortfall_other": "Die SEPA-Datei lässt {{count}} Mitglieder aus: Sie zieht {{collected}} von {{total}} dieser Abrechnung ein, {{shortfall}} zu wenig. Prüfen Sie die Bankdaten der Mitglieder, die im Audit-Log-Eintrag zu diesem Export genannt sind."
+    "exportShortfall_other": "Die SEPA-Datei lässt {{count}} Mitglieder aus: Sie zieht {{collected}} von {{total}} dieser Abrechnung ein, {{shortfall}} zu wenig. Prüfen Sie die Bankdaten der Mitglieder, die im Audit-Log-Eintrag zu diesem Export genannt sind.",
+    "export": {
+      "title": "SEPA-Datei erzeugen",
+      "message": "Zum Erzeugen der Bankdatei werden die IBANs der Mitglieder einmalig entschlüsselt. Dafür wird der privaten Schlüssel des Vereins benötigt.",
+      "confirm": "Erzeugen und herunterladen",
+      "keyHint": "Schlüsseldatei auswählen oder den Schlüssel einfügen. Er wird nur für diesen Export verwendet und nicht gespeichert.",
+      "keyPastePlaceholder": "Privater Schlüssel (Base64)",
+      "keyFileInvalid": "Diese Datei enthält keinen gültigen Schlüssel (32 Byte, Base64).",
+      "keyFileUnreadable": "Die Datei konnte nicht gelesen werden."
+    }
   },
   "statistics": {
     "title": "Statistik",

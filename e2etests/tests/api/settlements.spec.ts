@@ -8,6 +8,7 @@ import {
   tuesdayAfterNextEaster,
 } from '../../utils/dates';
 import { ensureSepaConfigured } from '../../utils/settlements';
+import { exportSepaXml } from '../../fixtures/encryption'
 
 test.describe('Settlements API', () => {
   /**
@@ -695,7 +696,7 @@ test.describe('Settlements API', () => {
       // (I9), and it is `submitted_at` that records it.
       const settlement = await settlementFactory.create({ amountCents: 3100 });
 
-      expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200);
+      expect((await exportSepaXml(authenticatedRequest, settlement.id)).status()).toBe(200);
 
       const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
 
@@ -717,7 +718,7 @@ test.describe('Settlements API', () => {
       // transactions would let a later run collect the same money twice.
       const settlement = await settlementFactory.create({ amountCents: 2600 });
 
-      expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200);
+      expect((await exportSepaXml(authenticatedRequest, settlement.id)).status()).toBe(200);
       expect((await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/submit`)).status()).toBe(200);
 
       const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
@@ -796,7 +797,7 @@ test.describe('Settlements API', () => {
 
       expect((await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`)).status()).toBe(200);
 
-      const response = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`);
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(409);
       expect((await response.json()).message).toMatch(/cancelled/i);
@@ -822,9 +823,7 @@ test.describe('Settlements API', () => {
       // some XML came back.
       const settlement = await settlementFactory.create({ amountCents: 4250 });
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(200);
       const xml = await response.text();
@@ -844,9 +843,7 @@ test.describe('Settlements API', () => {
     test('F3: GET /settlements/{id}/export/sepa-xml returns correct content type', async ({ authenticatedRequest, settlementFactory }) => {
       const settlement = await settlementFactory.create();
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(200);
       expect(response.headers()['content-type']).toContain('xml');
@@ -859,9 +856,7 @@ test.describe('Settlements API', () => {
       // collection of the same balance.
       const settlement = await settlementFactory.create({ method: 'bank_transfer' });
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(409);
       expect(JSON.stringify(await response.json())).toContain('direct_debit');
@@ -882,20 +877,22 @@ test.describe('Settlements API', () => {
       const expectedId = `E2E-${half(settlement.id)}-${half(settlement.memberId)}`;
       expect(expectedId.length).toBeLessThanOrEqual(35);
 
-      const first = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`);
+      const first = await exportSepaXml(authenticatedRequest, settlement.id);
       expect(first.status()).toBe(200);
       expect(await first.text()).toContain(`<EndToEndId>${expectedId}</EndToEndId>`);
 
       // The same settlement exported again must instruct the bank under the
       // same reference — the treasurer resolves a return against whichever
       // file actually went out.
-      const second = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`);
+      const second = await exportSepaXml(authenticatedRequest, settlement.id);
       expect(second.status()).toBe(200);
       expect(await second.text()).toContain(`<EndToEndId>${expectedId}</EndToEndId>`);
     });
 
-    test('F4: GET /settlements/{id}/export/sepa-xml requires authentication', async ({ request }) => {
-      const response = await request.get('/api/admin/settlements/test-id/export/sepa-xml');
+    test('F4: POST /settlements/{id}/export/sepa-xml requires authentication', async ({ request }) => {
+      // Unauthenticated, but carrying a valid key — the session check must come
+      // first, so a stolen key alone opens nothing (ADR-0036).
+      const response = await exportSepaXml(request, 'test-id');
 
       expect([301, 302, 401, 403]).toContain(response.status());
     });
@@ -917,9 +914,7 @@ test.describe('Settlements API', () => {
         (await authenticatedRequest.patch(`/api/admin/members/${dropped.id}`, { data: { iban: null } })).status()
       ).toBe(200);
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(200);
       const headers = response.headers();
@@ -947,9 +942,7 @@ test.describe('Settlements API', () => {
       // wrong, or they stop meaning anything.
       const settlement = await settlementFactory.create({ amountCents: 1500, memberCount: 2 });
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(200);
       const headers = response.headers();
@@ -970,7 +963,7 @@ test.describe('Settlements API', () => {
       const settlement = await settlementFactory.create({ amountCents: 1500, memberCount: 2 });
       const [alice] = settlement.members;
 
-      expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200);
+      expect((await exportSepaXml(authenticatedRequest, settlement.id)).status()).toBe(200);
       expect((await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/submit`)).status()).toBe(200);
 
       const reversal = await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/reverse`, {
@@ -978,9 +971,7 @@ test.describe('Settlements API', () => {
       });
       expect(reversal.status(), await reversal.text()).toBe(201);
 
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
-      );
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
 
       expect(response.status()).toBe(409);
       expect((await response.json()).message).toMatch(/reversed collection/i);
@@ -1649,7 +1640,7 @@ test.describe('Settlements API', () => {
       const settledMembers = new Set((await detail.json()).items.map((item: any) => item.member_id));
       expect(settledMembers.has(netZero.id)).toBe(true);
 
-      const xml = await (await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).text();
+      const xml = await (await exportSepaXml(authenticatedRequest, settlement.id)).text();
       expect(xml).toContain(`<NbOfTxs>1</NbOfTxs>`);
       expect(xml).toContain(paying.last_name);
       expect(xml).not.toContain(netZero.last_name);

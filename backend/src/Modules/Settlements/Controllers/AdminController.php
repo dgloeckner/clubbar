@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Controllers;
 
+use App\Modules\Auth\Services\StepUpAuthService;
+use App\Modules\Security\Services\EncryptionKeyService;
 use App\Modules\Settlements\Domain\SettlementLeadTime;
 use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Services\SettlementReversalService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Settlements\Services\SepaExportService;
+use App\Shared\Enums\AuditAction;
+use App\Shared\Enums\EntityType;
+use App\Shared\Services\AuditService;
 use App\Shared\Validation\Validator;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Http\ListQuery;
@@ -27,6 +32,9 @@ class AdminController
         private SepaExportService $sepaExportService,
         private Validator $validator,
         private SettlementReversalService $reversalService,
+        private EncryptionKeyService $encryptionKeyService,
+        private StepUpAuthService $stepUpAuthService,
+        private AuditService $auditService,
     ) {}
 
     /**
@@ -289,21 +297,75 @@ class AdminController
         return $this->json($response, $settlement->toArray(), 201);
     }
 
+    /**
+     * Build the pain.008 file — the one place the club's IBANs are legitimately
+     * decrypted in bulk (ADR-0036, #393).
+     *
+     * The private key lives offline in the club's archive and reaches the
+     * server only here, in this request body, behind a fresh step-up (own
+     * password + own TOTP) on top of the session. It is validated against the
+     * registered public half, used through a per-member opener, and wiped
+     * before the response is written.
+     *
+     * The body carries the key rather than a multipart upload deliberately:
+     * PHP writes multipart parts to temporary files on disk, which is exactly
+     * the persistence this design exists to avoid.
+     */
     public function exportSepa(Request $request, Response $response, array $args): Response
     {
         $id = $args['id'];
         $adminId = $request->getAttribute('admin_user_id');
+        $body = $request->getParsedBody() ?? [];
 
-        $result = $this->sepaExportService->export($id);
+        if (!$this->validator->validate($body, ['private_key' => ['required', 'string']])) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        $caller = $request->getAttribute('admin_user');
+        if ($caller === null || !$this->stepUpAuthService->verify($caller, $body, $request)) {
+            return $this->json($response, [
+                'error' => 'invalid_credentials',
+                'message' => 'Re-enter your password (and TOTP code) to decrypt IBANs for a SEPA export',
+            ], 401);
+        }
+
+        try {
+            $result = $this->encryptionKeyService->withActivePrivateKey(
+                (string) $body['private_key'],
+                fn(callable $openIban) => $this->sepaExportService->export($id, $openIban),
+            );
+        } catch (\InvalidArgumentException $e) {
+            // Wrong key for this club: nothing was decrypted, so this is a bad
+            // input rather than a conflict with server state.
+            return $this->json($response, ['error' => 'private_key_mismatch', 'message' => $e->getMessage()], 422);
+        }
 
         // Mark settlement as exported, and put what the file actually collects
         // on the permanent record along with it (#114).
         $this->settlementsService->markExported($id, $adminId, $result->toAuditSummary());
 
+        // The decryption itself is the auditable event, separately from the
+        // settlement's own export record: how many IBANs were opened, and under
+        // which settlement. Never an IBAN, never the XML (ADR-0036).
+        $this->auditService->log(
+            action: AuditAction::SEPA_EXPORT,
+            entityType: EntityType::SETTLEMENT,
+            entityId: $id,
+            oldValues: null,
+            newValues: [
+                'collected_members' => $result->collectedMemberCount,
+                'collected_amount_cents' => $result->collectedAmountCents,
+            ],
+            adminUserId: $adminId,
+        );
+
         $response->getBody()->write($result->xml);
         $response = $response
             ->withHeader('Content-Type', 'application/xml; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="sepa-' . $id . '.xml"');
+            ->withHeader('Content-Disposition', 'attachment; filename="sepa-' . $id . '.xml"')
+            // The body is a list of plaintext IBANs. It must not sit in a proxy
+            // or a browser cache once the download is done (ADR-0036).
+            ->withHeader('Cache-Control', 'no-store');
 
         // #80 / #114: a member the file leaves out carries no line to say so,
         // and the body is the bank file — it cannot carry the report. The

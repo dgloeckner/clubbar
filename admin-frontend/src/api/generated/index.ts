@@ -101,6 +101,7 @@ export * from './dashboardResponseSystemStatusDatabaseHealth';
 export * from './dashboardResponseTerminalStatusItem';
 export * from './dashboardResponseTerminalStatusItemStatus';
 export * from './dashboardSystemStatus';
+export * from './downloadSepaXmlBody';
 export * from './error';
 export * from './errorDetails';
 export * from './executionDateInfo';
