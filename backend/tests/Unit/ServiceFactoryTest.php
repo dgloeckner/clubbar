@@ -42,7 +42,6 @@ class ServiceFactoryTest extends TestCase
         $this->assertSame($factory->getIbanSealedBox(), $factory->getIbanSealedBox());
         $this->assertSame($factory->getEncryptionKeysRepository(), $factory->getEncryptionKeysRepository());
         $this->assertSame($factory->getEncryptionKeyService(), $factory->getEncryptionKeyService());
-        $this->assertSame($factory->getIbanEncryptionMigrationService(), $factory->getIbanEncryptionMigrationService());
         // Not the controllers: their chains construct TotpService (via
         // StepUpAuthService), which reads the instance name from the database
         // at construction — impossible on this test's mocked PDO. The HTTP

@@ -81,7 +81,7 @@ class SepaExportPersistenceTest extends DatabaseTestCase
         $memberId = $this->createMemberWithMandate();
         $settlementId = $this->createSettlementWithItems($memberId, [1500, 350]);
 
-        $this->service->export($settlementId);
+        $this->service->export($settlementId, $this->devIbanOpener());
 
         $expected = 'E2E-' . $this->half($settlementId) . '-' . $this->half($memberId);
         $this->assertSame(
@@ -96,7 +96,7 @@ class SepaExportPersistenceTest extends DatabaseTestCase
         $memberId = $this->createMemberWithMandate();
         $settlementId = $this->createSettlementWithItems($memberId, [1500]);
 
-        $xml = $this->service->export($settlementId)->xml;
+        $xml = $this->service->export($settlementId, $this->devIbanOpener())->xml;
 
         $stored = $this->storedEndToEndIds($settlementId)[0];
         $this->assertStringContainsString(
@@ -111,10 +111,10 @@ class SepaExportPersistenceTest extends DatabaseTestCase
         $memberId = $this->createMemberWithMandate();
         $settlementId = $this->createSettlementWithItems($memberId, [1500]);
 
-        $this->service->export($settlementId);
+        $this->service->export($settlementId, $this->devIbanOpener());
         $first = $this->storedEndToEndIds($settlementId);
 
-        $this->service->export($settlementId);
+        $this->service->export($settlementId, $this->devIbanOpener());
 
         $this->assertSame(
             $first,
@@ -133,7 +133,7 @@ class SepaExportPersistenceTest extends DatabaseTestCase
         $settlementId = $this->createSettlementWithItems($collected, [1500]);
         $this->addItems($settlementId, $inCredit, [-2000]);
 
-        $this->service->export($settlementId);
+        $this->service->export($settlementId, $this->devIbanOpener());
 
         $this->assertNull(
             $this->storedEndToEndIdFor($settlementId, $inCredit),
@@ -192,14 +192,17 @@ class SepaExportPersistenceTest extends DatabaseTestCase
         // is_active is a generated column — derived from ended_at, not written.
         $mandateId = $this->track('mandates', $this->generateUuid());
         $this->db->prepare(
-            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban, signed_at)
-             VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_ciphertext, iban_last4, iban_fingerprint, encryption_key_id, signed_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $mandateId,
             $memberId,
             $memberId,
             'MND' . strtoupper(substr(str_replace('-', '', $memberId), 0, 20)),
-            'DE02120300000000202051',
+            $this->sealIban('DE02120300000000202051'),
+            '2051',
+            $this->ibanFingerprint('DE02120300000000202051'),
+            self::DEV_KEY_ID,
             '2025-01-15',
         ]);
 

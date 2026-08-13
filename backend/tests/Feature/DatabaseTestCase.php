@@ -56,6 +56,41 @@ abstract class DatabaseTestCase extends TestCase
     }
 
     /**
+     * The published development keypair (ADR-0036).
+     *
+     * `ensureActiveEncryptionKey()` registers the public half; the private half
+     * is here because since migration 020 there is no plaintext IBAN column,
+     * so a fixture that needs a readable IBAN has to seal it and a test that
+     * exports one has to open it. `IbanSealedBox` refuses this keypair outside
+     * development environments, so it can never seal production data.
+     */
+    protected const DEV_PUBLIC_KEY_HEX = '7479840773cdbd0f57bacf5c8488818e55845ee19207aaf685b74869c1682155';
+    protected const DEV_SECRET_KEY_HEX = 'f678fb17b592c29db54e43f808ee74fd67f7dd5c6c405b24e3e31ead38f3058a';
+    protected const DEV_KEY_ID = '99999991-9999-9999-9999-999999999991';
+
+    /** Seal an IBAN under the dev key, the way a real write does. */
+    protected function sealIban(string $iban): string
+    {
+        return (new \App\Shared\Security\IbanSealedBox(str_repeat('0', 63) . '2', 'test'))
+            ->seal($iban, hex2bin(self::DEV_PUBLIC_KEY_HEX));
+    }
+
+    /** The opener a SEPA export is handed, standing in for the club's key. */
+    protected function devIbanOpener(): \Closure
+    {
+        $box = new \App\Shared\Security\IbanSealedBox(str_repeat('0', 63) . '2', 'test');
+        $secret = hex2bin(self::DEV_SECRET_KEY_HEX);
+
+        return static fn(string $ciphertext): string => $box->open($ciphertext, $secret);
+    }
+
+    /** The keyed fingerprint a real write stores alongside the ciphertext. */
+    protected function ibanFingerprint(string $iban): string
+    {
+        return (new \App\Shared\Security\IbanSealedBox(str_repeat('0', 63) . '2', 'test'))->fingerprint($iban);
+    }
+
+    /**
      * Make sure an ACTIVE IBAN encryption key exists (ADR-0036).
      *
      * Storing an IBAN seals it under the ACTIVE key, so every test that

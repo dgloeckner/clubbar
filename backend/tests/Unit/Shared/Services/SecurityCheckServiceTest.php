@@ -4,69 +4,59 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Shared\Services;
 
-use App\Modules\Security\Services\IbanEncryptionMigrationService;
 use App\Shared\Config\AppConfig;
-use App\Shared\Security\SecurityFinding;
 use App\Shared\Services\SecurityCheckService;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The ADR-0036 backfill row of the security report: plaintext IBAN remnants
- * must stay visible until the batch encryption sealed every last one.
+ * The security report the admin panel renders (#247, ADR-0031 decision 3).
+ *
+ * This used to also cover an "IBAN encryption backfill" row, which counted
+ * mandate rows still holding a plaintext IBAN. That row went with the column:
+ * migration 020 dropped `mandates.iban`, so there is no longer a state for it
+ * to report — the schema itself now guarantees what the finding used to check.
+ *
+ * What is left to assert here is the wiring: the service runs the self-check
+ * against the live process and summarizes what comes back.
  */
 class SecurityCheckServiceTest extends TestCase
 {
-    private function backfillFinding(?IbanEncryptionMigrationService $migration): SecurityFinding
+    private function report(): \App\Shared\DTOs\SecurityReportDto
     {
-        $service = new SecurityCheckService(new AppConfig(), $migration);
-
-        $report = $service->check(['DOCUMENT_ROOT' => sys_get_temp_dir()]);
-
-        foreach ($report->findings as $finding) {
-            if ($finding->id === 'iban-encryption-backfill') {
-                return $finding;
-            }
-        }
-
-        $this->fail('The report is missing the iban-encryption-backfill finding');
+        return (new SecurityCheckService(new AppConfig()))
+            ->check(['DOCUMENT_ROOT' => sys_get_temp_dir()]);
     }
 
-    public function test_zero_plaintext_rows_is_a_pass(): void
+    public function test_the_report_carries_findings_and_a_generation_timestamp(): void
     {
-        $migration = $this->createMock(IbanEncryptionMigrationService::class);
-        $migration->method('countRemaining')->willReturn(0);
+        $report = $this->report();
 
-        $finding = $this->backfillFinding($migration);
-
-        $this->assertSame(SecurityFinding::PASS, $finding->status);
+        $this->assertNotEmpty($report->findings, 'a report with no findings would say nothing');
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/',
+            $report->generatedAt,
+        );
     }
 
-    public function test_remaining_plaintext_rows_warn_with_the_count_and_remedy(): void
+    public function test_the_summary_accounts_for_every_finding(): void
     {
-        $migration = $this->createMock(IbanEncryptionMigrationService::class);
-        $migration->method('countRemaining')->willReturn(7);
+        $report = $this->report();
+        $summary = $report->summary;
 
-        $finding = $this->backfillFinding($migration);
+        $counted = array_sum(array_filter($summary, 'is_int'));
 
-        $this->assertSame(SecurityFinding::WARN, $finding->status);
-        $this->assertStringContainsString('7', $finding->observed);
-        $this->assertStringContainsString('Encrypt existing IBANs', (string) $finding->remedy);
+        $this->assertSame(
+            count($report->findings),
+            $counted,
+            'every finding must land in exactly one summary bucket',
+        );
     }
 
-    public function test_an_unqueryable_database_is_unknown_not_a_pass(): void
+    /** The backfill row is gone, and must not come back as a stale "unknown". */
+    public function test_there_is_no_iban_backfill_finding_any_more(): void
     {
-        $migration = $this->createMock(IbanEncryptionMigrationService::class);
-        $migration->method('countRemaining')->willThrowException(new \RuntimeException('db gone'));
+        $ids = array_map(static fn($finding) => $finding->id, $this->report()->findings);
 
-        $finding = $this->backfillFinding($migration);
-
-        $this->assertSame(SecurityFinding::UNKNOWN, $finding->status);
-    }
-
-    public function test_a_missing_migration_service_is_unknown(): void
-    {
-        $finding = $this->backfillFinding(null);
-
-        $this->assertSame(SecurityFinding::UNKNOWN, $finding->status);
+        $this->assertNotContains('iban-encryption-backfill', $ids);
     }
 }

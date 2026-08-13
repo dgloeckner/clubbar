@@ -203,13 +203,4 @@ class EncryptionKeysHttpTest extends HttpTestCase
         $this->assertSame(404, $response->getStatusCode());
     }
 
-    public function test_encrypt_existing_runs_a_batch_behind_step_up(): void
-    {
-        $response = $this->request('POST', '/api/admin/encryption-keys/encrypt-existing', $this->stepUp(), headers: $this->csrf());
-
-        $this->assertSame(200, $response->getStatusCode());
-        $body = $this->decode($response);
-        $this->assertArrayHasKey('processed', $body);
-        $this->assertArrayHasKey('remaining', $body);
-    }
 }

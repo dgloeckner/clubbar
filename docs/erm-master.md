@@ -70,7 +70,11 @@ erDiagram
         binary_16 member_id FK "Owning member"
         binary_16 active_member_id UK "= member_id while in force, else NULL"
         varchar_35 reference UK "SEPA mandate ID (UMR)"
-        varchar_34 iban "SEPA bank account"
+        varbinary_512 iban_ciphertext "Sealed IBAN (ADR-0036); server cannot open it"
+        char_4 iban_last4 "Last four characters, for display"
+        char_64 iban_fingerprint "Keyed BLAKE2b, for bank-change detection"
+        binary_16 encryption_key_id FK "Key generation this row is sealed under"
+        varchar_255 bank_name "Resolved from the BLZ at write time"
         date signed_at "Mandate signature date (nullable in Phase 0)"
         binary_16 document_id FK "Optional scanned mandate"
         datetime ended_at "Bank change or revocation"
@@ -343,7 +347,11 @@ A mandate is **one record**, or the member has none. Rows are **append-only** �
 | member_id | BINARY(16) | FK → members.id, NOT NULL | Owning member (stable across the mandate's history) |
 | active_member_id | BINARY(16) | **UNIQUE**, NULL | Holds `member_id` while this mandate is **in force**; NULL once ended. MariaDB has no partial indexes but permits many NULLs in a unique column, so this expresses *"at most one active mandate per member"* the same way `settlement_items` expresses its live claim |
 | reference | VARCHAR(35) | UNIQUE, NOT NULL | SEPA mandate ID (UMR); auto-generated at mandate creation |
-| iban | VARCHAR(34) | NOT NULL | ISO 13616 + mod-97 checksum |
+| iban_ciphertext | VARBINARY(512) | NULL | The IBAN, sealed under the club's public key (`v1:` + base64). The server holds no private key and cannot open it ([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)); only the SEPA export can, with the key supplied for that one request |
+| iban_last4 | CHAR(4) | NULL | Last four characters, stored in the clear. Everything routine — `****3000` in a list, the missing-IBAN badge, the settlement CSV — reads this and never needs a key |
+| iban_fingerprint | CHAR(64) | NULL | Keyed BLAKE2b of the normalized IBAN, hex. Sealed boxes are randomized, so this is how a bank change is told from a correction without decrypting. The key lives in `config.php`, never in the DB |
+| encryption_key_id | CHAR(36) | FK → encryption_keys.id, NULL | Which key generation this row is sealed under; what a rotation walks |
+| bank_name | VARCHAR(255) | NULL | Resolved from the BLZ at write time — the last moment the plaintext exists. A sealed row can never answer this question again |
 | signed_at | DATE | NULL | Mandate signature date. Deliberately nullable in Phase 0 — the schema migration relocates existing data without changing the eligibility predicate; making a signature date a precondition of SEPA validity is a separate, later change |
 | document_id | BINARY(16) | FK → mandate_documents.id, NULL | Optional scanned mandate; OCR prefill only, not a precondition |
 | ended_at | DATETIME | NULL | When the mandate stopped being in force |
@@ -356,7 +364,9 @@ A mandate is **one record**, or the member has none. Rows are **append-only** �
 
 **Constraint:** `active_member_id` must equal `member_id` when set (`CHECK`) — a mandate can only be "active" for its own owner.
 
-**Beleg-bearing** — `reference`, `iban` and `signed_at` survive a GDPR erasure request under [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md). Do not null them on anonymisation; the current code does, and that is a bug.
+**No plaintext IBAN column.** Migration `018` added one as a nullable remnant for installs that already held IBANs; `020` dropped it, since nothing had shipped and therefore nothing needed migrating. While it existed, the guarantee above was conditional on the column staying empty — now no row shape yields a readable IBAN without the private key.
+
+**Beleg-bearing** — `reference`, `iban_ciphertext` and `signed_at` survive a GDPR erasure request under [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md). Do not null them on anonymisation; the current code does, and that is a bug. The ciphertext is retained rather than the plaintext, which is the point: the record survives without the club being able to read it day to day.
 
 ---
 
