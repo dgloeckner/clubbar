@@ -1169,8 +1169,10 @@ void main() {
         await syncService.syncAll();
         expect(syncService.credentialExpired, isTrue);
 
-        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
-            .thenAnswer((_) async => null);
+        // The whole cycle has to succeed, not just the call that was refused:
+        // a members sync that now works followed by an unstubbed categories
+        // call is still a failed cycle, and would leave nothing to clear.
+        stubReferenceDataSync();
 
         expect(await syncService.syncAll(), equals(SyncResult.success));
         expect(syncService.credentialExpired, isFalse);
