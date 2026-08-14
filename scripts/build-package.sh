@@ -72,6 +72,13 @@ cp    "$PROJECT_ROOT/backend/db/MigrationRunner.php" "$PKG_DIR/backend/db/"
 cp -R "$PROJECT_ROOT/backend/db/migrations"  "$PKG_DIR/backend/db/migrations"
 cp -R "$PROJECT_ROOT/backend/vendor"         "$PKG_DIR/backend/vendor"
 cp    "$PROJECT_ROOT/backend/bootstrap.php"  "$PKG_DIR/backend/bootstrap.php"
+# The scheduled drain (ADR-0038 rule 3) — without this in the archive, the one
+# thing that sends mail does not reach the host at all. Only cron.php: the rest
+# of bin/ is developer tooling, and every file under the document root is a file
+# that becomes a URL the day .htaccess stops being honoured. cron.php refuses to
+# run outside the CLI for exactly that reason.
+mkdir -p "$PKG_DIR/backend/bin"
+cp    "$PROJECT_ROOT/backend/bin/cron.php"   "$PKG_DIR/backend/bin/cron.php"
 if [ -f "$PROJECT_ROOT/backend/VERSION" ]; then
   cp    "$PROJECT_ROOT/backend/VERSION"      "$PKG_DIR/backend/VERSION"
 fi

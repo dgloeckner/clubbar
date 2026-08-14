@@ -14,6 +14,9 @@
 # RuntimeHardening (#246). Every local run creates them; a session file is a
 # login, so none of them belong in the repo.
 /storage/sessions/
+# The drain's flock file (#403). Created by every cron run and by the URL
+# trigger; the pid inside it is meaningless to anyone but the run that wrote it.
+/storage/mail-drain.lock
 *.php.disabled
 .DS_Store
 Thumbs.db

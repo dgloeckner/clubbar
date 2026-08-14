@@ -231,6 +231,15 @@ class NotificationsService
         return $this->mailOutboxRepository->claimBatch($limit);
     }
 
+    /**
+     * Give a claimed message back untouched — the drain ran out of time before
+     * reaching it, and nothing was attempted.
+     */
+    public function releaseClaim(string $outboxId): void
+    {
+        $this->mailOutboxRepository->releaseClaim($outboxId);
+    }
+
     /** Record what a transport reported for one claimed message. */
     public function recordResult(string $outboxId, MailSendResult $result): MailStatus
     {

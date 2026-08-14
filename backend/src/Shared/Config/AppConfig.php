@@ -31,6 +31,12 @@ class AppConfig
      * silently, the same way an absent llm.provider disables extraction.
      */
     public readonly ?string $mailDsn;
+    /**
+     * Authorises the URL drain trigger (ADR-0038 rule 3, #403). Absent leaves
+     * the route unmounted, which is the right default: a tariff with a CLI cron
+     * has no reason to expose a second, unauthenticated way in.
+     */
+    public readonly ?string $cronSecret;
 
     public function __construct()
     {
@@ -52,6 +58,7 @@ class AppConfig
         $this->llmThinkingBudget    = (int) Env::get('LLM_THINKING_BUDGET', '0');
         $this->googleVisionKey      = Env::get('GCLOUD_VISION_API', '') ?: null;
         $this->mailDsn              = trim(Env::get('MAIL_DSN', '')) ?: null;
+        $this->cronSecret           = trim(Env::get('CRON_SECRET', '')) ?: null;
 
         // Resolved last — the default depends on $this->appUrl.
         $this->sessionCookieSecure  = self::resolveSessionCookieSecure($this->appUrl);

@@ -16,6 +16,7 @@ use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncContr
 use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
 use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
+use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
@@ -43,6 +44,19 @@ return function (App $app): void {
     // Public instance branding read — needed before login (login page) and by
     // the Terminal, which has no admin session (ADR-0034).
     $app->get('/api/instance-config', [InstanceConfigController::class, 'show']);
+
+    // The URL fallback for the mail drain (ADR-0038 rule 3, #403).
+    //
+    // Public by necessity — a panel's URL cron carries no session and no CSRF
+    // token — and authorised instead by a dedicated secret in config.php, which
+    // the controller checks in constant time. Without that secret configured
+    // the route answers 404: an installation on a CLI cron gains no second
+    // entrance.
+    //
+    // GET and POST both, because panels differ on which they can schedule, and
+    // for the same reason it is deliberately outside the CSRF middleware: there
+    // is no browser and no session cookie for a CSRF token to protect.
+    $app->map(['GET', 'POST'], '/api/cron/drain', [CronController::class, 'drain']);
 
     // Auth endpoints (login and mfa are public, rest require session).
     // Both password and second factor are rate-limited on IP and account (#78,
