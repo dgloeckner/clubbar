@@ -11,6 +11,7 @@ import type { DashboardResponse } from '../api/generated'
 import { StatCard } from '../components/common/StatCard'
 import { UsersIcon, ReceiptIcon, BookIcon } from '../components/icons'
 import { HomeIcon } from '../components/icons/HomeIcon'
+import { getAmountColor } from '../utils/transactions'
 
 const AUTO_REFRESH_INTERVAL = 10_000 // 10 seconds
 
@@ -320,7 +321,7 @@ export function DashboardPage() {
                     fontSize: theme.typography.fontSize.sm,
                     fontWeight: theme.typography.fontWeight.semibold,
                     fontFamily: 'JetBrains Mono, monospace',
-                    color: tx.amount_cents < 0 ? theme.colors.semantic.success : theme.colors.text.primary,
+                    color: getAmountColor(tx.amount_cents ?? 0),
                     flexShrink: 0,
                     whiteSpace: 'nowrap',
                     marginLeft: theme.spacing.sm,

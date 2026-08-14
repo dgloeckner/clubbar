@@ -783,16 +783,14 @@ per #289, they're the canonical danger tint reused wherever an error banner,
 delete button, or danger-adjacent panel needs the same translucent red
 background (and, where it has a border at all, the same border): `ProfilePage`
 error banners, `MainLayout`'s logout buttons, `ReportsPage`'s error style,
-`TransactionModal`'s error message, `TerminalsTab`'s revoke button, and
-others. Reuse the existing badge token instead of hand-writing a new
+`TerminalsTab`'s revoke button, and others. Reuse the existing badge token instead of hand-writing a new
 `rgba(239, 68, 68, ...)` literal — that's the pattern the issue calls out
 ("the existing `theme.badges.*.bg` pattern already does this ... extend it").
 
 Same story for `theme.badges.info.bg` (`rgba(59, 130, 246, 0.1)`): reused for
 edit-button hover backgrounds (`CategoriesPage`, `MembersPage`, `ProductsPage`,
-`TerminalsTab`), a selected table row (`NewSettlementPage`), an idle filter
-background (`TransactionModal`), and focus box-shadows (`Input`,
-`SepaConfigTab`) — reuse it instead of a new `rgba(59, 130, 246, 0.1)` literal.
+`TerminalsTab`), a selected table row (`NewSettlementPage`), and focus box-shadows
+(`Input`, `SepaConfigTab`) — reuse it instead of a new `rgba(59, 130, 246, 0.1)` literal.
 
 And for `theme.badges.success.bg`/`.border` (`rgba(34, 197, 94, 0.1)` /
 `rgba(34, 197, 94, 0.3)`): reused for success banners (`ProfilePage`'s profile
@@ -927,8 +925,7 @@ new call site; match the literal's alpha to the correct field.
 backgrounds at a shared `0.15` alpha — `theme.softTint` completes it for
 green/orange/red. Used by `StatCard`'s non-blue variants, credit/held/ok
 status chips (`ExcludedFromCollectionPage`), a report card background
-(`ReportsPage`), a transaction-type highlight (`TransactionModal`), and
-severity-tinted panels (`MembersPage`):
+(`ReportsPage`), and severity-tinted panels (`MembersPage`):
 
 ```typescript
 theme.softTint = {
@@ -1000,10 +997,10 @@ theme.colors.text.label = 'rgba(255, 255, 255, 0.35)' // derived via withAlpha('
 
 ### Second Modal Shadow Shape
 
-`theme.shadows.modal` (used by `TransactionModal.tsx`) isn't the only modal
-shadow in the app — a second shape, with no negative spread and double the
-alpha, is reimplemented identically across `LoginPage.tsx`, `CategoriesPage.tsx`,
-`MembersPage.tsx` (×2), `ConfirmDialog.tsx`, and `StornoConfirmDialog.tsx`:
+`theme.shadows.modal` is not the modal shadow actually in use — a second
+shape, with no negative spread and double the alpha, is reimplemented
+identically across `LoginPage.tsx`, `CategoriesPage.tsx`, `MembersPage.tsx`
+(×2), `ConfirmDialog.tsx`, and `StornoConfirmDialog.tsx`:
 
 ```typescript
 theme.shadows.modalStrong = '0 25px 50px rgba(0, 0, 0, 0.5)'
