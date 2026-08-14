@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Settlements\Services;
 
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Notifications\DTOs\EnqueueResultDto;
+use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
 use App\Modules\Settlements\Enums\SettlementMethod;
@@ -28,6 +30,7 @@ class SettlementsServiceTest extends TestCase
     private TransactionsRepository $transactionsRepository;
     private AuditService $auditService;
     private SettlementReversalsRepository $reversalsRepository;
+    private NotificationsService $notificationsService;
     private \PDO $db;
     private SettlementsService $service;
 
@@ -40,6 +43,14 @@ class SettlementsServiceTest extends TestCase
         $this->transactionsRepository = $this->createMock(TransactionsRepository::class);
         $this->auditService = $this->createMock(AuditService::class);
         $this->reversalsRepository = $this->createMock(SettlementReversalsRepository::class);
+        $this->notificationsService = $this->createMock(NotificationsService::class);
+        // Every create and every cancel now passes through the outbox, so the
+        // double has to answer by default. PHPUnit uses the first matching
+        // stub, so a test that wants to assert on the enqueue builds its own
+        // double through serviceWithNotifications() rather than re-stubbing
+        // this one.
+        $this->notificationsService->method('enqueueForSettlement')->willReturn(EnqueueResultDto::empty());
+        $this->notificationsService->method('cancelSettlementNotifications')->willReturn(EnqueueResultDto::empty());
         $this->db = $this->createMock(\PDO::class);
 
         $this->service = new SettlementsService(
@@ -49,6 +60,21 @@ class SettlementsServiceTest extends TestCase
             $this->auditService,
             $this->db,
             $this->reversalsRepository,
+            $this->notificationsService,
+        );
+    }
+
+    /** The same service, wired to a notifications double the test controls. */
+    private function serviceWithNotifications(NotificationsService $notifications): SettlementsService
+    {
+        return new SettlementsService(
+            $this->settlementsRepository,
+            $this->membersRepository,
+            $this->transactionsRepository,
+            $this->auditService,
+            $this->db,
+            $this->reversalsRepository,
+            $notifications,
         );
     }
 
@@ -1039,6 +1065,169 @@ class SettlementsServiceTest extends TestCase
         $this->expectExceptionMessage('db exploded');
 
         $this->service->createSettlement(['tx-1'], '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+    }
+
+    /* ─────────── The announcement is part of the create transaction ─────────── */
+
+    /**
+     * ADR-0038 rule 1: the pre-notification is enqueued inside the settlement's
+     * own transaction and no network call happens. What this asserts is the
+     * figure each member is announced — the sum of what *this run* collects
+     * from them, not their position.
+     */
+    public function test_createSettlement_queues_one_announcement_per_collected_member(): void
+    {
+        $transactions = [
+            ['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500],
+            ['id' => 'tx-2', 'member_id' => 'member-a', 'amount_cents' => 250],
+            ['id' => 'tx-3', 'member_id' => 'member-b', 'amount_cents' => 750],
+        ];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->stubEligibleSweep($transactions);
+        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
+        $this->settlementsRepository->method('create')->willReturn($this->settlementRow());
+        $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
+
+        $notifications = $this->createMock(NotificationsService::class);
+        $notifications
+            ->expects($this->once())
+            ->method('enqueueForSettlement')
+            ->with(
+                'settlement-1',
+                ['member-a' => 750, 'member-b' => 750],
+                'admin-1',
+            )
+            ->willReturn(new EnqueueResultDto(2));
+
+        $this->serviceWithNotifications($notifications)->createSettlement(
+            ['tx-1', 'tx-2', 'tx-3'],
+            '2026-01-15',
+            null,
+            null,
+            SettlementMethod::DIRECT_DEBIT,
+            null,
+            'admin-1',
+        );
+    }
+
+    /**
+     * A bank transfer is the member paying their own tab: it needs a payment
+     * request, which is different content with no mandate reference, and it is
+     * #410's job. A write-off moves no money at all.
+     */
+    public function test_createSettlement_announces_nothing_for_a_non_direct_debit_run(): void
+    {
+        $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->stubEligibleSweep($transactions);
+        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
+        $this->settlementsRepository->method('create')->willReturn($this->settlementRow(['method' => 'bank_transfer']));
+        $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
+
+        $notifications = $this->createMock(NotificationsService::class);
+        $notifications->expects($this->never())->method('enqueueForSettlement');
+
+        $this->serviceWithNotifications($notifications)->createSettlement(
+            ['tx-1'],
+            '2026-01-15',
+            null,
+            null,
+            SettlementMethod::BANK_TRANSFER,
+            null,
+            'admin-1',
+        );
+    }
+
+    /**
+     * The other half of rule 1, and the half that decides the architecture: a
+     * finalize is one transaction or it is nothing. A settlement that exists
+     * with an unknown number of announcements attached is exactly the state
+     * that cannot be repaired afterwards.
+     */
+    public function test_createSettlement_rolls_back_when_the_announcement_cannot_be_queued(): void
+    {
+        $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->stubEligibleSweep($transactions);
+        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
+        $this->settlementsRepository->method('create')->willReturn($this->settlementRow());
+
+        $notifications = $this->createMock(NotificationsService::class);
+        $notifications->method('enqueueForSettlement')
+            ->willThrowException(new \RuntimeException('outbox write failed'));
+
+        $this->db->expects($this->once())->method('rollBack');
+        $this->db->expects($this->never())->method('commit');
+        // The settlement is not audited as created either — the whole thing
+        // did not happen.
+        $this->auditService->expects($this->never())->method('log');
+
+        $this->expectException(\RuntimeException::class);
+
+        $this->serviceWithNotifications($notifications)->createSettlement(
+            ['tx-1'],
+            '2026-01-15',
+            null,
+            null,
+            SettlementMethod::DIRECT_DEBIT,
+            null,
+            'admin-1',
+        );
+    }
+
+    /**
+     * Cancelling splits on what each member already knows — superseding what
+     * never went out, retracting what did (ADR-0038). It happens in the
+     * cancellation's own transaction, because the queue is the only record of
+     * which is which and a later pass could find it drained.
+     */
+    public function test_cancelSettlement_hands_the_queue_to_the_notifications_service(): void
+    {
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableSettlementRow());
+        $this->settlementsRepository->method('cancelSettlement')->willReturn(true);
+
+        $notifications = $this->createMock(NotificationsService::class);
+        $notifications
+            ->expects($this->once())
+            ->method('cancelSettlementNotifications')
+            ->with('settlement-1', 'admin-1')
+            ->willReturn(EnqueueResultDto::empty());
+
+        $this->db->expects($this->once())->method('beginTransaction');
+        $this->db->expects($this->once())->method('commit');
+
+        $this->assertTrue($this->serviceWithNotifications($notifications)->cancelSettlement('settlement-1', 'admin-1'));
+    }
+
+    public function test_cancelSettlement_rolls_back_when_the_retraction_cannot_be_queued(): void
+    {
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableSettlementRow());
+        $this->settlementsRepository->method('cancelSettlement')->willReturn(true);
+
+        $notifications = $this->createMock(NotificationsService::class);
+        $notifications->method('cancelSettlementNotifications')
+            ->willThrowException(new \RuntimeException('outbox write failed'));
+
+        $this->db->expects($this->once())->method('rollBack');
+        $this->db->expects($this->never())->method('commit');
+
+        $this->expectException(\RuntimeException::class);
+
+        $this->serviceWithNotifications($notifications)->cancelSettlement('settlement-1', 'admin-1');
+    }
+
+    /** A settlement the bank has not collected yet, so CancellationGate lets it go. */
+    private function cancellableSettlementRow(): array
+    {
+        return $this->settlementRow([
+            'execution_date' => (new \DateTimeImmutable('+30 days'))->format('Y-m-d'),
+        ]);
     }
 
     /**

@@ -64,4 +64,13 @@ enum AuditAction: string
     case TERMINAL_TOKEN_REVOKED = 'terminal_token_revoked';
     /** A terminal presented a token that had aged out — written once per expiry. */
     case TERMINAL_TOKEN_EXPIRED = 'terminal_token_expired';
+    // Outgoing mail (ADR-0038). Written at *enqueue*, not at send: enqueue is
+    // the moment the club commits to announcing a collection, and it is the
+    // only one that shares the settlement's transaction. Whether a given
+    // message left the host is queue state, visible per member in the
+    // settlement detail — best effort, and never audited as a promise kept.
+    /** Announcements or cancellation notices were queued for a settlement. */
+    case MAIL_ENQUEUED = 'mail_enqueued';
+    /** Unsent announcements were closed out because the settlement was cancelled. */
+    case MAIL_SUPERSEDED = 'mail_superseded';
 }

@@ -51,12 +51,19 @@ Three deviations from #401 worth knowing about:
 
 ### P2 — `mail_outbox`, Notifications module, transactional enqueue ([#402](https://github.com/dgloeckner/clubbar/issues/402))
 
-- [ ] Migration `mail_outbox` per ADR-0038's schema table, with `UNIQUE (kind, settlement_id, member_id)` and **no body column**; `cron_heartbeat` singleton in the same migration
-- [ ] `backend/src/Modules/Notifications/` per ADR-0018 and `backend/patterns/`: repository + service with `enqueueForSettlement`, `claimBatch`, `markSent`, `markFailed`, `supersedePending`
-- [ ] Enqueue inside the **existing** `createSettlement` transaction — one row per collected member (`amount > 0`), language from `members.preferred_language` with `de` fallback; credit / zero / no-email members get no row
-- [ ] `cancelSettlement`: supersede unsent announcements, enqueue `cancellation_notice` only where the announcement is `sent`
-- [ ] Audit entries (ADR-0013) for enqueue and cancellation-notice creation
-- Verify: PHPUnit — finalize twice yields exactly one row per member (by constraint, not by lookup); cancel-before-drain supersedes with zero notices; cancel-after-send notifies only those who got one; an enqueue failure rolls back the settlement with it
+- [x] Migration `025_mail_outbox.sql` per ADR-0038's schema table, with `UNIQUE (kind, settlement_id, member_id)` and **no body column**; `cron_heartbeat` singleton in the same migration; `audit_log.action` gains `mail_enqueued` and `mail_superseded`
+- [x] `backend/src/Modules/Notifications/` per ADR-0018 and `backend/patterns/`: `MailKind` / `MailStatus` / `MailLanguage` enums, `MailOutboxRepository`, `NotificationsService` with `enqueueForSettlement`, `cancelSettlementNotifications`, `claimBatch`, `recordResult`, plus `supersedePending` / `markSent` / `markFailed` / `resetToPending` / `oldestPendingQueuedAt` on the repository
+- [x] Enqueue inside the **existing** `createSettlement` transaction — one row per collected member (`amount > 0`), language frozen at enqueue from `members.preferred_language` with `de` fallback; credit / zero / no-email members get no row, and `direct_debit` only
+- [x] `cancelSettlement`: supersede unsent announcements, enqueue `cancellation_notice` only where the announcement is `sent`
+- [x] Audit entries (ADR-0013) for enqueue and cancellation-notice creation, keyed to the settlement
+- Verify: **passed** — `NotificationsServiceTest` (16), `MailOutboxSchemaTest` (7, incl. the unique constraint and the *absence* of a body column), `MailOutboxRepositoryTest` (13, against MariaDB: two concurrent claims send N and never N+1, a stale claim is reclaimable, backoff then cap), `SettlementAnnouncementTest` (10, the whole chain), plus 5 new cases in `SettlementsServiceTest` including the rollback
+
+Two notes worth keeping:
+
+| Decision | Why |
+|---|---|
+| `enqueue()` is `INSERT … ON DUPLICATE KEY UPDATE id = id`, not `INSERT IGNORE` | `INSERT IGNORE` downgrades *every* error to a warning — a foreign key pointing at a member who no longer exists would vanish silently instead of aborting the settlement it belongs to |
+| `MailLanguage` is a separate enum from `SupportedLanguage` | A member may prefer French; there is no French announcement. The outbox column then states the language the mail **will** be in, rather than a preference that cannot be honoured |
 
 ### P3 — Cron drain: CLI entrypoint, claim/backoff, `flock`, URL fallback ([#403](https://github.com/dgloeckner/clubbar/issues/403))
 
@@ -68,11 +75,19 @@ Three deviations from #401 worth knowing about:
 
 ### P4 — Mail content: pre-notification, cancellation notice, de/en, preview script ([#404](https://github.com/dgloeckner/clubbar/issues/404))
 
-- [ ] Pre-notification content: creditor name/address + Gläubiger-ID, mandate reference, exact amount, due date, masked IBAN (last 4), itemized statement (the § 7 Abs. 1 Abrechnungsübersicht), 6-week Beanstandung hint, reply-to Kassenwart
-- [ ] Cancellation notice variant (*„Einzug entfällt"*)
-- [ ] de/en per `preferred_language`, `de` fallback (ADR-0002)
-- [ ] Preview script after `frgs-rewrite/scripts/preview-ruderkurs-mails.php`, writing every variant to `storage/mail-vorschau/` (gitignored)
-- Verify: PHPUnit content assertions per field and per language; the text part states everything the HTML part states
+- [x] Pre-notification content: creditor name/address + Gläubiger-ID, mandate reference, exact amount, due date, masked IBAN (last 4), itemized statement (the § 7 Abs. 1 Abrechnungsübersicht), 6-week Beanstandung hint, reply-to Kassenwart — `Notifications/Mail/PreNotificationMail`
+- [x] Cancellation notice variant (*„Einzug entfällt"*), carrying **no** mandate reference and **no** creditor ID: those authorise a collection, and under "this will not be collected" they read as a second announcement
+- [x] de/en per `preferred_language`, `de` fallback (ADR-0002) — `MailStrings` falls back **per key**, so an untranslated string arrives in German rather than as a gap where the amount belongs
+- [x] `SettlementMailBuilder` assembles a message from a queued row at send time, from settlement data and never a stored body; the recipient is the one field taken from the outbox snapshot rather than re-read
+- [x] Preview script `backend/bin/preview-mails.php`, writing both kinds in both languages (HTML + text + an index) to `backend/storage/mail-preview/`, gitignored
+- Verify: **passed** — `PreNotificationMailTest` (17), `CancellationNoticeMailTest` (9), `MailStringsTest` (10); every required field asserted by name in both languages **and in both parts**, the masked account never exceeds four characters, no IBAN-length digit run reaches the output, and a booking label cannot inject markup
+
+Two deviations from #404:
+
+| Deviation | Why |
+|---|---|
+| The directory is `storage/mail-preview/`, not `storage/mail-vorschau/` | Same contributor rule that made `Mailvorlage` into `MailLayout` in P1: identifiers and paths in this repository are English |
+| German is formal (*Sie*), unlike the terminal UI's informal *du* ([#42](https://github.com/dgloeckner/clubbar/issues/42)) | A pre-notification quotes a creditor identifier and a mandate reference and invites a formal objection within six weeks — the register every other SEPA pre-notification a member receives is written in. The bar touchscreen is a different conversation. It is one file to change if the maintainer disagrees |
 
 ### P5 — The scheduler is mandatory: install verification, finalize gate, missing-email warning ([#405](https://github.com/dgloeckner/clubbar/issues/405))
 
@@ -119,7 +134,9 @@ Three deviations from #401 worth knowing about:
 
 ## Order and parallelism
 
-P1 and P2 both depend only on P0 and can run in parallel — P0 and P1 shipped together, so P2 is unblocked and is now the head of the critical chain: **P2 → P3 → P9**.
+P1 and P2 both depend only on P0 and can run in parallel. P0 + P1 shipped together, then P2 + P4 together — the two milestones P1 unblocked, and the pair that leaves the queue full and the content ready with nothing yet able to send it.
+
+**P3 is now the whole of the remaining critical chain**: it is the only sender, and until it exists a finalized settlement queues announcements that stay `pending` for ever. Everything P3 needs is in place — `NotificationsService::claimBatch()` / `recordResult()` for the queue, `SettlementMailBuilder::build()` for the content, `MailTransport` for the sending, and the `cron_heartbeat` row for the run record. What is left is `bin/cron.php`, the `flock`, the wall-clock budget and the URL fallback route.
 
 ## Open questions
 

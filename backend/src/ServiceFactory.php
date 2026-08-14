@@ -26,6 +26,7 @@ use App\Modules\Security\Controllers\EncryptionKeysController;
 use App\Shared\Security\IbanSealedBox;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
 use App\Modules\Notifications\Repositories\MailConfigRepository;
+use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Repositories\SessionRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
@@ -56,6 +57,8 @@ use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
 use App\Modules\Notifications\Services\MailConfigService;
+use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\SettlementMailBuilder;
 use App\Shared\Mail\MailTransportFactory;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Modules\Settlements\Services\SettlementReversalService;
@@ -250,6 +253,11 @@ class ServiceFactory implements ContainerInterface
     public function getMailConfigRepository(): MailConfigRepository
     {
         return $this->resolve(MailConfigRepository::class, fn() => new MailConfigRepository($this->pdo, $this->logger));
+    }
+
+    public function getMailOutboxRepository(): MailOutboxRepository
+    {
+        return $this->resolve(MailOutboxRepository::class, fn() => new MailOutboxRepository($this->pdo, $this->logger));
     }
 
     public function getLoginAttemptsRepository(): LoginAttemptsRepository
@@ -459,6 +467,25 @@ class ServiceFactory implements ContainerInterface
         ));
     }
 
+    public function getNotificationsService(): NotificationsService
+    {
+        return $this->resolve(NotificationsService::class, fn() => new NotificationsService(
+            $this->getMailOutboxRepository(),
+            $this->getMembersRepository(),
+            $this->getAuditService(),
+        ));
+    }
+
+    public function getSettlementMailBuilder(): SettlementMailBuilder
+    {
+        return $this->resolve(SettlementMailBuilder::class, fn() => new SettlementMailBuilder(
+            $this->getSettlementsRepository(),
+            $this->getMembersRepository(),
+            $this->getSepaConfigRepository(),
+            $this->getMailConfigService(),
+        ));
+    }
+
     public function getSepaExportService(): SepaExportService
     {
         return $this->resolve(SepaExportService::class, fn() => new SepaExportService(
@@ -479,6 +506,7 @@ class ServiceFactory implements ContainerInterface
             $this->getAuditService(),
             $this->pdo,
             $this->getSettlementReversalsRepository(),
+            $this->getNotificationsService(),
         ));
     }
 
