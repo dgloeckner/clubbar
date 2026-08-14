@@ -6,6 +6,7 @@ namespace App\Modules\Settlements\Repositories;
 
 use App\Shared\Utils\Uuid;
 use PDO;
+use App\Modules\Settlements\Domain\SettlementStatusFilter;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
@@ -437,8 +438,15 @@ class SettlementsRepository
         $where = [];
         $params = [];
 
-        if ($status === 'active') { $where[] = 's.is_cancelled = 0'; }
-        elseif ($status === 'cancelled') { $where[] = 's.is_cancelled = 1'; }
+        // The ladder lives in SettlementStatusFilter, which walks it in the
+        // same order SettlementStatus::derive() does — the filter and the
+        // badge cannot disagree about a row (#377). This used to understand
+        // two values, `active` and `cancelled`, so the four rungs between them
+        // were unaskable.
+        $statusFilter = SettlementStatusFilter::sql($status);
+        if ($statusFilter !== null) {
+            $where[] = $statusFilter;
+        }
 
         if ($dateFrom) {
             $where[] = 's.created_at >= ?';

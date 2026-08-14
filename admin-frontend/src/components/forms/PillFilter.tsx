@@ -48,6 +48,9 @@ export function PillFilter<T extends string>({
       data-testid={testId}
       style={{
         display: variant === 'dot' ? 'flex' : 'inline-flex',
+        // Six settlement-status pills (#377) do not fit a phone's width on one
+        // line; without this the row overflows its card rather than wrapping.
+        flexWrap: 'wrap',
         gap: '8px',
       }}
     >

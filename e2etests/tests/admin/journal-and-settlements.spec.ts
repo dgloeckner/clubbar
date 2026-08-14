@@ -309,7 +309,9 @@ test.describe('Journal & Settlements', () => {
     // nets to zero against its own storno, so only the real purchases show
     // up in the total.
     expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/40[,.]00/)
-    expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Aktiv')
+    // "Entwurf" since #377: nothing has been exported yet, and the badge now
+    // names the rung rather than lumping every live run under "Aktiv".
+    expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Entwurf')
 
     // ── Export summary CSV (via UI button) ───────────────────────────
     const csvSummary = await settlementsPage.clickExportCsv(settlementId)
@@ -542,7 +544,7 @@ test.describe('Journal & Settlements', () => {
     const settlementsPage = new SettlementsPage(page)
     await settlementsPage.waitForPageLoad()
     await settlementsPage.expectSettlementRowVisible(settlementId)
-    expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Aktiv')
+    expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Entwurf')
     expect((await settlementsPage.getSettlementMemberCount(settlementId))?.trim()).toMatch(/^2\s/)
     // Each stornoed purchase nets to zero (1200-1200, 800-800), so the total is
     // the two plain purchases: 15.00 + 5.00.

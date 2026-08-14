@@ -61,7 +61,9 @@ test.describe('Settlement undo confirmation', () => {
     await settlementsPage.dismissUndoDialog()
     await settlementsPage.navigate()
     await settlementsPage.waitForPageLoad()
-    expect((await settlementsPage.getSettlementStatusText(settlement.id))?.trim()).toBe('Aktiv')
+    // "Entwurf", not the old catch-all "Aktiv": since #377 the badge names the
+    // rung the server derived, and a run with no file is a draft.
+    expect((await settlementsPage.getSettlementStatusText(settlement.id))?.trim()).toBe('Entwurf')
   })
 
   test('an exported settlement warns about the SEPA file and waits for an acknowledgement', async ({
@@ -142,14 +144,15 @@ test.describe('Settlement undo confirmation', () => {
     const exportResponse = await exportSepaXml(authenticatedRequest, settlement.id)
     expect(exportResponse.status()).toBe(200)
 
-    const submitResponse = await authenticatedRequest.post(
-      `/api/admin/settlements/${settlement.id}/submit`
-    )
-    expect(submitResponse.status()).toBe(200)
-
     const settlementsPage = new SettlementsPage(page)
     await settlementsPage.navigate()
     await settlementsPage.waitForPageLoad()
+
+    // Through the UI, not a raw POST. This test used to reach around the admin
+    // panel with `authenticatedRequest.post(.../submit)` because the panel
+    // offered no way into the submitted state at all — that side door was #377
+    // in test form, and it is closed now.
+    await settlementsPage.markSubmitted(settlement.id)
 
     // The button still opens — a disabled button hides its reason behind a
     // hover the phone that took the payment cannot perform.

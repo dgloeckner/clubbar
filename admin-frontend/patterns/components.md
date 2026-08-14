@@ -387,6 +387,65 @@ the settlement it is given decides which of three shapes it takes (issue #127).
 
 ---
 
+#### MarkSubmittedDialog Component
+
+The confirmation shown before a settlement is recorded as having reached the
+bank (issue #377, ruling #142 §1). Composes `ConfirmDialog`.
+
+**File**: `src/components/modals/MarkSubmittedDialog.tsx`
+
+**Rules**:
+- The question **names the run**: date, total, member count — the same figures
+  `UndoSettlementDialog` states, for the same reason.
+- It states the consequence the button cannot carry: after this the run can no
+  longer be cancelled, and money that comes back comes back as a reversal.
+- **No step-up credential**, unlike the SEPA export beside it: nothing is
+  decrypted here and the write is a timestamp.
+- The caller decides when to offer it, via `awaitsBankConfirmation()` — the
+  dialog never re-derives eligibility.
+
+**Props**:
+- `settlement` (object | null, required): The settlement in question; `null` closes the dialog
+- `onConfirm` / `onCancel` (() => void, required)
+
+**Test IDs**: the surrounding `ConfirmDialog`'s, plus
+`mark-submitted-detail-{date,amount,members}` and `mark-submitted-warning`.
+
+---
+
+#### SettlementStatusBadge Component
+
+The badge naming where a settlement stands, for both the table and the mobile
+card (issue #377).
+
+**File**: `src/components/common/SettlementStatusBadge.tsx`
+
+**Rules**:
+- Renders the server's `status` — one of `draft`, `exported`, `submitted`,
+  `partly_reversed`, `fully_reversed`, `cancelled`. **Never derived in the
+  client**: the page used to collapse those six into three from `is_cancelled`
+  and `exported_at`, which made a run that had gone to the bank look exactly
+  like one whose file had merely been generated.
+- The label comes from the locale, keyed on `status` via
+  `settlementStatusLabelKey()`. The API's `status_label` is English and is used
+  only for a status this build has never heard of.
+- An exported direct debit additionally carries an **awaiting-confirmation**
+  marker, because that is the one state the system cannot tell apart from a
+  forgotten "mark as submitted" click (ruling #142 §2).
+- One component for both layouts on purpose: the card and the table each used
+  to own a vocabulary, and the card's was smaller.
+
+**Props**:
+- `settlement` (object, required): anything carrying `status`, `status_label`, `method`
+- `testId` (string, required): the badge's test ID; the marker gets `${testId}-awaiting`
+- `compact` (boolean, default false): tighter type and padding, for the mobile card
+
+**Helpers** (`src/utils/settlementStatus.ts`): `settlementStatus()`,
+`settlementStatusColor()`, `settlementStatusLabelKey()`,
+`awaitsBankConfirmation()`, `canExportSepa()`.
+
+---
+
 ### Form Components
 
 #### CharacterCounter Component

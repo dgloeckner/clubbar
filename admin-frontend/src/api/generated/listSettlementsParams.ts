@@ -76,7 +76,26 @@ page?: PageParameter;
  */
 per_page?: PerPageParameter;
 /**
- * Filter by cancellation status
+ * Filter by the settlement's derived `status` (issue #377).
+
+The filter walks the same ladder `status` itself is derived from,
+most-final first, so a pill can never return a settlement whose own
+badge says something else: `submitted` excludes a submitted run
+that carries a reversal, because that run reads as
+`partly_reversed`.
+
+Two values are not statuses:
+
+- `reversed` merges `partly_reversed` and `fully_reversed` — the
+  "money came back" question, which does not yet care how much of
+  it did.
+- `active` is the pre-#377 vocabulary, kept as a **deprecated**
+  alias for "not cancelled" so existing links keep working. The
+  admin panel no longer offers it.
+
+`draft`, `exported`, `submitted`, `reversed` and `cancelled`
+partition the unfiltered list exactly.
+
  */
 status?: ListSettlementsStatus;
 /**

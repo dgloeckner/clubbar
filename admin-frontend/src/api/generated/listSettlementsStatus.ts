@@ -63,6 +63,12 @@ export type ListSettlementsStatus = typeof ListSettlementsStatus[keyof typeof Li
 
 export const ListSettlementsStatus = {
   all: 'all',
-  active: 'active',
+  draft: 'draft',
+  exported: 'exported',
+  submitted: 'submitted',
+  reversed: 'reversed',
+  partly_reversed: 'partly_reversed',
+  fully_reversed: 'fully_reversed',
   cancelled: 'cancelled',
+  active: 'active',
 } as const;
