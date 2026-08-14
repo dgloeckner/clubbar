@@ -1874,6 +1874,75 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /admin/settlements/reversal-candidates:
+    get:
+      tags: [Settlements]
+      summary: Look up the collections a bank reference points at
+      description: |
+        Resolve a reference read off a bank statement to the collections it
+        could belong to (epic #433, ADR-0032 §8).
+
+        A treasurer recording a returned direct debit knows the reference the
+        bank quoted and *not* which run it came from, so the return-entry UI is
+        a **lookup**, not a free-hand form. German banks echo the club's own
+        `EndToEndId` back as `EREF+` and the mandate as `MREF+`, so this
+        endpoint substring-matches `reference` against
+        `settlement_items.end_to_end_id` and `mandates.reference` — and against
+        nothing else. **A member name resolves nothing**; matching names would
+        turn the lookup into the free-hand picker §8 forbids, and selecting the
+        wrong member reverses the wrong person's debt irreversibly.
+
+        Matching is forgiving about shape: surrounding whitespace, letter case
+        and a leading `E2E-`, `EREF+` or `MREF+` label are all stripped, and a
+        partial reference matches.
+
+        One candidate per member per settlement, most recent execution date
+        first. The amount is that member's total in that run — what a reversal
+        would free.
+
+        **Candidates the reverse endpoint would refuse are still returned**,
+        with `is_actionable: false` and the reason: `already_reversed` (with
+        who recorded it and when) or the settlement's own
+        `reversal_blocked_reason`. Filtering them out would tell a treasurer
+        holding a real reference that it matches nothing.
+      operationId: lookupReversalCandidates
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: reference
+          in: query
+          required: true
+          description: |
+            The reference quoted on the bank statement. At least 3 characters
+            after normalisation.
+          schema:
+            type: string
+            minLength: 3
+      responses:
+        '200':
+          description: |
+            The matching collections, possibly none. An empty list means the
+            reference matched no collection — most often a run predating
+            persisted EndToEndIds, or a *reject* (pain.002), which never books
+            to a statement at all.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReversalCandidate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: The reference is too short to identify anything.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /admin/settlements/{settlementId}:
     parameters:
       - name: settlementId
@@ -4214,6 +4283,85 @@ components:
           type: string
           format: date-time
 
+    ReversalCandidate:
+      type: object
+      description: |
+        One collection a bank reference resolved to (epic #433, ADR-0032 §8).
+
+        Carries the four facts that let a treasurer match the row against the
+        line on their statement — member, amount, execution date and where the
+        run stands — plus whether the reversal they came to record is actually
+        available. Nothing is re-derived: `status`, `is_reversible` and
+        `reversal_blocked_reason` are the settlement's own answers.
+      properties:
+        settlement_id:
+          type: string
+          format: uuid
+        member_id:
+          type: string
+          format: uuid
+        member_name:
+          type: string
+          nullable: true
+        amount_cents:
+          type: integer
+          description: |
+            This member's total in this run — what a reversal would free. There
+            is no partial-amount reversal: a member comes back whole or not at
+            all.
+        amount_eur:
+          type: number
+          format: float
+        end_to_end_id:
+          type: string
+          nullable: true
+          description: |
+            The identifier the SEPA file carried for this collection, echoed
+            back by the bank as `EREF+`. Null for a run exported before
+            identifiers were persisted (#150) — such a run is reachable only by
+            mandate reference.
+        mandate_reference:
+          type: string
+          nullable: true
+        execution_date:
+          type: string
+          format: date
+        settlement_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, exported, submitted, partly_reversed, fully_reversed, cancelled]
+        status_label:
+          type: string
+        is_reversible:
+          type: boolean
+        reversal_blocked_reason:
+          type: string
+          nullable: true
+          description: |
+            The gate's own words when the settlement cannot be reversed — shown
+            verbatim rather than re-derived client-side.
+        already_reversed:
+          type: boolean
+          description: A reversal for this member on this settlement already exists.
+        reversed_at:
+          type: string
+          format: date-time
+          nullable: true
+        reversed_by_admin_name:
+          type: string
+          nullable: true
+        reversed_reason:
+          type: string
+          enum: [bank_return, club_error]
+          nullable: true
+        is_actionable:
+          type: boolean
+          description: |
+            `is_reversible && !already_reversed` — whether recording a reversal
+            against this collection would be accepted.
+
     CollectionHold:
       type: object
       description: |
@@ -5023,32 +5171,101 @@ components:
         notes:
           type: string
           nullable: true
+        status:
+          type: string
+          enum: [draft, exported, submitted, partly_reversed, fully_reversed, cancelled]
+          description: |
+            Where the settlement stands, derived on every read from
+            `is_cancelled`, the reversal rows, `submitted_at` and `exported_at`
+            (ruling #148 §6). There is no status column, so nothing can drift
+            out of step with it.
+        status_label:
+          type: string
+          description: Human-readable form of `status`.
+        is_reversible:
+          type: boolean
+          description: |
+            Whether a reverse request would currently be accepted — the exact
+            mirror of `is_cancellable`. A settlement is one or the other, never
+            both; a cancelled one is neither.
+        reversal_blocked_reason:
+          type: string
+          nullable: true
+          description: |
+            Human-readable reason reversal is unavailable. Null when
+            `is_reversible` is true.
+        reversed_member_count:
+          type: integer
+          description: How many of this settlement's members carry a reversal.
         created_by_admin_id:
           type: string
           format: uuid
+        created_by_admin_name:
+          type: string
+          nullable: true
         created_at:
           type: string
           format: date-time
-        members:
+        transaction_count:
+          type: integer
+        transaction_date_min:
+          type: string
+          format: date-time
+          nullable: true
+        transaction_date_max:
+          type: string
+          format: date-time
+          nullable: true
+        items:
           type: array
+          description: |
+            One row per settled transaction, retained even after the member's
+            claim is released — a cancelled or reversed settlement still says
+            what it originally contained (ruling #142 §3).
           items:
-            type: object
-            properties:
-              member_id:
-                type: string
-                format: uuid
-              member_name:
-                type: string
-              amount_cents:
-                type: integer
-              iban_masked:
-                type: string
-                nullable: true
-              mandate_reference:
-                type: string
-                nullable: true
-              is_sepa_eligible:
-                type: boolean
+            $ref: '#/components/schemas/SettlementItem'
+        reversals:
+          type: array
+          description: |
+            The reversal events. Present on the single-settlement read; the list
+            endpoint does not join them and returns an empty array.
+          items:
+            $ref: '#/components/schemas/SettlementReversal'
+
+    SettlementItem:
+      type: object
+      description: One settled transaction inside a settlement.
+      properties:
+        settlement_id:
+          type: string
+          format: uuid
+        transaction_id:
+          type: string
+          format: uuid
+        member_id:
+          type: string
+          format: uuid
+        member_name:
+          type: string
+          nullable: true
+        amount_cents:
+          type: integer
+        amount_eur:
+          type: number
+          format: float
+        transaction_type:
+          type: string
+          nullable: true
+        product_name:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        transaction_date:
+          type: string
+          format: date-time
+          nullable: true
 
     ExecutionDateInfo:
       type: object

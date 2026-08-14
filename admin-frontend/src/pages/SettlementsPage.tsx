@@ -20,7 +20,7 @@
  * Settlement details view was removed - no additional value beyond list view.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
@@ -28,6 +28,9 @@ import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { UndoSettlementDialog } from '../components/modals/UndoSettlementDialog'
+import { ReverseSettlementDialog, type ReversalRequest } from '../components/modals/ReverseSettlementDialog'
+import { RecordBankReturnDialog } from '../components/modals/RecordBankReturnDialog'
+import { SettlementMemberBreakdown } from '../components/settlements/SettlementMemberBreakdown'
 import { MarkSubmittedDialog } from '../components/modals/MarkSubmittedDialog'
 import { StepUpConfirmDialog, type StepUpCredentials } from '../components/modals/StepUpConfirmDialog'
 import { PrivateKeyInput } from '../components/modals/PrivateKeyInput'
@@ -52,8 +55,14 @@ import {
   tableSpacing,
   getRowStyle,
 } from '../styles/tableTokens'
+import { settlementRowUndoAction } from '../utils/settlementReversal'
 import { getSettlements as getSettlementsFactory } from '../api/generated/settlements/settlements'
-import type { SettlementListItem, ListSettlementsParams } from '../api/generated'
+import type {
+  SettlementListItem,
+  ListSettlementsParams,
+  ReversalCandidate,
+  ReverseSettlementBodyReason,
+} from '../api/generated'
 
 
 /**
@@ -69,16 +78,19 @@ interface SettlementListItemExtended extends SettlementListItem {
 }
 
 /**
- * The Undo button's colour. Red says "this undoes a live run"; the muted stone
- * says "the gate is shut" — the button still opens the dialog, which states
- * the backend's reason, but it is not dressed as a destructive action (#127).
+ * The undo slot's colour. Red says "this undoes a live run"; amber says "this
+ * books money back", matching the reversed status badge; the muted stone says
+ * "the gate is shut" — the button still opens the dialog, which states the
+ * backend's reason, but it is not dressed as a destructive action (#127).
  */
 function undoButtonColor(settlement: SettlementListItemExtended): string {
   if (settlement.is_cancelled) return theme.colors.semantic.neutral
+  if (settlementRowUndoAction(settlement) === 'reverse') return theme.colors.semantic.amber
   return settlement.is_cancellable === false ? theme.colors.semantic.blocked : theme.colors.semantic.danger
 }
 
 function undoButtonHoverColor(settlement: SettlementListItemExtended): string {
+  if (settlementRowUndoAction(settlement) === 'reverse') return theme.colors.semantic.amberHover
   return settlement.is_cancellable === false ? theme.colors.semantic.blockedHover : theme.colors.semantic.dangerHover
 }
 
@@ -181,6 +193,31 @@ export function SettlementsPage() {
   // Undoing a settlement only flips a badge in one row. On a long list that is
   // easy to miss, so the outcome is stated outright (#130).
   const [undoSuccess, setUndoSuccess] = useState<string | null>(null)
+
+  // The settlement the reversal dialog is asking about, and the reason it was
+  // opened for (#433 §1). The reason is not a field inside the dialog: it is
+  // the choice of entry point, made before the dialog opens, because it decides
+  // whether a member gets frozen out of the next run.
+  const [reverseTarget, setReverseTarget] = useState<SettlementListItemExtended | null>(null)
+  const [reverseReason, setReverseReason] = useState<ReverseSettlementBodyReason>('club_error')
+  // Set only on the lookup path, where the reference already named one member's
+  // collection — reopening that choice in the dialog would undo the lookup.
+  const [reverseLockedMembers, setReverseLockedMembers] =
+    useState<Array<{ memberId: string; memberName: string | null; amountCents: number }> | undefined>(undefined)
+  const [reverseBankReference, setReverseBankReference] = useState<string | undefined>(undefined)
+  const [reverseSubmitting, setReverseSubmitting] = useState(false)
+  const [reverseError, setReverseError] = useState<string | null>(null)
+  // A hold nobody asked for is stated rather than discovered (§6).
+  const [reverseSuccess, setReverseSuccess] = useState<{ message: string; showHoldLink: boolean } | null>(null)
+
+  // The reference lookup (§3). Always reachable, never gated on a reversible
+  // settlement existing: a missing button tells a treasurer holding a real bank
+  // statement nothing about why.
+  const [lookupOpen, setLookupOpen] = useState(false)
+
+  // Which run's member breakdown is open (§7). One at a time: the expand is a
+  // disclosure inside a list, not a second list.
+  const [expandedSettlementId, setExpandedSettlementId] = useState<string | null>(null)
 
   // The settlement the "mark as submitted" dialog is asking about (#377). The
   // whole row again, because the dialog states its date, total and members
@@ -328,6 +365,7 @@ export function SettlementsPage() {
       setError(null)
       setUndoSuccess(null)
       setSubmitSuccess(null)
+      setReverseSuccess(null)
       await getSettlementsFactory().cancelSettlement(settlementId)
       await list.reload()
       setUndoSuccess(t('settlements.undoSuccess'))
@@ -339,6 +377,116 @@ export function SettlementsPage() {
       } else {
         setError(t('settlements.errors.undo'))
       }
+    }
+  }
+
+  /**
+   * Open the row's single undo slot on whichever operation is available (§2).
+   *
+   * `ReversalGate` is the exact mirror of `CancellationGate`, so exactly one of
+   * the two is open for any live settlement. The row therefore has one button,
+   * and a treasurer reaching for "undo" on a submitted run lands on the
+   * operation that actually exists rather than on a disabled control explaining
+   * what they may not do — which is what #81 was asking for.
+   */
+  const handleRowUndo = (settlement: SettlementListItemExtended) => {
+    if (settlementRowUndoAction(settlement) === 'reverse') {
+      setReverseReason('club_error')
+      setReverseLockedMembers(undefined)
+      setReverseBankReference(undefined)
+      setReverseError(null)
+      setReverseTarget(settlement)
+      return
+    }
+
+    setUndoTarget(settlement)
+  }
+
+  /**
+   * The lookup resolved a reference to one member's collection in one run (§3).
+   *
+   * The candidate carries the settlement's own gate answer, so the dialog it
+   * opens is built from the backend's fields rather than from a second lookup.
+   * The reference the treasurer pasted becomes the prefilled `bank_reference`:
+   * per #149 the value a German bank quotes on a return booking *is* our
+   * EndToEndId echoed back, so we already hold it (§4).
+   */
+  const handleCandidateSelected = (candidate: ReversalCandidate, reference: string) => {
+    setLookupOpen(false)
+    setReverseReason('bank_return')
+    setReverseLockedMembers([
+      {
+        memberId: candidate.member_id ?? '',
+        memberName: candidate.member_name ?? null,
+        amountCents: candidate.amount_cents ?? 0,
+      },
+    ])
+    setReverseBankReference(candidate.end_to_end_id ?? reference)
+    setReverseError(null)
+    setReverseTarget({
+      id: candidate.settlement_id,
+      settlement_date: candidate.settlement_date,
+      execution_date: candidate.execution_date,
+      total_amount_cents: candidate.amount_cents,
+      member_count: 1,
+      status: candidate.status,
+      status_label: candidate.status_label,
+      is_reversible: candidate.is_reversible,
+      reversal_blocked_reason: candidate.reversal_blocked_reason,
+    } as SettlementListItemExtended)
+  }
+
+  /**
+   * Record the reversal and stay put (§6).
+   *
+   * The endpoint returns the whole recomputed settlement, so the row updates in
+   * place — status badge, reversed count. Never navigate away: a treasurer
+   * working through a statement typically has two or three returns to record in
+   * one sitting, and bouncing them elsewhere after each one punishes the common
+   * case.
+   */
+  const handleReverseConfirmed = async (input: ReversalRequest) => {
+    const settlementId = reverseTarget?.id
+    if (!settlementId) return
+
+    setReverseSubmitting(true)
+    setReverseError(null)
+    try {
+      setError(null)
+      setUndoSuccess(null)
+      setSubmitSuccess(null)
+      setReverseSuccess(null)
+      await getSettlementsFactory().reverseSettlement(settlementId, {
+        reason: input.reason,
+        // Omitted entirely for the whole-settlement undo — that is the
+        // endpoint's default call, not a select-all.
+        ...(input.memberIds ? { member_ids: input.memberIds } : {}),
+        ...(input.bankReference ? { bank_reference: input.bankReference } : {}),
+        ...(input.notes ? { notes: input.notes } : {}),
+      })
+
+      setReverseTarget(null)
+      await list.reload()
+      setReverseSuccess({
+        message: input.reason === 'bank_return'
+          ? t('settlements.reverseSuccessHold')
+          : t('settlements.reverseSuccess'),
+        showHoldLink: input.reason === 'bank_return',
+      })
+    } catch (err: unknown) {
+      // A refusal keeps the dialog open carrying the backend's own words: it
+      // names the specific reason — already reversed, a member not part of this
+      // run, nothing collected — and re-deriving any of that here is the second
+      // rule set #81 was.
+      setReverseError(
+        axios.isAxiosError(err)
+          ? (err.response?.data?.message ?? err.message)
+          : err instanceof Error
+            ? err.message
+            : t('settlements.errors.reverse')
+      )
+    } finally {
+      setReverseSubmitting(false)
     }
   }
 
@@ -359,6 +507,7 @@ export function SettlementsPage() {
       setError(null)
       setUndoSuccess(null)
       setSubmitSuccess(null)
+      setReverseSuccess(null)
       await getSettlementsFactory().submitSettlement(settlementId)
       await list.reload()
       setSubmitSuccess(t('settlements.markSubmittedSuccess'))
@@ -394,23 +543,52 @@ export function SettlementsPage() {
           }}
         >
           <h1 style={{ margin: 0 }}>{t('settlements.title')}</h1>
-          {/* UC-A30's trigger, and since ADR-0030 the only way in. */}
-          <button
-            data-testid="settlements-new-btn"
-            onClick={() => navigate('/settlements/new')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: theme.colors.semantic.emerald,
-              color: 'white',
-              border: 'none',
-              borderRadius: 6,
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            {t('newSettlement.title')}
-          </button>
+          <div style={{ display: 'flex', gap: theme.spacing.sm, flexWrap: 'wrap' }}>
+            {/*
+              The way in for a treasurer holding a bank statement (§3). A page
+              action rather than a row action, because a row action presumes the
+              one fact they are missing: they do not know which run the return
+              came out of.
+
+              Always visible, never gated on a reversible settlement existing —
+              a missing button tells someone holding a real statement nothing
+              about why. The empty case belongs one step later, where the lookup
+              can say something actionable.
+            */}
+            <button
+              data-testid="settlements-record-bank-return-btn"
+              onClick={() => setLookupOpen(true)}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: theme.colors.semantic.amber,
+                color: 'white',
+                border: 'none',
+                borderRadius: 6,
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              {t('settlements.recordBankReturn')}
+            </button>
+            {/* UC-A30's trigger, and since ADR-0030 the only way in. */}
+            <button
+              data-testid="settlements-new-btn"
+              onClick={() => navigate('/settlements/new')}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: theme.colors.semantic.emerald,
+                color: 'white',
+                border: 'none',
+                borderRadius: 6,
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              {t('newSettlement.title')}
+            </button>
+          </div>
         </div>
 
           {/* Error state */}
@@ -458,6 +636,44 @@ export function SettlementsPage() {
               }}
             >
               {undoSuccess}
+            </div>
+          )}
+
+          {/* The reversal landed. For a bank return the banner also names the
+              hold and links to it — a consequence nobody asked for should be
+              stated rather than discovered (§6). */}
+          {reverseSuccess && (
+            <div
+              data-testid="settlements-reverse-success"
+              style={{
+                padding: tableSpacing.cellPadding,
+                backgroundColor: theme.colors.banner.successBg,
+                color: theme.colors.banner.successText,
+                borderRadius: 6,
+                margin: tableSpacing.cellPadding,
+              }}
+            >
+              {reverseSuccess.message}
+              {reverseSuccess.showHoldLink && (
+                <>
+                  {' '}
+                  <button
+                    data-testid="settlements-reverse-success-hold-link"
+                    onClick={() => navigate('/members/excluded')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: 'inherit',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      font: 'inherit',
+                    }}
+                  >
+                    {t('settlements.reverseSuccessHoldLink')}
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -566,6 +782,17 @@ export function SettlementsPage() {
                     {/* Row 3: summary */}
                     <div style={{ fontSize: '12px', color: theme.colors.text.muted, marginBottom: '8px' }}>
                       {settlement.member_count} {t('settlements.memberCount')} &middot; {settlement.transaction_count} {t('settlements.transactionCount')}
+                      {(settlement.reversed_member_count ?? 0) > 0 && (
+                        <span
+                          data-testid={`settlements-reversed-count-${settlement.id}`}
+                          style={{ display: 'block', color: theme.colors.semantic.amber }}
+                        >
+                          {t('settlements.reversedCount', {
+                            count: settlement.reversed_member_count ?? 0,
+                            total: settlement.member_count ?? 0,
+                          })}
+                        </span>
+                      )}
                     </div>
 
                     {/* Row 4: total amount */}
@@ -666,14 +893,23 @@ export function SettlementsPage() {
                       >
                         {t('settlements.exportTransactions')}
                       </button>
-                      {/* Clickable while the gate refuses: the dialog carries
-                          the reason, which a phone can never hover to read. */}
+                      {/* The same single slot as the table (§2). Clickable
+                          while a gate refuses: the dialog carries the reason,
+                          which a phone can never hover to read. */}
                       <button
-                        data-testid={`settlements-undo-btn-${settlement.id}`}
-                        onClick={() => setUndoTarget(settlement)}
+                        data-testid={
+                          settlementRowUndoAction(settlement) === 'reverse'
+                            ? `settlements-reverse-btn-${settlement.id}`
+                            : `settlements-undo-btn-${settlement.id}`
+                        }
+                        onClick={() => handleRowUndo(settlement)}
                         disabled={settlement.is_cancelled}
                         title={settlement.cancellation_blocked_reason ?? undefined}
-                        aria-label={t('settlements.undoSettlement')}
+                        aria-label={
+                          settlementRowUndoAction(settlement) === 'reverse'
+                            ? t('settlements.reverseSettlement')
+                            : t('settlements.undoSettlement')
+                        }
                         style={{
                           padding: '5px 10px',
                           backgroundColor: undoButtonColor(settlement),
@@ -685,7 +921,9 @@ export function SettlementsPage() {
                           cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        {t('common.undo')}
+                        {settlementRowUndoAction(settlement) === 'reverse'
+                          ? t('settlements.reverse')
+                          : t('common.undo')}
                       </button>
                     </div>
                   </div>
@@ -817,8 +1055,8 @@ export function SettlementsPage() {
                   </thead>
                   <tbody>
                     {settlements.map((settlement) => (
+                      <Fragment key={settlement.id}>
                       <tr
-                        key={settlement.id}
                         data-testid={`settlements-table-row-${settlement.id}`}
                         style={getRowStyle(!settlement.is_cancelled)}
                         onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
@@ -891,6 +1129,19 @@ export function SettlementsPage() {
                           <div data-testid={`settlements-transaction-count-${settlement.id}`} style={{ fontSize: 12, color: tableColors.cellSecondaryText }}>
                             {settlement.transaction_count} {t('settlements.transactionCount')}
                           </div>
+                          {/* How much of the run came back, before it is
+                              expanded — the display ruling #148 §3 sketched. */}
+                          {(settlement.reversed_member_count ?? 0) > 0 && (
+                            <div
+                              data-testid={`settlements-reversed-count-${settlement.id}`}
+                              style={{ fontSize: 12, color: theme.colors.semantic.amber }}
+                            >
+                              {t('settlements.reversedCount', {
+                                count: settlement.reversed_member_count ?? 0,
+                                total: settlement.member_count ?? 0,
+                              })}
+                            </div>
+                          )}
                         </td>
 
                         {/* Amount */}
@@ -935,6 +1186,34 @@ export function SettlementsPage() {
                           }}
                         >
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            {/* The member breakdown (§7). The settlement detail
+                                page was deliberately deleted; what failed to
+                                justify a page can still justify a disclosure,
+                                and `reversals[]` is returned by nothing else. */}
+                            <PillActionButton
+                              data-testid={`settlements-expand-btn-${settlement.id}`}
+                              onClick={() =>
+                                setExpandedSettlementId((current) =>
+                                  current === settlement.id ? null : (settlement.id ?? null)
+                                )
+                              }
+                              color={theme.colors.semantic.neutral}
+                              hoverColor={theme.colors.semantic.blockedHover}
+                              title={
+                                expandedSettlementId === settlement.id
+                                  ? t('settlements.collapseDetails')
+                                  : t('settlements.expandDetails')
+                              }
+                              aria-label={
+                                expandedSettlementId === settlement.id
+                                  ? t('settlements.collapseDetails')
+                                  : t('settlements.expandDetails')
+                              }
+                              aria-expanded={expandedSettlementId === settlement.id}
+                            >
+                              <span aria-hidden="true">{expandedSettlementId === settlement.id ? '▾' : '▸'}</span>
+                            </PillActionButton>
+
                             {/* Export SEPA XML. Gated on status: the button
                                 used to stay live through submission and
                                 reversal alike, which is how a file goes to the
@@ -993,23 +1272,50 @@ export function SettlementsPage() {
                               {t('settlements.exportTransactions')}
                             </PillActionButton>
 
-                            {/* Undo Settlement. Disabled only once cancelled —
-                                a settlement the gate refuses still opens the
-                                dialog, which states why (#127). */}
+                            {/* The undo slot — one button, not two. It reads
+                                "Rückgängig" while the run can still be
+                                cancelled and becomes "Zurückbuchen" the moment
+                                it cannot, because exactly one of the two gates
+                                is open for any live settlement (§2). Disabled
+                                only once cancelled; a settlement a gate refuses
+                                still opens the dialog, which states why (#127). */}
                             <PillActionButton
-                              data-testid={`settlements-undo-btn-${settlement.id}`}
-                              onClick={() => setUndoTarget(settlement)}
+                              data-testid={
+                                settlementRowUndoAction(settlement) === 'reverse'
+                                  ? `settlements-reverse-btn-${settlement.id}`
+                                  : `settlements-undo-btn-${settlement.id}`
+                              }
+                              onClick={() => handleRowUndo(settlement)}
                               disabled={settlement.is_cancelled}
                               color={undoButtonColor(settlement)}
                               hoverColor={undoButtonHoverColor(settlement)}
-                              title={settlement.cancellation_blocked_reason ?? t('settlements.undoSettlement')}
-                              aria-label={t('settlements.undoSettlement')}
+                              title={
+                                settlementRowUndoAction(settlement) === 'reverse'
+                                  ? t('settlements.reverseSettlement')
+                                  : (settlement.cancellation_blocked_reason ?? t('settlements.undoSettlement'))
+                              }
+                              aria-label={
+                                settlementRowUndoAction(settlement) === 'reverse'
+                                  ? t('settlements.reverseSettlement')
+                                  : t('settlements.undoSettlement')
+                              }
                             >
-                              <span aria-hidden="true">↩</span>
+                              <span aria-hidden="true">
+                                {settlementRowUndoAction(settlement) === 'reverse' ? '↺' : '↩'}
+                              </span>
                             </PillActionButton>
                           </div>
                         </td>
                       </tr>
+
+                      {expandedSettlementId === settlement.id && settlement.id && (
+                        <tr data-testid={`settlements-detail-row-${settlement.id}`}>
+                          <td colSpan={6} style={{ background: tableColors.rowInactiveBg, padding: 0 }}>
+                            <SettlementMemberBreakdown settlementId={settlement.id} />
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -1039,6 +1345,30 @@ export function SettlementsPage() {
         settlement={undoTarget}
         onConfirm={handleUndoSettlementConfirmed}
         onCancel={() => setUndoTarget(null)}
+      />
+
+      {/* The other end of #81 (§2, §5): a run whose money has moved is booked
+          back, not cancelled — and the dialog says outright that a reversal
+          cannot be taken back. */}
+      <ReverseSettlementDialog
+        settlement={reverseTarget}
+        reason={reverseReason}
+        lockedMembers={reverseLockedMembers}
+        initialBankReference={reverseBankReference}
+        submitting={reverseSubmitting}
+        error={reverseError}
+        onConfirm={handleReverseConfirmed}
+        onCancel={() => {
+          setReverseTarget(null)
+          setReverseError(null)
+        }}
+      />
+
+      {/* Recording a return is a lookup, not a form (§3, ADR-0032 §8). */}
+      <RecordBankReturnDialog
+        isOpen={lookupOpen}
+        onSelect={handleCandidateSelected}
+        onCancel={() => setLookupOpen(false)}
       />
 
       {/* The point of no return (#377): after this the run cannot be cancelled,

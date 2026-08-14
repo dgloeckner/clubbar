@@ -86,6 +86,54 @@ export class SettlementsPage extends BasePage {
   private readonly markSubmittedWarning = () => this.page.getByTestId('mark-submitted-warning')
   private readonly submitSuccessBanner = () => this.page.getByTestId('settlements-submit-success')
 
+  // Reversal (#433). The row has ONE undo slot: it reads "Rückgängig" while
+  // the run can still be cancelled and becomes "Zurückbuchen" the moment it
+  // cannot, because exactly one of the two gates is open for any live
+  // settlement. The two test IDs are therefore mutually exclusive by design —
+  // asserting on both is how the "door that refuses to open" gets caught.
+  private readonly reverseButton = (settlementId: string) =>
+    this.page.getByTestId(`settlements-reverse-btn-${settlementId}`)
+  private readonly reverseDialog = () => this.page.getByTestId('confirm-dialog')
+  private readonly reverseConfirm = () => this.page.getByTestId('confirm-dialog-ok')
+  private readonly reverseCancel = () => this.page.getByTestId('confirm-dialog-cancel')
+  private readonly reverseIrreversibleNotice = () => this.page.getByTestId('reverse-settlement-irreversible')
+  private readonly reverseHoldWarning = () => this.page.getByTestId('reverse-settlement-hold-warning')
+  private readonly reverseBlockedReason = () => this.page.getByTestId('reverse-settlement-blocked-reason')
+  private readonly reverseScopeToggle = () => this.page.getByTestId('reverse-settlement-scope-toggle')
+  private readonly reverseMemberList = () => this.page.getByTestId('reverse-settlement-member-list')
+  private readonly reverseMemberCheckbox = (memberId: string) =>
+    this.page.getByTestId(`reverse-settlement-member-checkbox-${memberId}`)
+  private readonly reverseLockedMember = () => this.page.getByTestId('reverse-settlement-locked-member')
+  private readonly reverseBankReferenceInput = () => this.page.getByTestId('reverse-settlement-bank-reference')
+  private readonly reverseSuccessBanner = () => this.page.getByTestId('settlements-reverse-success')
+  private readonly reverseSuccessHoldLink = () =>
+    this.page.getByTestId('settlements-reverse-success-hold-link')
+
+  // The bank-return lookup (#433 §3). A page action, not a row action: the
+  // treasurer arrives holding a statement and does not know which run it came
+  // out of, which is the one fact a row action would presume.
+  private readonly recordBankReturnButton = () => this.page.getByTestId('settlements-record-bank-return-btn')
+  private readonly lookupInput = () => this.page.getByTestId('record-bank-return-input')
+  private readonly lookupCandidates = () => this.page.getByTestId('record-bank-return-candidates')
+  private readonly lookupNoMatch = () => this.page.getByTestId('record-bank-return-no-match')
+  private readonly lookupCandidate = (settlementId: string, memberId: string) =>
+    this.page.getByTestId(`record-bank-return-candidate-${settlementId}-${memberId}`)
+  private readonly lookupCandidateBlocked = (settlementId: string, memberId: string) =>
+    this.page.getByTestId(`record-bank-return-candidate-${settlementId}-${memberId}-blocked`)
+
+  // The member breakdown behind the expand (#433 §7). `reversals[]` is
+  // returned by nothing else, and the settlement detail page was deliberately
+  // deleted — what failed to justify a page can still justify a disclosure.
+  private readonly expandButton = (settlementId: string) =>
+    this.page.getByTestId(`settlements-expand-btn-${settlementId}`)
+  private readonly breakdown = () => this.page.getByTestId('settlement-breakdown')
+  private readonly breakdownMember = (memberId: string) =>
+    this.page.getByTestId(`settlement-breakdown-member-${memberId}`)
+  private readonly breakdownReversal = (memberId: string) =>
+    this.page.getByTestId(`settlement-breakdown-reversal-${memberId}`)
+  private readonly reversedCount = (settlementId: string) =>
+    this.page.getByTestId(`settlements-reversed-count-${settlementId}`)
+
   // Status filter pills (#377): Alle / Entwurf / Exportiert / Übermittelt /
   // Zurückgebucht / Storniert.
   private readonly statusFilterPill = (
@@ -577,6 +625,217 @@ export class SettlementsPage extends BasePage {
 
   async expectSettlementRowAbsent(settlementId: string) {
     await expect(this.settlementRow(settlementId)).toHaveCount(0)
+  }
+
+  /**
+   * REVERSAL (#433)
+   */
+
+  /**
+   * Which of the two undos the row's single slot is offering.
+   *
+   * The invariant #81 turns on: never both, and never neither for a live run.
+   */
+  async expectReversalOffered(settlementId: string) {
+    await expect(this.reverseButton(settlementId)).toBeVisible()
+    await expect(this.undoButton(settlementId)).toHaveCount(0)
+  }
+
+  async expectCancellationOffered(settlementId: string) {
+    await expect(this.undoButton(settlementId)).toBeVisible()
+    await expect(this.reverseButton(settlementId)).toHaveCount(0)
+  }
+
+  /** Open the reversal dialog from the row and leave it open for inspection. */
+  async openReverseDialog(settlementId: string) {
+    await this.reverseButton(settlementId).click()
+    await expect(this.reverseDialog()).toBeVisible()
+  }
+
+  async dismissReverseDialog() {
+    await this.reverseCancel().click()
+    await expect(this.reverseDialog()).toBeHidden()
+  }
+
+  /** The figures the reversal dialog states about the run it is asking about. */
+  async getReverseDialogDetails(): Promise<{ date: string; amount: string; members: string }> {
+    const detail = (field: 'date' | 'amount' | 'members') =>
+      this.page.getByTestId(`reverse-settlement-detail-${field}`)
+
+    return {
+      date: (await detail('date').textContent())?.trim() ?? '',
+      amount: (await detail('amount').textContent())?.trim() ?? '',
+      members: (await detail('members').textContent())?.trim() ?? '',
+    }
+  }
+
+  /** The dialog must say a reversal cannot be taken back, every time (§5). */
+  async expectReversalIrreversibleStated() {
+    await expect(this.reverseIrreversibleNotice()).toBeVisible()
+  }
+
+  /** A bank return freezes the member out of the next run; a club error does not. */
+  async expectHoldWarningVisible() {
+    await expect(this.reverseHoldWarning()).toBeVisible()
+  }
+
+  async expectNoHoldWarning() {
+    await expect(this.reverseHoldWarning()).toHaveCount(0)
+  }
+
+  async expectReverseBlocked(reason: RegExp) {
+    await expect(this.reverseBlockedReason()).toBeVisible()
+    await expect(this.reverseBlockedReason()).toHaveText(reason)
+    await expect(this.reverseConfirm()).toBeHidden()
+  }
+
+  /** Narrow the reversal from the whole run to named members (§2). */
+  async chooseMembersToReverse(memberIds: string[]) {
+    await this.reverseScopeToggle().check()
+    await expect(this.reverseMemberList()).toBeVisible()
+
+    for (const memberId of memberIds) {
+      await this.reverseMemberCheckbox(memberId).check()
+    }
+  }
+
+  /** The reference the lookup already resolved is filled in, not demanded (§4). */
+  async getReverseBankReference(): Promise<string> {
+    return this.reverseBankReferenceInput().inputValue()
+  }
+
+  /** The single member the reference named — no picker on this path. */
+  async expectLockedMember(name: string) {
+    await expect(this.reverseLockedMember()).toContainText(name)
+  }
+
+  /** Confirm an open reversal dialog and wait for the list it reloaded. */
+  async confirmReversal(settlementId: string) {
+    const reversed = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes(`/api/admin/settlements/${settlementId}/reverse`) &&
+        resp.request().method() === 'POST' &&
+        resp.status() === 201
+    )
+    const reloaded = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/settlements?') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200
+    )
+    await this.reverseConfirm().click()
+    await reversed
+    await reloaded
+  }
+
+  /** Book the whole run back — the endpoint's default call (no `member_ids`). */
+  async reverseWholeSettlement(settlementId: string) {
+    await this.openReverseDialog(settlementId)
+    await this.confirmReversal(settlementId)
+  }
+
+  async expectReverseSuccessVisible() {
+    await expect(this.reverseSuccessBanner()).toBeVisible()
+  }
+
+  async getReverseSuccessMessage(): Promise<string> {
+    return (await this.reverseSuccessBanner().textContent())?.trim() ?? ''
+  }
+
+  /** The banner names the hold and links to it — a consequence nobody asked for. */
+  async expectHoldLinkOffered() {
+    await expect(this.reverseSuccessHoldLink()).toBeVisible()
+  }
+
+  /**
+   * RECORDING A BANK RETURN (#433 §3)
+   */
+
+  /** Always there, whether or not any run is currently reversible. */
+  async expectRecordBankReturnOffered() {
+    await expect(this.recordBankReturnButton()).toBeVisible()
+  }
+
+  async openBankReturnLookup() {
+    await this.recordBankReturnButton().click()
+    await expect(this.lookupInput()).toBeVisible()
+  }
+
+  /** Type a reference and wait for whatever the lookup answered. */
+  async lookupReference(reference: string) {
+    const answered = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/settlements/reversal-candidates') && resp.status() < 500
+    )
+    await this.lookupInput().fill(reference)
+    await answered
+  }
+
+  async expectCandidateVisible(settlementId: string, memberId: string) {
+    await expect(this.lookupCandidate(settlementId, memberId)).toBeVisible()
+  }
+
+  async getCandidateText(settlementId: string, memberId: string): Promise<string> {
+    return (await this.lookupCandidate(settlementId, memberId).textContent())?.replace(/\s+/g, ' ').trim() ?? ''
+  }
+
+  /**
+   * A candidate the endpoint would refuse is shown disabled with the reason,
+   * never filtered out: a reference that genuinely exists must not come back as
+   * "no match".
+   */
+  async expectCandidateBlocked(settlementId: string, memberId: string, reason: RegExp) {
+    await expect(this.lookupCandidate(settlementId, memberId)).toBeDisabled()
+    await expect(this.lookupCandidateBlocked(settlementId, memberId)).toHaveText(reason)
+  }
+
+  async expectNoCandidates() {
+    await expect(this.lookupCandidates()).toHaveCount(0)
+  }
+
+  /** The empty case names the two likely causes rather than shrugging. */
+  async expectLookupNoMatch(reason: RegExp) {
+    await expect(this.lookupNoMatch()).toBeVisible()
+    await expect(this.lookupNoMatch()).toHaveText(reason)
+  }
+
+  /** Pick a candidate; the reversal dialog opens for that one collection. */
+  async chooseCandidate(settlementId: string, memberId: string) {
+    await this.lookupCandidate(settlementId, memberId).click()
+    await expect(this.reverseIrreversibleNotice()).toBeVisible()
+  }
+
+  /**
+   * THE MEMBER BREAKDOWN (#433 §7)
+   */
+
+  async expandSettlement(settlementId: string) {
+    await this.expandButton(settlementId).click()
+    await expect(this.breakdown()).toBeVisible()
+  }
+
+  async expectMemberInBreakdown(memberId: string, expected: RegExp) {
+    await expect(this.breakdownMember(memberId)).toHaveText(expected)
+  }
+
+  async expectMemberReversedInBreakdown(memberId: string, expected: RegExp) {
+    await expect(this.breakdownReversal(memberId)).toHaveText(expected)
+  }
+
+  async expectMemberNotReversedInBreakdown(memberId: string) {
+    await expect(this.breakdownReversal(memberId)).toHaveCount(0)
+  }
+
+  async getBreakdownMemberCount(): Promise<number> {
+    return this.page.locator('[data-testid^="settlement-breakdown-member-"]').count()
+  }
+
+  /** "1 von 40 zurückgebucht" — how much of a run came back, before expanding. */
+  async expectReversedCount(settlementId: string, expected: RegExp) {
+    await expect(this.reversedCount(settlementId)).toHaveText(expected)
+  }
+
+  async expectNoReversedCount(settlementId: string) {
+    await expect(this.reversedCount(settlementId)).toHaveCount(0)
   }
 
   /**

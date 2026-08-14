@@ -413,6 +413,66 @@ class SettlementsRepository
         return array_map(static fn(array $row): string => $row['member_id'], $stmt->fetchAll());
     }
 
+    /**
+     * The collections a bank reference points at (ADR-0032 §8, epic #433).
+     *
+     * A treasurer holding a return booking knows one thing for certain: the
+     * reference the bank quoted. German banks echo our own `EndToEndId` back as
+     * `EREF+`, and quote the mandate as `MREF+` — so both columns are searched,
+     * and nothing else is. Matching member names or amounts would turn a lookup
+     * into the free-hand picker §8 exists to forbid, and picking the wrong
+     * member reverses the wrong person's debt irreversibly.
+     *
+     * One row per member per settlement, because that is the granularity a
+     * reversal is recorded at: the amount is the sum of that member's items in
+     * that run, which is exactly what the bank collected under that identifier.
+     *
+     * Rows whose settlement cannot be reversed are deliberately *not* filtered
+     * out here. A reference the treasurer genuinely read off a statement must
+     * never come back as "no match" — the caller shows the row with the gate's
+     * own refusal instead.
+     *
+     * @param string $needle Already normalised (trimmed, lower-cased, `E2E-`
+     *        stripped); this method only escapes it for LIKE.
+     * @return list<array<string, mixed>>
+     */
+    public function findCollectionsByReference(string $needle, int $limit = 25): array
+    {
+        // `\`, `%` and `_` are LIKE metacharacters; a reference containing one
+        // must match itself rather than act as a wildcard.
+        $escaped = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $needle) . '%';
+
+        // Two named parameters holding the same value: prepares are not
+        // emulated on this connection, so a placeholder cannot be reused.
+        $stmt = $this->db->prepare(
+            "SELECT si.settlement_id,
+                    si.member_id,
+                    SUM(si.amount_cents) AS amount_cents,
+                    MAX(si.end_to_end_id) AS end_to_end_id,
+                    MAX(m.first_name) AS first_name,
+                    MAX(m.last_name) AS last_name,
+                    (SELECT md.reference
+                       FROM mandates md
+                      WHERE md.member_id = si.member_id
+                      ORDER BY md.active_member_id IS NULL, md.created_at DESC
+                      LIMIT 1) AS mandate_reference
+               FROM settlement_items si
+               JOIN settlements s ON s.id = si.settlement_id
+               JOIN members m ON m.id = si.member_id
+              WHERE (si.end_to_end_id IS NOT NULL AND LOWER(si.end_to_end_id) LIKE :eref ESCAPE '\\\\')
+                 OR EXISTS (SELECT 1
+                              FROM mandates mref
+                             WHERE mref.member_id = si.member_id
+                               AND LOWER(mref.reference) LIKE :mref ESCAPE '\\\\')
+              GROUP BY si.settlement_id, si.member_id
+              ORDER BY MAX(s.execution_date) DESC, MAX(s.created_at) DESC, MAX(m.last_name) ASC
+              LIMIT " . max(1, $limit)
+        );
+        $stmt->execute(['eref' => $escaped, 'mref' => $escaped]);
+
+        return $stmt->fetchAll();
+    }
+
     public function markExported(string $id): bool
     {
         $now = date('Y-m-d H:i:s');
