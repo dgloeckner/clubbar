@@ -224,10 +224,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Generate fresh security keys for this installation
             $totpKey = bin2hex(random_bytes(32));
             $ibanFingerprintKey = bin2hex(random_bytes(32));
+            // Authorises the URL drain trigger for hosting with no CLI cron
+            // (ADR-0038 rule 3). Written unconditionally so the scheduler
+            // instructions have something to show; an installation that uses
+            // the CLI entrypoint simply never presents it.
+            $cronSecret = bin2hex(random_bytes(32));
 
             // Preserve existing keys if re-running step 2 on an already-installed
             // instance — regenerating the fingerprint key would break bank-change
-            // detection for every stored mandate (ADR-0036).
+            // detection for every stored mandate (ADR-0036), and regenerating the
+            // cron secret would silently break a scheduler that is already set up.
             if (file_exists($configFile)) {
                 $existingConfig = require $configFile;
                 if (!empty($existingConfig['security']['totp_encryption_key'])) {
@@ -235,6 +241,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 if (!empty($existingConfig['security']['iban_fingerprint_key'])) {
                     $ibanFingerprintKey = $existingConfig['security']['iban_fingerprint_key'];
+                }
+                if (!empty($existingConfig['cron']['secret'])) {
+                    $cronSecret = $existingConfig['cron']['secret'];
                 }
             }
 
@@ -276,6 +285,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'security' => [
                         'totp_encryption_key' => $totpKey,
                         'iban_fingerprint_key' => $ibanFingerprintKey,
+                    ],
+                    'cron' => [
+                        'secret' => $cronSecret,
                     ],
                     'llm' => [
                         'provider' => $llmProvider,

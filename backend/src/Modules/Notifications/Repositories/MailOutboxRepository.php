@@ -188,6 +188,28 @@ class MailOutboxRepository
         return $stmt->fetchAll();
     }
 
+    /**
+     * Hand a claimed row back without touching its attempt count.
+     *
+     * What a drain does with the rows it claimed but ran out of time for. The
+     * alternative — leaving them claimed — works, because the stale window
+     * eventually frees them, but it delays every one of them by five minutes
+     * for no reason: nothing was tried, so nothing needs backing off.
+     *
+     * Deliberately not `resetToPending()`: that clears `attempts` and
+     * `last_error`, which would erase the history of a message that has already
+     * failed twice.
+     */
+    public function releaseClaim(string $id): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE mail_outbox
+                SET claim_token = NULL, claimed_at = NULL
+              WHERE id = ? AND status = ?'
+        );
+        $stmt->execute([$id, MailStatus::PENDING->value]);
+    }
+
     public function markSent(string $id, ?string $messageId): void
     {
         $stmt = $this->db->prepare(

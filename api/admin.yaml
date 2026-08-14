@@ -81,6 +81,8 @@ tags:
     description: Deployment-wide instance name shown in the admin UI, Terminal, and TOTP enrollment
   - name: Mail Settings
     description: Sender, reply-to and layout for outgoing mail; the SMTP DSN itself stays in config.php
+  - name: Scheduler
+    description: The URL trigger for the announcement drain, for hosting with no CLI cron
   - name: Admin Users
     description: Admin user management
   - name: Reports
@@ -2645,6 +2647,72 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           $ref: '#/components/responses/ValidationError'
+
+  # ============================================================================
+  # SCHEDULER
+  # ============================================================================
+  /cron/drain:
+    get:
+      tags: [Scheduler]
+      summary: Drain the mail outbox (URL trigger)
+      description: |
+        The fallback trigger for the announcement drain, for hosting with no
+        CLI cron (ADR-0038 rule 3). `backend/bin/cron.php` is the preferred
+        one — no gateway timeout, no secret in a URL — and both call the same
+        service; this is not a second sending path.
+
+        **Authorisation** is a dedicated secret in `config.php` (`cron.secret`),
+        never an admin session and never the install key. Absent, the route is
+        not mounted and answers `404`: an installation on a CLI cron carries no
+        extra unauthenticated entrance.
+
+        Present it in the `X-Cron-Secret` header. The `secret` query parameter
+        is supported for panels that cannot send a header and is **degraded**:
+        the request line, secret and all, is written verbatim to the
+        webserver's access log. The application scrubs it from its own records
+        and from the request environment, which does not reach a log the
+        webserver has already written.
+
+        `GET` and `POST` both, because panels differ on what they can schedule.
+
+        The response carries **no body** by design. The caller is a scheduler
+        and cannot act on counts; what the run did goes to `cron_heartbeat` and
+        the application log, where an authenticated admin reads it.
+      operationId: drainMailOutbox
+      security: []
+      parameters:
+        - name: secret
+          in: query
+          required: false
+          description: |
+            Degraded alternative to the `X-Cron-Secret` header — see above.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: |
+            The run completed. Says nothing about how many messages were sent,
+            including when the run did nothing because no transport is
+            configured.
+        '401':
+          description: Missing or wrong secret
+        '404':
+          description: No `cron.secret` configured — the URL trigger is off on this installation
+    post:
+      tags: [Scheduler]
+      summary: Drain the mail outbox (URL trigger)
+      description: |
+        Identical to `GET /cron/drain`. Both verbs exist because panels differ
+        on which they can schedule.
+      operationId: drainMailOutboxPost
+      security: []
+      responses:
+        '204':
+          description: The run completed
+        '401':
+          description: Missing or wrong secret
+        '404':
+          description: No `cron.secret` configured — the URL trigger is off on this installation
 
   # ============================================================================
   # ADMIN USERS

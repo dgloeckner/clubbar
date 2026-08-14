@@ -25,6 +25,7 @@ use App\Modules\Security\Services\KeyRotationService;
 use App\Modules\Security\Controllers\EncryptionKeysController;
 use App\Shared\Security\IbanSealedBox;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
+use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Repositories\MailConfigRepository;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
@@ -56,6 +57,7 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
+use App\Modules\Notifications\Services\DrainService;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
@@ -90,6 +92,7 @@ use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
 use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
 use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
+use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
 use App\Modules\Terminals\Controllers\PairingController;
@@ -150,6 +153,7 @@ class ServiceFactory implements ContainerInterface
 
         // Notifications
         MailConfigController::class => 'getMailConfigController',
+        CronController::class => 'getCronController',
 
         // AdminUsers
         AdminUsersAdminController::class => 'getAdminUsersAdminController',
@@ -259,6 +263,11 @@ class ServiceFactory implements ContainerInterface
     public function getMailOutboxRepository(): MailOutboxRepository
     {
         return $this->resolve(MailOutboxRepository::class, fn() => new MailOutboxRepository($this->pdo, $this->logger));
+    }
+
+    public function getCronHeartbeatRepository(): CronHeartbeatRepository
+    {
+        return $this->resolve(CronHeartbeatRepository::class, fn() => new CronHeartbeatRepository($this->pdo));
     }
 
     public function getLoginAttemptsRepository(): LoginAttemptsRepository
@@ -498,6 +507,41 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(MailContentRegistry::class, fn() => new MailContentRegistry(
             $this->getSettlementMailBuilder(),
         ));
+    }
+
+    /**
+     * The only sender (ADR-0038 rule 3). Reached by `bin/cron.php` and by the
+     * URL fallback route, which is why it is wired here rather than assembled
+     * in the CLI entrypoint — the two triggers cannot drift apart.
+     *
+     * It takes the registry rather than a builder: the sending loop is the
+     * piece that has to stay boring, and #410 and #438 add a notification type
+     * by registering a builder above rather than by editing it.
+     *
+     * Batch size and wall-clock budget are read from the environment so a host
+     * with a tighter gateway timeout can lower the budget without a code
+     * change; the defaults live on the service, with the reasoning.
+     */
+    public function getDrainService(): DrainService
+    {
+        return $this->resolve(DrainService::class, fn() => new DrainService(
+            $this->getNotificationsService(),
+            $this->getMailContentRegistry(),
+            $this->getMailTransportFactory(),
+            $this->getMailConfigService(),
+            $this->getCronHeartbeatRepository(),
+            $this->getLogger(),
+            self::positiveEnv('MAIL_DRAIN_BATCH_SIZE', DrainService::DEFAULT_BATCH_SIZE),
+            self::positiveEnv('MAIL_DRAIN_BUDGET_SECONDS', DrainService::DEFAULT_BUDGET_SECONDS),
+        ));
+    }
+
+    /** An unset, unparseable or non-positive value falls back to the default. */
+    private static function positiveEnv(string $key, int $default): int
+    {
+        $value = (int) Env::get($key, '');
+
+        return $value > 0 ? $value : $default;
     }
 
     public function getSepaExportService(): SepaExportService
@@ -829,6 +873,15 @@ class ServiceFactory implements ContainerInterface
     public function getMailConfigController(): MailConfigController
     {
         return $this->resolve(MailConfigController::class, fn() => new MailConfigController($this->getMailConfigService(), $this->getValidator()));
+    }
+
+    public function getCronController(): CronController
+    {
+        return $this->resolve(CronController::class, fn() => new CronController(
+            $this->getDrainService(),
+            $this->config,
+            $this->getLogger(),
+        ));
     }
 
     public function getInstanceConfigController(): InstanceConfigController

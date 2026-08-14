@@ -22,7 +22,7 @@ use App\Shared\Logging\Logger;
  * The second row matters for a staging copy of a production database: it says
  * "yes, this is configured, and it must not reach members".
  */
-final class MailTransportFactory
+class MailTransportFactory
 {
     public function __construct(
         private AppConfig $config,
