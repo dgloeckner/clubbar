@@ -83,6 +83,20 @@ erDiagram
         boolean is_active "VIRTUAL: active_member_id IS NOT NULL"
     }
 
+    encryption_keys {
+        binary_16 id PK "UUID"
+        varchar_100 key_identifier UK "Human-readable label (e.g. 'club-2026')"
+        varchar_50 algorithm "Always SODIUM_CRYPTO_BOX_SEAL today"
+        varbinary_32 public_key "Raw Curve25519 public key; no private key ever stored"
+        char_64 fingerprint_sha256 UK "Identifies the key to humans; validates a supplied private key"
+        enum status "pending, active, retiring, retired, revoked or compromised"
+        datetime created_at "Registration"
+        datetime activated_at "When it became ACTIVE"
+        datetime expires_at "activated_at + 365 days; no extend operation"
+        datetime retired_at "When rotation finished re-encrypting off it"
+        binary_16 created_by_admin_id "Admin who registered it (no FK; see note below)"
+    }
+
     settlements {
         binary_16 id PK "UUID"
         enum method "direct_debit, bank_transfer or write_off"
@@ -214,6 +228,7 @@ erDiagram
     admin_users ||--o{ settlement_reversals : "records"
     members ||--o{ mandates : "grants"
     admin_users ||--o{ mandates : "records"
+    encryption_keys ||--o{ mandates : "seals"
     admin_users ||--o{ settlements : "creates"
     admin_users ||--o{ settlements : "cancels"
     admin_users ||--o{ settlements : "submits"
@@ -372,6 +387,30 @@ A mandate is **one record**, or the member has none. Rows are **append-only** �
 **Beleg-bearing** — `reference`, `iban_ciphertext` and `signed_at` survive a GDPR erasure request under [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md). Do not null them on anonymisation; the current code does, and that is a bug. The ciphertext is retained rather than the plaintext, which is the point: the record survives without the club being able to read it day to day.
 
 ---
+
+### encryption_keys
+
+Key **metadata only** ([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)) — the database never contains a private key. The server holds the public half of a libsodium keypair, which lets it seal an IBAN but never open one; the private half is generated offline and archived by the club, supplied back to the server only transiently (behind fresh TOTP step-up) for SEPA export, an exceptional full-IBAN view, or a rotation batch.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | BINARY(16) | PK | UUID |
+| key_identifier | VARCHAR(100) | UNIQUE, NOT NULL | Human-readable label an admin assigns at registration (e.g. `club-2026`) |
+| algorithm | VARCHAR(50) | NOT NULL, DEFAULT `SODIUM_CRYPTO_BOX_SEAL` | The only algorithm this system speaks today; a column instead of an assumption, for whenever that changes |
+| public_key | VARBINARY(32) | NOT NULL | Raw Curve25519 public key. No corresponding private-key column exists anywhere in this schema |
+| fingerprint_sha256 | CHAR(64) | UNIQUE, NOT NULL | SHA-256 of `public_key`, hex. Identifies a key generation to a human, and validates a private key an admin supplies back against the public half already on file |
+| status | ENUM | NOT NULL, DEFAULT `pending` | `pending` · `active` · `retiring` · `retired` · `revoked` · `compromised`. Exactly one row is `active` at a time — enforced in `EncryptionKeyService`, not the schema (MariaDB has no partial unique index) |
+| created_at | DATETIME | NOT NULL | Registration |
+| activated_at | DATETIME | NULL | When this key generation became `active` |
+| expires_at | DATETIME | NULL | `activated_at` + 365 days (the shared credential cryptoperiod, ADR-0036). There is no extend operation — expiry is resolved by rotation, not postponed |
+| retired_at | DATETIME | NULL | When a rotation finished re-encrypting every row off this key |
+| created_by_admin_id | BINARY(16) | NULL, **no FK** | Admin who registered it. Deliberately unconstrained: unlike every other `created_by_admin_id` in this schema, an `admin_users` row being anonymized or removed must never be blocked by, or silently corrupt, a permanent cryptographic audit trail |
+
+**Indexes:** `key_identifier` (UNIQUE), `fingerprint_sha256` (UNIQUE), `status`
+
+**No plaintext, ever.** Every other sensitive column in this schema (e.g. `mandates.iban_ciphertext`) holds something the application can eventually decrypt given the right key. This table is the one place that isn't true by design: `public_key` is precisely the half that grants no decryption capability, and it is the only key material this database is ever allowed to hold.
+
+**Audited**, not FK-linked to `admin_users`: `key_registered`, `key_activated`, `key_rotation_started`, `key_rotation_batch_completed`, `key_rotation_completed`, `key_retired`, `key_revoked`, `key_marked_compromised` (`audit_log.action`) carry the admin who acted and this row's `id`, without a schema constraint tying the two tables together — see `created_by_admin_id` above.
 
 ---
 
@@ -717,6 +756,7 @@ flowchart TB
         AL[audit_log]
         SC[sepa_config]
         IC[instance_config]
+        EK[encryption_keys]
     end
 
     C -->|"1:N"| P
@@ -733,6 +773,7 @@ flowchart TB
     AU -->|"1:N"| SR
     M -->|"1:N"| MD
     AU -->|"1:N"| MD
+    EK -->|"1:N"| MD
     AU -->|"1:N"| S
     AU -->|"1:N"| AL
     T -->|"1:N"| UC
@@ -746,6 +787,7 @@ flowchart TB
     S -.->|"audited"| AL
     SC -.->|"audited"| AL
     IC -.->|"audited"| AL
+    EK -.->|"audited"| AL
 ```
 
 | Relationship | Cardinality | Description |
@@ -764,6 +806,7 @@ flowchart TB
 | admin_users → settlement_reversals | 1:N | Admin who recorded the reversal |
 | members → mandates | 1:N | Member's mandate history (append-only; at most one active) |
 | admin_users → mandates | 1:N | Admin who recorded the mandate |
+| encryption_keys → mandates | 1:N | The key generation a mandate's IBAN is sealed under; what a rotation batch walks |
 | admin_users → settlements | 1:N | Admin creates/cancels/submits settlements |
 | admin_users → audit_log | 1:N | Admin performs many audited actions |
 | terminals → unknown_card_scans | 1:N | Terminal detects unknown cards |
@@ -794,6 +837,7 @@ flowchart TB
 | settlement_reversals | created_by_admin_id | admin_users | RESTRICT |
 | mandates | member_id | members | CASCADE |
 | mandates | created_by_admin_id | admin_users | SET NULL |
+| mandates | encryption_key_id | encryption_keys | RESTRICT |
 | members | held_by_admin_id | admin_users | SET NULL |
 | members | cleared_by_admin_id | admin_users | SET NULL |
 | unknown_card_scans | terminal_id | terminals | SET NULL |
@@ -815,6 +859,8 @@ flowchart TB
 10. **A storno must reference the original**: Enforced by `CHECK (transaction_type <> 'storno' OR related_transaction_id IS NOT NULL)`
 11. **Non-direct-debit settlements cover exactly one member**: Enforced by `CHECK (method = 'direct_debit' OR member_count = 1)`
 12. **At most one active mandate per member**: Enforced by the UNIQUE index on `mandates.active_member_id`, together with `CHECK (active_member_id IS NULL OR active_member_id = member_id)`
+13. **Exactly one `active` encryption key at a time**: Not schema-enforced (MariaDB has no partial unique index on `encryption_keys.status`) — `EncryptionKeyService` owns this invariant
+14. **An `encryption_keys` row cannot be deleted while a mandate is sealed under it**: `mandates.encryption_key_id` is `RESTRICT`, not `SET NULL` — a mandate whose key vanished would hold ciphertext nothing could ever open again
 
 ---
 
@@ -837,7 +883,7 @@ When a member requests deletion (GDPR Art. 17):
 
 `iban` and `mandate_reference` no longer live on `members` at all — they moved to `mandates` in [#164](https://github.com/dgloeckner/ruderbar/issues/164)/[#165](https://github.com/dgloeckner/ruderbar/issues/165) and are **not** touched by member anonymization ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): both are Beleg-bearing, and nulling them would break matching a returned collection that arrives after the erasure request.
 
-**Retained:** `id`, `created_at`, `updated_at`, `retention_expires_at` — plus the whole **retention tier**: `mandates` rows (`reference`, `iban`, `signed_at`), transactions, settlements, payment/return/reversal records.
+**Retained:** `id`, `created_at`, `updated_at`, `retention_expires_at` — plus the whole **retention tier**: `mandates` rows (`reference`, `iban_ciphertext`, `signed_at`), transactions, settlements, payment/return/reversal records.
 
 ### Retention Periods
 
@@ -862,3 +908,6 @@ When a member requests deletion (GDPR Art. 17):
 - [ADR-0013: Audit Logging](../adr/0013-audit-logging.md)
 - [ADR-0015: Authentication and Authorization](../adr/0015-authentication-and-authorization-strategy.md)
 - [ADR-0020: SEPA Mandate Requirement for Terminal Access](../adr/0020-sepa-mandate-requirement-terminal-access.md)
+- [ADR-0029: Two-Tier Retention and Erasure](../adr/0029-two-tier-retention-and-erasure.md)
+- [ADR-0036: IBAN Encryption at Rest with libsodium Sealed Boxes](../adr/0036-iban-encryption-sealed-box.md)
+- [ADR-0037: Mandate Documents Are Not Retained in the System](../adr/0037-mandate-documents-not-retained.md)
