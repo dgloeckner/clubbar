@@ -326,6 +326,14 @@ no pre-migration dump is taken automatically. The run prints a reminder in its
 summary. If the release contains a migration that drops or alters a column, take
 a backup before approving it.
 
+**Migration `023_drop_mandate_documents.php` (ADR-0037) deletes files, not just
+rows.** It permanently removes every scanned mandate document under
+`storage/mandates/` along with the `mandate_documents` table. A database backup
+does not cover this — the files live outside MariaDB. Before approving a
+release that carries this migration, download and archive any stored scans (or
+confirm the treasurer already holds the paper originals); there is no
+migration-side undo once it has run.
+
 **The upgrade secret is generated per run** and is not stored as a GitHub
 secret. Nothing on the server pre-shares it: the workflow uploads
 `.upgrade-secret`, and `upgrade.php` compares the request key against whatever
@@ -389,6 +397,19 @@ scripts/deploy-request.sh "Extract" \
 > site uses the automated workflow above.
 
 1. Create a pre-upgrade backup (see above)
+
+   **Destructive migration warning (ADR-0037):** a release containing
+   migration `023_drop_mandate_documents.php` permanently deletes every
+   scanned mandate document still stored under `storage/mandates/` (and the
+   `mandate_documents` table). This is not covered by the database backup
+   above — the files live on disk, not in MariaDB. If this installation has
+   any stored scans, download and archive them (or their paper originals)
+   **before** running this migration; there is no way to recover them
+   afterwards. `install.php?action=status` lists pending migrations by name
+   if you need to check whether `023_drop_mandate_documents.php` is one of
+   them before proceeding. After the migration runs, the Security &
+   Credentials self-check page reports a finding if any files could not be
+   deleted (e.g. a permission mismatch) — resolve that manually.
 2. Download the new release ZIP
 3. Upload and overwrite all files — `config.php` is preserved since it is not in the ZIP
 4. If `install.php` was deleted, restore it from the new release

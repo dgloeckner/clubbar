@@ -76,7 +76,6 @@ erDiagram
         binary_16 encryption_key_id FK "Key generation this row is sealed under"
         varchar_255 bank_name "Resolved from the BLZ at write time"
         date signed_at "Mandate signature date (nullable in Phase 0)"
-        binary_16 document_id FK "Optional scanned mandate"
         datetime ended_at "Bank change or revocation"
         enum ended_reason "bank_change, revoked or offboarded"
         binary_16 created_by_admin_id FK "Admin who recorded it"
@@ -281,7 +280,7 @@ Stores all organization members with payment information.
 | Deleted | Retained (restricted) |
 |---|---|
 | `first_name`, `last_name`, `email`, `phone`, `preferred_language` | Per-transaction records incl. the member link |
-| `card_uid`, credentials, sessions | `mandates` rows: reference, IBAN, signature date, document |
+| `card_uid`, credentials, sessions | `mandates` rows: reference, IBAN, signature date |
 | Postal address, date of birth ⚠️ *(deletable only while the club issues no invoices)* | Settlement, payment, return and reversal records |
 
 Sets `deleted_at`, and stamps `retention_expires_at`. Restriction is enforced by **access** — restricted rows are not listed, searched, exported or synced — not by a flag each query must remember.
@@ -356,7 +355,6 @@ A mandate is **one record**, or the member has none. Rows are **append-only** �
 | encryption_key_id | CHAR(36) | FK → encryption_keys.id, NULL | Which key generation this row is sealed under; what a rotation walks |
 | bank_name | VARCHAR(255) | NULL | Resolved from the BLZ at write time — the last moment the plaintext exists. A sealed row can never answer this question again |
 | signed_at | DATE | NULL | Mandate signature date. Deliberately nullable in Phase 0 — the schema migration relocates existing data without changing the eligibility predicate; making a signature date a precondition of SEPA validity is a separate, later change |
-| document_id | BINARY(16) | FK → mandate_documents.id, NULL | Optional scanned mandate; OCR prefill only, not a precondition |
 | ended_at | DATETIME | NULL | When the mandate stopped being in force |
 | ended_reason | ENUM | NULL | `bank_change` · `revoked` · `offboarded` |
 | created_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who recorded it |
@@ -368,6 +366,8 @@ A mandate is **one record**, or the member has none. Rows are **append-only** �
 **Constraint:** `active_member_id` must equal `member_id` when set (`CHECK`) — a mandate can only be "active" for its own owner.
 
 **No plaintext IBAN column.** Migration `018` added one as a nullable remnant for installs that already held IBANs; `020` dropped it, since nothing had shipped and therefore nothing needed migrating. While it existed, the guarantee above was conditional on the column staying empty — now no row shape yields a readable IBAN without the private key.
+
+**No stored mandate document.** `document_id` and the `mandate_documents` table it pointed at existed for OCR prefill; migration `023` dropped both ([ADR-0037](../adr/0037-mandate-documents-not-retained.md)). Extraction from a scan is still available (stateless — nothing written to disk or database), but the signed paper original, archived by the treasurer outside the system, is now the Beleg rather than a stored copy of it.
 
 **Beleg-bearing** — `reference`, `iban_ciphertext` and `signed_at` survive a GDPR erasure request under [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md). Do not null them on anonymisation; the current code does, and that is a bug. The ciphertext is retained rather than the plaintext, which is the point: the record survives without the club being able to read it day to day.
 
@@ -655,7 +655,7 @@ Centralized audit trail for all master data changes.
 - `collection_hold_placed` — A bank return stopped the next run re-debiting a member
 - `collection_hold_cleared` — An admin released that member back into the next run
 - `totp_enrolled` / `totp_reset` — Second factor enrolled or reset
-- `mandate_document_upload` / `mandate_document_delete` — Mandate scan stored or removed
+- `mandate_document_upload` / `mandate_document_delete` — Mandate scan stored or removed; historical only since [ADR-0037](../adr/0037-mandate-documents-not-retained.md) (migration `023`) removed the code path that wrote them — kept in the enum so pre-existing audit rows stay valid
 - `activate` / `deactivate` / `reorder` — Status and ordering changes
 - `terminal_repair` — A terminal resumed sync after staff confirmed a pairing (instance_id) mismatch was safe to trust ([ADR-0035](../adr/0035-terminal-backend-instance-pairing.md), [#380](https://github.com/dgloeckner/clubbar/issues/380))
 
@@ -793,7 +793,6 @@ flowchart TB
 | settlement_reversals | member_id | members | RESTRICT |
 | settlement_reversals | created_by_admin_id | admin_users | RESTRICT |
 | mandates | member_id | members | CASCADE |
-| mandates | document_id | mandate_documents | SET NULL |
 | mandates | created_by_admin_id | admin_users | SET NULL |
 | members | held_by_admin_id | admin_users | SET NULL |
 | members | cleared_by_admin_id | admin_users | SET NULL |
@@ -838,7 +837,7 @@ When a member requests deletion (GDPR Art. 17):
 
 `iban` and `mandate_reference` no longer live on `members` at all — they moved to `mandates` in [#164](https://github.com/dgloeckner/ruderbar/issues/164)/[#165](https://github.com/dgloeckner/ruderbar/issues/165) and are **not** touched by member anonymization ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): both are Beleg-bearing, and nulling them would break matching a returned collection that arrives after the erasure request.
 
-**Retained:** `id`, `created_at`, `updated_at`, `retention_expires_at` — plus the whole **retention tier**: `mandates` rows (`reference`, `iban`, `signed_at`, document), transactions, settlements, payment/return/reversal records.
+**Retained:** `id`, `created_at`, `updated_at`, `retention_expires_at` — plus the whole **retention tier**: `mandates` rows (`reference`, `iban`, `signed_at`), transactions, settlements, payment/return/reversal records.
 
 ### Retention Periods
 

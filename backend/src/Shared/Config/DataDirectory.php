@@ -6,7 +6,7 @@ namespace App\Shared\Config;
 
 /**
  * Where an installation keeps the three things that must never be served:
- * `config.php`, `storage/` (scanned SEPA mandates) and `logs/`.
+ * `config.php`, `storage/` (PHP session files) and `logs/`.
  *
  * Until now those lived inside the document root and were kept off the web by
  * `.htaccess` alone — a `RewriteRule ^backend/` plus two `Require all denied`
@@ -14,8 +14,9 @@ namespace App\Shared\Config;
  * a webserver change or an `AllowOverride None` turns every one of those paths
  * into a plain URL, with no application error and nothing in the logs to
  * notice. The payload is the worst this system holds — the club's banking
- * credentials, and per member a name, an IBAN and a signature image whose
- * filename is the member UUID the admin API already hands to the browser.
+ * credentials, and (on an install that predates ADR-0037's removal of stored
+ * mandate scans) any leftover file under `storage/mandates/`, named after the
+ * member UUID the admin API already hands to the browser.
  *
  * ADR-0031 decision 2 answers that by resolving a location instead of assuming
  * one: above the document root where the host has a writable parent, in it
@@ -176,8 +177,8 @@ final class DataDirectory
         $candidate = $parent . '/' . self::DIRECTORY_NAME;
 
         // Paranoia, not politeness: a symlinked or oddly-mounted parent that
-        // resolves back inside the document root would put the mandates under a
-        // URL again — the exact outcome this is here to prevent.
+        // resolves back inside the document root would put the data directory
+        // under a URL again — the exact outcome this is here to prevent.
         if (str_starts_with($candidate . '/', $documentRoot . '/')) {
             return $fallback + ['reason' => "The directory above the document root resolves back inside it ({$candidate})."];
         }
@@ -228,7 +229,7 @@ final class DataDirectory
      * Create the data directory and its subdirectories.
      *
      * `0700` where the host allows it: on shared hosting the neighbours are the
-     * threat model, and these directories hold mandates and logs.
+     * threat model, and these directories hold session files and logs.
      *
      * @return array{ok:bool,error:?string}
      */

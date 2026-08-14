@@ -401,7 +401,7 @@ final class SecuritySelfCheck
             'storage_directory_mode',
             'The document store is readable only by its owner',
             $context->dataDirectory . '/storage',
-            'It holds the scanned SEPA mandates: per member a name, an IBAN and a signature.'
+            'It holds PHP session files — a readable one is a logged-in admin.'
         );
 
         $findings[] = self::modeFinding(
@@ -410,6 +410,8 @@ final class SecuritySelfCheck
             $context->dataDirectory . '/logs',
             'Application logs carry request context, including identifiers of the members involved.'
         );
+
+        $findings[] = self::mandateDocumentsPurgedFinding($context);
 
         // The document root is *meant* to be readable — it is served. What
         // must not be true of it is that someone else can write into it: every
@@ -427,6 +429,45 @@ final class SecuritySelfCheck
         );
 
         return $findings;
+    }
+
+    /**
+     * ADR-0037: migration `023_drop_mandate_documents.php` deletes every file
+     * under `storage/mandates/` as part of upgrading — a step that can be
+     * refused by a host whose PHP process does not own the files, the same
+     * way a `chmod` can be refused elsewhere in this class. A leftover scan
+     * is exactly the file class this migration exists to remove — a name, an
+     * IBAN and a handwritten signature — so this is measured rather than
+     * trusted, the same as every other row in this section.
+     */
+    private static function mandateDocumentsPurgedFinding(SecurityCheckContext $context): SecurityFinding
+    {
+        $label     = 'No mandate scan remains on disk after upgrading';
+        $directory = $context->dataDirectory . '/storage/mandates';
+
+        if (!is_dir($directory)) {
+            return SecurityFinding::pass('mandate_documents_purged', self::CATEGORY_DATA, $label, 'directory does not exist');
+        }
+
+        $leftover = array_filter(
+            glob($directory . '/*') ?: [],
+            static fn(string $path): bool => is_file($path) && basename($path) !== '.gitkeep'
+        );
+
+        if ($leftover === []) {
+            return SecurityFinding::pass('mandate_documents_purged', self::CATEGORY_DATA, $label, 'directory is empty');
+        }
+
+        return SecurityFinding::fail(
+            'mandate_documents_purged',
+            self::CATEGORY_DATA,
+            $label,
+            sprintf('%d file(s) remain in %s', count($leftover), $directory),
+            'The upgrade migration that removes stored mandate scans could not delete every file — most likely '
+            . 'because this host runs PHP as a different user than the one that owns them. Download and archive '
+            . 'these files yourself if you have not already, then delete them: nothing in the application reads '
+            . 'or serves this directory any more, so nothing else will do it for you.'
+        );
     }
 
     /**

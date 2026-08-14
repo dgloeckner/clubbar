@@ -104,18 +104,29 @@ class ExtractionControllerTest extends TestCase
     }
 
     /**
-     * The endpoint takes images only — the extraction service documents PDF as
-     * out of scope — so a genuine PDF is turned away even though the mandate
-     * upload endpoint accepts one.
+     * ADR-0037: PDF is accepted at this endpoint for parity with the removed
+     * upload path, which took JPEG, PNG and PDF alike. Whether extraction
+     * actually succeeds for a PDF is a provider concern (DirectExtractionService
+     * forwards it to the LLM; ExtractionService's Vision pipeline still
+     * refuses it) — the controller's job is only to let the bytes through.
      */
-    public function test_a_pdf_is_rejected(): void
+    public function test_a_pdf_is_accepted(): void
     {
+        $pdfBytes = "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n";
+
+        $this->extractionService
+            ->expects($this->once())
+            ->method('extract')
+            ->with($pdfBytes, 'application/pdf')
+            ->willReturn(new ExtractionResult(fields: ['first_name' => ['value' => 'Max', 'confidence' => 'high']]));
+
         $response = $this->controller->extract(
-            $this->requestWith("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n", 'image/jpeg'),
+            $this->requestWith($pdfBytes, 'image/jpeg'),
             new Response(),
         );
 
-        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('Max', $this->decode($response)['fields']['first_name']['value']);
     }
 
     public function test_a_missing_file_is_still_a_422(): void

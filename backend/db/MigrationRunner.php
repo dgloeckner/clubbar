@@ -27,13 +27,17 @@ class MigrationRunner
         )');
     }
 
-    public function migrate(string $dir, string $appliedBy = 'installer'): array
+    /**
+     * @param array<string,mixed> $context Passed verbatim to every `.php` migration's
+     *                                     callable, alongside the PDO connection. `.sql`
+     *                                     migrations have no use for it.
+     */
+    public function migrate(string $dir, string $appliedBy = 'installer', array $context = []): array
     {
         $applied = $this->db->query('SELECT file, checksum FROM _migrations')
             ->fetchAll(PDO::FETCH_KEY_PAIR);
 
-        $files = glob($dir . '/*.sql');
-        sort($files);
+        $files = self::migrationFiles($dir);
 
         // A real install always ships migration files, so finding none here is
         // never "nothing pending" — it means $dir itself is wrong (e.g. resolved
@@ -54,8 +58,8 @@ class MigrationRunner
         // Each migration is applied individually instead.
         foreach ($files as $file) {
             $name     = basename($file);
-            $sql      = file_get_contents($file);
-            $checksum = hash('sha256', $sql);
+            $source   = file_get_contents($file);
+            $checksum = hash('sha256', $source);
 
             if (isset($applied[$name])) {
                 if ($applied[$name] !== $checksum) {
@@ -72,7 +76,15 @@ class MigrationRunner
             }
 
             try {
-                $this->db->exec($sql);
+                if (str_ends_with($name, '.php')) {
+                    $migration = require $file;
+                    if (!is_callable($migration)) {
+                        throw new \RuntimeException("{$name} must return a callable(PDO, array): void.");
+                    }
+                    $migration($this->db, $context);
+                } else {
+                    $this->db->exec($source);
+                }
 
                 $stmt = $this->db->prepare('INSERT INTO _migrations (file, checksum, applied_by) VALUES (?, ?, ?)');
                 $stmt->execute([$name, $checksum, $appliedBy]);
@@ -93,8 +105,7 @@ class MigrationRunner
         $applied = $this->db->query('SELECT file, applied_at FROM _migrations ORDER BY file')
             ->fetchAll(PDO::FETCH_KEY_PAIR);
 
-        $files = glob($dir . '/*.sql');
-        sort($files);
+        $files = self::migrationFiles($dir);
 
         $status = [];
         foreach ($files as $file) {
@@ -106,5 +117,21 @@ class MigrationRunner
             ];
         }
         return $status;
+    }
+
+    /**
+     * `.sql` files run their contents directly; `.php` files return a
+     * `callable(PDO $pdo, array $context): void` for migrations that need
+     * more than a `db->exec()` call — e.g. removing files from disk
+     * alongside a schema change. Both are ordered together by filename, so
+     * the leading number still decides run order regardless of extension.
+     *
+     * @return list<string>
+     */
+    private static function migrationFiles(string $dir): array
+    {
+        $files = [...glob($dir . '/*.sql'), ...glob($dir . '/*.php')];
+        sort($files);
+        return $files;
     }
 }

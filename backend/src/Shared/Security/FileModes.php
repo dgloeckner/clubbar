@@ -11,8 +11,8 @@ namespace App\Shared\Security;
  *
  * Three paths carry everything this system would not survive leaking:
  * `config.php` (the database password and the key that encrypts every admin's
- * second factor), `storage/` (scanned SEPA mandates — per member a name, an
- * IBAN and a signature) and `logs/`. The package used to ship the last two
+ * second factor), `storage/` (PHP session files — a readable one is a
+ * logged-in admin) and `logs/`. The package used to ship the last two
  * `0777` and leave the first at whatever the default umask gave it, which on
  * mass hosting means every other customer on the box can read them.
  *
@@ -56,7 +56,7 @@ final class FileModes
      *
      * `0777` is last rather than absent: a host that genuinely needs it is a
      * host where the alternative is an installation that cannot write a log or
-     * store a mandate. It ends up reported, not silently accepted.
+     * a session file. It ends up reported, not silently accepted.
      */
     public const DIRECTORY_LADDER = [0700, 0770, 0777];
 

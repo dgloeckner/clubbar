@@ -277,6 +277,38 @@ class SecuritySelfCheckTest extends TestCase
     }
 
     /**
+     * ADR-0037: the destructive migration that removes stored mandate scans
+     * can be refused by a host whose PHP process does not own the files —
+     * the same failure mode {@see FileModes} already reports for a `chmod`.
+     * A missing directory and an empty one are both a clean upgrade; a file
+     * left behind (a `.gitkeep` aside) is exactly what this finding exists to
+     * catch.
+     */
+    public function test_no_mandate_directory_passes(): void
+    {
+        $this->assertSame(SecurityFinding::PASS, $this->statusOf('mandate_documents_purged'));
+    }
+
+    public function test_an_empty_mandate_directory_passes(): void
+    {
+        mkdir($this->dataDirectory . '/storage/mandates', 0700, true);
+        touch($this->dataDirectory . '/storage/mandates/.gitkeep');
+
+        $this->assertSame(SecurityFinding::PASS, $this->statusOf('mandate_documents_purged'));
+    }
+
+    public function test_a_leftover_mandate_scan_is_reported(): void
+    {
+        mkdir($this->dataDirectory . '/storage/mandates', 0700, true);
+        file_put_contents($this->dataDirectory . '/storage/mandates/some-member-id.pdf', '%PDF-1.4');
+
+        $finding = $this->finding('mandate_documents_purged');
+        $this->assertSame(SecurityFinding::FAIL, $finding->status);
+        $this->assertStringContainsString('1 file', $finding->observed);
+        $this->assertNotNull($finding->remedy);
+    }
+
+    /**
      * The document root is the one path measured by a different rule, and the
      * rule has to hold in both directions: `0755` is what a served directory
      * looks like and must not be a finding, while a write bit for anyone else
