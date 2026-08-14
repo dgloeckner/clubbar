@@ -213,13 +213,16 @@ return function (App $app): void {
         // Bank lookup
         $group->get('/bank-lookup', [BankCodesAdminController::class, 'lookup']);
 
-        // Terminals
+        // Terminals. The two endpoints that mint a credential carry a step-up
+        // credential in the body and share the step-up rate-limit dimension
+        // (#395); revocation deliberately does not, so withdrawing access is
+        // never harder than granting it.
         $group->get('/terminals', [TerminalsAdminController::class, 'index']);
-        $group->post('/terminals', [TerminalsAdminController::class, 'store']);
+        $group->post('/terminals', [TerminalsAdminController::class, 'store'])->add($stepUpRateLimit);
         $group->get('/terminals/{id}', [TerminalsAdminController::class, 'show']);
         $group->patch('/terminals/{id}', [TerminalsAdminController::class, 'update']);
         $group->delete('/terminals/{id}', [TerminalsAdminController::class, 'destroy']);
-        $group->post('/terminals/{id}/rotate-token', [TerminalsAdminController::class, 'rotateToken']);
+        $group->post('/terminals/{id}/rotate-token', [TerminalsAdminController::class, 'rotateToken'])->add($stepUpRateLimit);
         $group->post('/terminals/{id}/revoke', [TerminalsAdminController::class, 'revoke']);
     })->add(CsrfMiddleware::class)->add(AdminSessionAuth::class);
 };

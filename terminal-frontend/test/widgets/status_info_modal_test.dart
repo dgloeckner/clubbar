@@ -26,6 +26,10 @@ void main() {
       when(() => mockSyncProvider.addListener(any())).thenReturn(null);
       when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
       when(() => mockSyncProvider.pairingMismatch).thenReturn(false);
+      // #395: MainLayout renders CredentialExpiredBanner above every
+      // screen, and an unstubbed non-nullable getter throws rather than
+      // reading as false.
+      when(() => mockSyncProvider.credentialExpired).thenReturn(false);
     });
 
     // Issue #27: this used to render `statusLoadError(e.toString())` — the

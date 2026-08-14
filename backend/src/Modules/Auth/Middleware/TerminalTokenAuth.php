@@ -10,7 +10,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
-use App\Modules\Auth\Services\TokenService;
+use App\Modules\Terminals\Services\TerminalTokenAuthenticator;
 use Slim\Psr7\Response;
 
 class TerminalTokenAuth implements MiddlewareInterface
@@ -22,6 +22,7 @@ class TerminalTokenAuth implements MiddlewareInterface
     public function __construct(
         private TerminalsRepository $terminalsRepository,
         private LoginAttemptsRepository $authAttempts,
+        private TerminalTokenAuthenticator $authenticator,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -36,14 +37,18 @@ class TerminalTokenAuth implements MiddlewareInterface
         }
 
         $token = substr($authHeader, 7);
-        $terminal = $this->findTerminalByToken($token);
+        // The authenticator, not this middleware, decides what a token means:
+        // it also promotes a pending token on first use and records an expiry
+        // once (#395). Everything below is HTTP.
+        $result = $this->authenticator->authenticate($token);
+        $terminal = $result->terminal;
 
         if (!$terminal) {
             // A token that was valid until its lifetime ran out gets its own
             // answer (#106): the terminal is not misconfigured, it needs an
             // admin to rotate it. Nothing is disclosed to a caller that does
             // not already hold the token.
-            if ($this->isExpiredToken($token)) {
+            if ($result->isExpired()) {
                 return $this->unauthorized(
                     $request,
                     'terminal_token_expired',
@@ -67,21 +72,6 @@ class TerminalTokenAuth implements MiddlewareInterface
         return $handler->handle($request)
             ->withHeader('Cache-Control', 'no-store')
             ->withHeader('Pragma', 'no-cache');
-    }
-
-    private function findTerminalByToken(string $token): ?array
-    {
-        // Direct SHA256 lookup: O(1) DB lookup, no per-terminal iteration.
-        // The repository, not this middleware, refuses an expired token — see
-        // TerminalsRepository::findByTokenHash().
-        $sha256 = TokenService::hashToken($token);
-        return $this->terminalsRepository->findByTokenHash($sha256);
-    }
-
-    private function isExpiredToken(string $token): bool
-    {
-        $sha256 = TokenService::hashToken($token);
-        return $this->terminalsRepository->findExpiredByTokenHash($sha256) !== null;
     }
 
     private function unauthorized(ServerRequestInterface $request, string $code, string $message): ResponseInterface

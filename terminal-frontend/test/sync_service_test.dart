@@ -1120,5 +1120,63 @@ void main() {
         verify(() => mockSyncRepo.setPairedBackendInstanceId('instance-b')).called(1);
       });
     });
+
+    /// #395 — a 401 for an aged-out token is not an outage. It has to be told
+    /// apart from one, because only one of the two is something staff at the
+    /// bar can wait out.
+    group('credentialExpired', () {
+      void stubFailurePersistence() {
+        when(() => mockSyncRepo.setLastSyncError(any())).thenAnswer((_) async => {});
+        when(() => mockSyncRepo.incrementSyncRetryCount()).thenAnswer((_) async => {});
+      }
+
+      test('is false before anything has been attempted', () {
+        expect(syncService.credentialExpired, isFalse);
+      });
+
+      test('a 401 terminal_token_expired raises it', () async {
+        stubFailurePersistence();
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenThrow(NetworkException(
+          'Sync members failed: HTTP 401',
+          statusCode: 401,
+          errorCode: 'terminal_token_expired',
+        ));
+
+        expect(await syncService.syncAll(), equals(SyncResult.failure));
+        expect(syncService.credentialExpired, isTrue);
+      });
+
+      test('an ordinary network failure does not', () async {
+        stubFailurePersistence();
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenThrow(NetworkException('Connection refused'));
+
+        expect(await syncService.syncAll(), equals(SyncResult.failure));
+        expect(syncService.credentialExpired, isFalse);
+      });
+
+      /// The flag describes the *last* attempt, so a rotation entered at the
+      /// terminal makes the block go away by itself.
+      test('a later successful cycle clears it', () async {
+        stubFailurePersistence();
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenThrow(NetworkException(
+          'Sync members failed: HTTP 401',
+          statusCode: 401,
+          errorCode: 'terminal_token_expired',
+        ));
+        await syncService.syncAll();
+        expect(syncService.credentialExpired, isTrue);
+
+        // The whole cycle has to succeed, not just the call that was refused:
+        // a members sync that now works followed by an unstubbed categories
+        // call is still a failed cycle, and would leave nothing to clear.
+        stubReferenceDataSync();
+
+        expect(await syncService.syncAll(), equals(SyncResult.success));
+        expect(syncService.credentialExpired, isFalse);
+      });
+    });
   });
 }

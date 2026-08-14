@@ -135,6 +135,9 @@ erDiagram
         varchar_255 token_hash "Hashed API token"
         datetime token_issued_at "When the current token was issued"
         datetime token_expires_at "When the current token stops authenticating"
+        varchar_255 pending_token_hash "Replacement token, promoted on first use"
+        datetime pending_token_issued_at "When the replacement was minted"
+        datetime pending_token_expires_at "Lifetime the replacement carries into promotion"
         boolean is_active "Terminal enabled"
         datetime last_sync_at "Last successful sync"
         varchar_45 last_sync_ip "IP of last sync"
@@ -501,6 +504,9 @@ Registered POS terminals with API authentication.
 | token_hash | VARCHAR(255) | NOT NULL | bcrypt hash of API token (cost >= 12) |
 | token_issued_at | DATETIME | NULL | When the current token was issued; NULL once access is revoked |
 | token_expires_at | DATETIME | NULL | When the current token stops authenticating; NULL once access is revoked |
+| pending_token_hash | VARCHAR(255) | NULL | SHA-256 of a replacement token issued but not yet used; promoted on first successful authentication (#395) |
+| pending_token_issued_at | DATETIME | NULL | When the replacement was minted |
+| pending_token_expires_at | DATETIME | NULL | Lifetime the replacement carries into its promotion |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Terminal enabled for API access |
 | last_sync_at | DATETIME | NULL | Timestamp of last successful sync |
 | last_sync_ip | VARCHAR(45) | NULL | IP address of last sync (IPv4 or IPv6) |
@@ -510,14 +516,22 @@ Registered POS terminals with API authentication.
 **Indexes:**
 - `terminal_id` (UNIQUE)
 - `is_active`
+- `pending_token_hash` — authentication falls through to this column on every request the active hash did not match, so it needs the same indexed lookup
 
 **Token**: 64-character hex string; stored as bcrypt hash; shown once during creation.
 
 **Token lifetime (#106)**: a token authenticates only while
-`token_expires_at > NOW()` — `API_TOKEN_TTL_DAYS` (default 90) after it was
-issued. The check is fail-closed: a row carrying a token hash with no
-`token_expires_at` does not authenticate. Rotating the token restarts both
-columns; revoking clears them along with the hash.
+`token_expires_at > NOW()` — `API_TOKEN_TTL_DAYS` (default 365, the shared
+credential cryptoperiod of ADR-0036) after it was issued. The check is
+fail-closed: a row carrying a token hash with no `token_expires_at` does not
+authenticate.
+
+**Overlap rotation (#395)**: rotating does not touch the active columns. It
+writes the `pending_*` triple instead, so both tokens authenticate until the
+terminal presents the new one; that first use copies the pending columns over
+the active ones and clears them, retiring the replaced token in the same
+statement. Revoking clears all six columns along with the hash — a staged
+replacement is a credential too.
 
 ---
 

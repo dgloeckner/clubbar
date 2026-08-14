@@ -182,6 +182,14 @@ class AppConfig
     /**
      * Lifetime of a terminal API token, in days (#106).
      *
+     * The default is the shared credential cryptoperiod (ADR-0036): one year,
+     * the same figure the IBAN encryption keys carry, warned about on the same
+     * 90/30/7 tiers. It was 90 days, which is a sensible number for a secret a
+     * human retypes and a punitive one for a device in a cupboard — four
+     * unannounced outages a year, each ending with a bar that cannot sell. The
+     * answer to a long-lived credential is a rotation an admin can prepare
+     * ahead of the deadline (#395), not a short one nobody schedules.
+     *
      * A zero or negative value is not honoured: it would either mint tokens
      * that are already expired or, read the other way, invite "0 = never" —
      * and "never" is the state this setting exists to end. The default stands
@@ -189,8 +197,9 @@ class AppConfig
      */
     private static function readTokenTtlDays(): int
     {
-        $days = (int) Env::get('API_TOKEN_TTL_DAYS', '90');
+        $default = \App\Shared\Security\CredentialLifecycle::LIFETIME_DAYS;
+        $days = (int) Env::get('API_TOKEN_TTL_DAYS', (string) $default);
 
-        return $days > 0 ? $days : 90;
+        return $days > 0 ? $days : $default;
     }
 }

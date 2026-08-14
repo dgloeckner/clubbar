@@ -61,6 +61,7 @@ use App\Modules\Settlements\Services\SettlementReversalService;
 use App\Modules\Settlements\Services\CollectionHoldService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Terminals\Services\TerminalsService;
+use App\Modules\Terminals\Services\TerminalTokenAuthenticator;
 use App\Modules\Transactions\Services\TransactionsService;
 
 // Controllers
@@ -503,6 +504,19 @@ class ServiceFactory implements ContainerInterface
         ));
     }
 
+    /**
+     * Owns what happens to a token while it authenticates (#395): promoting a
+     * pending one on first use, and recording an expiry once. Shared by the
+     * middleware so every terminal request goes through the same rules.
+     */
+    public function getTerminalTokenAuthenticator(): TerminalTokenAuthenticator
+    {
+        return $this->resolve(TerminalTokenAuthenticator::class, fn() => new TerminalTokenAuthenticator(
+            $this->getTerminalsRepository(),
+            $this->getAuditService(),
+        ));
+    }
+
     public function getPairingService(): PairingService
     {
         return $this->resolve(PairingService::class, fn() => new PairingService(
@@ -530,7 +544,11 @@ class ServiceFactory implements ContainerInterface
 
     public function getTerminalTokenAuth(): TerminalTokenAuth
     {
-        return $this->resolve(TerminalTokenAuth::class, fn() => new TerminalTokenAuth($this->getTerminalsRepository(), $this->getTerminalAuthAttemptsRepository()));
+        return $this->resolve(TerminalTokenAuth::class, fn() => new TerminalTokenAuth(
+            $this->getTerminalsRepository(),
+            $this->getTerminalAuthAttemptsRepository(),
+            $this->getTerminalTokenAuthenticator(),
+        ));
     }
 
     public function getCsrfMiddleware(): CsrfMiddleware
@@ -772,7 +790,11 @@ class ServiceFactory implements ContainerInterface
 
     public function getTerminalsAdminController(): TerminalsAdminController
     {
-        return $this->resolve(TerminalsAdminController::class, fn() => new TerminalsAdminController($this->getTerminalsService(), $this->getValidator()));
+        return $this->resolve(TerminalsAdminController::class, fn() => new TerminalsAdminController(
+            $this->getTerminalsService(),
+            $this->getValidator(),
+            $this->getStepUpAuthService(),
+        ));
     }
 
     public function getPairingController(): PairingController

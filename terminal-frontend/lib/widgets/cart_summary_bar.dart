@@ -24,6 +24,7 @@ class CartSummaryBar extends StatelessWidget {
     required this.isCheckoutInFlight,
     required this.isBlockedByLimit,
     required this.onCheckout,
+    this.isBlockedByCredential = false,
     required this.onViewCart,
     super.key = const Key('cart-summary-bar'),
   });
@@ -41,6 +42,10 @@ class CartSummaryBar extends StatelessWidget {
   final bool isCheckoutInFlight;
 
   final bool isBlockedByLimit;
+
+  /// The terminal's own credential has expired, so nothing rung up here can be
+  /// banked (#395). Stops checkout outright, ahead of the credit-limit block.
+  final bool isBlockedByCredential;
 
   final Future<void> Function() onCheckout;
 
@@ -147,6 +152,7 @@ class CartSummaryBar extends StatelessWidget {
             child: CheckoutButton(
               isLoading: isCheckoutInFlight,
               isBlockedByLimit: isBlockedByLimit,
+              isBlockedByCredential: isBlockedByCredential,
               onPressed: onCheckout,
             ),
           ),

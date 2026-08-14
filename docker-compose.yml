@@ -84,7 +84,7 @@ services:
       # Session & Auth
       SESSION_MAX_AGE: 7200
       SESSION_REGEN_INTERVAL: 900
-      API_TOKEN_TTL_DAYS: 90
+      API_TOKEN_TTL_DAYS: 365
       # Fixed dev key for encrypting TOTP secrets at rest.
       # Matches the key used to pre-encrypt the test admin's TOTP secret in
       # backend/db/seed.sql. Safe to commit — dev-only, never used in production.

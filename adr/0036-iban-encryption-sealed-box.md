@@ -110,6 +110,47 @@ sequenceDiagram
 
 Rotation (annual or on compromise): register NEW public key (PENDING) → activate (NEW ACTIVE, OLD RETIRING; new writes use NEW) → re-encrypt in resumable batches of 100, the browser supplying the OLD private key per batch request (never stored server-side, never in a session) → each batch uses optimistic `UPDATE … WHERE encryption_key_id = :old` so a concurrent member edit wins → verify zero rows on OLD → OLD RETIRED. Every step audited with affected row counts.
 
+### Terminal tokens share this lifecycle (#395)
+
+A terminal's bearer token is the club's other long-lived credential: it authenticates a device that reads the member roster and writes transactions, it is hashed at rest, and it expires. It therefore carries the same cryptoperiod and the same warning tiers as the encryption key above, and is managed from the same Security & Credentials page — an admin should not have to know which page a credential lives on to find out which one is about to lapse.
+
+| Rule | Value |
+|---|---|
+| Cryptoperiod | `API_TOKEN_TTL_DAYS`, default 365 days from issue (was 90). A value below 1 is ignored — expiry cannot be switched off |
+| Warnings | The same ≤ 90 / ≤ 30 / ≤ 7 day tiers, computed at request time and served as `lifecycle_state` + `days_until_expiry` on the terminal resource |
+| Expiry enforcement | Unchanged (#106): the authentication lookup itself refuses an expired token, fail-closed, and answers the distinct `terminal_token_expired` error |
+| Issuance | Enrolling a terminal and rotating its token both require a fresh step-up (own password + own TOTP), the same gate key management carries. Revocation deliberately does not: withdrawing access must never be the harder path |
+| Raw token | Shown exactly once, at issue. The server keeps only a SHA-256 hash |
+| Rotation | Overlap (below) |
+
+**Why 90 days was the wrong number.** Ninety days is a sensible lifetime for a secret a human retypes and a punitive one for a device in a cupboard: four unannounced outages a year, each ending with a bar that cannot sell. The answer to a long-lived credential is a rotation an admin can prepare ahead of the deadline, not a short one nobody schedules.
+
+**Overlap rotation.** Rotation used to be a cut — the old token died the instant the button was pressed, so it could only be done standing at the terminal. A rotation now issues the replacement as **PENDING alongside the ACTIVE one**. Both authenticate. The first successful authentication with the new token promotes it: it becomes the active hash and the token it replaces is overwritten, and therefore retired, in the same statement. Nobody has to declare the rollout finished, and a token that was written down but never entered never displaces the one that is working.
+
+```mermaid
+sequenceDiagram
+    participant A as Admin
+    participant S as Backend
+    participant T as Terminal
+
+    A->>S: rotate (step-up)
+    S->>S: stage PENDING beside ACTIVE
+    S-->>A: raw token, shown once
+    note over S,T: overlap — both tokens authenticate
+    T->>S: sync with the OLD token
+    S-->>T: 200
+    A->>T: enter the new token
+    T->>S: sync with the NEW token
+    S->>S: promote — NEW ACTIVE, OLD overwritten
+    S-->>T: 200
+```
+
+**Schema**: three columns on `terminals` (`pending_token_hash`, `pending_token_issued_at`, `pending_token_expires_at`), not a `terminal_tokens` child table. A terminal has at most two live credentials at any instant — the one in the field and the one being rolled out — so a child table would buy a generality nobody needs and turn the single indexed lookup that authenticates every sync into a join. The mirrored column names keep promotion a straight column copy, guarded on the hash so two syncs arriving together cannot both promote. Revoking clears the pending columns along with the active ones; a staged replacement is a credential too.
+
+**Audit**: `TERMINAL_TOKEN_CREATED` / `ACTIVATED` / `ROTATED` / `REVOKED` / `EXPIRED`, carrying which terminal moved through which state and when — never token material. `EXPIRED` is the one event nobody performs: it is *observed*, on a terminal that keeps polling for as long as it stays switched on, so it is written once per expiry rather than once per attempt, deduplicated against a window anchored on the token's own `token_expires_at`.
+
+**At the terminal**: the 401 is surfaced as an undismissable banner and sales are stopped, rather than left to look like an ordinary outage — a till that appears to work while nothing it records can be banked is the failure this replaces. It clears by itself on the first successful sync after the new token is entered; there is no acknowledge action, because there is nothing staff at the bar can authorise.
+
 ### API surface
 
 Full IBANs leave the system in exactly one place: the SEPA XML handed to the bank. Member list/detail/preview, settlement CSV and the GDPR export carry `iban_last4` (+ mandate reference — sufficient for revision per the retention design; the member knows their own IBAN). The edit form is overwrite-only: it shows `****3000`, an empty field keeps the stored value. Exceptional full-IBAN display is a privileged operation with the same step-up + private-key flow, audited as `IBAN_FULL_VIEW`.

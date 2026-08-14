@@ -69,6 +69,29 @@ class AuditLogRepository
     }
 
     /**
+     * Has this entity already been audited with this action since $since?
+     *
+     * The one dedup primitive the log needs. An audit entry normally records a
+     * deliberate act, so writing one per act is right; a *condition* being
+     * observed is not an act, and a terminal that polls every minute with an
+     * expired token would otherwise write 1440 identical rows a day and bury
+     * everything else in the log (#395). Anchoring the window on the instant
+     * the condition began — the token's own expiry — keeps exactly one entry
+     * per occurrence, and a later expiry of the same terminal writes a new one.
+     */
+    public function hasEntrySince(string $entityId, string $action, string $since): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT 1 FROM audit_log
+              WHERE entity_id = ? AND action = ? AND created_at >= ?
+              LIMIT 1'
+        );
+        $stmt->execute([$entityId, $action, $since]);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
+    /**
      * @param array<string, mixed> $filters
      * @param string $sortKey Only `created_at` is orderable; anything else is
      *        rejected rather than silently ignored, because the audit screen

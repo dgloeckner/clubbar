@@ -11,6 +11,7 @@ import 'package:clubbar_terminal/models/cart_item.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
@@ -24,6 +25,11 @@ class MockCartProvider extends Mock implements CartProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
 
 class MockSessionController extends Mock implements SessionController {}
+
+/// The cart screen reads the terminal's own credential state to decide whether
+/// checkout is offered at all (#395), so the screen cannot be mounted without
+/// one in the tree.
+class MockSyncProvider extends Mock implements SyncProvider {}
 
 class MockSoundService extends Mock implements SoundService {}
 
@@ -42,12 +48,17 @@ void main() {
     late MockMembersProvider mockMembersProvider;
     late MockSessionController mockSessionController;
     late MockSoundService mockSoundService;
+    late MockSyncProvider mockSyncProvider;
 
     setUp(() {
       mockCartProvider = MockCartProvider();
       mockMembersProvider = MockMembersProvider();
       mockSessionController = MockSessionController();
       mockSoundService = MockSoundService();
+      mockSyncProvider = MockSyncProvider();
+      when(() => mockSyncProvider.credentialExpired).thenReturn(false);
+      when(() => mockSyncProvider.addListener(any())).thenReturn(null);
+      when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
       when(() => mockSoundService.play(any())).thenAnswer((_) async {});
       when(() => mockSessionController.endSession()).thenReturn(true);
       when(() => mockSessionController.hasActiveSession).thenReturn(false);
@@ -120,6 +131,7 @@ void main() {
             ChangeNotifierProvider<SessionController>.value(
               value: mockSessionController,
             ),
+            ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
             Provider<SoundService>.value(value: mockSoundService),
           ],
           child: child ?? const Scaffold(body: ShoppingCartScreen()),
@@ -178,7 +190,8 @@ void main() {
                 ChangeNotifierProvider<SessionController>.value(
                   value: mockSessionController,
                 ),
-                Provider<SoundService>.value(value: mockSoundService),
+                ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+            Provider<SoundService>.value(value: mockSoundService),
               ],
               child: const Scaffold(
                 body: ShoppingCartScreen(),
@@ -719,7 +732,8 @@ void main() {
                 ChangeNotifierProvider<SessionController>.value(
                   value: mockSessionController,
                 ),
-                Provider<SoundService>.value(value: mockSoundService),
+                ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+            Provider<SoundService>.value(value: mockSoundService),
               ],
               child: const Scaffold(body: ShoppingCartScreen()),
             ),

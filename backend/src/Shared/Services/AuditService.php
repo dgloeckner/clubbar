@@ -36,6 +36,36 @@ class AuditService
         ]);
     }
 
+    /**
+     * Write this entry only if the same (entity, action) pair has not been
+     * recorded since $since — for conditions that are *observed* rather than
+     * performed, and would otherwise be re-observed on every poll (#395).
+     *
+     * @return bool Whether an entry was written.
+     */
+    public function logOnceSince(
+        string $since,
+        AuditAction $action,
+        EntityType $entityType,
+        string $entityId,
+        ?array $newValues = null,
+        ?string $adminUserId = null,
+    ): bool {
+        if ($this->auditLogRepository->hasEntrySince($entityId, $action->value, $since)) {
+            return false;
+        }
+
+        $this->log(
+            action: $action,
+            entityType: $entityType,
+            entityId: $entityId,
+            newValues: $newValues,
+            adminUserId: $adminUserId,
+        );
+
+        return true;
+    }
+
     private function maskSensitiveFields(?array $values): ?array
     {
         if ($values === null) return null;

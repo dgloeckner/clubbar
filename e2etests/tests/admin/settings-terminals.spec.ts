@@ -195,12 +195,9 @@ test.describe('Terminal Devices Management', () => {
     await authenticatedSettingsPage.closeTokenModal()
     await terminalsLoaded
 
-    // Rotate token
+    // Rotate token — behind a step-up credential (#395)
     await authenticatedSettingsPage.clickRotateTokenButton(testData.name)
-
-    // Confirm dialog appears
-    await expect(authenticatedSettingsPage.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 10000 })
-    await authenticatedSettingsPage.page.getByTestId('confirm-dialog-ok').click()
+    await authenticatedSettingsPage.confirmRotateTokenStepUp()
 
     // Verify new token modal
     await authenticatedSettingsPage.waitForTokenModal()
@@ -292,7 +289,7 @@ test.describe('Terminal Devices Management', () => {
     await authenticatedSettingsPage.closeTokenModal()
     await terminalsLoaded
 
-    // 90 days out, so no warning badge — just the date the token runs out.
+    // A year out, so no warning badge — just the date the token runs out.
     const expiry = await authenticatedSettingsPage.getTerminalTokenExpiry(testData.name)
     expect(expiry).toBeTruthy()
     await authenticatedSettingsPage.expectTerminalTokenExpiryState(testData.name, 'valid')
@@ -395,9 +392,13 @@ test.describe('Terminal Devices Management', () => {
     await authenticatedSettingsPage.clickCreateTerminalButton()
     await authenticatedSettingsPage.clickCreateTerminalConfirm()
 
-    // Assert: both empty fields are named, and the modal stays open
+    // Assert: every empty field is named — including the step-up credential the
+    // form now collects (#395) — and the modal stays open
     await authenticatedSettingsPage.expectCreateTerminalFieldError('name')
     await authenticatedSettingsPage.expectCreateTerminalFieldError('device-id')
+    await expect(
+      authenticatedSettingsPage.page.getByTestId('settings-terminal-create-credential-error'),
+    ).toBeVisible()
     expect(await authenticatedSettingsPage.isCreateTerminalModalVisible()).toBe(true)
     expect(createRequestFired).toBe(false)
   })

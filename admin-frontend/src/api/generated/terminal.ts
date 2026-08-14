@@ -57,6 +57,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { TerminalLifecycleState } from './terminalLifecycleState';
 
 export interface Terminal {
   id?: string;
@@ -74,11 +75,29 @@ export interface Terminal {
    */
   token_issued_at?: string | null;
   /**
-   * When the current API token stops authenticating. Rotating the token issues a new one with a full `API_TOKEN_TTL_DAYS` lifetime (90 days by default). A terminal whose token has expired is refused with `terminal_token_expired` until it is rotated.
+   * When the current API token stops authenticating. Rotating the token stages a replacement with a full `API_TOKEN_TTL_DAYS` lifetime (365 days by default). A terminal whose token has expired is refused with `terminal_token_expired` until it is rotated.
 
    * @nullable
    */
   token_expires_at?: string | null;
+  /**
+   * Lifetime of a replacement token that has been issued but not yet used at the device. While this is set, both tokens authenticate; the first successful authentication with the new one promotes it and retires the old one (#395).
+
+   * @nullable
+   */
+  pending_token_expires_at?: string | null;
+  /** Whether a rotation is staged and waiting to be entered at the terminal.
+ */
+  has_pending_token?: boolean;
+  /** The current token's position on the shared 90/30/7 warning tiers (ADR-0036), computed at request time. `ok` when no token is outstanding at all — read `token_expires_at` for that case.
+ */
+  lifecycle_state?: TerminalLifecycleState;
+  /**
+   * Whole days until the current token expires, negative once it has. Null when no token is outstanding.
+
+   * @nullable
+   */
+  days_until_expiry?: number | null;
   created_at?: string;
   updated_at?: string;
 }

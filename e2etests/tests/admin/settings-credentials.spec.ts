@@ -92,4 +92,65 @@ test.describe('Security & Credentials', () => {
     await expect(authenticatedSettingsPage.page.getByTestId('step-up-password')).toBeVisible()
     await expect(authenticatedSettingsPage.page.getByTestId('confirm-dialog-ok')).toBeDisabled()
   })
+
+  /**
+   * Terminal tokens on the same page (#395).
+   *
+   * They are the club's other long-lived credential, and before this they lived
+   * under "Terminals" with a warning rule of their own — so an admin had to
+   * know which page to look at to find out which credential was about to lapse.
+   */
+  test('lists the terminal tokens on the same warning tiers as the keys', async ({
+    authenticatedSettingsPage,
+  }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickCredentialsTab()
+
+    const terminals = await authenticatedSettingsPage.getTerminalCredentials()
+
+    // The seed enrols two, so the section is never empty in a running install.
+    expect(terminals.length).toBeGreaterThan(0)
+    for (const terminal of terminals) {
+      expect(['none', 'ok', 'info', 'warning', 'critical', 'expired'], terminal.id).toContain(
+        terminal.lifecycleState,
+      )
+    }
+
+    // The seeded expired terminal is the one state no admin action can produce,
+    // and the reason the tiers exist at all.
+    expect(terminals.some((terminal) => terminal.lifecycleState === 'expired')).toBe(true)
+  })
+
+  test('every terminal card says when its credential was last used', async ({
+    authenticatedSettingsPage,
+  }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickCredentialsTab()
+
+    const terminals = await authenticatedSettingsPage.getTerminalCredentials()
+
+    // "Last used" is how a device somebody quietly took home shows up: a token
+    // that is still valid and has not been presented in months.
+    for (const terminal of terminals) {
+      await expect(
+        authenticatedSettingsPage.page.getByTestId(`credentials-terminal-last-used-${terminal.id}`),
+      ).toBeVisible()
+    }
+  })
+
+  test('rotating a terminal token asks for a step-up credential first', async ({
+    authenticatedSettingsPage,
+  }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickCredentialsTab()
+
+    const terminals = await authenticatedSettingsPage.getTerminalCredentials()
+    await authenticatedSettingsPage.clickRotateTerminalCredential(terminals[0].id)
+
+    // Nothing is submitted: the point is that a token cannot be minted on the
+    // strength of the session alone. The rotation itself is proved end to end
+    // in tests/api/terminal-token-expiry.spec.ts.
+    await expect(authenticatedSettingsPage.page.getByTestId('step-up-password')).toBeVisible()
+    await expect(authenticatedSettingsPage.page.getByTestId('confirm-dialog-ok')).toBeDisabled()
+  })
 })

@@ -10,6 +10,7 @@ import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/clubbar_header.dart';
 import 'package:clubbar_terminal/widgets/failed_sales_banner.dart';
+import 'package:clubbar_terminal/widgets/credential_expired_banner.dart';
 import 'package:clubbar_terminal/widgets/pairing_mismatch_banner.dart';
 import 'package:clubbar_terminal/widgets/status_info_modal.dart';
 
@@ -101,6 +102,12 @@ class MainLayout extends StatelessWidget {
             // #380). Placed above the quarantine warning — a pairing
             // mismatch calls the whole quarantine list into question too.
             const PairingMismatchBanner(),
+            // Directly below it, for the same reason and with the same reach:
+            // an expired credential means nothing rung up from here reaches
+            // the backend either (#395). Below the mismatch because a mismatch
+            // calls more into question — but above the quarantine list, which
+            // cannot be worked through until the terminal can sync at all.
+            const CredentialExpiredBanner(),
             // Above everything else, on every screen: a sale the backend
             // refused is money nobody will ever bill unless staff act (issue
             // #152).

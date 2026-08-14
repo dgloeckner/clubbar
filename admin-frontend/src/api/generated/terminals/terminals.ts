@@ -63,6 +63,7 @@ import type {
   ListTerminals200,
   ListTerminalsParams,
   RevokeTerminalAccess200,
+  RotateTerminalTokenRequest,
   TerminalWithToken,
   UpdateTerminal200,
   UpdateTerminalRequest
@@ -137,13 +138,18 @@ const deleteTerminal = (
       options);
     }
   /**
+ * Issues a replacement token *alongside* the current one. Both authenticate until the terminal uses the new one for the first time, which promotes it and retires the old one (#395) — so an admin can prepare a rotation without taking the bar offline.
+
  * @summary Rotate terminal API token
  */
 const rotateTerminalToken = (
     terminalId: string,
+    rotateTerminalTokenRequest: RotateTerminalTokenRequest,
  options?: SecondParameter<typeof customInstance<TerminalWithToken>>,) => {
       return customInstance<TerminalWithToken>(
-      {url: `/admin/terminals/${terminalId}/rotate-token`, method: 'POST'
+      {url: `/admin/terminals/${terminalId}/rotate-token`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: rotateTerminalTokenRequest
     },
       options);
     }

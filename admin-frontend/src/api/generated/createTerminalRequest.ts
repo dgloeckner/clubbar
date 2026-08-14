@@ -57,8 +57,13 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { StepUpCredentials } from './stepUpCredentials';
 
-export interface CreateTerminalRequest {
+/**
+ * Enrolling a terminal mints a credential that reads the member roster and writes transactions, so it carries a step-up credential (#395).
+
+ */
+export type CreateTerminalRequest = StepUpCredentials & {
   name: string;
   device_id: string;
-}
+};

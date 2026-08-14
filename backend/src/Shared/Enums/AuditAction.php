@@ -51,4 +51,17 @@ enum AuditAction: string
     case IBAN_FULL_VIEW = 'iban_full_view';
     /** A terminal resumed sync after its instance_id pairing mismatched (ADR-0035, #380). */
     case TERMINAL_REPAIR = 'terminal_repair';
+    // Terminal credential lifecycle (ADR-0036 §Terminal tokens, #395). Token
+    // material never appears in the payloads — only which terminal moved
+    // through which state, when, and at whose hand.
+    /** A terminal was enrolled and its first token issued, already active. */
+    case TERMINAL_TOKEN_CREATED = 'terminal_token_created';
+    /** A pending token was used for the first time and promoted to active. */
+    case TERMINAL_TOKEN_ACTIVATED = 'terminal_token_activated';
+    /** An admin issued a replacement token; it starts pending, alongside the old one. */
+    case TERMINAL_TOKEN_ROTATED = 'terminal_token_rotated';
+    /** An admin withdrew a terminal's credentials outright. */
+    case TERMINAL_TOKEN_REVOKED = 'terminal_token_revoked';
+    /** A terminal presented a token that had aged out — written once per expiry. */
+    case TERMINAL_TOKEN_EXPIRED = 'terminal_token_expired';
 }

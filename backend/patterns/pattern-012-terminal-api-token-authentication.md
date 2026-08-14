@@ -15,8 +15,10 @@ The Club Bar system includes offline-capable Terminal devices (Electron POS) tha
 **Key Principles (ADR-0015)**:
 1. **Separation of concerns**: Terminals authenticate as devices; members are identified by RFID (not authentication)
 2. **Device-level tokens**: One API token per terminal device
-3. **Expiring tokens**: A token lives `API_TOKEN_TTL_DAYS` (default 90) from issue; there is no automatic refresh, an admin rotates it (#106)
-4. **Revocable**: Admin can revoke token instantly; terminal gets 401 on next sync
+3. **Expiring tokens**: A token lives `API_TOKEN_TTL_DAYS` (default 365, the shared credential cryptoperiod of ADR-0036) from issue; there is no automatic refresh, an admin rotates it (#106, #395)
+4. **Overlap rotation**: a rotation stages the replacement *alongside* the token in the field; the first authentication with the new one promotes it and retires the old one (#395)
+5. **Step-up on issuance**: enrolling a terminal and rotating its token both require a fresh step-up credential; revocation does not
+6. **Revocable**: Admin can revoke token instantly; terminal gets 401 on next sync
 
 ---
 
@@ -30,7 +32,7 @@ The Club Bar system includes offline-capable Terminal devices (Electron POS) tha
 - **Storage**:
   - Server: SHA-256 hash (never plaintext)
   - Terminal: Local config file (outside app bundle)
-- **Lifetime**: `API_TOKEN_TTL_DAYS` from issue (default 90 days); rotated manually via admin panel
+- **Lifetime**: `API_TOKEN_TTL_DAYS` from issue (default 365 days); rotated manually via admin panel
 - **Scope**: One token per terminal device
 
 #### Why SHA-256 and not bcrypt
@@ -113,6 +115,32 @@ class TokenService
     }
 }
 ```
+
+### Overlap rotation: what "the token" means during a rollout
+
+Authentication is no longer a single lookup. A terminal can have two live
+credentials at once — the one in the field and a replacement an admin staged —
+so resolving a bearer token is:
+
+1. `findByTokenHash()` — the active credential. The common case, and first so a
+   terminal still using the old token pays for one query.
+2. `findByPendingTokenHash()` — a staged replacement, held to exactly the same
+   conditions (active terminal, expiry present, expiry in the future). Matching
+   here **promotes**: the pending columns are copied over the active ones and
+   cleared, in one `UPDATE` guarded on the hash so two syncs arriving together
+   cannot both promote. The request that loses that race re-reads the active
+   hash — which its rival has just filled in — and carries on.
+3. `findExpiredByTokenHash()` — a diagnostic only, to answer
+   `terminal_token_expired` rather than `invalid_terminal_token`.
+
+That is three steps with a state change in the middle, which is more than a
+PSR-15 middleware should own, so it lives in
+`Terminals\Services\TerminalTokenAuthenticator` and the middleware is left with
+the HTTP. The authenticator also writes `TERMINAL_TOKEN_ACTIVATED` on promotion
+and `TERMINAL_TOKEN_EXPIRED` on an aged-out token — the latter **once per
+expiry**, not once per attempt: a terminal keeps polling for as long as it stays
+switched on, and an audit log that recorded each attempt would tell an admin
+nothing they did not learn from the first line while hiding everything else.
 
 ### Middleware: Terminal Token Validation
 
@@ -478,6 +506,9 @@ final class AdminController
    - Rotation is manual via admin panel; an expired terminal stays locked out
      until an admin rotates it
    - No automatic refresh
+   - What overlap rotation buys is not refresh but *preparation*: an admin can
+     issue the replacement from a desk without taking the bar offline, and the
+     cut-over happens when somebody types it in (#395)
 
 2. **Token versioning** ✗
    - No concept of "revisions" or "generations"
@@ -498,6 +529,9 @@ CREATE TABLE terminals (
     api_token_hash VARCHAR(255) NULLABLE COMMENT 'SHA-256 hash of API token (never plaintext)',
     token_issued_at DATETIME NULLABLE COMMENT 'When the current token was issued',
     token_expires_at DATETIME NULLABLE COMMENT 'After this instant the token no longer authenticates (#106)',
+    pending_token_hash VARCHAR(255) NULLABLE COMMENT 'Replacement token; promoted on first successful auth (#395)',
+    pending_token_issued_at DATETIME NULLABLE COMMENT 'When the replacement was minted',
+    pending_token_expires_at DATETIME NULLABLE COMMENT 'Lifetime the replacement carries into its promotion',
     last_sync_at TIMESTAMP NULLABLE COMMENT 'Last successful sync request timestamp',
     is_active BOOLEAN DEFAULT TRUE COMMENT 'False = token revoked, terminal cannot sync',
 
@@ -585,8 +619,11 @@ never enrolled, and the operator needs to be told which.
 - **Manual token rotation**: No automatic refresh; admin must manage
 - **Token loss is permanent**: No way to recover lost tokens; must rotate
 - **Expiry is a scheduled outage**: a token that ages out takes its terminal
-  offline until an admin rotates it. Nothing warns before `token_expires_at`
-  arrives, so the first symptom is a bar that cannot sell
+  offline until an admin rotates it. Mitigated but not removed by #395 — the
+  Security & Credentials page warns on the shared 90/30/7 tiers and the terminal
+  itself says "sales disabled, an administrator must rotate the credential"
+  instead of failing silently, but an admin who reads neither still ends up with
+  a bar that cannot sell
 - **All terminals equal**: No differentiation of capabilities (all-or-nothing)
 
 ### Mitigations

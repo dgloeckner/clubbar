@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Terminals\Repositories;
 
+use App\Shared\Security\CredentialLifecycle;
 use App\Shared\Utils\Uuid;
 use PDO;
 use App\Shared\Logging\Logger;
@@ -57,22 +58,117 @@ class TerminalsRepository
     }
 
     /**
+     * The other half of the authentication lookup: a token an admin issued but
+     * nobody has used yet (#395).
+     *
+     * Held to exactly the same conditions as the active one — active terminal,
+     * expiry present, expiry in the future — because this row is about to
+     * *become* the active credential, and a pending token that would not pass
+     * findByTokenHash() must not pass by being new.
+     */
+    public function findByPendingTokenHash(string $sha256): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM terminals
+              WHERE pending_token_hash = ?
+                AND is_active = 1
+                AND pending_token_expires_at IS NOT NULL
+                AND pending_token_expires_at > NOW()
+              LIMIT 1'
+        );
+        $stmt->execute([$sha256]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Promote a pending token to active — the overlap rotation's closing move
+     * (#395). The old hash is overwritten in the same statement that installs
+     * the new one, so the credential it replaces is retired at the same instant
+     * its successor starts working; there is no window in which three tokens,
+     * or none, authenticate.
+     *
+     * Guarded on the hash as well as the id so two syncs arriving together
+     * cannot both promote: the second `UPDATE` matches no row, and its caller
+     * falls back to the ordinary active lookup, which the first has just filled
+     * in. Returns the promoted row, or null when it lost that race.
+     */
+    public function promotePendingToken(string $id, string $sha256): ?array
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE terminals
+                SET api_token_hash           = pending_token_hash,
+                    token_issued_at          = pending_token_issued_at,
+                    token_expires_at         = pending_token_expires_at,
+                    pending_token_hash       = NULL,
+                    pending_token_issued_at  = NULL,
+                    pending_token_expires_at = NULL,
+                    updated_at               = ?
+              WHERE id = ? AND pending_token_hash = ?'
+        );
+        $stmt->execute([date('Y-m-d H:i:s'), $id, $sha256]);
+
+        if ($stmt->rowCount() === 0) {
+            return null;
+        }
+
+        $this->logger->info('Terminal pending token promoted', ['id' => $id]);
+        return $this->findById($id);
+    }
+
+    /**
+     * Stage a replacement token without disturbing the one in the field (#395).
+     *
+     * The lifetime is measured from now, not from the promotion, so a token an
+     * admin prepares and forgets does not sit around indefinitely waiting to
+     * start a fresh year. Any earlier pending token is overwritten: the last
+     * one an admin wrote down is the only one that should still work.
+     */
+    public function issuePendingToken(string $id, string $sha256, int $ttlDays): ?array
+    {
+        $days = self::ttlDays($ttlDays);
+
+        $stmt = $this->db->prepare(
+            "UPDATE terminals
+                SET pending_token_hash       = ?,
+                    pending_token_issued_at  = NOW(),
+                    pending_token_expires_at = NOW() + INTERVAL {$days} DAY,
+                    updated_at               = ?
+              WHERE id = ?"
+        );
+        $stmt->execute([$sha256, date('Y-m-d H:i:s'), $id]);
+
+        if ($stmt->rowCount() === 0 && $this->findById($id) === null) {
+            return null;
+        }
+
+        $this->logger->info('Terminal pending token issued', ['id' => $id, 'ttl_days' => $days]);
+        return $this->findById($id);
+    }
+
+    /**
      * Counterpart of findByTokenHash() for a token that once was valid.
      *
      * Used only to tell an expired token apart from an unknown one in the 401,
      * so the operator of a terminal that stopped syncing learns to rotate it
      * instead of hunting a typo. It never returns a terminal that authenticates.
+     *
+     * Covers the pending column too: a replacement token that was prepared and
+     * then left unused past its own expiry aged out just the same, and telling
+     * its operator "unknown token" would send them hunting a typo in a token
+     * that was never wrong.
      */
     public function findExpiredByTokenHash(string $sha256): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT * FROM terminals
-              WHERE api_token_hash = ?
-                AND is_active = 1
-                AND (token_expires_at IS NULL OR token_expires_at <= NOW())
+              WHERE is_active = 1
+                AND (
+                     (api_token_hash = ? AND (token_expires_at IS NULL OR token_expires_at <= NOW()))
+                  OR (pending_token_hash = ? AND (pending_token_expires_at IS NULL OR pending_token_expires_at <= NOW()))
+                )
               LIMIT 1'
         );
-        $stmt->execute([$sha256]);
+        $stmt->execute([$sha256, $sha256]);
         return $stmt->fetch() ?: null;
     }
 
@@ -105,35 +201,13 @@ class TerminalsRepository
         return $this->findById($id);
     }
 
-    /**
-     * Issue a new token for an existing terminal and restart its lifetime (#106).
-     *
-     * Both the issue time and the expiry come from the database clock, the same
-     * one findByTokenHash() compares against, so a skew between the PHP and
-     * MariaDB hosts cannot shorten or extend a token's life.
-     */
-    public function rotateToken(string $id, string $sha256, int $ttlDays): ?array
-    {
-        $days = self::ttlDays($ttlDays);
-
-        $stmt = $this->db->prepare(
-            "UPDATE terminals
-                SET api_token_hash   = ?,
-                    token_issued_at  = NOW(),
-                    token_expires_at = NOW() + INTERVAL {$days} DAY,
-                    last_sync_at     = NULL,
-                    updated_at       = ?
-              WHERE id = ?"
-        );
-        $stmt->execute([$sha256, date('Y-m-d H:i:s'), $id]);
-
-        $this->logger->info('Terminal token rotated', ['id' => $id, 'ttl_days' => $days]);
-        return $this->findById($id);
-    }
-
     public function updateById(string $id, array $data): ?array
     {
-        $allowed = ['name', 'device_id', 'api_token_hash', 'is_active', 'last_sync_at', 'token_issued_at', 'token_expires_at'];
+        $allowed = [
+            'name', 'device_id', 'api_token_hash', 'is_active', 'last_sync_at',
+            'token_issued_at', 'token_expires_at',
+            'pending_token_hash', 'pending_token_issued_at', 'pending_token_expires_at',
+        ];
         [$set, $values] = SafeQuery::buildUpdate($data, $allowed);
         $values[] = date('Y-m-d H:i:s');
         $values[] = $id;
@@ -188,13 +262,14 @@ class TerminalsRepository
      *
      * MariaDB rejects a placeholder as the quantity of an INTERVAL, so the
      * value is inlined — casting to a positive int is what keeps that safe.
-     * A missing or non-positive lifetime falls back to the AppConfig default
-     * rather than producing a token that is born expired.
+     * A missing or non-positive lifetime falls back to the shared credential
+     * cryptoperiod (ADR-0036) rather than producing a token that is born
+     * expired — the same figure AppConfig defaults to.
      */
     private static function ttlDays(mixed $ttlDays): int
     {
         $days = (int) $ttlDays;
 
-        return $days > 0 ? $days : 90;
+        return $days > 0 ? $days : CredentialLifecycle::LIFETIME_DAYS;
     }
 }

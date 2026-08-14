@@ -189,6 +189,10 @@ class NetworkService {
         throw NetworkException(
           'Acknowledge pairing failed: HTTP ${response.statusCode}',
           statusCode: response.statusCode,
+          // This one call goes through `package:http` rather than Chopper, so
+          // the failed body is the response body itself — there is no `error`
+          // slot to read it out of.
+          errorCode: backendErrorCode(response.body),
         );
       }
 
@@ -225,6 +229,7 @@ class NetworkService {
         throw NetworkException(
           'Sync members failed: HTTP ${response.statusCode}',
           statusCode: response.statusCode,
+          errorCode: backendErrorCode(response.error),
         );
       }
 
@@ -258,6 +263,7 @@ class NetworkService {
         throw NetworkException(
           'Sync categories failed: HTTP ${response.statusCode}',
           statusCode: response.statusCode,
+          errorCode: backendErrorCode(response.error),
         );
       }
 
@@ -291,6 +297,7 @@ class NetworkService {
         throw NetworkException(
           'Sync products failed: HTTP ${response.statusCode}',
           statusCode: response.statusCode,
+          errorCode: backendErrorCode(response.error),
         );
       }
 
@@ -349,6 +356,7 @@ class NetworkService {
         throw NetworkException(
           'Sync transactions failed: HTTP ${response.statusCode}',
           statusCode: response.statusCode,
+          errorCode: backendErrorCode(response.error),
         );
       }
 
@@ -423,6 +431,7 @@ class NetworkService {
         throw NetworkException(
           'Get transaction history failed: HTTP ${response.statusCode}',
           statusCode: response.statusCode,
+          errorCode: backendErrorCode(response.error),
         );
       }
 
@@ -456,6 +465,7 @@ class NetworkService {
         throw NetworkException(
           'Update member language failed: HTTP ${response.statusCode}',
           statusCode: response.statusCode,
+          errorCode: backendErrorCode(response.error),
         );
       }
     } catch (e) {
@@ -470,10 +480,46 @@ class NetworkException implements Exception {
   final String message;
   final int? statusCode;
 
-  NetworkException(this.message, {this.statusCode});
+  /// The backend's machine-readable `error` field, when the failing response
+  /// carried one — e.g. `terminal_token_expired` (#106, #395).
+  ///
+  /// The status code alone cannot carry this: every terminal auth failure is a
+  /// 401, and the terminal has to tell "this credential aged out, an admin must
+  /// rotate it" apart from "this token was never valid", because only one of
+  /// them is something staff at the bar can be told to wait out.
+  final String? errorCode;
+
+  NetworkException(this.message, {this.statusCode, this.errorCode});
 
   @override
   String toString() =>
       'NetworkException: $message'
-      '${statusCode != null ? ' (HTTP $statusCode)' : ''}';
+      '${statusCode != null ? ' (HTTP $statusCode)' : ''}'
+      '${errorCode != null ? ' [$errorCode]' : ''}';
+}
+
+/// The `error` field of a failed Chopper response, or null when the body is not
+/// a JSON object with one.
+///
+/// Chopper hands the error body back as [Response.error], typed dynamic: a
+/// decoded map when the converter got to it, the raw string when it did not.
+/// Both shapes appear in practice, so both are read here rather than at every
+/// call site.
+String? backendErrorCode(Object? error) {
+  Object? decoded = error;
+
+  if (decoded is String) {
+    if (decoded.isEmpty) return null;
+    try {
+      decoded = jsonDecode(decoded);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  if (decoded is Map && decoded['error'] is String) {
+    return decoded['error'] as String;
+  }
+
+  return null;
 }

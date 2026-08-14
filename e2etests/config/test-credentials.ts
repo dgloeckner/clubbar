@@ -34,6 +34,10 @@ export const TEST_CREDENTIALS = {
     token: 'expired-terminal-token-do-not-use-in-production-9z8y7x6w5v4u',
     deviceId: 'test-device-expired-001',
     name: 'Expired Test Terminal',
+    // Read-only in tests. Its whole value is being the one terminal in an
+    // expired state, so anything that rotates or revokes it takes that state
+    // away from every other spec (E2E Pattern 001).
+    id: '44e4567-e89b-12d3-a456-426614174001',
   },
 
   // TOTP secrets for two-factor authentication tests

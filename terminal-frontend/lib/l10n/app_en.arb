@@ -212,5 +212,9 @@
   "pairingMismatchTitle": "Backend has changed",
   "pairingMismatchInstruction": "{count, plural, =0{No local sales are waiting to sync.} =1{1 local sale is waiting to sync and has not been confirmed by this backend.} other{{count} local sales are waiting to sync and have not been confirmed by this backend.}} Only resume if an admin has confirmed this backend still has this terminal's history.",
   "pairingMismatchResume": "Resume syncing",
-  "pairingMismatchResumeFailed": "Could not confirm with the server — still paused. Please check the connection and try again."
+  "pairingMismatchResumeFailed": "Could not confirm with the server — still paused. Please check the connection and try again.",
+  "credentialExpiredWarning": "Sales disabled: this terminal's credential has expired. An administrator must issue a new token.",
+  "credentialExpiredTitle": "Credential expired",
+  "credentialExpiredInstruction": "This terminal's API token has expired, so no sale can be recorded. An administrator rotates the token in the admin panel under Settings → Credentials and enters the new one here. Sales stay disabled until then.",
+  "credentialExpiredCheckoutBlocked": "Sales disabled"
 }

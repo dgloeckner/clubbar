@@ -30,6 +30,7 @@ import { Alert } from '../common/Alert'
 import { Badge } from '../common/Badge'
 import { StepUpConfirmDialog, type StepUpCredentials } from '../modals/StepUpConfirmDialog'
 import { KeyRotationDialog, type KeyRotationProgress } from '../modals/KeyRotationDialog'
+import { TerminalCredentials } from './TerminalCredentials'
 import { modalInputStyle } from '../modals/ModalError'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getSecurity } from '../../api/generated/security/security'
@@ -385,6 +386,12 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
         onComplete={handleCompleteRotation}
         onClose={closeDialogs}
       />
+
+      {/* The other long-lived credential the club owns (#395). Same page, same
+          warning tiers — an admin should not have to know that one lives under
+          "Terminals" and the other under "Credentials" to find out which is
+          about to lapse. */}
+      <TerminalCredentials callerTotpEnabled={callerTotpEnabled} />
     </div>
   )
 }

@@ -56,6 +56,10 @@ void main() {
       when(() => mockSyncProvider.isSyncing).thenReturn(false);
       when(() => mockSyncProvider.connectionStatus).thenReturn(ConnectionStatus.online);
       when(() => mockSyncProvider.pairingMismatch).thenReturn(false);
+      // #395: MainLayout renders CredentialExpiredBanner above every
+      // screen, and an unstubbed non-nullable getter throws rather than
+      // reading as false.
+      when(() => mockSyncProvider.credentialExpired).thenReturn(false);
       when(() => mockSyncProvider.addListener(any())).thenReturn(null);
       when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
 
