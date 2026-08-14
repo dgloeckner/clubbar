@@ -306,21 +306,43 @@ export function MainLayout({ children }: MainLayoutProps) {
         )}
       </header>
 
-      {/* Main Content */}
+      {/*
+        Main Content.
+
+        Two elements, not one, and the split is the whole point (#379): the
+        scrolling element is full width, and the 1400px cap lives on an inner
+        wrapper. When `<main>` was itself the capped, centred scroller, the
+        scrollbar it produced was drawn at *its* right edge — floating a couple
+        of hundred pixels inside a wide window, under a full-width header, which
+        reads as a bar that has come loose. The scrollbar belongs at the edge of
+        the window.
+
+        The wrapper also owns the page gutter (#375). Half the tabs used to add
+        `padding: '20px'` of their own on top of this one and half did not, so
+        the same title started at two different x-positions depending on which
+        tab you were on. One gutter, defined here, for every page.
+      */}
       <main
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: isMobile ? `${theme.spacing.md} ${theme.spacing.sm}` : theme.spacing.xl,
-          paddingBottom: isMobile ? '72px' : undefined,
-          maxWidth: '1400px',
-          margin: '0 auto',
-          width: '100%',
-          boxSizing: 'border-box',
           overflowX: 'hidden',
+          width: '100%',
         }}
       >
-        {children}
+        <div
+          data-testid="page-content"
+          style={{
+            padding: isMobile ? `${theme.spacing.md} ${theme.spacing.sm}` : theme.spacing.xl,
+            paddingBottom: isMobile ? '72px' : undefined,
+            maxWidth: '1400px',
+            margin: '0 auto',
+            width: '100%',
+            boxSizing: 'border-box',
+          }}
+        >
+          {children}
+        </div>
       </main>
 
       {/* Footer */}

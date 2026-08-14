@@ -517,7 +517,109 @@ function IbanInput({ iban, validateIban }) {
 
 ---
 
+### Layout Components
+
+#### PageHeader Component
+
+The top block every admin page opens with: title left, optional line under it,
+optional page-level actions right (issue #375).
+
+**File**: `src/components/layout/PageHeader.tsx`
+
+**Rules**:
+- **Every page uses it.** A page that hand-rolls its own `<h1>` is how the tabs
+  drifted apart in the first place: Products had a bare `<h1>` at the browser's
+  default size, Journal an `<h1 style={{ margin: '0 0 20px 0' }}>`, Members a
+  26px one with a count line, Settlements a flex row with the primary action
+  beside it, and Journal a *second* bar below the title just for its action.
+- **Page actions go in `actions`** — top right, on the title's row. Not in the
+  toolbar (that is for filters, search and the result count), not in a bar of
+  their own. Products' and Categories' create buttons used to sit in the
+  toolbar on desktop and inside `MobileToolbar` on mobile, so the same button
+  moved rows when the window was resized; one `PageActionButton` in `actions`
+  covers both breakpoints.
+- **The page does not add its own padding.** `MainLayout` owns the page gutter
+  for every page — half the pages used to add `padding: '20px'` on top of it,
+  which is why the same title started at two x-positions depending on the tab.
+- **Section tabs come after the header**, not before it: title, then
+  `MembersTabs`, then the section's content.
+
+**Props**:
+- `title` (ReactNode, required): The page's name — the same word the nav uses
+- `subtitle` (ReactNode, optional): One line under the title (a result count, a
+  note about what the screen sweeps). Pass a node when it needs a test id
+- `actions` (ReactNode, optional): `PageActionButton`s, right-aligned
+- `testId` (string, default `page-header`)
+
+**Example** (`src/pages/SettlementsPage.tsx`):
+```typescript
+import { PageHeader } from '@/components/layout/PageHeader'
+import { PageActionButton } from '@/components/common/PageActionButton'
+
+<PageHeader
+  title={t('settlements.title')}
+  actions={
+    <>
+      <PageActionButton variant="warning" data-testid="settlements-record-bank-return-btn" onClick={openLookup}>
+        {t('settlements.recordBankReturn')}
+      </PageActionButton>
+      <PageActionButton variant="success" data-testid="settlements-new-btn" onClick={goToNewSettlement}>
+        {t('newSettlement.title')}
+      </PageActionButton>
+    </>
+  }
+/>
+```
+
+There is deliberately no exported title style: a page that wants an `<h1>` of
+its own is a page that will drift, so it renders `PageHeader` instead.
+
+---
+
 ### Table Components
+
+#### PageActionButton Component
+
+A page-level action, the kind that goes in `PageHeader`'s `actions` slot. It
+fixes the button's shape — padding, radius, weight, icon gap, hover — so a call
+site chooses only *what kind of action* it is (issue #375).
+
+**File**: `src/components/common/PageActionButton.tsx`
+
+**Why**: the same action did not look like the same action across tabs. "Neue
+Abrechnung" was emerald / 6px radius / weight 500 on Settlements and blue /
+8px radius / weight 600 / `+ `-prefixed on Journal; Members' three buttons had
+a third shape again.
+
+**Props**:
+- `children` (ReactNode, required): Button label
+- `variant` ('primary' | 'success' | 'warning' | 'secondary', default `primary`):
+  `primary` for the page's main action, `success` for one that commits money or
+  files, `warning` for one that corrects something after the fact, `secondary`
+  for anything that must not compete with them
+- `icon` (ReactNode, optional): Rendered before the label
+- `iconOnly` (boolean, default false): Drop the label, keep the icon — for
+  narrow viewports. Set `title`/`aria-label`, which then carry the name
+- Plus any native `<button>` prop (`onClick`, `disabled`, `data-testid`, ...)
+
+**Example**:
+```typescript
+<PageActionButton
+  data-testid="products-create-button"
+  onClick={openCreateModal}
+  iconOnly={isMobile}
+  icon={<PlusIcon size={18} />}
+  title={t('products.createProduct')}
+>
+  {t('products.createProduct')}
+</PageActionButton>
+```
+
+**`PillActionButton` is the row-level sibling** (below): smaller, one per table
+row, and colour-per-call-site because a row action's colour tracks its row's
+state. A page action has no row, so it gets a fixed vocabulary instead.
+
+---
 
 #### PillActionButton Component
 

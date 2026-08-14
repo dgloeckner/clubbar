@@ -57,6 +57,8 @@ module.exports = {
         'src/components/tables/SortableTableHeader.tsx',
         'src/components/tables/MobileFilterRow.tsx',
         'src/components/common/LoadingIndicator.tsx',
+        'src/components/common/PageActionButton.tsx',
+        'src/components/layout/PageHeader.tsx',
       ],
       rules: {
         'no-restricted-syntax': [

@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
@@ -780,8 +781,8 @@ export function SettingsPage() {
   }
 
   return (
-    <div data-testid="settings-page" style={{ padding: '20px' }}>
-      <h1 style={{ margin: '0 0 20px 0' }}>{t('settings.title')}</h1>
+    <div data-testid="settings-page">
+      <PageHeader title={t('settings.title')} />
 
       {/* Tabs Navigation */}
       <div style={{ marginBottom: theme.spacing.xl }}>

@@ -41,7 +41,9 @@ import { PriceCell } from '../components/tables/PriceCell'
 import { BadgeCell } from '../components/tables/BadgeCell'
 import { ActionButtons } from '../components/tables/ActionButtons'
 import { Badge } from '../components/common/Badge'
-import { EditIcon, TrashIcon } from '../components/icons'
+import { EditIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { PageActionButton } from '../components/common/PageActionButton'
+import { PageHeader } from '../components/layout/PageHeader'
 import { ListLoadingOverlay } from '../components/tables/ListLoadingOverlay'
 import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
@@ -411,8 +413,25 @@ export function ProductsPage() {
   }
 
   return (
-    <div data-testid="products-page" style={{ padding: '20px' }}>
-      <h1>{t('products.title')}</h1>
+    <div data-testid="products-page">
+      <PageHeader
+        title={t('products.title')}
+        actions={
+          /* One position for the primary action, on every tab (#375). This
+             one used to live inside the desktop toolbar and, on mobile, inside
+             MobileToolbar — two places, neither of them where Members and
+             Settlements keep theirs. */
+          <PageActionButton
+            data-testid="products-create-button"
+            onClick={openCreateModal}
+            iconOnly={isMobile}
+            icon={<PlusIcon size={18} />}
+            title={t('products.createProduct')}
+          >
+            {t('products.createProduct')}
+          </PageActionButton>
+        }
+      />
 
       {error && (
         <div
@@ -483,8 +502,6 @@ export function ProductsPage() {
             filterCount={mobileFilterCount}
             onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
             showFilters={showMobileFilters}
-            onCreate={openCreateModal}
-            createTestId="products-create-button"
             filterContent={
               <>
                 <MobileFilterRow
@@ -680,25 +697,6 @@ export function ProductsPage() {
             onChange={handleCategoryFilterChange}
             testId="products-search-sort-category"
           />
-
-          {/* Create button */}
-          <button
-            data-testid="products-create-button"
-            onClick={openCreateModal}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: theme.colors.semantic.primary,
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            + {t('products.createProduct')}
-          </button>
         </div>
       </div>
 

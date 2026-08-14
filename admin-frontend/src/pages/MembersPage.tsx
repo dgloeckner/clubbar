@@ -6,6 +6,8 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/common/StatCard'
+import { PageActionButton } from '../components/common/PageActionButton'
+import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
@@ -521,7 +523,78 @@ export function MembersPage() {
         : '1fr'
 
   return (
-    <div data-testid="members-page" style={{ padding: '20px' }}>
+    <div data-testid="members-page">
+      {/*
+        Title, then the section's tabs, then the section's content — the order
+        `ExcludedFromCollectionPage` already uses, and since #375 the order
+        here too. This page used to open with the tab strip and only name
+        itself further down, past the stat cards, so the two halves of one
+        section disagreed about where the section's name lives.
+      */}
+      <PageHeader
+        title={t('members.title')}
+        subtitle={
+          <span data-testid="members-count-summary">
+            {t('members.countFound', { count: totalMembers })}
+          </span>
+        }
+        actions={
+          <>
+            <input
+              ref={scanInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              style={{ display: 'none' }}
+              data-testid="members-scan-input"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (file) await handleNewFromScan(file)
+                if (scanInputRef.current) scanInputRef.current.value = ''
+              }}
+            />
+            <PageActionButton
+              variant="secondary"
+              data-testid="members-new-from-scan-button"
+              onClick={() => scanInputRef.current?.click()}
+              disabled={scanExtracting}
+              iconOnly={isMobile}
+              icon={<ScanIcon size={18} />}
+              // The upload is in flight, not refused — `not-allowed` would say
+              // the wrong thing about a button that works again in a second.
+              style={scanExtracting ? { cursor: 'wait' } : undefined}
+              title={scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
+            >
+              {scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
+            </PageActionButton>
+            <PageActionButton
+              variant="secondary"
+              data-testid="members-sepa-template-download-button"
+              onClick={handleDownloadSepaTemplate}
+              iconOnly={isMobile}
+              icon={<DownloadIcon size={18} />}
+              title={t('members.downloadSepaTemplate')}
+            >
+              {t('members.downloadSepaTemplate')}
+            </PageActionButton>
+            <PageActionButton
+              data-testid="members-create-button"
+              onClick={() => {
+                setEditingMember(null)
+                setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
+                setFormErrors({})
+                setRemoveStoredIban(false)
+                setShowModal(true)
+              }}
+              iconOnly={isMobile}
+              icon={<PlusIcon size={18} />}
+              title={t('common.add')}
+            >
+              {t('common.add')}
+            </PageActionButton>
+          </>
+        }
+      />
+
       <MembersTabs excludedCount={excludedLoading ? undefined : excludedCount} />
 
       {/* Stats Grid */}
@@ -593,102 +666,6 @@ export function MembersPage() {
           </button>
         </div>
       )}
-
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', gap: '12px' }}>
-        <div style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: '26px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>{t('members.title')}</h1>
-          <p data-testid="members-count-summary" style={{ margin: '4px 0 0', fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>
-            {t('members.countFound', { count: totalMembers })}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: isMobile ? '6px' : '8px', flexShrink: 0 }}>
-          <input
-            ref={scanInputRef}
-            type="file"
-            accept="image/*,.pdf"
-            style={{ display: 'none' }}
-            data-testid="members-scan-input"
-            onChange={async (e) => {
-              const file = e.target.files?.[0]
-              if (file) await handleNewFromScan(file)
-              if (scanInputRef.current) scanInputRef.current.value = ''
-            }}
-          />
-          <button
-            data-testid="members-new-from-scan-button"
-            onClick={() => scanInputRef.current?.click()}
-            disabled={scanExtracting}
-            title={scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '7px',
-              padding: isMobile ? '10px' : '10px 20px',
-              borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.15)',
-              background: 'transparent',
-              color: scanExtracting ? 'rgba(255,255,255,0.4)' : 'white',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: scanExtracting ? 'wait' : 'pointer',
-            }}
-          >
-            <ScanIcon size={18} />
-            {!isMobile && (scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan'))}
-          </button>
-          <button
-            data-testid="members-sepa-template-download-button"
-            onClick={handleDownloadSepaTemplate}
-            title={t('members.downloadSepaTemplate')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '7px',
-              padding: isMobile ? '10px' : '10px 20px',
-              borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.15)',
-              background: 'transparent',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'background 0.15s',
-            }}
-          >
-            <DownloadIcon size={18} />
-            {!isMobile && t('members.downloadSepaTemplate')}
-          </button>
-          <button
-            data-testid="members-create-button"
-            onClick={() => {
-              setEditingMember(null)
-              setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
-              setFormErrors({})
-              setRemoveStoredIban(false)
-              setShowModal(true)
-            }}
-            title={t('common.add')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '7px',
-              padding: isMobile ? '10px' : '10px 20px',
-              borderRadius: '8px',
-              border: 'none',
-              background: theme.colors.semantic.primary,
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'background 0.15s',
-            }}
-          >
-            <PlusIcon size={18} />
-            {!isMobile && t('common.add')}
-          </button>
-        </div>
-      </div>
 
       {/* Above the breakpoint split on purpose: rendered inside the desktop
           branch, load failures, anonymize 409s and status-toggle errors were

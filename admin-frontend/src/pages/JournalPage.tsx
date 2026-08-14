@@ -28,6 +28,8 @@ import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { PillFilter, type PillFilterOption } from '../components/forms/PillFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
+import { PageActionButton } from '../components/common/PageActionButton'
+import { PageHeader } from '../components/layout/PageHeader'
 import { useListQuery } from '../hooks/useListQuery'
 import { getTransactions } from '../api/generated/transactions/transactions'
 import { getTransactionTypeColor, getAmountColor } from '../utils/transactions'
@@ -280,48 +282,27 @@ export function JournalPage() {
 
   return (
     <div data-testid="journal-page">
-      <h1 style={{ margin: '0 0 20px 0' }}>{t('journal.title')}</h1>
-        {/* Action buttons bar */}
-        <div
-          data-testid="journal-actions-bar"
-          style={{
-            padding: tableSpacing.cellPadding,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 12,
-            flexWrap: 'wrap',
-            borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
-          }}
-        >
-          {/*
+      <PageHeader
+        title={t('journal.title')}
+        actions={
+          /*
             Settlement selection left this screen in ADR-0030: a run picks
             members and settles each in full, which a paginated transaction
-            list under a date filter cannot honestly represent.
-          */}
-          <button
+            list under a date filter cannot honestly represent. So this is a
+            link to that run, and since #375 it looks like the same link on
+            Settlements — same label, same colour, same corner of the page.
+            It used to be a blue `+ `-prefixed button on a bar of its own,
+            below the title, which made one action look like two.
+          */
+          <PageActionButton
+            variant="success"
             data-testid="journal-new-settlement-link"
             onClick={() => navigate('/settlements/new')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: theme.colors.semantic.primary,
-              color: 'white',
-              border: 'none',
-              borderRadius: 6,
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'background-color 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = theme.colors.semantic.primaryHover
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = theme.colors.semantic.primary
-            }}
           >
-            + {t('newSettlement.title')}
-          </button>
-        </div>
+            {t('newSettlement.title')}
+          </PageActionButton>
+        }
+      />
 
         {isMobile ? (
           <>
