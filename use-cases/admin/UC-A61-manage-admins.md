@@ -44,8 +44,16 @@ Admin opens Settings → Administrators
 - Cannot deactivate own account
 - At least one active admin required
 
+## Own Account
+The signed-in admin's own row is marked as such and its active switch is
+locked. Deactivating it would end the admin's session on the next request and
+leave no way back in, so the control is withheld rather than offered and then
+refused. The API enforces the same rule independently (409).
+
 ## Test Derivation
 - List admins: all shown
 - Last login: accurate timestamp
 - Self-deactivate: prevented
+- Own row: marked, active switch disabled
+- Other rows: active switch operable
 - Last admin: cannot deactivate

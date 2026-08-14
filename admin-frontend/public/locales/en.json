@@ -488,6 +488,8 @@
       "creditorIbanStored": "On file: {{masked}}. Leave empty to keep it, or enter the full IBAN to replace it."
     },
     "deactivateAdminConfirm": "Are you sure you want to deactivate this admin user?",
+    "ownAccount": "You",
+    "cannotDeactivateOwnAccount": "You cannot deactivate your own account",
     "terminals": "Terminals",
     "createTerminal": "Create Terminal",
     "editTerminal": "Edit Terminal",

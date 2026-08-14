@@ -18,6 +18,13 @@ import { useFormatters } from '../../hooks/useFormatters'
 export interface AdminUsersTabProps {
   users: AdminUser[]
   loading: boolean
+  /**
+   * Id of the signed-in admin, so their own row can be marked and its
+   * active-toggle locked (#382). Null until the profile has loaded — the row
+   * is treated as somebody else's until we know otherwise, which is safe:
+   * the backend rejects self-deactivation with a 409 regardless.
+   */
+  currentAdminId?: string | null
   onCreateUser: () => void
   onEditUser: (admin: AdminUser) => void
   onResetPassword: (id: string) => void
@@ -30,6 +37,7 @@ export interface AdminUsersTabProps {
 export function AdminUsersTab({
   users,
   loading,
+  currentAdminId = null,
   onCreateUser,
   onEditUser,
   onResetPassword,
@@ -41,6 +49,52 @@ export function AdminUsersTab({
   const { formatRelativeDate } = useFormatters()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'mobile' || breakpoint === 'smallMobile'
+
+  /**
+   * Deactivating your own account signs you out on the very next request and
+   * leaves no way back in — UC-A61 forbids it and the backend enforces it with
+   * a 409. Offering the switch anyway turned that rule into an error banner
+   * after the fact; here it is simply not offered (#382).
+   */
+  const isSelf = (adminId: string) => currentAdminId !== null && adminId === currentAdminId
+
+  const renderActiveToggle = (admin: AdminUser) => {
+    const self = isSelf(admin.id)
+
+    return (
+      <Toggle
+        isEnabled={admin.is_active}
+        disabled={self}
+        onChange={(enabled) => {
+          if (self) return
+          if (enabled) {
+            onReactivateUser(admin.id)
+          } else {
+            onDeactivateUser(admin.id)
+          }
+        }}
+        testId={`settings-admin-user-toggle-${admin.id}`}
+      />
+    )
+  }
+
+  /**
+   * Marks the caller's own row and carries the reason its switch is locked.
+   * The tooltip hangs off the badge rather than off the switch: a disabled
+   * button dispatches no mouse events, so a tooltip wrapped around one never
+   * opens.
+   */
+  const renderSelfBadge = (admin: AdminUser) =>
+    isSelf(admin.id) ? (
+      <Tooltip content={t('settings.cannotDeactivateOwnAccount')} position="top">
+        <Badge
+          label={t('settings.ownAccount')}
+          variant="info"
+          showDot={false}
+          testId={`settings-admin-user-self-badge-${admin.id}`}
+        />
+      </Tooltip>
+    ) : null
 
   if (loading) {
     return (
@@ -115,23 +169,14 @@ export function AdminUsersTab({
               >
                 {/* Row 1: Toggle + Name */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md, marginBottom: theme.spacing.sm }}>
-                  <Toggle
-                    isEnabled={admin.is_active}
-                    onChange={(enabled) => {
-                      if (enabled) {
-                        onReactivateUser(admin.id)
-                      } else {
-                        onDeactivateUser(admin.id)
-                      }
-                    }}
-                    testId={`settings-admin-user-toggle-${admin.id}`}
-                  />
+                  {renderActiveToggle(admin)}
                   <span
                     data-testid={`settings-admin-user-name-${admin.id}`}
                     style={{ fontWeight: theme.typography.fontWeight.semibold, fontSize: theme.typography.fontSize.sm }}
                   >
                     {admin.display_name}
                   </span>
+                  {renderSelfBadge(admin)}
                 </div>
 
                 {/* Row 2: Email */}
@@ -310,18 +355,9 @@ export function AdminUsersTab({
                         gap: theme.spacing.md,
                       }}
                     >
-                      <Toggle
-                        isEnabled={admin.is_active}
-                        onChange={(enabled) => {
-                          if (enabled) {
-                            onReactivateUser(admin.id)
-                          } else {
-                            onDeactivateUser(admin.id)
-                          }
-                        }}
-                        testId={`settings-admin-user-toggle-${admin.id}`}
-                      />
+                      {renderActiveToggle(admin)}
                       <span data-testid={`settings-admin-user-name-${admin.id}`}>{admin.display_name}</span>
+                      {renderSelfBadge(admin)}
                     </td>
 
                     {/* Email */}

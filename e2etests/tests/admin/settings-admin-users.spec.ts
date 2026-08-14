@@ -9,6 +9,7 @@
 
 import { test, expect } from '../../fixtures/pageObjects'
 import { SettingsPage } from '../../pages'
+import { TEST_CREDENTIALS } from '../../config/test-credentials'
 
 /**
  * Helper: Generate unique string for test data isolation
@@ -658,6 +659,59 @@ test.describe('Admin Users Management', () => {
 
     // Should have at least one admin (the test user)
     expect(count).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * Issue #382: deactivating your own account signs you out on the next request
+ * and leaves no way back in. UC-A61 forbids it and the backend answers 409, but
+ * the list used to offer the switch anyway and surface the refusal as an error
+ * banner. The switch is now locked on the caller's own row, and that row is
+ * marked so it is obvious which one it is.
+ */
+test.describe('Self-lockout protection', () => {
+  test('locks the active switch on the signed-in admin\'s own row', async ({
+    authenticatedSettingsPage,
+  }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickAdminUsersTab()
+
+    // The own row is marked and its switch cannot be operated
+    await authenticatedSettingsPage.expectOwnAccountBadgeVisible(TEST_CREDENTIALS.admin.email)
+    await authenticatedSettingsPage.expectAdminUserToggleDisabled(TEST_CREDENTIALS.admin.email)
+
+    // The account is still active — a locked switch is not a deactivated one
+    const status = await authenticatedSettingsPage.getAdminUserStatus(TEST_CREDENTIALS.admin.email)
+    expect(status).toBe('active')
+  })
+
+  test('leaves other admins deactivatable', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickAdminUsersTab()
+
+    const testData = generateTestAdminUser()
+
+    const adminUsersLoaded = authenticatedSettingsPage.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+    )
+
+    await authenticatedSettingsPage.clickCreateAdminButton()
+    await authenticatedSettingsPage.fillCreateAdminForm(testData)
+    await authenticatedSettingsPage.clickCreateAdminConfirm()
+    await authenticatedSettingsPage.waitForPasswordModal()
+    await authenticatedSettingsPage.closePasswordModal()
+    await adminUsersLoaded
+
+    // Somebody else's row carries no marker and stays operable
+    await authenticatedSettingsPage.expectOwnAccountBadgeHidden(testData.email)
+    await authenticatedSettingsPage.expectAdminUserToggleEnabled(testData.email)
+
+    // ...and deactivating it really does take effect
+    await authenticatedSettingsPage.clickDeactivateButton(testData.email)
+    expect(await authenticatedSettingsPage.getAdminUserStatus(testData.email)).toBe('inactive')
   })
 })
 

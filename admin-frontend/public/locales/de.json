@@ -488,6 +488,8 @@
       "creditorIbanStored": "Gespeichert: {{masked}}. Leer lassen, um sie zu behalten, oder vollständige IBAN eingeben, um sie zu ersetzen."
     },
     "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?",
+    "ownAccount": "Sie",
+    "cannotDeactivateOwnAccount": "Sie können Ihr eigenes Konto nicht deaktivieren",
     "terminals": "Terminals",
     "createTerminal": "Terminal erstellen",
     "editTerminal": "Terminal bearbeiten",

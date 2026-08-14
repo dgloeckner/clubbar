@@ -124,6 +124,10 @@ export function SettingsPage() {
   // Whether the *caller* (not the target being acted on) has 2FA enabled —
   // decides whether the step-up dialog asks for a TOTP code (#337).
   const [callerTotpEnabled, setCallerTotpEnabled] = useState(false)
+  // Who is signed in. Read from the API rather than localStorage so the
+  // Administrators tab can tell which row is the caller's own account and
+  // withhold the one action that would sign them out (#382).
+  const [callerAdminId, setCallerAdminId] = useState<string | null>(null)
   // Failure from the last step-up attempt (wrong password/code); shown inside
   // the step-up dialog itself, which stays open so the admin can retry.
   const [stepUpError, setStepUpError] = useState<string | null>(null)
@@ -222,12 +226,19 @@ export function SettingsPage() {
 
   // The step-up dialogs (2FA reset, password reset, #337) need to know
   // whether the *signed-in* admin has 2FA enabled, to decide whether to ask
-  // for a TOTP code alongside the password. Fetched once — it does not
-  // change over the life of the page.
+  // for a TOTP code alongside the password. The same profile also names the
+  // caller, which the Administrators tab needs to mark their own row (#382).
+  // Fetched once — neither changes over the life of the page.
   useEffect(() => {
     getProfile()
-      .then((profile) => setCallerTotpEnabled(!!profile.totp_enabled))
-      .catch(() => setCallerTotpEnabled(false))
+      .then((profile) => {
+        setCallerTotpEnabled(!!profile.totp_enabled)
+        setCallerAdminId(profile.id)
+      })
+      .catch(() => {
+        setCallerTotpEnabled(false)
+        setCallerAdminId(null)
+      })
   }, [])
 
   // Load terminals when terminals tab is active
@@ -878,6 +889,7 @@ export function SettingsPage() {
         <AdminUsersTab
           users={adminUsers}
           loading={adminUsersLoading}
+          currentAdminId={callerAdminId}
           onCreateUser={() => {
             clearModalError()
             setShowCreateAdminModal(true)
