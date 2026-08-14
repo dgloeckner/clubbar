@@ -996,7 +996,17 @@ export function SettlementsPage() {
               <div data-testid="settlements-table-wrapper" style={tableWrapperStyles}>
                 <table
                   data-testid="settlements-table"
-                  style={tableElementStyles}
+                  style={{
+                    ...tableElementStyles,
+                    // `table-layout: fixed` gave every column an equal ~16%
+                    // share regardless of content, so the actions column —
+                    // which holds up to five buttons — was squeezed into the
+                    // same width as "Date". That is what made the row wrap
+                    // raggedly, one stray button per broken line (#373).
+                    // `auto` lets the browser size each column to what its
+                    // content actually needs.
+                    tableLayout: 'auto',
+                  }}
                 >
                   <thead>
                     <tr style={headerRowStyle}>
@@ -1027,7 +1037,7 @@ export function SettlementsPage() {
                       <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('settlements.summary')}</th>
                       <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('common.amount')}</th>
                       <th style={headerCellBaseStyle}>{t('settlements.status')}</th>
-                      <th style={{ ...headerCellBaseStyle, textAlign: 'center' }}>{t('common.actions')}</th>
+                      <th style={{ ...headerCellBaseStyle, textAlign: 'center', whiteSpace: 'nowrap' }}>{t('common.actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1035,7 +1045,19 @@ export function SettlementsPage() {
                       <Fragment key={settlement.id}>
                       <tr
                         data-testid={`settlements-table-row-${settlement.id}`}
-                        style={getRowStyle(!settlement.is_cancelled)}
+                        // Table rows default to `vertical-align: middle`, which
+                        // centers each cell's content *block* independently.
+                        // The status cell is two lines whenever the awaiting-
+                        // confirmation caption is shown, and the summary/date
+                        // cells are two lines whenever a transaction period or
+                        // reversed-count line is shown — so their first line
+                        // (the pill, the date) sits above the row's vertical
+                        // centre while the single-line actions row sits
+                        // exactly on it, and the two visibly don't line up.
+                        // Top-aligning every cell keeps every column's first
+                        // line flush with the row's top regardless of how many
+                        // lines follow (#373 follow-up).
+                        style={{ ...getRowStyle(!settlement.is_cancelled), verticalAlign: 'top' }}
                         onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
                           if (!settlement.is_cancelled) {
                             e.currentTarget.style.backgroundColor = tableColors.rowActiveHoverBg
@@ -1162,7 +1184,12 @@ export function SettlementsPage() {
                             textAlign: 'center',
                           }}
                         >
-                          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                          {/* One line, not a wrap that breaks unevenly (#373):
+                              the buttons stay `nowrap` and the table wrapper's
+                              own `overflow-x: auto` scrolls horizontally on a
+                              narrow viewport instead of the row reflowing into
+                              a ragged second line. */}
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
                             {/* The member breakdown (§7). The settlement detail
                                 page was deliberately deleted; what failed to
                                 justify a page can still justify a disclosure,
