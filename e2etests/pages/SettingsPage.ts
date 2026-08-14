@@ -837,10 +837,53 @@ export class SettingsPage {
       return null
     }
 
-    // Status is determined by the toggle button's aria-pressed attribute
+    // Status is determined by the toggle switch's aria-checked attribute
     const toggleBtn = row.locator('[data-testid^="settings-admin-user-toggle-"]')
-    const isPressed = await toggleBtn.getAttribute('aria-pressed')
-    return isPressed === 'true' ? 'active' : 'inactive'
+    const isChecked = await toggleBtn.getAttribute('aria-checked')
+    return isChecked === 'true' ? 'active' : 'inactive'
+  }
+
+  /**
+   * The active/inactive switch on an admin's row. Private per Pattern 006 —
+   * tests assert through the expectations below.
+   */
+  private async adminUserToggle(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+    return this.page.getByTestId(`settings-admin-user-toggle-${adminId}`)
+  }
+
+  /**
+   * Expect the active switch on this admin's row to be locked — the signed-in
+   * admin must not be able to deactivate themselves (#382, UC-A61).
+   */
+  async expectAdminUserToggleDisabled(email: string) {
+    await expect(await this.adminUserToggle(email)).toBeDisabled()
+  }
+
+  /** Expect the active switch on this admin's row to be operable. */
+  async expectAdminUserToggleEnabled(email: string) {
+    await expect(await this.adminUserToggle(email)).toBeEnabled()
+  }
+
+  /** Expect the "own account" marker on this admin's row (#382). */
+  async expectOwnAccountBadgeVisible(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+    await expect(this.page.getByTestId(`settings-admin-user-self-badge-${adminId}`)).toBeVisible()
+  }
+
+  /** Expect no "own account" marker on this admin's row (#382). */
+  async expectOwnAccountBadgeHidden(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+    await expect(this.page.getByTestId(`settings-admin-user-self-badge-${adminId}`)).toHaveCount(0)
   }
 
   /**
