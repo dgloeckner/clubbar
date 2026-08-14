@@ -189,7 +189,10 @@ class NetworkService {
         throw NetworkException(
           'Acknowledge pairing failed: HTTP ${response.statusCode}',
           statusCode: response.statusCode,
-          errorCode: backendErrorCode(response.error),
+          // This one call goes through `package:http` rather than Chopper, so
+          // the failed body is the response body itself — there is no `error`
+          // slot to read it out of.
+          errorCode: backendErrorCode(response.body),
         );
       }
 

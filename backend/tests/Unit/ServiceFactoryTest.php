@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Modules\Terminals\Services\TerminalTokenAuthenticator;
 use App\Modules\Terminals\Services\TerminalsService;
 use App\ServiceFactory;
 use App\Shared\Config\AppConfig;
@@ -81,6 +82,24 @@ class ServiceFactoryTest extends TestCase
         $factory = $this->factory();
 
         $this->assertSame($factory->getTerminalsService(), $factory->getTerminalsService());
+    }
+
+    /**
+     * #395 moved the promotion and the expiry audit out of the middleware into
+     * TerminalTokenAuthenticator, which the middleware now takes as a third
+     * argument. A miswired factory would not fail until a terminal tried to
+     * sync — i.e. in front of a bar — so the wiring is asserted here.
+     */
+    public function test_the_terminal_authentication_chain_resolves_and_is_singleton(): void
+    {
+        $factory = $this->factory();
+
+        $this->assertInstanceOf(TerminalTokenAuthenticator::class, $factory->getTerminalTokenAuthenticator());
+        $this->assertSame(
+            $factory->getTerminalTokenAuthenticator(),
+            $factory->getTerminalTokenAuthenticator(),
+        );
+        $this->assertSame($factory->getTerminalTokenAuth(), $factory->getTerminalTokenAuth());
     }
 
     // ─── Login rate limiter disable flag (#338) ──────────────────────────────

@@ -156,6 +156,66 @@ class AuditLogRepositoryTest extends DatabaseTestCase
     }
 
     /** @param array<string, mixed>|null $payload */
+    /**
+     * The dedup primitive behind the once-per-occurrence audit write (#395).
+     *
+     * A condition being *observed* — a terminal presenting an expired token —
+     * is not an act, and a terminal polls for as long as it stays switched on.
+     * Anchoring the window on the instant the condition began keeps exactly one
+     * entry per occurrence, which is what these cases pin.
+     */
+    public function test_hasEntrySince_finds_an_entry_inside_the_window(): void
+    {
+        $entityId = $this->entityId();
+        $this->insertEntry($entityId, 'terminal_token_expired', '2026-01-02 09:00:00', 'terminal');
+
+        $this->assertTrue(
+            $this->repository->hasEntrySince($entityId, 'terminal_token_expired', '2026-01-01 00:00:00')
+        );
+    }
+
+    public function test_hasEntrySince_ignores_an_entry_from_before_the_window(): void
+    {
+        $entityId = $this->entityId();
+        // Last year's expiry, already recorded. This year's is a new occurrence
+        // and must not be suppressed by it.
+        $this->insertEntry($entityId, 'terminal_token_expired', '2025-01-02 09:00:00', 'terminal');
+
+        $this->assertFalse(
+            $this->repository->hasEntrySince($entityId, 'terminal_token_expired', '2026-01-01 00:00:00')
+        );
+    }
+
+    public function test_hasEntrySince_is_scoped_to_the_action_it_was_asked_about(): void
+    {
+        $entityId = $this->entityId();
+        $this->insertEntry($entityId, 'update', '2026-01-02 09:00:00', 'terminal');
+
+        $this->assertFalse(
+            $this->repository->hasEntrySince($entityId, 'terminal_token_expired', '2026-01-01 00:00:00')
+        );
+    }
+
+    public function test_hasEntrySince_is_scoped_to_the_entity_it_was_asked_about(): void
+    {
+        $this->insertEntry($this->entityId(), 'terminal_token_expired', '2026-01-02 09:00:00', 'terminal');
+
+        $this->assertFalse(
+            $this->repository->hasEntrySince($this->entityId(), 'terminal_token_expired', '2026-01-01 00:00:00')
+        );
+    }
+
+    /** An entry stamped exactly at the boundary counts as inside it. */
+    public function test_hasEntrySince_includes_an_entry_on_the_boundary(): void
+    {
+        $entityId = $this->entityId();
+        $this->insertEntry($entityId, 'terminal_token_expired', '2026-01-01 00:00:00', 'terminal');
+
+        $this->assertTrue(
+            $this->repository->hasEntrySince($entityId, 'terminal_token_expired', '2026-01-01 00:00:00')
+        );
+    }
+
     private function insertEntry(
         string $entityId,
         string $action,
