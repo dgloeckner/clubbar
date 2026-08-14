@@ -1,6 +1,6 @@
 # ADR-0032: Settlement Lifecycle
 
-**Status**: Accepted
+**Status**: Accepted (amended by [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md): announcement enqueue belongs to the create transaction, and cancellation either supersedes an unsent announcement or sends a cancellation notice — see §10)
 
 **Date**: 2026-08-09
 
@@ -177,6 +177,25 @@ Automated return-file ingestion (camt.053 / pain.002) is **out of scope**. Germa
 - **No non-positive line ever reaches the file.** pain.008 forbids it structurally, and the export asserts it independently so a bug surfaces as a clear error rather than an XSD rejection.
 - **Cancellation and reversal are atomic.** Freeing the claims and recording the event commit together or not at all. A crash between them used to leave a live settlement with no items, whose transactions silently counted as unsettled.
 
+### 10. Announcing a run is part of creating it
+
+> **Amended 2026-08-14** by [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md), which owns the mail machinery. What belongs *here* is that the lifecycle above now has a side effect, and where in the lifecycle it sits.
+
+`createSettlement` is what issue [#361](https://github.com/dgloeckner/clubbar/issues/361) calls "finalize" — this ADR has no such term, and it is the only point at which `SettlementLeadTime::DAYS = 7` guarantees the pre-notification distance by construction.
+
+**The announcement is enqueued inside the same transaction as the settlement and its items, and no network call takes place.** One outbox row per collected member (`amount > 0`); members in credit or at zero get none, because nothing is being collected from them. The queue therefore describes a settlement that exists, or neither exists — a finalize cannot half-succeed and leave the club unable to say who was told.
+
+Cancellation (§4) splits on what the member already knows:
+
+| Announcement row | On cancellation |
+|---|---|
+| not yet sent (`pending` / `failed`) | `superseded` — nothing left the building, there is nothing to retract |
+| `sent` | a `cancellation_notice` is enqueued — *"Einzug entfällt"* |
+
+Notifying on an unsent row would tell a member that a collection they were never told about has been called off, which is worse than silence.
+
+**Invariant added to §9:** an outbox row exists for exactly the members a live settlement collects from, and the uniqueness key is `(kind, settlement_id, member_id)` — on the message, not on the settlement — so a retried finalize cannot produce a second announcement.
+
 ## Consequences
 
 ### Positive
@@ -222,6 +241,7 @@ Automated return-file ingestion (camt.053 / pain.002) is **out of scope**. Germa
 - [ADR-0029](./0029-two-tier-retention-and-erasure.md) — the zero-balance precondition a close-out satisfies
 - [ADR-0030](./0030-settlement-selection-is-a-member-picker.md) — why a run names members
 - [ADR-0033](./0033-terminal-sync-contract.md) — where the unsettled transactions a run sweeps come from
+- [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md) — the outbox §10 enqueues into, and the scheduler that drains it
 
 ## References
 

@@ -1,6 +1,6 @@
 # ADR-0029: Two-Tier Retention and Erasure
 
-**Status**: Accepted (amended by [ADR-0037](./0037-mandate-documents-not-retained.md): the mandate *document* is no longer stored in the system — the treasurer-archived paper original is the Beleg. The mandate record fields, now ciphertext-bearing per [ADR-0036](./0036-iban-encryption-sealed-box.md), remain in the retention tier.)
+**Status**: Accepted (amended by [ADR-0037](./0037-mandate-documents-not-retained.md): the mandate *document* is no longer stored in the system — the treasurer-archived paper original is the Beleg. The mandate record fields, now ciphertext-bearing per [ADR-0036](./0036-iban-encryption-sealed-box.md), remain in the retention tier. Amended by [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md): the mail outbox holds a second copy of a member's address — see "The mail outbox is a second place the address lives".)
 **Date**: 2026-08-07
 
 ## Context
@@ -97,6 +97,24 @@ Note also that **pseudonymising does not help by itself**: `member_id` instead o
 
 ✅ **[UC-A51 Member Ranking](../use-cases/admin/UC-A51-member-ranking.md) complied with the first control on 2026-08-08** ([#177](https://github.com/dgloeckner/ruderbar/issues/177)). It used to ship a *named* "top N members by consumption" from `GET /api/admin/reports/member-ranking` — exactly the feature this control prohibits. The named mode was **removed rather than restricted**: "for internal use only" is no mitigation when the concern is that the profile exists at all. The ranking is now always anonymous, the query no longer reads member names, and rows are labelled by their **ordinal position in the report being rendered** — not by a persistent alias, which anyone able to identify a single row could otherwise carry across every other report.
 
+### The mail outbox is a second place the address lives
+
+> **Amended 2026-08-14** by [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md), which introduces `mail_outbox`.
+
+The outbox snapshots the recipient address at enqueue time, deliberately: it is the proof of *who was announced to*, and `members.email` can change or be erased afterwards. That makes it the first row outside `members` to carry a member's contact data, and the field split above has to say where it lands.
+
+| Field | Tier | On erasure |
+|---|---|---|
+| `mail_outbox.recipient` | **Operational** | Deleted with the rest of the operational tier. It is an address, not a Beleg |
+| `settlement_items`-side sent timestamp | **Retention** | Kept. This is the durable per-member proof that an announcement was made, and it names no address |
+
+Two rules follow:
+
+1. **Erasure must reach `mail_outbox`.** Without this, anonymisation clears `members.email` and leaves the same address sitting in a queue row — an erasure that quietly did not happen. The offboarding transaction covers both or neither.
+2. **Sent rows are pruned.** A delivered message has no reason to keep an address around; the settlement-side timestamp already carries the fact of delivery.
+
+**Boundary against this ADR's own rejection of scheduled jobs.** The section above refuses an unattended sweep because *"no scheduled job can know"* whether the Ablaufhemmung under § 147 Abs. 3 S. 5 AO still runs. That objection is about a cron **applying a retention policy** — deleting accounting records on a date the law can extend. The scheduler in ADR-0038 moves messages out of a queue and prunes what it has already delivered. A cron that empties a work queue and a cron that deletes records unattended are different things, and only the second is forbidden here.
+
 ### The blocking guard tests for an unresolved position
 
 Erasure is blocked only by a position that is **still collectable or reversible** — not by historical participation in a settlement. A settlement completed years ago blocks nothing.
@@ -135,5 +153,6 @@ It is **not** an Art. 18(1) case. Lit. b requires the processing to be *unlawful
 - [ADR-0028: Legal Constraints on Money Handling](./0028-legal-constraints-on-money-handling.md) — §5 retention periods, §8 the erasure split
 - [ADR-0004: Immutable Transaction Storage](./0004-immutable-transaction-storage.md) — why the records cannot simply be deleted
 - [ADR-0006](./0006-sepa-mandate-reference-strategy.md) — the mandate record whose fields are Beleg-bearing
+- [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md) — the mail outbox, whose `recipient` snapshot this ADR places in the operational tier
 - `use-cases/dsgvo/uc-dsgvo-02-right-to-erasure.md`
 - [#165](https://github.com/dgloeckner/ruderbar/issues/165) the ruling · [#173](https://github.com/dgloeckner/ruderbar/issues/173) offboarding · [#151](https://github.com/dgloeckner/ruderbar/issues/151) the retention-expiry column

@@ -1,6 +1,6 @@
 # ADR-0031: Production Hardening on Shared Hosting
 
-**Status**: Accepted
+**Status**: Accepted (amended by [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md): mail delivery adds the first accepted *hard* dependency on a host feature — see "Mail and the scheduler")
 **Date**: 2026-08-09
 
 ## Context
@@ -96,6 +96,28 @@ On the reference target this is an outage, not a degradation. Any such directive
 | L3 | Hosting control panel | PHP version, TLS, directory listing | Documented checklist; nothing else is possible |
 | L4 | Self-check | Measures L0–L3 and reports drift | The layer that makes the others honest |
 
+### Mail and the scheduler
+
+> **Amended 2026-08-14** by [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md).
+
+Sending the SEPA pre-notification adds a path to the table above, and it breaks the pattern of every row in it: the other layers degrade when the host ignores them, this one does not work at all.
+
+| Layer | Mechanism | What belongs here | If the host does not provide it |
+|---|---|---|---|
+| M0 | Outbox row inside the settlement transaction | The intent to announce | Cannot be ignored — it commits with the settlement |
+| M1 | Host scheduler (panel cron → CLI, panel cron → URL, or an external HTTP scheduler) | The only sending path | **Nothing is ever sent.** Blocked at install, alarmed in operation |
+| M2 | External heartbeat monitor | The alarm that M1 stopped | Silent erosion of the announcement deadline |
+| M3 | In-app self-check + per-message status | Diagnosis and the manual remedy | An alarm with nothing to act on |
+
+**This is the first accepted hard dependency on a host feature, and rule 3 permits it.** Rule 3 forbids *silent* dependence — "when a hardening measure is silently ignored, does anyone find out?" — not dependence as such. Here the answer to that question is yes, by design and at two points: the installer will not report a green prerequisite until a real scheduled run has been **observed** (not simulated, not asserted by the treasurer), and settlement finalize stays blocked until one has. What is measured is the same thing rule 3 always measures: the effective state, never the intended one.
+
+The honest consequence, stated rather than discovered: **the supported hosting set narrows to tariffs that can schedule something.** In practice that excludes nobody — the URL endpoint can be driven by an external scheduler — but a tariff with no scheduling of any kind, and no willingness to point an external one at the install, cannot run this application's announcement obligation and should not run the application.
+
+Two smaller points belong in this ADR's own terms:
+
+- **The SMTP DSN is a secret and lives in `config.php`** in the data directory (decision 2), next to the DB password and the TOTP key. Absent DSN disables mail rather than failing, in the same way `llm.provider` does.
+- **The panel's CLI PHP is frequently not the web PHP** — different version, different extensions, different ini. The cron records the CLI version it ran under, so the mismatch shows up in the self-check instead of as an unexplained failure.
+
 ## Consequences
 
 **Positive**
@@ -133,6 +155,7 @@ On the reference target this is an outage, not a degradation. Any such directive
 - [ADR-0016](./0016-transport-security.md) — Transport Security; requires the cookie attributes and `session.use_strict_mode` this ADR routes into L0
 - [ADR-0025](./0025-session-fixation-protection.md) — Session Fixation Protection; `session_regenerate_id()` at login, complemented by strict mode
 - [ADR-0029](./0029-two-tier-retention-and-erasure.md) — Two-Tier Retention and Erasure; mandate documents are subject to erasure, which presumes they were never public
+- [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md) — Transactional Mail Outbox; the M0–M3 layers above, and why a mandatory scheduler stays compatible with rule 3
 - [ADR-0022](./0022-test-strategy-and-automation.md) — Test Strategy; the basis for requiring L0 and the package smoke test to be automated
 - [#105](https://github.com/dgloeckner/clubbar/issues/105) / [#237](https://github.com/dgloeckner/clubbar/pull/237) — the session cookie `Secure` flag; the first measure applied under rule 1
 - `scripts/build-package.sh`, `package/.htaccess`, `package/install.php` — the surfaces this ADR governs
