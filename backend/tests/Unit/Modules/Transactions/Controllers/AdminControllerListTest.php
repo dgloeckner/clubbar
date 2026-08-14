@@ -271,7 +271,7 @@ class AdminControllerListTest extends TestCase
         );
 
         $this->assertSame(422, $response->getStatusCode());
-        $this->assertArrayHasKey('from_date', $this->decode($response)['errors']);
+        $this->assertArrayHasKey('from_date', $this->decode($response)['messages']);
     }
 
     public function test_the_export_rejects_an_inverted_date_range(): void
@@ -282,7 +282,7 @@ class AdminControllerListTest extends TestCase
         );
 
         $this->assertSame(422, $response->getStatusCode());
-        $this->assertArrayHasKey('to_date', $this->decode($response)['errors']);
+        $this->assertArrayHasKey('to_date', $this->decode($response)['messages']);
     }
 
     public function test_the_export_names_the_file_after_the_date_range(): void

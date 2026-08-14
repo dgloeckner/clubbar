@@ -22,6 +22,11 @@ class JsonResponderTest extends TestCase
             {
                 return $this->json($response, $data, $status);
             }
+
+            public function reject(ResponseInterface $response, array $messages): ResponseInterface
+            {
+                return $this->validationFailed($response, $messages);
+            }
         };
     }
 
@@ -63,5 +68,20 @@ class JsonResponderTest extends TestCase
         $response = $this->controller->respond($this->response(), ['name' => 'Jörg Müller']);
 
         $this->assertSame('{"name":"Jörg Müller"}', (string) $response->getBody());
+    }
+
+    /**
+     * The single emitter every `Validator` call site goes through (#446):
+     * a named field examined and rejected is always this shape, whichever
+     * controller produced it.
+     */
+    public function test_validation_failed_is_422_with_the_shared_shape(): void
+    {
+        $response = $this->controller->reject($this->response(), ['email' => ['Email already exists']]);
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = json_decode((string) $response->getBody(), true);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertSame(['email' => ['Email already exists']], $body['messages']);
     }
 }

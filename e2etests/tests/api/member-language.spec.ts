@@ -56,11 +56,11 @@ test.describe('Member Language Update Endpoint', () => {
       },
     );
 
-    expect(response.status()).toBe(400);
+    expect(response.status()).toBe(422);
 
     const body = await response.json();
-    expect(body.error).toBe('invalid_request');
-    expect(body.message).toContain('xx');
+    expect(body.error).toBe('validation_failed');
+    expect(body.messages.preferred_language[0]).toContain('must be one of');
   });
 
   test('PATCH /api/sync/members/{memberId}/language rejects missing language', async ({
@@ -73,10 +73,11 @@ test.describe('Member Language Update Endpoint', () => {
       },
     );
 
-    expect(response.status()).toBe(400);
+    expect(response.status()).toBe(422);
 
     const body = await response.json();
-    expect(body.error).toBe('invalid_request');
+    expect(body.error).toBe('validation_failed');
+    expect(body.messages.preferred_language).toBeDefined();
   });
 
   test('PATCH /api/sync/members/{memberId}/language returns 404 for invalid UUID', async ({

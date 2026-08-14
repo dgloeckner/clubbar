@@ -20,10 +20,10 @@ use Slim\Psr7\Response;
 /**
  * The error middleware's translation of domain exceptions into responses.
  *
- * #119 added InvalidQueryParameterException, which is the only one that
- * carries a `messages` map — the shape list endpoints have always used for a
- * rejected `per_page`, and which the frontend reads to say which field is
- * wrong.
+ * #119 added InvalidQueryParameterException, and #446 aligned
+ * ValidationException to the same `messages` map — the shape every
+ * `Validator` call site and list endpoint uses for a rejected field, and
+ * which the frontend reads to say which field is wrong.
  */
 class ErrorHandlerTest extends TestCase
 {
@@ -79,7 +79,7 @@ class ErrorHandlerTest extends TestCase
         $this->assertArrayHasKey('limit', $this->decode($response)['messages']);
     }
 
-    public function test_a_validation_failure_stays_422_with_errors_not_messages(): void
+    public function test_a_validation_failure_stays_422_with_the_shared_messages_shape(): void
     {
         $response = $this->handle(new ValidationException('invalid', ['iban' => ['bad checksum']]));
 
@@ -87,8 +87,8 @@ class ErrorHandlerTest extends TestCase
 
         $body = $this->decode($response);
         $this->assertSame('validation_failed', $body['error']);
-        $this->assertSame(['iban' => ['bad checksum']], $body['errors']);
-        $this->assertArrayNotHasKey('messages', $body);
+        $this->assertSame(['iban' => ['bad checksum']], $body['messages']);
+        $this->assertArrayNotHasKey('errors', $body);
     }
 
     public function test_a_not_found_stays_404(): void

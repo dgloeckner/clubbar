@@ -58,4 +58,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export type ValidationErrorResponseDetails = {[key: string]: string[]};
+/**
+ * Field name to the list of validation messages rejecting it.
+ */
+export type ValidationErrorResponseMessages = {[key: string]: string[]};

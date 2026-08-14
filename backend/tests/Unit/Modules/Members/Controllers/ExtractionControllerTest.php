@@ -100,7 +100,7 @@ class ExtractionControllerTest extends TestCase
         );
 
         $this->assertSame(422, $response->getStatusCode());
-        $this->assertSame('validation_error', $this->decode($response)['error']);
+        $this->assertSame('validation_failed', $this->decode($response)['error']);
     }
 
     /**

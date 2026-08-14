@@ -49,18 +49,12 @@ class ExtractionController
 
         $files = $request->getUploadedFiles();
         if (empty($files['file'])) {
-            return $this->json($response, [
-                'error'    => 'validation_error',
-                'messages' => ['file' => ['A file is required']],
-            ], 422);
+            return $this->validationFailed($response, ['file' => ['A file is required']]);
         }
 
         $uploadedFile = $files['file'];
         if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
-            return $this->json($response, [
-                'error'    => 'validation_error',
-                'messages' => ['file' => ['File upload failed (error code: ' . $uploadedFile->getError() . ')']],
-            ], 422);
+            return $this->validationFailed($response, ['file' => ['File upload failed (error code: ' . $uploadedFile->getError() . ')']]);
         }
 
         $stream = $uploadedFile->getStream();
@@ -72,10 +66,7 @@ class ExtractionController
         // provider as an image part (#107).
         $mimeType = MimeSniffer::detect($bytes);
         if (!in_array($mimeType, self::ALLOWED_MIME_TYPES, true)) {
-            return $this->json($response, [
-                'error'    => 'validation_error',
-                'messages' => ['file' => ["Unsupported file type '{$mimeType}'. Allowed: JPEG, PNG."]],
-            ], 422);
+            return $this->validationFailed($response, ['file' => ["Unsupported file type '{$mimeType}'. Allowed: JPEG, PNG."]]);
         }
 
         try {
