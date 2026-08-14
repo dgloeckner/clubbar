@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Shared\Config\Env;
+use App\Shared\Database\ConnectionFactory;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -54,15 +55,11 @@ abstract class HttpTestCase extends TestCase
         }
         Env::reset();
 
-        $this->db = new PDO(
-            sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', $_ENV['DB_HOST'], $_ENV['DB_NAME']),
+        $this->db = ConnectionFactory::create(
+            $_ENV['DB_HOST'],
+            $_ENV['DB_NAME'],
             $_ENV['DB_USER'],
             $_ENV['DB_PASS'],
-            [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ]
         );
 
         $this->app = require __DIR__ . '/../../bootstrap.php';

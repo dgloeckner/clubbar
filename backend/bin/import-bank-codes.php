@@ -20,21 +20,26 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Shared\Config\Env;
+use App\Shared\Database\ConnectionFactory;
 use App\Shared\Logging\Logger;
+use App\Shared\Time\Utc;
 use App\Modules\BankCodes\Repositories\BankCodesRepository;
 use App\Modules\BankCodes\Services\BankCodeService;
 
 // --- Bootstrap ---
+// A CLI process never goes through bootstrap.php, so it pins the clock itself.
+Utc::apply();
+
 $envFile = __DIR__ . '/../.env';
 if (file_exists($envFile)) {
     Env::load($envFile);
 }
 
-$pdo = new PDO(
-    sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', Env::get('DB_HOST'), Env::get('DB_NAME')),
+$pdo = ConnectionFactory::create(
+    Env::get('DB_HOST'),
+    Env::get('DB_NAME'),
     Env::get('DB_USER'),
     Env::get('DB_PASS'),
-    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
 );
 
 $logDir = Env::get('LOG_DIR', __DIR__ . '/../logs');

@@ -5,10 +5,16 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Shared\Config\Env;
+use App\Shared\Database\ConnectionFactory;
 use App\Shared\Logging\Logger;
+use App\Shared\Time\Utc;
 use App\Db\MigrationRunner;
 use App\Modules\BankCodes\Repositories\BankCodesRepository;
 use App\Modules\BankCodes\Services\BankCodeService;
+
+// This runs before bootstrap.php ever does on a fresh install, and it writes
+// timestamps of its own (the lock file below, and whatever the migrations seed).
+Utc::apply();
 
 $envFile = __DIR__ . '/../.env';
 if (file_exists($envFile)) {
@@ -55,11 +61,11 @@ if (file_exists($lockFile) && (time() - filemtime($lockFile)) < 300) {
 file_put_contents($lockFile, date('c'));
 
 // --- Run ---
-$pdo = new PDO(
-    sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', Env::get('DB_HOST'), Env::get('DB_NAME')),
+$pdo = ConnectionFactory::create(
+    Env::get('DB_HOST'),
+    Env::get('DB_NAME'),
     Env::get('DB_USER'),
     Env::get('DB_PASS'),
-    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
 );
 
 $runner = new MigrationRunner($pdo);
