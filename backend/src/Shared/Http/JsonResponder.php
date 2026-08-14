@@ -29,10 +29,21 @@ trait JsonResponder
      * hand-write its own field map, goes through this instead of literals
      * that agree today but nothing keeps agreeing.
      *
+     * `$message` is omitted by default — the admin API's `ValidationErrorResponse`
+     * has never required it, and adding it everywhere would be one more thing
+     * for 46 call sites to agree on for no reader's benefit. Pass one only
+     * where a caller's contract requires it, e.g. the terminal API's shared
+     * `ErrorResponse` base, which every terminal error carries a `message` for.
+     *
      * @param array<string, list<string>> $messages
      */
-    protected function validationFailed(Response $response, array $messages): Response
+    protected function validationFailed(Response $response, array $messages, ?string $message = null): Response
     {
-        return $this->json($response, ['error' => 'validation_failed', 'messages' => $messages], 422);
+        $body = ['error' => 'validation_failed', 'messages' => $messages];
+        if ($message !== null) {
+            $body['message'] = $message;
+        }
+
+        return $this->json($response, $body, 422);
     }
 }

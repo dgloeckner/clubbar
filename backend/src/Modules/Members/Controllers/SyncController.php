@@ -47,7 +47,12 @@ class SyncController
         if (!$this->validator->validate($body, [
             'preferred_language' => ['required', 'in:de,en,fr'],
         ])) {
-            return $this->validationFailed($response, $this->validator->errors());
+            $errors = $this->validator->errors();
+
+            // The terminal API's shared ErrorResponse requires `message`
+            // (every other terminal error carries one); the admin API's
+            // Validator sites never have and don't need to follow suit.
+            return $this->validationFailed($response, $errors, $errors['preferred_language'][0]);
         }
 
         $language = SupportedLanguage::from($body['preferred_language']);

@@ -203,6 +203,32 @@ class AdminControllerTest extends TestCase
         $this->assertArrayHasKey('device_id', $this->decode($response)['messages']);
     }
 
+    public function test_update_rejects_a_body_with_neither_updatable_field(): void
+    {
+        $this->service->expects($this->never())->method('updateTerminal');
+
+        $response = $this->controller->update($this->post('/api/admin/terminals/terminal-1', []), new Response(), ['id' => 'terminal-1']);
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('_base', $this->decode($response)['messages']);
+    }
+
+    public function test_update_rejects_a_name_over_the_max_length(): void
+    {
+        $this->service->expects($this->never())->method('updateTerminal');
+
+        $response = $this->controller->update(
+            $this->post('/api/admin/terminals/terminal-1', ['name' => str_repeat('A', 101)]),
+            new Response(),
+            ['id' => 'terminal-1'],
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertArrayHasKey('name', $body['messages']);
+    }
+
     public function test_rotateToken_stages_a_replacement_when_the_step_up_holds(): void
     {
         $this->stepUp->method('verify')->willReturn(true);

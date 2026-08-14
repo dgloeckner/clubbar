@@ -23,9 +23,9 @@ class JsonResponderTest extends TestCase
                 return $this->json($response, $data, $status);
             }
 
-            public function reject(ResponseInterface $response, array $messages): ResponseInterface
+            public function reject(ResponseInterface $response, array $messages, ?string $message = null): ResponseInterface
             {
-                return $this->validationFailed($response, $messages);
+                return $this->validationFailed($response, $messages, $message);
             }
         };
     }
@@ -83,5 +83,25 @@ class JsonResponderTest extends TestCase
         $body = json_decode((string) $response->getBody(), true);
         $this->assertSame('validation_failed', $body['error']);
         $this->assertSame(['email' => ['Email already exists']], $body['messages']);
+        $this->assertArrayNotHasKey('message', $body);
+    }
+
+    /**
+     * The terminal API's shared `ErrorResponse` requires `message` on every
+     * error, unlike the admin API's `ValidationErrorResponse`. Passing one
+     * adds it without disturbing the default shape every other caller relies
+     * on.
+     */
+    public function test_validation_failed_carries_an_optional_top_level_message(): void
+    {
+        $response = $this->controller->reject(
+            $this->response(),
+            ['preferred_language' => ['preferred_language is required']],
+            'preferred_language is required',
+        );
+
+        $body = json_decode((string) $response->getBody(), true);
+        $this->assertSame('preferred_language is required', $body['message']);
+        $this->assertSame(['preferred_language is required'], $body['messages']['preferred_language']);
     }
 }

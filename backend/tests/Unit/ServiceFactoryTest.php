@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Modules\Members\Controllers\SyncController as MembersSyncController;
 use App\Modules\Terminals\Services\TerminalTokenAuthenticator;
 use App\Modules\Terminals\Services\TerminalsService;
 use App\ServiceFactory;
@@ -82,6 +83,20 @@ class ServiceFactoryTest extends TestCase
         $factory = $this->factory();
 
         $this->assertSame($factory->getTerminalsService(), $factory->getTerminalsService());
+    }
+
+    /**
+     * #446 moved `updateLanguage` onto `Validator`, adding it as a second
+     * constructor argument — a miswired factory would not fail until the
+     * endpoint was hit, so the wiring is asserted here like every other
+     * controller factory method.
+     */
+    public function test_getMembersSyncController_builds_a_controller_and_is_singleton(): void
+    {
+        $factory = $this->factory();
+
+        $this->assertInstanceOf(MembersSyncController::class, $factory->getMembersSyncController());
+        $this->assertSame($factory->getMembersSyncController(), $factory->getMembersSyncController());
     }
 
     /**

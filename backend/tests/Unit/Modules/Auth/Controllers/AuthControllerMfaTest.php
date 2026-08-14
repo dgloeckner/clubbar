@@ -124,6 +124,21 @@ class AuthControllerMfaTest extends TestCase
 
     // ─── Password step ────────────────────────────────────────────────────────
 
+    public function test_login_rejects_a_missing_password(): void
+    {
+        $this->authService->expects($this->never())->method('authenticate');
+
+        $response = $this->controller->login(
+            $this->post('/api/auth/login', ['email' => 'admin@example.com']),
+            new Response(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertArrayHasKey('password', $body['messages']);
+    }
+
     public function test_failed_password_is_recorded_against_ip_and_account(): void
     {
         $this->authService->method('authenticate')->willReturn(null);
@@ -179,6 +194,19 @@ class AuthControllerMfaTest extends TestCase
     }
 
     // ─── MFA step ─────────────────────────────────────────────────────────────
+
+    public function test_mfa_rejects_a_code_that_is_not_six_digits(): void
+    {
+        $this->pendingSession();
+        $this->totpService->expects($this->never())->method('verifyCodeWithTimestep');
+
+        $response = $this->controller->mfa($this->post('/api/auth/mfa', ['code' => '12345']), new Response());
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertArrayHasKey('code', $body['messages']);
+    }
 
     public function test_wrong_code_is_persisted_so_it_outlives_the_session(): void
     {

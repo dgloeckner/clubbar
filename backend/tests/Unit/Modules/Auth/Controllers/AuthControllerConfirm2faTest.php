@@ -85,6 +85,23 @@ class AuthControllerConfirm2faTest extends TestCase
         return json_decode((string) $response->getBody(), true);
     }
 
+    public function test_rejects_a_code_that_is_not_six_digits(): void
+    {
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('POST', '/api/auth/2fa/confirm')
+            ->withAttribute('admin_user_id', 'admin-1')
+            ->withParsedBody(['code' => 'abcdef']);
+
+        $this->totpService->expects($this->never())->method('verifyCodeWithTimestep');
+
+        $response = $this->controller->confirm2fa($request, new Response());
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertArrayHasKey('code', $body['messages']);
+    }
+
     public function test_rejects_an_invalid_code(): void
     {
         $this->totpService->method('verifyCodeWithTimestep')->willReturn(null);
