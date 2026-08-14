@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\Services;
 
+use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Notifications\DTOs\MailRequestDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
@@ -29,6 +31,7 @@ class NotificationsServiceTest extends TestCase
     private MailOutboxRepository $outbox;
     private MembersRepository $members;
     private AuditService $audit;
+    private AdminUsersRepository $admins;
     private NotificationsService $service;
 
     private const SETTLEMENT = '11111111-1111-4111-8111-111111111111';
@@ -41,8 +44,14 @@ class NotificationsServiceTest extends TestCase
         $this->outbox = $this->createMock(MailOutboxRepository::class);
         $this->members = $this->createMock(MembersRepository::class);
         $this->audit = $this->createMock(AuditService::class);
+        $this->admins = $this->createMock(AdminUsersRepository::class);
 
-        $this->service = new NotificationsService($this->outbox, $this->members, $this->audit);
+        $this->service = new NotificationsService(
+            $this->outbox,
+            $this->members,
+            $this->audit,
+            $this->admins,
+        );
     }
 
     /** @param array<string,array<string,mixed>> $overrides */
@@ -73,8 +82,8 @@ class NotificationsServiceTest extends TestCase
 
         $queued = [];
         $this->outbox->method('enqueue')->willReturnCallback(
-            function (MailKind $kind, string $settlementId, string $memberId, string $recipient, string $language) use (&$queued): bool {
-                $queued[] = compact('kind', 'settlementId', 'memberId', 'recipient', 'language');
+            function (MailRequestDto $request) use (&$queued): bool {
+                $queued[] = $request;
                 return true;
             }
         );
@@ -84,10 +93,15 @@ class NotificationsServiceTest extends TestCase
         $this->assertSame(2, $result->queued);
         $this->assertSame([], $result->withoutEmail);
         $this->assertCount(2, $queued);
-        $this->assertSame(MailKind::SEPA_PRENOTIFICATION, $queued[0]['kind']);
-        $this->assertSame(self::SETTLEMENT, $queued[0]['settlementId']);
-        $this->assertSame('one@example.org', $queued[0]['recipient']);
-        $this->assertSame('two@example.org', $queued[1]['recipient']);
+        $this->assertSame(MailKind::SEPA_PRENOTIFICATION, $queued[0]->kind);
+        $this->assertSame(self::SETTLEMENT, $queued[0]->subjectId);
+        $this->assertSame('one@example.org', $queued[0]->recipient);
+        $this->assertSame('two@example.org', $queued[1]->recipient);
+        // The member is what makes two announcements about one settlement two
+        // messages rather than one.
+        $this->assertSame('m1', $queued[0]->dedupKey);
+        $this->assertSame('m1', $queued[0]->memberId);
+        $this->assertNull($queued[0]->adminUserId);
     }
 
     /**
@@ -155,8 +169,8 @@ class NotificationsServiceTest extends TestCase
 
         $languages = [];
         $this->outbox->method('enqueue')->willReturnCallback(
-            function (MailKind $k, string $s, string $m, string $r, string $language) use (&$languages): bool {
-                $languages[$m] = $language;
+            function (MailRequestDto $request) use (&$languages): bool {
+                $languages[(string) $request->memberId] = $request->language->value;
                 return true;
             }
         );
@@ -180,8 +194,8 @@ class NotificationsServiceTest extends TestCase
 
         $languages = [];
         $this->outbox->method('enqueue')->willReturnCallback(
-            function (MailKind $k, string $s, string $m, string $r, string $language) use (&$languages): bool {
-                $languages[] = $language;
+            function (MailRequestDto $request) use (&$languages): bool {
+                $languages[] = $request->language->value;
                 return true;
             }
         );
@@ -278,8 +292,8 @@ class NotificationsServiceTest extends TestCase
 
         $notices = [];
         $this->outbox->method('enqueue')->willReturnCallback(
-            function (MailKind $kind, string $s, string $memberId, string $recipient) use (&$notices): bool {
-                $notices[] = [$kind, $memberId, $recipient];
+            function (MailRequestDto $request) use (&$notices): bool {
+                $notices[] = [$request->kind, $request->memberId, $request->recipient];
                 return true;
             }
         );
@@ -324,6 +338,123 @@ class NotificationsServiceTest extends TestCase
 
         $this->assertSame(0, $result->queued);
         $this->assertSame(['m2'], $result->withoutEmail);
+    }
+
+    /* ──────────── Operational mail, addressed to an admin (#438) ──────────── */
+
+    /**
+     * The generalisation #438 needs: a message about a credential rather than a
+     * settlement, addressed to whoever runs the club rather than to a member.
+     */
+    public function test_warnAdmins_queues_one_message_per_active_admin(): void
+    {
+        $this->admins->method('findActiveRecipients')->willReturn([
+            ['id' => 'a1', 'email' => 'one@club.example', 'locale' => 'de', 'display_name' => 'One'],
+            ['id' => 'a2', 'email' => 'two@club.example', 'locale' => 'en', 'display_name' => 'Two'],
+        ]);
+
+        $queued = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$queued): bool {
+                $queued[] = $request;
+                return true;
+            }
+        );
+
+        $result = $this->service->warnAdmins(MailKind::KEY_EXPIRY_WARNING, 'key-1', '30d');
+
+        $this->assertSame(2, $result->queued);
+        $this->assertSame('key-1', $queued[0]->subjectId);
+        $this->assertSame('a1', $queued[0]->adminUserId);
+        $this->assertNull($queued[0]->memberId, 'an operational warning is not member data');
+        $this->assertSame('en', $queued[1]->language->value, "the admin's own locale");
+    }
+
+    /**
+     * The whole point of the dedup key. The tier is recomputed on every admin
+     * request for as long as the key sits inside the window, so "queue a
+     * warning" has to mean "queue it once" — and each tier is its own message.
+     */
+    public function test_warnAdmins_keys_a_warning_to_its_tier_and_its_admin(): void
+    {
+        $this->admins->method('findActiveRecipients')->willReturn([
+            ['id' => 'a1', 'email' => 'one@club.example', 'locale' => 'de', 'display_name' => 'One'],
+            ['id' => 'a2', 'email' => 'two@club.example', 'locale' => 'de', 'display_name' => 'Two'],
+        ]);
+
+        $keys = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$keys): bool {
+                $keys[] = $request->dedupKey;
+                return true;
+            }
+        );
+
+        $this->service->warnAdmins(MailKind::KEY_EXPIRY_WARNING, 'key-1', '90d');
+        $this->service->warnAdmins(MailKind::KEY_EXPIRY_WARNING, 'key-1', '30d');
+
+        // Four distinct messages: two tiers × two admins. One admin having been
+        // warned must never silence the other, and 90 must not silence 30.
+        $this->assertSame(['90d:a1', '90d:a2', '30d:a1', '30d:a2'], $keys);
+        $this->assertCount(4, array_unique($keys));
+    }
+
+    public function test_warnAdmins_audits_against_the_credential_not_a_settlement(): void
+    {
+        $this->admins->method('findActiveRecipients')->willReturn([
+            ['id' => 'a1', 'email' => 'one@club.example', 'locale' => 'de', 'display_name' => 'One'],
+        ]);
+        $this->outbox->method('enqueue')->willReturn(true);
+
+        $logged = null;
+        $this->audit->expects($this->once())->method('log')->willReturnCallback(
+            function (AuditAction $action, EntityType $entityType, string $entityId, ?array $old, ?array $new) use (&$logged): void {
+                $logged = compact('action', 'entityType', 'entityId', 'new');
+            }
+        );
+
+        $this->service->warnAdmins(MailKind::TERMINAL_TOKEN_EXPIRY_WARNING, 'terminal-9', '7d');
+
+        $this->assertSame(EntityType::TERMINAL, $logged['entityType']);
+        $this->assertSame('terminal-9', $logged['entityId']);
+        $this->assertSame('7d', $logged['new']['occasion']);
+    }
+
+    /**
+     * This runs off a check that fires on every admin page load. An audit entry
+     * per page load would bury the one that records a warning actually going
+     * out.
+     */
+    public function test_warnAdmins_writes_no_audit_entry_when_everything_was_already_queued(): void
+    {
+        $this->admins->method('findActiveRecipients')->willReturn([
+            ['id' => 'a1', 'email' => 'one@club.example', 'locale' => 'de', 'display_name' => 'One'],
+        ]);
+        $this->outbox->method('enqueue')->willReturn(false);
+        $this->audit->expects($this->never())->method('log');
+
+        $this->assertSame(0, $this->service->warnAdmins(MailKind::KEY_EXPIRY_WARNING, 'key-1', '30d')->queued);
+    }
+
+    public function test_warnAdmins_reports_an_admin_with_no_address(): void
+    {
+        $this->admins->method('findActiveRecipients')->willReturn([
+            ['id' => 'a1', 'email' => '', 'locale' => 'de', 'display_name' => 'One'],
+        ]);
+        $this->outbox->expects($this->never())->method('enqueue');
+
+        $this->assertSame(['a1'], $this->service->warnAdmins(MailKind::KEY_EXPIRY_WARNING, 'key-1', '30d')->withoutEmail);
+    }
+
+    /**
+     * A member cannot act on an expiring encryption key, and telling them one
+     * is expiring discloses the state of the club's own security.
+     */
+    public function test_warnAdmins_refuses_a_kind_that_is_addressed_to_a_member(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->service->warnAdmins(MailKind::SEPA_PRENOTIFICATION, 'settlement-1', '30d');
     }
 
     /* ─────────────────────────── send outcomes ─────────────────────────── */

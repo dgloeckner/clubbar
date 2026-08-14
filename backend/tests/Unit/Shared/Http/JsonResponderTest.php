@@ -22,6 +22,11 @@ class JsonResponderTest extends TestCase
             {
                 return $this->json($response, $data, $status);
             }
+
+            public function reject(ResponseInterface $response, array $messages, ?string $message = null): ResponseInterface
+            {
+                return $this->validationFailed($response, $messages, $message);
+            }
         };
     }
 
@@ -63,5 +68,40 @@ class JsonResponderTest extends TestCase
         $response = $this->controller->respond($this->response(), ['name' => 'Jörg Müller']);
 
         $this->assertSame('{"name":"Jörg Müller"}', (string) $response->getBody());
+    }
+
+    /**
+     * The single emitter every `Validator` call site goes through (#446):
+     * a named field examined and rejected is always this shape, whichever
+     * controller produced it.
+     */
+    public function test_validation_failed_is_422_with_the_shared_shape(): void
+    {
+        $response = $this->controller->reject($this->response(), ['email' => ['Email already exists']]);
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = json_decode((string) $response->getBody(), true);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertSame(['email' => ['Email already exists']], $body['messages']);
+        $this->assertArrayNotHasKey('message', $body);
+    }
+
+    /**
+     * The terminal API's shared `ErrorResponse` requires `message` on every
+     * error, unlike the admin API's `ValidationErrorResponse`. Passing one
+     * adds it without disturbing the default shape every other caller relies
+     * on.
+     */
+    public function test_validation_failed_carries_an_optional_top_level_message(): void
+    {
+        $response = $this->controller->reject(
+            $this->response(),
+            ['preferred_language' => ['preferred_language is required']],
+            'preferred_language is required',
+        );
+
+        $body = json_decode((string) $response->getBody(), true);
+        $this->assertSame('preferred_language is required', $body['message']);
+        $this->assertSame(['preferred_language is required'], $body['messages']['preferred_language']);
     }
 }

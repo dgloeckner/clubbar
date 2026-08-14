@@ -1,5 +1,5 @@
 -- =============================================================================
--- 026_cron_heartbeat_extensions.sql — what the drain's interpreter was missing
+-- 027_cron_heartbeat_extensions.sql — what the drain's interpreter was missing
 -- =============================================================================
 -- ADR-0038 / #403. Migration 025 already records the drain's PHP *version*,
 -- because the panel's CLI PHP is frequently not the web PHP. Version alone does
@@ -19,7 +19,7 @@
 -- column; the empty string means the run checked and found nothing missing —
 -- which is a different statement and worth keeping apart.
 --
--- Rollback: db/rollback/026_cron_heartbeat_extensions.down.sql
+-- Rollback: db/rollback/027_cron_heartbeat_extensions.down.sql
 -- =============================================================================
 
 ALTER TABLE cron_heartbeat

@@ -91,7 +91,7 @@ class DrainService
 
     public function __construct(
         private NotificationsService $notificationsService,
-        private SettlementMailBuilder $mailBuilder,
+        private MailContentRegistry $mailContent,
         private MailTransportFactory $mailTransportFactory,
         private MailConfigService $mailConfigService,
         private CronHeartbeatRepository $cronHeartbeatRepository,
@@ -160,7 +160,7 @@ class DrainService
 
                 $message = null;
                 try {
-                    $message = $this->mailBuilder->build($row);
+                    $message = $this->mailContent->build($row);
                 } catch (\Throwable $e) {
                     // The settlement behind the row is gone, or the kind has no
                     // content yet. Neither becomes true later, so this is
@@ -172,7 +172,8 @@ class DrainService
                     );
                     $this->logger->error('Drain could not render a queued message', [
                         'outbox_id' => $row['id'] ?? null,
-                        'settlement_id' => $row['settlement_id'] ?? null,
+                        'kind' => $row['kind'] ?? null,
+                        'subject_id' => $row['subject_id'] ?? null,
                         'exception' => get_class($e),
                         'message' => $e->getMessage(),
                     ]);

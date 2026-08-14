@@ -269,6 +269,40 @@ class AdminControllerStoreTest extends TestCase
         $this->assertArrayHasKey('execution_date', $this->decode($response)['messages']);
     }
 
+    public function test_settle_filter_rejects_a_missing_execution_date(): void
+    {
+        $this->service->expects($this->never())->method('createSettlementByFilters');
+
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('POST', '/api/admin/settlements/settle-filter')
+            ->withParsedBody([])
+            ->withAttribute('admin_user_id', 'admin-1');
+
+        $response = $this->controller->settleFilter($request, new Response());
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertArrayHasKey('execution_date', $body['messages']);
+    }
+
+    public function test_filter_preview_rejects_a_malformed_date_from(): void
+    {
+        $this->service->expects($this->never())->method('previewByFilters');
+
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('GET', '/api/admin/settlements/filter-preview')
+            ->withQueryParams(['date_from' => 'not-a-date'])
+            ->withAttribute('admin_user_id', 'admin-1');
+
+        $response = $this->controller->filterPreview($request, new Response());
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertArrayHasKey('date_from', $body['messages']);
+    }
+
     /** And the same hole on the other creation path. */
     public function test_settle_filter_ignores_a_backdated_settlement_date_in_the_body(): void
     {

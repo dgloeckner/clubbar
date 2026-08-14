@@ -30,6 +30,25 @@ class AdminUsersRepository
         return $stmt->fetch() ?: null;
     }
 
+    /**
+     * Everyone an operational warning should reach (#438).
+     *
+     * Active admins only: a deactivated account is somebody who no longer runs
+     * the club, and mailing them about the club's expiring credentials is both
+     * useless and a small disclosure.
+     *
+     * Deliberately narrow — id, address and locale, and no password hash or
+     * TOTP column near a mail path.
+     *
+     * @return list<array{id: string, email: string, locale: string, display_name: ?string}>
+     */
+    public function findActiveRecipients(): array
+    {
+        return $this->db
+            ->query('SELECT id, email, locale, display_name FROM admin_users WHERE is_active = 1 ORDER BY email ASC')
+            ->fetchAll();
+    }
+
     public function countActive(): int
     {
         return (int) $this->db->query('SELECT COUNT(*) FROM admin_users WHERE is_active = 1')->fetchColumn();

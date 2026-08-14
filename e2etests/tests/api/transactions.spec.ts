@@ -1328,7 +1328,7 @@ test.describe('Storno Endpoint', () => {
 
     expect(response.status()).toBe(422);
     const body = await response.json();
-    expect(body.errors.reason).toBeDefined();
+    expect(body.messages.reason).toBeDefined();
   });
 
   test('rejects a blank reason with 422', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
@@ -1341,7 +1341,7 @@ test.describe('Storno Endpoint', () => {
 
     expect(response.status()).toBe(422);
     const body = await response.json();
-    expect(body.errors.reason).toBeDefined();
+    expect(body.messages.reason).toBeDefined();
   });
 
   test('rejects a reason exceeding 500 chars with 422', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
@@ -1354,7 +1354,7 @@ test.describe('Storno Endpoint', () => {
 
     expect(response.status()).toBe(422);
     const body = await response.json();
-    expect(body.errors.reason).toBeDefined();
+    expect(body.messages.reason).toBeDefined();
   });
 
   test('returns 404 for an unknown transaction', async ({ authenticatedRequest }) => {
@@ -1533,8 +1533,8 @@ test.describe('Transaction Export Endpoint', () => {
     expect(response.status()).toBe(422);
 
     const body = await response.json();
-    expect(body.errors).toBeDefined();
-    expect(body.errors.from_date).toBeDefined();
+    expect(body.messages).toBeDefined();
+    expect(body.messages.from_date).toBeDefined();
   });
 
   test('GET /api/admin/transactions/export rejects to_date before from_date', async ({ authenticatedRequest }) => {
@@ -1548,8 +1548,8 @@ test.describe('Transaction Export Endpoint', () => {
     expect(response.status()).toBe(422);
 
     const body = await response.json();
-    expect(body.errors).toBeDefined();
-    expect(body.errors.to_date).toBeDefined();
+    expect(body.messages).toBeDefined();
+    expect(body.messages.to_date).toBeDefined();
   });
 
   test('GET /api/admin/transactions/export returns CSV filename with date range', async ({ authenticatedRequest }) => {

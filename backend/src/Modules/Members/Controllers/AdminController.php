@@ -209,7 +209,7 @@ class AdminController
         $rules['card_uid'][] = 'unique:members,card_uid';
 
         if (!$this->validator->validate($body, $rules)) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $language = SupportedLanguage::from($body['preferred_language']);
@@ -256,7 +256,7 @@ class AdminController
         }
 
         if ($rules !== [] && !$this->validator->validate($body, $rules)) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $member = $this->membersService->updateMember($memberId, $body, $adminId);

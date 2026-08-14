@@ -52,6 +52,13 @@ async function deactivateProductViaApi(page: import('@playwright/test').Page, pr
 
 test.describe('Admin Products Page', () => {
 
+  // #366: Categories moved from a top-level nav entry to a tab of Products.
+  test('should switch to the Categories tab', async ({ authenticatedProductsPage, page }) => {
+    await authenticatedProductsPage.expectProductsTabActive()
+    await authenticatedProductsPage.clickCategoriesTab()
+    await expect(page).toHaveURL(/\/products\/categories/)
+  })
+
   test('product CRUD lifecycle: create, verify persistence, edit, cancel edit, deactivate, reactivate, delete', async ({
     authenticatedProductsPage,
     page,

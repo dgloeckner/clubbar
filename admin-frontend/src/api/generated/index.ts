@@ -287,4 +287,4 @@ export * from './updateProfileResponse';
 export * from './updateTerminal200';
 export * from './updateTerminalRequest';
 export * from './validationErrorResponse';
-export * from './validationErrorResponseDetails';
+export * from './validationErrorResponseMessages';

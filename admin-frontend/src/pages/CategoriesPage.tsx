@@ -37,6 +37,7 @@ import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { PageActionButton } from '../components/common/PageActionButton'
 import { PageHeader } from '../components/layout/PageHeader'
+import { ProductsTabs } from '../components/products/ProductsTabs'
 import { Toggle } from '../components/common/Toggle'
 import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
@@ -327,6 +328,8 @@ export function CategoriesPage() {
           </PageActionButton>
         }
       />
+
+      <ProductsTabs />
 
       {error && (
         <div

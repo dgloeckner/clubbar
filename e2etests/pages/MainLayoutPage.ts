@@ -14,7 +14,6 @@ const NAV_LABELS = {
     dashboard: 'Dashboard',
     members: 'Mitglieder',
     products: 'Produkte',
-    categories: 'Kategorien',
     journal: 'Buchungsjournal',
     settlements: 'Abrechnungen',
     reports: 'Berichte',
@@ -25,7 +24,6 @@ const NAV_LABELS = {
     dashboard: 'Dashboard',
     members: 'Members',
     products: 'Products',
-    categories: 'Categories',
     journal: 'Journal',
     settlements: 'Settlements',
     reports: 'Reports',
@@ -39,7 +37,6 @@ export class MainLayoutPage extends BasePage {
   private readonly navDashboard = () => this.page.locator('[data-testid="nav-dashboard"]')
   private readonly navMembers = () => this.page.locator('[data-testid="nav-members"]')
   private readonly navProducts = () => this.page.locator('[data-testid="nav-products"]')
-  private readonly navCategories = () => this.page.locator('[data-testid="nav-categories"]')
   private readonly navJournal = () => this.page.locator('[data-testid="nav-journal"]')
   private readonly navSettlements = () => this.page.locator('[data-testid="nav-settlements"]')
   private readonly navReports = () => this.page.locator('[data-testid="nav-reports"]')
@@ -107,7 +104,6 @@ export class MainLayoutPage extends BasePage {
     await expect(this.navDashboard()).toContainText(labels.dashboard)
     await expect(this.navMembers()).toContainText(labels.members)
     await expect(this.navProducts()).toContainText(labels.products)
-    await expect(this.navCategories()).toContainText(labels.categories)
     await expect(this.navJournal()).toContainText(labels.journal)
     await expect(this.navSettlements()).toContainText(labels.settlements)
     await expect(this.navReports()).toContainText(labels.reports)

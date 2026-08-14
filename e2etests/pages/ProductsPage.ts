@@ -43,6 +43,8 @@ export class ProductsPage extends BasePage {
   private readonly categoriesError = () => this.page.getByTestId('products-categories-error')
   private readonly categoriesRetryBtn = () => this.page.getByTestId('products-categories-retry')
   private readonly formCategoriesError = () => this.page.getByTestId('products-form-categories-error')
+  private readonly productsTab = () => this.page.getByTestId('products-tab-products')
+  private readonly categoriesTab = () => this.page.getByTestId('products-tab-categories')
 
   // Modal locators (PRIVATE)
   private readonly formModal = () => this.page.getByTestId('products-form-modal')
@@ -87,6 +89,17 @@ export class ProductsPage extends BasePage {
    */
   async navigate() {
     await super.navigate('http://localhost:5173/products')
+  }
+
+  /**
+   * Switch to the Categories tab (#366: Categories is a tab of Products).
+   */
+  async clickCategoriesTab() {
+    await this.categoriesTab().click()
+  }
+
+  async expectProductsTabActive() {
+    await expect(this.productsTab()).toHaveAttribute('aria-selected', 'true')
   }
 
   /**

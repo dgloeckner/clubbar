@@ -29,6 +29,8 @@ export class CategoriesPage extends BasePage {
   private readonly tableRows = () => this.page.locator('[data-testid^="categories-table-row-"]')
   private readonly createBtn = () => this.page.getByTestId('categories-create-button')
   private readonly loadingIndicator = () => this.page.getByTestId('categories-loading-indicator')
+  private readonly productsTab = () => this.page.getByTestId('products-tab-products')
+  private readonly categoriesTab = () => this.page.getByTestId('products-tab-categories')
 
   // Modal locators (PRIVATE)
   private readonly formModal = () => this.page.getByTestId('categories-form-modal')
@@ -58,7 +60,18 @@ export class CategoriesPage extends BasePage {
    * Navigate to categories page
    */
   async navigate() {
-    await super.navigate('http://localhost:5173/categories')
+    await super.navigate('http://localhost:5173/products/categories')
+  }
+
+  /**
+   * Switch to the Products tab (#366: Categories is a tab of Products).
+   */
+  async clickProductsTab() {
+    await this.productsTab().click()
+  }
+
+  async expectCategoriesTabActive() {
+    await expect(this.categoriesTab()).toHaveAttribute('aria-selected', 'true')
   }
 
   /**

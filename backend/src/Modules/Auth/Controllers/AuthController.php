@@ -50,7 +50,7 @@ class AuthController
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $admin = $this->authService->authenticate($body['email'], $body['password']);
@@ -144,7 +144,7 @@ class AuthController
         if (!$this->validator->validate($body, [
             'code' => ['required', 'string', 'regex:/^\d{6}$/'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $admin = $this->adminUsersRepository->findById($pendingUserId);
@@ -306,7 +306,7 @@ class AuthController
         if (!$this->validator->validate($body, [
             'code' => ['required', 'string', 'regex:/^\d{6}$/'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $matchedTimestep = $this->totpService->verifyCodeWithTimestep($pendingSecret, $body['code']);
@@ -358,7 +358,7 @@ class AuthController
             'userId' => ['required', 'string'],
             'current_password' => ['required', 'string'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         if (!$this->stepUpAuthService->verify($caller, $body, $request)) {
@@ -439,17 +439,14 @@ class AuthController
             'display_name' => ['nullable', 'string', 'max:255'],
             'locale' => ['nullable', 'in:de,en'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         // Same guard the admin-users endpoint applies: `admin_users.email` is
         // UNIQUE, and without this a duplicate reached the constraint and came
         // back as a 500 instead of a 422 naming the field (#117).
         if (isset($body['email']) && $this->adminUsersService->emailTakenByAnother($body['email'], $adminId)) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'messages' => ['email' => ['Email already exists']],
-            ], 422);
+            return $this->validationFailed($response, ['email' => ['Email already exists']]);
         }
 
         $admin = $this->adminUsersService->updateAdminUser($adminId, $body, $adminId);
@@ -478,7 +475,7 @@ class AuthController
             'new_password' => ['required', 'string', 'min:8', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'],
             'new_password_confirmation' => ['required', 'same:new_password'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         if (!$this->adminUsersService->verifyCurrentPassword($adminId, $body['current_password'])) {

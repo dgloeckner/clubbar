@@ -120,13 +120,14 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/categories"
+        path="/products/categories"
         element={
           <ProtectedRoute>
             <CategoriesPage />
           </ProtectedRoute>
         }
       />
+      <Route path="/categories" element={<Navigate to="/products/categories" />} />
       <Route
         path="/journal"
         element={

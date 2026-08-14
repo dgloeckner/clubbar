@@ -51,15 +51,12 @@ class AdminController
             'display_name' => ['required', 'string', 'max:100'],
             'locale' => ['required', 'string', 'in:de,en,fr'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         // Check for duplicate email
         if ($this->adminUsersService->emailTakenByAnother($body['email'])) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'messages' => ['email' => ['Email already exists']]
-            ], 422);
+            return $this->validationFailed($response, ['email' => ['Email already exists']]);
         }
 
         $result = $this->adminUsersService->createAdminUser(
@@ -100,15 +97,12 @@ class AdminController
             'locale' => ['nullable', 'string', 'in:de,en,fr'],
             'is_active' => ['nullable', 'boolean'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         // Check email uniqueness if provided
         if (isset($body['email']) && $this->adminUsersService->emailTakenByAnother($body['email'], $id)) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'messages' => ['email' => ['Email already exists']]
-            ], 422);
+            return $this->validationFailed($response, ['email' => ['Email already exists']]);
         }
 
         $admin = $this->adminUsersService->updateAdminUser($id, $body, $adminId);
@@ -151,7 +145,7 @@ class AdminController
         if (!$this->validator->validate($body, [
             'current_password' => ['required', 'string'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         if (!$this->stepUpAuthService->verify($caller, $body, $request)) {

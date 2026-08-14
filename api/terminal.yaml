@@ -399,16 +399,33 @@ paths:
                 id: 123e4567-e89b-12d3-a456-426614174000
                 preferred_language: de
                 updated_at: '2025-01-23T14:30:45Z'
-        '400':
-          description: Invalid language code or language not enabled
+        '422':
+          description: |
+            `preferred_language` is missing or not one of the organization's
+            enabled languages — a named field examined and rejected, so this
+            follows the same 422 `validation_failed` convention as the admin
+            API (#446) rather than the 400 this endpoint used to return.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: invalid_request
-                message: "Language 'xx' is not enabled for this organization"
-                timestamp: '2025-01-23T14:30:45Z'
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                missing:
+                  value:
+                    error: validation_failed
+                    message: preferred_language is required
+                    timestamp: '2025-01-23T14:30:45Z'
+                    messages:
+                      preferred_language:
+                        - preferred_language is required
+                unsupported:
+                  value:
+                    error: validation_failed
+                    message: "preferred_language must be one of: de,en,fr"
+                    timestamp: '2025-01-23T14:30:45Z'
+                    messages:
+                      preferred_language:
+                        - "preferred_language must be one of: de,en,fr"
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -1553,37 +1570,34 @@ components:
         message: Authorization header missing or malformed
         timestamp: '2025-01-23T14:30:45Z'
 
+    # A named field examined and rejected (#446) — the same shape the admin
+    # API's `ValidationErrorResponse` uses, additive on top of `ErrorResponse`
+    # rather than the batch-row shape (`index`/`field`/`message`) this used to
+    # describe. That shape belongs to `/sync/transactions`'s per-row
+    # `rejected` list in its 2xx body, never to an error response — the
+    # batch endpoint answers a field-level problem with 2xx, not this schema
+    # (see "Error Handling" above).
     ValidationErrorResponse:
       allOf:
         - $ref: '#/components/schemas/ErrorResponse'
         - type: object
           properties:
-            details:
-              type: array
-              items:
-                type: object
-                properties:
-                  index:
-                    type: integer
-                    description: Index in request array (for batch operations)
-                  field:
-                    type: string
-                    description: Field name that failed validation
-                  message:
-                    type: string
-                    description: Validation error message
-          description: Array of validation errors
+            messages:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+              description: Field name to the list of validation messages rejecting it.
+          required:
+            - messages
       example:
         error: validation_failed
-        message: Validation errors in transaction batch
+        message: preferred_language is required
         timestamp: '2025-01-23T14:30:45Z'
-        details:
-          - index: 0
-            field: member_id
-            message: Member not found
-          - index: 1
-            field: created_at
-            message: Timestamp cannot be in the future
+        messages:
+          preferred_language:
+            - preferred_language is required
 
   responses:
     UnauthorizedError:

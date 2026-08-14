@@ -111,6 +111,21 @@ class AdminControllerTest extends TestCase
      * so the answer cannot drift between them the way it had between this
      * endpoint and `PATCH /api/auth/profile`.
      */
+    public function test_store_rejects_a_missing_email(): void
+    {
+        $this->service->expects($this->never())->method('createAdminUser');
+
+        $response = $this->controller->store(
+            $this->post(['display_name' => 'Someone', 'locale' => 'de']),
+            new Response(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertArrayHasKey('email', $body['messages']);
+    }
+
     public function test_store_refuses_an_address_that_is_already_registered(): void
     {
         $this->service->method('emailTakenByAnother')->with('taken@example.org')->willReturn(true);
@@ -123,6 +138,22 @@ class AdminControllerTest extends TestCase
 
         $this->assertSame(422, $response->getStatusCode());
         $this->assertSame(['Email already exists'], $this->decode($response)['messages']['email']);
+    }
+
+    public function test_update_rejects_an_unsupported_locale(): void
+    {
+        $this->service->expects($this->never())->method('updateAdminUser');
+
+        $response = $this->controller->update(
+            $this->post(['locale' => 'xx']),
+            new Response(),
+            ['id' => 'a-1'],
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertArrayHasKey('locale', $body['messages']);
     }
 
     public function test_update_refuses_an_address_another_admin_holds(): void

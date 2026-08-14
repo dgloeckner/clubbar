@@ -39,7 +39,7 @@ class PreNotificationMailTest extends TestCase
             'language' => $language,
             'recipientAddress' => 'mitglied@example.org',
             'recipientName' => 'Erika Mustermann',
-            'salutationName' => 'Erika Mustermann',
+            'salutationName' => 'Erika',
             'branding' => new MailBranding(
                 orgName: 'Beispiel-Ruderverein e.V.',
                 addressLine: 'Musterweg 35, 60599 Frankfurt am Main',
@@ -210,12 +210,33 @@ class PreNotificationMailTest extends TestCase
         $this->assertStringContainsString('12,34 €', $message->text);
     }
 
+    /**
+     * The club addresses its members by first name, in the Du-form. The
+     * surname belongs on the envelope, where a mailbox lists it — not in the
+     * greeting, which would read like a letter from a bank.
+     */
+    public function test_a_member_is_greeted_informally_by_first_name(): void
+    {
+        $message = $this->render(MailLanguage::German);
+
+        $this->assertStringContainsString('Hallo Erika,', $message->text);
+        $this->assertStringContainsString('Hallo Erika,', $message->html);
+        $this->assertStringNotContainsString('Hallo Erika Mustermann', $message->text);
+
+        // And the pronouns match the greeting, throughout both parts.
+        foreach ([$message->text, $message->html] as $part) {
+            $this->assertStringContainsString('Deinem Konto', $part);
+            $this->assertStringNotContainsString('Ihrem Konto', $part);
+            $this->assertStringNotContainsString('Mit freundlichen Grüßen', $part);
+        }
+    }
+
     public function test_a_member_with_no_name_is_greeted_without_one(): void
     {
         $message = $this->render(MailLanguage::German, ['salutationName' => null, 'recipientName' => null]);
 
-        $this->assertStringContainsString('Guten Tag,', $message->text);
-        $this->assertStringNotContainsString('Guten Tag ,', $message->text);
+        $this->assertStringContainsString('Hallo,', $message->text);
+        $this->assertStringNotContainsString('Hallo ,', $message->text);
     }
 
     /** The club identity has to reach a reader who never renders the HTML. */

@@ -58,10 +58,7 @@ class SepaConfigController
             // The masked value echoed back from the form. Caught by name rather
             // than left to the checksum rule, which would report this as a
             // malformed IBAN and send the admin looking for a typo.
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'messages' => ['creditor_iban' => ['Leave the field empty to keep the stored IBAN, or enter the full IBAN to replace it.']],
-            ], 422);
+            return $this->validationFailed($response, ['creditor_iban' => ['Leave the field empty to keep the stored IBAN, or enter the full IBAN to replace it.']]);
         }
 
         $rules = [
@@ -76,7 +73,7 @@ class SepaConfigController
         }
 
         if (!$this->validator->validate($body, $rules)) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $config = $this->sepaConfigService->updateConfig($body, $adminId);

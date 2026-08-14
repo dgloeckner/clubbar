@@ -59,6 +59,7 @@ use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
 use App\Modules\Notifications\Services\DrainService;
 use App\Modules\Notifications\Services\MailConfigService;
+use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
 use App\Shared\Mail\MailTransportFactory;
@@ -482,6 +483,7 @@ class ServiceFactory implements ContainerInterface
             $this->getMailOutboxRepository(),
             $this->getMembersRepository(),
             $this->getAuditService(),
+            $this->getAdminUsersRepository(),
         ));
     }
 
@@ -496,9 +498,25 @@ class ServiceFactory implements ContainerInterface
     }
 
     /**
+     * What the drain (#403) asks to turn a claimed row into a message. One
+     * builder today; #410 and #438 add theirs here and the drain does not
+     * change.
+     */
+    public function getMailContentRegistry(): MailContentRegistry
+    {
+        return $this->resolve(MailContentRegistry::class, fn() => new MailContentRegistry(
+            $this->getSettlementMailBuilder(),
+        ));
+    }
+
+    /**
      * The only sender (ADR-0038 rule 3). Reached by `bin/cron.php` and by the
      * URL fallback route, which is why it is wired here rather than assembled
      * in the CLI entrypoint — the two triggers cannot drift apart.
+     *
+     * It takes the registry rather than a builder: the sending loop is the
+     * piece that has to stay boring, and #410 and #438 add a notification type
+     * by registering a builder above rather than by editing it.
      *
      * Batch size and wall-clock budget are read from the environment so a host
      * with a tighter gateway timeout can lower the budget without a code
@@ -508,7 +526,7 @@ class ServiceFactory implements ContainerInterface
     {
         return $this->resolve(DrainService::class, fn() => new DrainService(
             $this->getNotificationsService(),
-            $this->getSettlementMailBuilder(),
+            $this->getMailContentRegistry(),
             $this->getMailTransportFactory(),
             $this->getMailConfigService(),
             $this->getCronHeartbeatRepository(),
@@ -786,7 +804,10 @@ class ServiceFactory implements ContainerInterface
 
     public function getMembersSyncController(): MembersSyncController
     {
-        return $this->resolve(MembersSyncController::class, fn() => new MembersSyncController($this->getMembersService()));
+        return $this->resolve(MembersSyncController::class, fn() => new MembersSyncController(
+            $this->getMembersService(),
+            $this->getValidator(),
+        ));
     }
 
     public function getMembersAdminController(): MembersAdminController

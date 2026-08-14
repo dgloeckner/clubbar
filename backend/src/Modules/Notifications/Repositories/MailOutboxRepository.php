@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Repositories;
 
+use App\Modules\Notifications\DTOs\MailRequestDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Shared\Logging\Logger;
@@ -29,38 +30,42 @@ class MailOutboxRepository
      * Queue one message, or leave the existing one alone.
      *
      * The `ON DUPLICATE KEY UPDATE id = id` is not a trick to save a lookup —
-     * it is the idempotency guarantee itself. `UNIQUE (kind, settlement_id,
-     * member_id)` means a repeated enqueue for the same settlement cannot
-     * produce a second announcement, and the database says so without a
-     * read-then-write that two concurrent requests could both pass.
+     * it is the idempotency guarantee itself. `UNIQUE (kind, subject_id,
+     * dedup_key)` means a repeated enqueue cannot produce a second message, and
+     * the database says so without a read-then-write that two concurrent
+     * requests could both pass. It is what makes a retried finalize harmless,
+     * and what will make an expiry warning fire once per tier rather than once
+     * per request that notices the tier (#438).
      *
      * The no-op update is deliberately narrower than `INSERT IGNORE`, which
      * downgrades *every* error to a warning: a foreign key pointing at a member
      * who no longer exists would vanish silently instead of aborting the
      * settlement it belongs to.
      *
+     * Note what the no-op does **not** do: it never rewrites the existing row.
+     * The first `recipient` wins, because that is the address the club
+     * committed to writing to, and a later enqueue does not get to move it.
+     *
      * @return bool True when a row was inserted, false when one already existed.
      */
-    public function enqueue(
-        MailKind $kind,
-        string $settlementId,
-        string $memberId,
-        string $recipient,
-        string $language,
-    ): bool {
+    public function enqueue(MailRequestDto $request): bool
+    {
         $stmt = $this->db->prepare(
-            'INSERT INTO mail_outbox (id, kind, settlement_id, member_id, recipient, language, status, queued_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            'INSERT INTO mail_outbox
+                (id, kind, subject_id, dedup_key, member_id, admin_user_id, recipient, language, status, queued_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
              ON DUPLICATE KEY UPDATE id = id'
         );
 
         $stmt->execute([
             Uuid::v4(),
-            $kind->value,
-            $settlementId,
-            $memberId,
-            $recipient,
-            $language,
+            $request->kind->value,
+            $request->subjectId,
+            $request->dedupKey,
+            $request->memberId,
+            $request->adminUserId,
+            $request->recipient,
+            $request->language->value,
             MailStatus::PENDING->value,
         ]);
 
@@ -77,16 +82,16 @@ class MailOutboxRepository
      *
      * @return int How many rows were superseded.
      */
-    public function supersedePending(string $settlementId, MailKind $kind): int
+    public function supersedePending(string $subjectId, MailKind $kind): int
     {
         $stmt = $this->db->prepare(
             'UPDATE mail_outbox
                 SET status = ?, claim_token = NULL, claimed_at = NULL
-              WHERE settlement_id = ? AND kind = ? AND status = ?'
+              WHERE subject_id = ? AND kind = ? AND status = ?'
         );
         $stmt->execute([
             MailStatus::SUPERSEDED->value,
-            $settlementId,
+            $subjectId,
             $kind->value,
             MailStatus::PENDING->value,
         ]);
@@ -100,23 +105,29 @@ class MailOutboxRepository
      *
      * @return list<string> Member ids.
      */
-    public function findMemberIdsWithStatus(string $settlementId, MailKind $kind, MailStatus $status): array
+    public function findMemberIdsWithStatus(string $subjectId, MailKind $kind, MailStatus $status): array
     {
         $stmt = $this->db->prepare(
-            'SELECT member_id FROM mail_outbox WHERE settlement_id = ? AND kind = ? AND status = ?'
+            'SELECT member_id FROM mail_outbox
+              WHERE subject_id = ? AND kind = ? AND status = ? AND member_id IS NOT NULL'
         );
-        $stmt->execute([$settlementId, $kind->value, $status->value]);
+        $stmt->execute([$subjectId, $kind->value, $status->value]);
 
         return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN, 0));
     }
 
-    /** @return list<array<string,mixed>> Every queued message for one settlement, newest kind last. */
-    public function findBySettlementId(string $settlementId): array
+    /**
+     * Every queued message about one subject — the settlement detail's read
+     * (#407), and the cancellation path's.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function findBySubjectId(string $subjectId): array
     {
         $stmt = $this->db->prepare(
-            'SELECT * FROM mail_outbox WHERE settlement_id = ? ORDER BY kind ASC, queued_at ASC'
+            'SELECT * FROM mail_outbox WHERE subject_id = ? ORDER BY kind ASC, queued_at ASC'
         );
-        $stmt->execute([$settlementId]);
+        $stmt->execute([$subjectId]);
 
         return $stmt->fetchAll();
     }

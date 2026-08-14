@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\Services;
 
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\DTOs\CancellationNoticeDataDto;
 use App\Modules\Notifications\DTOs\PreNotificationDataDto;
 use App\Modules\Notifications\DTOs\StatementLineDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
+use App\Modules\Notifications\Enums\MailSubject;
 use App\Modules\Notifications\Mail\CancellationNoticeMail;
 use App\Modules\Notifications\Mail\PreNotificationMail;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
@@ -34,7 +36,7 @@ use App\Shared\Mail\MailMessage;
  * Everything this class produces is a `MailMessage`; it does not send. The
  * drain (#403) sends, and it is the only thing that does.
  */
-class SettlementMailBuilder
+class SettlementMailBuilder implements MailContentBuilder
 {
     public function __construct(
         private SettlementsRepository $settlementsRepository,
@@ -42,6 +44,16 @@ class SettlementMailBuilder
         private SepaConfigRepository $sepaConfigRepository,
         private MailConfigService $mailConfigService,
     ) {}
+
+    /**
+     * The three settlement kinds — everything whose subject is a settlement.
+     * `payment_request` is claimed here too so #410 lands as a branch in this
+     * class rather than a fourth builder for the same subject.
+     */
+    public function supports(MailKind $kind): bool
+    {
+        return $kind->subjectType() === MailSubject::SETTLEMENT;
+    }
 
     /**
      * @param array<string,mixed> $outboxRow A row as `claimBatch()` returns it.
@@ -56,7 +68,7 @@ class SettlementMailBuilder
     public function build(array $outboxRow): MailMessage
     {
         $kind = MailKind::from((string) $outboxRow['kind']);
-        $settlementId = (string) $outboxRow['settlement_id'];
+        $settlementId = (string) $outboxRow['subject_id'];
         $memberId = (string) $outboxRow['member_id'];
         $language = MailLanguage::fromPreferred((string) ($outboxRow['language'] ?? null));
 
@@ -78,19 +90,23 @@ class SettlementMailBuilder
         // creditor block contributes three of the announcement's fields.
         $sepa = $this->sepaConfigRepository->getConfig() ?? [];
 
-        // The recipient's *name* may be re-read: it is a courtesy in the
-        // salutation, not evidence. The address may not — see the class
-        // docblock.
-        $recipientName = $member === null
+        // The recipient's *name* may be re-read: it is a courtesy, not
+        // evidence. The address may not — see the class docblock.
+        //
+        // Two different names, on purpose. The envelope carries the full one,
+        // because that is what a mailbox lists and what makes the message
+        // recognisable in a crowded inbox. The salutation carries the first
+        // name alone, because the club addresses its members by it.
+        $recipientName = self::nullIfBlank($member === null
             ? null
-            : trim(((string) $member['first_name']) . ' ' . ((string) $member['last_name']));
-        $salutation = $recipientName === '' ? null : $recipientName;
+            : trim(((string) $member['first_name']) . ' ' . ((string) $member['last_name'])));
+        $salutation = self::nullIfBlank($member['first_name'] ?? null);
 
         return match ($kind) {
             MailKind::SEPA_PRENOTIFICATION => PreNotificationMail::render(new PreNotificationDataDto(
                 language: $language,
                 recipientAddress: (string) $outboxRow['recipient'],
-                recipientName: $salutation,
+                recipientName: $recipientName,
                 salutationName: $salutation,
                 branding: $branding,
                 amountCents: $amountCents,
@@ -109,7 +125,7 @@ class SettlementMailBuilder
             MailKind::CANCELLATION_NOTICE => CancellationNoticeMail::render(new CancellationNoticeDataDto(
                 language: $language,
                 recipientAddress: (string) $outboxRow['recipient'],
-                recipientName: $salutation,
+                recipientName: $recipientName,
                 salutationName: $salutation,
                 branding: $branding,
                 amountCents: $amountCents,

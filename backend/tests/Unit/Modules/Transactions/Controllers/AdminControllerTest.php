@@ -132,7 +132,7 @@ class AdminControllerTest extends TestCase
         $this->assertSame(422, $response->getStatusCode());
         $body = $this->decode($response);
         $this->assertSame('validation_failed', $body['error']);
-        $this->assertArrayHasKey('reason', $body['errors']);
+        $this->assertArrayHasKey('reason', $body['messages']);
     }
 
     public function test_storno_rejects_a_blank_reason_with_422(): void
@@ -147,7 +147,7 @@ class AdminControllerTest extends TestCase
         );
 
         $this->assertSame(422, $response->getStatusCode());
-        $this->assertArrayHasKey('reason', $this->decode($response)['errors']);
+        $this->assertArrayHasKey('reason', $this->decode($response)['messages']);
     }
 
     public function test_storno_rejects_a_reason_over_500_chars_with_422(): void
@@ -161,7 +161,7 @@ class AdminControllerTest extends TestCase
         );
 
         $this->assertSame(422, $response->getStatusCode());
-        $this->assertArrayHasKey('reason', $this->decode($response)['errors']);
+        $this->assertArrayHasKey('reason', $this->decode($response)['messages']);
     }
 
     public function test_storno_treats_an_absent_body_as_a_missing_reason(): void
@@ -175,6 +175,6 @@ class AdminControllerTest extends TestCase
         $response = $this->controller->storno($request, new Response(), ['transactionId' => 'tx-1']);
 
         $this->assertSame(422, $response->getStatusCode());
-        $this->assertArrayHasKey('reason', $this->decode($response)['errors']);
+        $this->assertArrayHasKey('reason', $this->decode($response)['messages']);
     }
 }

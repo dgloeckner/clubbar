@@ -51,12 +51,14 @@ Three deviations from #401 worth knowing about:
 
 ### P2 — `mail_outbox`, Notifications module, transactional enqueue ([#402](https://github.com/dgloeckner/clubbar/issues/402))
 
-- [x] Migration `025_mail_outbox.sql` per ADR-0038's schema table, with `UNIQUE (kind, settlement_id, member_id)` and **no body column**; `cron_heartbeat` singleton in the same migration; `audit_log.action` gains `mail_enqueued` and `mail_superseded`
-- [x] `backend/src/Modules/Notifications/` per ADR-0018 and `backend/patterns/`: `MailKind` / `MailStatus` / `MailLanguage` enums, `MailOutboxRepository`, `NotificationsService` with `enqueueForSettlement`, `cancelSettlementNotifications`, `claimBatch`, `recordResult`, plus `supersedePending` / `markSent` / `markFailed` / `resetToPending` / `oldestPendingQueuedAt` on the repository
+- [x] Migration `025_mail_outbox.sql` with `UNIQUE (kind, settlement_id, member_id)` and **no body column**; `cron_heartbeat` singleton in the same migration; `audit_log.action` gains `mail_enqueued` and `mail_superseded`
+- [x] `backend/src/Modules/Notifications/` per ADR-0018 and `backend/patterns/`: `MailKind` / `MailStatus` / `MailLanguage` / `MailSubject` enums, `MailOutboxRepository`, `NotificationsService` with `enqueueForSettlement`, `cancelSettlementNotifications`, `claimBatch`, `recordResult`, plus `supersedePending` / `markSent` / `markFailed` / `resetToPending` / `oldestPendingQueuedAt` on the repository
 - [x] Enqueue inside the **existing** `createSettlement` transaction — one row per collected member (`amount > 0`), language frozen at enqueue from `members.preferred_language` with `de` fallback; credit / zero / no-email members get no row, and `direct_debit` only
 - [x] `cancelSettlement`: supersede unsent announcements, enqueue `cancellation_notice` only where the announcement is `sent`
 - [x] Audit entries (ADR-0013) for enqueue and cancellation-notice creation, keyed to the settlement
-- Verify: **passed** — `NotificationsServiceTest` (16), `MailOutboxSchemaTest` (7, incl. the unique constraint and the *absence* of a body column), `MailOutboxRepositoryTest` (13, against MariaDB: two concurrent claims send N and never N+1, a stale claim is reclaimable, backoff then cap), `SettlementAnnouncementTest` (10, the whole chain), plus 5 new cases in `SettlementsServiceTest` including the rollback
+- [x] Generalised for [#438](https://github.com/dgloeckner/clubbar/issues/438) in migration `026` — see below
+- [x] Test isolation: the outbox tests no longer assume a globally empty queue, and six member/dashboard tests no longer assume one page of 1000 covers the database — see below
+- Verify: **passed** — `NotificationsServiceTest` (22), `MailOutboxSchemaTest` (8, incl. the unique constraint, the *absence* of a body column, and an admin-addressed warning about a credential), `MailOutboxRepositoryTest` (13, against MariaDB: two concurrent claims send N and never N+1, a stale claim is reclaimable, backoff then cap), `MailContentRegistryTest` (4), `SettlementAnnouncementTest` (10, the whole chain), plus 5 new cases in `SettlementsServiceTest` including the rollback
 
 Two notes worth keeping:
 
@@ -65,13 +67,41 @@ Two notes worth keeping:
 | `enqueue()` is `INSERT … ON DUPLICATE KEY UPDATE id = id`, not `INSERT IGNORE` | `INSERT IGNORE` downgrades *every* error to a warning — a foreign key pointing at a member who no longer exists would vanish silently instead of aborting the settlement it belongs to |
 | `MailLanguage` is a separate enum from `SupportedLanguage` | A member may prefer French; there is no French announcement. The outbox column then states the language the mail **will** be in, rather than a preference that cannot be honoured |
 
+#### The queue is not a settlement table
+
+Migration 025 shipped the outbox in the shape ADR-0038 describes it in — `UNIQUE (kind, settlement_id, member_id)` — because the pre-notification is the first thing to use it. It is not the last: [#438](https://github.com/dgloeckner/clubbar/issues/438) wants encryption-key and terminal-token expiry warnings, which are **about a credential rather than a settlement**, **addressed to an admin rather than a member**, and **repeat per 90/30/7-day tier**. All three break the original key.
+
+Migration `026_mail_outbox_generalised.sql` widens it, and backfills `dedup_key` from `member_id` so every existing row keeps exactly the identity the old key gave it:
+
+| Was | Is | Why |
+|---|---|---|
+| `settlement_id` + FK | `subject_id`, no FK | Which table it points at is `MailKind::subjectType()` — one source, and no second column to disagree with it. A polymorphic foreign key cannot exist; `MailSubject` states the cost plainly |
+| `member_id` inside the unique key | `dedup_key VARCHAR(64) NOT NULL` | Everything besides the subject that makes a message distinct. The announcement puts the member here; a warning puts the tier and the admin. **NOT NULL matters**: in MySQL a NULL never equals a NULL, so a single nullable column silently stops a unique index being unique |
+| — | `admin_user_id`, nullable FK | Operational mail is addressed to whoever runs the club. `member_id` keeps its foreign key — it is how erasure (#408) finds the addresses this table holds, and the cascade that means a member's mail cannot outlive them |
+
+`NotificationsService::warnAdmins(kind, subjectId, occasion)` is the resulting API: one message per active admin, with `UNIQUE` answering *"has this already been said?"*. That is the idempotent-notification storage #438 asks for, and a stronger answer than the `logOnceSince` dedup the issue names as the nearest precedent — that one is a time window, this is a constraint. #438 still owns the detection, the tiers and the content. Its send path is the mandatory scheduler this epic already installs, which also settles the *"shared hosting has no cron guarantee"* worry in the issue's own text.
+
+Content dispatch moved behind `MailContentBuilder` + `MailContentRegistry`, so the drain (#403) can claim a mixed batch without knowing what any row means, and a new notification type is a new builder rather than a branch in the sending loop.
+
+#### Test isolation against a shared database
+
+Running the API suite before the backend suite against one database used to turn three PHPUnit tests red, each in a way that read as a broken query rather than as leaked fixture data. The common cause: `POST /api/sync/transactions accepts max batch size` books a hundred transactions against a fresh member every run, and ADR-0004 makes transactions append-only — so that member and their 350 € tab cannot be cleaned up afterwards, by design.
+
+| Test | Assumed | Now |
+|---|---|---|
+| `DashboardRepositoryTest::…puts_the_biggest_tab_first…` | Nothing else in the database owes more | Compares the positions of its **own** two members; the limit is asserted separately |
+| `MembersRepositoryTest::…orders_by_unsettled_balance` and 5 siblings | One page of 1000 covers every member | Gives its members a unique surname and passes it as the repository's `search`, so the page holds exactly its own rows |
+| `MailOutboxRepositoryTest` (claim/backoff cases) | The queue is globally empty | Parks foreign due rows for the duration and restores them exactly as found |
+
+Verified in the order that used to fail: api-tests, then the full backend suite, green apart from the pre-existing rate-limit case.
+
 ### P3 — Cron drain: CLI entrypoint, claim/backoff, `flock`, URL fallback ([#403](https://github.com/dgloeckner/clubbar/issues/403))
 
 - [x] `backend/bin/cron.php` beside `bin/import-bank-codes.php`: resolves the doc root as `dirname(__DIR__, 2)` so `DataDirectory::resolve()` works in both layouts; `flock` in the data directory; records the **CLI** PHP version and extensions into `cron_heartbeat`
 - [x] `DrainService`: claim → render → send → mark, with configurable batch size and wall-clock budget. Claim by `UPDATE … WHERE status='pending' AND next_attempt_at <= NOW() AND (claimed_at IS NULL OR claimed_at < NOW() - INTERVAL 5 MINUTE) LIMIT ?` then select by token — deliberately not `SKIP LOCKED` (MariaDB 10.6+, and the DB version is the host's)
 - [x] Transient failure → `attempts + 1` and backoff; cap at 3–5 → `failed` with `last_error`
 - [x] URL fallback route with a rotatable secret, header preferred; the bare query-string variant documented as degraded and scrubbed from the access log
-- Verify: **passed** — `DrainServiceTest` unit (13) and Feature/MariaDB (8, incl. two drains sending exactly N, a mid-flight claim, a stale claim reclaimed, retry→cap, and budget release), `CronScriptTest` (5, over a real `bin/cron.php` subprocess incl. the `flock`), `CronDrainHttpTest` (8) + `CronDrainDisabledHttpTest` (2), `FileLockTest` (8), `ConfigFileTest` (7), `PhpRuntimeTest` (5); `cron-drain.spec.ts` 7/7 over HTTP; backend suite 1931 with the one pre-existing red (`ServiceFactoryTest::test_getRateLimitMiddleware_is_active_by_default`, the dev compose's `DISABLE_LOGIN_RATE_LIMITING`)
+- Verify: **passed** — `DrainServiceTest` unit (13) and Feature/MariaDB (8, incl. two drains sending exactly N, a mid-flight claim, a stale claim reclaimed, retry→cap, and budget release), `CronScriptTest` (5, over a real `bin/cron.php` subprocess incl. the `flock`), `CronDrainHttpTest` (8) + `CronDrainDisabledHttpTest` (2), `FileLockTest` (8), `ConfigFileTest` (7), `PhpRuntimeTest` (5); `cron-drain.spec.ts` 7/7 over HTTP; backend suite 1969 (1540 Unit + 429 Feature) with the one pre-existing red (`ServiceFactoryTest::test_getRateLimitMiddleware_is_active_by_default`, the dev compose's `DISABLE_LOGIN_RATE_LIMITING`)
 
 Five decisions in P3 that the issue leaves open, and one thing it turned out to depend on:
 
@@ -81,7 +111,8 @@ Five decisions in P3 that the issue leaves open, and one thing it turned out to 
 | Absent secret ⇒ the route answers **404**, not 403 | Most installations schedule the CLI entrypoint. Those should not also carry a public endpoint that drains their queue: unconfigured means switched off, not "mounted and always refusing" |
 | A run with no transport, an unusable DSN or no sender address **claims nothing** | Claiming would burn an attempt on every queued message, and three ticks later the whole queue would be `failed` with a `last_error` blaming SMTP for a missing line in `config.php`. The heartbeat is still written — the scheduler genuinely ran, which is the only thing #405's gate asks |
 | Rows the wall-clock budget did not reach are **released**, not left claimed | They would otherwise wait out the five-minute stale window for no reason: nothing was attempted on them, so nothing needs backing off. `releaseClaim()` deliberately does not touch `attempts`, unlike #407's retry button |
-| `cron_heartbeat` gains `missing_extensions` (migration `026`) | The issue asks for "PHP version and required extensions" and 025 stores only the version. Version alone does not explain the failure that happens: a cron under a PHP without `openssl` fails every send while the same code in the browser works, and the heartbeat otherwise reports a healthy, liveness-green run |
+| `cron_heartbeat` gains `missing_extensions` (migration `027`) | The issue asks for "PHP version and required extensions" and 025 stores only the version. Version alone does not explain the failure that happens: a cron under a PHP without `openssl` fails every send while the same code in the browser works, and the heartbeat otherwise reports a healthy, liveness-green run |
+| The drain holds a `MailContentRegistry`, not the settlement builder | #453 generalised the outbox for #438 while this was in review and introduced the registry *for* this milestone — "the drain holds one of these and nothing else about content". Taking the seam as offered means #410 and #438 register a builder instead of editing the sending loop, which is the part that has to stay boring |
 
 | Dependency found | Resolution |
 |---|---|
@@ -93,7 +124,7 @@ Five decisions in P3 that the issue leaves open, and one thing it turned out to 
 - [x] Pre-notification content: creditor name/address + Gläubiger-ID, mandate reference, exact amount, due date, masked IBAN (last 4), itemized statement (the § 7 Abs. 1 Abrechnungsübersicht), 6-week Beanstandung hint, reply-to Kassenwart — `Notifications/Mail/PreNotificationMail`
 - [x] Cancellation notice variant (*„Einzug entfällt"*), carrying **no** mandate reference and **no** creditor ID: those authorise a collection, and under "this will not be collected" they read as a second announcement
 - [x] de/en per `preferred_language`, `de` fallback (ADR-0002) — `MailStrings` falls back **per key**, so an untranslated string arrives in German rather than as a gap where the amount belongs
-- [x] `SettlementMailBuilder` assembles a message from a queued row at send time, from settlement data and never a stored body; the recipient is the one field taken from the outbox snapshot rather than re-read
+- [x] `SettlementMailBuilder` assembles a message from a queued row at send time, from settlement data and never a stored body; the recipient is the one field taken from the outbox snapshot rather than re-read. It implements `MailContentBuilder` and claims every kind whose subject is a settlement, so #410's payment request lands as a branch here rather than a second builder
 - [x] Preview script `backend/bin/preview-mails.php`, writing both kinds in both languages (HTML + text + an index) to `backend/storage/mail-preview/`, gitignored
 - Verify: **passed** — `PreNotificationMailTest` (17), `CancellationNoticeMailTest` (9), `MailStringsTest` (10); every required field asserted by name in both languages **and in both parts**, the masked account never exceeds four characters, no IBAN-length digit run reaches the output, and a booking label cannot inject markup
 
@@ -102,7 +133,7 @@ Two deviations from #404:
 | Deviation | Why |
 |---|---|
 | The directory is `storage/mail-preview/`, not `storage/mail-vorschau/` | Same contributor rule that made `Mailvorlage` into `MailLayout` in P1: identifiers and paths in this repository are English |
-| German is formal (*Sie*), unlike the terminal UI's informal *du* ([#42](https://github.com/dgloeckner/clubbar/issues/42)) | A pre-notification quotes a creditor identifier and a mandate reference and invites a formal objection within six weeks — the register every other SEPA pre-notification a member receives is written in. The bar touchscreen is a different conversation. It is one file to change if the maintainer disagrees |
+| German is the **Du-form** and members are addressed by first name alone | Maintainer's decision. It matches the terminal UI ([#42](https://github.com/dgloeckner/clubbar/issues/42)) and how the club talks to its own members; a bank's register would be borrowed formality. Every pronoun lives in `MailStrings`, and a test fails on any German string that slips back into the Sie-form. The envelope still carries the full name — that is what a mailbox lists |
 
 ### P5 — The scheduler is mandatory: install verification, finalize gate, missing-email warning ([#405](https://github.com/dgloeckner/clubbar/issues/405))
 

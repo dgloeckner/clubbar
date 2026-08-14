@@ -6,14 +6,18 @@ namespace Tests\Feature\Modules\Notifications;
 
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\DrainSource;
+use App\Modules\Notifications\DTOs\MailRequestDto;
 use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Modules\Notifications\Services\DrainService;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\NotificationsService;
-use App\Modules\Notifications\Services\SettlementMailBuilder;
+use App\Modules\Notifications\Contracts\MailContentBuilder;
+use App\Modules\Notifications\Services\MailContentRegistry;
+use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\Config\PhpRuntime;
 use App\Shared\Logging\Logger;
@@ -133,7 +137,7 @@ class DrainServiceTest extends DatabaseTestCase
         $abandoned = $this->outbox->claimBatch(2);
         $this->assertCount(2, $abandoned);
 
-        $this->db->prepare('UPDATE mail_outbox SET claimed_at = DATE_SUB(NOW(), INTERVAL 30 MINUTE) WHERE settlement_id = ?')
+        $this->db->prepare('UPDATE mail_outbox SET claimed_at = DATE_SUB(NOW(), INTERVAL 30 MINUTE) WHERE subject_id = ?')
             ->execute([$settlementId]);
 
         $counter = new CountingTransport();
@@ -222,7 +226,7 @@ class DrainServiceTest extends DatabaseTestCase
         // Released, not left claimed: nothing was attempted on them, so nothing
         // needs backing off and the next tick takes them straight away.
         $stmt = $this->db->prepare(
-            'SELECT COUNT(*) FROM mail_outbox WHERE settlement_id = ? AND status = ? AND claim_token IS NULL'
+            'SELECT COUNT(*) FROM mail_outbox WHERE subject_id = ? AND status = ? AND claim_token IS NULL'
         );
         $stmt->execute([$settlementId, MailStatus::PENDING->value]);
         $this->assertSame(2, (int) $stmt->fetchColumn());
@@ -277,18 +281,15 @@ class DrainServiceTest extends DatabaseTestCase
     ): DrainService {
         $notifications = new NotificationsService(
             new MailOutboxRepository($this->db, $this->logger),
-            // Only the enqueue path reads members; a drain never does.
+            // Only the enqueue path reads members and admins; a drain never does.
             $this->createMock(MembersRepository::class),
             $this->createMock(AuditService::class),
+            $this->createMock(AdminUsersRepository::class),
         );
 
-        $builder = $this->createMock(SettlementMailBuilder::class);
-        $builder->method('build')->willReturnCallback(static fn (array $row): MailMessage => new MailMessage(
-            to: (string) $row['recipient'],
-            subject: 'Vorabankündigung',
-            html: '<p>Vorabankündigung</p>',
-            text: 'Vorabankuendigung',
-        ));
+        // A real registry with a stub builder: the registry is final, and the
+        // dispatch is worth exercising rather than mocking away.
+        $content = new MailContentRegistry(new FixedContentBuilder());
 
         $transportFactory = $this->createMock(MailTransportFactory::class);
         $transportFactory->method('status')
@@ -309,7 +310,7 @@ class DrainServiceTest extends DatabaseTestCase
 
         return new DrainService(
             $notifications,
-            $builder,
+            $content,
             $transportFactory,
             $mailConfig,
             $this->heartbeat,
@@ -327,13 +328,13 @@ class DrainServiceTest extends DatabaseTestCase
         for ($i = 0; $i < $count; $i++) {
             $memberId = $this->member();
             $memberIds[] = $memberId;
-            $this->outbox->enqueue(
-                MailKind::SEPA_PRENOTIFICATION,
-                $settlementId,
-                $memberId,
-                $memberId . '@example.com',
-                'de',
-            );
+            $this->outbox->enqueue(MailRequestDto::forMember(
+                kind: MailKind::SEPA_PRENOTIFICATION,
+                settlementId: $settlementId,
+                memberId: $memberId,
+                recipient: $memberId . '@example.com',
+                language: MailLanguage::German,
+            ));
         }
 
         return [$settlementId, $memberIds];
@@ -372,13 +373,13 @@ class DrainServiceTest extends DatabaseTestCase
     /** Pull a backed-off message forward, as fifteen minutes of real time would. */
     private function fastForward(string $settlementId): void
     {
-        $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = NOW() WHERE settlement_id = ?')
+        $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = NOW() WHERE subject_id = ?')
             ->execute([$settlementId]);
     }
 
     private function countWithStatus(string $settlementId, MailStatus $status): int
     {
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE settlement_id = ? AND status = ?');
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE subject_id = ? AND status = ?');
         $stmt->execute([$settlementId, $status->value]);
 
         return (int) $stmt->fetchColumn();
@@ -387,7 +388,7 @@ class DrainServiceTest extends DatabaseTestCase
     /** @return array<string,mixed> */
     private function rowFor(string $settlementId, string $memberId): array
     {
-        $stmt = $this->db->prepare('SELECT * FROM mail_outbox WHERE settlement_id = ? AND member_id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM mail_outbox WHERE subject_id = ? AND member_id = ?');
         $stmt->execute([$settlementId, $memberId]);
 
         return $stmt->fetch() ?: [];
@@ -427,5 +428,29 @@ final class CountingTransport implements MailTransport
     public function describe(): string
     {
         return 'counting transport (test)';
+    }
+}
+
+/**
+ * Renders a minimal message for any kind, addressed to the row's recipient.
+ *
+ * The content itself has its own tests (#404); what this file is about is the
+ * queue underneath it.
+ */
+final class FixedContentBuilder implements MailContentBuilder
+{
+    public function supports(MailKind $kind): bool
+    {
+        return true;
+    }
+
+    public function build(array $outboxRow): MailMessage
+    {
+        return new MailMessage(
+            to: (string) $outboxRow['recipient'],
+            subject: 'Vorabankündigung',
+            html: '<p>Vorabankündigung</p>',
+            text: 'Vorabankuendigung',
+        );
     }
 }

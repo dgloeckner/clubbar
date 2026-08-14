@@ -11,7 +11,9 @@ use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Services\DrainService;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\NotificationsService;
-use App\Modules\Notifications\Services\SettlementMailBuilder;
+use App\Modules\Notifications\Contracts\MailContentBuilder;
+use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Shared\Config\PhpRuntime;
 use App\Shared\Logging\Logger;
 use App\Shared\Mail\InvalidMailDsnException;
@@ -36,24 +38,35 @@ use PHPUnit\Framework\TestCase;
 class DrainServiceTest extends TestCase
 {
     private NotificationsService&MockObject $notifications;
-    private SettlementMailBuilder&MockObject $builder;
     private MailTransportFactory&MockObject $transportFactory;
     private MailConfigService&MockObject $mailConfig;
     private CronHeartbeatRepository&MockObject $heartbeat;
     private MailTransport&MockObject $transport;
+
+    /**
+     * What the stubbed builder does with the next row.
+     *
+     * A real {@see MailContentRegistry} holding a stub builder rather than a
+     * mocked registry: the registry is final, and dispatching through the real
+     * one is the more useful test anyway — it is the piece #410 and #438 will
+     * add to.
+     *
+     * @var callable(array<string,mixed>): MailMessage
+     */
+    private $render;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->notifications = $this->createMock(NotificationsService::class);
-        $this->builder = $this->createMock(SettlementMailBuilder::class);
         $this->transportFactory = $this->createMock(MailTransportFactory::class);
         $this->mailConfig = $this->createMock(MailConfigService::class);
         $this->heartbeat = $this->createMock(CronHeartbeatRepository::class);
         $this->transport = $this->createMock(MailTransport::class);
 
         $this->transport->method('describe')->willReturn('smtp://mail.example.org:587');
+        $this->render = fn (array $row): MailMessage => $this->message();
 
         // Configured and complete unless a test says otherwise.
         $this->transportFactory->method('status')
@@ -70,8 +83,7 @@ class DrainServiceTest extends TestCase
     {
         $this->claims([$this->row('a'), $this->row('b')], []);
 
-        $this->builder->method('build')->willReturn($this->message());
-        $this->transport->expects($this->exactly(2))
+                $this->transport->expects($this->exactly(2))
             ->method('send')
             ->willReturn(MailSendResult::sent('<id@example.org>'));
 
@@ -92,8 +104,7 @@ class DrainServiceTest extends TestCase
         // the first would leave a settlement half-announced until the next tick.
         $this->claims([$this->row('a')], [$this->row('b')], []);
 
-        $this->builder->method('build')->willReturn($this->message());
-        $this->transport->method('send')->willReturn(MailSendResult::sent());
+                $this->transport->method('send')->willReturn(MailSendResult::sent());
         $this->notifications->method('recordResult')->willReturn(MailStatus::SENT);
 
         $this->assertSame(2, $this->service()->run(DrainSource::CLI)->sent);
@@ -110,8 +121,7 @@ class DrainServiceTest extends TestCase
         // Kassenwart chasing ordinary operation.
         $this->claims([$this->row('a')], []);
 
-        $this->builder->method('build')->willReturn($this->message());
-        $this->transport->method('send')->willReturn(MailSendResult::transientFailure('450 greylisted'));
+                $this->transport->method('send')->willReturn(MailSendResult::transientFailure('450 greylisted'));
         $this->notifications->method('recordResult')->willReturn(MailStatus::PENDING);
 
         $result = $this->service()->run(DrainSource::CLI);
@@ -125,8 +135,7 @@ class DrainServiceTest extends TestCase
     {
         $this->claims([$this->row('a')], []);
 
-        $this->builder->method('build')->willReturn($this->message());
-        $this->transport->method('send')->willReturn(MailSendResult::permanentFailure('550 no such mailbox'));
+                $this->transport->method('send')->willReturn(MailSendResult::permanentFailure('550 no such mailbox'));
         $this->notifications->method('recordResult')->willReturn(MailStatus::FAILED);
 
         $result = $this->service()->run(DrainSource::CLI);
@@ -142,7 +151,9 @@ class DrainServiceTest extends TestCase
         // delays the moment somebody is told.
         $this->claims([$this->row('a')], []);
 
-        $this->builder->method('build')->willThrowException(new \RuntimeException('settlement vanished'));
+        $this->render = static function (): MailMessage {
+            throw new \RuntimeException('settlement vanished');
+        };
 
         $recorded = null;
         $this->notifications->method('recordResult')
@@ -164,8 +175,7 @@ class DrainServiceTest extends TestCase
     public function test_a_transport_that_throws_does_not_take_the_batch_with_it(): void
     {
         $this->claims([$this->row('a'), $this->row('b')], []);
-        $this->builder->method('build')->willReturn($this->message());
-
+        
         $calls = 0;
         $this->transport->method('send')->willReturnCallback(function () use (&$calls): MailSendResult {
             $calls++;
@@ -243,8 +253,7 @@ class DrainServiceTest extends TestCase
         // they go straight back in the queue for the next tick.
         $this->claims([$this->row('a'), $this->row('b'), $this->row('c')], []);
 
-        $this->builder->method('build')->willReturn($this->message());
-        $this->transport->method('send')->willReturnCallback(function (): MailSendResult {
+                $this->transport->method('send')->willReturnCallback(function (): MailSendResult {
             usleep(1_200_000);
             return MailSendResult::sent();
         });
@@ -291,8 +300,7 @@ class DrainServiceTest extends TestCase
     public function test_a_heartbeat_that_cannot_be_written_does_not_lose_the_run(): void
     {
         $this->claims([$this->row('a')], []);
-        $this->builder->method('build')->willReturn($this->message());
-        $this->transport->method('send')->willReturn(MailSendResult::sent());
+                $this->transport->method('send')->willReturn(MailSendResult::sent());
         $this->notifications->method('recordResult')->willReturn(MailStatus::SENT);
 
         $this->heartbeat->method('record')->willThrowException(new \RuntimeException('table is gone'));
@@ -303,8 +311,7 @@ class DrainServiceTest extends TestCase
     public function test_the_source_is_recorded_and_never_branched_on(): void
     {
         $this->claims([$this->row('a')], []);
-        $this->builder->method('build')->willReturn($this->message());
-        $this->transport->expects($this->once())->method('send')->willReturn(MailSendResult::sent());
+                $this->transport->expects($this->once())->method('send')->willReturn(MailSendResult::sent());
         $this->notifications->method('recordResult')->willReturn(MailStatus::SENT);
 
         $result = $this->service()->run(DrainSource::URL);
@@ -329,7 +336,8 @@ class DrainServiceTest extends TestCase
         return [
             'id' => $id,
             'kind' => 'sepa_prenotification',
-            'settlement_id' => 'settlement-1',
+            'subject_id' => 'settlement-1',
+            'dedup_key' => 'member-' . $id,
             'member_id' => 'member-' . $id,
             'recipient' => $id . '@example.org',
             'language' => 'de',
@@ -366,11 +374,38 @@ class DrainServiceTest extends TestCase
     ): DrainService {
         return new DrainService(
             $this->notifications,
-            $this->builder,
+            new MailContentRegistry(new StubContentBuilder(fn (array $row): MailMessage => ($this->render)($row))),
             $transportFactory ?? $this->transportFactory,
             $mailConfig ?? $this->mailConfig,
             $this->heartbeat,
             $this->createMock(Logger::class),
         );
+    }
+}
+
+/**
+ * A builder that renders whatever the test told it to.
+ *
+ * Claims every kind: which builder answers is `MailContentRegistry`'s own test,
+ * and here the point is what the drain does with what comes back.
+ */
+final class StubContentBuilder implements MailContentBuilder
+{
+    /** @var callable(array<string,mixed>): MailMessage */
+    private $render;
+
+    public function __construct(callable $render)
+    {
+        $this->render = $render;
+    }
+
+    public function supports(MailKind $kind): bool
+    {
+        return true;
+    }
+
+    public function build(array $outboxRow): MailMessage
+    {
+        return ($this->render)($outboxRow);
     }
 }

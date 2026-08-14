@@ -4059,21 +4059,31 @@ components:
           additionalProperties: true
           description: Additional error details
 
+    # A named field was examined and rejected (#446). Every `Validator` call
+    # site — and everything that used to hand-write its own body — returns
+    # exactly this shape, so this schema now describes what the backend
+    # actually emits instead of a body it has never sent.
     ValidationErrorResponse:
       type: object
+      required: [error, messages]
       properties:
         error:
           type: string
-          example: validation_error
+          example: validation_failed
         message:
           type: string
+          description: |
+            Present when a service raised a typed exception with its own
+            message; absent from a plain `Validator` rejection, which reports
+            only through `messages`.
           example: Validation failed
-        details:
+        messages:
           type: object
           additionalProperties:
             type: array
             items:
               type: string
+          description: Field name to the list of validation messages rejecting it.
           example:
             iban: ["Invalid IBAN checksum"]
             first_name: ["Required field"]

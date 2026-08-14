@@ -24,7 +24,6 @@ import {
   UserIcon,
   LogoutIcon,
 } from '../icons'
-import { NavigationIconRegistry } from '../icons/IconRegistry'
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -53,7 +52,6 @@ export function MainLayout({ children }: MainLayoutProps) {
     { label: t('nav.dashboard'), path: '/dashboard', icon: <HomeIcon size={20} />, testId: 'nav-dashboard' },
     { label: t('nav.members'), path: '/members', icon: <UsersIcon size={20} />, testId: 'nav-members' },
     { label: t('nav.products'), path: '/products', icon: <PackageIcon size={20} />, testId: 'nav-products' },
-    { label: t('nav.categories'), path: '/categories', icon: <NavigationIconRegistry.CategoryIcon size={20} />, testId: 'nav-categories' },
     { label: t('nav.journal'), path: '/journal', icon: <BookIcon size={20} />, testId: 'nav-journal' },
     { label: t('nav.settlements'), path: '/settlements', icon: <ReceiptIcon size={20} />, testId: 'nav-settlements' },
     { label: t('nav.reports'), path: '/reports', icon: <ChartIcon size={20} />, testId: 'nav-reports' },

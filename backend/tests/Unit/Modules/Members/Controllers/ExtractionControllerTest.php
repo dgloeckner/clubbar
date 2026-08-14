@@ -58,6 +58,32 @@ class ExtractionControllerTest extends TestCase
             ->withUploadedFiles(['file' => $file]);
     }
 
+    private function requestWithUploadError(int $error): ServerRequestInterface
+    {
+        $file = new class ($error) implements UploadedFileInterface {
+            public function __construct(private int $error) {}
+
+            public function getStream(): StreamInterface
+            {
+                throw new \LogicException('Not used: an errored upload has no stream to read.');
+            }
+
+            public function getSize(): ?int { return null; }
+            public function getError(): int { return $this->error; }
+            public function getClientFilename(): ?string { return 'scan.jpg'; }
+            public function getClientMediaType(): ?string { return 'image/jpeg'; }
+
+            public function moveTo(string $targetPath): void
+            {
+                throw new \LogicException('Not used: the controller reads the stream.');
+            }
+        };
+
+        return (new ServerRequestFactory())
+            ->createServerRequest('POST', '/api/admin/mandate-document/extract')
+            ->withUploadedFiles(['file' => $file]);
+    }
+
     /** A 1×1 PNG, built here so the test needs no fixture outside the backend tree. */
     private function pngBytes(): string
     {
@@ -100,7 +126,7 @@ class ExtractionControllerTest extends TestCase
         );
 
         $this->assertSame(422, $response->getStatusCode());
-        $this->assertSame('validation_error', $this->decode($response)['error']);
+        $this->assertSame('validation_failed', $this->decode($response)['error']);
     }
 
     /**
@@ -137,6 +163,18 @@ class ExtractionControllerTest extends TestCase
         $response = $this->controller->extract($request, new Response());
 
         $this->assertSame(422, $response->getStatusCode());
+    }
+
+    public function test_an_upload_error_is_a_422_naming_the_error_code(): void
+    {
+        $this->extractionService->expects($this->never())->method('extract');
+
+        $response = $this->controller->extract($this->requestWithUploadError(UPLOAD_ERR_INI_SIZE), new Response());
+
+        $this->assertSame(422, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertStringContainsString((string) UPLOAD_ERR_INI_SIZE, $body['messages']['file'][0]);
     }
 
     public function test_the_endpoint_reports_409_when_no_llm_is_configured(): void
