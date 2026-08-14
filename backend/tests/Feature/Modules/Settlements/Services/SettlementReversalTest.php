@@ -12,6 +12,8 @@ use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Enums\SettlementStatus;
 use App\Modules\Settlements\Repositories\CollectionHoldRepository;
+use App\Modules\Notifications\Repositories\MailOutboxRepository;
+use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Settlements\Services\CollectionHoldService;
@@ -81,6 +83,11 @@ class SettlementReversalTest extends DatabaseTestCase
             $auditService,
             $this->db,
             $this->reversalsRepository,
+            new NotificationsService(
+                new MailOutboxRepository($this->db, $this->logger),
+                $this->membersRepository,
+                $auditService,
+            ),
         );
 
         $this->collectionHoldService = new CollectionHoldService(

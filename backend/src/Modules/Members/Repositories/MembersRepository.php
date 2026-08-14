@@ -53,6 +53,45 @@ class MembersRepository
         return $stmt->fetch() ?: null;
     }
 
+    /**
+     * Everything an outgoing message needs about a batch of members, in one
+     * query (ADR-0038).
+     *
+     * A settlement run can name fifty members, and the enqueue happens inside
+     * the create transaction — the one place in this codebase where an extra
+     * fifty round trips are held open against a lock. Hence a batch read rather
+     * than the per-member `findById()` the preview path still uses.
+     *
+     * Deleted members are excluded: an anonymised member has no address to
+     * announce to, and a settlement cannot name one anyway.
+     *
+     * @param list<string> $ids
+     * @return array<string, array{id: string, first_name: string, last_name: string, email: ?string, preferred_language: ?string, mandate_reference: ?string, iban_last4: ?string}>
+     *         Keyed by member id, so the caller can look a member up rather than search.
+     */
+    public function findMailRecipients(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare(
+            'SELECT m.id, m.first_name, m.last_name, m.email, m.preferred_language, '
+            . 'md.reference AS mandate_reference, md.iban_last4 '
+            . 'FROM members m ' . self::MANDATE_JOIN
+            . " WHERE m.id IN ({$placeholders}) AND m.deleted_at IS NULL"
+        );
+        $stmt->execute(array_values($ids));
+
+        $byId = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $byId[(string) $row['id']] = $row;
+        }
+
+        return $byId;
+    }
+
     public function findByIdIncludingDeleted(string $id): ?array
     {
         $stmt = $this->db->prepare(

@@ -23,6 +23,7 @@ use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Services\AuditService;
 use PDO;
@@ -39,6 +40,7 @@ class SettlementsService
         private AuditService $auditService,
         private PDO $db,
         private SettlementReversalsRepository $reversalsRepository,
+        private NotificationsService $notificationsService,
     ) {}
 
     /**
@@ -345,6 +347,31 @@ class SettlementsService
                 ]);
             }
 
+            // The pre-notification is enqueued here, inside this transaction,
+            // and no network call happens (ADR-0038 rule 1). Two things follow.
+            //
+            // First, there is no half-finalize: the settlement and the promise
+            // to announce it commit together, or neither exists. A finalize
+            // that sent mail in a loop could be cut off by the host's gateway
+            // timeout with an unknowable number of members already told, and
+            // that state is not repairable.
+            //
+            // Second, this is the point where the seven-day distance is
+            // guaranteed by construction — $executionDate is already at least
+            // today + 7 (SettlementLeadTime), so whenever the drain gets to it,
+            // the announcement cannot be late by Nutzungsordnung § 7 Abs. 3.
+            //
+            // Only a direct debit is announced. A bank transfer needs a payment
+            // request instead (different content, no mandate reference) and a
+            // write-off moves no money at all — #410.
+            if ($method->isSepaExportable()) {
+                $this->notificationsService->enqueueForSettlement(
+                    settlementId: $settlement['id'],
+                    amountsByMember: self::sumByMember($transactions),
+                    adminUserId: $adminUserId,
+                );
+            }
+
             $this->auditService->log(
                 action: AuditAction::SETTLEMENT_CREATE,
                 entityType: EntityType::SETTLEMENT,
@@ -364,6 +391,29 @@ class SettlementsService
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * What this run collects from each member — the figure the announcement
+     * quotes, and the one that decides whether there is anything to announce.
+     *
+     * It is a sum over the settled rows rather than the member's position,
+     * because a storno inside the same run nets against the sale: a member
+     * whose sales are all reversed settles at 0.00, is told nothing, and is
+     * still correctly part of the run (ruling #141 §5).
+     *
+     * @param list<array{member_id: string, amount_cents: int|string}> $transactions
+     * @return array<string,int>
+     */
+    private static function sumByMember(array $transactions): array
+    {
+        $totals = [];
+        foreach ($transactions as $tx) {
+            $memberId = (string) $tx['member_id'];
+            $totals[$memberId] = ($totals[$memberId] ?? 0) + (int) $tx['amount_cents'];
+        }
+
+        return $totals;
     }
 
     /**
@@ -518,6 +568,15 @@ class SettlementsService
         $this->db->beginTransaction();
         try {
             $result = $this->settlementsRepository->cancelSettlement($settlementId, $adminUserId);
+
+            // What the member already knows decides what happens to their
+            // announcement (ADR-0038). One that never left the host is
+            // superseded — there is nothing to retract. One that went out earns
+            // a "Einzug entfällt". The queue is the only record of which is
+            // which, so this has to happen here, in the cancellation's own
+            // transaction, and not in a later pass that could find the queue
+            // already drained.
+            $this->notificationsService->cancelSettlementNotifications($settlementId, $adminUserId);
 
             $this->auditService->log(
                 action: AuditAction::SETTLEMENT_CANCEL,

@@ -9,6 +9,8 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Enums\SettlementStatus;
+use App\Modules\Notifications\Repositories\MailOutboxRepository;
+use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Settlements\Services\SettlementsService;
@@ -65,6 +67,19 @@ class SettlementSubmitTest extends DatabaseTestCase
             new AuditService(new AuditLogRepository($this->db, $this->logger)),
             $this->db,
             new SettlementReversalsRepository($this->db, $this->logger),
+            new NotificationsService(
+                new MailOutboxRepository($this->db, $this->logger),
+                new MembersRepository(
+                    $this->db,
+                    $this->logger,
+                    new IbanSealedBox(
+                        '0000000000000000000000000000000000000000000000000000000000000002',
+                        'test',
+                    ),
+                    new EncryptionKeysRepository($this->db, $this->logger),
+                ),
+                new AuditService(new AuditLogRepository($this->db, $this->logger)),
+            ),
         );
 
         $this->adminId = $this->createTestAdminUser('submit-' . substr($this->generateUuid(), 0, 8) . '@example.com');
