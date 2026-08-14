@@ -56,15 +56,29 @@ class DirectExtractionServiceTest extends TestCase
         return $llm;
     }
 
-    public function test_extract_throws_on_pdf_mime_type(): void
+    /**
+     * ADR-0037: a PDF now goes straight to the LLM, unlike a raster image it
+     * skips the EXIF-orientation fix and the grayscale/contrast OCR retry —
+     * both meaningless on a PDF — but otherwise takes the same path. Whether
+     * the provider can actually read a PDF is between it and
+     * {@see LlmClientInterface}: Anthropic's client sends a `document`
+     * content block, OpenAI's throws its own error, neither of which this
+     * service second-guesses.
+     */
+    public function test_extract_forwards_a_pdf_straight_to_the_llm(): void
     {
+        $chars = $this->makeChars('DE89370400440532013000');
+
         $llm = $this->createMock(LlmClientInterface::class);
-        $llm->expects($this->never())->method('extractFromImage');
+        $llm->expects($this->once())
+            ->method('extractFromImage')
+            ->with(base64_encode('fake-pdf-bytes'), 'application/pdf', $this->anything())
+            ->willReturn($this->fullResponse($chars));
 
         $service = new DirectExtractionService($llm);
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('/PDF/');
-        $service->extract('fake', 'application/pdf');
+        $result  = $service->extract('fake-pdf-bytes', 'application/pdf');
+
+        $this->assertSame('Max', $result->fields['first_name']['value']);
     }
 
     public function test_extract_throws_on_invalid_json_from_llm(): void

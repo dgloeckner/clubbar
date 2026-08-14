@@ -1191,72 +1191,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /admin/members/{memberId}/mandate-document:
-    parameters:
-      - $ref: '#/components/parameters/memberId'
-    post:
-      summary: Upload or replace mandate document
-      tags: [Members]
-      operationId: uploadMandateDocument
-      security:
-        - sessionAuth: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: JPEG, PNG, or PDF (max 10 MB; HEIC converted to JPEG client-side)
-      responses:
-        '200':
-          description: Document created or replaced (upsert)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MandateDocument'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-    get:
-      summary: Stream the stored mandate PDF
-      tags: [Members]
-      operationId: getMandateDocument
-      security:
-        - sessionAuth: []
-      responses:
-        '200':
-          description: PDF file
-          content:
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      summary: Delete mandate document (GDPR)
-      tags: [Members]
-      operationId: deleteMandateDocument
-      security:
-        - sessionAuth: []
-      responses:
-        '204':
-          description: Deleted
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /admin/sepa-mandate-template:
     get:
       summary: Download SEPA mandate template PDF
@@ -4430,34 +4364,6 @@ components:
           nullable: true
           description: City of bank headquarters
 
-    MandateDocument:
-      type: object
-      required:
-        - uploaded_at
-        - file_size_bytes
-        - original_filename
-      properties:
-        uploaded_at:
-          type: string
-          format: date-time
-          description: When the document was last uploaded or replaced
-        file_size_bytes:
-          type: integer
-          description: Size of the stored PDF in bytes
-        original_filename:
-          type: string
-          description: Original filename as provided by the client
-        extraction_status:
-          type: string
-          nullable: true
-          enum: [completed, failed]
-          description: LLM extraction status; null if extraction has never been attempted
-        extraction:
-          nullable: true
-          allOf:
-            - $ref: '#/components/schemas/ExtractionResult'
-          description: Extraction results; null if extraction was not attempted or not configured
-
     Member:
       type: object
       properties:
@@ -4532,11 +4438,6 @@ components:
         updated_at:
           type: string
           format: date-time
-        mandate_document:
-          nullable: true
-          description: Stored mandate document info, or null if none uploaded
-          allOf:
-            - $ref: '#/components/schemas/MandateDocument'
 
     MemberCreateRequest:
       type: object

@@ -1,12 +1,18 @@
 /**
- * MandateDocumentSection — upload and replace from the member edit view (UC-A15)
+ * MandateDocumentSection — extraction-only (ADR-0037, UC-A15)
  *
- * mandate-document.spec.ts exercises POST/GET/DELETE /admin/members/{id}/mandate-document
- * directly against the API, and mandate-document-extraction.spec.ts drives the
- * create-member-from-scan flow — but nothing exercises MandateDocumentSection.tsx itself
- * (the upload/replace UI shown when editing an existing member). This is also the
- * component whose hand-written uploadMandateDocument/deleteMandateDocument API wrappers
- * were deleted in favor of the generated client as part of the OpenAPI spec drift fix.
+ * The system no longer stores mandate scans: `POST/GET/DELETE
+ * /admin/members/{id}/mandate-document` are gone, and this component now does
+ * exactly one thing — pick a file, call the stateless extract endpoint, hand
+ * the result to the parent form. There is no "stored document" state to
+ * upload, replace or download; mandate-document-extraction.spec.ts covers the
+ * extract endpoint itself (auth, validation, PDF parity, golden values), so
+ * this file's job is the component wiring: does picking a file in the member
+ * edit view actually reach the form.
+ *
+ * The extract route is mocked in every test here so the assertions do not
+ * depend on an LLM being configured — mandate-document-extraction.spec.ts
+ * already covers the real provider path end to end.
  *
  * E2E Patterns applied:
  *  - Pattern 001: Unique test data per test (fresh member, timestamped last name)
@@ -17,7 +23,7 @@
 
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
-import { Page, Response as PlaywrightResponse } from '@playwright/test'
+import { Page } from '@playwright/test'
 import { test, expect } from '../../fixtures/pageObjects'
 import { csrfHeaders } from '../../utils/csrf'
 
@@ -42,126 +48,131 @@ async function createTestMember(page: Page): Promise<{ id: string; lastName: str
   return { id: body.id, lastName }
 }
 
-/**
- * Wait for the mandate-document upload response regardless of status, then assert 200
- * with the response body AND the actual request diagnostics in the failure message — a
- * filtered-to-200 waitForResponse predicate would otherwise time out opaquely on any
- * non-200 response (e.g. a rejected upload), masking the real reason.
- */
-async function waitForUploadResponse(page: Page, memberId: string): Promise<PlaywrightResponse> {
-  const resp = await page.waitForResponse(
-    (r) =>
-      r.url().includes(`/api/admin/members/${memberId}/mandate-document`) &&
-      r.request().method() === 'POST',
-    { timeout: 20000 }
-  )
-  if (resp.status() !== 200) {
-    const req = resp.request()
-    const postData = req.postDataBuffer()
-    const diagnostics = {
-      status: resp.status(),
-      body: await resp.text().catch(() => '<no body>'),
-      requestContentType: req.headers()['content-type'] ?? '<none>',
-      requestBodyBytes: postData?.length ?? '<null>',
-    }
-    expect(resp.status(), JSON.stringify(diagnostics)).toBe(200)
-  }
-  return resp
-}
-
-test.describe('MandateDocumentSection — upload and replace', () => {
-  test('uploads a new mandate document, then replaces it with a different file', async ({
+test.describe('MandateDocumentSection — extraction fills the edit form', () => {
+  test('picks a file, extracts fields into the form, and never shows a stored document', async ({
     page,
     authenticatedMembersPage,
   }) => {
-    const consoleErrors: string[] = []
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') consoleErrors.push(msg.text())
-    })
-    page.on('pageerror', (err) => consoleErrors.push(`pageerror: ${err.message}`))
-
     const { id: memberId, lastName } = await createTestMember(page)
+    const mockIban = 'DE02100100100006820101'
+
+    await page.route('**/api/admin/mandate-document/extract', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fields: {
+            iban: { value: mockIban, confidence: 'high' },
+            account_holder_name: { value: 'Scanned Holder', confidence: 'medium' },
+            mandate_signed_at: { value: '2024-06-15', confidence: 'high' },
+          },
+          needsReview: false,
+        }),
+      })
+    })
 
     await authenticatedMembersPage.search(lastName)
     await authenticatedMembersPage.openEditModalForMember(memberId)
     await authenticatedMembersPage.expectFormModalVisible()
 
-    // Fresh member — the section starts idle (no document uploaded yet)
+    // Nothing has been picked yet — just the picker, never a stored-document view.
     await expect(page.getByTestId('mandate-document-dropzone')).toBeVisible()
+    await expect(page.getByTestId('mandate-document-stored')).toHaveCount(0)
 
-    // ── Initial upload (JPEG — exercises the client-side compression path) ──
     // Uses the realistic 2400x1800 fixture, not the ~281-byte stub: browser-image-compression
     // resizes/re-encodes via a web worker, and a degenerate near-empty image is an edge case
-    // the library isn't necessarily built to handle — a real photo is what production sees.
+    // the library isn't necessarily built to handle.
     await page.getByTestId('mandate-document-input').setInputFiles({
       name: 'test-mandate-large.jpg',
       mimeType: 'image/jpeg',
       buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate-large.jpg')),
     })
-    // Compression runs in a web worker and can take a while under CI's parallel load —
-    // matches the timeout convention in mandate-document-extraction.spec.ts.
+    // Compression runs in a web worker and can take a while under CI's parallel load.
     await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 })
 
-    // Only start listening once the upload button is about to be clicked — creating this
-    // earlier races the wait's own timeout against however long file selection takes.
-    const firstUploadResponse = waitForUploadResponse(page, memberId)
+    const extractResponse = page.waitForResponse(
+      (r) => r.url().includes('/api/admin/mandate-document/extract') && r.request().method() === 'POST'
+    )
     await page.getByTestId('mandate-document-upload-btn').click()
+    await extractResponse
 
-    let firstResp: PlaywrightResponse
-    try {
-      firstResp = await firstUploadResponse
-    } catch (err) {
-      throw new Error(
-        `Upload failed. Browser console errors captured: ${JSON.stringify(consoleErrors)}`,
-        { cause: err }
-      )
-    }
-    const firstDoc = await firstResp.json()
-    expect(firstDoc.original_filename).toBe('test-mandate-large.jpg')
+    // The extraction result reached the member edit form itself — this
+    // endpoint stores nothing, so the form is the only place it can land.
+    await expect(page.getByTestId('members-form-iban-input')).toHaveValue(mockIban)
+    await expect(page.getByTestId('members-form-account-holder-name-input')).toHaveValue('Scanned Holder')
+    await expect(page.getByTestId('members-form-mandate-date-input')).toHaveValue('2024-06-15')
 
-    await expect(page.getByTestId('mandate-document-stored')).toBeVisible()
-    await expect(page.getByTestId('mandate-document-dropzone')).not.toBeVisible()
-
-    // ── Replace with a different file (PDF — exercises the no-compression path) ──
-    await page.getByTestId('mandate-document-replace-btn').click()
+    // The section itself goes back to idle — there is no "stored" state to move to.
     await expect(page.getByTestId('mandate-document-dropzone')).toBeVisible()
+    await expect(page.getByTestId('mandate-document-preview')).not.toBeVisible()
+    await expect(page.getByTestId('mandate-document-stored')).toHaveCount(0)
 
-    const pdfBuffer = readFileSync(resolve(FIXTURE_DIR, 'test-mandate.pdf'))
-    await page.getByTestId('mandate-document-input').setInputFiles({
-      name: 'test-mandate.pdf',
-      mimeType: 'application/pdf',
-      buffer: pdfBuffer,
-    })
-    // PDFs skip client-side compression — this should be near-instant, but keep some
-    // headroom for CI's parallel load, matching the convention used above.
-    await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 })
-
-    const secondUploadResponse = waitForUploadResponse(page, memberId)
-    await page.getByTestId('mandate-document-upload-btn').click()
-
-    const secondResp = await secondUploadResponse
-    const secondDoc = await secondResp.json()
-    expect(secondDoc.original_filename).toBe('test-mandate.pdf')
-    // A genuinely new document, not the first row read back: the PDF is a few hundred
-    // bytes where the JPEG is megabytes. This used to compare `uploaded_at`, but that
-    // is `mandate_documents.updated_at` — a TIMESTAMP, so it has second resolution, and
-    // the replace happens well inside one second of the first upload whenever the runner
-    // is quick. Same second, same string, failed assertion, nothing actually wrong.
-    //
-    // Pin the exact size rather than only asserting the two differ: the PDF path skips
-    // client-side compression (MandateDocumentSection compresses everything except
-    // application/pdf), so the stored size is the fixture's own byte count.
-    expect(secondDoc.file_size_bytes).toBe(pdfBuffer.length)
-    expect(secondDoc.file_size_bytes).not.toBe(firstDoc.file_size_bytes)
-
-    await expect(page.getByTestId('mandate-document-stored')).toBeVisible()
-
-    // The replaced document is really persisted server-side, not just local UI state
+    // No mandate-document endpoint exists to have persisted anything to.
     const getResp = await page.request.get(
       `http://localhost:8080/api/admin/members/${memberId}/mandate-document`
     )
-    expect(getResp.ok()).toBe(true)
-    const contentDisposition = getResp.headers()['content-disposition'] ?? ''
-    expect(contentDisposition).toContain('.pdf')
+    expect(getResp.status()).toBe(404)
+  })
+
+  test('cancelling a picked file discards it without calling the extract endpoint', async ({
+    page,
+    authenticatedMembersPage,
+  }) => {
+    const { id: memberId, lastName } = await createTestMember(page)
+
+    let extractCalls = 0
+    await page.route('**/api/admin/mandate-document/extract', async (route) => {
+      extractCalls++
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ fields: {} }) })
+    })
+
+    await authenticatedMembersPage.search(lastName)
+    await authenticatedMembersPage.openEditModalForMember(memberId)
+    await authenticatedMembersPage.expectFormModalVisible()
+
+    await page.getByTestId('mandate-document-input').setInputFiles({
+      name: 'test-mandate-large.jpg',
+      mimeType: 'image/jpeg',
+      buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate-large.jpg')),
+    })
+    await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 })
+
+    await page.getByTestId('mandate-document-cancel-btn').click()
+
+    await expect(page.getByTestId('mandate-document-dropzone')).toBeVisible()
+    await expect(page.getByTestId('mandate-document-preview')).not.toBeVisible()
+    expect(extractCalls).toBe(0)
+  })
+
+  test('an extraction error is shown inline and keeps the file selected for retry', async ({
+    page,
+    authenticatedMembersPage,
+  }) => {
+    const { id: memberId, lastName } = await createTestMember(page)
+
+    await page.route('**/api/admin/mandate-document/extract', async (route) => {
+      await route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'validation_error', messages: { file: ['Unsupported file type'] } }),
+      })
+    })
+
+    await authenticatedMembersPage.search(lastName)
+    await authenticatedMembersPage.openEditModalForMember(memberId)
+    await authenticatedMembersPage.expectFormModalVisible()
+
+    await page.getByTestId('mandate-document-input').setInputFiles({
+      name: 'test-mandate-large.jpg',
+      mimeType: 'image/jpeg',
+      buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate-large.jpg')),
+    })
+    await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 })
+    await page.getByTestId('mandate-document-upload-btn').click()
+
+    await expect(page.getByTestId('mandate-document-error')).toHaveText('Unsupported file type')
+    // Nothing was stored (there is nowhere left for it to go), and the picked
+    // file is still there so the admin can retry without re-selecting it.
+    await expect(page.getByTestId('mandate-document-preview')).toBeVisible()
   })
 })

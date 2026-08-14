@@ -2,29 +2,9 @@ import { test, expect } from '../../fixtures/pageObjects'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { csrfHeaders } from '../../utils/csrf'
-import type { Page } from '@playwright/test'
 
 const FIXTURE_DIR = resolve(__dirname, '../../fixtures/files')
 const EXTRACTION_CONFIGURED = !!process.env.LLM_API_KEY
-
-// Helper: create an isolated member and return its id
-async function createTestMember(page: Page): Promise<string> {
-  const ts = Date.now()
-  const resp = await page.request.post('http://localhost:8080/api/admin/members', {
-    data: {
-      first_name: `ExtrTest`,
-      last_name: `User${ts}`,
-      email: `extr-${ts}@example.com`,
-      iban: 'DE89370400440532013000',
-      mandate_signed_at: '2025-01-01',
-      preferred_language: 'de',
-    },
-    headers: await csrfHeaders(page),
-  })
-  expect(resp.ok()).toBe(true)
-  const body = await resp.json()
-  return body.id
-}
 
 // ── POST /api/admin/mandate-document/extract — auth & validation ───────────────
 //
@@ -156,87 +136,58 @@ test.describe('POST /api/admin/mandate-document/extract — LLM configured', () 
   })
 })
 
-// ── Mandate upload — extraction field in response ─────────────────────────────
+// ── PDF parity with the removed upload path (ADR-0037) ─────────────────────────
+//
+// The old `POST /members/{id}/mandate-document` upload endpoint took JPEG, PNG
+// and PDF. This stateless endpoint is the only survivor, so it now takes PDF
+// too. Both tests need an LLM configured: the 409 "not configured" check runs
+// before the file-type gate, so an unconfigured backend answers 409 for any
+// file and never exercises the gate this section is about.
 
-test.describe('Mandate upload — extraction field in response', () => {
-  test('response includes extraction key (null when LLM not configured)', async ({ page }) => {
+test.describe('POST /api/admin/mandate-document/extract — PDF parity', () => {
+  test('a real PDF is not rejected as an unsupported file type', async ({ page }) => {
+    test.skip(!EXTRACTION_CONFIGURED, 'LLM_API_KEY not set — endpoint returns 409 before reaching the file-type gate')
     await page.goto('http://localhost:5173/members')
-
-    // Probe the extract endpoint to detect backend LLM config before creating a member
-    const probe = await page.request.post(
+    const resp = await page.request.post(
       'http://localhost:8080/api/admin/mandate-document/extract',
       {
-        multipart: { file: { name: 'x.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('x') } },
-        headers: await csrfHeaders(page),
-      }
-    )
-    // Skip when backend has LLM (probe returns non-409): extraction would be non-null
-    // eslint-disable-next-line clubbar/no-data-dependent-skip -- #146: gate depends on live probe response, not a static env check; fixture work tracked separately, not fixed here
-    test.skip(probe.status() !== 409, 'Backend has LLM configured — extraction will be non-null')
-
-    const memberId = await createTestMember(page)
-
-    const resp = await page.request.post(
-      `http://localhost:8080/api/admin/members/${memberId}/mandate-document`,
-      {
         multipart: {
           file: {
-            name: 'test-mandate.jpg',
-            mimeType: 'image/jpeg',
-            buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate.jpg')),
+            name: 'test-mandate.pdf',
+            mimeType: 'application/pdf',
+            buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate.pdf')),
           },
         },
         headers: await csrfHeaders(page),
       }
     )
-    expect(resp.status()).toBe(200)
-    const body = await resp.json()
-    expect(body).toHaveProperty('extraction')
-    expect(body.extraction).toBeNull()
-    expect(body.extraction_status).toBeNull()
+    // 422 is what this endpoint returned for a PDF before ADR-0037. Whether it
+    // goes on to succeed (200, e.g. Anthropic) or fail for a provider-specific
+    // reason (500, e.g. OpenAI cannot read a PDF) is between this backend and
+    // whichever LLM_PROVIDER is configured, not this test.
+    expect(resp.status()).not.toBe(422)
   })
 
-  test('response includes completed extraction when LLM configured', async ({ page }) => {
-    test.skip(!EXTRACTION_CONFIGURED, 'LLM_API_KEY not set — skipping positive extraction test')
-    test.setTimeout(30000) // Extended thinking can take up to 2–3 minutes
+  // Content decides the type, not the declared one (#107) — the same rule the
+  // removed upload endpoint enforced, now checked here since this is the only
+  // endpoint left that accepts a mandate scan.
+  test('HTML bytes declared as application/pdf are still rejected', async ({ page }) => {
+    test.skip(!EXTRACTION_CONFIGURED, 'LLM_API_KEY not set — endpoint returns 409 before reaching the file-type gate')
     await page.goto('http://localhost:5173/members')
-    const memberId = await createTestMember(page)
-
     const resp = await page.request.post(
-      `http://localhost:8080/api/admin/members/${memberId}/mandate-document`,
+      'http://localhost:8080/api/admin/mandate-document/extract',
       {
         multipart: {
           file: {
-            name: 'sepa-form.jpg',
-            mimeType: 'image/jpeg',
-            buffer: readFileSync(resolve(FIXTURE_DIR, 'sepa-form.jpg')),
+            name: 'mandate.pdf',
+            mimeType: 'application/pdf',
+            buffer: Buffer.from('<html><body><script>alert(1)</script></body></html>'),
           },
         },
         headers: await csrfHeaders(page),
-        timeout: 25000,
       }
     )
-    expect(resp.status()).toBe(200)
-    const body = await resp.json()
-
-    expect(body.extraction_status).toBe('completed')
-    expect(body.extraction).not.toBeNull()
-    expect(body.extraction).toHaveProperty('fields')
-
-    const expectedFields = [
-      'first_name', 'last_name', 'email',
-      'street', 'zip_code', 'city',
-      'iban', 'account_holder_name', 'mandate_signed_at', 'card_uid',
-    ]
-    for (const field of expectedFields) {
-      expect(body.extraction.fields).toHaveProperty(field)
-      const f = body.extraction.fields[field]
-      expect(f).toHaveProperty('value')
-      expect(f).toHaveProperty('confidence')
-    }
-
-    expect(body.extraction).toHaveProperty('needsReview')
-    expect(typeof body.extraction.needsReview).toBe('boolean')
+    expect(resp.status()).toBe(422)
   })
 })
 
@@ -360,13 +311,7 @@ test.describe('UI — scan-to-create: form pre-fill with mock extraction', () =>
     // Use last 8 hex digits of timestamp for a unique, test-run-isolated card UID
     const mockCardUid = ts.toString(16).toUpperCase().slice(-8).padStart(8, '0')
 
-    // Set up route mocks BEFORE navigating so they're active when the scan fires.
-    // The upload mock prevents the backend from running LLM extraction on the fake
-    // JPEG file (which would delay form close by 3–30 s depending on LLM latency).
-    await page.route('**/api/admin/members/*/mandate-document', async (route) => {
-      if (route.request().method() !== 'POST') { await route.continue(); return }
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-    })
+    // Set up the route mock BEFORE navigating so it's active when the scan fires.
     await page.route('**/api/admin/mandate-document/extract', async (route) => {
       await route.fulfill({
         status: 200,
@@ -449,11 +394,6 @@ test.describe('UI — scan-to-create: future mandate date corrected by admin', (
     // The corrected date the admin will manually enter
     const correctedDate = '2025-01-15'
 
-    // Mock upload to avoid LLM extraction on the fake JPEG (avoids 3-30s backend latency)
-    await page.route('**/api/admin/members/*/mandate-document', async (route) => {
-      if (route.request().method() !== 'POST') { await route.continue(); return }
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-    })
     // Mock extraction returning a future mandate date
     await page.route('**/api/admin/mandate-document/extract', async (route) => {
       await route.fulfill({
@@ -611,11 +551,6 @@ test.describe('UI — IBAN candidates picker', () => {
     const candidate1 = 'DE02100100100006820101'
     const candidate2 = 'DE89370400440532013000'
 
-    // Mock upload to avoid LLM extraction on the fake JPEG (avoids 3-30s backend latency)
-    await page.route('**/api/admin/members/*/mandate-document', async (route) => {
-      if (route.request().method() !== 'POST') { await route.continue(); return }
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-    })
     await page.route('**/api/admin/mandate-document/extract', async (route) => {
       await route.fulfill({
         status: 200,

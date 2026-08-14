@@ -367,7 +367,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
 
                 $runner = new \App\Db\MigrationRunner($pdo);
-                $result = $runner->migrate(__DIR__ . '/backend/db/migrations', 'installer');
+                $result = $runner->migrate(
+                    __DIR__ . '/backend/db/migrations',
+                    'installer',
+                    ['storageDir' => DataDirectory::resolve(__DIR__) . '/storage'],
+                );
 
                 $failed = array_filter($result, fn($r) => ($r['status'] ?? '') === 'FAIL');
                 if ($failed) {

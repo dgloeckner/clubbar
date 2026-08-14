@@ -15,7 +15,6 @@ use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Reports\Repositories\ReportsRepository;
 use App\Modules\Products\Repositories\CategoriesRepository;
-use App\Modules\Members\Repositories\MandateDocumentRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
@@ -51,7 +50,6 @@ use App\Modules\Auth\Services\TotpService;
 use App\Modules\Products\Services\CategoriesService;
 use App\Shared\Services\HealthCheckService;
 use App\Shared\Services\SecurityCheckService;
-use App\Modules\Members\Services\MandateDocumentService;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
@@ -72,7 +70,6 @@ use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminControlle
 use App\Shared\Controllers\HealthController;
 use App\Shared\Controllers\SecurityCheckController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
-use App\Modules\Members\Controllers\MandateDocumentController;
 use App\Modules\Members\Controllers\ExtractionController;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
 use App\Modules\Members\Contracts\ExtractionServiceInterface;
@@ -127,7 +124,6 @@ class ServiceFactory implements ContainerInterface
 
         // Members
         MembersAdminController::class => 'getMembersAdminController',
-        MandateDocumentController::class => 'getMandateDocumentController',
         ExtractionController::class => 'getExtractionController',
         MembersSyncController::class => 'getMembersSyncController',
 
@@ -227,11 +223,6 @@ class ServiceFactory implements ContainerInterface
     public function getMembersRepository(): MembersRepository
     {
         return $this->resolve(MembersRepository::class, fn() => new MembersRepository($this->pdo, $this->logger, $this->getIbanSealedBox(), $this->getEncryptionKeysRepository()));
-    }
-
-    public function getMandateDocumentRepository(): MandateDocumentRepository
-    {
-        return $this->resolve(MandateDocumentRepository::class, fn() => new MandateDocumentRepository($this->pdo, $this->logger));
     }
 
     public function getProductsRepository(): ProductsRepository
@@ -389,18 +380,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getMembersService(): MembersService
     {
-        return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService(), $this->getAuditLogRepository(), $this->pdo, $this->getMandateDocumentService(), $this->getBankCodeService()));
-    }
-
-    public function getMandateDocumentService(): MandateDocumentService
-    {
-        return $this->resolve(MandateDocumentService::class, fn() => new MandateDocumentService(
-            $this->getMandateDocumentRepository(),
-            $this->getAuditService(),
-            $this->logger,
-            $this->config,
-            $this->getExtractionService(),
-        ));
+        return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService(), $this->getAuditLogRepository(), $this->pdo, $this->getBankCodeService()));
     }
 
     public function getLlmClientFactory(): LlmClientFactory
@@ -720,17 +700,8 @@ class ServiceFactory implements ContainerInterface
             $this->getMembersService(),
             $this->getValidator(),
             $this->getSepaConfigService(),
-            $this->getMandateDocumentService(),
             $this->getSettlementsService(),
             $this->getCollectionHoldService(),
-        ));
-    }
-
-    public function getMandateDocumentController(): MandateDocumentController
-    {
-        return $this->resolve(MandateDocumentController::class, fn() => new MandateDocumentController(
-            $this->getMandateDocumentService(),
-            $this->getMembersRepository(),
         ));
     }
 

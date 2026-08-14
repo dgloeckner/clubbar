@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Members\Controllers;
 
 use App\Modules\Members\Controllers\AdminController;
-use App\Modules\Members\Services\MandateDocumentService;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Settlements\Services\CollectionHoldService;
@@ -40,7 +39,6 @@ class AdminControllerListTest extends TestCase
             $this->membersService,
             new Validator($this->createMock(\PDO::class)),
             $this->createMock(SepaConfigService::class),
-            $this->createMock(MandateDocumentService::class),
             $this->createMock(SettlementsService::class),
             $this->createMock(CollectionHoldService::class),
         );

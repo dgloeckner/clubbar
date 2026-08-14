@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Members\Controllers;
 
 use App\Modules\Members\Controllers\AdminController;
-use App\Modules\Members\Services\MandateDocumentService;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Settlements\DTOs\MandateMissingDto;
 use App\Modules\Settlements\Services\CollectionHoldService;
@@ -41,7 +40,6 @@ class AdminControllerMandateMissingTest extends TestCase
             $this->createMock(MembersService::class),
             new Validator($this->createMock(\PDO::class)),
             $this->createMock(SepaConfigService::class),
-            $this->createMock(MandateDocumentService::class),
             $this->settlementsService,
             $this->createMock(CollectionHoldService::class),
         );

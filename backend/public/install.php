@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use App\Shared\Config\AppConfig;
 use App\Shared\Config\Env;
 use App\Shared\Database\ConnectionFactory;
 use App\Shared\Logging\Logger;
@@ -80,7 +81,11 @@ switch ($action) {
         break;
 
     case 'migrate':
-        $result = $runner->migrate($migrationsDir, $_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        $result = $runner->migrate(
+            $migrationsDir,
+            $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+            ['storageDir' => (new AppConfig())->storageDir],
+        );
         echo json_encode($result, JSON_PRETTY_PRINT);
         // Mark installation complete so install.php cannot be re-run without manual intervention
         file_put_contents($installedMarker, date('c'));

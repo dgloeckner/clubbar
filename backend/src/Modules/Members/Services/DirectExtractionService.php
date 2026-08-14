@@ -39,14 +39,18 @@ class DirectExtractionService implements ExtractionServiceInterface
      *  6. Post-validation      — date format, email, zip code hard checks
      *  7. needsReview flag     — true when any field is "low" or IBAN repair is ambiguous
      *
-     * @throws \RuntimeException when mimeType is PDF, or LLM returns unparseable JSON
+     * PDF bytes go straight to the LLM (Anthropic accepts a `document` content
+     * type; a provider that doesn't — OpenAI — throws its own clear error).
+     * The EXIF-orientation fix and the grayscale/contrast retry are both
+     * raster-image operations with nothing to do on a PDF, so both are
+     * skipped for it.
+     *
+     * @throws \RuntimeException when the provider cannot read a PDF, or the LLM returns unparseable JSON
      */
     public function extract(string $bytes, string $mimeType): ExtractionResult
     {
         if ($mimeType === 'application/pdf') {
-            throw new \RuntimeException(
-                'PDF extraction is not supported. Direct vision extraction requires a JPEG or PNG image.'
-            );
+            return $this->attemptExtraction($bytes, $mimeType);
         }
 
         $bytes  = ImageOrientationFixer::fix($bytes);

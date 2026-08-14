@@ -14,7 +14,13 @@ class ExtractionController
 {
     use JsonResponder;
 
-    private const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'];
+    // Parity with the removed upload path, which accepted PDF scans too
+    // (ADR-0037). Whether a PDF actually extracts depends on the configured
+    // provider — DirectExtractionService now forwards PDFs to the LLM's
+    // vision API when it supports the document content type (Anthropic does;
+    // OpenAI does not and fails with a clear message), and the Google Vision
+    // OCR pipeline still turns a PDF away, same as before.
+    private const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 
     public function __construct(
         private ?ExtractionServiceInterface $extractionService,

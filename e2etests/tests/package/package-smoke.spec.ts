@@ -474,7 +474,7 @@ test.describe('Package: Security self-check', () => {
  * caught were invisible to a header diff: `install.js`'s Run Migrations
  * button silently stopped submitting once its own click handler disabled it
  * (disabling a submit button inside its own click handler can cancel the
- * browser's default submission), and the mandate-upload screen never broke
+ * browser's default submission), and the mandate-scan picker never broke
  * on a plain JPEG — only on a HEIC file, whose conversion library needs
  * `unsafe-eval` this policy does not grant (heic2any bundles an
  * Emscripten-compiled decoder; ADR-0031 layer L2 grants no unsafe-eval, so
@@ -498,7 +498,7 @@ test.describe.serial('Package: Admin SPA under the enforcing CSP', () => {
     expect(header).toContain("object-src 'none'");
   });
 
-  test('login, TOTP enrollment and a JPEG mandate upload work with no CSP violation, and a HEIC file fails gracefully', async ({ page }) => {
+  test('login, TOTP enrollment and picking a JPEG mandate scan work with no CSP violation, and a HEIC file fails gracefully', async ({ page }) => {
     const cspViolations: string[] = [];
     page.on('console', (msg) => {
       if (msg.type() === 'error' && /Content Security Policy|Refused to/i.test(msg.text())) {

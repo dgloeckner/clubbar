@@ -1,32 +1,21 @@
 import React, { useRef, useState } from 'react'
 import imageCompression from 'browser-image-compression'
 import heic2any from 'heic2any'
-import { MandateDocumentInfo, downloadMandateDocument } from '../api/mandateDocument'
-import { getMembers } from '../api/generated/members/members'
+import { getMandateDocument } from '../api/generated/mandate-document/mandate-document'
 import type { ExtractionResult } from '../api/generated/extractionResult'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 
 interface Props {
-  memberId: string
-  initialDocument: MandateDocumentInfo | null
   onExtractionComplete?: (extraction: ExtractionResult) => void
 }
 
-type ComponentState = 'idle' | 'selected' | 'uploading' | 'stored'
+type ComponentState = 'idle' | 'selected' | 'extracting'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
 }
 
 // heic2any's decoder runs in a worker that needs `unsafe-eval` (Emscripten
@@ -47,14 +36,16 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   })
 }
 
-export function MandateDocumentSection({ memberId, initialDocument, onExtractionComplete }: Props) {
+/**
+ * Pick a mandate scan, extract its fields, hand them to the parent form.
+ * Stateless end to end (ADR-0037): nothing is uploaded or stored here, and
+ * there is nothing to download or delete afterwards.
+ */
+export function MandateDocumentSection({ onExtractionComplete }: Props) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const [state, setState] = useState<ComponentState>(
-    initialDocument ? 'stored' : 'idle'
-  )
-  const [mandateDoc, setMandateDoc] = useState<MandateDocumentInfo | null>(initialDocument)
+  const [state, setState] = useState<ComponentState>('idle')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [originalSize, setOriginalSize] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
@@ -125,25 +116,20 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
     if (file) await processFile(file)
   }
 
-  async function handleUpload() {
+  async function handleExtract() {
     if (!selectedFile) return
-    setState('uploading')
+    setState('extracting')
     setError(null)
 
     try {
-      const doc = await getMembers().uploadMandateDocument(memberId, { file: selectedFile })
-      setMandateDoc(doc)
+      const extraction = await getMandateDocument().extractMandateDocument({ file: selectedFile })
       setSelectedFile(null)
-      setState('stored')
-
-      // Notify parent if LLM extraction produced results
-      if (doc.extraction && onExtractionComplete) {
-        onExtractionComplete(doc.extraction)
-      }
+      setState('idle')
+      onExtractionComplete?.(extraction)
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { messages?: { file?: string[] } } } })
-          ?.response?.data?.messages?.file?.[0] ?? t('mandateDocument.uploadError')
+          ?.response?.data?.messages?.file?.[0] ?? t('mandateDocument.extractError')
       setError(msg)
       setState('selected')
     }
@@ -152,27 +138,12 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
   function handleCancel() {
     setSelectedFile(null)
     setError(null)
-    setState(mandateDoc ? 'stored' : 'idle')
-  }
-
-  async function handleDownload() {
-    setError(null)
-    try {
-      await downloadMandateDocument(memberId)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('mandateDocument.downloadError'))
-    }
-  }
-
-  function handleReplace() {
     setState('idle')
-    setSelectedFile(null)
-    setError(null)
   }
 
-  const uploadLabel = state === 'uploading'
+  const extractLabel = state === 'extracting'
     ? t('mandateDocument.uploadingAndExtracting')
-    : t('mandateDocument.upload')
+    : t('mandateDocument.extract')
 
   return (
     <div
@@ -244,8 +215,8 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
         </label>
       )}
 
-      {/* ── Selected: preview before upload ── */}
-      {(state === 'selected' || state === 'uploading') && selectedFile && (
+      {/* ── Selected: preview before extracting ── */}
+      {(state === 'selected' || state === 'extracting') && selectedFile && (
         <div
           style={{
             border: `2px solid ${theme.colors.semantic.primary}`,
@@ -276,24 +247,24 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
           </div>
           <div style={{ display: 'flex', gap: theme.spacing.sm }}>
             <button
-              onClick={handleUpload}
-              disabled={state === 'uploading'}
+              onClick={handleExtract}
+              disabled={state === 'extracting'}
               style={{
                 flex: 1,
                 padding: theme.spacing.sm,
-                background: state === 'uploading' ? theme.activeTint.primaryBorder : theme.colors.semantic.primary,
+                background: state === 'extracting' ? theme.activeTint.primaryBorder : theme.colors.semantic.primary,
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
-                cursor: state === 'uploading' ? 'wait' : 'pointer',
+                cursor: state === 'extracting' ? 'wait' : 'pointer',
                 fontSize: theme.typography.fontSize.sm,
                 fontWeight: theme.typography.fontWeight.medium,
               }}
               data-testid="mandate-document-upload-btn"
             >
-              {uploadLabel}
+              {extractLabel}
             </button>
-            {state !== 'uploading' && (
+            {state !== 'extracting' && (
               <button
                 onClick={handleCancel}
                 style={{
@@ -310,58 +281,6 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
                 ✕
               </button>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Stored: document info ── */}
-      {state === 'stored' && mandateDoc && (
-        <div
-          style={{
-            border: `1px solid ${theme.badges.success.border}`,
-            borderRadius: theme.borderRadius.sm,
-            padding: theme.spacing.md,
-            background: theme.badges.success.bg,
-          }}
-          data-testid="mandate-document-stored"
-        >
-          <div style={{ fontSize: '11px', color: theme.colors.text.muted, marginBottom: '10px' }}
-            data-testid="mandate-document-filename"
-          >
-            {t('mandateDocument.uploaded')} {formatDate(mandateDoc.uploaded_at)}
-          </div>
-          <div style={{ display: 'flex', gap: theme.spacing.sm }}>
-            <button
-              onClick={handleDownload}
-              style={{
-                flex: 1,
-                padding: theme.spacing.sm,
-                background: theme.colors.bg.secondary,
-                color: theme.colors.text.primary,
-                border: `1px solid ${theme.colors.border.light}`,
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: theme.typography.fontSize.sm,
-              }}
-              data-testid="mandate-document-view-btn"
-            >
-              ⬇ {t('mandateDocument.download')}
-            </button>
-            <button
-              onClick={handleReplace}
-              style={{
-                padding: '8px 12px',
-                background: theme.badges.danger.bg,
-                color: theme.colors.semantic.danger,
-                border: `1px solid ${theme.badges.danger.border}`,
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: theme.typography.fontSize.sm,
-              }}
-              data-testid="mandate-document-replace-btn"
-            >
-              {t('mandateDocument.replace')}
-            </button>
           </div>
         </div>
       )}

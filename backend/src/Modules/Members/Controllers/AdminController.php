@@ -10,7 +10,6 @@ use App\Shared\Validation\Validator;
 use App\Modules\Settlements\Services\CollectionHoldService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Settlements\Services\SettlementsService;
-use App\Modules\Members\Services\MandateDocumentService;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Http\ListQuery;
 use App\Shared\Http\PaginatedResponse;
@@ -137,7 +136,6 @@ class AdminController
         private MembersService $membersService,
         private Validator $validator,
         private SepaConfigService $sepaConfigService,
-        private MandateDocumentService $mandateDocumentService,
         private SettlementsService $settlementsService,
         private CollectionHoldService $collectionHoldService,
     ) {}
@@ -239,12 +237,8 @@ class AdminController
     {
         $memberId = $args['memberId'];
         $member   = $this->membersService->getMember($memberId);
-        $doc      = $this->mandateDocumentService->findByMemberId($memberId);
 
-        $data                     = $member->toArray();
-        $data['mandate_document'] = $doc?->toArray();
-
-        return $this->json($response, $data);
+        return $this->json($response, $member->toArray());
     }
 
     public function update(Request $request, Response $response, array $args): Response
@@ -293,9 +287,9 @@ class AdminController
         $memberId = $args['memberId'];
         $adminId  = $request->getAttribute('admin_user_id');
 
-        // GDPR: anonymizeMember() drops the mandate document as part of the
-        // same transaction — never before its eligibility checks have passed
-        // (#85), so a refused attempt leaves the signed mandate intact.
+        // GDPR: anonymizeMember() scrubs the member's PII and audit history
+        // only after its eligibility checks have passed (#85), so a refused
+        // attempt leaves the member record untouched.
         $member = $this->membersService->anonymizeMember($memberId, $adminId);
 
         return $this->json($response, $member->toArray());

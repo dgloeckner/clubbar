@@ -636,8 +636,17 @@ function runMigrations(string $configFile, string $scriptDir): array
             ]
         );
 
+        // The migrations directory is code, not data — anchored to $scriptDir
+        // (where the package was unpacked) like the autoload require above,
+        // never to dirname($configFile) (#434). storageDir instead uses
+        // DataDirectory::resolve(), which is deliberately not that shortcut:
+        // it is data, and it moves independently of $scriptDir once relocated.
         $runner  = new \App\Db\MigrationRunner($pdo);
-        $results = $runner->migrate($scriptDir . '/backend/db/migrations', 'deploy');
+        $results = $runner->migrate(
+            $scriptDir . '/backend/db/migrations',
+            'deploy',
+            ['storageDir' => DataDirectory::resolve($scriptDir) . '/storage'],
+        );
 
         $failed = array_filter($results, fn($r) => ($r['status'] ?? '') === 'FAIL');
 

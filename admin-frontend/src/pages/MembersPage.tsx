@@ -144,7 +144,6 @@ export function MembersPage() {
   const [removeStoredIban, setRemoveStoredIban] = useState(false)
   const [extractedFields, setExtractedFields] = useState<ExtractionResult | null>(null)
   const [preExtractionFormData, setPreExtractionFormData] = useState<typeof formData | null>(null)
-  const [scanFile, setScanFile] = useState<File | null>(null)
   const [scanExtracting, setScanExtracting] = useState(false)
   const scanInputRef = useRef<HTMLInputElement>(null)
   const { bankName, isLoading: isBankNameLoading } = useBankName(formData.iban)
@@ -218,12 +217,6 @@ export function MembersPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // A mandate upload that fails after the member row is already committed is
-    // not fatal — but staying quiet about it leaves the admin believing the
-    // scan is attached when it is not (#132). Remembered here so the success
-    // path below reports it instead of clearing the banner.
-    let mandateUploadFailed = false
-
     try {
       // Clear previous form errors
       setFormErrors({})
@@ -281,18 +274,7 @@ export function MembersPage() {
           preferred_language: formData.preferred_language,
           card_uid: formData.card_uid || undefined,
         }
-        const newMember = await getMembersFactory().createMember(createPayload)
-        const newMemberId = newMember?.id
-        if (scanFile && newMemberId) {
-          try {
-            await getMembersFactory().uploadMandateDocument(newMemberId, { file: scanFile })
-          } catch {
-            // The member exists, so this is not a failed save — but the scan is
-            // missing and only the admin can re-attach it.
-            mandateUploadFailed = true
-          }
-          setScanFile(null)
-        }
+        await getMembersFactory().createMember(createPayload)
       }
 
       // Reset form
@@ -300,14 +282,13 @@ export function MembersPage() {
       setEditingMember(null)
       setExtractedFields(null)
       setPreExtractionFormData(null)
-      setScanFile(null)
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
       setRemoveStoredIban(false)
 
       // Reload members list with the active filters still applied
       await list.reload()
 
-      setError(mandateUploadFailed ? t('members.errors.mandateUploadFailed') : null)
+      setError(null)
     } catch (err: unknown) {
       // Handle validation errors (422)
       const axiosErr = err as { response?: { status?: number; data?: unknown } }
@@ -473,7 +454,6 @@ export function MembersPage() {
 
   async function handleNewFromScan(file: File) {
     setScanExtracting(true)
-    setScanFile(file)
     setEditingMember(null)
     setExtractedFields(null)
     setFormErrors({})
@@ -496,7 +476,6 @@ export function MembersPage() {
       setPreExtractionFormData(null)
     } catch {
       setError(t('mandateDocument.extractionFailed'))
-      setScanFile(null)
       setShowModal(false)
     } finally {
       setScanExtracting(false)
@@ -1922,7 +1901,7 @@ export function MembersPage() {
                   <button
                     data-testid="members-form-cancel-button"
                     type="button"
-                    onClick={() => { setShowModal(false); setExtractedFields(null); setPreExtractionFormData(null); setScanFile(null) }}
+                    onClick={() => { setShowModal(false); setExtractedFields(null); setPreExtractionFormData(null) }}
                     style={{
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                       background: 'transparent',
@@ -1957,11 +1936,7 @@ export function MembersPage() {
             </form>
 
             {editingMember && editingMember.id && (
-              <MandateDocumentSection
-                memberId={editingMember.id}
-                initialDocument={editingMember.mandate_document ?? null}
-                onExtractionComplete={handleExtractionComplete}
-              />
+              <MandateDocumentSection onExtractionComplete={handleExtractionComplete} />
             )}
           </div>
         </div>
