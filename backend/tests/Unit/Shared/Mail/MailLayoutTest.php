@@ -194,6 +194,41 @@ class MailLayoutTest extends TestCase
         $this->assertStringContainsString('5,00 €', $html);
     }
 
+    public function test_the_blocks_a_pre_notification_is_built_from(): void
+    {
+        // #404 assembles the announcement out of exactly these; a block that
+        // renders nothing shows up here rather than in a member's inbox.
+        $content = MailLayout::contentStart()
+            . MailLayout::eyebrow('Vorabankündigung')
+            . MailLayout::title('Einzug am 21. August 2026')
+            . MailLayout::lede('Wir buchen <strong>47,50 €</strong> von deinem Konto ab.')
+            . MailLayout::paragraph('Die Abrechnung im Einzelnen:')
+            . MailLayout::divider()
+            . MailLayout::signOff('Viele Grüße', 'Der Kassenwart')
+            . MailLayout::contentEnd();
+
+        foreach (['Vorabankündigung', 'Einzug am 21. August 2026', '47,50 €', 'Die Abrechnung im Einzelnen', 'Der Kassenwart'] as $expected) {
+            $this->assertStringContainsString($expected, $content);
+        }
+        // The lede takes HTML, unlike the escaping blocks below — it is where a
+        // template emphasises the amount.
+        $this->assertStringContainsString('<strong>47,50 €</strong>', $content);
+        $this->assertStringContainsString('</td></tr>', $content);
+    }
+
+    public function test_the_trailer_sits_outside_the_card(): void
+    {
+        $withTrailer = $this->render(parts: ['trailer' => 'Diese Nachricht wurde automatisch erzeugt.']);
+        $this->assertStringContainsString('Diese Nachricht wurde automatisch erzeugt.', $withTrailer);
+        // Below the card: it follows the footer, which is the card's last row.
+        $this->assertGreaterThan(
+            strpos($withTrailer, 'Ruderverein Beispiel e. V.'),
+            strpos($withTrailer, 'automatisch')
+        );
+
+        $this->assertStringNotContainsString('automatisch', $this->render());
+    }
+
     public function test_building_blocks_escape_their_input(): void
     {
         $this->assertStringContainsString('&lt;b&gt;', MailLayout::eyebrow('<b>'));

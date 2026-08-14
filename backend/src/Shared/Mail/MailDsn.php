@@ -29,9 +29,13 @@ final readonly class MailDsn
      */
     public const SUPPORTED_SCHEMES = ['smtp', 'smtps', 'sendmail', 'native', 'null'];
 
+    /**
+     * `$host` is non-nullable because every DSN that survives parse() has one:
+     * a scheme demands `://`, and PHP rejects an empty authority outright.
+     */
     private function __construct(
         public string $scheme,
-        public ?string $host,
+        public string $host,
         public ?int $port,
         public string $raw,
     ) {}
@@ -61,7 +65,7 @@ final readonly class MailDsn
         // refuses an empty authority (`smtp://`, `smtp:///queue`, `smtp://:587`
         // all return false), so such a check could never fire and would only
         // read as a guarantee this class does not actually make.
-        return new self($scheme, $parts['host'] ?? null, $parts['port'] ?? null, $dsn);
+        return new self($scheme, $parts['host'] ?? '', $parts['port'] ?? null, $dsn);
     }
 
     /**
@@ -83,10 +87,6 @@ final readonly class MailDsn
     /** A one-line description for the self-check: "smtp to mail.example.org:587". */
     public function describe(): string
     {
-        if ($this->host === null) {
-            return $this->scheme;
-        }
-
         return $this->port === null
             ? sprintf('%s to %s', $this->scheme, $this->host)
             : sprintf('%s to %s:%d', $this->scheme, $this->host, $this->port);

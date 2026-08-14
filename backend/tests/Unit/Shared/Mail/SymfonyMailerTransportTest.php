@@ -9,8 +9,14 @@ use App\Shared\Mail\MailDsn;
 use App\Shared\Mail\MailMessage;
 use App\Shared\Mail\MailSender;
 use App\Shared\Mail\SymfonyMailerTransport;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Mailer\Envelope;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Component\Mailer\SentMessage;
+use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\RawMessage;
 
 /**
  * Everything here runs over `null://null`, Symfony's discard transport, so the
@@ -62,6 +68,25 @@ class SymfonyMailerTransportTest extends TestCase
         $this->assertSame('kassenwart@example.org', $email->getReplyTo()[0]->getAddress());
     }
 
+    public function test_embeds_the_club_mark_when_the_template_asks_for_one(): void
+    {
+        // The alternative to a hosted logo URL: a cid: reference, which needs
+        // the file attached to the message.
+        $message = new MailMessage(
+            to: 'member@example.org',
+            subject: 'Vorabankündigung',
+            html: '<img src="cid:club-logo">',
+            text: 'x',
+            embeddedImages: ['club-logo' => __DIR__ . '/../../../../resources/mail/adler-mail.png'],
+        );
+
+        $email = $this->compose($message, $this->sender());
+
+        $attachments = $email->getAttachments();
+        $this->assertCount(1, $attachments);
+        $this->assertSame('club-logo', $attachments[0]->getFilename());
+    }
+
     public function test_reply_to_is_optional(): void
     {
         $email = $this->compose($this->message(), new MailSender('bar@example.org', 'Ruderverein Beispiel'));
@@ -96,6 +121,47 @@ class SymfonyMailerTransportTest extends TestCase
         $this->assertNotNull($result->error);
     }
 
+    #[DataProvider('transportFailures')]
+    public function test_classifies_a_delivery_failure(int $code, bool $expectTransient): void
+    {
+        $transport = $this->transportThatThrows(new TransportException('rejected', $code));
+
+        $result = $transport->send($this->message(), $this->sender());
+
+        $this->assertFalse($result->sent);
+        $this->assertSame($expectTransient, $result->transient);
+        $this->assertStringContainsString('rejected', (string) $result->error);
+    }
+
+    public static function transportFailures(): array
+    {
+        return [
+            // Greylisting: the receiving MTA rejecting the first attempt on
+            // purpose. This is the case the whole retry path exists for.
+            '450 greylisted' => [450, true],
+            '421 service unavailable' => [421, true],
+            // Below SMTP entirely — refused connection, TLS, DNS. Symfony
+            // carries no reply code, and these are the most worth retrying.
+            'no reply code' => [0, true],
+            '550 mailbox unavailable' => [550, false],
+            '553 relay denied' => [553, false],
+        ];
+    }
+
+    public function test_a_transient_failure_is_logged_as_such(): void
+    {
+        $this->transportThatThrows(new TransportException('greylisted', 450))
+            ->send($this->message(), $this->sender());
+
+        $log = implode('', array_map(
+            fn ($f) => (string) file_get_contents($f),
+            glob($this->logDir . '/*.log') ?: []
+        ));
+
+        $this->assertStringContainsString('Mail delivery failed', $log);
+        $this->assertStringContainsString('greylisted', $log);
+    }
+
     public function test_describes_where_mail_goes(): void
     {
         $this->assertSame('null to null', $this->transport()->describe());
@@ -104,6 +170,35 @@ class SymfonyMailerTransportTest extends TestCase
     private function transport(string $dsn = 'null://null'): SymfonyMailerTransport
     {
         return new SymfonyMailerTransport(MailDsn::parse($dsn), new Logger($this->logDir));
+    }
+
+    /**
+     * A transport whose underlying Symfony transport throws — the delivery
+     * failure path, without a socket. The private property is set directly so
+     * production code carries no test seam.
+     */
+    private function transportThatThrows(\Throwable $e): SymfonyMailerTransport
+    {
+        $transport = $this->transport();
+
+        $throwing = new class ($e) implements TransportInterface {
+            public function __construct(private \Throwable $e) {}
+
+            public function send(RawMessage $message, ?Envelope $envelope = null): ?SentMessage
+            {
+                throw $this->e;
+            }
+
+            public function __toString(): string
+            {
+                return 'throwing://test';
+            }
+        };
+
+        $property = new \ReflectionProperty(SymfonyMailerTransport::class, 'transport');
+        $property->setValue($transport, $throwing);
+
+        return $transport;
     }
 
     private function compose(MailMessage $message, MailSender $sender): Email

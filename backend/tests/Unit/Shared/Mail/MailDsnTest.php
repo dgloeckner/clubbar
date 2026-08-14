@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 class MailDsnTest extends TestCase
 {
     #[DataProvider('validDsns')]
-    public function test_parses_supported_schemes(string $dsn, string $scheme, ?string $host, ?int $port): void
+    public function test_parses_supported_schemes(string $dsn, string $scheme, string $host, ?int $port): void
     {
         $parsed = MailDsn::parse($dsn);
 
