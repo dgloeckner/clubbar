@@ -30,9 +30,9 @@ class MailOutboxSchemaTest extends SchemaTestCase
     }
 
     /**
-     * The key is (kind, settlement_id, member_id), not (settlement_id,
-     * member_id): a member who was announced to and then had the collection
-     * called off needs both messages.
+     * The key is (kind, subject_id, dedup_key), and `kind` is in it for a
+     * reason: a member who was announced to and then had the collection called
+     * off needs both messages about the same settlement.
      */
     public function test_a_cancellation_notice_may_join_the_announcement_it_retracts(): void
     {
@@ -43,7 +43,7 @@ class MailOutboxSchemaTest extends SchemaTestCase
         $this->insertOutbox($settlementId, $memberId, ['kind' => 'sepa_prenotification', 'status' => 'sent']);
         $this->insertOutbox($settlementId, $memberId, ['kind' => 'cancellation_notice']);
 
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE settlement_id = ?');
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE subject_id = ?');
         $stmt->execute([$settlementId]);
 
         $this->assertSame(2, (int) $stmt->fetchColumn());
@@ -57,7 +57,7 @@ class MailOutboxSchemaTest extends SchemaTestCase
         $this->insertOutbox($settlementId, $this->createMember('One'));
         $this->insertOutbox($settlementId, $this->createMember('Two'));
 
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE settlement_id = ?');
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE subject_id = ?');
         $stmt->execute([$settlementId]);
 
         $this->assertSame(2, (int) $stmt->fetchColumn());
@@ -118,32 +118,85 @@ class MailOutboxSchemaTest extends SchemaTestCase
     }
 
     /**
-     * Deleting a settlement takes its queue with it. Not a routine path — the
-     * application cancels rather than deletes — but a stray row pointing at
-     * nothing would render as a message with no amount.
+     * Deleting a member takes their queued messages with them.
+     *
+     * This is the cascade that matters. `subject_id` is polymorphic and
+     * therefore carries no foreign key, so a settlement is *not* what cleans
+     * the queue up — `member_id` is, and it is also how erasure (#408) finds
+     * the addresses this table holds. A member's mail can never outlive the
+     * member.
      */
-    public function test_deleting_a_settlement_takes_its_queued_messages_with_it(): void
+    public function test_deleting_a_member_takes_their_queued_messages_with_them(): void
     {
         $adminId = $this->createAdminUser();
         $memberId = $this->createMember();
         $settlementId = $this->insertSettlement($adminId);
         $this->insertOutbox($settlementId, $memberId);
 
-        $this->db->prepare('DELETE FROM settlements WHERE id = ?')->execute([$settlementId]);
+        // Only the member is deleted; the cascade is what has to remove the
+        // outbox row. Its FK dependants go first so the delete can happen at all.
+        $this->db->prepare('DELETE FROM settlement_items WHERE member_id = ?')->execute([$memberId]);
+        $this->db->prepare('DELETE FROM transactions WHERE member_id = ?')->execute([$memberId]);
+        $this->db->prepare('DELETE FROM members WHERE id = ?')->execute([$memberId]);
 
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE settlement_id = ?');
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE subject_id = ?');
         $stmt->execute([$settlementId]);
 
         $this->assertSame(0, (int) $stmt->fetchColumn());
     }
 
+    /**
+     * The generalisation #438 needs: a warning about an encryption key,
+     * addressed to an admin, repeated per tier.
+     *
+     * Nothing enqueues these yet — this asserts that the *table* takes them, so
+     * that adding the feature is code rather than another migration.
+     */
+    public function test_the_queue_takes_an_admin_addressed_warning_about_a_credential(): void
+    {
+        $adminId = $this->createAdminUser();
+        $keyId = $this->generateUuid();
+
+        $this->insertOutbox($keyId, null, [
+            'kind' => 'key_expiry_warning',
+            'dedup_key' => '90d:' . $adminId,
+            'admin_user_id' => $adminId,
+            'recipient' => 'admin@example.com',
+        ]);
+
+        // A second tier about the same key is a different message.
+        $this->insertOutbox($keyId, null, [
+            'kind' => 'key_expiry_warning',
+            'dedup_key' => '30d:' . $adminId,
+            'admin_user_id' => $adminId,
+            'recipient' => 'admin@example.com',
+        ]);
+
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE subject_id = ?');
+        $stmt->execute([$keyId]);
+        $this->assertSame(2, (int) $stmt->fetchColumn());
+
+        // The same tier twice is not.
+        $this->assertDatabaseRefuses(
+            fn () => $this->insertOutbox($keyId, null, [
+                'kind' => 'key_expiry_warning',
+                'dedup_key' => '30d:' . $adminId,
+                'admin_user_id' => $adminId,
+                'recipient' => 'admin@example.com',
+            ]),
+            'a tier that has already been warned about must not fire again — this is the '
+            . 'idempotent-notification storage #438 asks for'
+        );
+    }
+
     /** @param array<string, mixed> $overrides */
-    private function insertOutbox(string $settlementId, string $memberId, array $overrides = []): string
+    private function insertOutbox(string $subjectId, ?string $memberId, array $overrides = []): string
     {
         $row = array_merge([
             'id' => $this->generateUuid(),
             'kind' => 'sepa_prenotification',
-            'settlement_id' => $settlementId,
+            'subject_id' => $subjectId,
+            'dedup_key' => (string) $memberId,
             'member_id' => $memberId,
             'recipient' => $memberId . '@example.com',
             'language' => 'de',

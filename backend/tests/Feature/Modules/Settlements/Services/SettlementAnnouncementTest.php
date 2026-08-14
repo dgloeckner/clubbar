@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Settlements\Services;
 
+use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
 use App\Modules\Instance\Services\InstanceConfigService;
@@ -82,7 +83,12 @@ class SettlementAnnouncementTest extends DatabaseTestCase
             $auditService,
             $this->db,
             new SettlementReversalsRepository($this->db, $this->logger),
-            new NotificationsService($this->outbox, $membersRepository, $auditService),
+            new NotificationsService(
+                $this->outbox,
+                $membersRepository,
+                $auditService,
+                new AdminUsersRepository($this->db, $this->logger),
+            ),
         );
 
         $mailConfigService = new MailConfigService(
@@ -118,7 +124,8 @@ class SettlementAnnouncementTest extends DatabaseTestCase
 
         if (!empty($this->testSettlementIds)) {
             $placeholders = implode(',', array_fill(0, count($this->testSettlementIds), '?'));
-            // mail_outbox cascades from settlements, so it needs no clause here.
+            $this->db->prepare("DELETE FROM mail_outbox WHERE subject_id IN ({$placeholders})")
+                ->execute($this->testSettlementIds);
             $this->db->prepare("DELETE FROM settlement_items WHERE settlement_id IN ({$placeholders})")
                 ->execute($this->testSettlementIds);
             $this->db->prepare("DELETE FROM audit_log WHERE entity_id IN ({$placeholders})")
@@ -154,7 +161,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
             $this->purchase($two, 500),
         ]);
 
-        $rows = $this->outbox->findBySettlementId($settlementId);
+        $rows = $this->outbox->findBySubjectId($settlementId);
 
         $this->assertCount(2, $rows);
         foreach ($rows as $row) {
@@ -188,11 +195,12 @@ class SettlementAnnouncementTest extends DatabaseTestCase
                 new EncryptionKeysRepository($this->db, $this->logger),
             ),
             new AuditService(new AuditLogRepository($this->db, $this->logger)),
+            new AdminUsersRepository($this->db, $this->logger),
         );
         $result = $notifications->enqueueForSettlement($settlementId, [$memberId => 400], $this->adminId);
 
         $this->assertSame(0, $result->queued);
-        $this->assertCount(1, $this->outbox->findBySettlementId($settlementId));
+        $this->assertCount(1, $this->outbox->findBySubjectId($settlementId));
     }
 
     public function test_a_member_without_an_email_is_reported_and_never_blocks_the_collection(): void
@@ -205,7 +213,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
             $this->purchase($unreachable, 250),
         ]);
 
-        $rows = $this->outbox->findBySettlementId($settlementId);
+        $rows = $this->outbox->findBySubjectId($settlementId);
         $this->assertCount(1, $rows, 'there is no address to announce to');
         $this->assertSame($reachable, $rows[0]['member_id']);
 
@@ -231,7 +239,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
 
         $this->assertSame(
             [],
-            $this->outbox->findBySettlementId($settlementId),
+            $this->outbox->findBySubjectId($settlementId),
             'a bank transfer needs a payment request, which is #410 and is not a pre-notification'
         );
     }
@@ -257,7 +265,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
 
         $this->service->cancelSettlement($settlementId, $this->adminId, 'wrong period');
 
-        $rows = $this->outbox->findBySettlementId($settlementId);
+        $rows = $this->outbox->findBySubjectId($settlementId);
         $this->assertCount(1, $rows, 'no cancellation notice for an announcement nobody received');
         $this->assertSame(MailStatus::SUPERSEDED->value, $rows[0]['status']);
     }
@@ -273,13 +281,13 @@ class SettlementAnnouncementTest extends DatabaseTestCase
         ]);
 
         // One announcement has left the host; the other has not.
-        $this->db->prepare("UPDATE mail_outbox SET status = 'sent', sent_at = NOW() WHERE settlement_id = ? AND member_id = ?")
+        $this->db->prepare("UPDATE mail_outbox SET status = 'sent', sent_at = NOW() WHERE subject_id = ? AND member_id = ?")
             ->execute([$settlementId, $told]);
 
         $this->service->cancelSettlement($settlementId, $this->adminId, 'entered twice');
 
         $byMemberAndKind = [];
-        foreach ($this->outbox->findBySettlementId($settlementId) as $row) {
+        foreach ($this->outbox->findBySubjectId($settlementId) as $row) {
             $byMemberAndKind[$row['member_id'] . '/' . $row['kind']] = $row['status'];
         }
 
@@ -321,7 +329,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
             $this->purchase($memberId, 180),
         ]);
 
-        $row = $this->outbox->findBySettlementId($settlementId)[0];
+        $row = $this->outbox->findBySubjectId($settlementId)[0];
         $message = $this->builder->build($row);
 
         $this->assertSame($this->emailOf($memberId), $message->to);
@@ -355,12 +363,12 @@ class SettlementAnnouncementTest extends DatabaseTestCase
         $memberId = $this->collectableMember('Lena');
         $settlementId = $this->finalize([$this->purchase($memberId, 600)]);
 
-        $this->db->prepare("UPDATE mail_outbox SET status = 'sent', sent_at = NOW() WHERE settlement_id = ?")
+        $this->db->prepare("UPDATE mail_outbox SET status = 'sent', sent_at = NOW() WHERE subject_id = ?")
             ->execute([$settlementId]);
         $this->service->cancelSettlement($settlementId, $this->adminId, 'called off');
 
         $notice = null;
-        foreach ($this->outbox->findBySettlementId($settlementId) as $row) {
+        foreach ($this->outbox->findBySubjectId($settlementId) as $row) {
             if ($row['kind'] === MailKind::CANCELLATION_NOTICE->value) {
                 $notice = $row;
             }
@@ -380,7 +388,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
         $memberId = $this->collectableMember('Mika', language: 'en');
         $settlementId = $this->finalize([$this->purchase($memberId, 250)]);
 
-        $row = $this->outbox->findBySettlementId($settlementId)[0];
+        $row = $this->outbox->findBySubjectId($settlementId)[0];
         $this->assertSame('en', $row['language']);
 
         $message = $this->builder->build($row);

@@ -57,6 +57,7 @@ use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
 use App\Modules\Notifications\Services\MailConfigService;
+use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
 use App\Shared\Mail\MailTransportFactory;
@@ -473,6 +474,7 @@ class ServiceFactory implements ContainerInterface
             $this->getMailOutboxRepository(),
             $this->getMembersRepository(),
             $this->getAuditService(),
+            $this->getAdminUsersRepository(),
         ));
     }
 
@@ -483,6 +485,18 @@ class ServiceFactory implements ContainerInterface
             $this->getMembersRepository(),
             $this->getSepaConfigRepository(),
             $this->getMailConfigService(),
+        ));
+    }
+
+    /**
+     * What the drain (#403) asks to turn a claimed row into a message. One
+     * builder today; #410 and #438 add theirs here and the drain does not
+     * change.
+     */
+    public function getMailContentRegistry(): MailContentRegistry
+    {
+        return $this->resolve(MailContentRegistry::class, fn() => new MailContentRegistry(
+            $this->getSettlementMailBuilder(),
         ));
     }
 

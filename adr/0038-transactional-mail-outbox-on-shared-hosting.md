@@ -47,7 +47,7 @@ Decided in [#361](https://github.com/dgloeckner/clubbar/issues/361) (2026-08-13)
 Settlement, items and outbox rows commit together or not at all. Two consequences follow, and both are the point:
 
 - There is no half-finalize. The queue either describes a settlement that exists, or neither exists.
-- **Idempotency lives on the message, not on the settlement**: `UNIQUE (kind, settlement_id, member_id)`. A finalize retried after a lost response cannot produce a second announcement, and it does not need a lookup-then-insert race to avoid one — the database refuses.
+- **Idempotency lives on the message, not on the settlement**: `UNIQUE (kind, subject_id, dedup_key)`, where the announcement's dedup key is the member. A finalize retried after a lost response cannot produce a second announcement, and it does not need a lookup-then-insert race to avoid one — the database refuses.
 
 ### 2. Transport is an adapter behind one DSN
 
@@ -184,25 +184,35 @@ Enqueueing a cancellation notice for a `pending` row would tell a member a colle
 
 ### The outbox
 
+The pre-notification is the first thing to use this queue and deliberately not the last, so the table is written in terms of a **subject** and a **dedup key** rather than a settlement and a member. [#438](https://github.com/dgloeckner/clubbar/issues/438)'s expiry warnings are about a credential rather than a settlement, are addressed to an admin rather than a member, and repeat per 90/30/7-day tier — three things a settlement-shaped key cannot express.
+
 | Column | Type | Meaning |
 |---|---|---|
 | `id` | CHAR(36) | UUID |
-| `kind` | ENUM | `sepa_prenotification`, `cancellation_notice`, `payment_request` |
-| `settlement_id`, `member_id` | CHAR(36) | What this message is about, and to whom |
-| `recipient` | VARCHAR | **Snapshot** of the address — proof of who was announced to (rule 5); in scope for erasure |
-| `language` | CHAR(2) | From `members.preferred_language`, `de` fallback (ADR-0002) |
+| `kind` | ENUM | `sepa_prenotification`, `cancellation_notice`, `payment_request`, `key_expiry_warning`, `terminal_token_expiry_warning` |
+| `subject_id` | CHAR(36) | What this message is about. Which table it points at is decided by `kind`, so there is no second column to disagree with it — and no foreign key, because a polymorphic one cannot exist |
+| `dedup_key` | VARCHAR(64) | Everything besides the subject that makes the message distinct. The announcement puts the member here; an expiry warning puts the tier and the admin |
+| `member_id`, `admin_user_id` | CHAR(36) NULL | Who it is for, when this system knows them. Real foreign keys: `member_id` is how erasure finds the addresses this table holds (ADR-0029), `admin_user_id` is how a departing admin's warnings leave with them |
+| `recipient` | VARCHAR | **Snapshot** of the address — proof of who was written to (rule 5); in scope for erasure |
+| `language` | CHAR(2) | From `members.preferred_language` or `admin_users.locale`, `de` fallback (ADR-0002) |
 | `status` | ENUM | `pending`, `sent`, `failed`, `superseded` |
 | `attempts`, `next_attempt_at`, `last_error` | | Retry state and the reason the Kassenwart sees |
 | `claim_token`, `claimed_at` | | Concurrency: claim by `UPDATE`, then select by token |
 | `queued_at`, `sent_at`, `message_id` | | Timeline and the transport's handle |
 
-`UNIQUE (kind, settlement_id, member_id)`. **No body column.**
+`UNIQUE (kind, subject_id, dedup_key)`. **No body column.**
+
+Every column of that key is `NOT NULL`, and not as a style rule: in MySQL a NULL never equals a NULL, so a single nullable column in a unique index silently stops it being unique — which is why the recipient columns stay outside it and the dedup key carries the recipient instead where one is needed.
+
+Content is dispatched by kind through a `MailContentBuilder` registry, so the drain claims a mixed batch without knowing what any row means, and a new notification type is a new builder rather than a branch in the sending loop.
 
 Claiming is `UPDATE … WHERE status = 'pending' AND next_attempt_at <= NOW() AND (claimed_at IS NULL OR claimed_at < NOW() - INTERVAL 5 MINUTE) LIMIT ?` followed by a select on the token — deliberately **not** `SELECT … FOR UPDATE SKIP LOCKED`, which requires MariaDB 10.6+, and on mass hosting the database version belongs to the host. The stale-claim window is what stops a killed run from stranding rows forever.
 
 A `cron_heartbeat` singleton (`last_run_at`, `source`, `sent`, `failed`, `php_version`) is written by every run. The PHP version is recorded because **the panel's CLI PHP is frequently not the web PHP** — different version, different extensions, different ini — and that difference should be visible rather than mysterious.
 
 ### Scope
+
+The queue itself is not settlement-specific: #438's encryption-key and terminal-token expiry warnings use the same table, the same claim and the same drain, and supply their own detection and content.
 
 | In | Out |
 |---|---|
@@ -215,7 +225,7 @@ A `cron_heartbeat` singleton (`last_run_at`, `source`, `sent`, `failed`, `php_ve
 **Positive**
 
 - A finalize cannot half-succeed. It is a database transaction and nothing else, which is also why it stays fast enough for a gateway that we do not control.
-- Retry safety is a database constraint rather than a code path that has to remember: `UNIQUE (kind, settlement_id, member_id)`.
+- Retry safety is a database constraint rather than a code path that has to remember: `UNIQUE (kind, subject_id, dedup_key)`. The same constraint answers "has this already been said?" for any notification that repeats on an occasion — which is the idempotent-notification storage #438 was waiting for.
 - Greylisting becomes ordinary rather than fatal, because a retry path exists at all.
 - The 7-day promise is guaranteed at the point of *enqueue*, where the lead-time rule already lives, so delivery latency cannot break it — only a total stall can, and that is alarmed.
 - The transport is swappable behind one DSN, and CI never opens a socket.

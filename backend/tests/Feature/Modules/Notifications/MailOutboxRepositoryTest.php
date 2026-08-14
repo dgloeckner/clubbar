@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Notifications;
 
+use App\Modules\Notifications\DTOs\MailRequestDto;
 use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use Tests\Feature\DatabaseTestCase;
@@ -29,16 +31,62 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
     /** @var list<string> */
     private array $adminIds = [];
 
+    /** @var list<array{id: string, next_attempt_at: string}> */
+    private array $parked = [];
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->repository = new MailOutboxRepository($this->db, $this->logger);
+        $this->parkForeignMessages();
+    }
+
+    /**
+     * Give this test class a queue of its own.
+     *
+     * `claimBatch()` is global by nature — a drain takes whatever is due, which
+     * is the whole point of it — so "the second drain may only take what the
+     * first left" is a meaningful assertion only when nothing else is waiting.
+     * And something else routinely is: the API suite creates settlements
+     * against this same database, every one of them queues an announcement, and
+     * those rows stay `pending` because nothing drains them yet.
+     *
+     * So anything already due is pushed a day out for the duration, and put
+     * back exactly as it was in tearDown. Deleting it would be easier and
+     * wrong: those rows belong to somebody else's fixture.
+     */
+    private function parkForeignMessages(): void
+    {
+        $due = $this->db
+            ->query("SELECT id, next_attempt_at FROM mail_outbox WHERE status = 'pending'")
+            ->fetchAll();
+
+        foreach ($due as $row) {
+            $this->parked[] = ['id' => (string) $row['id'], 'next_attempt_at' => (string) $row['next_attempt_at']];
+        }
+
+        if ($this->parked !== []) {
+            $this->db->exec(
+                "UPDATE mail_outbox SET next_attempt_at = DATE_ADD(NOW(), INTERVAL 1 DAY) WHERE status = 'pending'"
+            );
+        }
+    }
+
+    private function unparkForeignMessages(): void
+    {
+        $stmt = $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = ? WHERE id = ?');
+        foreach ($this->parked as $row) {
+            $stmt->execute([$row['next_attempt_at'], $row['id']]);
+        }
+        $this->parked = [];
     }
 
     protected function tearDown(): void
     {
-        // mail_outbox cascades from both parents, so removing these is enough.
+        // `subject_id` is polymorphic and carries no foreign key, so deleting
+        // the settlement does not take the queue with it — deleting the member
+        // does, and that is the cascade that matters (erasure, #408).
         foreach ($this->settlementIds as $id) {
             $this->db->prepare('DELETE FROM settlements WHERE id = ?')->execute([$id]);
         }
@@ -48,6 +96,8 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         foreach ($this->adminIds as $id) {
             $this->db->prepare('DELETE FROM admin_users WHERE id = ?')->execute([$id]);
         }
+
+        $this->unparkForeignMessages();
 
         parent::tearDown();
     }
@@ -91,13 +141,13 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         for ($i = 0; $i < $count; $i++) {
             $memberId = $this->member();
             $memberIds[] = $memberId;
-            $this->repository->enqueue(
-                MailKind::SEPA_PRENOTIFICATION,
-                $settlementId,
-                $memberId,
-                $memberId . '@example.com',
-                'de',
-            );
+            $this->repository->enqueue(MailRequestDto::forMember(
+                kind: MailKind::SEPA_PRENOTIFICATION,
+                settlementId: $settlementId,
+                memberId: $memberId,
+                recipient: $memberId . '@example.com',
+                language: MailLanguage::German,
+            ));
         }
 
         return [$settlementId, $memberIds];
@@ -105,7 +155,7 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
 
     private function row(string $settlementId, string $memberId, MailKind $kind = MailKind::SEPA_PRENOTIFICATION): array
     {
-        $stmt = $this->db->prepare('SELECT * FROM mail_outbox WHERE settlement_id = ? AND member_id = ? AND kind = ?');
+        $stmt = $this->db->prepare('SELECT * FROM mail_outbox WHERE subject_id = ? AND member_id = ? AND kind = ?');
         $stmt->execute([$settlementId, $memberId, $kind->value]);
 
         return $stmt->fetch() ?: [];
@@ -120,17 +170,17 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
     {
         [$settlementId, $memberIds] = $this->queue(1);
 
-        $second = $this->repository->enqueue(
-            MailKind::SEPA_PRENOTIFICATION,
-            $settlementId,
-            $memberIds[0],
-            'changed@example.com',
-            'en',
-        );
+        $second = $this->repository->enqueue(MailRequestDto::forMember(
+            kind: MailKind::SEPA_PRENOTIFICATION,
+            settlementId: $settlementId,
+            memberId: $memberIds[0],
+            recipient: 'changed@example.com',
+            language: MailLanguage::English,
+        ));
 
         $this->assertFalse($second, 'a repeated enqueue must report that it inserted nothing');
 
-        $rows = $this->repository->findBySettlementId($settlementId);
+        $rows = $this->repository->findBySubjectId($settlementId);
         $this->assertCount(1, $rows);
         // The first snapshot wins. It is the address the club committed to
         // announcing to; a retried finalize does not get to rewrite it.
@@ -184,7 +234,7 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
     {
         [$settlementId, $memberIds] = $this->queue(1);
 
-        $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE settlement_id = ?')
+        $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE subject_id = ?')
             ->execute([$settlementId]);
 
         $this->assertSame([], $this->repository->claimBatch(5));
@@ -233,7 +283,7 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         [$settlementId, $memberIds] = $this->queue(1);
 
         for ($attempt = 1; $attempt <= 3; $attempt++) {
-            $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = NOW() WHERE settlement_id = ?')
+            $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = NOW() WHERE subject_id = ?')
                 ->execute([$settlementId]);
 
             $claimed = $this->repository->claimBatch(1);
@@ -250,7 +300,7 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
 
         // Failed is terminal for the drain. The Kassenwart decides what happens
         // next (#407) — best effort means visible, not chased.
-        $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = NOW() WHERE settlement_id = ?')
+        $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = NOW() WHERE subject_id = ?')
             ->execute([$settlementId]);
         $this->assertSame([], $this->repository->claimBatch(5));
     }
@@ -312,7 +362,7 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         $this->assertSame(1, $superseded);
 
         $byId = [];
-        foreach ($this->repository->findBySettlementId($settlementId) as $row) {
+        foreach ($this->repository->findBySubjectId($settlementId) as $row) {
             $byId[$row['id']] = $row['status'];
         }
 
@@ -340,6 +390,12 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
     /**
      * The backlog signal #406 alarms on: a queue that stops moving erodes the
      * seven-day announcement distance, and nothing else would notice.
+     *
+     * The reading is global on purpose — it answers "is anything stuck?" for
+     * the whole installation, not per settlement — so this asserts the two
+     * things that hold whatever else the database contains: the backlog is
+     * never newer than the message just queued, and a sent message stops
+     * counting towards it.
      */
     public function test_the_oldest_waiting_message_is_the_stall_signal(): void
     {
@@ -353,11 +409,12 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
             'the reported backlog must be at least as old as the message just queued'
         );
 
-        // Draining removes it from the backlog; an empty queue is the healthy
-        // answer and reports nothing rather than a stale timestamp.
         $claimed = $this->repository->claimBatch(1);
         $this->repository->markSent($claimed[0]['id'], null);
 
-        $this->assertNull($this->repository->oldestPendingQueuedAt());
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM mail_outbox WHERE subject_id = ? AND status = 'pending'");
+        $stmt->execute([$settlementId]);
+
+        $this->assertSame(0, (int) $stmt->fetchColumn(), 'a sent message no longer waits');
     }
 }
