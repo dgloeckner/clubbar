@@ -237,15 +237,20 @@ class SettlementReversalService
      *
      * They are copying a value off a bank statement under time pressure and
      * should not have to classify it first, nor reproduce it perfectly. The
-     * `E2E-` prefix is dropped because statements print it as a label for the
-     * identifier rather than as part of it.
+     * labels are dropped because a statement prints them *around* the
+     * identifier rather than as part of it — and stripped repeatedly, because
+     * the value a German bank quotes is literally `EREF+E2E-…`: one label
+     * introducing an identifier whose own prefix is another (#149).
      */
     private static function normaliseReference(string $reference): string
     {
-        $trimmed = trim($reference);
-        $withoutPrefix = preg_replace('/^(e2e|eref|mref)[-+: ]*/i', '', $trimmed) ?? $trimmed;
+        $needle = trim($reference);
 
-        return mb_strtolower(trim($withoutPrefix));
+        while (($stripped = preg_replace('/^(e2e|eref|mref)[-+: ]+/i', '', $needle)) !== null && $stripped !== $needle) {
+            $needle = $stripped;
+        }
+
+        return mb_strtolower(trim($needle));
     }
 
     /**

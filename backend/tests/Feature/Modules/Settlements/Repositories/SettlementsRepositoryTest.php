@@ -1042,6 +1042,163 @@ class SettlementsRepositoryTest extends DatabaseTestCase
     }
 
     // ------------------------------------------------------------------
+    // findCollectionsByReference (epic #433 §3, ADR-0032 §8)
+    // ------------------------------------------------------------------
+
+    public function test_findCollectionsByReference_resolves_an_end_to_end_id_to_one_members_collection(): void
+    {
+        // The whole point of persisting the identifier (#150): a return
+        // resolves to one member's collection in one run, rather than to a
+        // member who might owe the same amount in two.
+        $settlementId = $this->createLookupSettlement();
+        $alice = $this->createTestMember('Lookup', 'Alice');
+        $bob = $this->createTestMember('Lookup', 'Bob');
+        $this->addCollection($settlementId, $alice, 2550, 'E2E-lookup-alice');
+        $this->addCollection($settlementId, $bob, 1500, 'E2E-lookup-bob');
+
+        $rows = $this->settlementsRepository->findCollectionsByReference('e2e-lookup-alice');
+
+        $this->assertCount(1, $rows);
+        $this->assertEquals($alice, $rows[0]['member_id']);
+        $this->assertEquals($settlementId, $rows[0]['settlement_id']);
+        $this->assertEquals(2550, (int) $rows[0]['amount_cents']);
+        $this->assertEquals('Lookup', $rows[0]['first_name']);
+        $this->assertEquals('Alice', $rows[0]['last_name']);
+    }
+
+    public function test_findCollectionsByReference_sums_a_members_items_into_one_collection(): void
+    {
+        // The export aggregates by member, so every one of that member's rows
+        // carries the same identifier — and the amount the bank collected under
+        // it is their sum, not any single row.
+        $settlementId = $this->createLookupSettlement();
+        $memberId = $this->createTestMember('Lookup', 'Summed');
+        $this->addCollection($settlementId, $memberId, 1000, 'E2E-lookup-summed');
+        $this->addCollection($settlementId, $memberId, 550, 'E2E-lookup-summed');
+
+        $rows = $this->settlementsRepository->findCollectionsByReference('e2e-lookup-summed');
+
+        $this->assertCount(1, $rows, 'one row per member per settlement, not per item');
+        $this->assertEquals(1550, (int) $rows[0]['amount_cents']);
+    }
+
+    public function test_findCollectionsByReference_matches_a_partial_reference(): void
+    {
+        // The treasurer types what they can read off the statement.
+        $settlementId = $this->createLookupSettlement();
+        $memberId = $this->createTestMember('Lookup', 'Partial');
+        $this->addCollection($settlementId, $memberId, 800, 'E2E-lookup-partial-tail');
+
+        $rows = $this->settlementsRepository->findCollectionsByReference('partial-tail');
+
+        $this->assertCount(1, $rows);
+        $this->assertEquals($memberId, $rows[0]['member_id']);
+    }
+
+    public function test_findCollectionsByReference_finds_a_members_collections_by_mandate_reference(): void
+    {
+        // When the statement carries no EREF the MREF still names the member,
+        // so it must reach every run they appear in — including one exported
+        // before identifiers were persisted, which carries no EREF at all.
+        $memberId = $this->createTestMember('Lookup', 'Mandate');
+        $this->giveTestMandate($memberId);
+        $mandateReference = 'MND-' . substr($memberId, 0, 12);
+
+        $first = $this->createLookupSettlement();
+        $second = $this->createLookupSettlement();
+        $this->addCollection($first, $memberId, 1100, 'E2E-lookup-mandate-one');
+        $this->addCollection($second, $memberId, 1300, null);
+
+        $rows = $this->settlementsRepository->findCollectionsByReference(strtolower($mandateReference));
+
+        $settlementIds = array_column($rows, 'settlement_id');
+        $this->assertContains($first, $settlementIds);
+        $this->assertContains($second, $settlementIds);
+        $this->assertEquals($mandateReference, $rows[0]['mandate_reference']);
+    }
+
+    public function test_findCollectionsByReference_ignores_a_run_that_was_never_exported(): void
+    {
+        // A run with no identifier is reachable by mandate reference only.
+        // Answering on the strength of the amount instead is exactly the
+        // guesswork ADR-0032 §8 forbids.
+        $settlementId = $this->createLookupSettlement();
+        $memberId = $this->createTestMember('Lookup', 'Unexported');
+        $this->addCollection($settlementId, $memberId, 2100, null);
+
+        $this->assertSame(
+            [],
+            $this->settlementsRepository->findCollectionsByReference('e2e-lookup-unexported')
+        );
+    }
+
+    public function test_findCollectionsByReference_does_not_match_a_member_name(): void
+    {
+        // The boundary §8 draws, enforced in the query rather than trusted to
+        // the caller: matching names is the free-hand picker the ADR forbids.
+        $settlementId = $this->createLookupSettlement();
+        $memberId = $this->createTestMember('Lookup', 'Namesearch');
+        $this->addCollection($settlementId, $memberId, 900, 'E2E-lookup-namesearch');
+
+        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('namesearch lookup'));
+        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('lookup namesearch'));
+    }
+
+    public function test_findCollectionsByReference_treats_a_wildcard_as_a_literal(): void
+    {
+        // `%` is a LIKE metacharacter. Left unescaped, a treasurer pasting a
+        // reference that contains one would be shown every collection the club
+        // has ever made — a list to pick the wrong member out of.
+        $settlementId = $this->createLookupSettlement();
+        $memberId = $this->createTestMember('Lookup', 'Wildcard');
+        $this->addCollection($settlementId, $memberId, 700, 'E2E-lookup-wildcard');
+
+        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('%'));
+        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('e2e-lookup-w%ldcard'));
+    }
+
+    public function test_findCollectionsByReference_caps_how_many_collections_it_returns(): void
+    {
+        $settlementId = $this->createLookupSettlement();
+        foreach (range(1, 3) as $i) {
+            $this->addCollection($settlementId, $this->createTestMember('Lookup', "Capped{$i}"), 500, "E2E-lookup-capped-{$i}");
+        }
+
+        $this->assertCount(2, $this->settlementsRepository->findCollectionsByReference('e2e-lookup-capped', 2));
+    }
+
+    /** A settlement to hang lookup fixtures on; its own fields do not matter here. */
+    private function createLookupSettlement(): string
+    {
+        return $this->createSettlementRow(
+            $this->createTestAdminUser('lookup-' . $this->generateUuid() . '@example.com'),
+            '2026-08-13',
+            '2026-08-20',
+            5000,
+            1,
+        );
+    }
+
+    /**
+     * One settled transaction for a member, carrying the identifier the export
+     * would have written onto it.
+     */
+    private function addCollection(string $settlementId, string $memberId, int $amountCents, ?string $endToEndId): void
+    {
+        $categoryId = $this->createTestCategory('LookupCategory' . substr($this->generateUuid(), 0, 8));
+        $productId = $this->createTestProduct($categoryId, 'LookupProduct', 'mug', $amountCents);
+        $transactionId = $this->createTestTransaction($memberId, $productId, $amountCents, 'purchase', '2026-08-12 10:00:00');
+
+        $this->settlementsRepository->createItem([
+            'settlement_id' => $settlementId,
+            'transaction_id' => $transactionId,
+            'member_id' => $memberId,
+            'amount_cents' => $amountCents,
+            'end_to_end_id' => $endToEndId,
+        ]);
+    }
+
+    // ------------------------------------------------------------------
     // Helper methods
     // ------------------------------------------------------------------
 
