@@ -12,7 +12,7 @@ All backend code must follow these patterns. Reference them when implementing fe
 
 ### Input & Validation Layer
 
-**[Pattern 001: Input Validation](./pattern-001-form-requests-validation.md)**
+**[Pattern 001: Input Validation](./pattern-001-input-validation.md)**
 - Rule-based validation using custom `Validator` class
 - Declarative rules as arrays (e.g., `['required', 'string', 'max:100']`)
 - Database-backed unique checks via PDO

@@ -25,6 +25,7 @@ use App\Modules\Security\Services\KeyRotationService;
 use App\Modules\Security\Controllers\EncryptionKeysController;
 use App\Shared\Security\IbanSealedBox;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
+use App\Modules\Notifications\Repositories\MailConfigRepository;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Repositories\SessionRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
@@ -54,6 +55,8 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
+use App\Modules\Notifications\Services\MailConfigService;
+use App\Shared\Mail\MailTransportFactory;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Modules\Settlements\Services\SettlementReversalService;
 use App\Modules\Settlements\Services\CollectionHoldService;
@@ -83,6 +86,7 @@ use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
 use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
 use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
+use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
 use App\Modules\Terminals\Controllers\PairingController;
 use App\Modules\Terminals\Services\PairingService;
@@ -139,6 +143,9 @@ class ServiceFactory implements ContainerInterface
         SettlementsAdminController::class => 'getSettlementsAdminController',
         SepaConfigController::class => 'getSepaConfigController',
         InstanceConfigController::class => 'getInstanceConfigController',
+
+        // Notifications
+        MailConfigController::class => 'getMailConfigController',
 
         // AdminUsers
         AdminUsersAdminController::class => 'getAdminUsersAdminController',
@@ -238,6 +245,11 @@ class ServiceFactory implements ContainerInterface
     public function getInstanceConfigRepository(): InstanceConfigRepository
     {
         return $this->resolve(InstanceConfigRepository::class, fn() => new InstanceConfigRepository($this->pdo, $this->logger));
+    }
+
+    public function getMailConfigRepository(): MailConfigRepository
+    {
+        return $this->resolve(MailConfigRepository::class, fn() => new MailConfigRepository($this->pdo, $this->logger));
     }
 
     public function getLoginAttemptsRepository(): LoginAttemptsRepository
@@ -430,6 +442,21 @@ class ServiceFactory implements ContainerInterface
     public function getInstanceConfigService(): InstanceConfigService
     {
         return $this->resolve(InstanceConfigService::class, fn() => new InstanceConfigService($this->getInstanceConfigRepository(), $this->getAuditService()));
+    }
+
+    public function getMailTransportFactory(): MailTransportFactory
+    {
+        return $this->resolve(MailTransportFactory::class, fn() => new MailTransportFactory($this->config, $this->logger));
+    }
+
+    public function getMailConfigService(): MailConfigService
+    {
+        return $this->resolve(MailConfigService::class, fn() => new MailConfigService(
+            $this->getMailConfigRepository(),
+            $this->getInstanceConfigService(),
+            $this->getMailTransportFactory(),
+            $this->getAuditService(),
+        ));
     }
 
     public function getSepaExportService(): SepaExportService
@@ -752,6 +779,11 @@ class ServiceFactory implements ContainerInterface
     public function getSepaConfigController(): SepaConfigController
     {
         return $this->resolve(SepaConfigController::class, fn() => new SepaConfigController($this->getSepaConfigService(), $this->getValidator()));
+    }
+
+    public function getMailConfigController(): MailConfigController
+    {
+        return $this->resolve(MailConfigController::class, fn() => new MailConfigController($this->getMailConfigService(), $this->getValidator()));
     }
 
     public function getInstanceConfigController(): InstanceConfigController

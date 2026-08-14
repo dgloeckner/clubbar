@@ -24,6 +24,13 @@ class AppConfig
     public readonly ?string $llmModel;
     public readonly int     $llmThinkingBudget;
     public readonly ?string $googleVisionKey;
+    /**
+     * The one field that selects a mail transport (ADR-0038). It carries an
+     * SMTP password, so it belongs with the DB password and the TOTP key in
+     * config.php rather than in an admin-editable table. Absent disables mail
+     * silently, the same way an absent llm.provider disables extraction.
+     */
+    public readonly ?string $mailDsn;
 
     public function __construct()
     {
@@ -44,6 +51,7 @@ class AppConfig
         $this->llmModel             = Env::get('LLM_MODEL', '') ?: null;
         $this->llmThinkingBudget    = (int) Env::get('LLM_THINKING_BUDGET', '0');
         $this->googleVisionKey      = Env::get('GCLOUD_VISION_API', '') ?: null;
+        $this->mailDsn              = trim(Env::get('MAIL_DSN', '')) ?: null;
 
         // Resolved last — the default depends on $this->appUrl.
         $this->sessionCookieSecure  = self::resolveSessionCookieSecure($this->appUrl);

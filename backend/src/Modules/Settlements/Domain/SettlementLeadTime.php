@@ -22,7 +22,21 @@ use App\Shared\Utils\BankingCalendar;
  */
 final class SettlementLeadTime
 {
-    /** Fixed SEPA lead time in calendar days (ADR-0009). */
+    /**
+     * Fixed SEPA lead time in calendar days (ADR-0009).
+     *
+     * Seven, not the SEPA default of fourteen, because **Nutzungsordnung
+     * Vereinsbar § 7 Abs. 3** shortens the pre-notification period by agreement
+     * and promises the member an announcement by email *„mindestens 7 Tage vor
+     * dem Fälligkeitstag"*. The constant is therefore a club commitment as much
+     * as a banking parameter: lowering it breaks a written promise, and raising
+     * it only costs the treasurer time.
+     *
+     * This is also why announcement emails are enqueued at `createSettlement`
+     * and nowhere else (ADR-0038): that is the one place this rule has already
+     * been applied to the execution date, so the 7-day distance holds by
+     * construction rather than by the queue keeping up.
+     */
     public const DAYS = 7;
 
     /**

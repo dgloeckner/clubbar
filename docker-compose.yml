@@ -107,6 +107,10 @@ services:
       LLM_API_KEY: "${LLM_API_KEY:-}"
       LLM_THINKING_BUDGET: "${LLM_THINKING_BUDGET:-5000}"
       GCLOUD_VISION_API: "${GCLOUD_VISION_API:-}"
+      # Outgoing mail (ADR-0038). Empty disables sending silently — the dev
+      # stack has no MTA, and no test may open a socket. Point it at Mailpit
+      # (smtp://mailpit:1025) once #409 adds it to the stack.
+      MAIL_DSN: "${MAIL_DSN:-}"
     ports:
       - "8080:80"
     volumes:
