@@ -340,6 +340,9 @@ class SettlementAnnouncementTest extends DatabaseTestCase
             $this->assertStringContainsString('4,30 €', $part, 'the amount this run collects');
             $this->assertStringContainsString('3000', $part, 'the masked account');
             $this->assertStringContainsString('Bier', $part, 'the itemised statement');
+            // The club addresses its members by first name, in the Du-form.
+            $this->assertStringContainsString('Hallo Klara,', $part);
+            $this->assertStringNotContainsString('Hallo Klara Announced', $part);
         }
 
         // The due date the member is told is the settlement's execution date,

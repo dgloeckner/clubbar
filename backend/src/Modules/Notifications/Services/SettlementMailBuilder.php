@@ -90,19 +90,23 @@ class SettlementMailBuilder implements MailContentBuilder
         // creditor block contributes three of the announcement's fields.
         $sepa = $this->sepaConfigRepository->getConfig() ?? [];
 
-        // The recipient's *name* may be re-read: it is a courtesy in the
-        // salutation, not evidence. The address may not — see the class
-        // docblock.
-        $recipientName = $member === null
+        // The recipient's *name* may be re-read: it is a courtesy, not
+        // evidence. The address may not — see the class docblock.
+        //
+        // Two different names, on purpose. The envelope carries the full one,
+        // because that is what a mailbox lists and what makes the message
+        // recognisable in a crowded inbox. The salutation carries the first
+        // name alone, because the club addresses its members by it.
+        $recipientName = self::nullIfBlank($member === null
             ? null
-            : trim(((string) $member['first_name']) . ' ' . ((string) $member['last_name']));
-        $salutation = $recipientName === '' ? null : $recipientName;
+            : trim(((string) $member['first_name']) . ' ' . ((string) $member['last_name'])));
+        $salutation = self::nullIfBlank($member['first_name'] ?? null);
 
         return match ($kind) {
             MailKind::SEPA_PRENOTIFICATION => PreNotificationMail::render(new PreNotificationDataDto(
                 language: $language,
                 recipientAddress: (string) $outboxRow['recipient'],
-                recipientName: $salutation,
+                recipientName: $recipientName,
                 salutationName: $salutation,
                 branding: $branding,
                 amountCents: $amountCents,
@@ -121,7 +125,7 @@ class SettlementMailBuilder implements MailContentBuilder
             MailKind::CANCELLATION_NOTICE => CancellationNoticeMail::render(new CancellationNoticeDataDto(
                 language: $language,
                 recipientAddress: (string) $outboxRow['recipient'],
-                recipientName: $salutation,
+                recipientName: $recipientName,
                 salutationName: $salutation,
                 branding: $branding,
                 amountCents: $amountCents,

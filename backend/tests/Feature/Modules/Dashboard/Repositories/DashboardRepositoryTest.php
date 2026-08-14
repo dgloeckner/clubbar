@@ -361,6 +361,22 @@ class DashboardRepositoryTest extends DatabaseTestCase
         $this->assertNotContains($deleted, $ids);
     }
 
+    /**
+     * Ordering is asserted between *this test's own* two members rather than by
+     * absolute position, and the reason is worth writing down.
+     *
+     * This query has no date window — it answers "who owes a lot right now?"
+     * across the whole database — so any member with a bigger tab takes the
+     * first row. One reliably exists: the API suite's
+     * `POST /api/sync/transactions accepts max batch size` books a hundred
+     * transactions against a fresh member, and ADR-0004 makes transactions
+     * append-only, so that tab cannot be cleaned up afterwards. Running the API
+     * suite before this one against a shared database used to turn this test
+     * red, which read as "the dashboard query broke".
+     *
+     * Comparing positions instead is the same rule as E2E pattern 003: assert
+     * on the data you created, never on where it happens to land.
+     */
     public function test_findMembersNearCreditLimit_puts_the_biggest_tab_first_and_honours_the_limit(): void
     {
         $small = $this->createMember('Small', 'Tab');
@@ -368,10 +384,18 @@ class DashboardRepositoryTest extends DatabaseTestCase
         $big = $this->createMember('Big', 'Tab');
         $this->createTransaction($big, 20_000, '2019-03-05 20:00:00');
 
-        $rows = $this->repository->findMembersNearCreditLimit(20_000, 1);
+        // The limit is absolute whatever else is in the table.
+        $this->assertCount(1, $this->repository->findMembersNearCreditLimit(20_000, 1));
 
-        $this->assertCount(1, $rows);
-        $this->assertSame($big, $rows[0]['id']);
+        $ids = $this->idsOf($this->repository->findMembersNearCreditLimit(8_000, 500));
+        $this->assertContains($big, $ids);
+        $this->assertContains($small, $ids);
+
+        $this->assertLessThan(
+            array_search($small, $ids, true),
+            array_search($big, $ids, true),
+            'the bigger tab has to come first',
+        );
     }
 
     public function test_countMembersNearCreditLimit_counts_what_the_list_would_have_shown(): void

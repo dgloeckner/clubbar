@@ -57,6 +57,7 @@ Three deviations from #401 worth knowing about:
 - [x] `cancelSettlement`: supersede unsent announcements, enqueue `cancellation_notice` only where the announcement is `sent`
 - [x] Audit entries (ADR-0013) for enqueue and cancellation-notice creation, keyed to the settlement
 - [x] Generalised for [#438](https://github.com/dgloeckner/clubbar/issues/438) in migration `026` — see below
+- [x] Test isolation: the outbox tests no longer assume a globally empty queue, and six member/dashboard tests no longer assume one page of 1000 covers the database — see below
 - Verify: **passed** — `NotificationsServiceTest` (22), `MailOutboxSchemaTest` (8, incl. the unique constraint, the *absence* of a body column, and an admin-addressed warning about a credential), `MailOutboxRepositoryTest` (13, against MariaDB: two concurrent claims send N and never N+1, a stale claim is reclaimable, backoff then cap), `MailContentRegistryTest` (4), `SettlementAnnouncementTest` (10, the whole chain), plus 5 new cases in `SettlementsServiceTest` including the rollback
 
 Two notes worth keeping:
@@ -82,6 +83,18 @@ Migration `026_mail_outbox_generalised.sql` widens it, and backfills `dedup_key`
 
 Content dispatch moved behind `MailContentBuilder` + `MailContentRegistry`, so the drain (#403) can claim a mixed batch without knowing what any row means, and a new notification type is a new builder rather than a branch in the sending loop.
 
+#### Test isolation against a shared database
+
+Running the API suite before the backend suite against one database used to turn three PHPUnit tests red, each in a way that read as a broken query rather than as leaked fixture data. The common cause: `POST /api/sync/transactions accepts max batch size` books a hundred transactions against a fresh member every run, and ADR-0004 makes transactions append-only — so that member and their 350 € tab cannot be cleaned up afterwards, by design.
+
+| Test | Assumed | Now |
+|---|---|---|
+| `DashboardRepositoryTest::…puts_the_biggest_tab_first…` | Nothing else in the database owes more | Compares the positions of its **own** two members; the limit is asserted separately |
+| `MembersRepositoryTest::…orders_by_unsettled_balance` and 5 siblings | One page of 1000 covers every member | Gives its members a unique surname and passes it as the repository's `search`, so the page holds exactly its own rows |
+| `MailOutboxRepositoryTest` (claim/backoff cases) | The queue is globally empty | Parks foreign due rows for the duration and restores them exactly as found |
+
+Verified in the order that used to fail: api-tests, then the full backend suite, green apart from the pre-existing rate-limit case.
+
 ### P3 — Cron drain: CLI entrypoint, claim/backoff, `flock`, URL fallback ([#403](https://github.com/dgloeckner/clubbar/issues/403))
 
 - [ ] `backend/bin/cron.php` beside `bin/import-bank-codes.php`: resolves the doc root as `dirname(__DIR__, 2)` so `DataDirectory::resolve()` works in both layouts; `flock` in the data directory; records the **CLI** PHP version and extensions into `cron_heartbeat`
@@ -104,7 +117,7 @@ Two deviations from #404:
 | Deviation | Why |
 |---|---|
 | The directory is `storage/mail-preview/`, not `storage/mail-vorschau/` | Same contributor rule that made `Mailvorlage` into `MailLayout` in P1: identifiers and paths in this repository are English |
-| German is formal (*Sie*), unlike the terminal UI's informal *du* ([#42](https://github.com/dgloeckner/clubbar/issues/42)) | A pre-notification quotes a creditor identifier and a mandate reference and invites a formal objection within six weeks — the register every other SEPA pre-notification a member receives is written in. The bar touchscreen is a different conversation. It is one file to change if the maintainer disagrees |
+| German is the **Du-form** and members are addressed by first name alone | Maintainer's decision. It matches the terminal UI ([#42](https://github.com/dgloeckner/clubbar/issues/42)) and how the club talks to its own members; a bank's register would be borrowed formality. Every pronoun lives in `MailStrings`, and a test fails on any German string that slips back into the Sie-form. The envelope still carries the full name — that is what a mailbox lists |
 
 ### P5 — The scheduler is mandatory: install verification, finalize gate, missing-email warning ([#405](https://github.com/dgloeckner/clubbar/issues/405))
 
