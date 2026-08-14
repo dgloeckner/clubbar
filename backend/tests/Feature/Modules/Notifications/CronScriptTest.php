@@ -150,16 +150,58 @@ class CronScriptTest extends DatabaseTestCase
      */
     private function runCron(array $args = []): array
     {
-        $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(self::scriptPath());
-        foreach ($args as $arg) {
-            $command .= ' ' . escapeshellarg($arg);
-        }
+        $command = [PHP_BINARY, self::scriptPath(), ...$args];
 
-        $output = [];
-        $exit = 0;
-        exec($command . ' 2>&1', $output, $exit);
+        $process = proc_open(
+            $command,
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            null,
+            $this->cronEnvironment(),
+        );
 
-        return ['exit' => $exit, 'output' => implode("\n", $output)];
+        $this->assertIsResource($process, 'could not start bin/cron.php');
+
+        $output = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return ['exit' => proc_close($process), 'output' => $output];
+    }
+
+    /**
+     * What a real crontab hands the script — spelled out rather than inherited.
+     *
+     * A cron process gets a bare environment, and on a real installation
+     * everything it needs comes out of `config.php`. There is no `config.php`
+     * here, so this stands in for it, and it has to be complete: the drain
+     * reaches `MembersRepository` for the salutation and the mandate reference,
+     * which pulls in `IbanSealedBox`, which refuses to construct without
+     * `IBAN_FINGERPRINT_KEY`. Inheriting the phpunit process's environment
+     * happens to work in the backend container, where docker-compose sets those
+     * variables, and fails in CI, where the job sets only `DB_*` — the script
+     * then reports "cron could not start" and exits 1, correctly.
+     *
+     * `APP_ENV` is a development value on purpose: `IbanSealedBox` refuses the
+     * published dev key outside one, which is the same reason `HttpTestCase`
+     * forces it.
+     *
+     * @return array<string,string>
+     */
+    private function cronEnvironment(): array
+    {
+        return [
+            'PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
+            'APP_ENV' => 'local',
+            'DB_HOST' => getenv('DB_HOST') ?: 'database',
+            'DB_NAME' => getenv('DB_NAME') ?: 'clubbar',
+            'DB_USER' => getenv('DB_USER') ?: 'clubbar',
+            'DB_PASS' => getenv('DB_PASS') ?: 'clubbar',
+            'TOTP_ENCRYPTION_KEY' => getenv('TOTP_ENCRYPTION_KEY')
+                ?: '0000000000000000000000000000000000000000000000000000000000000001',
+            'IBAN_FINGERPRINT_KEY' => getenv('IBAN_FINGERPRINT_KEY')
+                ?: '0000000000000000000000000000000000000000000000000000000000000002',
+        ];
     }
 
     /**
