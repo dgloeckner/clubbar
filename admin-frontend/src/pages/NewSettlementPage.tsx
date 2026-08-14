@@ -126,6 +126,10 @@ export function NewSettlementPage() {
   // collection came back. It is the exclusion that must never be silent,
   // because a held member is skipped run after run until somebody clears it.
   const held = preview?.held_members ?? []
+  // #405: a subset of `eligible`, not a fifth bucket. These members are
+  // collected from like everybody else; what the run cannot do is announce it
+  // to them, and Nutzungsordnung § 7 Abs. 3 promises that announcement.
+  const withoutEmail = preview?.members_without_email ?? []
 
   useEffect(() => {
     const signal = previewRequest.next()
@@ -664,6 +668,40 @@ export function NewSettlementPage() {
                       >
                         {m.collection_hold_reason || t('newSettlement.held.noReason')}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          {/* ── Collected, but unreachable ───────────────────────── */}
+          {withoutEmail.length > 0 && (
+            <section data-testid="new-settlement-without-email-section">
+              <h2 style={sectionTitleStyle}>{t('newSettlement.withoutEmail.title')}</h2>
+              {/*
+                Deliberately not an exclusion: these members appear in the
+                selectable list above as well, and nothing here removes them
+                from the run. The section exists so that "they will not be
+                told" is visible before the run is posted rather than after.
+              */}
+              <p style={readOnlyNoteStyle}>{t('newSettlement.withoutEmail.note')}</p>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={headerRowStyle}>
+                    <th style={headerCellBaseStyle}>{t('newSettlement.columns.member')}</th>
+                    <th style={numericHeaderStyle}>{t('newSettlement.columns.balance')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {withoutEmail.map((m) => (
+                    <tr
+                      key={m.member_id}
+                      data-testid={`new-settlement-without-email-row-${m.member_id}`}
+                      style={{ borderBottom: tableColors.rowActiveBorder }}
+                    >
+                      <td style={{ padding: tableSpacing.cellPadding }}>{memberName(m)}</td>
+                      <td style={numericCellStyle}>{formatPrice(m.balance_cents ?? 0)}</td>
                     </tr>
                   ))}
                 </tbody>

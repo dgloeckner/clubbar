@@ -57,70 +57,52 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type {
+  MailConfig,
+  MailConfigUpdateRequest
+} from './..';
 
-export interface Member {
-  id?: string;
-  /**
-   * @maxLength 100
-   * @nullable
-   */
-  first_name?: string | null;
-  /**
-   * @maxLength 100
-   * @nullable
-   */
-  last_name?: string | null;
-  /** @nullable */
-  email?: string | null;
-  /** @nullable */
-  card_uid?: string | null;
-  /** ISO 639-1 language code */
-  preferred_language?: string;
-  /**
-   * The last four characters of the IBAN. The stored IBAN is sealed
-under the club's public key ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md))
-and the server holds no private key, so no admin endpoint can
-return the full value — enough to recognize the account, useless
-to debit it. The plaintext is reachable only through the SEPA
-export, which takes the private key for the length of one request.
+import { customInstance } from '../../client';
 
-   * @minLength 4
-   * @maxLength 4
-   * @nullable
-   */
-  iban_last4?: string | null;
-  /**
-   * `iban_last4` in the established display shape, e.g. ****3000
-   * @nullable
-   */
-  iban_masked?: string | null;
-  /**
-   * Account holder name if different from member. Used in SEPA XML.
-   * @maxLength 70
-   * @nullable
-   */
-  account_holder_name?: string | null;
-  /**
-   * @maxLength 35
-   * @nullable
-   */
-  mandate_reference?: string | null;
-  /** @nullable */
-  mandate_signed_at?: string | null;
-  /**
-   * Bank name resolved from IBAN via Bundesbank BLZ lookup (German IBANs only)
-   * @nullable
-   */
-  bank_name?: string | null;
-  is_active?: boolean;
-  is_sepa_valid?: boolean;
-  /** The member's Deckel: the sum of their transactions that no
-settlement has collected yet, in cents. Positive means they owe
-the club; negative is a credit, which a payout leaves behind.
+
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+
+  export const getMailSettings = () => {
+/**
+ * The club-editable half of outgoing mail configuration (ADR-0038):
+sender, reply-to, header variant and the footer block.
+
+The SMTP DSN is deliberately **not** part of this resource. It carries
+a password and lives in `config.php` in the data directory alongside
+the database password (ADR-0031 decision 2), so changing the mail
+server is an installer or file operation. The read-only `transport`
+object reports whether one is configured and where mail goes, never
+the DSN itself.
+
+ * @summary Get mail settings
  */
-  balance_cents?: number;
-  /** @nullable */
-  deleted_at?: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
+const getMailConfig = (
+    
+ options?: SecondParameter<typeof customInstance<MailConfig>>,) => {
+      return customInstance<MailConfig>(
+      {url: `/admin/mail-config`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * @summary Update mail settings
+ */
+const updateMailConfig = (
+    mailConfigUpdateRequest: MailConfigUpdateRequest,
+ options?: SecondParameter<typeof customInstance<MailConfig>>,) => {
+      return customInstance<MailConfig>(
+      {url: `/admin/mail-config`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: mailConfigUpdateRequest
+    },
+      options);
+    }
+  return {getMailConfig,updateMailConfig}};
+export type GetMailConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailSettings>['getMailConfig']>>>
+export type UpdateMailConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailSettings>['updateMailConfig']>>>

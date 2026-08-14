@@ -57,70 +57,56 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { MailConfigHeaderStyle } from './mailConfigHeaderStyle';
+import type { MailConfigTransport } from './mailConfigTransport';
 
-export interface Member {
-  id?: string;
-  /**
-   * @maxLength 100
-   * @nullable
-   */
-  first_name?: string | null;
-  /**
-   * @maxLength 100
-   * @nullable
-   */
-  last_name?: string | null;
-  /** @nullable */
-  email?: string | null;
-  /** @nullable */
-  card_uid?: string | null;
-  /** ISO 639-1 language code */
-  preferred_language?: string;
-  /**
-   * The last four characters of the IBAN. The stored IBAN is sealed
-under the club's public key ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md))
-and the server holds no private key, so no admin endpoint can
-return the full value — enough to recognize the account, useless
-to debit it. The plaintext is reachable only through the SEPA
-export, which takes the private key for the length of one request.
+/**
+ * Club-editable mail settings plus the read-only state of the transport
+configured in `config.php`.
 
-   * @minLength 4
-   * @maxLength 4
-   * @nullable
-   */
-  iban_last4?: string | null;
-  /**
-   * `iban_last4` in the established display shape, e.g. ****3000
-   * @nullable
-   */
-  iban_masked?: string | null;
-  /**
-   * Account holder name if different from member. Used in SEPA XML.
-   * @maxLength 70
-   * @nullable
-   */
-  account_holder_name?: string | null;
-  /**
-   * @maxLength 35
-   * @nullable
-   */
-  mandate_reference?: string | null;
-  /** @nullable */
-  mandate_signed_at?: string | null;
-  /**
-   * Bank name resolved from IBAN via Bundesbank BLZ lookup (German IBANs only)
-   * @nullable
-   */
-  bank_name?: string | null;
-  is_active?: boolean;
-  is_sepa_valid?: boolean;
-  /** The member's Deckel: the sum of their transactions that no
-settlement has collected yet, in cents. Positive means they owe
-the club; negative is a credit, which a payout leaves behind.
  */
-  balance_cents?: number;
-  /** @nullable */
-  deleted_at?: string | null;
-  created_at?: string;
-  updated_at?: string;
+export interface MailConfig {
+  /**
+   * Display name in the recipient's inbox. Defaults to the instance name.
+   * @maxLength 120
+   */
+  sender_name?: string;
+  /**
+   * Envelope sender. Empty means mail was never configured.
+   * @maxLength 255
+   */
+  sender_address?: string;
+  /**
+   * Where a reply goes — the Kassenwart, since a pre-notification invites one.
+   * @maxLength 255
+   * @nullable
+   */
+  reply_to_address?: string | null;
+  /** Header band variant. `paper` is the settlement-mail default. */
+  header_style?: MailConfigHeaderStyle;
+  /** @maxLength 200 */
+  footer_org_name?: string;
+  /**
+   * @maxLength 255
+   * @nullable
+   */
+  footer_address_line?: string | null;
+  /**
+   * Public site URL; also the origin the mail webfonts are fetched from.
+   * @maxLength 255
+   * @nullable
+   */
+  website_url?: string | null;
+  /**
+   * PNG only — Gmail and Outlook do not render SVG in mail.
+   * @maxLength 255
+   * @nullable
+   */
+  logo_url?: string | null;
+  /** Whether a sender address is set at all. */
+  readonly is_complete?: boolean;
+  /** Both halves present — a usable transport and a sender address. */
+  readonly can_send?: boolean;
+  /** State of `mail.dsn` from `config.php`. Never contains the DSN or its password. */
+  readonly transport?: MailConfigTransport;
 }

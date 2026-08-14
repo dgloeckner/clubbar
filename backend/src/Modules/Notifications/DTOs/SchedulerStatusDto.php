@@ -1,0 +1,71 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Notifications\DTOs;
+
+/**
+ * Whether a drain run has ever been observed, and what to schedule if not
+ * (#405, ADR-0038 rule 3).
+ *
+ * The instructions travel with the status on purpose. Three surfaces ask this
+ * question — the installer's prerequisite step, the admin banner, and the
+ * refusal a blocked finalize returns — and all three have to print the *same*
+ * command. Assembling it separately in each is how two of them end up naming a
+ * path that does not exist on this host.
+ */
+final readonly class SchedulerStatusDto
+{
+    public function __construct(
+        /**
+         * Has a run ever been recorded? Never re-answers `false` once true:
+         * a scheduler that dies later is #406's alarm, not a lockout, because
+         * refusing a collection at the moment the treasurer needs it is the
+         * worse failure.
+         */
+        public bool $verified,
+        /** UTC, or null on an installation that has never been drained. */
+        public ?string $lastRunAt,
+        /** `cli` or `url` — how the last observed run was triggered. */
+        public ?string $source,
+        public ?int $lastSent,
+        public ?int $lastFailed,
+        /** The *drain's* interpreter, which is frequently not the web's. */
+        public ?string $phpVersion,
+        /**
+         * Extensions this application needs that the drain's PHP did not
+         * load. `null` predates migration 027; `[]` means checked and
+         * complete, which is a different statement worth keeping apart.
+         *
+         * @var list<string>|null
+         */
+        public ?array $missingExtensions,
+        /** The command to paste into a panel's cron form. */
+        public string $cliCommand,
+        /**
+         * The URL trigger, or null when `cron.secret` is unset — in which case
+         * the route is not mounted and offering the URL would be a lie.
+         */
+        public ?string $drainUrl,
+        /** Minutes between ticks the setup instructions recommend. */
+        public int $recommendedIntervalMinutes,
+    ) {}
+
+    public function toArray(): array
+    {
+        return [
+            'verified' => $this->verified,
+            'last_run_at' => $this->lastRunAt,
+            'source' => $this->source,
+            'last_sent' => $this->lastSent,
+            'last_failed' => $this->lastFailed,
+            'php_version' => $this->phpVersion,
+            'missing_extensions' => $this->missingExtensions,
+            'setup' => [
+                'cli_command' => $this->cliCommand,
+                'drain_url' => $this->drainUrl,
+                'recommended_interval_minutes' => $this->recommendedIntervalMinutes,
+            ],
+        ];
+    }
+}

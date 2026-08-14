@@ -89,6 +89,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
                 $auditService,
                 new AdminUsersRepository($this->db, $this->logger),
             ),
+            $this->ensureObservedSchedulerRun(),
         );
 
         $mailConfigService = new MailConfigService(

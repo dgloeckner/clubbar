@@ -61,6 +61,7 @@ use App\Modules\Notifications\Services\DrainService;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
 use App\Shared\Mail\MailTransportFactory;
 use App\Modules\Settlements\Services\SepaExportService;
@@ -94,6 +95,7 @@ use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
+use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
 use App\Modules\Terminals\Controllers\PairingController;
 use App\Modules\Terminals\Services\PairingService;
@@ -153,6 +155,7 @@ class ServiceFactory implements ContainerInterface
 
         // Notifications
         MailConfigController::class => 'getMailConfigController',
+        SchedulerController::class => 'getSchedulerController',
         CronController::class => 'getCronController',
 
         // AdminUsers
@@ -487,6 +490,14 @@ class ServiceFactory implements ContainerInterface
         ));
     }
 
+    public function getSchedulerStatusService(): SchedulerStatusService
+    {
+        return $this->resolve(SchedulerStatusService::class, fn() => new SchedulerStatusService(
+            $this->getCronHeartbeatRepository(),
+            $this->config,
+        ));
+    }
+
     public function getSettlementMailBuilder(): SettlementMailBuilder
     {
         return $this->resolve(SettlementMailBuilder::class, fn() => new SettlementMailBuilder(
@@ -565,6 +576,7 @@ class ServiceFactory implements ContainerInterface
             $this->pdo,
             $this->getSettlementReversalsRepository(),
             $this->getNotificationsService(),
+            $this->getSchedulerStatusService(),
         ));
     }
 
@@ -873,6 +885,11 @@ class ServiceFactory implements ContainerInterface
     public function getMailConfigController(): MailConfigController
     {
         return $this->resolve(MailConfigController::class, fn() => new MailConfigController($this->getMailConfigService(), $this->getValidator()));
+    }
+
+    public function getSchedulerController(): SchedulerController
+    {
+        return $this->resolve(SchedulerController::class, fn() => new SchedulerController($this->getSchedulerStatusService()));
     }
 
     public function getCronController(): CronController

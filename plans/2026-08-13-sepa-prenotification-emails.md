@@ -137,12 +137,28 @@ Two deviations from #404:
 
 ### P5 — The scheduler is mandatory: install verification, finalize gate, missing-email warning ([#405](https://github.com/dgloeckner/clubbar/issues/405))
 
-- [ ] Installer prerequisite step: the exact command/URL for this installation plus a **Prüfen** button polling `cron_heartbeat`; verified/unverified recorded in the install report
-- [ ] Admin banner while unverified, carrying the same instructions
-- [ ] Finalize blocked while no run has **ever** been observed, with a typed error naming cause and remedy; a stale heartbeat does **not** re-block
-- [ ] **Seed `cron_heartbeat` in `backend/db/seed.sql` and the E2E fixtures in this same PR** — without it the gate fails every existing settlement test at once, reading as "settlement creation broken"
-- [ ] Pre-finalize warning bucket for collected members without an email (defense-in-depth for legacy rows pending [#362](https://github.com/dgloeckner/clubbar/issues/362); never blocks)
-- Verify: PHPUnit — refused on empty heartbeat, allowed after one run, not re-blocked when stale; the warning lists exactly the no-email members and blocks nothing; **the existing suite stays green**; review check that no second sending path exists
+- [x] Installer prerequisite step 5 (the wizard is six steps now): prints the resolved `php <docroot>/backend/bin/cron.php` and, where `cron.secret` exists, the URL form; a **Check** button behind `install.php?action=check_cron` reads `cron_heartbeat` directly and the outcome is repeated on the completion page — verified, or *"not yet verified"* with what that means
+- [x] `SchedulerBanner` on every admin page while unverified, carrying the same command; renders nothing once verified, and nothing at all if the status read fails
+- [x] Finalize refused while no run has **ever** been observed — `SchedulerNotVerifiedException` (409, `scheduler_not_verified`), whose message names both the promise it cannot keep and the command that fixes it; a stale heartbeat does **not** re-block
+- [x] `cron_heartbeat` stamped in `backend/db/seed.sql` (dev + E2E) and by `DatabaseTestCase::ensureObservedSchedulerRun()` (CI's phpunit job applies migrations only, and migration 025 seeds the row with `last_run_at` NULL — the state that blocks)
+- [x] Pre-finalize warning bucket: `members_without_email` on the preview, a subset of `eligible_members`, plus its own read-only section on the New Settlement screen (defense-in-depth for legacy rows pending [#362](https://github.com/dgloeckner/clubbar/issues/362); never blocks)
+- Verify: **passed** — `SchedulerStatusServiceTest` (10), `SchedulerGateHttpTest` (6, over a real database and the real middleware: the typed 409, the same request succeeding past the gate once a run is recorded, a two-year-old heartbeat still verifying, and 401 without a session), `SettlementsServiceTest` +6 (refusal before any write, success after, a write-off unaffected, and the three warning-bucket cases), `scheduler-banner.spec.ts` (3). Backend suite **1991 tests, 6 failures — the same 6 the pristine tree produces in this sandbox** (`ServiceFactoryTest::test_getRateLimitMiddleware_is_active_by_default`, the dev compose's `DISABLE_LOGIN_RATE_LIMITING`, plus five `CronScriptTest` subprocess spawns that pass in isolation and fail only under the full run here); `api-tests` 607/607, `admin-chromium` 295/295 + 6 skipped, frontend unit 306/306
+
+Four decisions #405 leaves open:
+
+| Decision | Why |
+|---|---|
+| The gate is scoped to the methods that **enqueue**, not to every finalize | The issue's own rationale is that "the operation that is refused is precisely the one that makes an announcement promise the system could not keep". A `write_off` moves no money and announces nothing, so blocking it would refuse an operation this installation *can* honour, on the strength of a promise it never made. `bank_transfer` joins the gated branch the day [#410](https://github.com/dgloeckner/clubbar/issues/410) gives it a payment request — one line, and the same line that starts enqueueing for it |
+| The refusal is **409 `scheduler_not_verified`**, not a 422 | Nothing about the submitted settlement is wrong, and re-sending it unchanged is exactly what should succeed once the cron is scheduled. The distinct error code is what lets the panel point at the setup instructions instead of at the member list without matching on prose |
+| The bucket lists **collected** members only — a member closing out at 0.00 is not in it | They are settled but not collected from, so there is no announcement for them to miss. Excluded members (credit, hold, no mandate) are likewise left out: their own bucket already names the remedy, and the announcement they cannot receive was never going to be sent |
+| The installer asks the **database** directly, and never triggers a drain | It holds the credentials it just wrote, so there is no session to invent. And a self-triggered test call would prove the endpoint answers — not that anything is scheduled to call it, which is the only thing the gate asks. The wizard does not block on the answer either: the first tick can be fifteen minutes away, and the outcome is recorded unverified rather than waited for |
+
+| Dependency found | Resolution |
+|---|---|
+| The banner's browser-level check needs an *unverified* installation, and `cron_heartbeat` is a singleton every Playwright worker shares | `scheduler-banner.spec.ts` routes `/api/admin/scheduler` inside its own browser context instead of clearing the row. Clearing it would block settlement creation for every concurrently running worker — the shared-mutable-state failure Patterns 001 and 004 exist to prevent, in its intermittent form. The gate's server half is asserted over a real database in `SchedulerGateHttpTest`; the full chain through a real drain run stays [#409](https://github.com/dgloeckner/clubbar/issues/409)'s |
+| `AppConfig` had no document root, and the setup instructions have to print an absolute path | `AppConfig::$documentRoot`, derived as `dirname(__DIR__, 4)` — the same way `bin/cron.php` derives it, and for the same reason: it is a fact about where the code was unpacked, and a configured copy of it could disagree with reality |
+
+The piggyback middleware is **not** in this plan and never was — #405 dropped it, and the review check for a second sending path holds: `DrainService::run()` has exactly two callers, `bin/cron.php` and `CronController`.
 
 ### P6 — Monitoring: heartbeat ping, stall detection, self-check, ops docs ([#406](https://github.com/dgloeckner/clubbar/issues/406))
 

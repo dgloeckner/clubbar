@@ -24,6 +24,7 @@ use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Services\AuditService;
 use PDO;
@@ -41,6 +42,7 @@ class SettlementsService
         private PDO $db,
         private SettlementReversalsRepository $reversalsRepository,
         private NotificationsService $notificationsService,
+        private SchedulerStatusService $schedulerStatusService,
     ) {}
 
     /**
@@ -116,6 +118,9 @@ class SettlementsService
         $ineligible = [];
         $credit = [];
         $held = [];
+        // A subset of $eligible, not a fifth bucket: these members are
+        // collected from like everybody else (#405).
+        $withoutEmail = [];
         $warnings = [];
 
         foreach ($memberIds as $mid) {
@@ -168,6 +173,23 @@ class SettlementsService
                 // total is zero is refused at creation (#372), so a screen
                 // showing only zero-balance members has nothing to post.
                 $eligible[] = $entry;
+
+                // #405: collected from, and unreachable. This never excludes
+                // anybody — the member owes the money and the run collects it
+                // — it only says that one of the people being collected from
+                // will not be told. #362 makes an address required at
+                // application level; this stays as defense-in-depth for legacy
+                // rows until they are backfilled, and disappears on its own
+                // once they are.
+                //
+                // Tested on a positive balance rather than on membership of
+                // this bucket: a member closing out at 0.00 is settled but not
+                // collected from, so there is no announcement to miss.
+                if ($balance > 0 && trim((string) ($member['email'] ?? '')) === '') {
+                    $withoutEmail[] = $entry;
+                    $warnings[] = "Member {$member['first_name']} {$member['last_name']} has no email address "
+                        . 'and cannot be sent the pre-notification for this collection';
+                }
             } elseif (!$sepaEligibleOnly) {
                 $ineligible[] = $entry;
                 $warnings[] = "Member {$member['first_name']} {$member['last_name']} has no active SEPA mandate";
@@ -190,6 +212,7 @@ class SettlementsService
             heldMembers: $held,
             heldTotal: array_sum(array_column($held, 'balance_cents')),
             transactionCount: $transactionCount,
+            membersWithoutEmail: $withoutEmail,
         );
     }
 
@@ -234,6 +257,24 @@ class SettlementsService
      */
     public function createSettlement(array $transactionIds, string $executionDate, ?string $periodStart, ?string $periodEnd, SettlementMethod $method, ?string $notes, string $adminUserId, ?array $postedMemberIds = null): SettlementDto
     {
+        // #405: a direct debit is announced, and the drain is the only thing
+        // that sends the announcement. On an installation where no scheduled
+        // run has ever been observed, that announcement would be queued and
+        // never leave — so the collection is refused instead of being made
+        // unannounced, which is what makes the scheduler mandatory rather than
+        // recommended.
+        //
+        // Scoped to the methods that enqueue: a `write_off` moves no money and
+        // announces nothing, and blocking it would refuse an operation whose
+        // promise this installation *can* keep. `bank_transfer` joins this
+        // branch when #410 gives it a payment request.
+        //
+        // Outside the transaction and before any write, because nothing about
+        // this settlement is wrong — there is simply nothing to roll back.
+        if ($method->isSepaExportable()) {
+            $this->schedulerStatusService->assertVerified();
+        }
+
         $this->db->beginTransaction();
         try {
             if ($postedMemberIds !== null) {
