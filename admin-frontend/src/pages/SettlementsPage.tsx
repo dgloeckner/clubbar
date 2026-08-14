@@ -39,6 +39,7 @@ import { PillActionButton } from '../components/common/PillActionButton'
 import { useListQuery } from '../hooks/useListQuery'
 import { downloadBlob, downloadFile } from '../api/client'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
+import { formatTransactionPeriod } from '../utils/settlementPeriod'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -85,31 +86,6 @@ function undoButtonColor(settlement: SettlementListItemExtended): string {
 
 function undoButtonHoverColor(settlement: SettlementListItemExtended): string {
   return settlement.is_cancellable === false ? theme.colors.semantic.blockedHover : theme.colors.semantic.dangerHover
-}
-
-/**
- * Format a transaction date range for display.
- * Abbreviates the first date's year when both dates share the same year.
- * Examples: "15.01. – 28.02.2026" (same year), "15.12.2025 – 03.01.2026" (different year)
- */
-function formatDateRange(minStr: string | null | undefined, maxStr: string | null | undefined): string | null {
-  if (!minStr || !maxStr) return null
-  const min = new Date(minStr)
-  const max = new Date(maxStr)
-  if (isNaN(min.getTime()) || isNaN(max.getTime())) return null
-
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const dMin = pad(min.getDate())
-  const mMin = pad(min.getMonth() + 1)
-  const yMin = min.getFullYear()
-  const dMax = pad(max.getDate())
-  const mMax = pad(max.getMonth() + 1)
-  const yMax = max.getFullYear()
-
-  if (yMin === yMax) {
-    return `${dMin}.${mMin}. – ${dMax}.${mMax}.${yMax}`
-  }
-  return `${dMin}.${mMin}.${yMin} – ${dMax}.${mMax}.${yMax}`
 }
 
 const defaultPageSize = 20
@@ -348,6 +324,14 @@ export function SettlementsPage() {
 
   const status = (settlement: SettlementListItemExtended) => getSettlementStatus(settlement)
 
+  const transactionPeriod = (settlement: SettlementListItemExtended) =>
+    formatTransactionPeriod(
+      settlement.transaction_date_min,
+      settlement.transaction_date_max,
+      settlement.created_at,
+      formatters.intlLocale,
+    )
+
     return (
       <div data-testid="settlements-page">
         <div
@@ -480,9 +464,23 @@ export function SettlementsPage() {
                     }}
                   >
                     {/* Row 1: date + status badge */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '6px' }}>
                       <span style={{ fontWeight: 600, color: theme.colors.text.primary, fontSize: '14px' }}>
                         {formatters.formatDate(settlement.created_at ?? '')}
+                        {transactionPeriod(settlement) && (
+                          <span
+                            data-testid={`settlements-transaction-period-${settlement.id}`}
+                            style={{
+                              display: 'block',
+                              fontWeight: 400,
+                              fontSize: '11px',
+                              color: theme.colors.text.muted,
+                              marginTop: 2,
+                            }}
+                          >
+                            {transactionPeriod(settlement)}
+                          </span>
+                        )}
                       </span>
                       <span
                         data-testid={`settlements-badge-status-${settlement.id}`}
@@ -748,18 +746,35 @@ export function SettlementsPage() {
                             : tableColors.rowActiveBg
                         }}
                       >
-                        {/* Date */}
+                        {/* Date. The run's own date leads; the period it swept
+                            follows only when it is not the same day said
+                            twice (#378). */}
                         <td
                           data-testid={`settlements-table-cell-date-${settlement.id}`}
                           style={{
                             padding: tableSpacing.cellPadding,
                             color: tableColors.cellText,
+                            fontVariantNumeric: 'tabular-nums',
                           }}
                         >
-                          <div>{formatters.formatDate(settlement.created_at ?? '')}</div>
-                          {formatDateRange(settlement.transaction_date_min, settlement.transaction_date_max) && (
-                            <div style={{ fontSize: 12, color: tableColors.cellSecondaryText }}>
-                              {formatDateRange(settlement.transaction_date_min, settlement.transaction_date_max)}
+                          {/* Only the settlement's own date is held on one
+                              line — a period can wrap at its separator rather
+                              than overflow the fixed-width column. */}
+                          <div
+                            style={{
+                              fontWeight: theme.typography.fontWeight.semibold,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {formatters.formatDate(settlement.created_at ?? '')}
+                          </div>
+                          {transactionPeriod(settlement) && (
+                            <div
+                              data-testid={`settlements-transaction-period-${settlement.id}`}
+                              title={t('settlements.transactionPeriodHint')}
+                              style={{ fontSize: 12, color: tableColors.cellSecondaryText, marginTop: 2 }}
+                            >
+                              {transactionPeriod(settlement)}
                             </div>
                           )}
                         </td>

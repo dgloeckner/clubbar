@@ -298,6 +298,10 @@ test.describe('Journal & Settlements', () => {
     await settlementsPage.waitForPageLoad()
     await settlementsPage.expectSettlementRowVisible(settlementId)
 
+    // Every transaction above was booked just now, so the swept period is the
+    // run's own date and the row must not print it a second time (#378).
+    await settlementsPage.expectNoTransactionPeriod(settlementId)
+
     expect((await settlementsPage.getSettlementMemberCount(settlementId))?.trim()).toMatch(/^2\s/)
     // 25.00 (member1) + 15.00 (member2) = 40.00 — the settlement sweeps each
     // member's whole unsettled position (#161 §1). The auto anchor purchases

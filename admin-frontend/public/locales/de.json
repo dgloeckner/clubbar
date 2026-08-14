@@ -391,6 +391,7 @@
     "sortOldest": "Älteste zuerst",
     "countFound_one": "{{count}} Abrechnung gefunden",
     "countFound_other": "{{count}} Abrechnungen gefunden",
+    "transactionPeriodHint": "Zeitraum der abgerechneten Buchungen",
     "errors": {
       "load": "Abrechnungen konnten nicht geladen werden",
       "exportSepa": "SEPA-XML konnte nicht exportiert werden",
@@ -887,10 +888,11 @@
   },
   "newSettlement": {
     "title": "Neue Abrechnung",
-    "sweepNote": "Eine Abrechnung umfasst den gesamten offenen Saldo jedes ausgewählten Mitglieds — alle offenen Buchungen, unabhängig vom Datum. Wähle die Mitglieder aus, die eingezogen werden sollen.",
+    "sweepNote": "Eingezogen wird der gesamte offene Saldo der ausgewählten Mitglieder — alle offenen Buchungen, unabhängig vom Datum.",
     "searchPlaceholder": "Mitglieder suchen…",
     "selectAll": "Alle auswählen",
     "selectNone": "Auswahl aufheben",
+    "selectionSummary": "{{selected}} von {{total}} ausgewählt",
     "create": "Abrechnung erstellen",
     "selectAtLeastOneMember": "Bitte mindestens ein Mitglied auswählen",
     "nothingToCollect": "Die Salden der ausgewählten Mitglieder ergeben zusammen 0,00 € — eine Abrechnung muss etwas einziehen. Bitte mindestens ein Mitglied mit offenem Saldo auswählen.",

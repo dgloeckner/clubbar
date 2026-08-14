@@ -391,6 +391,7 @@
     "sortOldest": "Oldest first",
     "countFound_one": "{{count}} settlement found",
     "countFound_other": "{{count}} settlements found",
+    "transactionPeriodHint": "Period of the transactions settled",
     "errors": {
       "load": "Failed to load settlements",
       "exportSepa": "Failed to export SEPA XML",
@@ -887,10 +888,11 @@
   },
   "newSettlement": {
     "title": "New Settlement",
-    "sweepNote": "A settlement covers each selected member's entire unsettled balance — every open transaction they have, however old. Select the members to collect from.",
+    "sweepNote": "Collects each selected member's entire unsettled balance — every open transaction, however old.",
     "searchPlaceholder": "Search members…",
     "selectAll": "Select all",
     "selectNone": "Select none",
+    "selectionSummary": "{{selected}} of {{total}} selected",
     "create": "Create settlement",
     "selectAtLeastOneMember": "Select at least one member",
     "nothingToCollect": "The selected members' balances add up to 0.00 € — a settlement has to collect something. Select at least one member with an open balance.",

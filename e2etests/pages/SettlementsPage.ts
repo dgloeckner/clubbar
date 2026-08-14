@@ -35,6 +35,10 @@ export class SettlementsPage extends BasePage {
   private readonly settlementStatusBadge = (settlementId: string) =>
     this.page.getByTestId(`settlements-badge-status-${settlementId}`)
   private readonly settlementRows = () => this.page.locator('[data-testid^="settlements-table-row-"]')
+  // The second line of the date cell — the period the run swept, printed only
+  // when it says something the settlement's own date does not (#378).
+  private readonly settlementTransactionPeriod = (settlementId: string) =>
+    this.page.getByTestId(`settlements-transaction-period-${settlementId}`)
   private readonly exportWarning = () => this.page.getByTestId('settlements-export-warning')
 
   // SEPA export dialog (#393). The bank file is the one legitimate bulk
@@ -185,6 +189,14 @@ export class SettlementsPage extends BasePage {
 
   async expectSettlementRowVisible(settlementId: string) {
     await expect(this.settlementRow(settlementId)).toBeVisible()
+  }
+
+  /**
+   * A run made today over transactions booked today must print its date once.
+   * The row used to repeat it as a one-day range underneath (#378).
+   */
+  async expectNoTransactionPeriod(settlementId: string) {
+    await expect(this.settlementTransactionPeriod(settlementId)).toHaveCount(0)
   }
 
   async expectUndoButtonEnabled(settlementId: string) {

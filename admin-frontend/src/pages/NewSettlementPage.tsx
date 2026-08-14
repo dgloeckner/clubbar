@@ -20,6 +20,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
+import { SearchIcon } from '../components/icons'
 import { useFormatters } from '../hooks/useFormatters'
 import { useExecutionDateInfo } from '../hooks/useExecutionDateInfo'
 import { useLatestRequest } from '../hooks/useLatestRequest'
@@ -47,6 +48,72 @@ function mandateIssue(m: SettlementPreviewMember): 'iban' | 'mandate' | 'both' {
   const hasMandate = !!m.mandate_reference
   if (!hasIban && !hasMandate) return 'both'
   return hasIban ? 'mandate' : 'iban'
+}
+
+const pageHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  gap: theme.spacing.lg,
+  flexWrap: 'wrap',
+  margin: `0 0 ${theme.spacing.xl} 0`,
+}
+
+const pageTitleStyle: React.CSSProperties = {
+  fontSize: theme.typography.fontSize['3xl'],
+  fontWeight: theme.typography.fontWeight.bold,
+  color: theme.colors.text.primary,
+  margin: 0,
+}
+
+/** One line under the title. Longer prose belongs to a section, not the header. */
+const subtitleStyle: React.CSSProperties = {
+  margin: `${theme.spacing.sm} 0 0 0`,
+  fontSize: theme.typography.fontSize.sm,
+  color: theme.colors.text.muted,
+  maxWidth: '76ch',
+  lineHeight: theme.typography.lineHeight.normal,
+}
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: `${theme.spacing['2xl']} 0 ${theme.spacing.sm} 0`,
+  fontSize: theme.typography.fontSize.lg,
+  fontWeight: theme.typography.fontWeight.semibold,
+  color: theme.colors.text.primary,
+}
+
+const readOnlyNoteStyle: React.CSSProperties = {
+  margin: `0 0 ${theme.spacing.sm} 0`,
+  fontSize: theme.typography.fontSize.sm,
+  color: theme.colors.text.secondary,
+  maxWidth: '76ch',
+  lineHeight: theme.typography.lineHeight.normal,
+}
+
+/** Money and counts read as columns of digits, so they align on the right. */
+const numericHeaderStyle: React.CSSProperties = {
+  ...headerCellBaseStyle,
+  textAlign: 'right',
+}
+
+const numericCellStyle: React.CSSProperties = {
+  padding: tableSpacing.cellPadding,
+  textAlign: 'right',
+  fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap',
+}
+
+/** The toolbar above the eligible-members table — same shape as the members tab. */
+const toolbarStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing.lg,
+  flexWrap: 'wrap',
+  padding: '14px 18px',
+  background: theme.mobileCard.bg,
+  border: `1px solid ${theme.mobileCard.border}`,
+  borderRadius: '10px',
+  marginBottom: theme.spacing.md,
 }
 
 export function NewSettlementPage() {
@@ -250,24 +317,43 @@ export function NewSettlementPage() {
     }
   }
 
-  const sectionTitleStyle = {
-    margin: `${theme.spacing.xl} 0 ${theme.spacing.sm} 0`,
-    fontSize: 16,
-    fontWeight: 600,
-  } as const
-
-  const readOnlyNoteStyle = {
-    margin: `0 0 ${theme.spacing.sm} 0`,
-    fontSize: 13,
-    color: theme.colors.text.secondary,
-  } as const
-
   return (
     <div data-testid="new-settlement-page">
-      <h1 style={{ margin: '0 0 8px 0' }}>{t('newSettlement.title')}</h1>
-      <p data-testid="new-settlement-sweep-note" style={{ ...readOnlyNoteStyle, maxWidth: 720 }}>
-        {t('newSettlement.sweepNote')}
-      </p>
+      {/*
+        Same header shape as the list this screen is reached from: title left,
+        primary action right (#378). It used to sit inside the summary card
+        with `marginLeft: auto`, which put the run's one irreversible button
+        somewhere no other tab keeps its primary action.
+      */}
+      <div style={pageHeaderStyle}>
+        <div style={{ minWidth: 0, flex: '1 1 360px' }}>
+          <h1 style={pageTitleStyle}>{t('newSettlement.title')}</h1>
+          <p data-testid="new-settlement-sweep-note" style={subtitleStyle}>
+            {t('newSettlement.sweepNote')}
+          </p>
+        </div>
+
+        {!loading && (
+          <button
+            data-testid="new-settlement-create-btn"
+            onClick={handleCreate}
+            disabled={submitting || !canCreate}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: canCreate ? theme.colors.semantic.emerald : theme.colors.semantic.neutral,
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              fontSize: theme.typography.fontSize.base,
+              fontWeight: theme.typography.fontWeight.medium,
+              whiteSpace: 'nowrap',
+              cursor: submitting || !canCreate ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {submitting ? t('common.loading') : t('newSettlement.create')}
+          </button>
+        )}
+      </div>
 
       {error && (
         <div
@@ -290,17 +376,15 @@ export function NewSettlementPage() {
         </div>
       ) : (
         <>
-          {/* The run, always visible while choosing */}
+          {/* The run, always visible while choosing. Four equal tiles rather
+              than four label/value pairs crammed against the button they used
+              to share a row with (#378). */}
           <div
             data-testid="new-settlement-summary"
             style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: theme.spacing.xl,
-              alignItems: 'center',
-              padding: tableSpacing.cellPadding,
-              border: `1px solid ${tableColors.rowActiveBorder}`,
-              borderRadius: 8,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: theme.spacing.md,
             }}
           >
             <Figure
@@ -317,37 +401,23 @@ export function NewSettlementPage() {
               testId="new-settlement-summary-total"
               label={t('newSettlement.summary.total')}
               value={formatPrice(runSummary.totalCents)}
+              accent={theme.colors.semantic.emerald}
             />
             <Figure
               testId="new-settlement-summary-execution-date"
               label={t('newSettlement.summary.executionDate')}
               value={executionDateInfo ? formatDate(executionDateInfo.minimum_date) : '—'}
             />
-
-            <button
-              data-testid="new-settlement-create-btn"
-              onClick={handleCreate}
-              disabled={submitting || !canCreate}
-              style={{
-                marginLeft: 'auto',
-                padding: '10px 20px',
-                backgroundColor: canCreate ? theme.colors.semantic.emerald : theme.colors.semantic.neutral,
-                color: 'white',
-                border: 'none',
-                borderRadius: 6,
-                fontSize: 14,
-                fontWeight: 500,
-                cursor: submitting || !canCreate ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {submitting ? t('common.loading') : t('newSettlement.create')}
-            </button>
           </div>
 
           {nothingToCollect && (
             <p
               data-testid="new-settlement-nothing-to-collect"
-              style={{ color: theme.colors.semantic.danger, fontSize: 14 }}
+              style={{
+                margin: `${theme.spacing.md} 0 0 0`,
+                color: theme.colors.semantic.danger,
+                fontSize: theme.typography.fontSize.base,
+              }}
             >
               {t('newSettlement.nothingToCollect')}
             </p>
@@ -356,7 +426,11 @@ export function NewSettlementPage() {
           {(submitError || executionDateError) && (
             <p
               data-testid="new-settlement-submit-error"
-              style={{ color: theme.colors.semantic.danger, fontSize: 14 }}
+              style={{
+                margin: `${theme.spacing.md} 0 0 0`,
+                color: theme.colors.semantic.danger,
+                fontSize: theme.typography.fontSize.base,
+              }}
             >
               {submitError ?? executionDateError}
             </p>
@@ -365,34 +439,72 @@ export function NewSettlementPage() {
           {/* ── Eligible ─────────────────────────────────────────── */}
           <h2 style={sectionTitleStyle}>{t('newSettlement.eligible.title')}</h2>
 
-          <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center', marginBottom: theme.spacing.sm }}>
-            <input
-              data-testid="new-settlement-search-input"
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('newSettlement.searchPlaceholder')}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 6,
-                border: `1px solid ${tableColors.rowActiveBorder}`,
-                background: theme.colors.bg.secondary,
-                color: theme.colors.text.primary,
-                minWidth: 240,
-              }}
-            />
+          {/* Toolbar, built like the members tab's: the search field carries
+              the magnifier and the surface tokens the rest of the app uses,
+              instead of the bare bordered box it was (#378). */}
+          <div style={toolbarStyle}>
+            <div style={{ position: 'relative', flex: '0 1 260px', minWidth: '180px' }}>
+              <SearchIcon
+                size={16}
+                style={{
+                  position: 'absolute',
+                  left: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: theme.colors.text.secondary,
+                  opacity: 0.6,
+                  pointerEvents: 'none',
+                }}
+              />
+              <input
+                data-testid="new-settlement-search-input"
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t('newSettlement.searchPlaceholder')}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px 8px 32px',
+                  borderRadius: '7px',
+                  border: `1px solid ${theme.colors.border.subtle}`,
+                  background: theme.colors.bg.surfaceSubtle,
+                  color: tableColors.cellText,
+                  fontSize: theme.typography.fontSize.sm,
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ width: '1px', height: '28px', background: theme.colors.border.subtle }} />
+
+            {/* How much of the list the two controls above are acting on —
+                select-all only ever reaches what the search left visible. */}
+            <span
+              data-testid="new-settlement-selection-summary"
+              style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.secondary }}
+            >
+              {t('newSettlement.selectionSummary', {
+                selected: runSummary.members,
+                total: eligible.length,
+              })}
+            </span>
+
             <button
               data-testid="new-settlement-select-all-btn"
               onClick={toggleAllVisible}
               disabled={visibleIds.length === 0}
               style={{
-                padding: '8px 14px',
-                borderRadius: 6,
-                border: `1px solid ${tableColors.rowActiveBorder}`,
-                background: 'transparent',
-                color: theme.colors.text.secondary,
+                marginLeft: 'auto',
+                padding: '6px 14px',
+                borderRadius: '6px',
+                border: 'none',
+                background: theme.pillButton.idleBg,
+                color: theme.pillButton.idleText,
                 cursor: visibleIds.length === 0 ? 'not-allowed' : 'pointer',
-                fontSize: 13,
+                fontSize: theme.typography.fontSize.sm,
+                fontWeight: theme.typography.fontWeight.medium,
+                whiteSpace: 'nowrap',
               }}
             >
               {allVisibleSelected ? t('newSettlement.selectNone') : t('newSettlement.selectAll')}
@@ -417,8 +529,8 @@ export function NewSettlementPage() {
                     />
                   </th>
                   <th style={headerCellBaseStyle}>{t('newSettlement.columns.member')}</th>
-                  <th style={headerCellBaseStyle}>{t('newSettlement.columns.transactions')}</th>
-                  <th style={headerCellBaseStyle}>{t('newSettlement.columns.balance')}</th>
+                  <th style={numericHeaderStyle}>{t('newSettlement.columns.transactions')}</th>
+                  <th style={numericHeaderStyle}>{t('newSettlement.columns.balance')}</th>
                   <th style={{ ...headerCellBaseStyle, width: 60 }} />
                 </tr>
               </thead>
@@ -451,13 +563,13 @@ export function NewSettlementPage() {
                         <td style={{ padding: tableSpacing.cellPadding }}>{memberName(m)}</td>
                         <td
                           data-testid={`new-settlement-member-transactions-${id}`}
-                          style={{ padding: tableSpacing.cellPadding }}
+                          style={numericCellStyle}
                         >
                           {m.transaction_count ?? 0}
                         </td>
                         <td
                           data-testid={`new-settlement-member-balance-${id}`}
-                          style={{ padding: tableSpacing.cellPadding }}
+                          style={numericCellStyle}
                         >
                           {formatPrice(m.balance_cents ?? 0)}
                         </td>
@@ -534,7 +646,7 @@ export function NewSettlementPage() {
                 <thead>
                   <tr style={headerRowStyle}>
                     <th style={headerCellBaseStyle}>{t('newSettlement.columns.member')}</th>
-                    <th style={headerCellBaseStyle}>{t('newSettlement.columns.balance')}</th>
+                    <th style={numericHeaderStyle}>{t('newSettlement.columns.balance')}</th>
                     <th style={headerCellBaseStyle}>{t('newSettlement.columns.issue')}</th>
                   </tr>
                 </thead>
@@ -546,7 +658,7 @@ export function NewSettlementPage() {
                       style={{ borderBottom: tableColors.rowActiveBorder }}
                     >
                       <td style={{ padding: tableSpacing.cellPadding }}>{memberName(m)}</td>
-                      <td style={{ padding: tableSpacing.cellPadding }}>{formatPrice(m.balance_cents ?? 0)}</td>
+                      <td style={numericCellStyle}>{formatPrice(m.balance_cents ?? 0)}</td>
                       <td style={{ padding: tableSpacing.cellPadding }}>
                         {t(`newSettlement.ineligible.issue.${mandateIssue(m)}`)}
                       </td>
@@ -566,7 +678,7 @@ export function NewSettlementPage() {
                 <thead>
                   <tr style={headerRowStyle}>
                     <th style={headerCellBaseStyle}>{t('newSettlement.columns.member')}</th>
-                    <th style={headerCellBaseStyle}>{t('newSettlement.columns.balance')}</th>
+                    <th style={numericHeaderStyle}>{t('newSettlement.columns.balance')}</th>
                     <th style={headerCellBaseStyle}>{t('newSettlement.columns.holdReason')}</th>
                   </tr>
                 </thead>
@@ -578,7 +690,7 @@ export function NewSettlementPage() {
                       style={{ borderBottom: tableColors.rowActiveBorder }}
                     >
                       <td style={{ padding: tableSpacing.cellPadding }}>{memberName(m)}</td>
-                      <td style={{ padding: tableSpacing.cellPadding }}>{formatPrice(m.balance_cents ?? 0)}</td>
+                      <td style={numericCellStyle}>{formatPrice(m.balance_cents ?? 0)}</td>
                       <td
                         data-testid={`new-settlement-held-reason-${m.member_id}`}
                         style={{ padding: tableSpacing.cellPadding }}
@@ -606,7 +718,7 @@ export function NewSettlementPage() {
                 <thead>
                   <tr style={headerRowStyle}>
                     <th style={headerCellBaseStyle}>{t('newSettlement.columns.member')}</th>
-                    <th style={headerCellBaseStyle}>{t('newSettlement.columns.balance')}</th>
+                    <th style={numericHeaderStyle}>{t('newSettlement.columns.balance')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -617,7 +729,7 @@ export function NewSettlementPage() {
                       style={{ borderBottom: tableColors.rowActiveBorder }}
                     >
                       <td style={{ padding: tableSpacing.cellPadding }}>{memberName(m)}</td>
-                      <td style={{ padding: tableSpacing.cellPadding }}>{formatPrice(m.balance_cents ?? 0)}</td>
+                      <td style={numericCellStyle}>{formatPrice(m.balance_cents ?? 0)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -630,11 +742,47 @@ export function NewSettlementPage() {
   )
 }
 
-function Figure({ testId, label, value }: { testId: string; label: string; value: string }) {
+function Figure({
+  testId,
+  label,
+  value,
+  accent,
+}: {
+  testId: string
+  label: string
+  value: string
+  accent?: string
+}) {
   return (
-    <div>
-      <div style={{ fontSize: 12, color: theme.colors.text.secondary }}>{label}</div>
-      <div data-testid={testId} style={{ fontSize: 18, fontWeight: 600 }}>
+    <div
+      style={{
+        background: theme.colors.bg.secondary,
+        border: `1px solid ${theme.colors.border.slate}`,
+        borderRadius: theme.borderRadius.md,
+        padding: '14px 16px',
+      }}
+    >
+      <div
+        style={{
+          fontSize: theme.typography.fontSize.xs,
+          color: theme.colors.text.label,
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+          fontWeight: theme.typography.fontWeight.medium,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        data-testid={testId}
+        style={{
+          marginTop: theme.spacing.xs,
+          fontSize: theme.typography.fontSize['2xl'],
+          fontWeight: theme.typography.fontWeight.semibold,
+          fontVariantNumeric: 'tabular-nums',
+          color: accent ?? theme.colors.text.primary,
+        }}
+      >
         {value}
       </div>
     </div>
