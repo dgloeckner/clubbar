@@ -93,6 +93,12 @@ class ServiceFactoryTest extends TestCase
      */
     public function test_getMembersSyncController_builds_a_controller_and_is_singleton(): void
     {
+        // getMembersService() resolves the members repository, which needs the
+        // IBAN sealed box — same env this file's other IBAN-dependent test sets.
+        $_ENV['IBAN_FINGERPRINT_KEY'] = str_repeat('ab', 32);
+        $_ENV['APP_ENV'] = 'production';
+        Env::reset();
+
         $factory = $this->factory();
 
         $this->assertInstanceOf(MembersSyncController::class, $factory->getMembersSyncController());
