@@ -175,7 +175,8 @@
       "cardUidPlaceholder": "e.g., 0003195661"
     },
     "table": {
-      "cardUid": "Card UID"
+      "cardUid": "Card UID",
+      "balance": "Tab"
     },
     "filters": {
       "status": {
@@ -216,6 +217,8 @@
     "sortName": "Name A–Z",
     "sortNameDesc": "Name Z–A",
     "sortCard": "Card-UID ↑",
+    "sortBalanceDesc": "Tab ↓",
+    "sortBalanceAsc": "Tab ↑",
     "sortNewest": "Newest first",
     "sortOldest": "Oldest first",
     "filterStatus": "Status",

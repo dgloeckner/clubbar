@@ -1,7 +1,7 @@
 import type { ListMembersSortBy } from '../api/generated'
 
 /** The columns the member list can be sorted by. */
-export type MemberSortKey = 'last_name' | 'card_uid' | 'created_at'
+export type MemberSortKey = 'last_name' | 'card_uid' | 'balance' | 'created_at'
 
 /**
  * Translate the list's sort key and direction into the API's `sort_by` value.

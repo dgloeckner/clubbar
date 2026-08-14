@@ -4199,7 +4199,10 @@ components:
           nullable: true
         balance_cents:
           type: integer
-          description: Current outstanding balance in cents
+          description: |
+            The member's Deckel: the sum of their transactions that no
+            settlement has collected yet, in cents. Positive means they owe
+            the club; negative is a credit, which a payout leaves behind.
         card_uid:
           type: string
           nullable: true
@@ -4581,6 +4584,10 @@ components:
           type: boolean
         balance_cents:
           type: integer
+          description: |
+            The member's Deckel: the sum of their transactions that no
+            settlement has collected yet, in cents. Positive means they owe
+            the club; negative is a credit, which a payout leaves behind.
         deleted_at:
           type: string
           format: date-time

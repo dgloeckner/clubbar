@@ -469,6 +469,77 @@ class MembersRepositoryTest extends DatabaseTestCase
     }
 
     // ------------------------------------------------------------------
+    // The Deckel the member list renders (#371). Sorting by the tab has been
+    // possible for a while; reading it off a row has not, so the admin panel
+    // could order members by a figure it was unable to show them.
+    // ------------------------------------------------------------------
+
+    public function test_listPaginated_reports_the_unsettled_balance_on_each_row(): void
+    {
+        $member = $this->createTestMember('DeckelRow', 'Member');
+        $this->createTestTransaction($member, 1250, '2026-01-01 10:00:00');
+        $this->createTestTransaction($member, 375, '2026-01-01 11:00:00');
+
+        $row = $this->findRowById($this->membersRepository->listPaginated(1000, 0)['items'], $member);
+
+        $this->assertSame(1625, (int) $row['balance_cents']);
+    }
+
+    public function test_listPaginated_reports_zero_for_a_member_who_owes_nothing(): void
+    {
+        $member = $this->createTestMember('DeckelEmpty', 'Member');
+
+        $row = $this->findRowById($this->membersRepository->listPaginated(1000, 0)['items'], $member);
+
+        // Zero rather than NULL: the column has to render a figure for every
+        // member, and a blank cell claims the tab is unknown rather than nil.
+        $this->assertSame(0, (int) $row['balance_cents']);
+    }
+
+    public function test_listPaginated_leaves_settled_transactions_out_of_the_reported_balance(): void
+    {
+        $member = $this->createTestMember('DeckelSettled', 'Member');
+        $settled = $this->createTestTransaction($member, 5000, '2026-01-01 10:00:00');
+        $this->createTestTransaction($member, 700, '2026-01-01 11:00:00');
+
+        $adminId = $this->createTestAdminUser("deckel-admin-{$member}@example.com");
+        $settlementId = $this->createSettlementRow($adminId, '2026-01-02', '2026-01-03', 5000, 1);
+        $this->markTransactionSettled($settlementId, $settled, $member, 5000);
+
+        $row = $this->findRowById($this->membersRepository->listPaginated(1000, 0)['items'], $member);
+
+        // The figure the list shows and the figure it sorts by have to be the
+        // same one, or the column contradicts its own arrow.
+        $this->assertSame(700, (int) $row['balance_cents']);
+    }
+
+    public function test_findById_reports_the_same_balance_as_the_list(): void
+    {
+        $member = $this->createTestMember('DeckelDetail', 'Member');
+        $this->createTestTransaction($member, 640, '2026-01-01 10:00:00');
+
+        $row = $this->findRowById($this->membersRepository->listPaginated(1000, 0)['items'], $member);
+
+        $this->assertSame(640, (int) $this->membersRepository->findById($member)['balance_cents']);
+        $this->assertSame((int) $row['balance_cents'], (int) $this->membersRepository->findById($member)['balance_cents']);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array<string, mixed>
+     */
+    private function findRowById(array $items, string $memberId): array
+    {
+        foreach ($items as $item) {
+            if ($item['id'] === $memberId) {
+                return $item;
+            }
+        }
+
+        $this->fail("member {$memberId} not present in the listing");
+    }
+
+    // ------------------------------------------------------------------
     // Banking data, which lives on the append-only mandate record (#164)
     // ------------------------------------------------------------------
 

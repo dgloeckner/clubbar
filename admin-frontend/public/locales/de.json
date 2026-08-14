@@ -175,7 +175,8 @@
       "cardUidPlaceholder": "z.B. 0003195661"
     },
     "table": {
-      "cardUid": "Karten-UID"
+      "cardUid": "Karten-UID",
+      "balance": "Deckel"
     },
     "filters": {
       "status": {
@@ -216,6 +217,8 @@
     "sortName": "Name A–Z",
     "sortNameDesc": "Name Z–A",
     "sortCard": "Karten-UID ↑",
+    "sortBalanceDesc": "Deckel ↓",
+    "sortBalanceAsc": "Deckel ↑",
     "sortNewest": "Neueste zuerst",
     "sortOldest": "Älteste zuerst",
     "filterStatus": "Status",

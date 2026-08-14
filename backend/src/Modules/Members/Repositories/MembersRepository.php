@@ -36,6 +36,25 @@ class MembersRepository
         . '(md.iban_ciphertext IS NOT NULL) AS has_iban, '
         . 'md.bank_name, md.reference AS mandate_reference, md.signed_at AS mandate_signed_at';
 
+    /**
+     * The member's Deckel: what they have run up that no settlement has
+     * collected yet (#371).
+     *
+     * `members` carries no balance column — #164 moved money out to
+     * `transactions` — so the tab is summed per row here. It is deliberately
+     * the same expression `TransactionsRepository::getUnsettledMemberBalanceCents`
+     * evaluates for a single member and the dashboard's near-limit list uses
+     * for its own: three screens naming the same figure must not be able to
+     * disagree about it. Every transaction type counts, credits included, so a
+     * payout leaves a negative tab rather than vanishing.
+     */
+    private const BALANCE_EXPRESSION =
+        '(SELECT COALESCE(SUM(t.amount_cents), 0) FROM transactions t'
+        . ' WHERE t.member_id = m.id'
+        . ' AND ' . UnsettledTransactions::UNSETTLED . ')';
+
+    private const BALANCE_COLUMN = self::BALANCE_EXPRESSION . ' AS balance_cents';
+
     public function __construct(
         private PDO $db,
         private Logger $logger,
@@ -46,7 +65,8 @@ class MembersRepository
     public function findById(string $id): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT m.*, ' . self::MANDATE_COLUMNS . ' FROM members m ' . self::MANDATE_JOIN
+            'SELECT m.*, ' . self::MANDATE_COLUMNS . ', ' . self::BALANCE_COLUMN
+            . ' FROM members m ' . self::MANDATE_JOIN
             . ' WHERE m.id = ? AND m.deleted_at IS NULL'
         );
         $stmt->execute([$id]);
@@ -56,7 +76,8 @@ class MembersRepository
     public function findByIdIncludingDeleted(string $id): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT m.*, ' . self::MANDATE_COLUMNS . ' FROM members m ' . self::MANDATE_JOIN
+            'SELECT m.*, ' . self::MANDATE_COLUMNS . ', ' . self::BALANCE_COLUMN
+            . ' FROM members m ' . self::MANDATE_JOIN
             . ' WHERE m.id = ?'
         );
         $stmt->execute([$id]);
@@ -396,13 +417,6 @@ class MembersRepository
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        // `members` carries no balance column (#164 moved money out to
-        // `transactions`); sorting by balance orders on the same unsettled
-        // position `TransactionsRepository::getUnsettledMemberBalanceCents`
-        // reports for a single member (#83), evaluated per row here.
-        $balanceSort = '(SELECT COALESCE(SUM(t.amount_cents), 0) FROM transactions t'
-            . ' WHERE t.member_id = m.id'
-            . ' AND ' . UnsettledTransactions::UNSETTLED . ')';
         // Each key maps to the columns it orders by, in order. `name` is what
         // the admin list sends for its Name column, and a member list sorted by
         // name is expected to read like a phone book: last name first, first
@@ -413,7 +427,7 @@ class MembersRepository
             'first_name' => ['m.first_name'],
             'last_name' => ['m.last_name'],
             'card_uid' => ['m.card_uid'],
-            'balance' => [$balanceSort],
+            'balance' => [self::BALANCE_EXPRESSION],
             'created_at' => ['m.created_at'],
         ];
         $col = SafeQuery::column($sortKey, array_keys($columnMap));
@@ -442,7 +456,8 @@ class MembersRepository
 
         $dataParams = array_merge($params, [$limit, $offset]);
         $stmt = $this->db->prepare(
-            'SELECT m.*, ' . self::MANDATE_COLUMNS . " {$from} ORDER BY {$orderBy} LIMIT ? OFFSET ?"
+            'SELECT m.*, ' . self::MANDATE_COLUMNS . ', ' . self::BALANCE_COLUMN
+            . " {$from} ORDER BY {$orderBy} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
         $items = $stmt->fetchAll();
