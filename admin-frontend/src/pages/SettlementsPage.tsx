@@ -1068,7 +1068,19 @@ export function SettlementsPage() {
                       <Fragment key={settlement.id}>
                       <tr
                         data-testid={`settlements-table-row-${settlement.id}`}
-                        style={getRowStyle(!settlement.is_cancelled)}
+                        // Table rows default to `vertical-align: middle`, which
+                        // centers each cell's content *block* independently.
+                        // The status cell is two lines whenever the awaiting-
+                        // confirmation caption is shown, and the summary/date
+                        // cells are two lines whenever a transaction period or
+                        // reversed-count line is shown — so their first line
+                        // (the pill, the date) sits above the row's vertical
+                        // centre while the single-line actions row sits
+                        // exactly on it, and the two visibly don't line up.
+                        // Top-aligning every cell keeps every column's first
+                        // line flush with the row's top regardless of how many
+                        // lines follow (#373 follow-up).
+                        style={{ ...getRowStyle(!settlement.is_cancelled), verticalAlign: 'top' }}
                         onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
                           if (!settlement.is_cancelled) {
                             e.currentTarget.style.backgroundColor = tableColors.rowActiveHoverBg
