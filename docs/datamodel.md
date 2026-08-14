@@ -17,7 +17,6 @@ admin_users
 audit_log
 sepa_config
 terminals
-unknown_card_scans
 ```
 
 ---
@@ -226,25 +225,6 @@ Registered terminal devices.
 
 ---
 
-### unknown_card_scans
-
-Cards scanned at terminal but not assigned to any member.
-
-| Field | Type | Required | Description | Business Impact | Validation |
-|-------|------|----------|-------------|-----------------|------------|
-| id | INT | Yes | Auto-increment PK | Internal reference | Auto-generated |
-| card_uid | VARCHAR(20) | Yes | Scanned card identifier | For assignment to new member | 8-20 hex chars, uppercase; UNIQUE |
-| terminal_id | BINARY(16) | No | FK to terminals | Which terminal first scanned | Valid terminal reference |
-| first_seen_at | DATETIME | Yes | First scan timestamp | When card was first detected | Auto-set |
-| last_seen_at | DATETIME | Yes | Last scan timestamp | Recency indicator | Updated on each scan |
-| scan_count | INT | Yes | Number of scan attempts | Frequency indicator | Default: 1; incremented |
-
-**Indexes**: `card_uid` (UNIQUE), `last_seen_at`
-
-**Cleanup**: Entries removed when card is assigned to a member.
-
----
-
 ### sepa_config
 
 Organization-level SEPA configuration (single row).
@@ -412,10 +392,6 @@ Sync metadata for delta synchronization.
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │ admin_users │────►│  audit_log  │     │ sepa_config │
 └─────────────┘     └─────────────┘     └─────────────┘
-
-┌─────────────────┐
-│unknown_card_scans│
-└─────────────────┘
 ```
 
 ---

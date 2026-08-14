@@ -60,8 +60,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 import type {
   BlockCardBody,
   BlockedCard,
-  ListBlockedCards200,
-  ListUnknownCards200
+  ListBlockedCards200
 } from './..';
 
 import { customInstance } from '../../client';
@@ -72,21 +71,6 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
   export const getRfidCards = () => {
 /**
- * Retrieve cards scanned at terminals that are not assigned to any member.
-
-**Use Case**: UC-A70
-
- * @summary List unknown cards
- */
-const listUnknownCards = (
-    
- options?: SecondParameter<typeof customInstance<ListUnknownCards200>>,) => {
-      return customInstance<ListUnknownCards200>(
-      {url: `/admin/unknown-cards`, method: 'GET'
-    },
-      options);
-    }
-  /**
  * Retrieve blocked RFID cards.
 
 **Use Case**: UC-A71
@@ -135,8 +119,7 @@ const unblockCard = (
     },
       options);
     }
-  return {listUnknownCards,listBlockedCards,blockCard,unblockCard}};
-export type ListUnknownCardsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getRfidCards>['listUnknownCards']>>>
+  return {listBlockedCards,blockCard,unblockCard}};
 export type ListBlockedCardsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getRfidCards>['listBlockedCards']>>>
 export type BlockCardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getRfidCards>['blockCard']>>>
 export type UnblockCardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getRfidCards>['unblockCard']>>>

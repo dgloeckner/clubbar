@@ -2887,35 +2887,10 @@ paths:
 
   # ============================================================================
   # RFID CARDS (DEFERRED — 2026-03-07 audit)
-  # UC-A70 (unknown cards) and UC-A71 (blocked cards) are deferred.
-  # Endpoints kept in spec for future implementation.
+  # UC-A71 (blocked cards) is deferred. Endpoints kept in spec for future implementation.
+  # The unknown-cards workflow (UC-A70) was rejected in ADR-0021 in favor of
+  # manual card_uid entry and has no backing endpoint.
   # ============================================================================
-  /admin/unknown-cards:
-    get:
-      tags: [RFID Cards]
-      summary: List unknown cards
-      description: |
-        Retrieve cards scanned at terminals that are not assigned to any member.
-
-        **Use Case**: UC-A70
-      operationId: listUnknownCards
-      security:
-        - sessionAuth: []
-      responses:
-        '200':
-          description: Unknown cards
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/UnknownCard'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
   /admin/blocked-cards:
     get:
       tags: [RFID Cards]
@@ -5815,23 +5790,6 @@ components:
     # --------------------------------------------------------------------------
     # RFID Cards
     # --------------------------------------------------------------------------
-    UnknownCard:
-      type: object
-      properties:
-        card_uid:
-          type: string
-        terminal_name:
-          type: string
-          nullable: true
-        first_seen_at:
-          type: string
-          format: date-time
-        last_seen_at:
-          type: string
-          format: date-time
-        scan_count:
-          type: integer
-
     BlockedCard:
       type: object
       properties:
