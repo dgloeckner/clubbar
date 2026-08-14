@@ -44,6 +44,7 @@ import { Badge } from '../components/common/Badge'
 import { EditIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { PageActionButton } from '../components/common/PageActionButton'
 import { PageHeader } from '../components/layout/PageHeader'
+import { ProductsTabs } from '../components/products/ProductsTabs'
 import { ListLoadingOverlay } from '../components/tables/ListLoadingOverlay'
 import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
@@ -432,6 +433,8 @@ export function ProductsPage() {
           </PageActionButton>
         }
       />
+
+      <ProductsTabs />
 
       {error && (
         <div

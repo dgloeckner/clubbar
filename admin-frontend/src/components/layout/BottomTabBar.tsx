@@ -13,7 +13,6 @@ import {
   AuditLogIcon,
   UserIcon,
 } from '../icons'
-import { NavigationIconRegistry } from '../icons/IconRegistry'
 
 function GridDotsIcon({ size = 20, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
@@ -48,7 +47,6 @@ export function BottomTabBar() {
 
   const moreItems = [
     { label: t('nav.settlements'), path: '/settlements', icon: ReceiptIcon, testId: 'tab-settlements' },
-    { label: t('nav.categories'), path: '/categories', icon: NavigationIconRegistry.CategoryIcon, testId: 'tab-categories' },
     { label: t('nav.reports'), path: '/reports', icon: ChartIcon, testId: 'tab-reports' },
     { label: t('nav.settings'), path: '/settings', icon: SettingsIcon, testId: 'tab-settings' },
     { label: t('nav.auditLog'), path: '/audit-log', icon: AuditLogIcon, testId: 'tab-audit-log' },
