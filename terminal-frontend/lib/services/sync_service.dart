@@ -241,6 +241,10 @@ class SyncService {
         _logger.w('Categories: no cursor in response');
       }
 
+      // Update sync timestamp
+      final now = DateTime.now();
+      await _syncRepo.setLastCategoriesSyncTime(now.toIso8601String());
+
       _logger.i('Categories synced: ${response.categories.length} items');
     } catch (e, stackTrace) {
       _logger.e('Categories sync failed: $e', error: e, stackTrace: stackTrace);

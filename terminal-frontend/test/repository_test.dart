@@ -1261,6 +1261,16 @@ void main() {
       expect(value, equals(timestamp));
     });
 
+    test('setLastCategoriesSyncTime stores timestamp', () async {
+      const timestamp = '2025-02-01T12:00:00Z';
+
+      await repo.setLastCategoriesSyncTime(timestamp);
+
+      final value = await repo.getLastCategoriesSyncTime();
+
+      expect(value, equals(timestamp));
+    });
+
     test('setLastSyncTime stores timestamp', () async {
       const timestamp = '2025-02-01T12:00:00Z';
 

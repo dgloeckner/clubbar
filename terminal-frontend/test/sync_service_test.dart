@@ -70,6 +70,8 @@ void main() {
           .thenAnswer((_) async => {});
       when(() => mockSyncRepo.setLastProductsSyncTime(any()))
           .thenAnswer((_) async => {});
+      when(() => mockSyncRepo.setLastCategoriesSyncTime(any()))
+          .thenAnswer((_) async => {});
       when(() => mockSyncRepo.getSyncRetryCount())
           .thenAnswer((_) async => 0);
       when(() => mockSyncRepo.getLastSyncError())
@@ -1035,6 +1037,33 @@ void main() {
             .thenThrow(NetworkException('offline'));
 
         expect(await syncService.syncAll(), equals(SyncResult.success));
+      });
+    });
+
+    /// #418: members and products each record when they last ran; categories
+    /// silently didn't, so an incident dump could not tell whether that sync
+    /// leg was even running. The cursor still drove correctness — this is only
+    /// the diagnostic.
+    group('categories sync timestamp (#418)', () {
+      test('records a timestamp after a successful categories sync', () async {
+        stubReferenceDataSync();
+
+        expect(await syncService.syncAll(), equals(SyncResult.success));
+
+        verify(() => mockSyncRepo.setLastCategoriesSyncTime(any())).called(1);
+      });
+
+      /// Same ordering the members and products legs observe: the write
+      /// happens after the 304 short-circuit, so an unmodified response does
+      /// not advance the timestamp.
+      test('a 304 response leaves the timestamp untouched', () async {
+        stubReferenceDataSync();
+        when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
+            .thenAnswer((_) async => null);
+
+        expect(await syncService.syncAll(), equals(SyncResult.success));
+
+        verifyNever(() => mockSyncRepo.setLastCategoriesSyncTime(any()));
       });
     });
 
