@@ -35,6 +35,20 @@ class MigrationRunner
         $files = glob($dir . '/*.sql');
         sort($files);
 
+        // A real install always ships migration files, so finding none here is
+        // never "nothing pending" — it means $dir itself is wrong (e.g. resolved
+        // against a relocated data directory instead of the code that was
+        // actually unpacked). Silently reporting DONE in that case hides a
+        // broken deploy instead of failing it.
+        if ($files === false || $files === []) {
+            $this->log[] = [
+                'status' => 'FAIL',
+                'file' => null,
+                'message' => "No migration files found in {$dir}. Refusing to report success.",
+            ];
+            return $this->log;
+        }
+
         // Note: MySQL/MariaDB implicitly commits on DDL statements (CREATE TABLE,
         // ALTER TABLE, etc.), so wrapping migrations in a transaction is not possible.
         // Each migration is applied individually instead.

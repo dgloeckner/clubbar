@@ -209,7 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
 
         case '3': // Migrate
-            $result = runMigrations($configFile);
+            $result = runMigrations($configFile, __DIR__);
             if ($result['ok']) {
                 hardenFileModes();
                 $_SESSION['migration_result'] = $result;
@@ -337,7 +337,7 @@ function handleApiMode(string $secretFile, string $configFile, string $zipFile, 
     }
 
     // Default: migrate
-    $result = runMigrations($configFile);
+    $result = runMigrations($configFile, dirname($scriptPath));
     if ($result['ok']) {
         hardenFileModes();
     }
@@ -583,7 +583,7 @@ function ensureIbanFingerprintKey(string $configFile, array &$config): ?string
     return null;
 }
 
-function runMigrations(string $configFile): array
+function runMigrations(string $configFile, string $scriptDir): array
 {
     if (!file_exists($configFile)) {
         return ['ok' => false, 'error' => 'config.php not found. Run the installer first.'];
@@ -594,10 +594,13 @@ function runMigrations(string $configFile): array
         return ['ok' => false, 'error' => 'config.php returned unexpected value.'];
     }
 
-    // Anchored to this script, not to the config: once the data directory sits
-    // above the document root, `dirname($configFile)` is no longer the place
-    // the application code was unpacked into.
-    $autoload = __DIR__ . '/backend/vendor/autoload.php';
+    // Anchored to $scriptDir (where the package was unpacked), not to
+    // dirname($configFile): once the data directory has been relocated above
+    // the document root (ADR-0031 decision 2), config.php lives there instead,
+    // and 'backend/db/migrations' next to it does not exist. Using that path
+    // silently found zero migration files on every relocated install and
+    // reported success without ever applying 017-020.
+    $autoload = $scriptDir . '/backend/vendor/autoload.php';
     if (!file_exists($autoload)) {
         return ['ok' => false, 'error' => 'backend/vendor/autoload.php not found.'];
     }
@@ -634,7 +637,7 @@ function runMigrations(string $configFile): array
         );
 
         $runner  = new \App\Db\MigrationRunner($pdo);
-        $results = $runner->migrate(dirname($configFile) . '/backend/db/migrations', 'deploy');
+        $results = $runner->migrate($scriptDir . '/backend/db/migrations', 'deploy');
 
         $failed = array_filter($results, fn($r) => ($r['status'] ?? '') === 'FAIL');
 
