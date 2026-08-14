@@ -69,7 +69,7 @@ src/
 │   ├── layout/        # MainLayout, MobileToolbar, BottomTabBar
 │   ├── modals/        # ConfirmDialog, CreateAdminModal, EditAdminModal,
 │   │                  # CreateTerminalModal, EditTerminalModal, TokenDisplayModal,
-│   │                  # PasswordDisplayModal, SettlementConfirmModal, TransactionModal
+│   │                  # PasswordDisplayModal, SettlementConfirmModal
 │   └── tables/        # TableContainer, SortableTableHeader, SortDropdown,
 │                      # TableSearchToolbar, SearchAndSortToolbar, StatusToggleCell,
 │                      # BadgeCell, IconCell, PriceCell, ActionButtons

@@ -393,33 +393,6 @@ export function formatDateTime(dateString: string, locale: string = 'de-DE'): st
  */
 
 /**
- * Get balance color based on amount (in cents)
- */
-export function getBalanceColor(balanceCents: number): string {
-  if (balanceCents > 0) return theme.colors.semantic.success
-  if (balanceCents < 0) return theme.colors.semantic.warning
-  return theme.colors.text.secondary
-}
-
-/**
- * Get transaction color based on type
- */
-export function getTransactionColor(type: string): string {
-  switch (type) {
-    case 'purchase':
-      return theme.colors.semantic.danger
-    case 'reversal':
-      return theme.colors.semantic.warning
-    case 'storno':
-      return theme.colors.semantic.info
-    case 'payout':
-      return theme.colors.semantic.info
-    default:
-      return theme.colors.text.secondary
-  }
-}
-
-/**
  * CSS-in-JS helper for styled components (using template literals)
  */
 export const styles = {
