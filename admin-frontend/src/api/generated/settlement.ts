@@ -57,8 +57,10 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { SettlementMembersItem } from './settlementMembersItem';
+import type { SettlementItem } from './settlementItem';
 import type { SettlementMethod } from './settlementMethod';
+import type { SettlementReversal } from './settlementReversal';
+import type { SettlementStatus } from './settlementStatus';
 
 export interface Settlement {
   id?: string;
@@ -101,7 +103,44 @@ supplied — it is not a request field (issue #113).
   cancellation_blocked_reason?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** Where the settlement stands, derived on every read from
+`is_cancelled`, the reversal rows, `submitted_at` and `exported_at`
+(ruling #148 §6). There is no status column, so nothing can drift
+out of step with it.
+ */
+  status?: SettlementStatus;
+  /** Human-readable form of `status`. */
+  status_label?: string;
+  /** Whether a reverse request would currently be accepted — the exact
+mirror of `is_cancellable`. A settlement is one or the other, never
+both; a cancelled one is neither.
+ */
+  is_reversible?: boolean;
+  /**
+   * Human-readable reason reversal is unavailable. Null when
+`is_reversible` is true.
+
+   * @nullable
+   */
+  reversal_blocked_reason?: string | null;
+  /** How many of this settlement's members carry a reversal. */
+  reversed_member_count?: number;
   created_by_admin_id?: string;
+  /** @nullable */
+  created_by_admin_name?: string | null;
   created_at?: string;
-  members?: SettlementMembersItem[];
+  transaction_count?: number;
+  /** @nullable */
+  transaction_date_min?: string | null;
+  /** @nullable */
+  transaction_date_max?: string | null;
+  /** One row per settled transaction, retained even after the member's
+claim is released — a cancelled or reversed settlement still says
+what it originally contained (ruling #142 §3).
+ */
+  items?: SettlementItem[];
+  /** The reversal events. Present on the single-settlement read; the list
+endpoint does not join them and returns an empty array.
+ */
+  reversals?: SettlementReversal[];
 }

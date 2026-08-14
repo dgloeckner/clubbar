@@ -15,6 +15,7 @@ use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\ValidationException;
 use App\Shared\Services\AuditService;
+use PHPUnit\Framework\MockObject\Rule\InvocationOrder;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -278,7 +279,166 @@ class SettlementReversalServiceTest extends TestCase
         $this->assertSame('RET-9', $reversalEntry['new']['bank_reference']);
     }
 
+    // ── Resolving a bank reference (epic #433 §3, ADR-0032 §8) ─────────
+
+    public function test_a_reference_resolves_to_a_candidate_carrying_the_settlements_own_gate_answer(): void
+    {
+        // Nothing about the candidate is re-derived: status and the gate come
+        // from the same settlement row the reverse call throws from, so the
+        // list and the endpoint cannot disagree about what is possible.
+        $this->stubLookup([$this->collectionRow(self::ALICE, 2550)]);
+
+        [$candidate] = $this->service->findCandidates('E2E-abc123abc123');
+
+        $this->assertSame(self::SETTLEMENT_ID, $candidate->settlementId);
+        $this->assertSame(self::ALICE, $candidate->memberId);
+        $this->assertSame('Alice Member', $candidate->memberName);
+        $this->assertSame(2550, $candidate->amountCents);
+        $this->assertTrue($candidate->isReversible);
+        $this->assertTrue($candidate->isActionable());
+        $this->assertFalse($candidate->alreadyReversed);
+    }
+
+    public function test_a_member_already_reversed_is_returned_carrying_who_recorded_it_and_when(): void
+    {
+        // Dropping the row would tell a treasurer holding a real reference that
+        // it matches nothing, so they retype it, doubt the statement, and
+        // eventually record the return against the wrong thing.
+        $this->stubLookup([$this->collectionRow(self::ALICE, 2550)], [
+            $this->reversalRow(self::ALICE, 2550) + ['admin_display_name' => 'The Treasurer'],
+        ]);
+
+        [$candidate] = $this->service->findCandidates('E2E-abc123abc123');
+
+        $this->assertTrue($candidate->alreadyReversed);
+        $this->assertFalse($candidate->isActionable());
+        $this->assertSame('The Treasurer', $candidate->reversedByAdminName);
+        $this->assertSame(ReversalReason::BANK_RETURN, $candidate->reversedReason);
+    }
+
+    public function test_a_run_that_never_moved_money_is_returned_with_the_gates_own_refusal(): void
+    {
+        $this->stubLookup([$this->collectionRow(self::ALICE, 2550)], [], submittedAt: null);
+
+        [$candidate] = $this->service->findCandidates('E2E-abc123abc123');
+
+        $this->assertFalse($candidate->isReversible);
+        $this->assertFalse($candidate->isActionable());
+        $this->assertStringContainsString('Cancel it instead', (string) $candidate->reversalBlockedReason);
+    }
+
+    public function test_the_settlement_is_read_once_however_many_of_its_members_match(): void
+    {
+        // A mandate reference resolves every collection of one member, and an
+        // EREF prefix can match several rows of one run; re-reading the
+        // settlement per row would make a two-member match cost twice as much
+        // for an answer that cannot differ.
+        $this->stubLookup(
+            [$this->collectionRow(self::ALICE, 2550), $this->collectionRow(self::BOB, 1500)],
+            perSettlementReads: 1,
+        );
+
+        $this->assertCount(2, $this->service->findCandidates('E2E-abc123abc123'));
+    }
+
+    /**
+     * @dataProvider imperfectReferences
+     */
+    public function test_an_imperfect_reference_is_normalised_before_it_is_matched(string $typed, string $expected): void
+    {
+        // The treasurer is copying a value off a statement under time pressure
+        // and should not have to classify it first, nor reproduce it perfectly.
+        $this->settlementsRepository->expects($this->once())
+            ->method('findCollectionsByReference')
+            ->with($expected)
+            ->willReturn([]);
+
+        $this->service->findCandidates($typed);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function imperfectReferences(): array
+    {
+        return [
+            'surrounding whitespace' => ['  E2E-ABC123  ', 'abc123'],
+            'upper case' => ['E2E-ABC123', 'abc123'],
+            'no prefix at all' => ['abc123', 'abc123'],
+            'the EREF+E2E- pair a statement actually prints' => ['EREF+E2E-ABC123', 'abc123'],
+            'the MREF+ label' => ['MREF+MND-alice', 'mnd-alice'],
+        ];
+    }
+
+    public function test_a_reference_too_short_to_identify_anything_is_refused(): void
+    {
+        // A two-character substring matches nearly every identifier the club
+        // has ever issued, which is a list, not a lookup.
+        $this->settlementsRepository->expects($this->never())->method('findCollectionsByReference');
+
+        $this->expectException(ValidationException::class);
+        $this->service->findCandidates('ab');
+    }
+
+    public function test_a_reference_that_is_only_a_prefix_label_is_refused_too(): void
+    {
+        // "E2E-" normalises to nothing, and a lookup over the empty string
+        // would return the whole table.
+        $this->settlementsRepository->expects($this->never())->method('findCollectionsByReference');
+
+        $this->expectException(ValidationException::class);
+        $this->service->findCandidates('E2E-');
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────
+
+    /**
+     * A lookup that matched $rows, all belonging to one submitted settlement.
+     *
+     * @param list<array<string, mixed>> $rows Collection rows as the repository returns them.
+     * @param list<array<string, mixed>> $reversals Reversal rows already on that settlement.
+     * @param int|null $perSettlementReads How often the settlement behind these
+     *        rows may be read — the caching assertion. A count rather than a
+     *        matcher because PHPUnit's invocation rules are stateful: one
+     *        `once()` shared by two mocked methods counts both and fails on the
+     *        second, which looks exactly like the bug it is meant to catch.
+     */
+    private function stubLookup(
+        array $rows,
+        array $reversals = [],
+        ?string $submittedAt = '2026-08-07 11:00:00',
+        ?int $perSettlementReads = null,
+    ): void {
+        $reads = fn(): InvocationOrder => $perSettlementReads === null
+            ? $this->any()
+            : $this->exactly($perSettlementReads);
+
+        $this->settlementsRepository->method('findCollectionsByReference')->willReturn($rows);
+        $this->settlementsRepository->expects($reads())->method('findById')->willReturn([
+            'id' => self::SETTLEMENT_ID,
+            'method' => SettlementMethod::DIRECT_DEBIT->value,
+            'is_cancelled' => 0,
+            'execution_date' => date('Y-m-d', strtotime('+14 days')),
+            'submitted_at' => $submittedAt,
+            'settlement_date' => '2026-08-13',
+            'total_amount_cents' => 4050,
+            'member_count' => 2,
+            'created_at' => '2026-08-13 09:00:00',
+        ]);
+        $this->reversalsRepository->expects($reads())->method('findBySettlementId')->willReturn($reversals);
+    }
+
+    /** @return array<string, mixed> A collection row as findCollectionsByReference() returns it. */
+    private function collectionRow(string $memberId, int $amountCents): array
+    {
+        return [
+            'settlement_id' => self::SETTLEMENT_ID,
+            'member_id' => $memberId,
+            'amount_cents' => $amountCents,
+            'end_to_end_id' => 'E2E-abc123abc123-' . substr($memberId, 0, 12),
+            'first_name' => $memberId === self::ALICE ? 'Alice' : 'Bob',
+            'last_name' => 'Member',
+            'mandate_reference' => 'MND-' . $memberId,
+        ];
+    }
 
     /**
      * A submitted direct debit covering $settledMemberIds, whose items add up

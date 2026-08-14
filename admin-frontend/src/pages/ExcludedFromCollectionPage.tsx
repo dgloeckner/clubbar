@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '../components/layout/PageHeader'
 import { MembersTabs } from '../components/members/MembersTabs'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { Alert } from '../components/common/Alert'
@@ -395,17 +396,8 @@ export function ExcludedFromCollectionPage() {
 
   return (
     <>
-      <div data-testid="excluded-page" style={{ padding: '20px' }}>
-        <h1
-          style={{
-            fontSize: theme.typography.fontSize['3xl'],
-            fontWeight: theme.typography.fontWeight.bold,
-            color: theme.colors.text.primary,
-            margin: `0 0 ${theme.spacing.xl} 0`,
-          }}
-        >
-          {t('members.title')}
-        </h1>
+      <div data-testid="excluded-page">
+        <PageHeader title={t('members.title')} />
 
         <MembersTabs excludedCount={loading ? undefined : excludedCount} />
 

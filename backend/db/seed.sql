@@ -16,7 +16,8 @@
 --   Password: password123
 --   Hash:     password_hash('password123', PASSWORD_BCRYPT, ['cost' => 12])
 --   TOTP secret: JBSWY3DPEHPK3PXP (base32)
---   Encrypted with TOTP_ENCRYPTION_KEY=0000...0001 (63 zeros + 1), IV=0x00*16
+--   Encrypted with TOTP_ENCRYPTION_KEY=0000...0001 (63 zeros + 1) via
+--   SymmetricSecretBox (libsodium secretbox), zero nonce (#437)
 --   Matches TEST_CREDENTIALS.totp.adminSecret in e2etests/config/test-credentials.ts
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO admin_users (id, email, password_hash, display_name, locale, is_active, totp_secret, totp_enabled, created_at, updated_at)
@@ -27,7 +28,7 @@ VALUES (
     'Admin User',
     'de',
     1,
-    'AAAAAAAAAAAAAAAAAAAAAA==:HfdK5XMmHZlKgJl97MSpvKrDR62kRrN9FWvhGO62PQM=',
+    'v1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAb/0HnJRsS4U5TYTMsNToszDJY1O61d6zDqIqCMpPeYU=',
     1,
     NOW(),
     NOW()

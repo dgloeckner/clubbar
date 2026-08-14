@@ -17,7 +17,7 @@ class EncryptionKeysHttpTest extends HttpTestCase
     /** Seeded test credentials (db/seed.sql): password123 + TOTP secret under the dev key. */
     private const PASSWORD_HASH = '$2y$12$Pp5DqCBrNhBDThRmWYwPlegkBrYSDKxoGguH1K2XnUlVzQxoUPygG';
     private const TOTP_SECRET_PLAIN = 'JBSWY3DPEHPK3PXP';
-    private const TOTP_SECRET_ENCRYPTED = 'AAAAAAAAAAAAAAAAAAAAAA==:HfdK5XMmHZlKgJl97MSpvKrDR62kRrN9FWvhGO62PQM=';
+    private const TOTP_SECRET_ENCRYPTED = 'v1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAb/0HnJRsS4U5TYTMsNToszDJY1O61d6zDqIqCMpPeYU=';
 
     private string $adminId;
     private string $adminEmail;

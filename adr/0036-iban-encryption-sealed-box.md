@@ -184,7 +184,7 @@ Full IBANs leave the system in exactly one place: the SEPA XML handed to the ban
 ### Residual risks kept open (tracked as follow-ups)
 
 - `mysqldump` backups are unencrypted (they now contain ciphertext, but the rest of the row set is still personal data) — recommend `gpg -c` in the backup procedure.
-- `TotpService` still uses its own AES-256-CBC path; migrating it onto a shared abstraction is out of scope here.
+- `TotpService` still uses its own AES-256-CBC path; migrating it onto a shared abstraction is out of scope here. **Resolved by [ADR-0038](./0038-shared-symmetric-crypto-abstraction.md).**
 
 ## Alternatives Considered
 

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Settlements\Controllers;
 
 use App\Modules\Settlements\Controllers\AdminController;
+use App\Modules\Settlements\DTOs\ReversalCandidateDto;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
+use App\Modules\Settlements\Enums\SettlementStatus;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Security\Services\EncryptionKeyService;
@@ -172,6 +174,84 @@ class AdminControllerReverseTest extends TestCase
         );
 
         $this->assertSame(422, $response->getStatusCode());
+    }
+
+    // ── The reference lookup (epic #433 §3) ────────────────────────────
+
+    public function test_the_lookup_answers_with_the_candidates_the_reference_resolved(): void
+    {
+        $this->reversalService->expects($this->once())
+            ->method('findCandidates')
+            ->with('E2E-abc123')
+            ->willReturn([$this->candidate()]);
+
+        $response = $this->controller->reversalCandidates(
+            $this->get(['reference' => 'E2E-abc123']),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+
+        $data = $this->decode($response)['data'];
+        $this->assertCount(1, $data);
+        $this->assertSame('member-alice', $data[0]['member_id']);
+        $this->assertSame(2550, $data[0]['amount_cents']);
+        $this->assertTrue($data[0]['is_actionable']);
+    }
+
+    public function test_a_reference_that_matches_nothing_is_an_empty_list_not_an_error(): void
+    {
+        // The empty case is the lookup's to explain — it names the two likely
+        // causes — so the transport must not turn it into a failure.
+        $this->reversalService->method('findCandidates')->willReturn([]);
+
+        $response = $this->controller->reversalCandidates(
+            $this->get(['reference' => 'E2E-nothing']),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame([], $this->decode($response)['data']);
+    }
+
+    public function test_a_missing_reference_still_reaches_the_service_that_owns_the_rule(): void
+    {
+        // The minimum length is a domain rule about what counts as a reference,
+        // not a transport concern; the service throws the 422 so the HTTP edge
+        // and any other caller cannot disagree about it.
+        $this->reversalService->expects($this->once())
+            ->method('findCandidates')
+            ->with('')
+            ->willThrowException(new \App\Shared\Exceptions\ValidationException('too short'));
+
+        $this->expectException(\App\Shared\Exceptions\ValidationException::class);
+        $this->controller->reversalCandidates($this->get([]), new Response());
+    }
+
+    /** @param array<string, string> $query */
+    private function get(array $query): ServerRequestInterface
+    {
+        return (new ServerRequestFactory())
+            ->createServerRequest('GET', '/api/admin/settlements/reversal-candidates')
+            ->withQueryParams($query)
+            ->withAttribute('admin_user_id', 'admin-1');
+    }
+
+    private function candidate(): ReversalCandidateDto
+    {
+        return new ReversalCandidateDto(
+            settlementId: 's-1',
+            memberId: 'member-alice',
+            memberName: 'Alice Member',
+            amountCents: 2550,
+            endToEndId: 'E2E-abc123abc123-def456def456',
+            mandateReference: 'MND-alice',
+            executionDate: '2026-08-20',
+            settlementDate: '2026-08-13',
+            status: SettlementStatus::SUBMITTED,
+            isReversible: true,
+            reversalBlockedReason: null,
+        );
     }
 
     /** @param array<string, mixed> $body */

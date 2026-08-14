@@ -10,7 +10,7 @@
  *
  * What these tests pin, in the treasurer's terms:
  *  1. after sending the file, the run can be recorded as submitted, it says so
- *     after a reload, and undo is then refused with the backend's own reason
+ *     after a reload, and the row's undo slot switches to reversal (#433 §2)
  *  2. the dialog states what marking submitted costs before it is done
  *  3. a file already at the bank cannot be exported again
  *  4. a run nobody exported offers no way to claim it is at the bank
@@ -28,7 +28,7 @@ import { SettlementsPage } from '../../pages/SettlementsPage'
 import { exportSepaXml } from '../../fixtures/encryption'
 
 test.describe('Marking a settlement as submitted to the bank', () => {
-  test('after sending the SEPA file, the run is recorded as submitted and can no longer be undone', async ({
+  test('after sending the SEPA file, the run is recorded as submitted and can no longer be cancelled', async ({
     page,
     authenticatedRequest,
     settlementFactory,
@@ -67,11 +67,11 @@ test.describe('Marking a settlement as submitted to the bank', () => {
     expect(body.submitted_by_admin_id).not.toBeNull()
     expect(body.status).toBe('submitted')
 
-    // And the consequence the dialog warned about: undo is now refused, with
-    // reversal named as the remaining remedy.
-    await settlementsPage.openUndoDialog(settlement.id)
-    await settlementsPage.expectUndoBlocked(/submitted to the bank.*Reverse it instead/s)
-    await settlementsPage.dismissUndoDialog()
+    // And the consequence the dialog warned about: cancellation is foreclosed
+    // and the row's single slot has switched to the remaining remedy (#433 §2).
+    // It used to keep offering "Rückgängig" and refuse the click with the
+    // backend's reason — the disabled control #81 objected to.
+    await settlementsPage.expectReversalOffered(settlement.id)
   })
 
   test('the treasurer is told what marking submitted costs before doing it', async ({

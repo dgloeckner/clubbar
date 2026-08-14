@@ -1,6 +1,7 @@
 import { test, expect } from '../../fixtures/auth.fixture'
 import type { APIRequestContext } from '@playwright/test'
 import type { CreatedSettlement } from '../../utils/settlements'
+import { minimumExecutionDate, serverToday } from '../../utils/dates'
 import { exportSepaXml } from '../../fixtures/encryption'
 
 /**
@@ -369,3 +370,221 @@ test.describe('Settlement reversal (#196)', () => {
     expect(reversal.created_at).toBeTruthy()
   })
 })
+
+/**
+ * The lookup a treasurer holding a bank statement starts from (epic #433 §3,
+ * ADR-0032 §8).
+ *
+ * The endpoint above answers "reverse this run"; these answer the question that
+ * comes *before* it — which run did this return come out of? The treasurer has
+ * one fact, the reference the bank quoted, and per #150 that reference resolves
+ * to exactly one member's collection in one run.
+ */
+test.describe('Reversal candidate lookup (#433)', () => {
+  /** Every candidate the reference resolves to. */
+  async function lookup(request: APIRequestContext, reference: string): Promise<Array<Record<string, unknown>>> {
+    const response = await request.get(
+      `/api/admin/settlements/reversal-candidates?reference=${encodeURIComponent(reference)}`
+    )
+    expect(response.status()).toBe(200)
+
+    return (await response.json()).data as Array<Record<string, unknown>>
+  }
+
+  test('L1: a reference resolves to exactly one member’s collection in one run', async ({
+    authenticatedRequest,
+    settlementFactory,
+  }) => {
+    // Two members in one run, both collected under the same settlement: the
+    // reference has to pick out one of them, which is the whole reason #150
+    // persisted it rather than leaving the treasurer to match on amount.
+    const settlement = await submittedTwoMemberSettlement(authenticatedRequest, settlementFactory, 1900)
+    const [alice] = settlement.members
+
+    const detail = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}`)
+    const items = (await detail.json()).items as Array<{ member_id: string }>
+    expect(items.length).toBeGreaterThan(0)
+
+    // The identifier the export sent for Alice, read back out of the run.
+    const reference = expectedEndToEndId(settlement.id, alice.id)
+    expect(reference).toBeTruthy()
+
+    const candidates = await lookup(authenticatedRequest, reference)
+
+    expect(candidates).toHaveLength(1)
+    expect(candidates[0].member_id).toBe(alice.id)
+    expect(candidates[0].settlement_id).toBe(settlement.id)
+    expect(candidates[0].amount_cents).toBe(1900)
+    // Money moved, nobody has recorded a return yet — the treasurer may act.
+    expect(candidates[0].is_actionable).toBe(true)
+    expect(candidates[0].already_reversed).toBe(false)
+  })
+
+  test('L2: a mandate reference resolves to that member’s collections across runs', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+    settlementFactory,
+  }) => {
+    // When the statement carries no EREF the treasurer still has the MREF, and
+    // it names the member rather than one collection — so it must reach every
+    // run that member appears in, not just the newest.
+    const first = await settlementFactory.create({ amountCents: 1100 })
+    await submitToBank(authenticatedRequest, first.id)
+
+    const second = await settleAgain(authenticatedRequest, authenticatedTerminalRequest, first.memberId, 1300)
+    await submitToBank(authenticatedRequest, second)
+
+    const candidates = await lookup(authenticatedRequest, first.mandateReference)
+    const settlementIds = candidates.map((c) => c.settlement_id)
+
+    expect(settlementIds).toContain(first.id)
+    expect(settlementIds).toContain(second)
+    // The lookup names collections, not members: one row per run.
+    expect(candidates.every((c) => c.member_id === first.memberId)).toBe(true)
+  })
+
+  test('L3: a reference from before EndToEndIds were persisted resolves to nothing rather than guessing', async ({
+    authenticatedRequest,
+    settlementFactory,
+  }) => {
+    // A run that was never exported carries no identifier, so the reference a
+    // statement would quote for it matches nothing. Returning the run anyway
+    // — on the strength of the amount, say — is exactly the guesswork ADR-0032
+    // §8 forbids.
+    const settlement = await settlementFactory.create({ amountCents: 2100 })
+    const wouldBeReference = expectedEndToEndId(settlement.id, settlement.memberId)
+
+    expect(await lookup(authenticatedRequest, wouldBeReference)).toEqual([])
+  })
+
+  test('L4: a member name resolves nothing — the lookup matches references only', async ({
+    authenticatedRequest,
+    settlementFactory,
+  }) => {
+    // The boundary ADR-0032 §8 draws: a field that resolves a reference and has
+    // the treasurer confirm it is a lookup; one that matches names is the
+    // free-hand picker, and picking the wrong member reverses the wrong
+    // person's debt irreversibly.
+    const settlement = await settlementFactory.create({ amountCents: 1450 })
+    await submitToBank(authenticatedRequest, settlement.id)
+
+    expect(await lookup(authenticatedRequest, settlement.memberName)).toEqual([])
+  })
+
+  test('L5: an imperfect reference still finds the collection', async ({
+    authenticatedRequest,
+    settlementFactory,
+  }) => {
+    // The treasurer is copying a value off a statement under time pressure and
+    // should not have to reproduce it perfectly, nor classify it first.
+    const settlement = await settlementFactory.create({ amountCents: 1750 })
+    await submitToBank(authenticatedRequest, settlement.id)
+
+    const reference = expectedEndToEndId(settlement.id, settlement.memberId)
+    const withoutPrefix = reference.replace(/^E2E-/, '')
+
+    for (const typed of [`  ${reference}  `, reference.toLowerCase(), withoutPrefix, `EREF+${reference}`]) {
+      const candidates = await lookup(authenticatedRequest, typed)
+      expect(candidates.map((c) => c.settlement_id), `"${typed}" should still resolve`).toContain(settlement.id)
+    }
+  })
+
+  test('L6: a return already recorded says so instead of vanishing', async ({
+    authenticatedRequest,
+    settlementFactory,
+  }) => {
+    // Dropping the row would tell a treasurer holding a real reference that it
+    // matches nothing, so they retype it, doubt the statement, and eventually
+    // record the return against the wrong thing.
+    const settlement = await settlementFactory.create({ amountCents: 1600 })
+    await submitToBank(authenticatedRequest, settlement.id)
+
+    const reference = expectedEndToEndId(settlement.id, settlement.memberId)
+    expect(
+      (
+        await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/reverse`, {
+          data: { reason: 'bank_return', bank_reference: 'RET-L6' },
+        })
+      ).status()
+    ).toBe(201)
+
+    const [candidate] = await lookup(authenticatedRequest, reference)
+
+    expect(candidate).toBeTruthy()
+    expect(candidate.already_reversed).toBe(true)
+    expect(candidate.is_actionable).toBe(false)
+    expect(candidate.reversed_at).toBeTruthy()
+    expect(candidate.reversed_by_admin_name).toBeTruthy()
+  })
+
+  test('L7: a reference shorter than a reference is refused rather than answered', async ({
+    authenticatedRequest,
+  }) => {
+    // A two-character substring matches nearly every identifier the club has
+    // ever issued, which is a list, not a lookup.
+    const response = await authenticatedRequest.get('/api/admin/settlements/reversal-candidates?reference=ab')
+
+    expect(response.status()).toBe(422)
+  })
+})
+
+/**
+ * `EndToEndId::forCollection` — the identifier the export sends for one
+ * member's collection, restated here.
+ *
+ * Derived, not allocated (#150): the same two rows always yield the same value,
+ * which is exactly what makes it resolvable after the fact. Restating the rule
+ * rather than reading it back is deliberate — a treasurer types what the bank
+ * quoted, not what our own API says, so a test that fetched the identifier
+ * first would never notice the two drifting apart.
+ */
+function expectedEndToEndId(settlementId: string, memberId: string): string {
+  const half = (uuid: string) => uuid.replace(/-/g, '').slice(0, 12)
+
+  return `E2E-${half(settlementId)}-${half(memberId)}`
+}
+
+/**
+ * A second settlement covering the same member, so a mandate reference has more
+ * than one run to reach.
+ */
+async function settleAgain(
+  request: APIRequestContext,
+  terminalRequest: APIRequestContext,
+  memberId: string,
+  amountCents: number
+): Promise<string> {
+  const transactionId = crypto.randomUUID()
+  const synced = await terminalRequest.post('/api/sync/transactions', {
+    data: {
+      transactions: [
+        {
+          id: transactionId,
+          member_id: memberId,
+          type: 'product',
+          product_id: crypto.randomUUID(),
+          quantity: 1,
+          unit_price_cents: amountCents,
+          amount_cents: amountCents,
+          notes: 'Second run',
+          created_at: new Date().toISOString(),
+        },
+      ],
+    },
+  })
+  expect(synced.status()).toBe(201)
+
+  const settlementDate = await serverToday(request)
+  const created = await request.post('/api/admin/settlements', {
+    data: {
+      method: 'direct_debit',
+      transaction_ids: [transactionId],
+      execution_date: await minimumExecutionDate(request),
+      period_start: settlementDate,
+      period_end: settlementDate,
+    },
+  })
+  expect(created.status()).toBe(201)
+
+  return (await created.json()).id as string
+}

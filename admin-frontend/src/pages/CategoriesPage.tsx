@@ -35,6 +35,8 @@ import { IconCell } from '../components/tables/IconCell'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
+import { PageActionButton } from '../components/common/PageActionButton'
+import { PageHeader } from '../components/layout/PageHeader'
 import { Toggle } from '../components/common/Toggle'
 import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
@@ -306,30 +308,25 @@ export function CategoriesPage() {
   }
 
   return (
-    <div data-testid="categories-page" style={{ padding: '20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 20px 0' }}>
-        <h1 style={{ margin: 0 }}>{t('categories.title')}</h1>
-        {isMobile && (
-          <button
+    <div data-testid="categories-page">
+      <PageHeader
+        title={t('categories.title')}
+        actions={
+          /* One button for both breakpoints (#375). It used to be an
+             icon-only square in the header on mobile and a labelled button
+             inside the toolbar on desktop, so the same action moved rows when
+             the window was resized. */
+          <PageActionButton
             data-testid="categories-create-button"
             onClick={openCreateModal}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '36px',
-              height: '36px',
-              background: theme.colors.semantic.primary,
-              border: 'none',
-              borderRadius: '8px',
-              color: 'white',
-              cursor: 'pointer',
-            }}
+            iconOnly={isMobile}
+            icon={<PlusIcon size={18} />}
+            title={t('common.create')}
           >
-            <PlusIcon size={20} />
-          </button>
-        )}
-      </div>
+            {t('common.create')}
+          </PageActionButton>
+        }
+      />
 
       {error && (
         <div
@@ -515,28 +512,6 @@ export function CategoriesPage() {
                 variant="solid"
                 testId="categories-filter-status"
               />
-
-              <button
-                data-testid="categories-create-button"
-                onClick={openCreateModal}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: theme.spacing.sm,
-                  padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
-                  background: theme.colors.semantic.primary,
-                  border: 'none',
-                  borderRadius: '6px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <PlusIcon size={18} />
-                <span>{t('common.create')}</span>
-              </button>
             </div>
           </div>
 

@@ -58,13 +58,21 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export type SettlementMembersItem = {
-  member_id?: string;
-  member_name?: string;
-  amount_cents?: number;
-  /** @nullable */
-  iban_masked?: string | null;
-  /** @nullable */
-  mandate_reference?: string | null;
-  is_sepa_eligible?: boolean;
-};
+/**
+ * Where the settlement stands, derived on every read from
+`is_cancelled`, the reversal rows, `submitted_at` and `exported_at`
+(ruling #148 §6). There is no status column, so nothing can drift
+out of step with it.
+
+ */
+export type SettlementStatus = typeof SettlementStatus[keyof typeof SettlementStatus];
+
+
+export const SettlementStatus = {
+  draft: 'draft',
+  exported: 'exported',
+  submitted: 'submitted',
+  partly_reversed: 'partly_reversed',
+  fully_reversed: 'fully_reversed',
+  cancelled: 'cancelled',
+} as const;

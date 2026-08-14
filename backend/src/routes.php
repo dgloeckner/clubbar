@@ -175,6 +175,10 @@ return function (App $app): void {
         $group->get('/settlements/filter-preview', [SettlementsAdminController::class, 'filterPreview']);
         $group->post('/settlements/settle-filter', [SettlementsAdminController::class, 'settleFilter']);
         $group->post('/settlements/preview', [SettlementsAdminController::class, 'preview']);
+        // Which collections a bank reference points at (#433, ADR-0032 §8) —
+        // the lookup a treasurer holding a return booking starts from, before
+        // they know which run it came out of.
+        $group->get('/settlements/reversal-candidates', [SettlementsAdminController::class, 'reversalCandidates']);
         $group->post('/settlements', [SettlementsAdminController::class, 'store']);
         $group->get('/settlements', [SettlementsAdminController::class, 'index']);
         $group->get('/settlements/{id}', [SettlementsAdminController::class, 'show']);

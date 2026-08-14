@@ -58,6 +58,7 @@ export const theme = {
       blockedHover: '#57534e', // Stone - blocked hover state
       violet: '#a855f7',       // Violet - a third category alongside primary/purple (e.g. payout transactions)
       amber: '#f59e0b',        // Amber - a third warning-adjacent category, distinct from `warning`
+      amberHover: '#d97706',   // Amber - amber hover state
       teal: '#14b8a6',         // Teal - mirrors the terminal UI's price color (product preview)
     },
 
