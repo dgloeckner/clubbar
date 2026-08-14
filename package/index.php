@@ -44,7 +44,7 @@ if (isset($config['session']['cookie_secure'])) {
 if (!empty($config['session']['save_path'])) {
     $_ENV['SESSION_SAVE_PATH'] = $config['session']['save_path'];
 }
-$_ENV['API_TOKEN_TTL_DAYS'] = (string) ($config['api_token']['ttl_days'] ?? 90);
+$_ENV['API_TOKEN_TTL_DAYS'] = (string) ($config['api_token']['ttl_days'] ?? 365);
 $_ENV['TOTP_ENCRYPTION_KEY'] = $config['security']['totp_encryption_key'] ?? '';
 $_ENV['IBAN_FINGERPRINT_KEY'] = $config['security']['iban_fingerprint_key'] ?? '';
 $_ENV['LLM_PROVIDER']        = $config['llm']['provider'] ?? '';

@@ -141,7 +141,11 @@ export function SettingsPage() {
   const [editTerminalFormData, setEditTerminalFormData] = useState<{ name: string }>({ name: '' })
   const [generatedToken, setGeneratedToken] = useState<string | null>(null)
   const [showTokenModal, setShowTokenModal] = useState(false)
-  const [terminalConfirmAction, setTerminalConfirmAction] = useState<{ type: 'deactivate' | 'rotate' | 'revoke'; id: string } | null>(null)
+  const [terminalConfirmAction, setTerminalConfirmAction] = useState<{ type: 'deactivate' | 'revoke'; id: string } | null>(null)
+  // Rotation mints a credential, so it asks for a step-up rather than a plain
+  // yes/no (#395) — and keeps its own dialog error, so a wrong password can be
+  // corrected without losing which terminal was being rotated.
+  const [rotateTokenTarget, setRotateTokenTarget] = useState<string | null>(null)
 
   // Instance Branding State (ADR-0034 / UC-A64) — own load/save state, not
   // shared with the SEPA tab's, matching how every other tab keeps its own.
@@ -432,9 +436,9 @@ export function SettingsPage() {
     }
   }
 
-  const handleCreateTerminal = async () => {
+  const handleCreateTerminal = async (credentials: StepUpCredentials) => {
     try {
-      const result = await getTerminals().createTerminal(createTerminalFormData)
+      const result = await getTerminals().createTerminal({ ...createTerminalFormData, ...credentials })
       setGeneratedToken(result.api_token ?? null)
       setShowTokenModal(true)
       setShowCreateTerminalModal(false)
@@ -474,7 +478,22 @@ export function SettingsPage() {
   }
 
   const handleRotateToken = (id: string) => {
-    setTerminalConfirmAction({ type: 'rotate', id })
+    setStepUpError(null)
+    setRotateTokenTarget(id)
+  }
+
+  const handleRotateTokenConfirmed = async (credentials: StepUpCredentials) => {
+    if (!rotateTokenTarget) return
+    try {
+      const result = await getTerminals().rotateTerminalToken(rotateTokenTarget, credentials)
+      setRotateTokenTarget(null)
+      setStepUpError(null)
+      setGeneratedToken(result.api_token ?? null)
+      setShowTokenModal(true)
+      await loadTerminals()
+    } catch (err: unknown) {
+      setStepUpError(getApiErrorMessage(err, t('settings.errors.rotateTerminal')))
+    }
   }
 
   const handleRevokeAccess = (id: string) => {
@@ -488,10 +507,6 @@ export function SettingsPage() {
     try {
       if (type === 'deactivate') {
         await getTerminals().updateTerminal(id, { is_active: false })
-      } else if (type === 'rotate') {
-        const result = await getTerminals().rotateTerminalToken(id)
-        setGeneratedToken(result.api_token ?? null)
-        setShowTokenModal(true)
       } else if (type === 'revoke') {
         await getTerminals().revokeTerminalAccess(id)
       }
@@ -1049,6 +1064,7 @@ export function SettingsPage() {
         formData={createTerminalFormData}
         error={modalError}
         fieldErrors={modalFieldErrors}
+        requiresTotp={callerTotpEnabled}
         onFormChange={(field, value) => {
           clearModalError()
           setCreateTerminalFormData((prev) => ({ ...prev, [field]: value }))
@@ -1093,20 +1109,28 @@ export function SettingsPage() {
         message={
           terminalConfirmAction?.type === 'deactivate'
             ? t('settings.deactivateTerminalConfirm')
-            : terminalConfirmAction?.type === 'rotate'
-              ? t('settings.rotateTokenConfirm')
-              : t('settings.revokeTerminalConfirm')
+            : t('settings.revokeTerminalConfirm')
         }
         confirmLabel={
-          terminalConfirmAction?.type === 'deactivate'
-            ? t('common.deactivate')
-            : terminalConfirmAction?.type === 'rotate'
-              ? t('common.confirm')
-              : t('common.confirm')
+          terminalConfirmAction?.type === 'deactivate' ? t('common.deactivate') : t('common.confirm')
         }
         variant="danger"
         onConfirm={handleTerminalConfirmAction}
         onCancel={() => setTerminalConfirmAction(null)}
+      />
+
+      <StepUpConfirmDialog
+        isOpen={rotateTokenTarget !== null}
+        title={t('settings.rotateToken')}
+        message={t('settings.rotateTokenConfirm')}
+        confirmLabel={t('common.confirm')}
+        requiresTotp={callerTotpEnabled}
+        error={stepUpError}
+        onConfirm={handleRotateTokenConfirmed}
+        onCancel={() => {
+          setRotateTokenTarget(null)
+          setStepUpError(null)
+        }}
       />
     </div>
   )

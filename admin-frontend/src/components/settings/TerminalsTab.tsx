@@ -56,18 +56,28 @@ function RevokeIcon() {
  * syncing until an admin rotates it, so the table has to say so before that
  * happens — an expiry date alone is something nobody reads until the bar is
  * already offline.
+ *
+ * The thresholds are the server's, not this table's (#395). They used to be a
+ * local 14-day rule, which meant this table and the Security & Credentials page
+ * could disagree about whether the same token was "expiring soon" — and the one
+ * that shouted later is the one an admin would have believed. Three tiers
+ * collapse to one badge here; the credentials page is where they are told apart.
  */
-const EXPIRY_WARNING_DAYS = 14
-
 type TokenExpiryState = 'none' | 'expired' | 'expiringSoon' | 'valid'
 
-function tokenExpiryState(tokenExpiresAt: string | null | undefined): TokenExpiryState {
-  if (!tokenExpiresAt) return 'none'
+function tokenExpiryState(terminal: Terminal): TokenExpiryState {
+  if (!terminal.token_expires_at) return 'none'
 
-  const daysLeft = (new Date(tokenExpiresAt).getTime() - Date.now()) / 86_400_000
-  if (daysLeft <= 0) return 'expired'
-  if (daysLeft <= EXPIRY_WARNING_DAYS) return 'expiringSoon'
-  return 'valid'
+  switch (terminal.lifecycle_state) {
+    case 'expired':
+      return 'expired'
+    case 'info':
+    case 'warning':
+    case 'critical':
+      return 'expiringSoon'
+    default:
+      return 'valid'
+  }
 }
 
 const actionButtonStyle: React.CSSProperties = {
@@ -86,7 +96,7 @@ const actionButtonStyle: React.CSSProperties = {
 
 function TokenExpiry({ terminal }: { terminal: Terminal }) {
   const { t } = useTranslation()
-  const state = tokenExpiryState(terminal.token_expires_at)
+  const state = tokenExpiryState(terminal)
   const testId = `settings-terminal-token-expiry-${terminal.id}`
 
   // The state is published as an attribute as well as a badge: the badge text

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 
-/// Checkout button with press feedback, an in-flight state and a blocked
-/// state.
+/// Checkout button with press feedback, an in-flight state and two blocked
+/// states.
 ///
 /// While [isLoading] is true the button is non-interactive (no [onPressed] on
 /// the [InkWell]) and shows a spinner plus a "processing" label, so a member
@@ -13,19 +13,27 @@ import 'package:clubbar_terminal/utils/design_tokens.dart';
 /// tooltip would be the desktop answer; on a touch terminal nobody hovers, so
 /// the reason goes in the label — and in the banner above the cart.
 ///
+/// While [isBlockedByCredential] is true the terminal's token has expired and
+/// nothing it records can reach the backend, so selling is stopped outright
+/// (#395). It outranks the credit-limit block: a member being over their limit
+/// is a decision about one sale, while an expired credential means no sale can
+/// be banked at all, and that is the reason worth showing.
+///
 /// Shared by the cart screen and the product grid's [CartSummaryBar] (issue
-/// #34): the same control must state the same three conditions wherever
-/// checkout is offered.
+/// #34): the same control must state the same conditions wherever checkout is
+/// offered.
 class CheckoutButton extends StatelessWidget {
   const CheckoutButton({
     required this.isLoading,
     required this.isBlockedByLimit,
     required this.onPressed,
+    this.isBlockedByCredential = false,
     super.key = const Key('checkout-button'),
   });
 
   final bool isLoading;
   final bool isBlockedByLimit;
+  final bool isBlockedByCredential;
   final Future<void> Function() onPressed;
 
   @override
@@ -35,6 +43,11 @@ class CheckoutButton extends StatelessWidget {
     // Resolved once: background, foreground and label always describe the
     // same state, so they cannot drift apart as states are added.
     final (background, foreground, label) = switch (this) {
+      _ when isBlockedByCredential => (
+          AppColors.borderLight,
+          AppColors.textSecondary,
+          l10n.credentialExpiredCheckoutBlocked,
+        ),
       _ when isBlockedByLimit => (
           AppColors.borderLight,
           AppColors.textSecondary,
@@ -52,7 +65,7 @@ class CheckoutButton extends StatelessWidget {
       color: background,
       borderRadius: borderRadius,
       child: InkWell(
-        onTap: isLoading || isBlockedByLimit ? null : onPressed,
+        onTap: isLoading || isBlockedByLimit || isBlockedByCredential ? null : onPressed,
         borderRadius: borderRadius,
         child: SizedBox(
           height: 67,
@@ -71,7 +84,11 @@ class CheckoutButton extends StatelessWidget {
                   )
                 else
                   Icon(
-                    isBlockedByLimit ? Icons.block : Icons.check,
+                    isBlockedByCredential
+                        ? Icons.lock_clock
+                        : isBlockedByLimit
+                            ? Icons.block
+                            : Icons.check,
                     color: foreground,
                     size: 24,
                   ),

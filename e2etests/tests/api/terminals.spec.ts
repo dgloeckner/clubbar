@@ -1,4 +1,5 @@
 import { test, expect } from "../../fixtures/auth.fixture";
+import { stepUp } from "../../fixtures/stepUp";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -30,6 +31,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Test Terminal ${timestamp}`,
           device_id: `test-device-${timestamp}`,
         },
@@ -55,6 +57,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Token Test ${timestamp}`,
           device_id: `device-token-${timestamp}`,
         },
@@ -79,6 +82,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: "",
           device_id: `device-${timestamp}`,
         },
@@ -91,6 +95,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: "x".repeat(101),
           device_id: `device-${timestamp}`,
         },
@@ -110,6 +115,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `First ${timestamp}`,
           device_id: deviceId,
         },
@@ -122,6 +128,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Second ${timestamp}`,
           device_id: deviceId,
         },
@@ -160,6 +167,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Active Test ${timestamp}`,
           device_id: `device-active-${timestamp}`,
         },
@@ -207,6 +215,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Detail Test ${timestamp}`,
           device_id: `device-detail-${timestamp}`,
         },
@@ -246,6 +255,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Original Name ${timestamp}`,
           device_id: `device-update-${timestamp}`,
         },
@@ -278,6 +288,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Status Test ${timestamp}`,
           device_id: `device-status-${timestamp}`,
         },
@@ -309,6 +320,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `No-Update Test ${timestamp}`,
           device_id: `device-noupdate-${timestamp}`,
         },
@@ -336,6 +348,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Rotate Test ${timestamp}`,
           device_id: `device-rotate-${timestamp}`,
         },
@@ -347,7 +360,8 @@ test.describe("Terminals API", () => {
     const oldToken = createData.api_token;
 
     const rotateResponse = await authenticatedRequest.post(
-      `${API_BASE}/admin/terminals/${terminalId}/rotate-token`
+      `${API_BASE}/admin/terminals/${terminalId}/rotate-token`,
+      { data: stepUp() }
     );
 
     expect(rotateResponse.status()).toBe(200);
@@ -366,6 +380,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Rotate DTO Test ${timestamp}`,
           device_id: `device-rotate-dto-${timestamp}`,
         },
@@ -376,7 +391,8 @@ test.describe("Terminals API", () => {
     const terminalId = createData.terminal.id;
 
     const rotateResponse = await authenticatedRequest.post(
-      `${API_BASE}/admin/terminals/${terminalId}/rotate-token`
+      `${API_BASE}/admin/terminals/${terminalId}/rotate-token`,
+      { data: stepUp() }
     );
 
     expect(rotateResponse.status()).toBe(200);
@@ -397,6 +413,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Revoke Test ${timestamp}`,
           device_id: `device-revoke-${timestamp}`,
         },
@@ -428,6 +445,7 @@ test.describe("Terminals API", () => {
       `${API_BASE}/admin/terminals`,
       {
         data: {
+          ...stepUp(),
           name: `Delete Test ${timestamp}`,
           device_id: `device-delete-${timestamp}`,
         },

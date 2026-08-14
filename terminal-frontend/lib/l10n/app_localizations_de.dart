@@ -650,4 +650,18 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get pairingMismatchResumeFailed =>
       'Bestätigung durch den Server fehlgeschlagen — weiterhin pausiert. Bitte Verbindung prüfen und erneut versuchen.';
+
+  @override
+  String get credentialExpiredWarning =>
+      'Verkauf gesperrt: Der Zugang dieses Terminals ist abgelaufen. Ein Administrator muss ein neues Token ausstellen.';
+
+  @override
+  String get credentialExpiredTitle => 'Zugang abgelaufen';
+
+  @override
+  String get credentialExpiredInstruction =>
+      'Das API-Token dieses Terminals ist abgelaufen, deshalb kann kein Verkauf mehr gebucht werden. Ein Administrator rotiert das Token in der Verwaltung unter Einstellungen → Zugangsdaten und trägt das neue Token hier ein. Bis dahin bleibt der Verkauf gesperrt.';
+
+  @override
+  String get credentialExpiredCheckoutBlocked => 'Verkauf gesperrt';
 }

@@ -57,6 +57,7 @@ class TerminalsServiceTest extends TestCase
             'last_sync_at' => null,
             'token_issued_at' => '2026-08-09 09:00:00',
             'token_expires_at' => '2026-11-07 09:00:00',
+            'pending_token_expires_at' => null,
             'created_at' => '2026-08-09 09:00:00',
             'updated_at' => '2026-08-09 09:00:00',
         ], $overrides);
@@ -88,17 +89,23 @@ class TerminalsServiceTest extends TestCase
         $this->terminalsRepository->method('findByDeviceId')->willReturn(null);
         $this->terminalsRepository->method('create')->willReturn($this->terminalRow());
 
-        $this->auditService->expects($this->once())
+        // Two entries: the terminal was enrolled, and a credential was issued
+        // for it (#395). The credential's own trail has to be readable without
+        // reconstructing it from terminal CRUD.
+        $logged = [];
+        $this->auditService->expects($this->exactly(2))
             ->method('log')
-            ->with(
-                AuditAction::CREATE,
-                EntityType::TERMINAL,
-                'terminal-uuid',
-                null,
-                $this->callback(fn(array $newValues): bool => $newValues['token_expires_at'] === '2026-11-07 09:00:00'),
-            );
+            ->willReturnCallback(function (AuditAction $action, EntityType $type, string $id, ?array $old, ?array $new) use (&$logged) {
+                $logged[$action->value] = $new;
+            });
 
         $this->terminalsService->createTerminal('Bar Terminal', 'BAR-MAIN-001');
+
+        $this->assertSame('2026-11-07 09:00:00', $logged[AuditAction::CREATE->value]['token_expires_at']);
+        $this->assertSame(
+            '2026-11-07 09:00:00',
+            $logged[AuditAction::TERMINAL_TOKEN_CREATED->value]['token_expires_at'],
+        );
     }
 
     public function test_createTerminal_rejects_a_device_id_that_already_exists(): void
@@ -111,37 +118,48 @@ class TerminalsServiceTest extends TestCase
         $this->terminalsService->createTerminal('Bar Terminal', 'BAR-MAIN-001');
     }
 
-    public function test_rotateToken_issues_a_new_token_with_a_full_lifetime(): void
+    /**
+     * Rotation stages the replacement rather than cutting over (#395): the
+     * repository is asked for a *pending* token, and the token handed back to
+     * the admin carries the pending lifetime, not the one still in force.
+     */
+    public function test_rotateToken_stages_a_pending_token_with_a_full_lifetime(): void
     {
         $this->terminalsRepository->expects($this->once())
-            ->method('rotateToken')
+            ->method('issuePendingToken')
             ->with(
                 'terminal-uuid',
                 $this->callback(fn(string $hash): bool => strlen($hash) === 64),
                 $this->configuredTtlDays(),
             )
-            ->willReturn($this->terminalRow());
+            ->willReturn($this->terminalRow(['pending_token_expires_at' => '2027-08-09 09:00:00']));
 
         $result = $this->terminalsService->rotateToken('terminal-uuid');
+        $terminal = $result['terminal']->toArray();
 
         $this->assertSame(64, strlen($result['plaintext_token']));
-        $this->assertSame('2026-11-07T09:00:00Z', $result['terminal']->toArray()['token_expires_at']);
+        $this->assertSame('2027-08-09T09:00:00Z', $terminal['pending_token_expires_at']);
+        $this->assertTrue($terminal['has_pending_token']);
+        // The credential in the field is untouched — that is the whole point.
+        $this->assertSame('2026-11-07T09:00:00Z', $terminal['token_expires_at']);
     }
 
     public function test_rotateToken_audits_the_new_expiry_without_recording_the_token(): void
     {
-        $this->terminalsRepository->method('rotateToken')->willReturn($this->terminalRow());
+        $this->terminalsRepository->method('issuePendingToken')
+            ->willReturn($this->terminalRow(['pending_token_expires_at' => '2027-08-09 09:00:00']));
 
         $this->auditService->expects($this->once())
             ->method('log')
             ->with(
-                AuditAction::UPDATE,
+                AuditAction::TERMINAL_TOKEN_ROTATED,
                 EntityType::TERMINAL,
                 'terminal-uuid',
                 null,
                 $this->callback(function (array $newValues): bool {
                     return $newValues['api_token'] === '[ROTATED]'
-                        && $newValues['token_expires_at'] === '2026-11-07 09:00:00';
+                        && $newValues['pending_token_expires_at'] === '2027-08-09 09:00:00'
+                        && $newValues['replaces_token_expires_at'] === '2026-11-07 09:00:00';
                 }),
             );
 
@@ -150,7 +168,7 @@ class TerminalsServiceTest extends TestCase
 
     public function test_rotateToken_reports_an_unknown_terminal_as_not_found(): void
     {
-        $this->terminalsRepository->method('rotateToken')->willReturn(null);
+        $this->terminalsRepository->method('issuePendingToken')->willReturn(null);
 
         $this->expectException(NotFoundException::class);
 
@@ -169,6 +187,11 @@ class TerminalsServiceTest extends TestCase
                 'api_token_hash' => null,
                 'token_issued_at' => null,
                 'token_expires_at' => null,
+                // A staged replacement is a credential too: leaving it behind
+                // would let a revoked terminal walk straight back in (#395).
+                'pending_token_hash' => null,
+                'pending_token_issued_at' => null,
+                'pending_token_expires_at' => null,
                 'is_active' => 0,
             ])
             ->willReturn($this->terminalRow(['is_active' => 0]));

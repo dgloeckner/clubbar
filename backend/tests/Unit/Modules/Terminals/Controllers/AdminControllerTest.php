@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Terminals\Controllers;
 
+use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Terminals\Controllers\AdminController;
 use App\Modules\Terminals\Services\TerminalsService;
 use App\Shared\DTOs\PaginatedResultDto;
@@ -27,7 +28,11 @@ class AdminControllerTest extends TestCase
     protected function setUp(): void
     {
         $this->service = $this->createMock(TerminalsService::class);
-        $this->controller = new AdminController($this->service, new Validator($this->createMock(\PDO::class)));
+        $this->controller = new AdminController(
+            $this->service,
+            new Validator($this->createMock(\PDO::class)),
+            $this->createMock(StepUpAuthService::class),
+        );
     }
 
     public function test_index_answers_with_the_canonical_envelope(): void

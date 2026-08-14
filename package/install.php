@@ -271,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'regeneration_interval' => 900,
                     ],
                     'api_token' => [
-                        'ttl_days' => 90,
+                        'ttl_days' => 365,
                     ],
                     'security' => [
                         'totp_encryption_key' => $totpKey,

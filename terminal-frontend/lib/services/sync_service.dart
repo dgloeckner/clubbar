@@ -38,6 +38,15 @@ class SyncService {
   DateTime? _lastTransactionSyncTime;
   String? _lastTransactionSyncError;
 
+  /// True while the last sync attempt was refused because this terminal's
+  /// credential has aged out (#106, #395).
+  ///
+  /// Kept apart from the ordinary sync failure because it is a different thing
+  /// to tell the staff standing at the till: an outage they can wait out, or a
+  /// credential only an administrator can replace. Nothing the terminal does
+  /// clears it — only a rotation entered at this device does.
+  bool _credentialExpired = false;
+
   SyncService({
     required NetworkService networkService,
     required MembersRepository membersRepo,
@@ -66,6 +75,13 @@ class SyncService {
   /// Get last transaction sync error (null if last transaction sync succeeded or no attempt)
   String? get lastTransactionSyncError => _lastTransactionSyncError;
 
+  /// Whether the backend refused this terminal's token as expired.
+  bool get credentialExpired => _credentialExpired;
+
+  /// Whether [error] is the backend saying this terminal's token has aged out.
+  static bool isExpiredCredential(Object? error) =>
+      error is NetworkException && error.errorCode == 'terminal_token_expired';
+
   /// Check if sync is needed based on interval
   Future<bool> isSyncNeeded() async {
     return _syncRepo.isSyncNeeded(syncInterval: AppConfig.syncInterval);
@@ -79,6 +95,10 @@ class SyncService {
     }
 
     _isSyncing = true;
+    // Cleared up front, so the flag always describes *this* attempt: a rotation
+    // entered at the terminal has to make the block go away on the next cycle,
+    // and it can only do that if a successful cycle leaves it false.
+    _credentialExpired = false;
     try {
       _logger.i('Starting sync cycle');
 
@@ -101,6 +121,10 @@ class SyncService {
         // silently excluded by ErrorFileOutput's level filter.
         _logger.e('Transaction sync failed (non-fatal): $e', error: e, stackTrace: stackTrace);
         _lastTransactionSyncError = e.toString();
+        // Non-fatal to the cycle, but not to selling: an upload refused for an
+        // expired credential means every sale rung from here on is stranded
+        // locally, which is exactly what the block exists to stop.
+        if (isExpiredCredential(e)) _credentialExpired = true;
       }
 
       // Refresh open tabs last, so it sees the balances the upload just moved.
@@ -125,6 +149,7 @@ class SyncService {
       return SyncResult.success;
     } catch (e, stackTrace) {
       _logger.e('Sync cycle failed: $e', error: e, stackTrace: stackTrace);
+      if (isExpiredCredential(e)) _credentialExpired = true;
       await _syncRepo.setLastSyncError(e.toString());
       await _syncRepo.incrementSyncRetryCount();
       return SyncResult.failure;

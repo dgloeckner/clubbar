@@ -65,7 +65,6 @@ export function StepUpConfirmDialog({
   onConfirm,
   onCancel,
 }: StepUpConfirmDialogProps) {
-  const { t } = useTranslation()
   const [password, setPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
 
@@ -78,8 +77,7 @@ export function StepUpConfirmDialog({
     }
   }, [isOpen])
 
-  const canConfirm =
-    !confirmDisabled && password.trim() !== '' && (!requiresTotp || /^\d{6}$/.test(totpCode))
+  const canConfirm = !confirmDisabled && isStepUpComplete(password, totpCode, requiresTotp)
 
   return (
     <ConfirmDialog
@@ -97,35 +95,79 @@ export function StepUpConfirmDialog({
 
           {extraFields}
 
-          <input
-            data-testid="step-up-password"
-            type="password"
-            autoComplete="current-password"
-            placeholder={t('settings.stepUpPasswordLabel')}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={modalInputStyle(!!error)}
+          <StepUpCredentialFields
+            requiresTotp={requiresTotp}
+            password={password}
+            totpCode={totpCode}
+            invalid={!!error}
+            onPasswordChange={setPassword}
+            onTotpCodeChange={setTotpCode}
           />
-
-          {requiresTotp && (
-            <>
-              <p style={{ margin: `0 0 ${theme.spacing.sm} 0`, fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary }}>
-                {t('settings.stepUpTotpHint')}
-              </p>
-              <input
-                data-testid="step-up-totp-code"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder={t('settings.stepUpTotpLabel')}
-                value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                style={modalInputStyle(!!error)}
-              />
-            </>
-          )}
         </>
       }
     />
+  )
+}
+
+/** Whether an entered credential is complete enough to send. */
+export function isStepUpComplete(password: string, totpCode: string, requiresTotp: boolean): boolean {
+  return password.trim() !== '' && (!requiresTotp || /^\d{6}$/.test(totpCode))
+}
+
+/**
+ * The credential inputs themselves, so a dialog that cannot compose
+ * `StepUpConfirmDialog` — one with a form of its own to submit, like terminal
+ * enrolment (#395) — still asks for the credential in the same words, with the
+ * same test IDs, and normalises the code the same way.
+ */
+export function StepUpCredentialFields({
+  requiresTotp,
+  password,
+  totpCode,
+  invalid = false,
+  onPasswordChange,
+  onTotpCodeChange,
+}: {
+  requiresTotp: boolean
+  password: string
+  totpCode: string
+  invalid?: boolean
+  onPasswordChange: (value: string) => void
+  onTotpCodeChange: (value: string) => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <input
+        data-testid="step-up-password"
+        type="password"
+        autoComplete="current-password"
+        placeholder={t('settings.stepUpPasswordLabel')}
+        value={password}
+        onChange={(e) => onPasswordChange(e.target.value)}
+        style={modalInputStyle(invalid)}
+      />
+
+      {requiresTotp && (
+        <>
+          <p style={{ margin: `0 0 ${theme.spacing.sm} 0`, fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary }}>
+            {t('settings.stepUpTotpHint')}
+          </p>
+          <input
+            data-testid="step-up-totp-code"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder={t('settings.stepUpTotpLabel')}
+            value={totpCode}
+            // Digits only, six at most: the field is the last thing standing
+            // between the admin and a 401 they would read as a wrong password.
+            onChange={(e) => onTotpCodeChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            style={modalInputStyle(invalid)}
+          />
+        </>
+      )}
+    </>
   )
 }

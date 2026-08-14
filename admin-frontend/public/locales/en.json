@@ -490,6 +490,7 @@
     "deactivateAdminConfirm": "Are you sure you want to deactivate this admin user?",
     "terminals": "Terminals",
     "createTerminal": "Create Terminal",
+    "createTerminalStepUpHint": "Enrolling a terminal issues a credential that can read the member list and record sales. Confirm it is you.",
     "editTerminal": "Edit Terminal",
     "terminalName": "Terminal Name",
     "deviceId": "Device ID",
@@ -504,10 +505,10 @@
     "revokeTerminalConfirm": "Revoke access for this terminal? The API token will be invalidated immediately.",
     "rotateToken": "Rotate Token",
     "revokeAccess": "Revoke Access",
-    "rotateTokenConfirm": "Rotate the API token? The old token will stop working immediately.",
+    "rotateTokenConfirm": "Issue a new API token for this terminal? The current token keeps working until the new one is used at the terminal for the first time, so the bar stays online while you walk over.",
     "tokenGenerated": "API Token Generated",
     "tokenWarning": "Copy this token now. It will not be shown again.",
-    "tokenRotated": "New API token generated. The old token is no longer valid.",
+    "tokenRotated": "New API token generated. Enter it at the terminal; the old token stops working the moment the new one is used.",
     "passwordGenerated": "Password Created",
     "passwordWarning": "Copy this password now. It will not be shown again.",
     "secretCopy": "Copy",
@@ -551,7 +552,8 @@
       "countryInvalid": "Country must be a 2-letter ISO code (e.g., DE, AT, CH)",
       "paymentReferencePrefixTooLong": "Payment reference prefix must be 100 characters or less",
       "creditorIdRequired": "Creditor ID is required",
-      "creditorIdTooLong": "Creditor ID must be 35 characters or less"
+      "creditorIdTooLong": "Creditor ID must be 35 characters or less",
+      "stepUpRequired": "Enter your own password (and 2FA code) to issue the terminal token"
     },
     "security": {
       "tab": "Security",
@@ -660,6 +662,28 @@
         "revoke": "The key could not be withdrawn.",
         "rotate": "The batch could not be re-encrypted.",
         "completeRotation": "The key could not be retired."
+      },
+      "terminals": {
+        "title": "Terminal tokens",
+        "intro": "Each terminal authenticates with its own bearer token, which expires after a year like the key above. Rotating one issues a replacement alongside the current token: both work until the new one is entered at the device, so a rotation never takes the bar offline. Warnings are measured as this page loaded.",
+        "empty": "No terminals are enrolled yet.",
+        "rotate": "Rotate token",
+        "rotateHint": "Issue a new token for {{name}}. The current token keeps working until the new one is used at the terminal for the first time — at that moment the old one stops. The new token is shown once and never again.",
+        "rotated": "New token issued. It replaces the current one the first time the terminal uses it.",
+        "pending": "Rotation pending",
+        "pendingHint": "A replacement token has been issued and is waiting to be entered at this terminal.",
+        "lastUsed": "Last used",
+        "state": {
+          "ok": "Valid",
+          "info": "Expires this year",
+          "warning": "Expires soon",
+          "critical": "Expires within days",
+          "expired": "Expired"
+        },
+        "errors": {
+          "load": "Failed to load terminal tokens",
+          "rotate": "Failed to issue a new terminal token"
+        }
       }
     }
   },
@@ -723,7 +747,12 @@
       "totp_enrolled": "2FA enabled",
       "totp_reset": "2FA reset",
       "mandate_document_upload": "Mandate document uploaded",
-      "mandate_document_delete": "Mandate document deleted"
+      "mandate_document_delete": "Mandate document deleted",
+      "terminal_token_created": "Terminal token issued",
+      "terminal_token_activated": "Terminal token activated",
+      "terminal_token_rotated": "Terminal token rotated",
+      "terminal_token_revoked": "Terminal token revoked",
+      "terminal_token_expired": "Terminal token expired"
     },
     "summary": {
       "unknownActor": "An admin",

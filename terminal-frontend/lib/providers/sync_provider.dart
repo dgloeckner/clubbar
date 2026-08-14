@@ -42,6 +42,13 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
   bool _pairingMismatch = false;
   int _pairingMismatchTransactionCount = 0;
 
+  // #395: set when the backend refuses this terminal's token as expired. Unlike
+  // a pairing mismatch this is not a judgement call anyone at the bar can make
+  // — the credential is gone and only an administrator can issue a new one — so
+  // there is no acknowledge action, only a rotation entered at this device,
+  // which clears it on the next successful cycle.
+  bool _credentialExpired = false;
+
   // Guards startSync() and acknowledgePairingMismatch() from interleaving.
   // Both read and write the same paired-instance state; without this, a
   // background timer tick racing a staff-initiated acknowledgement could
@@ -70,6 +77,10 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
   ConnectionStatus get connectionStatus => _connectionStatus;
   bool get pairingMismatch => _pairingMismatch;
   int get pairingMismatchTransactionCount => _pairingMismatchTransactionCount;
+
+  /// This terminal's API token has expired: nothing it rings up can reach the
+  /// backend, so sales are stopped until an administrator rotates the token.
+  bool get credentialExpired => _credentialExpired;
 
   /// When the terminal first stopped being healthy, or null while online.
   ///
@@ -210,6 +221,10 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
       _setConnectionStatus(ConnectionStatus.error);
     } finally {
       _isSyncing = false;
+      // Mirrored out of the service on every cycle, success or failure, so the
+      // banner and the checkout button read one flag rather than each deciding
+      // for themselves what a 401 meant.
+      _credentialExpired = _syncService.credentialExpired;
       notifyListeners();
     }
   }

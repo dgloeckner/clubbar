@@ -49,6 +49,10 @@ void main() {
           .thenAnswer((_) async => null);
       when(() => mockSyncService.checkPairing(any()))
           .thenAnswer((_) async => PairingResult.paired);
+      // #395 default: the terminal's own credential is fine. Mirrored out of
+      // the service after every cycle, so every test that reaches syncAll()
+      // reads it.
+      when(() => mockSyncService.credentialExpired).thenReturn(false);
     });
 
     tearDown(() {
@@ -633,6 +637,56 @@ void main() {
 
         gate.complete(false);
         await syncing;
+      });
+    });
+
+    /// #395 — the terminal's own credential expiring is a different thing to
+    /// tell the staff than an outage: one they can wait out, one only an
+    /// administrator can fix.
+    group('credential expiry', () {
+      void stubCycle({required bool credentialExpired, required SyncResult result}) {
+        when(() => mockNetworkService.checkHealth()).thenAnswer((_) async => true);
+        when(() => mockSyncService.isSyncNeeded()).thenAnswer((_) async => true);
+        when(() => mockSyncService.syncAll()).thenAnswer((_) async => result);
+        when(() => mockSyncService.credentialExpired).thenReturn(credentialExpired);
+        when(() => mockSyncService.lastTransactionSyncTime).thenReturn(null);
+        when(() => mockSyncService.lastTransactionSyncError).thenReturn(null);
+        when(() => mockSyncService.getLastError()).thenAnswer((_) async => null);
+        when(() => mockMembersProvider.refreshMembers()).thenAnswer((_) async {});
+        when(() => mockProductsProvider.refreshProducts()).thenAnswer((_) async {});
+      }
+
+      test('starts out believing the credential is fine', () {
+        expect(provider.credentialExpired, isFalse);
+      });
+
+      test('a cycle refused for an expired token raises the block', () async {
+        stubCycle(credentialExpired: true, result: SyncResult.failure);
+
+        await provider.startSync();
+
+        expect(provider.credentialExpired, isTrue);
+      });
+
+      test('a successful cycle after a rotation clears the block', () async {
+        stubCycle(credentialExpired: true, result: SyncResult.failure);
+        await provider.startSync();
+        expect(provider.credentialExpired, isTrue);
+
+        // The new token has been entered at the terminal; nothing else has to
+        // happen for selling to resume.
+        stubCycle(credentialExpired: false, result: SyncResult.success);
+        await provider.startSync();
+
+        expect(provider.credentialExpired, isFalse);
+      });
+
+      test('an ordinary sync failure is not a credential problem', () async {
+        stubCycle(credentialExpired: false, result: SyncResult.failure);
+
+        await provider.startSync();
+
+        expect(provider.credentialExpired, isFalse);
       });
     });
   });

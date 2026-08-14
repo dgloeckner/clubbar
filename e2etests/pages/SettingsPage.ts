@@ -694,7 +694,7 @@ export class SettingsPage {
    * renders when the signed-in admin has 2FA enabled — true for the seeded
    * test admin used across these specs).
    */
-  private async fillStepUpCredential() {
+  async fillStepUpCredential() {
     await this.page.getByTestId('step-up-password').fill(TEST_CREDENTIALS.admin.password)
 
     const totpField = this.page.getByTestId('step-up-totp-code')
@@ -914,6 +914,11 @@ export class SettingsPage {
   /**
    * Fill create terminal form
    */
+  /**
+   * Fills the create form, credential included: enrolling a terminal mints a
+   * token that reads the member roster and writes transactions, so the form
+   * asks for a step-up in the same sitting (#395).
+   */
   async fillCreateTerminalForm(data: { name: string; device_id: string }) {
     if (data.name) {
       await this.page.getByTestId('settings-terminal-create-name').fill(data.name)
@@ -921,6 +926,7 @@ export class SettingsPage {
     if (data.device_id) {
       await this.page.getByTestId('settings-terminal-create-device-id').fill(data.device_id)
     }
+    await this.fillStepUpCredential()
   }
 
   /**
@@ -1097,6 +1103,17 @@ export class SettingsPage {
     const terminalId = await this.getTerminalIdByName(name)
     if (!terminalId) throw new Error(`Terminal with name ${name} not found`)
     await this.page.getByTestId(`settings-terminal-rotate-token-button-${terminalId}`).click()
+  }
+
+  /**
+   * Answer the rotation's step-up prompt (#395). Rotation mints a credential,
+   * so it asks for the signed-in admin's own password rather than a plain
+   * yes/no — and the confirm button stays disabled until it has one.
+   */
+  async confirmRotateTokenStepUp() {
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 10000 })
+    await this.fillStepUpCredential()
+    await this.page.getByTestId('confirm-dialog-ok').click()
   }
 
   /**
@@ -1365,6 +1382,34 @@ export class SettingsPage {
   /** Start the rotation wizard for a key that still has rows under it. */
   async clickRotateKey(id: string) {
     await this.page.getByTestId(`credentials-rotate-${id}`).click()
+  }
+
+  /**
+   * The terminal tokens listed on the same page (#395) — the other long-lived
+   * credential the club owns, on the same 90/30/7 tiers.
+   */
+  async getTerminalCredentials(): Promise<
+    Array<{ id: string; lifecycleState: string; hasPendingToken: boolean }>
+  > {
+    await expect(this.page.getByTestId('credentials-terminals')).toBeVisible({ timeout: 15000 })
+    await expect(this.page.getByTestId('credentials-terminals-loading')).toBeHidden({ timeout: 15000 })
+
+    return await this.page.locator('[data-testid^="credentials-terminal-"]').evaluateAll((nodes) =>
+      nodes
+        // The badges and detail lines share the prefix; only the card itself
+        // declares a lifecycle attribute.
+        .filter((node) => node.hasAttribute('data-lifecycle-state'))
+        .map((node) => ({
+          id: (node.getAttribute('data-testid') ?? '').replace('credentials-terminal-', ''),
+          lifecycleState: node.getAttribute('data-lifecycle-state') ?? '',
+          hasPendingToken: node.getAttribute('data-has-pending-token') === 'true',
+        }))
+    )
+  }
+
+  /** Open the rotation prompt for one terminal's token. */
+  async clickRotateTerminalCredential(id: string) {
+    await this.page.getByTestId(`credentials-terminal-rotate-${id}`).click()
   }
 
   // ==================== Instance Branding Tab (ADR-0034 / UC-A64) ====================

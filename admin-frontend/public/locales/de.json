@@ -490,6 +490,7 @@
     "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?",
     "terminals": "Terminals",
     "createTerminal": "Terminal erstellen",
+    "createTerminalStepUpHint": "Beim Anlegen eines Terminals wird ein Zugang erzeugt, der die Mitgliederliste lesen und Verkäufe buchen kann. Bitte bestätigen, dass Sie es sind.",
     "editTerminal": "Terminal bearbeiten",
     "terminalName": "Terminal-Name",
     "deviceId": "Geräte-ID",
@@ -504,10 +505,10 @@
     "revokeTerminalConfirm": "Zugriff für dieses Terminal widerrufen? Das API-Token wird sofort ungültig.",
     "rotateToken": "Token rotieren",
     "revokeAccess": "Zugriff widerrufen",
-    "rotateTokenConfirm": "API-Token rotieren? Das alte Token wird sofort ungültig.",
+    "rotateTokenConfirm": "Neues API-Token für dieses Terminal ausstellen? Das aktuelle Token funktioniert weiter, bis das neue Token am Terminal zum ersten Mal verwendet wird – die Theke bleibt in der Zwischenzeit online.",
     "tokenGenerated": "API-Token generiert",
     "tokenWarning": "Kopieren Sie dieses Token jetzt. Es wird nicht erneut angezeigt.",
-    "tokenRotated": "Neues API-Token generiert. Das alte Token ist nicht mehr gültig.",
+    "tokenRotated": "Neues API-Token erzeugt. Am Terminal eintragen – das alte Token wird ungültig, sobald das neue verwendet wird.",
     "passwordGenerated": "Passwort erstellt",
     "passwordWarning": "Kopieren Sie dieses Passwort jetzt. Es wird nicht erneut angezeigt.",
     "secretCopy": "Kopieren",
@@ -551,7 +552,8 @@
       "countryInvalid": "Land muss ein zweistelliger ISO-Code sein (z. B. DE, AT, CH)",
       "paymentReferencePrefixTooLong": "Verwendungszweck-Präfix darf höchstens 100 Zeichen lang sein",
       "creditorIdRequired": "Gläubiger-ID ist erforderlich",
-      "creditorIdTooLong": "Gläubiger-ID darf höchstens 35 Zeichen lang sein"
+      "creditorIdTooLong": "Gläubiger-ID darf höchstens 35 Zeichen lang sein",
+      "stepUpRequired": "Zum Ausstellen des Terminal-Tokens Ihr eigenes Passwort (und ggf. 2FA-Code) eingeben"
     },
     "security": {
       "tab": "Sicherheit",
@@ -660,6 +662,28 @@
         "revoke": "Der Schlüssel konnte nicht außer Kraft gesetzt werden.",
         "rotate": "Der Stapel konnte nicht neu verschlüsselt werden.",
         "completeRotation": "Der Schlüssel konnte nicht außer Dienst gestellt werden."
+      },
+      "terminals": {
+        "title": "Terminal-Tokens",
+        "intro": "Jedes Terminal meldet sich mit einem eigenen Token an, das wie der Schlüssel oben nach einem Jahr abläuft. Beim Rotieren wird ein Ersatz-Token zusätzlich zum aktuellen ausgestellt: Beide funktionieren, bis das neue am Gerät eingetragen wird – eine Rotation legt die Theke also nie lahm. Die Warnungen gelten für den Moment, in dem diese Seite geladen wurde.",
+        "empty": "Es ist noch kein Terminal angelegt.",
+        "rotate": "Token rotieren",
+        "rotateHint": "Neues Token für {{name}} ausstellen. Das aktuelle Token funktioniert weiter, bis das neue am Terminal zum ersten Mal verwendet wird – in diesem Moment wird das alte ungültig. Das neue Token wird nur ein einziges Mal angezeigt.",
+        "rotated": "Neues Token ausgestellt. Es ersetzt das aktuelle, sobald das Terminal es zum ersten Mal verwendet.",
+        "pending": "Rotation offen",
+        "pendingHint": "Ein Ersatz-Token wurde ausgestellt und wartet darauf, an diesem Terminal eingetragen zu werden.",
+        "lastUsed": "Zuletzt verwendet",
+        "state": {
+          "ok": "Gültig",
+          "info": "Läuft dieses Jahr ab",
+          "warning": "Läuft bald ab",
+          "critical": "Läuft in wenigen Tagen ab",
+          "expired": "Abgelaufen"
+        },
+        "errors": {
+          "load": "Terminal-Tokens konnten nicht geladen werden",
+          "rotate": "Neues Terminal-Token konnte nicht ausgestellt werden"
+        }
       }
     }
   },
@@ -723,7 +747,12 @@
       "totp_enrolled": "2FA aktiviert",
       "totp_reset": "2FA zurückgesetzt",
       "mandate_document_upload": "Mandatsdokument hochgeladen",
-      "mandate_document_delete": "Mandatsdokument gelöscht"
+      "mandate_document_delete": "Mandatsdokument gelöscht",
+      "terminal_token_created": "Terminal-Token ausgestellt",
+      "terminal_token_activated": "Terminal-Token aktiviert",
+      "terminal_token_rotated": "Terminal-Token rotiert",
+      "terminal_token_revoked": "Terminal-Token widerrufen",
+      "terminal_token_expired": "Terminal-Token abgelaufen"
     },
     "summary": {
       "unknownActor": "Ein Administrator",

@@ -60,8 +60,13 @@ Key implementation constraint discovered up front: `MembersRepository::applyMand
 
 ### P6 — Terminal-token lifecycle ([#395](https://github.com/dgloeckner/clubbar/issues/395))
 
-- [ ] TTL default 90→365 d; PENDING overlap rotation promoted on first successful auth; step-up on token generation; credentials page integration; `TERMINAL_TOKEN_*` audit events; terminal expired-token UX check
-- Verify: unit tests for promotion/expiry; terminal sync e2e green
+- [x] `API_TOKEN_TTL_DAYS` default 90 → 365 everywhere it is written down (`AppConfig`, `.env.example`, `docker-compose.yml`, the shared-hosting package's `config.sample.php`/`install.php`/`index.php`, seed). The repository's own fallback and `AppConfig`'s now both read `CredentialLifecycle::LIFETIME_DAYS`, so the figure has one home
+- [x] Overlap rotation: migration `021_terminal_pending_token.sql` adds `pending_token_{hash,issued_at,expires_at}` — three columns rather than a `terminal_tokens` table, because a terminal has at most two live credentials and a child table would turn the lookup that authenticates every sync into a join. `TerminalTokenAuthenticator` owns the lookup order (active → pending → expired) and promotes in one `UPDATE` guarded on the hash, so two syncs arriving together cannot both promote. Recorded in ADR-0036 §Terminal tokens (not ADR-0035, which is instance pairing — the issue's reference was to the credential-lifecycle ADR)
+- [x] Step-up (own password + own TOTP) on `POST /admin/terminals` and `/rotate-token`, both on the step-up rate-limit dimension; revoke deliberately stays session-only so withdrawing access is never the harder path. Raw token still shown exactly once
+- [x] Terminal tokens on Settings → Credentials with the shared 90/30/7 tiers, `last_sync_at` as the last-used stamp, and a "rotation pending" badge. The Terminals tab's own 14-day rule is gone — it now reads the server's `lifecycle_state`, so the two surfaces cannot disagree about the same token
+- [x] `TERMINAL_TOKEN_CREATED/ACTIVATED/ROTATED/REVOKED/EXPIRED` (migration `022`). `EXPIRED` is observed rather than performed, so `AuditService::logOnceSince` writes it once per expiry instead of once per poll
+- [x] Terminal UI: `NetworkException` carries the backend's error code, `SyncProvider.credentialExpired` follows the last cycle, and an undismissable `CredentialExpiredBanner` plus a blocked checkout button say "sales disabled — an administrator must rotate the credential". Clears itself on the first successful sync after the new token is entered
+- Verify: **passed** — PHPUnit 1599 (the one red, `ServiceFactoryTest::test_getRateLimitMiddleware_is_active_by_default`, is the dev compose's `DISABLE_LOGIN_RATE_LIMITING` and predates this work); `terminals.spec.ts` + `terminal-token-expiry.spec.ts` 31/31 including the overlap window, the promotion, and both step-up gates; `settings-terminals.spec.ts` + `settings-credentials.spec.ts` 22/22. Flutter tests were written but **not executed** — no Flutter SDK in this environment; CI runs them
 
 ### P7 — Mandate scans: extraction without retention ([#396](https://github.com/dgloeckner/clubbar/issues/396))
 

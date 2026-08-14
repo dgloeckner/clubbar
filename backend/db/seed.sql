@@ -61,7 +61,7 @@ VALUES (
     'test-device-001',
     'f88cf6afb8a2a7e19112a34a967c32d6e672dfbaec2809c82be6e970b550e1ae',
     NOW(),
-    NOW() + INTERVAL 90 DAY,
+    NOW() + INTERVAL 365 DAY,
     1,
     NOW(),
     NOW()
@@ -80,10 +80,10 @@ VALUES (
     'Expired Test Terminal',
     'test-device-expired-001',
     SHA2('expired-terminal-token-do-not-use-in-production-9z8y7x6w5v4u', 256),
-    NOW() - INTERVAL 91 DAY,
+    NOW() - INTERVAL 366 DAY,
     NOW() - INTERVAL 1 DAY,
     1,
-    NOW() - INTERVAL 91 DAY,
+    NOW() - INTERVAL 366 DAY,
     NOW()
 );
 

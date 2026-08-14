@@ -12,6 +12,7 @@ import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/cart_summary_bar.dart';
@@ -257,6 +258,11 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                   locale: locale,
                   isCheckoutInFlight: isCheckoutInFlight,
                   isBlockedByLimit: limitCheck.blocksCheckout,
+                  // Watched rather than read: the block has to appear the
+                  // moment a background sync cycle discovers the credential is
+                  // gone, not on the next rebuild that happens to occur.
+                  isBlockedByCredential:
+                      context.watch<SyncProvider>().credentialExpired,
                   onCheckout: () => runCheckout(context),
                   onViewCart: () => context.go('/cart'),
                 ),

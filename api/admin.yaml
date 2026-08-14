@@ -3207,6 +3207,11 @@ paths:
     post:
       tags: [Terminals]
       summary: Rotate terminal API token
+      description: >
+        Issues a replacement token *alongside* the current one. Both
+        authenticate until the terminal uses the new one for the first time,
+        which promotes it and retires the old one (#395) — so an admin can
+        prepare a rotation without taking the bar offline.
       operationId: rotateTerminalToken
       security:
         - sessionAuth: []
@@ -3217,6 +3222,12 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotateTerminalTokenRequest'
       responses:
         '200':
           description: Token rotated
@@ -5364,9 +5375,36 @@ components:
           nullable: true
           description: >
             When the current API token stops authenticating. Rotating the token
-            issues a new one with a full `API_TOKEN_TTL_DAYS` lifetime (90 days
-            by default). A terminal whose token has expired is refused with
+            stages a replacement with a full `API_TOKEN_TTL_DAYS` lifetime (365
+            days by default). A terminal whose token has expired is refused with
             `terminal_token_expired` until it is rotated.
+        pending_token_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            Lifetime of a replacement token that has been issued but not yet
+            used at the device. While this is set, both tokens authenticate; the
+            first successful authentication with the new one promotes it and
+            retires the old one (#395).
+        has_pending_token:
+          type: boolean
+          description: >
+            Whether a rotation is staged and waiting to be entered at the
+            terminal.
+        lifecycle_state:
+          type: string
+          enum: [ok, info, warning, critical, expired]
+          description: >
+            The current token's position on the shared 90/30/7 warning tiers
+            (ADR-0036), computed at request time. `ok` when no token is
+            outstanding at all — read `token_expires_at` for that case.
+        days_until_expiry:
+          type: integer
+          nullable: true
+          description: >
+            Whole days until the current token expires, negative once it has.
+            Null when no token is outstanding.
         created_at:
           type: string
           format: date-time
@@ -5375,13 +5413,24 @@ components:
           format: date-time
 
     CreateTerminalRequest:
-      type: object
-      required: [name, device_id]
-      properties:
-        name:
-          type: string
-        device_id:
-          type: string
+      description: >
+        Enrolling a terminal mints a credential that reads the member roster and
+        writes transactions, so it carries a step-up credential (#395).
+      allOf:
+        - $ref: '#/components/schemas/StepUpCredentials'
+        - type: object
+          required: [name, device_id]
+          properties:
+            name:
+              type: string
+            device_id:
+              type: string
+
+    RotateTerminalTokenRequest:
+      description: >
+        Rotation mints a credential too, and carries the same step-up (#395).
+      allOf:
+        - $ref: '#/components/schemas/StepUpCredentials'
 
     UpdateTerminalRequest:
       type: object

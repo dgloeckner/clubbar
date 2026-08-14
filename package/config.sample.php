@@ -37,7 +37,10 @@ return [
         // 'save_path' => '/home/user/clubbar-data/sessions',
     ],
     'api_token' => [
-        'ttl_days' => 90,
+        // Terminal token lifetime. 365 days is the shared credential
+        // cryptoperiod (ADR-0036); rotation stages the replacement alongside
+        // the current token, so the deadline is not an outage (#395).
+        'ttl_days' => 365,
     ],
     'security' => [
         // 64-char hex string (32 bytes). Generated automatically by install.php.

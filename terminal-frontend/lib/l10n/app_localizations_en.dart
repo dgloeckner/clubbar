@@ -648,4 +648,18 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get pairingMismatchResumeFailed =>
       'Could not confirm with the server — still paused. Please check the connection and try again.';
+
+  @override
+  String get credentialExpiredWarning =>
+      'Sales disabled: this terminal\'s credential has expired. An administrator must issue a new token.';
+
+  @override
+  String get credentialExpiredTitle => 'Credential expired';
+
+  @override
+  String get credentialExpiredInstruction =>
+      'This terminal\'s API token has expired, so no sale can be recorded. An administrator rotates the token in the admin panel under Settings → Credentials and enters the new one here. Sales stay disabled until then.';
+
+  @override
+  String get credentialExpiredCheckoutBlocked => 'Sales disabled';
 }

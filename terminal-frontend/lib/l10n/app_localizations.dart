@@ -1135,6 +1135,30 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Bestätigung durch den Server fehlgeschlagen — weiterhin pausiert. Bitte Verbindung prüfen und erneut versuchen.'**
   String get pairingMismatchResumeFailed;
+
+  /// Persistent staff warning while the backend refuses this terminal's token as expired (#106, #395)
+  ///
+  /// In de, this message translates to:
+  /// **'Verkauf gesperrt: Der Zugang dieses Terminals ist abgelaufen. Ein Administrator muss ein neues Token ausstellen.'**
+  String get credentialExpiredWarning;
+
+  /// Title of the expired-credential dialog
+  ///
+  /// In de, this message translates to:
+  /// **'Zugang abgelaufen'**
+  String get credentialExpiredTitle;
+
+  /// Explains why sales are disabled and what an administrator has to do
+  ///
+  /// In de, this message translates to:
+  /// **'Das API-Token dieses Terminals ist abgelaufen, deshalb kann kein Verkauf mehr gebucht werden. Ein Administrator rotiert das Token in der Verwaltung unter Einstellungen → Zugangsdaten und trägt das neue Token hier ein. Bis dahin bleibt der Verkauf gesperrt.'**
+  String get credentialExpiredInstruction;
+
+  /// Checkout button label while the terminal credential has expired
+  ///
+  /// In de, this message translates to:
+  /// **'Verkauf gesperrt'**
+  String get credentialExpiredCheckoutBlocked;
 }
 
 class _AppLocalizationsDelegate

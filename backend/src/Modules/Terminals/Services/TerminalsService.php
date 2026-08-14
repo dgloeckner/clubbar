@@ -67,6 +67,21 @@ class TerminalsService
             adminUserId: $adminUserId,
         );
 
+        // Enrolling a device and issuing it a credential are two facts, and the
+        // credential's own trail has to be readable without reconstructing it
+        // from terminal CRUD (#395). Enrolment is the one case with nothing to
+        // overlap with, so this token is active from the start.
+        $this->auditService->log(
+            action: AuditAction::TERMINAL_TOKEN_CREATED,
+            entityType: EntityType::TERMINAL,
+            entityId: $terminal['id'],
+            newValues: [
+                'device_id' => $deviceId,
+                'token_expires_at' => $terminal['token_expires_at'],
+            ],
+            adminUserId: $adminUserId,
+        );
+
         return [
             'terminal' => TerminalWithTokenDto::fromRowWithToken($terminal, $plainToken),
             'plaintext_token' => $plainToken,
@@ -106,22 +121,41 @@ class TerminalsService
         );
     }
 
+    /**
+     * Issue a replacement token *alongside* the one in the field (#395).
+     *
+     * Rotation used to be a cut: the old token died the instant the button was
+     * pressed, so an admin could only rotate while standing at the terminal, or
+     * knowingly take the bar offline until somebody could. With a 365-day
+     * lifetime that deadline lands once a year, unannounced, on a device nobody
+     * is next to — so the new token is staged as PENDING instead. Both tokens
+     * authenticate; the first sync that presents the new one promotes it and
+     * retires the old one in the same statement
+     * ({@see TerminalTokenAuthenticator}).
+     *
+     * A terminal whose token has already expired rotates the same way: nothing
+     * is overlapping with anything, and the pending token is accepted on its
+     * own the moment it is entered.
+     */
     public function rotateToken(string $terminalId, ?string $adminUserId = null): array
     {
         $plainToken = TokenService::generateTerminalToken();
         $hash = TokenService::hashToken($plainToken);
 
-        $terminal = $this->terminalsRepository->rotateToken($terminalId, $hash, $this->config->tokenTtlDays);
+        $terminal = $this->terminalsRepository->issuePendingToken($terminalId, $hash, $this->config->tokenTtlDays);
 
         if (!$terminal) throw NotFoundException::forResource('Terminal', $terminalId);
 
         $this->auditService->log(
-            action: AuditAction::UPDATE,
+            action: AuditAction::TERMINAL_TOKEN_ROTATED,
             entityType: EntityType::TERMINAL,
             entityId: $terminalId,
             newValues: [
                 'api_token' => '[ROTATED]',
-                'token_expires_at' => $terminal['token_expires_at'],
+                'pending_token_expires_at' => $terminal['pending_token_expires_at'],
+                // The credential the new one will replace, so the log says what
+                // is still live during the overlap rather than only what is new.
+                'replaces_token_expires_at' => $terminal['token_expires_at'],
             ],
             adminUserId: $adminUserId,
         );
@@ -138,11 +172,17 @@ class TerminalsService
             'api_token_hash' => null,
             'token_issued_at' => null,
             'token_expires_at' => null,
+            // A staged replacement is a credential too: leaving it behind would
+            // let a revoked terminal walk straight back in by presenting the
+            // token an admin had prepared before deciding to revoke (#395).
+            'pending_token_hash' => null,
+            'pending_token_issued_at' => null,
+            'pending_token_expires_at' => null,
             'is_active' => 0,
         ]);
 
         $this->auditService->log(
-            action: AuditAction::DEACTIVATE,
+            action: AuditAction::TERMINAL_TOKEN_REVOKED,
             entityType: EntityType::TERMINAL,
             entityId: $terminalId,
             newValues: ['api_token_hash' => null, 'is_active' => false],

@@ -45,6 +45,45 @@ void main() {
       expect(exception.toString(), contains('Test error'));
     });
 
+    /// #395 — the status code alone cannot carry this. Every terminal auth
+    /// failure is a 401; only the backend's `error` field separates "this
+    /// credential aged out, an admin must rotate it" from "this token was
+    /// never valid", and only one of those is worth telling staff about.
+    group('backendErrorCode', () {
+      test('reads the error field out of a decoded body', () {
+        expect(
+          backendErrorCode({'error': 'terminal_token_expired'}),
+          'terminal_token_expired',
+        );
+      });
+
+      test('reads the error field out of a raw JSON string body', () {
+        expect(
+          backendErrorCode('{"error":"terminal_token_expired","message":"..."}'),
+          'terminal_token_expired',
+        );
+      });
+
+      test('is null for a body that carries no error code', () {
+        expect(backendErrorCode(null), isNull);
+        expect(backendErrorCode(''), isNull);
+        expect(backendErrorCode('<html>gateway timeout</html>'), isNull);
+        expect(backendErrorCode({'message': 'no code here'}), isNull);
+        expect(backendErrorCode({'error': 42}), isNull);
+      });
+
+      test('the code reaches the exception it is raised with', () {
+        final exception = NetworkException(
+          'Sync members failed: HTTP 401',
+          statusCode: 401,
+          errorCode: 'terminal_token_expired',
+        );
+
+        expect(exception.errorCode, 'terminal_token_expired');
+        expect(exception.toString(), contains('terminal_token_expired'));
+      });
+    });
+
     test('get endpoint constructs correct URL', () {
       // This is a basic test that the service can be instantiated
       // and has the right configuration

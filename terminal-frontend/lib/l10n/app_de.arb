@@ -787,5 +787,21 @@
   "pairingMismatchResumeFailed": "Bestätigung durch den Server fehlgeschlagen — weiterhin pausiert. Bitte Verbindung prüfen und erneut versuchen.",
   "@pairingMismatchResumeFailed": {
     "description": "Shown when acknowledgePairingMismatch fails and the terminal stays blocked"
+  },
+  "credentialExpiredWarning": "Verkauf gesperrt: Der Zugang dieses Terminals ist abgelaufen. Ein Administrator muss ein neues Token ausstellen.",
+  "@credentialExpiredWarning": {
+    "description": "Persistent staff warning while the backend refuses this terminal's token as expired (#106, #395)"
+  },
+  "credentialExpiredTitle": "Zugang abgelaufen",
+  "@credentialExpiredTitle": {
+    "description": "Title of the expired-credential dialog"
+  },
+  "credentialExpiredInstruction": "Das API-Token dieses Terminals ist abgelaufen, deshalb kann kein Verkauf mehr gebucht werden. Ein Administrator rotiert das Token in der Verwaltung unter Einstellungen → Zugangsdaten und trägt das neue Token hier ein. Bis dahin bleibt der Verkauf gesperrt.",
+  "@credentialExpiredInstruction": {
+    "description": "Explains why sales are disabled and what an administrator has to do"
+  },
+  "credentialExpiredCheckoutBlocked": "Verkauf gesperrt",
+  "@credentialExpiredCheckoutBlocked": {
+    "description": "Checkout button label while the terminal credential has expired"
   }
 }
