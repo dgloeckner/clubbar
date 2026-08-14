@@ -222,6 +222,15 @@ Two conventions the examples above imply but do not state:
 | **422 for a failed rule, 400 for a malformed request** | A value the rules rejected is `422` with `{error: 'validation_failed', messages: {field: [...]}}` — all 32 `Validator` call sites do this, and new code should. A request that could not be interpreted at all — a non-numeric `per_page`, an unparseable body — is `400` with `{error: 'invalid_request'}`. ⚠️ **Two places in the terminal API do not follow this**, one deliberately: `processBatch`'s envelope checks are `400` on purpose (ruling #143 §2, #259), while `updateLanguage` returns `400` with a bare `message` string for what is plainly a rule failure. Tracked in [#446](https://github.com/dgloeckner/clubbar/issues/446); until it is settled, follow the rule above in new code rather than copying the nearest terminal controller |
 | **A domain rule belongs in the rule list, not only in the controller** | `business_day` exists as a rule rather than as an `if` in one settlement endpoint, so both endpoints that accept an `execution_date` enforce it identically. When a check is about the *value* rather than about this endpoint, add a rule |
 
+> ⚠️ **The OpenAPI spec disagrees with all of this, and the code is what runs.**
+> `api/admin.yaml`'s shared `ValidationErrorResponse` promises
+> `{error: 'validation_error', details: {...}}`; the backend emits
+> `{error: 'validation_failed', messages: {...}}`, and `details` appears at zero
+> call sites. Nothing enforces the spec on the admin API, which is how the two
+> drifted. Emit what this document says, and see
+> [#446](https://github.com/dgloeckner/clubbar/issues/446) before generating a
+> client from the spec.
+
 ### bcmath and the `iban` rule
 
 `iban` computes the mod-97 checksum with `bcmod()`. Without the **bcmath**
