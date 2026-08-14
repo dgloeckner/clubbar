@@ -252,6 +252,62 @@ test.describe('New Settlement — the selection is members', () => {
     await newSettlement.expectMemberSelected(hidden.memberId)
   })
 
+  /**
+   * #372: a run that adds up to 0.00 € produces a SEPA file with no direct
+   * debit in it, so the backend refuses it. The screen has to say so while the
+   * admin is still choosing — the same reason the excluded sections are shown
+   * here rather than arriving as a 422 afterwards.
+   */
+  test('a selection that adds up to nothing cannot be posted', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+    page,
+  }) => {
+    const netsOut = await seedMember(authenticatedRequest, authenticatedTerminalRequest, {
+      tag: 'ZeroTotal',
+      amounts: [1600],
+    })
+    // Every sale stornoed: the position nets out, the two rows stay open.
+    const storno = await authenticatedRequest.post(
+      `/api/admin/transactions/${netsOut.transactionIds[0]}/storno`,
+      { data: { reason: 'Cancelled by mistake' } },
+    )
+    expect(storno.status(), await storno.text()).toBe(201)
+
+    const owes = await seedMember(authenticatedRequest, authenticatedTerminalRequest, {
+      tag: 'ZeroTotalPayer',
+      amounts: [2200],
+    })
+
+    const newSettlement = new NewSettlementPage(page)
+    await newSettlement.goto()
+    // Start from an empty selection so the run is exactly what this test picks.
+    await newSettlement.toggleSelectAll()
+
+    // The member is still listed and still selectable — owing nothing is not
+    // an exclusion, and their rows do close out (ruling #141 §5).
+    await newSettlement.search(netsOut.lastName)
+    expect(await newSettlement.getMemberTransactionCount(netsOut.memberId)).toBe(2)
+    expect(await newSettlement.getMemberBalance(netsOut.memberId)).toMatch(/0[.,]00/)
+    await newSettlement.selectMember(netsOut.memberId)
+
+    // Alone, they are the whole run, and the run collects nothing.
+    expect((await newSettlement.getRunSummary()).total).toMatch(/0[.,]00/)
+    await newSettlement.expectNothingToCollectShown()
+    await newSettlement.expectCreateDisabled()
+
+    // Adding somebody who owes money makes it a run again — what the rule
+    // forbids is the total, not the member.
+    await newSettlement.search(owes.lastName)
+    await newSettlement.selectMember(owes.memberId)
+
+    await newSettlement.expectNothingToCollectHidden()
+    await newSettlement.expectCreateEnabled()
+
+    const settlementId = await newSettlement.create()
+    expect(settlementId).toBeTruthy()
+  })
+
   test('reached from the Settlements page, which is where UC-A30 says it lives', async ({
     authenticatedRequest,
     authenticatedTerminalRequest,

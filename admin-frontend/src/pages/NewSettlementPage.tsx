@@ -179,6 +179,17 @@ export function NewSettlementPage() {
     return { members, transactions, totalCents }
   }, [eligible, selected])
 
+  /**
+   * #372: a run that adds up to 0.00 € is refused by the backend, because a
+   * settlement collecting nothing produces a SEPA file with no direct debit in
+   * it. A zero-balance member — every sale stornoed — is still shown and still
+   * selectable, since they close out perfectly well alongside somebody who owes
+   * money. It is the *run's* total that has to be positive, so the button says
+   * so here rather than letting the admin find out via a 409.
+   */
+  const nothingToCollect = selected.size > 0 && runSummary.totalCents <= 0
+  const canCreate = selected.size > 0 && !nothingToCollect && !!executionDateInfo
+
   const toggleMember = (memberId: string) => {
     setSubmitError(null)
     setSelected((prev) => {
@@ -207,6 +218,10 @@ export function NewSettlementPage() {
   async function handleCreate() {
     if (selected.size === 0) {
       setSubmitError(t('newSettlement.selectAtLeastOneMember'))
+      return
+    }
+    if (nothingToCollect) {
+      setSubmitError(t('newSettlement.nothingToCollect'))
       return
     }
     if (!executionDateInfo) {
@@ -312,22 +327,31 @@ export function NewSettlementPage() {
             <button
               data-testid="new-settlement-create-btn"
               onClick={handleCreate}
-              disabled={submitting || selected.size === 0 || !executionDateInfo}
+              disabled={submitting || !canCreate}
               style={{
                 marginLeft: 'auto',
                 padding: '10px 20px',
-                backgroundColor: selected.size > 0 && executionDateInfo ? theme.colors.semantic.emerald : theme.colors.semantic.neutral,
+                backgroundColor: canCreate ? theme.colors.semantic.emerald : theme.colors.semantic.neutral,
                 color: 'white',
                 border: 'none',
                 borderRadius: 6,
                 fontSize: 14,
                 fontWeight: 500,
-                cursor: submitting || selected.size === 0 || !executionDateInfo ? 'not-allowed' : 'pointer',
+                cursor: submitting || !canCreate ? 'not-allowed' : 'pointer',
               }}
             >
               {submitting ? t('common.loading') : t('newSettlement.create')}
             </button>
           </div>
+
+          {nothingToCollect && (
+            <p
+              data-testid="new-settlement-nothing-to-collect"
+              style={{ color: theme.colors.semantic.danger, fontSize: 14 }}
+            >
+              {t('newSettlement.nothingToCollect')}
+            </p>
+          )}
 
           {(submitError || executionDateError) && (
             <p

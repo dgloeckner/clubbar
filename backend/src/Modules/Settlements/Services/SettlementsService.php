@@ -160,8 +160,11 @@ class SettlementsService
             }
 
             if ($this->hasActiveMandate($member)) {
-                // Zero settles too — it closes the rows out. Only the export
-                // decides not to write a file line for it.
+                // Zero settles too — it closes the rows out, and only the
+                // export decides not to write a file line for it. What it
+                // cannot do is make a run on its own: a settlement whose whole
+                // total is zero is refused at creation (#372), so a screen
+                // showing only zero-balance members has nothing to post.
                 $eligible[] = $entry;
             } elseif (!$sepaEligibleOnly) {
                 $ineligible[] = $entry;
@@ -287,6 +290,25 @@ class SettlementsService
             }
 
             $totalAmount = array_sum(array_column($transactions, 'amount_cents'));
+
+            // #372: a run that collects nothing is not a settlement. It gets
+            // here when every named member's open rows net out — the ordinary
+            // case being a storno cancelling each of their sales — and what it
+            // would produce is a pain.008 whose PmtInf carries no direct debit
+            // at all, which is not a valid file and which no bank accepts.
+            //
+            // This does not walk back ruling #141 §5: a member closing out at
+            // 0.00 still settles, and still rides along in a run that collects
+            // from somebody else. It is the run's own total that may not be
+            // zero, because that total is what goes to the bank.
+            if ($totalAmount <= 0) {
+                throw new BusinessRuleException(sprintf(
+                    'A settlement has to collect something, and this one totals %s EUR — the selected members\' '
+                    . 'open transactions cancel each other out. Nothing is owed, so there is nothing to collect '
+                    . 'and no SEPA file to send.',
+                    number_format($totalAmount / 100, 2, '.', ''),
+                ));
+            }
 
             // Ruling #163: bank_transfer/write_off settlements cover exactly one
             // member (also enforced in the DB by chk_settlements_manual_is_single_member).

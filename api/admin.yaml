@@ -1742,6 +1742,14 @@ paths:
         **Manual settlements** (`method: bank_transfer` or `write_off`):
         - Must cover exactly one member
         - No SEPA XML export available
+
+        **The run must collect something** (issue #372). A settlement sweeps
+        each named member's whole unsettled position, and if those positions
+        add up to 0.00 EUR — the ordinary case being a storno that cancels each
+        of a member's sales — the run is refused with `409`. A member who owes
+        nothing still settles *alongside* one who owes money: their rows close
+        out and they get no line in the SEPA file. It is the run's own total
+        that may not be zero, because that total is what goes to the bank.
       operationId: createSettlement
       security:
         - sessionAuth: []
@@ -1775,6 +1783,22 @@ paths:
                 messages:
                   execution_date:
                     - execution_date must be a bank business day (Mon-Fri, excluding TARGET2 closing days)
+        '409':
+          description: |
+            The run collects nothing: every named member's open transactions
+            cancel each other out, so the settlement would total 0.00 EUR and
+            its SEPA file would carry no direct debit (issue #372). Also
+            returned when a named transaction is already settled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: business_rule_violation
+                message: >-
+                  A settlement has to collect something, and this one totals 0.00 EUR — the
+                  selected members' open transactions cancel each other out. Nothing is owed,
+                  so there is nothing to collect and no SEPA file to send.
         '412':
           description: SEPA configuration incomplete
           content:
@@ -2260,6 +2284,13 @@ paths:
             Settlement is cancelled, has reversed collections, or does not use
             the `direct_debit` method. Re-exporting a reversed settlement would
             hand the bank a file that debits every member on it a second time.
+
+            Also returned when the file would carry no direct debit at all
+            (issue #372) — every member in the settlement owes 0.00 EUR, or
+            every one of them has since been excluded. `pain.008` has no
+            representation for collecting nothing: a `PmtInf` must hold at
+            least one `DrctDbtTxInf`, so the alternative is a file the bank
+            rejects.
 
             Also returned as `encryption_key_expired` when the active key's
             365-day cryptoperiod is over: rotate the encryption key before

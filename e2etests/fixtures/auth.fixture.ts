@@ -41,7 +41,7 @@ const ADMIN_STORAGE_STATE_PATH = path.join("playwright", ".auth", "admin.json");
  * Test transaction helper interface
  * Provides convenient API methods for creating test data
  */
-interface TestTransactionsFixture {
+export interface TestTransactionsFixture {
   createMember(firstName?: string, lastName?: string, baseEmail?: string): Promise<any>;
   createProduct(nameDe: string, priceCents: number, nameEn?: string): Promise<any>;
   createSyncTransaction(memberId: string, amountCents?: number, notes?: string, productId?: string): Promise<string>;

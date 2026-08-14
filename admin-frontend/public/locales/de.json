@@ -893,6 +893,7 @@
     "selectNone": "Auswahl aufheben",
     "create": "Abrechnung erstellen",
     "selectAtLeastOneMember": "Bitte mindestens ein Mitglied auswählen",
+    "nothingToCollect": "Die Salden der ausgewählten Mitglieder ergeben zusammen 0,00 € — eine Abrechnung muss etwas einziehen. Bitte mindestens ein Mitglied mit offenem Saldo auswählen.",
     "summary": {
       "members": "Mitglieder",
       "transactions": "Transaktionen",

@@ -893,6 +893,7 @@
     "selectNone": "Select none",
     "create": "Create settlement",
     "selectAtLeastOneMember": "Select at least one member",
+    "nothingToCollect": "The selected members' balances add up to 0.00 € — a settlement has to collect something. Select at least one member with an open balance.",
     "summary": {
       "members": "Members",
       "transactions": "Transactions",
