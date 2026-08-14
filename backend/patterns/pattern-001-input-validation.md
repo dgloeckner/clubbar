@@ -4,6 +4,15 @@
 **Related ADR**: ADR-0017 (Input Validation, Injection Prevention)
 **Related to Module**: Applicable to all API endpoints
 
+> **There are no Form Request classes in this codebase, and adding one would be
+> the deviation.** This file used to be called `pattern-001-form-requests-validation.md`,
+> and the index still advertised "declarative validation with typed accessors" —
+> a Laravel shape the Slim backend never adopted. Every controller validates the
+> way this document describes. The name was the last trace of the older idea and
+> is now gone; if you arrived here looking for `FormRequest`, the answer is that
+> the rule array below *is* the declarative part, and the DTO (Pattern 003) is
+> where typed access lives.
+
 ---
 
 ## Problem
@@ -56,26 +65,45 @@ class Validator
 
 | Rule | Description | Example |
 |------|-------------|---------|
-| `required` | Field must be present and non-empty | `'required'` |
-| `string` | Must be a string | `'string'` |
-| `integer` | Must be numeric | `'integer'` |
-| `numeric` | Must be numeric | `'numeric'` |
-| `email` | Must be valid email | `'email'` |
-| `boolean` | Must be boolean-like | `'boolean'` |
-| `uuid` | Must be valid UUID | `'uuid'` |
-| `date` | Must be parseable date | `'date'` |
+| `required` | Must be present and non-empty (`''` fails) | `'required'` |
+| `nullable` | Documentation only — it passes unconditionally. Every other rule already skips `null`, so this marks intent for the reader rather than changing behaviour | `'nullable'` |
+| `string` | Must be a string (or null) | `'string'` |
+| `integer` | **Whole numbers only.** `"12"` and `12.0` pass; `"1.5"` does not. It used to be `is_numeric()`, which let `amount_cents: "12.9"` through to a `(int)` cast and book 12 cents ([#117](https://github.com/dgloeckner/clubbar/issues/117)) | `'integer'` |
+| `numeric` | Any numeric value, decimals included | `'numeric'` |
+| `email` | `FILTER_VALIDATE_EMAIL` | `'email'` |
+| `boolean` | `true`/`false`/`0`/`1`/`'0'`/`'1'` | `'boolean'` |
+| `uuid` | Canonical 8-4-4-4-12 hex form | `'uuid'` |
+| `date` | **Exact formats only** — `Y-m-d` and the ISO-8601 variants, round-tripped so `2026-02-30` fails. `strtotime()` used to accept `"next tuesday"` and `"now"`, which reach a DATE column as a value that changes with the clock ([#117](https://github.com/dgloeckner/clubbar/issues/117)) | `'date'` |
+| `business_day` | A TARGET2 bank business day: Mon–Fri, excluding the six closing days (ADR-0009) | `'business_day'` |
+| `iban` | Structure plus the mod-97 checksum. **Needs bcmath** — see the note below | `'iban'` |
 | `array` | Must be an array | `'array'` |
-| `json` | Must be valid JSON | `'json'` |
-| `nullable` | Value may be null | `'nullable'` |
-| `min:N` | Min length (string) or min value (number) | `'min:3'` |
-| `max:N` | Max length (string) or max value (number) | `'max:100'` |
-| `gt:N` | Greater than N | `'gt:0'` |
-| `gte:N` | Greater than or equal to N | `'gte:1'` |
-| `in:a,b,c` | Must be one of listed values | `'in:de,en,fr'` |
-| `regex:/pattern/` | Must match regex | `'regex:/^[0-9A-F]+$/'` |
-| `same:field` | Must match another field | `'same:password'` |
-| `unique:table,col` | Must be unique in database | `'unique:members,card_uid'` |
-| `unique:table,col,id` | Unique excluding a specific ID | `'unique:members,card_uid,abc-123'` |
+| `json` | An array, or a string that decodes | `'json'` |
+| `min:N` | Min string **length**, numeric value, or array count | `'min:3'` |
+| `max:N` | Max string **length**, numeric value, or array count. A string is always measured by length, so `"0013466849"` is not compared as a number | `'max:100'` |
+| `gt:N` / `gte:N` | Greater than / at least, numeric only | `'gt:0'` |
+| `lt:N` / `lte:N` | Less than / at most, numeric only | `'lte:100'` |
+| `in:a,b,c` | One of the listed values, compared as strings | `'in:de,en'` |
+| `regex:/pattern/` | Must match | `'regex:/^[0-9A-F]+$/'` |
+| `same:field` | Must equal another field in the same payload | `'same:password'` |
+| `unique:table,col` | Must not already exist | `'unique:members,card_uid'` |
+| `unique:table,col,id` | Unique excluding one row — the update case | `'unique:members,card_uid,abc-123'` |
+
+**Three things the table cannot show.**
+
+*An unknown rule name is silently ignored.* `check()` ends in `default => null`, so
+a typo like `'requried'` validates nothing and reports nothing. When a rule
+appears not to fire, check its spelling before checking the value.
+
+*Every rule except `required` skips `null`.* A field is either `required` or
+optional; `['string', 'max:100']` on an absent field passes, which is what makes
+PATCH-style partial updates work without a second rule set.
+
+*Empty string is not `null`, and the rules disagree about it.* `date`,
+`business_day`, `iban`, `email` and `uuid` let `''` through; `integer` rejects it
+(`is_numeric('')` is false) and `min:3` rejects it on length. So a client that
+sends `""` to clear a field gets a different answer per field. Where blank means
+"clear this", handle it explicitly rather than relying on the rule — the members
+module does exactly that with its `BLANK_MEANS_NULL` handling.
 
 ### Basic Usage in Controller
 
@@ -185,6 +213,28 @@ $language = SupportedLanguage::from($body['preferred_language']);
 
 ---
 
+## Where a rule lives, and the status code it returns
+
+Two conventions the examples above imply but do not state:
+
+| | |
+|---|---|
+| **422 for a failed rule, 400 for a malformed request** | A value the rules rejected is `422` with `{error: 'validation_failed', messages: {field: [...]}}`. A request that could not be interpreted at all — a non-numeric `per_page`, an unparseable body — is `400` with `{error: 'invalid_request'}`. Clients branch on this, so a rule failure must not return `400` |
+| **A domain rule belongs in the rule list, not only in the controller** | `business_day` exists as a rule rather than as an `if` in one settlement endpoint, so both endpoints that accept an `execution_date` enforce it identically. When a check is about the *value* rather than about this endpoint, add a rule |
+
+### bcmath and the `iban` rule
+
+`iban` computes the mod-97 checksum with `bcmod()`. Without the **bcmath**
+extension it fatals with `Call to undefined function bcmod()`, which reads as a
+crash rather than as a missing extension. The backend container has it; a bare
+host PHP often does not, which is why backend tests run in the container:
+
+```bash
+docker compose exec -w /app backend ./vendor/bin/phpunit
+```
+
+---
+
 ## Key Benefits
 
 - **Declarative rules**: Validation expressed as simple arrays
@@ -225,8 +275,9 @@ The `Validator` is **shared infrastructure**:
 
 ## Related Patterns
 
-- **Pattern 002**: Enum for Type-Safe Domain Values
-- **Pattern 003**: Data Transfer Objects (DTOs) for Responses
+- **Pattern 002**: Enum for Type-Safe Domain Values — the `in:` rule's counterpart once the value is trusted
+- **Pattern 003**: Data Transfer Objects (DTOs) for Responses — where typed access lives, since validation itself hands back a plain array
+- **Pattern 006**: Thin Controllers — validation is the one piece of logic that legitimately sits in a controller
 - **Pattern 007**: Centralized Exception Handling
 
 ---

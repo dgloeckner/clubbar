@@ -70,7 +70,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Code Patterns (Backend)
 
 Reference backend code patterns in `backend/patterns/` directory:
-- **Pattern 001**: Form Requests for Input Validation — declarative validation with typed accessors
+- **Pattern 001**: Input Validation — declarative rule arrays via the shared `Validator` (no Form Request classes; the DTO is where typed access lives)
 - **Pattern 002**: Enum for Type-Safe Domain Values — type-safe constants for languages, transaction types, statuses
 - **Pattern 003**: Data Transfer Objects (DTOs) — immutable response objects with consistent formatting
 - **Pattern 004**: Service Layer — business logic isolated from HTTP, reusable across consumers

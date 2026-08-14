@@ -47,7 +47,7 @@ Three deviations from #401 worth knowing about:
 |---|---|
 | The class is `MailLayout`, not `Mailvorlage`, and it is **translated, not copied** | This repository's contributor rules require English identifiers and comments. Diffing against upstream will not be mechanical; the class docblock names its origin and both intentional divergences |
 | Club identity is `MailBranding`, injected — no `ABSENDERNAME`-style constant survives the port | The 2026-08-11 decision on #361, plus ADR-0034: Club Bar is deployed by more than one club. A test asserts no FRGS string can reach the output |
-| Validation is `Validator` rules in the controller, not a Form Request class | `backend/patterns/pattern-001` describes Form Requests, but the codebase contains **none** — every controller, `InstanceConfigController` included, validates this way. Consistency with the code that exists beat consistency with the pattern doc; worth reconciling one way or the other, but not in this PR |
+| Validation is `Validator` rules in the controller, not a Form Request class | Every controller validates this way and the codebase contains no Form Request at all — only pattern-001's **filename** and its index entries still advertised one. Resolved rather than deferred: the pattern is now `pattern-001-input-validation.md`, rewritten against the `Validator` as it actually behaves, and says plainly that adding a Form Request would be the deviation |
 
 ### P2 — `mail_outbox`, Notifications module, transactional enqueue ([#402](https://github.com/dgloeckner/clubbar/issues/402))
 
