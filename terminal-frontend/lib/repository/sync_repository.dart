@@ -44,6 +44,16 @@ class SyncRepository {
     return setSyncState('last_products_sync_time', timestamp);
   }
 
+  /// Get last sync timestamp for categories (ISO 8601 string)
+  Future<String?> getLastCategoriesSyncTime() async {
+    return getSyncState('last_categories_sync_time');
+  }
+
+  /// Set last sync timestamp for categories
+  Future<void> setLastCategoriesSyncTime(String timestamp) async {
+    return setSyncState('last_categories_sync_time', timestamp);
+  }
+
   /// Get last sync cursor for categories (Unix timestamp in milliseconds, stored as string)
   Future<String?> getLastCategoriesSyncCursor() async {
     return getSyncState('last_categories_sync_cursor');
