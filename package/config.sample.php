@@ -54,6 +54,25 @@ return [
         // it like the TOTP key and leave it alone.
         'iban_fingerprint_key' => '',
     ],
+    'mail' => [
+        // One DSN selects the transport for outgoing mail (ADR-0038).
+        // It holds an SMTP password, which is why it lives here next to the
+        // database password rather than in the admin panel — everything about
+        // a mail that is *not* secret (sender name, reply-to, footer) is
+        // configured under Settings instead.
+        //
+        //   smtp://user:password@mail.example.org:587   the club's own mailbox
+        //   native://default                            the host's local MTA
+        //   null://null                                 configured, and discards
+        //
+        // Leave empty to disable mail. Nothing is sent, nothing throws, and the
+        // security self-check reports the transport as unconfigured.
+        //
+        // Note that sending needs a scheduler as well: the announcement queue
+        // is drained by cron and by nothing else. The installer shows the
+        // command for this installation and verifies it has run.
+        'dsn' => '',
+    ],
     'llm' => [
         // Optional: enables AI-powered mandate document extraction.
         // Leave provider empty (or omit this section) to disable extraction silently.

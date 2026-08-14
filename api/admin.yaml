@@ -79,6 +79,8 @@ tags:
     description: Organization-level SEPA settings
   - name: Instance Branding
     description: Deployment-wide instance name shown in the admin UI, Terminal, and TOTP enrollment
+  - name: Mail Settings
+    description: Sender, reply-to and layout for outgoing mail; the SMTP DSN itself stays in config.php
   - name: Admin Users
     description: Admin user management
   - name: Reports
@@ -2521,6 +2523,59 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # MAIL SETTINGS
+  # ============================================================================
+  /admin/mail-config:
+    get:
+      tags: [Mail Settings]
+      summary: Get mail settings
+      description: |
+        The club-editable half of outgoing mail configuration (ADR-0038):
+        sender, reply-to, header variant and the footer block.
+
+        The SMTP DSN is deliberately **not** part of this resource. It carries
+        a password and lives in `config.php` in the data directory alongside
+        the database password (ADR-0031 decision 2), so changing the mail
+        server is an installer or file operation. The read-only `transport`
+        object reports whether one is configured and where mail goes, never
+        the DSN itself.
+      operationId: getMailConfig
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Mail configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MailConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags: [Mail Settings]
+      summary: Update mail settings
+      operationId: updateMailConfig
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MailConfigUpdateRequest'
+      responses:
+        '200':
+          description: Mail configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MailConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
   # ============================================================================
   # ADMIN USERS
@@ -5507,6 +5562,114 @@ components:
           minLength: 1
           maxLength: 100
           example: FRGS Ruderbar
+
+    MailConfig:
+      type: object
+      description: |
+        Club-editable mail settings plus the read-only state of the transport
+        configured in `config.php`.
+      properties:
+        sender_name:
+          type: string
+          maxLength: 120
+          description: Display name in the recipient's inbox. Defaults to the instance name.
+          example: FRGS Ruderbar
+        sender_address:
+          type: string
+          format: email
+          maxLength: 255
+          description: Envelope sender. Empty means mail was never configured.
+          example: bar@example.org
+        reply_to_address:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 255
+          description: Where a reply goes — the Kassenwart, since a pre-notification invites one.
+          example: kassenwart@example.org
+        header_style:
+          type: string
+          enum: [red, petrol, paper]
+          description: Header band variant. `paper` is the settlement-mail default.
+          example: paper
+        footer_org_name:
+          type: string
+          maxLength: 200
+          example: Ruderverein Beispiel e. V.
+        footer_address_line:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: Musterweg 35 · 60599 Frankfurt am Main
+        website_url:
+          type: string
+          nullable: true
+          maxLength: 255
+          description: Public site URL; also the origin the mail webfonts are fetched from.
+          example: https://www.example.org
+        logo_url:
+          type: string
+          nullable: true
+          maxLength: 255
+          description: PNG only — Gmail and Outlook do not render SVG in mail.
+        is_complete:
+          type: boolean
+          readOnly: true
+          description: Whether a sender address is set at all.
+        can_send:
+          type: boolean
+          readOnly: true
+          description: Both halves present — a usable transport and a sender address.
+        transport:
+          type: object
+          readOnly: true
+          description: State of `mail.dsn` from `config.php`. Never contains the DSN or its password.
+          properties:
+            configured:
+              type: boolean
+            valid:
+              type: boolean
+            summary:
+              type: string
+              example: smtp to mail.example.org:587
+            error:
+              type: string
+              nullable: true
+              description: Why the configured DSN is unusable, in a sentence an admin can act on.
+
+    MailConfigUpdateRequest:
+      type: object
+      properties:
+        sender_name:
+          type: string
+          maxLength: 120
+        sender_address:
+          type: string
+          format: email
+          maxLength: 255
+        reply_to_address:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 255
+        header_style:
+          type: string
+          enum: [red, petrol, paper]
+        footer_org_name:
+          type: string
+          maxLength: 200
+        footer_address_line:
+          type: string
+          nullable: true
+          maxLength: 255
+        website_url:
+          type: string
+          nullable: true
+          maxLength: 255
+        logo_url:
+          type: string
+          nullable: true
+          maxLength: 255
 
     SepaConfigUpdateRequest:
       type: object

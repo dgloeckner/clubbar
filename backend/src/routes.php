@@ -16,6 +16,7 @@ use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncContr
 use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
 use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
+use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
@@ -201,6 +202,11 @@ return function (App $app): void {
 
         // Instance branding
         $group->patch('/instance-config', [InstanceConfigController::class, 'update']);
+
+        // Mail settings (ADR-0038). The SMTP DSN is not here on purpose — it is
+        // a secret in config.php; these are the club-editable fields only.
+        $group->get('/mail-config', [MailConfigController::class, 'show']);
+        $group->patch('/mail-config', [MailConfigController::class, 'update']);
 
         // Reports
         $group->get('/reports/terminal-activity', [ReportsAdminController::class, 'terminalActivity']);
