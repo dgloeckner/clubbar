@@ -65,6 +65,23 @@ class MailStringsTest extends TestCase
         $this->assertSame('no.such.key', $en->t('no.such.key'));
     }
 
+    /**
+     * The whole German half is in the Du-form; a stray *Sie* would be the kind
+     * of thing that survives review because only one string carries it.
+     */
+    public function test_no_german_string_slips_back_into_the_formal_register(): void
+    {
+        $table = (new \ReflectionClass(MailStrings::class))->getConstant('TABLE');
+
+        foreach ($table['de'] as $key => $text) {
+            $this->assertDoesNotMatchRegularExpression(
+                '/\b(Sie|Ihnen|Ihre[nmrs]?)\b/u',
+                $text,
+                "the German string '{$key}' is in the Sie-form",
+            );
+        }
+    }
+
     public function test_placeholders_are_substituted(): void
     {
         $t = new MailStrings(MailLanguage::German);

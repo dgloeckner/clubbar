@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Services;
 
+use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\EnqueueResultDto;
+use App\Modules\Notifications\DTOs\MailRequestDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailStatus;
@@ -50,6 +52,7 @@ class NotificationsService
         private MailOutboxRepository $mailOutboxRepository,
         private MembersRepository $membersRepository,
         private AuditService $auditService,
+        private AdminUsersRepository $adminUsersRepository,
     ) {}
 
     /**
@@ -104,13 +107,13 @@ class NotificationsService
                 continue;
             }
 
-            if ($this->mailOutboxRepository->enqueue(
-                $kind,
-                $settlementId,
-                $memberId,
-                $email,
-                self::language($member['preferred_language'] ?? null),
-            )) {
+            if ($this->mailOutboxRepository->enqueue(MailRequestDto::forMember(
+                kind: $kind,
+                settlementId: $settlementId,
+                memberId: $memberId,
+                recipient: $email,
+                language: MailLanguage::fromPreferred($member['preferred_language'] ?? null),
+            ))) {
                 $queued++;
             }
         }
@@ -195,13 +198,13 @@ class NotificationsService
                 continue;
             }
 
-            if ($this->mailOutboxRepository->enqueue(
-                MailKind::CANCELLATION_NOTICE,
-                $settlementId,
-                $memberId,
-                $email,
-                self::language($member['preferred_language'] ?? null),
-            )) {
+            if ($this->mailOutboxRepository->enqueue(MailRequestDto::forMember(
+                kind: MailKind::CANCELLATION_NOTICE,
+                settlementId: $settlementId,
+                memberId: $memberId,
+                recipient: $email,
+                language: MailLanguage::fromPreferred($member['preferred_language'] ?? null),
+            ))) {
                 $queued++;
             }
         }
@@ -248,15 +251,94 @@ class NotificationsService
         );
     }
 
-    /** @return list<array<string,mixed>> */
-    public function findBySettlementId(string $settlementId): array
+    /**
+     * Every queued message about one settlement, key or terminal — what #407's
+     * detail view reads, and what a self-check would show for a credential.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function findBySubjectId(string $subjectId): array
     {
-        return $this->mailOutboxRepository->findBySettlementId($settlementId);
+        return $this->mailOutboxRepository->findBySubjectId($subjectId);
     }
 
-    /** The language the message will be written in — see {@see MailLanguage}. */
-    private static function language(?string $preferred): string
-    {
-        return MailLanguage::fromPreferred($preferred)->value;
+    /* ──────────────── Operational mail, addressed to an admin ──────────────── */
+
+    /**
+     * Warn whoever runs the club about something, at most once per occasion
+     * (#438).
+     *
+     * The occasion is the point. An expiry warning is computed from a tier the
+     * dashboard already recalculates on every request, so "is the key inside
+     * the 30-day window?" is true for thirty days running — and a queue that
+     * took that at face value would send thirty emails. Passing the tier as the
+     * occasion makes `UNIQUE (kind, subject_id, dedup_key)` answer "has this
+     * already been said?" for us, which is the idempotent-notification storage
+     * #438 says it needs, and a stronger answer than the `logOnceSince` dedup
+     * it names as the nearest precedent: that one is a time window, this one is
+     * a constraint.
+     *
+     * Every active admin is written to, and each is deduplicated separately —
+     * one admin having already been warned must not silence the others.
+     *
+     * The caller supplies the tier and nothing else about timing. This service
+     * queues; it does not decide when anything is due, and it never sends
+     * (ADR-0038 rule 3: the scheduler is the only sender).
+     *
+     * @param string $occasion What makes this warning distinct from the next one
+     *                         about the same subject — a tier such as `30d`.
+     */
+    public function warnAdmins(
+        MailKind $kind,
+        string $subjectId,
+        string $occasion,
+        ?string $actorAdminUserId = null,
+    ): EnqueueResultDto {
+        if ($kind->addressesMember()) {
+            // A member has no way to act on an expiring credential, and telling
+            // them one is expiring leaks the state of the club's own security.
+            throw new \InvalidArgumentException(
+                sprintf('%s is addressed to a member and cannot be sent to admins', $kind->value)
+            );
+        }
+
+        $queued = 0;
+        $withoutEmail = [];
+
+        foreach ($this->adminUsersRepository->findActiveRecipients() as $admin) {
+            $email = trim((string) ($admin['email'] ?? ''));
+            if ($email === '') {
+                $withoutEmail[] = (string) $admin['id'];
+                continue;
+            }
+
+            if ($this->mailOutboxRepository->enqueue(MailRequestDto::forAdmin(
+                kind: $kind,
+                subjectId: $subjectId,
+                adminUserId: (string) $admin['id'],
+                recipient: $email,
+                language: MailLanguage::fromPreferred($admin['locale'] ?? null),
+                occasion: $occasion,
+            ))) {
+                $queued++;
+            }
+        }
+
+        $result = new EnqueueResultDto($queued, $withoutEmail);
+
+        // Audited only when something was actually queued: this runs off a
+        // request-time check that fires on every admin page load, and an audit
+        // entry per page load would bury the one that matters.
+        if ($queued > 0) {
+            $this->auditService->log(
+                action: AuditAction::MAIL_ENQUEUED,
+                entityType: $kind->subjectType()->auditEntityType(),
+                entityId: $subjectId,
+                newValues: ['kind' => $kind->value, 'occasion' => $occasion] + $result->toArray(),
+                adminUserId: $actorAdminUserId,
+            );
+        }
+
+        return $result;
     }
 }

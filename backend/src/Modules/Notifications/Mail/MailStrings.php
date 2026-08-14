@@ -22,12 +22,13 @@ use App\Modules\Notifications\Enums\MailLanguage;
  *
  * ## Register
  *
- * German is formal (*Sie*), which differs from the terminal UI's informal *du*
- * (see #42). That is deliberate and this is the one place to change it: a
- * pre-notification quotes a creditor identifier and a mandate reference and
- * invites a formal objection within six weeks, and it is the register every
- * other SEPA pre-notification a member receives is written in. The bar
- * touchscreen is a different conversation.
+ * German is the **Du-form**, capitalised as correspondence conventionally
+ * capitalises it, and members are addressed by first name alone. That matches
+ * the terminal UI (#42) and how the club talks to its own members: a bank's
+ * register would be borrowed formality from an institution nobody here is.
+ *
+ * It is the one place to change it — every pronoun in the mails is in this
+ * table, and nothing else in the codebase inflects German.
  */
 final class MailStrings
 {
@@ -64,9 +65,9 @@ final class MailStrings
             'pre.preheader'        => 'Fällig am {date} · Mandatsreferenz {mandate}',
             'pre.eyebrow'          => 'SEPA-Vorabankündigung',
             'pre.title'            => 'Ankündigung des Lastschrifteinzugs',
-            'pre.lede'             => 'wir kündigen Ihnen den Einzug von <strong>{amount}</strong> von Ihrem Konto an. '
+            'pre.lede'             => 'wir kündigen Dir den Einzug von <strong>{amount}</strong> von Deinem Konto an. '
                                     . 'Der Betrag wird frühestens am <strong>{date}</strong> abgebucht.',
-            'pre.lede_text'        => 'wir kündigen Ihnen den Einzug von {amount} von Ihrem Konto an. '
+            'pre.lede_text'        => 'wir kündigen Dir den Einzug von {amount} von Deinem Konto an. '
                                     . 'Der Betrag wird frühestens am {date} abgebucht.',
             'pre.data_heading'     => 'Angaben zum Einzug',
             'pre.label_creditor'   => 'Gläubiger',
@@ -74,16 +75,16 @@ final class MailStrings
             'pre.label_mandate'    => 'Mandatsreferenz',
             'pre.label_amount'     => 'Betrag',
             'pre.label_due_date'   => 'Fälligkeit',
-            'pre.label_account'    => 'Ihr Konto',
+            'pre.label_account'    => 'Dein Konto',
             'pre.statement_heading' => 'Abrechnungsübersicht',
             'pre.statement_intro'  => 'Diese Buchungen ergeben den Betrag:',
             'pre.statement_period' => 'Zeitraum {from} bis {to}',
             'pre.statement_empty'  => 'Zu diesem Einzug liegen keine Einzelbuchungen vor.',
             'pre.total_label'      => 'Gesamtbetrag',
-            'pre.funding_note'     => 'Bitte sorgen Sie dafür, dass Ihr Konto am Fälligkeitstag gedeckt ist. '
+            'pre.funding_note'     => 'Bitte sorge dafür, dass Dein Konto am Fälligkeitstag gedeckt ist. '
                                     . 'Die Kosten einer Rücklastschrift trägt das Mitglied.',
             'pre.objection_heading' => 'Beanstandungen',
-            'pre.objection_text'   => 'Stimmt etwas nicht? Bitte melden Sie sich innerhalb von sechs Wochen '
+            'pre.objection_text'   => 'Stimmt etwas nicht? Bitte melde Dich innerhalb von sechs Wochen '
                                     . 'beim Kassenwart{contact}. Eine Antwort auf diese E-Mail genügt.',
             'pre.objection_contact' => ' unter {email}',
 
@@ -95,17 +96,17 @@ final class MailStrings
             'cancel.lede'      => 'die für den <strong>{date}</strong> angekündigte Lastschrift über '
                                 . '<strong>{amount}</strong> wird <strong>nicht</strong> eingezogen.',
             'cancel.lede_text' => 'die für den {date} angekündigte Lastschrift über {amount} wird NICHT eingezogen.',
-            'cancel.no_action' => 'Sie müssen nichts weiter tun. Ihr Konto wird für diesen Einzug nicht belastet.',
+            'cancel.no_action' => 'Du musst nichts weiter tun. Dein Konto wird für diesen Einzug nicht belastet.',
             'cancel.next'      => 'Offene Beträge bleiben offen und werden gegebenenfalls mit einem '
                                 . 'späteren Einzug angekündigt.',
             'cancel.label_amount'   => 'Angekündigter Betrag',
             'cancel.label_due_date' => 'Angekündigte Fälligkeit',
 
             // ── Shared ──────────────────────────────────────────────────────
-            'greeting'         => 'Guten Tag {name},',
-            'greeting_generic' => 'Guten Tag,',
-            'signoff'          => 'Mit freundlichen Grüßen',
-            'questions'        => 'Fragen zu dieser Nachricht? Antworten Sie einfach darauf.',
+            'greeting'         => 'Hallo {name},',
+            'greeting_generic' => 'Hallo,',
+            'signoff'          => 'Viele Grüße',
+            'questions'        => 'Fragen zu dieser Nachricht? Antworte einfach darauf.',
             'text_separator'   => '----------------------------------------------------------',
             'automated_note'   => 'Diese Nachricht wurde automatisch erstellt.',
         ],

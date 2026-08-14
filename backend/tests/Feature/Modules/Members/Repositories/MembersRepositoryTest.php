@@ -416,54 +416,44 @@ class MembersRepositoryTest extends DatabaseTestCase
 
     public function test_listPaginated_orders_by_unsettled_balance(): void
     {
-        $owesLittle = $this->createTestMember('OwesLittle', 'Member');
+        $surname = $this->uniqueSurname('BalanceSort');
+        $owesLittle = $this->createTestMember('OwesLittle', $surname);
         $this->createTestTransaction($owesLittle, -500, '2026-01-01 10:00:00');
 
-        $owesMost = $this->createTestMember('OwesMost', 'Member');
+        $owesMost = $this->createTestMember('OwesMost', $surname);
         $this->createTestTransaction($owesMost, -2000, '2026-01-01 10:00:00');
 
-        $inCredit = $this->createTestMember('InCredit', 'Member');
+        $inCredit = $this->createTestMember('InCredit', $surname);
         $this->createTestTransaction($inCredit, 1000, '2026-01-01 10:00:00');
 
-        // No id-based filter exists on listPaginated, so pull a page large
-        // enough to cover the whole test dataset and pick out the three rows
-        // we care about, preserving the balance order the query returned.
-        $ascending = $this->membersRepository->listPaginated(1000, 0, [], 'balance', 'asc');
+        $ascending = $this->membersRepository->listPaginated(50, 0, [], 'balance', 'asc', $surname);
 
-        $testIds = [$owesLittle, $owesMost, $inCredit];
-        $orderedIds = array_values(array_intersect(
+        $this->assertSame(
+            [$owesMost, $owesLittle, $inCredit],
             array_column($ascending['items'], 'id'),
-            $testIds
-        ));
-
-        $this->assertSame([$owesMost, $owesLittle, $inCredit], $orderedIds);
+        );
     }
 
     public function test_listPaginated_balance_sort_ignores_settled_transactions(): void
     {
         // A settled debt must not count toward the balance a member is sorted
         // by — only the unsettled position does (#83).
-        $stillOwing = $this->createTestMember('StillOwing', 'Member');
+        $surname = $this->uniqueSurname('SettledSort');
+        $stillOwing = $this->createTestMember('StillOwing', $surname);
         $this->createTestTransaction($stillOwing, -5000, '2026-01-01 10:00:00');
 
-        $settledUp = $this->createTestMember('SettledUp', 'Member');
+        $settledUp = $this->createTestMember('SettledUp', $surname);
         $settledTransactionId = $this->createTestTransaction($settledUp, -5000, '2026-01-01 10:00:00');
 
         $adminId = $this->createTestAdminUser("balance-sort-admin-{$settledUp}@example.com");
         $settlementId = $this->createSettlementRow($adminId, '2026-01-02', '2026-01-03', 5000, 1);
         $this->markTransactionSettled($settlementId, $settledTransactionId, $settledUp, -5000);
 
-        $ascending = $this->membersRepository->listPaginated(1000, 0, [], 'balance', 'asc');
-
-        $testIds = [$stillOwing, $settledUp];
-        $orderedIds = array_values(array_intersect(
-            array_column($ascending['items'], 'id'),
-            $testIds
-        ));
+        $ascending = $this->membersRepository->listPaginated(50, 0, [], 'balance', 'asc', $surname);
 
         $this->assertSame(
             [$stillOwing, $settledUp],
-            $orderedIds,
+            array_column($ascending['items'], 'id'),
             'a settled debt must not count as an outstanding balance'
         );
     }
@@ -476,20 +466,22 @@ class MembersRepositoryTest extends DatabaseTestCase
 
     public function test_listPaginated_reports_the_unsettled_balance_on_each_row(): void
     {
-        $member = $this->createTestMember('DeckelRow', 'Member');
+        $surname = $this->uniqueSurname('DeckelRow');
+        $member = $this->createTestMember('DeckelRow', $surname);
         $this->createTestTransaction($member, 1250, '2026-01-01 10:00:00');
         $this->createTestTransaction($member, 375, '2026-01-01 11:00:00');
 
-        $row = $this->findRowById($this->membersRepository->listPaginated(1000, 0)['items'], $member);
+        $row = $this->findRowById($this->membersRepository->listPaginated(50, 0, [], 'created_at', 'desc', $surname)['items'], $member);
 
         $this->assertSame(1625, (int) $row['balance_cents']);
     }
 
     public function test_listPaginated_reports_zero_for_a_member_who_owes_nothing(): void
     {
-        $member = $this->createTestMember('DeckelEmpty', 'Member');
+        $surname = $this->uniqueSurname('DeckelEmpty');
+        $member = $this->createTestMember('DeckelEmpty', $surname);
 
-        $row = $this->findRowById($this->membersRepository->listPaginated(1000, 0)['items'], $member);
+        $row = $this->findRowById($this->membersRepository->listPaginated(50, 0, [], 'created_at', 'desc', $surname)['items'], $member);
 
         // Zero rather than NULL: the column has to render a figure for every
         // member, and a blank cell claims the tab is unknown rather than nil.
@@ -498,7 +490,8 @@ class MembersRepositoryTest extends DatabaseTestCase
 
     public function test_listPaginated_leaves_settled_transactions_out_of_the_reported_balance(): void
     {
-        $member = $this->createTestMember('DeckelSettled', 'Member');
+        $surname = $this->uniqueSurname('DeckelSettled');
+        $member = $this->createTestMember('DeckelSettled', $surname);
         $settled = $this->createTestTransaction($member, 5000, '2026-01-01 10:00:00');
         $this->createTestTransaction($member, 700, '2026-01-01 11:00:00');
 
@@ -506,7 +499,7 @@ class MembersRepositoryTest extends DatabaseTestCase
         $settlementId = $this->createSettlementRow($adminId, '2026-01-02', '2026-01-03', 5000, 1);
         $this->markTransactionSettled($settlementId, $settled, $member, 5000);
 
-        $row = $this->findRowById($this->membersRepository->listPaginated(1000, 0)['items'], $member);
+        $row = $this->findRowById($this->membersRepository->listPaginated(50, 0, [], 'created_at', 'desc', $surname)['items'], $member);
 
         // The figure the list shows and the figure it sorts by have to be the
         // same one, or the column contradicts its own arrow.
@@ -515,10 +508,11 @@ class MembersRepositoryTest extends DatabaseTestCase
 
     public function test_findById_reports_the_same_balance_as_the_list(): void
     {
-        $member = $this->createTestMember('DeckelDetail', 'Member');
+        $surname = $this->uniqueSurname('DeckelDetail');
+        $member = $this->createTestMember('DeckelDetail', $surname);
         $this->createTestTransaction($member, 640, '2026-01-01 10:00:00');
 
-        $row = $this->findRowById($this->membersRepository->listPaginated(1000, 0)['items'], $member);
+        $row = $this->findRowById($this->membersRepository->listPaginated(50, 0, [], 'created_at', 'desc', $surname)['items'], $member);
 
         $this->assertSame(640, (int) $this->membersRepository->findById($member)['balance_cents']);
         $this->assertSame((int) $row['balance_cents'], (int) $this->membersRepository->findById($member)['balance_cents']);
@@ -923,6 +917,25 @@ class MembersRepositoryTest extends DatabaseTestCase
     {
         $stmt = $this->db->prepare('UPDATE members SET card_uid = ? WHERE id = ?');
         $stmt->execute([$cardUid, $memberId]);
+    }
+
+    /**
+     * A surname nothing else in the database shares.
+     *
+     * `listPaginated` has no id filter, so a test that wants only its own rows
+     * has to name them. The alternative these tests used — one page of 1000,
+     * assumed to cover everything — held only while the table stayed small, and
+     * the API suite books a hundred transactions and a member per run against
+     * the same database. Once the member count passed a thousand the page
+     * silently stopped containing the fixture, and the failure read as a broken
+     * balance query.
+     *
+     * Same rule as E2E pattern 001: create data nothing else can collide with,
+     * and ask for it by name.
+     */
+    private function uniqueSurname(string $prefix): string
+    {
+        return $prefix . substr(str_replace('-', '', $this->generateUuid()), 0, 8);
     }
 
     private function createTestMember(string $firstName, string $lastName): string

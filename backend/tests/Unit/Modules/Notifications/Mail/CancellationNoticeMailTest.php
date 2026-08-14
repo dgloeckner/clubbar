@@ -29,7 +29,7 @@ class CancellationNoticeMailTest extends TestCase
             'language' => $language,
             'recipientAddress' => 'mitglied@example.org',
             'recipientName' => 'Erika Mustermann',
-            'salutationName' => 'Erika Mustermann',
+            'salutationName' => 'Erika',
             'branding' => new MailBranding(
                 orgName: 'Beispiel-Ruderverein e.V.',
                 addressLine: 'Musterweg 35, 60599 Frankfurt am Main',
@@ -78,9 +78,18 @@ class CancellationNoticeMailTest extends TestCase
         $message = $this->render($language);
 
         $this->assertStringContainsString(
-            $language === MailLanguage::German ? 'nichts weiter tun' : 'nothing for you to do',
+            $language === MailLanguage::German ? 'Du musst nichts weiter tun' : 'nothing for you to do',
             $message->text,
         );
+    }
+
+    public function test_the_german_notice_is_in_the_du_form(): void
+    {
+        $message = $this->render(MailLanguage::German);
+
+        $this->assertStringContainsString('Hallo Erika,', $message->text);
+        $this->assertStringContainsString('Dein Konto', $message->text);
+        $this->assertStringNotContainsString('Ihr Konto', $message->text);
     }
 
     /**
