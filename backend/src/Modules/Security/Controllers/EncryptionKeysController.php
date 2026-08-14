@@ -48,7 +48,7 @@ class EncryptionKeysController
             'key_identifier' => ['required', 'string', 'max:100'],
             'current_password' => ['required', 'string'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         if (!$this->requireStepUp($request, $response, $body, $failed)) {
@@ -123,7 +123,7 @@ class EncryptionKeysController
         $body = $request->getParsedBody() ?? [];
 
         if (!$this->validator->validate($body, ['private_key' => ['required', 'string']])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         if (!$this->requireStepUp($request, $response, $body, $failed)) {

@@ -46,7 +46,7 @@ class AdminController
             'is_active' => ['nullable', 'boolean'],
             'icon_name' => ['nullable', 'string', 'max:50'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $category = $this->categoriesService->createCategory($body, $adminId);
@@ -65,7 +65,7 @@ class AdminController
             'is_active' => ['nullable', 'boolean'],
             'icon_name' => ['nullable', 'string', 'max:50'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         try {
@@ -88,7 +88,7 @@ class AdminController
         if (!$this->validator->validate($body, [
             'is_active' => ['required', 'boolean'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         try {
@@ -131,7 +131,7 @@ class AdminController
             'sort_by' => ['nullable', 'in:name_asc,name_desc,price_asc,price_desc,category_asc,category_desc,created_at_asc,created_at_desc'],
             'search' => ['nullable', 'string'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $query = ListQuery::fromParams($params);
@@ -170,7 +170,7 @@ class AdminController
             'icon_name' => ['nullable', 'string', 'max:50'],
             'requires_dispenser' => ['nullable', 'boolean'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $product = $this->productsService->createProduct($body, $adminId);
@@ -193,7 +193,7 @@ class AdminController
             if (isset($body['requires_dispenser'])) $rules['requires_dispenser'] = ['boolean'];
 
             if (!empty($rules) && !$this->validator->validate($body, $rules)) {
-                return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+                return $this->validationFailed($response, $this->validator->errors());
             }
         }
 
@@ -211,7 +211,7 @@ class AdminController
         if (!$this->validator->validate($body, [
             'is_active' => ['required', 'boolean'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $product = $this->productsService->toggleStatus($productId, (bool) $body['is_active'], $adminId);

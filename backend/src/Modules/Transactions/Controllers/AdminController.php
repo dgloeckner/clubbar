@@ -99,11 +99,7 @@ class AdminController
             $errors = $this->validator->errors();
             $errors['reason'] ??= ['reason is required'];
 
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'message' => 'The given data was invalid.',
-                'errors' => $errors,
-            ], 422);
+            return $this->validationFailed($response, $errors);
         }
 
         $result = $this->transactionsService->storno(
@@ -134,15 +130,12 @@ class AdminController
             $dateErrors['to_date'] = ['to_date must be a valid date in YYYY-MM-DD format'];
         }
         if (!empty($dateErrors)) {
-            return $this->json($response, ['error' => 'validation_failed', 'errors' => $dateErrors], 422);
+            return $this->validationFailed($response, $dateErrors);
         }
 
         // Validate date range (to_date must not be before from_date)
         if ($fromDate !== null && $toDate !== null && $toDate < $fromDate) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'errors' => ['to_date' => ['to_date must not be before from_date']],
-            ], 422);
+            return $this->validationFailed($response, ['to_date' => ['to_date must not be before from_date']]);
         }
 
         $filters = [];

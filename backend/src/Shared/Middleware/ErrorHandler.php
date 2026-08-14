@@ -54,13 +54,14 @@ class ErrorHandler implements MiddlewareInterface
                     'message' => $e->getMessage()
                 ];
 
-                // Add validation errors if available
+                // A named field examined and rejected reports its messages
+                // under `messages` (#446) — the shape every `Validator` call
+                // site and list endpoint has always used, so a client parses
+                // one structure regardless of which exception produced it.
                 if ($e instanceof ValidationException) {
-                    $body['errors'] = $e->getErrors();
+                    $body['messages'] = $e->getErrors();
                 }
 
-                // Malformed query parameters report per-parameter messages
-                // under `messages`, the shape list endpoints have always used.
                 if ($e instanceof InvalidQueryParameterException) {
                     $body['messages'] = $e->getMessages();
                 }

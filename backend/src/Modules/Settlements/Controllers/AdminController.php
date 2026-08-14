@@ -57,10 +57,7 @@ class AdminController
         // `transaction_ids` is the compatibility path.
         foreach (['member_ids', 'transaction_ids'] as $field) {
             if (isset($body[$field]) && !is_array($body[$field])) {
-                return $this->json($response, [
-                    'error' => 'validation_failed',
-                    'messages' => [$field => ["{$field} must be an array of ids"]],
-                ], 422);
+                return $this->validationFailed($response, [$field => ["{$field} must be an array of ids"]]);
             }
         }
 
@@ -90,7 +87,7 @@ class AdminController
             'date_to'    => ['date'],
             'member_id'  => ['string'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $filters = $this->extractTransactionFilters($params);
@@ -111,11 +108,11 @@ class AdminController
             'date_to'         => ['date'],
             'member_id'       => ['string'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         if ($leadTimeError = $this->validateLeadTime($body['execution_date'])) {
-            return $this->json($response, $leadTimeError, 422);
+            return $this->validationFailed($response, $leadTimeError);
         }
 
         $filters = $this->extractTransactionFilters($body);
@@ -146,19 +143,16 @@ class AdminController
             'execution_date'  => ['required', 'date', 'business_day'],
             'method'          => ['in:direct_debit,bank_transfer,write_off'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $field = $namesMembers ? 'member_ids' : 'transaction_ids';
         if (empty($body[$field])) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'messages' => [$field => ["{$field} must not be empty"]],
-            ], 422);
+            return $this->validationFailed($response, [$field => ["{$field} must not be empty"]]);
         }
 
         if ($leadTimeError = $this->validateLeadTime($body['execution_date'])) {
-            return $this->json($response, $leadTimeError, 422);
+            return $this->validationFailed($response, $leadTimeError);
         }
 
         // Ruling #163: method replaces settlement_type + manual_reason; the
@@ -276,7 +270,7 @@ class AdminController
             'bank_reference' => ['string', 'max:35'],
             'notes'          => ['string', 'max:1000'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $this->reversalService->reverse(
@@ -339,7 +333,7 @@ class AdminController
         $body = $request->getParsedBody() ?? [];
 
         if (!$this->validator->validate($body, ['private_key' => ['required', 'string']])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $caller = $request->getAttribute('admin_user');
@@ -488,7 +482,7 @@ class AdminController
      * could have the bank collect tomorrow — no SEPA pre-notification, and
      * members debited without the advance notice the rule exists to give.
      *
-     * @return array{error: string, messages: array<string, list<string>>}|null Null when valid.
+     * @return array<string, list<string>>|null Field messages, keyed by `execution_date`. Null when valid.
      */
     private function validateLeadTime(string $executionDate): ?array
     {
@@ -496,10 +490,7 @@ class AdminController
             return null;
         }
 
-        return [
-            'error' => 'validation_failed',
-            'messages' => ['execution_date' => [SettlementLeadTime::violationMessage()]],
-        ];
+        return ['execution_date' => [SettlementLeadTime::violationMessage()]];
     }
 
     private function buildSettlementCsv(array $memberRows): string

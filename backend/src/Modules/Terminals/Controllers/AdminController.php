@@ -61,7 +61,7 @@ class AdminController
             'device_id' => ['required', 'string'],
             'current_password' => ['required', 'string'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         if (!$this->requireStepUp($request, $response, $body, $failed)) {
@@ -71,10 +71,7 @@ class AdminController
         try {
             $result = $this->terminalsService->createTerminal($body['name'], $body['device_id'], $adminId);
         } catch (DuplicateResourceException) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'messages' => ['device_id' => ['Device ID already exists']],
-            ], 422);
+            return $this->validationFailed($response, ['device_id' => ['Device ID already exists']]);
         }
 
         // Return api_token at top level (not inside terminal object)
@@ -104,17 +101,14 @@ class AdminController
 
         // Require at least one updatable field
         if (!isset($body['name']) && !isset($body['is_active'])) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'messages' => ['_base' => ['At least one field (name, is_active) must be provided']],
-            ], 422);
+            return $this->validationFailed($response, ['_base' => ['At least one field (name, is_active) must be provided']]);
         }
 
         if (!$this->validator->validate($body, [
             'name' => ['nullable', 'string', 'max:100'],
             'is_active' => ['nullable'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $terminal = $this->terminalsService->updateTerminal(
@@ -144,7 +138,7 @@ class AdminController
         $adminId = $request->getAttribute('admin_user_id');
 
         if (!$this->validator->validate($body, ['current_password' => ['required', 'string']])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         if (!$this->requireStepUp($request, $response, $body, $failed)) {

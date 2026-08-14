@@ -57,10 +57,15 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { ValidationErrorResponseDetails } from './validationErrorResponseDetails';
+import type { ValidationErrorResponseMessages } from './validationErrorResponseMessages';
 
 export interface ValidationErrorResponse {
-  error?: string;
+  error: string;
+  /** Present when a service raised a typed exception with its own
+message; absent from a plain `Validator` rejection, which reports
+only through `messages`.
+ */
   message?: string;
-  details?: ValidationErrorResponseDetails;
+  /** Field name to the list of validation messages rejecting it. */
+  messages: ValidationErrorResponseMessages;
 }

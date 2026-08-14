@@ -51,7 +51,7 @@ class MailConfigController
         ];
 
         if (!$this->validator->validate($body, $rules)) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->validationFailed($response, $this->validator->errors());
         }
 
         $config = $this->mailConfigService->updateConfig($body, $adminId);

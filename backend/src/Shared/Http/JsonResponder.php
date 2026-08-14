@@ -22,4 +22,28 @@ trait JsonResponder
 
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
+
+    /**
+     * The one 422 body for a named field that was examined and rejected
+     * (issue #446). Every `Validator` call site, and everything that used to
+     * hand-write its own field map, goes through this instead of literals
+     * that agree today but nothing keeps agreeing.
+     *
+     * `$message` is omitted by default — the admin API's `ValidationErrorResponse`
+     * has never required it, and adding it everywhere would be one more thing
+     * for 46 call sites to agree on for no reader's benefit. Pass one only
+     * where a caller's contract requires it, e.g. the terminal API's shared
+     * `ErrorResponse` base, which every terminal error carries a `message` for.
+     *
+     * @param array<string, list<string>> $messages
+     */
+    protected function validationFailed(Response $response, array $messages, ?string $message = null): Response
+    {
+        $body = ['error' => 'validation_failed', 'messages' => $messages];
+        if ($message !== null) {
+            $body['message'] = $message;
+        }
+
+        return $this->json($response, $body, 422);
+    }
 }
