@@ -158,15 +158,6 @@ erDiagram
         datetime updated_at "Last modification"
     }
 
-    unknown_card_scans {
-        int id PK "Auto-increment"
-        varchar_20 card_uid UK "Scanned card identifier"
-        binary_16 terminal_id FK "Which terminal"
-        datetime first_seen_at "First scan timestamp"
-        datetime last_seen_at "Last scan timestamp"
-        int scan_count "Number of scan attempts"
-    }
-
     admin_users {
         binary_16 id PK "UUID"
         varchar_255 email UK "Login email"
@@ -233,7 +224,6 @@ erDiagram
     admin_users ||--o{ settlements : "cancels"
     admin_users ||--o{ settlements : "submits"
     admin_users ||--o{ audit_log : "performs"
-    terminals ||--o{ unknown_card_scans : "detects"
     admin_users ||--o{ sepa_config : "modifies"
     admin_users ||--o{ instance_config : "modifies"
 
@@ -574,27 +564,6 @@ replacement is a credential too.
 
 ---
 
-### unknown_card_scans
-
-Cards scanned at terminal but not assigned to any member.
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INT | PK, AUTO_INCREMENT | Internal reference |
-| card_uid | VARCHAR(20) | UNIQUE, NOT NULL | Scanned card identifier (8-20 hex chars, uppercase) |
-| terminal_id | BINARY(16) | FK → terminals.id, NULL | Which terminal first scanned |
-| first_seen_at | DATETIME | NOT NULL | First scan timestamp |
-| last_seen_at | DATETIME | NOT NULL | Last scan timestamp |
-| scan_count | INT | NOT NULL, DEFAULT 1 | Number of scan attempts |
-
-**Indexes:**
-- `card_uid` (UNIQUE)
-- `last_seen_at`
-
-**Cleanup**: Entries removed when card is assigned to a member.
-
----
-
 ### admin_users
 
 Administrator accounts for the admin panel.
@@ -748,7 +717,6 @@ flowchart TB
         SI[settlement_items]
         SR[settlement_reversals]
         MD[mandates]
-        UC[unknown_card_scans]
     end
 
     subgraph Admin["Administration"]
@@ -776,7 +744,6 @@ flowchart TB
     EK -->|"1:N"| MD
     AU -->|"1:N"| S
     AU -->|"1:N"| AL
-    T -->|"1:N"| UC
     AU -->|"1:N"| SC
     AU -->|"1:N"| IC
 
@@ -809,7 +776,6 @@ flowchart TB
 | encryption_keys → mandates | 1:N | The key generation a mandate's IBAN is sealed under; what a rotation batch walks |
 | admin_users → settlements | 1:N | Admin creates/cancels/submits settlements |
 | admin_users → audit_log | 1:N | Admin performs many audited actions |
-| terminals → unknown_card_scans | 1:N | Terminal detects unknown cards |
 
 ---
 
@@ -840,7 +806,6 @@ flowchart TB
 | mandates | encryption_key_id | encryption_keys | RESTRICT |
 | members | held_by_admin_id | admin_users | SET NULL |
 | members | cleared_by_admin_id | admin_users | SET NULL |
-| unknown_card_scans | terminal_id | terminals | SET NULL |
 | audit_log | admin_user_id | admin_users | SET NULL |
 | sepa_config | updated_by_admin_id | admin_users | SET NULL |
 | instance_config | updated_by_admin_id | admin_users | SET NULL |
