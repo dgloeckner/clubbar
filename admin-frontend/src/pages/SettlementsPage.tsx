@@ -1019,7 +1019,17 @@ export function SettlementsPage() {
               <div data-testid="settlements-table-wrapper" style={tableWrapperStyles}>
                 <table
                   data-testid="settlements-table"
-                  style={tableElementStyles}
+                  style={{
+                    ...tableElementStyles,
+                    // `table-layout: fixed` gave every column an equal ~16%
+                    // share regardless of content, so the actions column —
+                    // which holds up to five buttons — was squeezed into the
+                    // same width as "Date". That is what made the row wrap
+                    // raggedly, one stray button per broken line (#373).
+                    // `auto` lets the browser size each column to what its
+                    // content actually needs.
+                    tableLayout: 'auto',
+                  }}
                 >
                   <thead>
                     <tr style={headerRowStyle}>
@@ -1050,7 +1060,7 @@ export function SettlementsPage() {
                       <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('settlements.summary')}</th>
                       <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('common.amount')}</th>
                       <th style={headerCellBaseStyle}>{t('settlements.status')}</th>
-                      <th style={{ ...headerCellBaseStyle, textAlign: 'center' }}>{t('common.actions')}</th>
+                      <th style={{ ...headerCellBaseStyle, textAlign: 'center', whiteSpace: 'nowrap' }}>{t('common.actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1185,7 +1195,12 @@ export function SettlementsPage() {
                             textAlign: 'center',
                           }}
                         >
-                          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                          {/* One line, not a wrap that breaks unevenly (#373):
+                              the buttons stay `nowrap` and the table wrapper's
+                              own `overflow-x: auto` scrolls horizontally on a
+                              narrow viewport instead of the row reflowing into
+                              a ragged second line. */}
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
                             {/* The member breakdown (§7). The settlement detail
                                 page was deliberately deleted; what failed to
                                 justify a page can still justify a disclosure,
