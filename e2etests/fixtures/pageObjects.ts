@@ -164,7 +164,7 @@ const authenticatedCategoriesPageFixture = async (
   use: (value: CategoriesPage) => Promise<void>
 ) => {
   // Navigate to categories page
-  await page.goto('/categories', { waitUntil: 'domcontentloaded' })
+  await page.goto('/products/categories', { waitUntil: 'domcontentloaded' })
 
   // Wait for page to load - categories-page test ID indicates page is ready
   await page.waitForSelector('[data-testid="categories-page"]', { timeout: 5000 })

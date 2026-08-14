@@ -205,7 +205,7 @@ export const test = pomTest.extend<{
   },
 
   authenticatedCategoriesPage: async ({ page }, use) => {
-    await page.goto('/categories', { waitUntil: 'networkidle' })
+    await page.goto('/products/categories', { waitUntil: 'networkidle' })
     await use(new CategoriesPage(page))
   },
 

@@ -102,17 +102,19 @@ test.describe('Mobile Responsive Layout', () => {
       await page.getByTestId('tab-more').click()
       await expect(page.getByTestId('tab-more-popup')).toBeVisible()
 
-      await expect(page.getByTestId('tab-categories')).toBeVisible()
+      await expect(page.getByTestId('tab-settlements')).toBeVisible()
       await expect(page.getByTestId('tab-reports')).toBeVisible()
       await expect(page.getByTestId('tab-settings')).toBeVisible()
       await expect(page.getByTestId('tab-audit-log')).toBeVisible()
     })
 
-    test('should navigate to Categories from More popup', async ({ page }) => {
-      await page.getByTestId('tab-more').click()
-      await expect(page.getByTestId('tab-more-popup')).toBeVisible()
-      await page.getByTestId('tab-categories').click()
-      await expect(page).toHaveURL(/\/categories/)
+    // #366: Categories is a tab of the Products page, not a top-level entry —
+    // it no longer appears in the bottom tab bar's More popup.
+    test('should navigate to Categories via the Products tab', async ({ page }) => {
+      await page.getByTestId('tab-products').click()
+      await expect(page).toHaveURL(/\/products/)
+      await page.getByTestId('products-tab-categories').click()
+      await expect(page).toHaveURL(/\/products\/categories/)
     })
 
     test('should navigate to Reports from More popup', async ({ page }) => {
@@ -173,7 +175,7 @@ test.describe('Mobile Responsive Layout', () => {
     test('should show mobile cards on Categories page', async ({ page }) => {
       // Same as Products above: no seeded categories, so the list is empty
       // until this test puts something in it.
-      await page.goto('/categories')
+      await page.goto('/products/categories')
       await createCategory(page)
       await page.reload()
 

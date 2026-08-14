@@ -58,6 +58,14 @@ test.describe('Admin Frontend - Categories Page', () => {
       // Pattern 006: Create button should be clickable
       await authenticatedCategoriesPage.expectCreateButtonEnabled()
     })
+
+    // #366: Categories is a tab of the Products page, reached from Products
+    // rather than a top-level nav entry.
+    test('should switch to the Products tab', async ({ page, authenticatedCategoriesPage }) => {
+      await authenticatedCategoriesPage.expectCategoriesTabActive()
+      await authenticatedCategoriesPage.clickProductsTab()
+      await expect(page).toHaveURL(/\/products$/)
+    })
   })
 
   /**
