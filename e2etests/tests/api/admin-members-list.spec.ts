@@ -270,5 +270,55 @@ test.describe('Admin Members List Endpoint', () => {
 
       expect(response.status()).toBe(422);
     });
+
+    /**
+     * Search terms carrying a LIKE wildcard.
+     *
+     * `SafeQuery::escapeLike` escaped `%` and `_` before the backslash and so
+     * re-escaped its own output; the pattern that reached the database matched
+     * nothing, and searching for a name with an underscore in it came back
+     * empty while the member sat in the list.
+     */
+    test('GET /api/admin/members finds a name containing a LIKE wildcard', async ({ authenticatedRequest }) => {
+      const token = sortToken();
+      const underscore = await createMember(authenticatedRequest, {
+        first_name: `Jean${token}_Luc`, last_name: 'Picard', email: `${token}-jl@test.com`,
+      });
+      const percent = await createMember(authenticatedRequest, {
+        first_name: `Cent${token}100%`, last_name: 'Proof', email: `${token}-pct@test.com`,
+      });
+
+      const underscoreHit = await authenticatedRequest.get('/api/admin/members', {
+        params: { search: `Jean${token}_Luc` },
+      });
+      expect(underscoreHit.status()).toBe(200);
+      expect((await underscoreHit.json()).data.map((m: { id: string }) => m.id)).toEqual([underscore]);
+
+      const percentHit = await authenticatedRequest.get('/api/admin/members', {
+        params: { search: `Cent${token}100%` },
+      });
+      expect(percentHit.status()).toBe(200);
+      expect((await percentHit.json()).data.map((m: { id: string }) => m.id)).toEqual([percent]);
+    });
+
+    test('GET /api/admin/members reads a searched wildcard as a character, not a wildcard', async ({
+      authenticatedRequest,
+    }) => {
+      // The other half of the escape's job: a `_` the admin typed must not
+      // quietly match every other character in that position.
+      const token = sortToken();
+      const typed = await createMember(authenticatedRequest, {
+        first_name: `Wild${token}_x`, last_name: 'Escape', email: `${token}-typed@test.com`,
+      });
+      await createMember(authenticatedRequest, {
+        first_name: `Wild${token}Zx`, last_name: 'Escape', email: `${token}-decoy@test.com`,
+      });
+
+      const response = await authenticatedRequest.get('/api/admin/members', {
+        params: { search: `Wild${token}_x` },
+      });
+      expect(response.status()).toBe(200);
+      expect((await response.json()).data.map((m: { id: string }) => m.id)).toEqual([typed]);
+    });
   });
 });
