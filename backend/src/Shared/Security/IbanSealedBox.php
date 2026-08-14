@@ -22,9 +22,6 @@ namespace App\Shared\Security;
  */
 class IbanSealedBox
 {
-    /** Curve25519 keys and the BLAKE2b key are 32 bytes = 64 hex characters. */
-    private const KEY_BYTES = 32;
-
     private const CIPHERTEXT_PREFIX = 'v1:';
 
     /**
@@ -46,8 +43,6 @@ class IbanSealedBox
         '515f0f4eb534478980d7320182b4c9427b851f3f082cfb31e18b84b9e952d040',
     ];
 
-    private const DEVELOPMENT_ENVIRONMENTS = ['local', 'dev', 'development', 'test', 'testing'];
-
     private string $fingerprintKey;
     private string $appEnv;
 
@@ -65,16 +60,16 @@ class IbanSealedBox
 
         $this->appEnv = strtolower($appEnv);
 
-        if (!in_array($this->appEnv, self::DEVELOPMENT_ENVIRONMENTS, true)
-            && in_array(strtolower($fingerprintKeyHex), self::PUBLISHED_FINGERPRINT_KEYS, true)) {
-            throw new \RuntimeException(
-                'IBAN_FINGERPRINT_KEY is the development key published in this repository, so anyone '
-                . 'who obtains the database and the repo can confirm IBAN guesses offline. Generate a '
-                . 'key of your own with: openssl rand -hex 32'
-            );
-        }
+        HexSecretKey::rejectIfPublished(
+            $fingerprintKeyHex,
+            self::PUBLISHED_FINGERPRINT_KEYS,
+            $this->appEnv,
+            'IBAN_FINGERPRINT_KEY is the development key published in this repository, so anyone '
+            . 'who obtains the database and the repo can confirm IBAN guesses offline. Generate a '
+            . 'key of your own with: openssl rand -hex 32'
+        );
 
-        $this->fingerprintKey = self::decodeKey($fingerprintKeyHex, 'IBAN_FINGERPRINT_KEY');
+        $this->fingerprintKey = HexSecretKey::decode($fingerprintKeyHex, 'IBAN_FINGERPRINT_KEY');
     }
 
     /**
@@ -149,7 +144,7 @@ class IbanSealedBox
         return bin2hex(sodium_crypto_generichash(
             self::normalize($iban),
             $this->fingerprintKey,
-            self::KEY_BYTES,
+            HexSecretKey::BYTES,
         ));
     }
 
@@ -172,51 +167,26 @@ class IbanSealedBox
      */
     public function rejectPublishedPublicKey(string $publicKeyRaw): void
     {
-        if (in_array($this->appEnv, self::DEVELOPMENT_ENVIRONMENTS, true)) {
-            return;
-        }
-
-        if (in_array(bin2hex($publicKeyRaw), self::PUBLISHED_PUBLIC_KEYS, true)) {
-            throw new \InvalidArgumentException(
-                'This public key is the development keypair published in the repository; IBANs sealed '
-                . 'under it are readable by anyone. Generate a production keypair with the offline '
-                . 'generator (tools/keypair-generator.html).'
-            );
-        }
+        HexSecretKey::rejectIfPublished(
+            bin2hex($publicKeyRaw),
+            self::PUBLISHED_PUBLIC_KEYS,
+            $this->appEnv,
+            'This public key is the development keypair published in the repository; IBANs sealed '
+            . 'under it are readable by anyone. Generate a production keypair with the offline '
+            . 'generator (tools/keypair-generator.html).',
+            \InvalidArgumentException::class,
+        );
     }
 
     private static function assertRawKeyLength(string $keyRaw, string $what): void
     {
-        if (strlen($keyRaw) !== self::KEY_BYTES) {
+        if (strlen($keyRaw) !== HexSecretKey::BYTES) {
             throw new \InvalidArgumentException(sprintf(
                 'The %s must be %d raw bytes; got %d.',
                 $what,
-                self::KEY_BYTES,
+                HexSecretKey::BYTES,
                 strlen($keyRaw),
             ));
         }
-    }
-
-    /**
-     * Checked rather than assumed for the same reason as TotpService: an
-     * empty value (exactly what package/index.php produces when the config
-     * key is absent) would silently fingerprint every IBAN under the same
-     * degenerate key on every such install.
-     */
-    private static function decodeKey(string $keyHex, string $name): string
-    {
-        $expected = self::KEY_BYTES * 2;
-
-        if (strlen($keyHex) !== $expected || !ctype_xdigit($keyHex)) {
-            throw new \RuntimeException(sprintf(
-                '%s must be %d hexadecimal characters (%d bytes); got %d character(s).',
-                $name,
-                $expected,
-                self::KEY_BYTES,
-                strlen($keyHex),
-            ));
-        }
-
-        return hex2bin($keyHex);
     }
 }
