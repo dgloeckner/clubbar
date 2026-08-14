@@ -476,6 +476,15 @@ paths:
             type: string
             enum: [all, with, without]
             default: all
+        - name: has_email
+          in: query
+          description: >-
+            Filter by email presence — finds legacy members predating the
+            required-email rule (#362) so they can be backfilled.
+          schema:
+            type: string
+            enum: [all, with, without]
+            default: all
         - name: search
           in: query
           description: Search in first name, last name, or card UID
@@ -4367,6 +4376,13 @@ components:
         last_name:
           type: string
           nullable: true
+        email:
+          type: string
+          nullable: true
+          description: >-
+            Null only for a legacy member created before email became
+            required (#362) — the list surfaces this via `has_email` so a
+            Kassenwart can find and backfill them.
         balance_cents:
           type: integer
           description: |
@@ -4783,7 +4799,7 @@ components:
       # bank details is a supported state, and the backend has always accepted
       # `iban` and `mandate_signed_at` as nullable. The spec said otherwise,
       # which made the admin form refuse to save such a member at all (#131).
-      required: [first_name, last_name, preferred_language]
+      required: [first_name, last_name, email, preferred_language]
       properties:
         first_name:
           type: string
@@ -4795,6 +4811,10 @@ components:
           type: string
           format: email
           maxLength: 255
+          description: >-
+            Required — the pre-notification and settlement statement emails
+            are a contractual promise (Nutzungsordnung § 7), so a member
+            cannot be onboarded without one (#362).
         phone:
           type: string
           maxLength: 20
@@ -4829,9 +4849,10 @@ components:
       description: >-
         Only the fields the request carries are changed. A field being cleared
         may be sent as `""` as well as `null` — a blank string is read as no
-        value for `phone`, `card_uid`, `account_holder_name` and
+        value for `phone`, `card_uid`, `account_holder_name`, `email` and
         `mandate_signed_at`, so a form that empties an input clears the field
-        rather than storing the empty string.
+        rather than storing the empty string. `email` is the exception that
+        does not always clear: see the field for when it is rejected instead.
 
         `iban` is the exception, because it is the one field the form cannot
         prefill: it is sealed at rest and never returned, so it arrives blank
@@ -4850,6 +4871,11 @@ components:
           format: email
           maxLength: 255
           nullable: true
+          description: >-
+            `null` or `""` is only accepted while the update also sets (or
+            finds) the member inactive — an active member's email cannot be
+            cleared (#362); the DB column stays nullable for GDPR erasure,
+            which anonymizes through a separate endpoint.
         phone:
           type: string
           maxLength: 20

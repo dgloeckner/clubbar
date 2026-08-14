@@ -10,6 +10,7 @@ use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\ValidationException;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
@@ -171,6 +172,81 @@ class MembersServiceTest extends TestCase
         $this->expectException(NotFoundException::class);
 
         $this->membersService->updateMember('missing', ['first_name' => 'Erika']);
+    }
+
+    /**
+     * Email is required at application level for an active member (#362): the
+     * pre-notification and settlement statement emails are a contractual
+     * promise (Nutzungsordnung § 7). The column itself stays nullable — this
+     * is an app-level rule, not a DB one — so it is enforced here rather than
+     * with a NOT NULL constraint that would also break anonymization.
+     */
+    public function test_updateMember_rejects_clearing_email_for_an_active_member(): void
+    {
+        $this->membersRepository->method('findById')->willReturn($this->member('member-1', ['is_active' => 1]));
+
+        $this->membersRepository->expects($this->never())->method('updateById');
+
+        try {
+            $this->membersService->updateMember('member-1', ['email' => null]);
+            $this->fail('Expected a ValidationException');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('email', $e->getErrors());
+        }
+    }
+
+    /** A blank string means the same as `null` here — neither may reach the row. */
+    public function test_updateMember_rejects_a_blank_string_email_for_an_active_member(): void
+    {
+        $this->membersRepository->method('findById')->willReturn($this->member('member-1', ['is_active' => 1]));
+
+        $this->membersRepository->expects($this->never())->method('updateById');
+
+        $this->expectException(ValidationException::class);
+
+        $this->membersService->updateMember('member-1', ['email' => '']);
+    }
+
+    /**
+     * An inactive member is not bound by the contractual-promise rule above —
+     * deactivating first (or anonymizing, which is a separate write entirely)
+     * is how a member is meant to lose their email.
+     */
+    public function test_updateMember_allows_clearing_email_for_an_already_inactive_member(): void
+    {
+        $this->membersRepository->method('findById')->willReturn($this->member('member-1', ['is_active' => 0]));
+
+        $this->membersRepository->expects($this->once())
+            ->method('updateById')
+            ->with('member-1', ['email' => null])
+            ->willReturn($this->member('member-1', ['is_active' => 0, 'email' => null]));
+
+        $this->membersService->updateMember('member-1', ['email' => null]);
+    }
+
+    /** Deactivating and clearing the email in the same request is not a conflict. */
+    public function test_updateMember_allows_clearing_email_when_deactivating_in_the_same_request(): void
+    {
+        $this->membersRepository->method('findById')->willReturn($this->member('member-1', ['is_active' => 1]));
+
+        $this->membersRepository->expects($this->once())
+            ->method('updateById')
+            ->with('member-1', ['email' => null, 'is_active' => 0])
+            ->willReturn($this->member('member-1', ['is_active' => 0, 'email' => null]));
+
+        $this->membersService->updateMember('member-1', ['email' => null, 'is_active' => false]);
+    }
+
+    public function test_updateMember_allows_replacing_the_email_of_an_active_member(): void
+    {
+        $this->membersRepository->method('findById')->willReturn($this->member('member-1', ['is_active' => 1]));
+
+        $this->membersRepository->expects($this->once())
+            ->method('updateById')
+            ->with('member-1', ['email' => 'new@example.com'])
+            ->willReturn($this->member('member-1', ['email' => 'new@example.com']));
+
+        $this->membersService->updateMember('member-1', ['email' => 'new@example.com']);
     }
 
     public function test_anonymizeMember_throws_notFoundException_when_missing(): void

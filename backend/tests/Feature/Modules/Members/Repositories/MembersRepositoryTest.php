@@ -668,6 +668,31 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->assertSame(1, $this->countMandates($member['id']), 'the ended mandate is kept, not deleted');
     }
 
+    /**
+     * Email became required at application level for new members (#362), but
+     * the column itself stays nullable so an already-anonymized member and a
+     * member created before this rule existed both remain valid rows. Such a
+     * legacy member must still be editable through the repository — only the
+     * service layer's business rule (rejecting a clear for an active member)
+     * is what makes it required going forward, not a DB constraint.
+     */
+    public function test_updateById_can_set_an_email_on_a_legacy_member_that_has_none(): void
+    {
+        $memberId = $this->generateUuid();
+        $this->testMemberIds[] = $memberId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO members (id, first_name, last_name, email, preferred_language, is_active) VALUES (?, ?, ?, NULL, ?, ?)'
+        );
+        $stmt->execute([$memberId, 'Legacy', $this->uniqueSurname('Member'), 'de', 1]);
+
+        $found = $this->membersRepository->findById($memberId);
+        $this->assertNull($found['email'], 'the legacy row starts with no email');
+
+        $updated = $this->membersRepository->updateById($memberId, ['email' => 'backfilled@example.com']);
+
+        $this->assertSame('backfilled@example.com', $updated['email']);
+    }
+
     public function test_anonymize_ends_the_mandate_but_keeps_the_record(): void
     {
         $member = $this->createMemberWithBankingData();
