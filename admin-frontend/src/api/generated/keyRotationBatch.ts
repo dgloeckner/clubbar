@@ -57,22 +57,23 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { DashboardResponseAlertsEncryptionKey } from './dashboardResponseAlertsEncryptionKey';
-import type { DashboardResponseAlertsSepaIssues } from './dashboardResponseAlertsSepaIssues';
 
 /**
- * Admin alerts requiring attention
+ * What one re-encryption batch moved from the old key to the active one.
  */
-export type DashboardResponseAlerts = {
-  sepa_issues?: DashboardResponseAlertsSepaIssues;
-  /** Remaining lifetime of the ACTIVE IBAN encryption key
-([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)).
-
-Computed on every dashboard load rather than by a scheduler:
-shared hosting guarantees no cron (ADR-0031), and this is the
-warning an admin cannot miss. `missing` is the loudest state —
-until a key is activated, no member's bank details can be
-stored at all.
+export interface KeyRotationBatch {
+  source_key_id: string;
+  /** The ACTIVE key the rows were re-sealed under */
+  target_key_id: string;
+  /** Rows re-sealed by this batch */
+  processed: number;
+  /** Rows a concurrent member edit had already moved to the active key.
+Not a failure — the edit wins by design, and the row has left the
+backlog either way.
  */
-  encryption_key?: DashboardResponseAlertsEncryptionKey;
-};
+  skipped: number;
+  /** Rows still sealed under the source key after this batch */
+  remaining: number;
+  /** True when `remaining` is 0 and the rotation can be completed */
+  drained: boolean;
+}

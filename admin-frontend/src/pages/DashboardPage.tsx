@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -89,6 +90,10 @@ export function DashboardPage() {
   const terminal_status = data.terminal_status ?? []
   const system_status = data.system_status ?? {}
   const alerts = data.alerts ?? {}
+  const encryptionKeyAlert = alerts.encryption_key
+  // An alert whose severity the API left out is treated as nothing to say,
+  // rather than as an unstyled banner shouting a blank message.
+  const encryptionKeySeverity = encryptionKeyAlert?.severity ?? 'none'
 
   const statusColor = (status: string) => {
     switch (status) {
@@ -150,6 +155,50 @@ export function DashboardPage() {
           >
             {t('common.retry')}
           </button>
+        </div>
+      )}
+
+      {/* The IBAN encryption key's remaining lifetime (#394, ADR-0036).
+          Nothing evaluates expiry on a schedule — shared hosting has no cron —
+          so the landing page is where the club finds out, while there is still
+          time to rotate. Silent while the key is comfortably valid. */}
+      {encryptionKeyAlert && encryptionKeySeverity !== 'none' && (
+        <div
+          data-testid="dashboard-encryption-key-warning"
+          data-severity={encryptionKeySeverity}
+          data-state={encryptionKeyAlert.state}
+          style={{
+            padding: theme.spacing.md,
+            marginBottom: theme.spacing.lg,
+            background:
+              encryptionKeySeverity === 'error' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(249, 115, 22, 0.12)',
+            border: `1px solid ${severityColor(encryptionKeySeverity)}`,
+            borderRadius: theme.borderRadius.md,
+            color: severityColor(encryptionKeySeverity),
+            fontSize: theme.typography.fontSize.sm,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: theme.spacing.md,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>{encryptionKeyAlert.message}</span>
+          <Link
+            data-testid="dashboard-encryption-key-link"
+            to="/settings"
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: `1px solid ${severityColor(encryptionKeySeverity)}`,
+              color: severityColor(encryptionKeySeverity),
+              fontSize: '13px',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            {t('dashboard.manageKeys')}
+          </Link>
         </div>
       )}
 

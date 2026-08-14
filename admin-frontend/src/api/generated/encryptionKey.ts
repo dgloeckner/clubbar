@@ -57,22 +57,58 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { DashboardResponseAlertsEncryptionKey } from './dashboardResponseAlertsEncryptionKey';
-import type { DashboardResponseAlertsSepaIssues } from './dashboardResponseAlertsSepaIssues';
+import type { EncryptionKeyLifecycleState } from './encryptionKeyLifecycleState';
+import type { EncryptionKeyStatus } from './encryptionKeyStatus';
 
 /**
- * Admin alerts requiring attention
- */
-export type DashboardResponseAlerts = {
-  sepa_issues?: DashboardResponseAlertsSepaIssues;
-  /** Remaining lifetime of the ACTIVE IBAN encryption key
-([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)).
+ * One IBAN encryption keypair as the server knows it
+([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)) — metadata
+and the **public** half only. The database never contains a private
+key: it lives in the club's offline archive and is supplied per
+privileged request.
 
-Computed on every dashboard load rather than by a scheduler:
-shared hosting guarantees no cron (ADR-0031), and this is the
-warning an admin cannot miss. `missing` is the loudest state —
-until a key is activated, no member's bank details can be
-stored at all.
  */
-  encryption_key?: DashboardResponseAlertsEncryptionKey;
-};
+export interface EncryptionKey {
+  id: string;
+  /** Human-facing name given when the key was registered */
+  key_identifier: string;
+  algorithm: string;
+  /** The 32-byte Curve25519 public key, base64-encoded */
+  public_key: string;
+  /** SHA-256 of the raw public key — how a key is identified to humans */
+  fingerprint_sha256: string;
+  /** `pending` — registered, not yet in use.
+`active` — every new IBAN is sealed under it; exactly one key is active.
+`retiring` — superseded; its rows are being re-encrypted.
+`retired` — rotation finished, nothing sealed under it any more.
+`revoked` / `compromised` — withdrawn immediately, regardless of remaining lifetime.
+ */
+  status: EncryptionKeyStatus;
+  created_at: string;
+  /**
+   * When the 365-day cryptoperiod started
+   * @nullable
+   */
+  activated_at?: string | null;
+  /** @nullable */
+  expires_at?: string | null;
+  /** @nullable */
+  retired_at?: string | null;
+  /**
+   * Whole days left, negative once expired; null for a key that is not
+operational (pending, retired, revoked, compromised). Computed at
+request time — shared hosting has no cron (ADR-0031).
+
+   * @nullable
+   */
+  days_until_expiry?: number | null;
+  /** Warning tier — `info` ≤ 90 days, `warning` ≤ 30, `critical` ≤ 7 */
+  lifecycle_state?: EncryptionKeyLifecycleState;
+  /**
+   * Mandate rows still sealed under this key. On a retiring key this is
+the rotation backlog; it must reach 0 before the key can be retired.
+
+   * @nullable
+   */
+  sealed_record_count?: number | null;
+}

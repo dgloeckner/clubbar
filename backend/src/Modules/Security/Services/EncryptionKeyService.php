@@ -6,6 +6,7 @@ namespace App\Modules\Security\Services;
 
 use App\Modules\Security\DTOs\EncryptionKeyDto;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Modules\Security\Repositories\SealedIbanRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Security\CredentialLifecycle;
@@ -25,15 +26,26 @@ class EncryptionKeyService
 {
     public function __construct(
         private EncryptionKeysRepository $repository,
+        private SealedIbanRepository $sealedIbans,
         private IbanSealedBox $sealedBox,
         private AuditService $auditService,
     ) {}
 
-    /** @return EncryptionKeyDto[] */
+    /**
+     * Every key with its rotation backlog attached (#394).
+     *
+     * The row count is what turns the listing into a rotation status board: a
+     * RETIRING key with rows left still needs batches, and one with zero rows
+     * is ready to retire. One grouped count covers the whole list.
+     *
+     * @return EncryptionKeyDto[]
+     */
     public function listKeys(): array
     {
+        $counts = $this->sealedIbans->countsByKey();
+
         return array_map(
-            fn(array $row) => EncryptionKeyDto::fromRow($row),
+            fn(array $row) => EncryptionKeyDto::fromRow($row, sealedRecordCount: $counts[$row['id']] ?? 0),
             $this->repository->findAll(),
         );
     }

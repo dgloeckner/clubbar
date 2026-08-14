@@ -57,22 +57,13 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { DashboardResponseAlertsEncryptionKey } from './dashboardResponseAlertsEncryptionKey';
-import type { DashboardResponseAlertsSepaIssues } from './dashboardResponseAlertsSepaIssues';
 
-/**
- * Admin alerts requiring attention
- */
-export type DashboardResponseAlerts = {
-  sepa_issues?: DashboardResponseAlertsSepaIssues;
-  /** Remaining lifetime of the ACTIVE IBAN encryption key
-([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)).
-
-Computed on every dashboard load rather than by a scheduler:
-shared hosting guarantees no cron (ADR-0031), and this is the
-warning an admin cannot miss. `missing` is the loudest state —
-until a key is activated, no member's bank details can be
-stored at all.
- */
-  encryption_key?: DashboardResponseAlertsEncryptionKey;
+export type RegisterEncryptionKeyBody = {
+  /** The 32-byte Curve25519 public key, base64-encoded */
+  public_key: string;
+  /** @maxLength 100 */
+  key_identifier: string;
+  current_password: string;
+  /** Required when the calling admin has 2FA enrolled */
+  totp_code?: string;
 };

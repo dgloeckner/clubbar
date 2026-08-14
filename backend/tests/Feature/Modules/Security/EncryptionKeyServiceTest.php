@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Modules\Security;
 
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Modules\Security\Repositories\SealedIbanRepository;
 use App\Modules\Security\Services\EncryptionKeyExpiredException;
 use App\Modules\Security\Services\EncryptionKeyService;
 use App\Modules\Security\Services\EncryptionNotConfiguredException;
@@ -26,6 +27,7 @@ class EncryptionKeyServiceTest extends DatabaseTestCase
         $this->repository = new EncryptionKeysRepository($this->db, $this->logger);
         $this->service = new EncryptionKeyService(
             $this->repository,
+            new SealedIbanRepository($this->db),
             new IbanSealedBox(str_repeat('aa', 32), 'test'),
             $this->createMock(AuditService::class),
         );

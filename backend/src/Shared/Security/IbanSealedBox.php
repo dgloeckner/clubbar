@@ -39,6 +39,11 @@ class IbanSealedBox
 
     private const PUBLISHED_PUBLIC_KEYS = [
         '7479840773cdbd0f57bacf5c8488818e55845ee19207aaf685b74869c1682155',
+        // The key the rotation e2e test rotates *onto* (#394). Published for
+        // the same reason as the first one and blocked for the same reason: a
+        // rotation that lands on it would leave every IBAN readable by anyone
+        // holding a copy of this repository.
+        '515f0f4eb534478980d7320182b4c9427b851f3f082cfb31e18b84b9e952d040',
     ];
 
     private const DEVELOPMENT_ENVIRONMENTS = ['local', 'dev', 'development', 'test', 'testing'];

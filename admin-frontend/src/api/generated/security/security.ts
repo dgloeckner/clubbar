@@ -58,7 +58,17 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type {
-  SecurityReport
+  ActivateEncryptionKey200,
+  CompleteEncryptionKeyRotation200,
+  ListEncryptionKeys200,
+  RegisterEncryptionKey201,
+  RegisterEncryptionKeyBody,
+  RevokeEncryptionKey200,
+  RevokeEncryptionKeyBody,
+  RotateEncryptionKeyBatch200,
+  RotateEncryptionKeyBatchBody,
+  SecurityReport,
+  StepUpCredentials
 } from './..';
 
 import { customInstance } from '../../client';
@@ -96,5 +106,154 @@ const getSecurityCheck = (
     },
       options);
     }
-  return {getSecurityCheck}};
+  /**
+ * Every registered keypair with its lifecycle state, remaining days and
+rotation backlog — what the Security & Credentials page shows.
+
+Plain session auth: the response carries metadata and **public** keys
+only. Warning tiers are computed at request time (ADR-0031: no cron).
+
+ * @summary List IBAN encryption keys
+ */
+const listEncryptionKeys = (
+    
+ options?: SecondParameter<typeof customInstance<ListEncryptionKeys200>>,) => {
+      return customInstance<ListEncryptionKeys200>(
+      {url: `/admin/encryption-keys`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * Register the **public** half of a keypair generated offline with
+`tools/keypair-generator.html`. The key starts as `pending`; activating
+it is a separate, deliberate step.
+
+Requires a fresh step-up credential (the caller's own password, plus
+their TOTP code when 2FA is enrolled) on top of the session: what is
+registered here decides what every future IBAN is sealed under.
+
+ * @summary Register an encryption key
+ */
+const registerEncryptionKey = (
+    registerEncryptionKeyBody: RegisterEncryptionKeyBody,
+ options?: SecondParameter<typeof customInstance<RegisterEncryptionKey201>>,) => {
+      return customInstance<RegisterEncryptionKey201>(
+      {url: `/admin/encryption-keys`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: registerEncryptionKeyBody
+    },
+      options);
+    }
+  /**
+ * Promote a `pending` key to ACTIVE and start its 365-day cryptoperiod.
+Any previously active key moves to `retiring` — that transition **is**
+the start of a rotation: new IBANs are sealed under the new key
+immediately, while the existing rows still need re-encrypting.
+
+Requires a fresh step-up credential.
+
+ * @summary Activate a pending key
+ */
+const activateEncryptionKey = (
+    id: string,
+    stepUpCredentials: StepUpCredentials,
+ options?: SecondParameter<typeof customInstance<ActivateEncryptionKey200>>,) => {
+      return customInstance<ActivateEncryptionKey200>(
+      {url: `/admin/encryption-keys/${id}/activate`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: stepUpCredentials
+    },
+      options);
+    }
+  /**
+ * Withdraw a key immediately, regardless of remaining lifetime. Pass
+`compromised: true` for the incident path — it records the reason
+permanently, and the rows sealed under it should be re-encrypted onto a
+replacement as soon as practical (stolen ciphertext plus a stolen key
+is not retroactively fixable).
+
+Requires a fresh step-up credential.
+
+ * @summary Revoke or mark a key compromised
+ */
+const revokeEncryptionKey = (
+    id: string,
+    revokeEncryptionKeyBody: RevokeEncryptionKeyBody,
+ options?: SecondParameter<typeof customInstance<RevokeEncryptionKey200>>,) => {
+      return customInstance<RevokeEncryptionKey200>(
+      {url: `/admin/encryption-keys/${id}/revoke`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: revokeEncryptionKeyBody
+    },
+      options);
+    }
+  /**
+ * Re-seal up to 100 mandate rows from this key onto the ACTIVE one. The
+rotation wizard calls it repeatedly until `drained` is true, then calls
+`complete-rotation`.
+
+**The body carries the private half of the old key** — the only thing
+that can open what is being rotated away from. As with the SEPA export
+it is sent as a JSON field rather than a multipart upload (PHP writes
+multipart parts to temporary files), validated against the registered
+public half, and wiped before the response is written. Between two
+batches the server holds no decryption capability at all.
+
+Resumable by construction: a batch is selected by "still on the old
+key", never by offset, and each row is committed as it moves. Closing
+the browser mid-rotation loses nothing; the next batch resumes where
+this one stopped.
+
+Each row moves with an optimistic `WHERE encryption_key_id = :old`, so
+a member edit landing mid-rotation wins — it already sealed the row
+under the active key, and this endpoint counts it as `skipped` rather
+than restoring what it read.
+
+Requires a fresh step-up credential.
+
+ * @summary Re-encrypt one batch of stored IBANs
+ */
+const rotateEncryptionKeyBatch = (
+    id: string,
+    rotateEncryptionKeyBatchBody: RotateEncryptionKeyBatchBody,
+ options?: SecondParameter<typeof customInstance<RotateEncryptionKeyBatch200>>,) => {
+      return customInstance<RotateEncryptionKeyBatch200>(
+      {url: `/admin/encryption-keys/${id}/rotate-batch`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: rotateEncryptionKeyBatchBody
+    },
+      options);
+    }
+  /**
+ * Verify that nothing is sealed under this key any more, then retire it.
+
+The zero-row check is re-run here rather than trusted from the last
+batch's `remaining`: a row written under the old key in the meantime
+must block the transition instead of being stranded. A `compromised` or
+`revoked` key keeps its status — finishing the clean-up does not
+resolve the incident that caused it.
+
+No private key: counting rows is not decryption. Requires a fresh
+step-up credential.
+
+ * @summary Retire a fully re-encrypted key
+ */
+const completeEncryptionKeyRotation = (
+    id: string,
+    stepUpCredentials: StepUpCredentials,
+ options?: SecondParameter<typeof customInstance<CompleteEncryptionKeyRotation200>>,) => {
+      return customInstance<CompleteEncryptionKeyRotation200>(
+      {url: `/admin/encryption-keys/${id}/complete-rotation`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: stepUpCredentials
+    },
+      options);
+    }
+  return {getSecurityCheck,listEncryptionKeys,registerEncryptionKey,activateEncryptionKey,revokeEncryptionKey,rotateEncryptionKeyBatch,completeEncryptionKeyRotation}};
 export type GetSecurityCheckResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSecurity>['getSecurityCheck']>>>
+export type ListEncryptionKeysResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSecurity>['listEncryptionKeys']>>>
+export type RegisterEncryptionKeyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSecurity>['registerEncryptionKey']>>>
+export type ActivateEncryptionKeyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSecurity>['activateEncryptionKey']>>>
+export type RevokeEncryptionKeyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSecurity>['revokeEncryptionKey']>>>
+export type RotateEncryptionKeyBatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSecurity>['rotateEncryptionKeyBatch']>>>
+export type CompleteEncryptionKeyRotationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSecurity>['completeEncryptionKeyRotation']>>>

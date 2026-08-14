@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\Dashboard\Services;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Dashboard\Services\DashboardService;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
@@ -28,6 +29,7 @@ class DashboardServiceTest extends TestCase
     private TransactionsRepository $transactionsRepository;
     private SettlementsRepository $settlementsRepository;
     private TerminalsRepository $terminalsRepository;
+    private EncryptionKeysRepository $encryptionKeysRepository;
     private DashboardService $service;
 
     protected function setUp(): void
@@ -37,6 +39,7 @@ class DashboardServiceTest extends TestCase
         $this->transactionsRepository = $this->createMock(TransactionsRepository::class);
         $this->settlementsRepository = $this->createMock(SettlementsRepository::class);
         $this->terminalsRepository = $this->createMock(TerminalsRepository::class);
+        $this->encryptionKeysRepository = $this->createMock(EncryptionKeysRepository::class);
 
         $this->service = new DashboardService(
             $this->dashboardRepository,
@@ -44,6 +47,7 @@ class DashboardServiceTest extends TestCase
             $this->transactionsRepository,
             $this->settlementsRepository,
             $this->terminalsRepository,
+            $this->encryptionKeysRepository,
         );
     }
 
@@ -118,6 +122,66 @@ class DashboardServiceTest extends TestCase
 
         $this->assertSame('error', $alert['severity']);
         $this->assertStringContainsString('missing SEPA data', $alert['message']);
+    }
+
+    // ── Encryption key alert (#394) ─────────────────────────────────────────
+
+    public function test_no_active_encryption_key_is_the_loudest_alert(): void
+    {
+        // Not merely "rotate soon": with no active key, storing a member's bank
+        // details is refused outright, so the dashboard has to say so.
+        $alert = DashboardService::encryptionKeyAlert(null);
+
+        $this->assertSame('missing', $alert['state']);
+        $this->assertSame('error', $alert['severity']);
+        $this->assertNull($alert['days_until_expiry']);
+        $this->assertStringContainsString('cannot be stored', $alert['message']);
+    }
+
+    public function test_a_comfortably_valid_key_raises_nothing(): void
+    {
+        $alert = DashboardService::encryptionKeyAlert($this->keyExpiringInDays(200));
+
+        $this->assertSame('ok', $alert['state']);
+        $this->assertSame('none', $alert['severity']);
+    }
+
+    public function test_the_warning_tiers_follow_the_credential_lifetime_policy(): void
+    {
+        // 90/30/7, per ADR-0036 — checked here because this is where they turn
+        // into something an admin sees.
+        $this->assertSame('info', DashboardService::encryptionKeyAlert($this->keyExpiringInDays(60))['state']);
+        $this->assertSame('warning', DashboardService::encryptionKeyAlert($this->keyExpiringInDays(20))['state']);
+        $this->assertSame('critical', DashboardService::encryptionKeyAlert($this->keyExpiringInDays(3))['state']);
+
+        $this->assertSame('warning', DashboardService::encryptionKeyAlert($this->keyExpiringInDays(60))['severity']);
+        $this->assertSame('error', DashboardService::encryptionKeyAlert($this->keyExpiringInDays(3))['severity']);
+    }
+
+    public function test_an_expired_key_says_what_it_blocks(): void
+    {
+        $alert = DashboardService::encryptionKeyAlert($this->keyExpiringInDays(-1));
+
+        $this->assertSame('expired', $alert['state']);
+        $this->assertSame('error', $alert['severity']);
+        $this->assertStringContainsString('club-key', $alert['message']);
+        $this->assertStringContainsString('SEPA', $alert['message']);
+    }
+
+    /** @return array{key_identifier: string, expires_at: string} */
+    private function keyExpiringInDays(int $days): array
+    {
+        $expiry = (new \DateTimeImmutable())->add(new \DateInterval('P' . abs($days) . 'D'));
+        if ($days < 0) {
+            $expiry = (new \DateTimeImmutable())->sub(new \DateInterval('P' . abs($days) . 'D'));
+        }
+
+        return [
+            'key_identifier' => 'club-key-test',
+            // A day boundary is measured in whole days, so nudge past it: a key
+            // expiring "in 3 days" at 14:00 has 2.x days left by that measure.
+            'expires_at' => $expiry->add(new \DateInterval('PT1H'))->format('Y-m-d H:i:s'),
+        ];
     }
 
     // ── Product display name ────────────────────────────────────────────────

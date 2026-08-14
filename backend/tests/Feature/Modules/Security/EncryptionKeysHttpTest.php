@@ -203,4 +203,156 @@ class EncryptionKeysHttpTest extends HttpTestCase
         $this->assertSame(404, $response->getStatusCode());
     }
 
+    // ── Rotation (#394) ─────────────────────────────────────────────────────
+
+    public function test_rotating_requires_the_step_up_credential(): void
+    {
+        $response = $this->request(
+            'POST',
+            '/api/admin/encryption-keys/00000000-0000-0000-0000-000000000000/rotate-batch',
+            ['private_key' => base64_encode(random_bytes(32)), 'current_password' => 'wrong-password'],
+            headers: $this->csrf(),
+        );
+
+        // The credential is checked before the key id is even looked up: a
+        // caller who cannot re-prove who they are learns nothing about which
+        // keys exist.
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('invalid_credentials', $this->decode($response)['error']);
+    }
+
+    public function test_rotating_without_a_private_key_is_a_422(): void
+    {
+        $response = $this->request(
+            'POST',
+            '/api/admin/encryption-keys/00000000-0000-0000-0000-000000000000/rotate-batch',
+            $this->stepUp(),
+            headers: $this->csrf(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('private_key', $this->decode($response)['messages']);
+    }
+
+    public function test_rotating_the_active_key_away_from_itself_is_a_409(): void
+    {
+        $response = $this->request(
+            'POST',
+            '/api/admin/encryption-keys/99999991-9999-9999-9999-999999999991/rotate-batch',
+            ['private_key' => base64_encode(random_bytes(32))] + $this->stepUp(),
+            headers: $this->csrf(),
+        );
+
+        // State before key material: nothing is decrypted to discover that the
+        // key being rotated away from is the one still in force.
+        $this->assertSame(409, $response->getStatusCode());
+        $this->assertSame('invalid_state', $this->decode($response)['error']);
+    }
+
+    /**
+     * The rotation endpoints over the real stack, on keys this test brought
+     * with it.
+     *
+     * Deliberately not a rotation of the *dev* key: that one holds whatever
+     * mandates the rest of the suite has in flight, and moving them onto a key
+     * this test then deletes would leave rows pointing at nothing. Whether real
+     * ciphertext survives the trip is settled in KeyRotationServiceTest and end
+     * to end in `key-rotation.spec.ts`; what is checked here is the HTTP
+     * contract — step-up, key validation, states, and the shape of the answer.
+     */
+    public function test_a_rotation_runs_and_completes_over_http(): void
+    {
+        $sourceKeypair = sodium_crypto_box_keypair();
+        $sourceId = $this->registerAndActivate(
+            base64_encode(sodium_crypto_box_publickey($sourceKeypair)),
+            'rotate-src-' . substr($this->adminId, 0, 8),
+        );
+
+        // Activating the successor is what puts the source key into RETIRING —
+        // there is no separate "start rotation" call.
+        $successorId = $this->registerAndActivate(
+            base64_encode(sodium_crypto_box_publickey(sodium_crypto_box_keypair())),
+            'rotate-dst-' . substr($this->adminId, 0, 8),
+        );
+
+        // A key from a different keypair is refused as bad input, not as a
+        // conflict — nothing was decrypted with it.
+        $response = $this->request(
+            'POST',
+            "/api/admin/encryption-keys/{$sourceId}/rotate-batch",
+            ['private_key' => base64_encode(sodium_crypto_box_secretkey(sodium_crypto_box_keypair()))] + $this->stepUp(),
+            headers: $this->csrf(),
+        );
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame('private_key_mismatch', $this->decode($response)['error']);
+
+        $response = $this->request(
+            'POST',
+            "/api/admin/encryption-keys/{$sourceId}/rotate-batch",
+            ['private_key' => base64_encode(sodium_crypto_box_secretkey($sourceKeypair))] + $this->stepUp(),
+            headers: $this->csrf(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+        $rotation = $this->decode($response)['rotation'];
+        $this->assertSame($successorId, $rotation['target_key_id']);
+        $this->assertSame(0, $rotation['remaining']);
+        $this->assertTrue($rotation['drained']);
+
+        $response = $this->request(
+            'POST',
+            "/api/admin/encryption-keys/{$sourceId}/complete-rotation",
+            $this->stepUp(),
+            headers: $this->csrf(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+        $retired = $this->decode($response)['key'];
+        $this->assertSame('retired', $retired['status']);
+        $this->assertSame(0, $retired['sealed_record_count']);
+    }
+
+    /** Register a public key and put it in force; returns the new key's id. */
+    private function registerAndActivate(string $publicKeyBase64, string $identifier): string
+    {
+        $response = $this->request('POST', '/api/admin/encryption-keys', [
+            'public_key' => $publicKeyBase64,
+            'key_identifier' => $identifier,
+        ] + $this->stepUp(), headers: $this->csrf());
+        $this->assertSame(201, $response->getStatusCode());
+
+        $id = $this->decode($response)['key']['id'];
+        $this->createdKeyIds[] = $id;
+
+        $response = $this->request("POST", "/api/admin/encryption-keys/{$id}/activate", $this->stepUp(), headers: $this->csrf());
+        $this->assertSame(200, $response->getStatusCode());
+
+        return $id;
+    }
+
+    public function test_completing_a_rotation_that_is_not_running_is_a_409(): void
+    {
+        // The dev key is ACTIVE, so there is no rotation to close.
+        $response = $this->request(
+            'POST',
+            '/api/admin/encryption-keys/99999991-9999-9999-9999-999999999991/complete-rotation',
+            $this->stepUp(),
+            headers: $this->csrf(),
+        );
+
+        $this->assertSame(409, $response->getStatusCode());
+        $this->assertSame('invalid_state', $this->decode($response)['error']);
+    }
+
+    public function test_completing_a_rotation_for_an_unknown_key_is_a_404(): void
+    {
+        $response = $this->request(
+            'POST',
+            '/api/admin/encryption-keys/00000000-0000-0000-0000-000000000000/complete-rotation',
+            $this->stepUp(),
+            headers: $this->csrf(),
+        );
+
+        $this->assertSame(404, $response->getStatusCode());
+    }
 }

@@ -95,7 +95,19 @@ VALUES (
 -- key outside development environments, so a production install can never
 -- run on it. Active with a full 365-day cryptoperiod so member writes work
 -- out of the box.
+--
+-- Re-applying this file has to *restore* one active key, not add a second one.
+-- The "exactly one ACTIVE" rule lives in EncryptionKeyService, not in the
+-- schema (MariaDB has no partial unique index), so a seed that walked in with
+-- its own UPDATE after the rotation e2e test (#394) would leave two rows
+-- ACTIVE — with the write path sealing under one key and the export validating
+-- against the other. Anything else operational is stood down first.
 -- ---------------------------------------------------------------------------
+UPDATE encryption_keys
+   SET status = 'retired', retired_at = COALESCE(retired_at, NOW())
+ WHERE status IN ('active', 'retiring')
+   AND id <> '99999991-9999-9999-9999-999999999991';
+
 INSERT INTO encryption_keys (id, key_identifier, algorithm, public_key, fingerprint_sha256, status, created_at, activated_at, expires_at)
 VALUES (
     '99999991-9999-9999-9999-999999999991',
@@ -108,4 +120,4 @@ VALUES (
     NOW(),
     NOW() + INTERVAL 365 DAY
 )
-ON DUPLICATE KEY UPDATE status = 'active', activated_at = NOW(), expires_at = NOW() + INTERVAL 365 DAY;
+ON DUPLICATE KEY UPDATE status = 'active', activated_at = NOW(), expires_at = NOW() + INTERVAL 365 DAY, retired_at = NULL;
