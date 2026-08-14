@@ -6,6 +6,7 @@ namespace App\Modules\Settlements\Controllers;
 
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Security\Services\EncryptionKeyService;
+use App\Modules\Settlements\DTOs\ReversalCandidateDto;
 use App\Modules\Settlements\Domain\SettlementLeadTime;
 use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
@@ -295,6 +296,26 @@ class AdminController
         }
 
         return $this->json($response, $settlement->toArray(), 201);
+    }
+
+    /**
+     * Resolve a bank reference to the collections it could belong to (#433).
+     *
+     * The other half of "record a bank return": the treasurer arrives holding a
+     * statement line and does not know which run it came from, so the reference
+     * is what they search on. ADR-0032 §8 makes this a lookup rather than a
+     * free-hand picker, and the service keeps it one — nothing but
+     * `end_to_end_id` and the mandate reference is matched.
+     */
+    public function reversalCandidates(Request $request, Response $response): Response
+    {
+        $candidates = $this->reversalService->findCandidates(
+            (string) ($request->getQueryParams()['reference'] ?? '')
+        );
+
+        return $this->json($response, [
+            'data' => array_map(static fn(ReversalCandidateDto $c) => $c->toArray(), $candidates),
+        ]);
     }
 
     /**

@@ -130,7 +130,7 @@ test.describe('Settlement undo confirmation', () => {
     await settlementsPage.dismissUndoDialog()
   })
 
-  test('a settlement submitted to the bank cannot be undone, and the dialog says why', async ({
+  test('a settlement submitted to the bank offers reversal in place of cancellation', async ({
     page,
     authenticatedRequest,
     settlementFactory,
@@ -154,19 +154,24 @@ test.describe('Settlement undo confirmation', () => {
     // in test form, and it is closed now.
     await settlementsPage.markSubmitted(settlement.id)
 
-    // The button still opens — a disabled button hides its reason behind a
-    // hover the phone that took the payment cannot perform.
-    await settlementsPage.expectUndoButtonEnabled(settlement.id)
-    await settlementsPage.openUndoDialog(settlement.id)
-    expect(await settlementsPage.getUndoDialogTitle()).toMatch(/nicht storniert werden/)
-    await settlementsPage.expectUndoBlocked(/submitted to the bank.*Reverse it instead/s)
+    // The row's single slot now offers the operation that actually exists
+    // (#433 §2). It used to keep offering "Rückgängig" and answer the click
+    // with a dialog explaining what the treasurer may *not* do — the door that
+    // refuses to open, which is what #81 objected to. `ReversalGate` is the
+    // exact mirror of `CancellationGate`, so cancellation is gone from the row
+    // at precisely the moment reversal appears.
+    await settlementsPage.expectReversalOffered(settlement.id)
 
-    // The figures are stated here too, so the reason names a specific run.
-    const details = await settlementsPage.getUndoDialogDetails()
+    await settlementsPage.openReverseDialog(settlement.id)
+    // And it cannot be taken back, said before it is done (#433 §5).
+    await settlementsPage.expectReversalIrreversibleStated()
+
+    // The figures are stated here too, so the question names a specific run.
+    const details = await settlementsPage.getReverseDialogDetails()
     expect(details.members).toBe('1')
     expect(details.amount).toContain('25')
 
-    await settlementsPage.dismissUndoDialog()
+    await settlementsPage.dismissReverseDialog()
 
     // Nothing was undone: the settlement is still live for the bank.
     const after = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}`)

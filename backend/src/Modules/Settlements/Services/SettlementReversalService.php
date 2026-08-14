@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Services;
 
+use App\Modules\Settlements\DTOs\ReversalCandidateDto;
+use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementReversalDto;
 use App\Modules\Settlements\Domain\ReversalGate;
 use App\Modules\Settlements\Enums\ReversalReason;
@@ -141,6 +143,109 @@ class SettlementReversalService
         }
 
         return $reversals;
+    }
+
+    /**
+     * Which collections a bank reference points at (ADR-0032 §8, epic #433).
+     *
+     * The return-entry UI is a lookup rather than a form: the treasurer pastes
+     * whatever the statement quotes and confirms who it resolved to. Matching
+     * is forgiving about *shape* — whitespace, case, and the `E2E-` prefix some
+     * statements carry are all stripped, and a partial reference matches — but
+     * not about *what* it matches. Only the two reference columns are searched;
+     * a member name resolves nothing, by design.
+     *
+     * Candidates the reverse endpoint would refuse come back too, carrying its
+     * refusal. Filtering them out is the one outcome worth avoiding: a
+     * reference that genuinely exists returning "no match" makes the treasurer
+     * doubt the statement and record the return against something else.
+     *
+     * @return list<ReversalCandidateDto> Most recent execution date first.
+     *
+     * @throws ValidationException 422 when the reference is too short to be one.
+     */
+    public function findCandidates(string $reference, int $limit = 25): array
+    {
+        $needle = self::normaliseReference($reference);
+
+        // A one- or two-character substring matches nearly every reference the
+        // club has ever issued, which is a list, not a lookup.
+        if (mb_strlen($needle) < self::MIN_REFERENCE_LENGTH) {
+            throw new ValidationException(
+                'Enter at least ' . self::MIN_REFERENCE_LENGTH . ' characters of the reference.',
+                ['reference' => ['Enter at least ' . self::MIN_REFERENCE_LENGTH . ' characters of the reference.']],
+            );
+        }
+
+        $rows = $this->settlementsRepository->findCollectionsByReference($needle, $limit);
+
+        /** @var array<string, SettlementDto> */
+        $settlements = [];
+        /** @var array<string, array<string, array<string, mixed>>> settlement id => member id => reversal row */
+        $reversals = [];
+
+        $candidates = [];
+        foreach ($rows as $row) {
+            $settlementId = $row['settlement_id'];
+
+            if (!isset($settlements[$settlementId])) {
+                $settlementRow = $this->settlementsRepository->findById($settlementId);
+                if (!$settlementRow) {
+                    continue;
+                }
+                // Built from the row alone: this needs the settlement's status
+                // and its gate answer, not its items. Deriving either here
+                // would be the second rule set #81 was.
+                $settlements[$settlementId] = SettlementDto::fromRow($settlementRow);
+
+                $reversals[$settlementId] = [];
+                foreach ($this->reversalsRepository->findBySettlementId($settlementId) as $reversalRow) {
+                    $reversals[$settlementId][$reversalRow['member_id']] = $reversalRow;
+                }
+            }
+
+            $settlement = $settlements[$settlementId];
+            $reversal = $reversals[$settlementId][$row['member_id']] ?? null;
+
+            $candidates[] = new ReversalCandidateDto(
+                settlementId: $settlementId,
+                memberId: $row['member_id'],
+                memberName: trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: null,
+                amountCents: (int) $row['amount_cents'],
+                endToEndId: $row['end_to_end_id'] ?? null,
+                mandateReference: $row['mandate_reference'] ?? null,
+                executionDate: $settlement->executionDate,
+                settlementDate: $settlement->settlementDate,
+                status: $settlement->status,
+                isReversible: $settlement->isReversible,
+                reversalBlockedReason: $settlement->reversalBlockedReason,
+                alreadyReversed: $reversal !== null,
+                reversedAt: $reversal['created_at'] ?? null,
+                reversedByAdminName: $reversal['admin_display_name'] ?? null,
+                reversedReason: isset($reversal['reason']) ? ReversalReason::from($reversal['reason']) : null,
+            );
+        }
+
+        return $candidates;
+    }
+
+    /** Below this a substring stops identifying anything in particular. */
+    private const MIN_REFERENCE_LENGTH = 3;
+
+    /**
+     * What the treasurer typed, reduced to what can be matched.
+     *
+     * They are copying a value off a bank statement under time pressure and
+     * should not have to classify it first, nor reproduce it perfectly. The
+     * `E2E-` prefix is dropped because statements print it as a label for the
+     * identifier rather than as part of it.
+     */
+    private static function normaliseReference(string $reference): string
+    {
+        $trimmed = trim($reference);
+        $withoutPrefix = preg_replace('/^(e2e|eref|mref)[-+: ]*/i', '', $trimmed) ?? $trimmed;
+
+        return mb_strtolower(trim($withoutPrefix));
     }
 
     /**

@@ -63,6 +63,8 @@ import type {
   ExecutionDateInfo,
   ListSettlements200,
   ListSettlementsParams,
+  LookupReversalCandidates200,
+  LookupReversalCandidatesParams,
   PreviewSettlementBody,
   PreviewSettlementByFiltersParams,
   ReverseSettlementBody,
@@ -176,6 +178,45 @@ const getExecutionDateInfo = (
  options?: SecondParameter<typeof customInstance<ExecutionDateInfo>>,) => {
       return customInstance<ExecutionDateInfo>(
       {url: `/admin/settlements/execution-date-info`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * Resolve a reference read off a bank statement to the collections it
+could belong to (epic #433, ADR-0032 §8).
+
+A treasurer recording a returned direct debit knows the reference the
+bank quoted and *not* which run it came from, so the return-entry UI is
+a **lookup**, not a free-hand form. German banks echo the club's own
+`EndToEndId` back as `EREF+` and the mandate as `MREF+`, so this
+endpoint substring-matches `reference` against
+`settlement_items.end_to_end_id` and `mandates.reference` — and against
+nothing else. **A member name resolves nothing**; matching names would
+turn the lookup into the free-hand picker §8 forbids, and selecting the
+wrong member reverses the wrong person's debt irreversibly.
+
+Matching is forgiving about shape: surrounding whitespace, letter case
+and a leading `E2E-`, `EREF+` or `MREF+` label are all stripped, and a
+partial reference matches.
+
+One candidate per member per settlement, most recent execution date
+first. The amount is that member's total in that run — what a reversal
+would free.
+
+**Candidates the reverse endpoint would refuse are still returned**,
+with `is_actionable: false` and the reason: `already_reversed` (with
+who recorded it and when) or the settlement's own
+`reversal_blocked_reason`. Filtering them out would tell a treasurer
+holding a real reference that it matches nothing.
+
+ * @summary Look up the collections a bank reference points at
+ */
+const lookupReversalCandidates = (
+    params: LookupReversalCandidatesParams,
+ options?: SecondParameter<typeof customInstance<LookupReversalCandidates200>>,) => {
+      return customInstance<LookupReversalCandidates200>(
+      {url: `/admin/settlements/reversal-candidates`, method: 'GET',
+        params
     },
       options);
     }
@@ -412,11 +453,12 @@ const createSettlementByFilters = (
     },
       options);
     }
-  return {listSettlements,createSettlement,previewSettlement,getExecutionDateInfo,getSettlement,cancelSettlement,submitSettlement,reverseSettlement,downloadSepaXml,downloadSettlementCsv,exportSettlementTransactions,previewSettlementByFilters,createSettlementByFilters}};
+  return {listSettlements,createSettlement,previewSettlement,getExecutionDateInfo,lookupReversalCandidates,getSettlement,cancelSettlement,submitSettlement,reverseSettlement,downloadSepaXml,downloadSettlementCsv,exportSettlementTransactions,previewSettlementByFilters,createSettlementByFilters}};
 export type ListSettlementsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['listSettlements']>>>
 export type CreateSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['createSettlement']>>>
 export type PreviewSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['previewSettlement']>>>
 export type GetExecutionDateInfoResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['getExecutionDateInfo']>>>
+export type LookupReversalCandidatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['lookupReversalCandidates']>>>
 export type GetSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['getSettlement']>>>
 export type CancelSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['cancelSettlement']>>>
 export type SubmitSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['submitSettlement']>>>

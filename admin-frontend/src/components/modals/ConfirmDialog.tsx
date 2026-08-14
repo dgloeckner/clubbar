@@ -34,6 +34,11 @@ export interface ConfirmDialogProps {
    * the dialog exists to replace.
    */
   showConfirm?: boolean
+  /**
+   * Widen the box. The default suits a question; a dialog that has to show a
+   * member checklist or a candidate list needs the room (#433).
+   */
+  maxWidth?: string
   onConfirm: () => void
   onCancel: () => void
 }
@@ -47,6 +52,7 @@ export function ConfirmDialog({
   variant = 'danger',
   confirmDisabled = false,
   showConfirm = true,
+  maxWidth = '420px',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -88,8 +94,10 @@ export function ConfirmDialog({
           background: theme.colors.bg.secondary,
           borderRadius: theme.borderRadius.lg,
           padding: theme.spacing.xl,
-          maxWidth: '420px',
+          maxWidth,
           width: '90%',
+          maxHeight: '88vh',
+          overflowY: 'auto',
           boxShadow: theme.shadows.modalStrong,
         }}
         onClick={(e) => e.stopPropagation()}
