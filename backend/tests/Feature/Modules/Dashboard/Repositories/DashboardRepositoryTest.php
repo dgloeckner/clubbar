@@ -36,6 +36,10 @@ class DashboardRepositoryTest extends DatabaseTestCase
     private array $testTerminalIds = [];
     /** @var list<string> */
     private array $testMandateIds = [];
+    /** @var list<string> */
+    private array $testSettlementIds = [];
+    /** @var list<string> */
+    private array $testAdminUserIds = [];
 
     protected function setUp(): void
     {
@@ -45,12 +49,19 @@ class DashboardRepositoryTest extends DatabaseTestCase
 
     protected function tearDown(): void
     {
+        if ($this->testSettlementIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($this->testSettlementIds), '?'));
+            $this->db->prepare("DELETE FROM settlement_items WHERE settlement_id IN ({$placeholders})")
+                ->execute($this->testSettlementIds);
+        }
+        $this->cleanupTestData('settlements', $this->testSettlementIds);
         $this->cleanupTestData('transactions', $this->testTransactionIds);
         $this->cleanupTestData('mandates', $this->testMandateIds);
         $this->cleanupTestData('products', $this->testProductIds);
         $this->cleanupTestData('categories', $this->testCategoryIds);
         $this->cleanupTestData('terminals', $this->testTerminalIds);
         $this->cleanupTestData('members', $this->testMemberIds);
+        $this->cleanupTestData('admin_users', $this->testAdminUserIds);
         parent::tearDown();
     }
 
@@ -281,7 +292,158 @@ class DashboardRepositoryTest extends DatabaseTestCase
         $this->assertSame($before, $this->repository->countMembersWithoutMandate());
     }
 
+    // ── Members near their credit limit ─────────────────────────────────────
+
+    public function test_findMembersNearCreditLimit_lists_only_tabs_that_reached_the_threshold(): void
+    {
+        $near = $this->createMember('Near', 'Limit');
+        $this->createTransaction($near, 8_000, '2019-03-05 20:00:00');
+        $far = $this->createMember('Far', 'Below');
+        $this->createTransaction($far, 7_999, '2019-03-05 20:00:00');
+
+        $ids = $this->idsOf($this->repository->findMembersNearCreditLimit(8_000, 50));
+
+        $this->assertContains($near, $ids, 'the threshold is inclusive');
+        $this->assertNotContains($far, $ids);
+    }
+
+    public function test_findMembersNearCreditLimit_sums_the_whole_tab_not_the_single_purchase(): void
+    {
+        $member = $this->createMember('Many', 'Rounds');
+        foreach (range(1, 4) as $i) {
+            $this->createTransaction($member, 2_100, "2019-03-0{$i} 20:00:00");
+        }
+
+        $row = $this->rowFor($member, $this->repository->findMembersNearCreditLimit(8_000, 50));
+
+        $this->assertNotNull($row);
+        $this->assertSame(8_400, (int) $row['balance_cents']);
+        $this->assertSame('Many Rounds', $row['name']);
+    }
+
+    public function test_findMembersNearCreditLimit_lets_a_storno_pull_a_member_back_off_the_list(): void
+    {
+        // A storno is a row of its own, not a retraction, so the only thing
+        // that can take a member off this list is the sum (ADR-0004).
+        $member = $this->createMember('Stornoed', 'Back');
+        $purchase = $this->createTransaction($member, 9_000, '2019-03-05 20:00:00');
+        $this->createStorno($member, $purchase, 2_000, '2019-03-06 20:00:00');
+
+        $ids = $this->idsOf($this->repository->findMembersNearCreditLimit(8_000, 50));
+
+        $this->assertNotContains($member, $ids);
+    }
+
+    public function test_findMembersNearCreditLimit_forgets_a_tab_that_has_been_settled(): void
+    {
+        $member = $this->createMember('Settled', 'Up');
+        $transaction = $this->createTransaction($member, 9_500, '2019-03-05 20:00:00');
+        $this->assertContains($member, $this->idsOf($this->repository->findMembersNearCreditLimit(8_000, 50)));
+
+        $this->settle($member, $transaction, 9_500);
+
+        $this->assertNotContains($member, $this->idsOf($this->repository->findMembersNearCreditLimit(8_000, 50)));
+    }
+
+    public function test_findMembersNearCreditLimit_leaves_out_members_the_terminal_no_longer_serves(): void
+    {
+        $inactive = $this->createMember('Inactive', 'Debtor');
+        $this->createTransaction($inactive, 9_000, '2019-03-05 20:00:00');
+        $this->db->prepare('UPDATE members SET is_active = 0 WHERE id = ?')->execute([$inactive]);
+
+        $deleted = $this->createMember('Deleted', 'Debtor');
+        $this->createTransaction($deleted, 9_000, '2019-03-05 20:00:00');
+        $this->db->prepare('UPDATE members SET deleted_at = NOW() WHERE id = ?')->execute([$deleted]);
+
+        $ids = $this->idsOf($this->repository->findMembersNearCreditLimit(8_000, 50));
+
+        $this->assertNotContains($inactive, $ids);
+        $this->assertNotContains($deleted, $ids);
+    }
+
+    public function test_findMembersNearCreditLimit_puts_the_biggest_tab_first_and_honours_the_limit(): void
+    {
+        $small = $this->createMember('Small', 'Tab');
+        $this->createTransaction($small, 8_100, '2019-03-05 20:00:00');
+        $big = $this->createMember('Big', 'Tab');
+        $this->createTransaction($big, 20_000, '2019-03-05 20:00:00');
+
+        $rows = $this->repository->findMembersNearCreditLimit(20_000, 1);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($big, $rows[0]['id']);
+    }
+
+    public function test_countMembersNearCreditLimit_counts_what_the_list_would_have_shown(): void
+    {
+        $before = $this->repository->countMembersNearCreditLimit(8_000);
+
+        $this->createTransaction($this->createMember('First', 'Debtor'), 8_000, '2019-03-05 20:00:00');
+        $this->createTransaction($this->createMember('Second', 'Debtor'), 12_000, '2019-03-05 20:00:00');
+        $this->createTransaction($this->createMember('Third', 'Saint'), 500, '2019-03-05 20:00:00');
+
+        $this->assertSame($before + 2, $this->repository->countMembersNearCreditLimit(8_000));
+    }
+
+    public function test_countMembersNearCreditLimit_counts_a_member_once_however_many_rounds_they_bought(): void
+    {
+        $before = $this->repository->countMembersNearCreditLimit(8_000);
+
+        $member = $this->createMember('Regular', 'Guest');
+        foreach (range(1, 5) as $i) {
+            $this->createTransaction($member, 2_000, "2019-03-0{$i} 20:00:00");
+        }
+
+        $this->assertSame($before + 1, $this->repository->countMembersNearCreditLimit(8_000));
+    }
+
     // ── Fixtures ────────────────────────────────────────────────────────────
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function idsOf(array $rows): array
+    {
+        return array_map(static fn(array $row): string => (string) $row['id'], $rows);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>|null
+     */
+    private function rowFor(string $memberId, array $rows): ?array
+    {
+        foreach ($rows as $row) {
+            if ($row['id'] === $memberId) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /** Claim a transaction for a settlement run, the way a real run does. */
+    private function settle(string $memberId, string $transactionId, int $amountCents): void
+    {
+        $adminId = $this->generateUuid();
+        $this->testAdminUserIds[] = $adminId;
+        $this->db->prepare(
+            'INSERT INTO admin_users (id, email, password_hash, display_name, is_active) VALUES (?, ?, ?, ?, 1)'
+        )->execute([$adminId, "dash-{$adminId}@example.com", password_hash('test123', PASSWORD_BCRYPT), 'Test Admin']);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id)
+             VALUES (?, ?, ?, ?, 1, ?)'
+        )->execute([$settlementId, '2019-03-31', '2019-04-05', $amountCents, $adminId]);
+
+        $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents)
+             VALUES (?, ?, ?, ?, ?)'
+        )->execute([$settlementId, $transactionId, $transactionId, $memberId, $amountCents]);
+    }
 
     private function createMember(string $firstName = 'Dash', string $lastName = 'Board'): string
     {

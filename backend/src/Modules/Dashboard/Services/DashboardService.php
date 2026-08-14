@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Dashboard\Services;
 
+use App\Modules\Dashboard\Domain\CreditLimit;
 use App\Modules\Dashboard\DTOs\DashboardDto;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Members\Repositories\MembersRepository;
@@ -33,6 +34,13 @@ class DashboardService
     private const RECENT_TRANSACTION_LIMIT = 10;
     private const REVENUE_WINDOW_DAYS = 30;
     private const TOP_LIST_LIMIT = 10;
+
+    /**
+     * How many members near their limit the dashboard names. The rest are
+     * counted, not listed — the panel is a prompt to act, and a list longer
+     * than this is a settlement run, not a conversation.
+     */
+    public const MEMBERS_NEAR_LIMIT_SHOWN = 5;
 
     public function __construct(
         private DashboardRepository $dashboardRepository,
@@ -98,7 +106,49 @@ class DashboardService
                 'sepa_issues' => self::sepaAlert($sepaIssueCount),
                 'encryption_key' => self::encryptionKeyAlert($this->encryptionKeysRepository->findActive()),
             ],
+            membersNearLimit: $this->membersNearLimit(),
         );
+    }
+
+    /**
+     * Who is about to be turned away at the terminal (#385).
+     *
+     * The dashboard's other figures are money in aggregate; this one is the
+     * only place the admin learns *before* it happens that a member's next
+     * drink will be refused — until now the club found out when someone stood
+     * at the bar with a blocked card, which is the worst possible moment and
+     * the wrong person to tell.
+     *
+     * The band and the ceiling are the terminal's, not this screen's, so a
+     * member appears here exactly when the terminal has started warning them.
+     * The total is reported separately from the list because the list is
+     * capped: five names and "and 7 more" is a truthful screenful, five names
+     * alone is not.
+     *
+     * @return array<string, mixed>
+     */
+    private function membersNearLimit(): array
+    {
+        $threshold = CreditLimit::warnAtCents();
+
+        $rows = CreditLimit::isEnforced()
+            ? $this->dashboardRepository->findMembersNearCreditLimit($threshold, self::MEMBERS_NEAR_LIMIT_SHOWN)
+            : [];
+
+        // A short list is its own total; only a full one can be hiding someone.
+        $total = count($rows) < self::MEMBERS_NEAR_LIMIT_SHOWN
+            ? count($rows)
+            : $this->dashboardRepository->countMembersNearCreditLimit($threshold);
+
+        return [
+            'limit_cents' => CreditLimit::LIMIT_CENTS,
+            'warn_at_cents' => $threshold,
+            'total' => $total,
+            'members' => array_map(
+                static fn(array $row): array => self::presentMemberNearLimit($row),
+                $rows,
+            ),
+        ];
     }
 
     /**
@@ -265,6 +315,27 @@ class DashboardService
             'amount_cents' => (int) $row['amount_cents'],
             'product_name' => self::displayName($row['product_names']),
             'timestamp' => $row['timestamp'] ? str_replace(' ', 'T', $row['timestamp']) : null,
+        ];
+    }
+
+    /**
+     * A member's tab as the limit sees it: what they owe, how much of the
+     * ceiling that is, and whether the terminal is warning them or has already
+     * stopped serving them.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function presentMemberNearLimit(array $row): array
+    {
+        $balanceCents = (int) $row['balance_cents'];
+
+        return [
+            'id' => $row['id'],
+            'name' => trim((string) $row['name']),
+            'balance_cents' => $balanceCents,
+            'percent_of_limit' => CreditLimit::percentOfLimit($balanceCents),
+            'status' => CreditLimit::status($balanceCents),
         ];
     }
 

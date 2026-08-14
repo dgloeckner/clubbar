@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Dashboard\Services;
 
+use App\Modules\Dashboard\Domain\CreditLimit;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Dashboard\Services\DashboardService;
 use App\Modules\Members\Repositories\MembersRepository;
@@ -277,6 +278,111 @@ class DashboardServiceTest extends TestCase
 
         $this->assertNull($dashboard['system_status']['last_settlement_date']);
         $this->assertSame('none', $dashboard['alerts']['sepa_issues']['severity']);
+    }
+
+    // ── Members near their credit limit ─────────────────────────────────────
+
+    public function test_the_dashboard_asks_only_for_members_inside_the_terminals_warning_band(): void
+    {
+        $this->stubEmptyDashboard();
+        $this->dashboardRepository->expects($this->once())
+            ->method('findMembersNearCreditLimit')
+            ->with(CreditLimit::warnAtCents(), DashboardService::MEMBERS_NEAR_LIMIT_SHOWN)
+            ->willReturn([]);
+
+        $nearLimit = $this->service->getDashboard()->toArray()['members_near_limit'];
+
+        $this->assertSame(CreditLimit::LIMIT_CENTS, $nearLimit['limit_cents']);
+        $this->assertSame(CreditLimit::warnAtCents(), $nearLimit['warn_at_cents']);
+        $this->assertSame([], $nearLimit['members']);
+        $this->assertSame(0, $nearLimit['total']);
+    }
+
+    public function test_each_member_near_the_limit_carries_their_tab_share_and_verdict(): void
+    {
+        $this->stubEmptyDashboard();
+        $this->dashboardRepository->method('findMembersNearCreditLimit')->willReturn([
+            ['id' => 'mem-1', 'name' => 'Anna Meier', 'balance_cents' => '10500'],
+            ['id' => 'mem-2', 'name' => 'Bert Klein', 'balance_cents' => '8200'],
+        ]);
+
+        $members = $this->service->getDashboard()->toArray()['members_near_limit']['members'];
+
+        $this->assertSame(
+            [
+                'id' => 'mem-1',
+                'name' => 'Anna Meier',
+                'balance_cents' => 10_500,
+                'percent_of_limit' => 105,
+                'status' => 'exceeded',
+            ],
+            $members[0],
+            'amounts come back from the driver as strings',
+        );
+        $this->assertSame(82, $members[1]['percent_of_limit']);
+        $this->assertSame('approaching', $members[1]['status']);
+    }
+
+    public function test_a_list_shorter_than_the_cap_is_its_own_total_and_costs_no_second_query(): void
+    {
+        $this->stubEmptyDashboard();
+        $this->dashboardRepository->method('findMembersNearCreditLimit')->willReturn([
+            ['id' => 'mem-1', 'name' => 'Anna Meier', 'balance_cents' => '8100'],
+        ]);
+        $this->dashboardRepository->expects($this->never())->method('countMembersNearCreditLimit');
+
+        $nearLimit = $this->service->getDashboard()->toArray()['members_near_limit'];
+
+        $this->assertSame(1, $nearLimit['total']);
+    }
+
+    public function test_a_full_list_reports_how_many_members_it_is_not_showing(): void
+    {
+        $this->stubEmptyDashboard();
+        $this->dashboardRepository->method('findMembersNearCreditLimit')->willReturn(array_map(
+            static fn(int $i): array => ['id' => "mem-{$i}", 'name' => "Member {$i}", 'balance_cents' => '9000'],
+            range(1, DashboardService::MEMBERS_NEAR_LIMIT_SHOWN),
+        ));
+        $this->dashboardRepository->expects($this->once())
+            ->method('countMembersNearCreditLimit')
+            ->with(CreditLimit::warnAtCents())
+            ->willReturn(12);
+
+        $nearLimit = $this->service->getDashboard()->toArray()['members_near_limit'];
+
+        $this->assertCount(DashboardService::MEMBERS_NEAR_LIMIT_SHOWN, $nearLimit['members']);
+        $this->assertSame(12, $nearLimit['total']);
+    }
+
+    public function test_a_member_with_only_one_name_is_labelled_with_the_half_that_exists(): void
+    {
+        $this->stubEmptyDashboard();
+        $this->dashboardRepository->method('findMembersNearCreditLimit')->willReturn([
+            ['id' => 'mem-1', 'name' => 'Meier ', 'balance_cents' => '9000'],
+        ]);
+
+        $members = $this->service->getDashboard()->toArray()['members_near_limit']['members'];
+
+        $this->assertSame('Meier', $members[0]['name']);
+    }
+
+    /**
+     * The rest of the dashboard, stubbed down to nothing, so a test about one
+     * panel says nothing about the others.
+     */
+    private function stubEmptyDashboard(): void
+    {
+        $this->membersRepository->method('count')->willReturn(0);
+        $this->membersRepository->method('countActive')->willReturn(0);
+        $this->transactionsRepository->method('countRecentTransactions')->willReturn(0);
+        $this->transactionsRepository->method('sumUnsettledAmountCents')->willReturn(0);
+        $this->settlementsRepository->method('countPending')->willReturn(0);
+        $this->settlementsRepository->method('getLatest')->willReturn(null);
+        $this->terminalsRepository->method('countActive')->willReturn(0);
+        $this->terminalsRepository->method('findAll')->willReturn([]);
+        $this->dashboardRepository->method('sumRevenueSince')->willReturn(0);
+        $this->dashboardRepository->method('countMembersWithoutMandate')->willReturn(0);
+        $this->dashboardRepository->method('findRecentTransactions')->willReturn([]);
     }
 
     // ── Monthly statistics ──────────────────────────────────────────────────

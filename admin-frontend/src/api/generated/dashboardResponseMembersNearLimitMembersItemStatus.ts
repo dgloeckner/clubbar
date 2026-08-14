@@ -57,45 +57,16 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type {
-  DashboardResponse
-} from './..';
 
-import { customInstance } from '../../client';
-
-
-type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
-
-
-  export const getDashboard = () => {
 /**
- * Retrieve aggregated dashboard metrics and system overview.
-Combines metrics from members, transactions, terminals, and settlements modules.
+ * - approaching: inside the warning band, still served
+- exceeded: past the limit, the terminal refuses the next checkout
 
-Implements UC-A80: Dashboard
-
-**Response Data**:
-- metrics: Business metrics (member counts, balance, revenue, terminals)
-- recent_transactions: Last 10 transactions with member and product details
-- terminal_status: All terminals with connectivity information
-- system_status: High-level system indicators
-- alerts: SEPA compliance alerts
-- members_near_limit: Members whose tab has reached the terminal's credit-limit warning band
-
-**Performance Notes**:
-- Point-in-time snapshot (not real-time streaming)
-- Optimized with database aggregations
-- Typical response time: < 500ms
-
- * @summary Get Dashboard Metrics
  */
-const getDashboardMetrics = (
-    
- options?: SecondParameter<typeof customInstance<DashboardResponse>>,) => {
-      return customInstance<DashboardResponse>(
-      {url: `/admin/dashboard`, method: 'GET'
-    },
-      options);
-    }
-  return {getDashboardMetrics}};
-export type GetDashboardMetricsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getDashboard>['getDashboardMetrics']>>>
+export type DashboardResponseMembersNearLimitMembersItemStatus = typeof DashboardResponseMembersNearLimitMembersItemStatus[keyof typeof DashboardResponseMembersNearLimitMembersItemStatus];
+
+
+export const DashboardResponseMembersNearLimitMembersItemStatus = {
+  approaching: 'approaching',
+  exceeded: 'exceeded',
+} as const;

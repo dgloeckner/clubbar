@@ -57,45 +57,26 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type {
-  DashboardResponse
-} from './..';
+import type { DashboardResponseMembersNearLimitMembersItem } from './dashboardResponseMembersNearLimitMembersItem';
 
-import { customInstance } from '../../client';
-
-
-type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
-
-
-  export const getDashboard = () => {
 /**
- * Retrieve aggregated dashboard metrics and system overview.
-Combines metrics from members, transactions, terminals, and settlements modules.
+ * Active members whose Deckel has reached the terminal's warning band,
+biggest tab first — who the bar is about to have to turn away.
 
-Implements UC-A80: Dashboard
+The band and the ceiling are the terminal's own (UC-T11 E3, UC-T12):
+a member appears here exactly when the terminal has started warning
+them, and carries `status: exceeded` once it refuses their next
+checkout. Members who are deactivated or deleted are left out — the
+terminal serves neither, so there is nothing to warn about.
 
-**Response Data**:
-- metrics: Business metrics (member counts, balance, revenue, terminals)
-- recent_transactions: Last 10 transactions with member and product details
-- terminal_status: All terminals with connectivity information
-- system_status: High-level system indicators
-- alerts: SEPA compliance alerts
-- members_near_limit: Members whose tab has reached the terminal's credit-limit warning band
-
-**Performance Notes**:
-- Point-in-time snapshot (not real-time streaming)
-- Optimized with database aggregations
-- Typical response time: < 500ms
-
- * @summary Get Dashboard Metrics
  */
-const getDashboardMetrics = (
-    
- options?: SecondParameter<typeof customInstance<DashboardResponse>>,) => {
-      return customInstance<DashboardResponse>(
-      {url: `/admin/dashboard`, method: 'GET'
-    },
-      options);
-    }
-  return {getDashboardMetrics}};
-export type GetDashboardMetricsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getDashboard>['getDashboardMetrics']>>>
+export type DashboardResponseMembersNearLimit = {
+  /** The ceiling a tab may reach, in cents. Zero means no limit is enforced. */
+  limit_cents: number;
+  /** Tab from which a member counts as close to their limit, in cents */
+  warn_at_cents: number;
+  /** How many members are at or above `warn_at_cents` in total. `members` is capped, so this can be larger than its length. */
+  total: number;
+  /** The biggest tabs at or above `warn_at_cents`, capped */
+  members: DashboardResponseMembersNearLimitMembersItem[];
+};

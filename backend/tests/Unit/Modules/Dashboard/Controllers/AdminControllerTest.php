@@ -57,6 +57,7 @@ class AdminControllerTest extends TestCase
             terminalStatus: [],
             systemStatus: ['database_health' => 'ok'],
             alerts: [],
+            membersNearLimit: ['limit_cents' => 10_000, 'warn_at_cents' => 8_000, 'total' => 0, 'members' => []],
         ));
 
         $response = $this->controller->show($this->get('/api/admin/dashboard'), new Response());

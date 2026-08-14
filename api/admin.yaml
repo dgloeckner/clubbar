@@ -3791,6 +3791,7 @@ paths:
         - terminal_status: All terminals with connectivity information
         - system_status: High-level system indicators
         - alerts: SEPA compliance alerts
+        - members_near_limit: Members whose tab has reached the terminal's credit-limit warning band
 
         **Performance Notes**:
         - Point-in-time snapshot (not real-time streaming)
@@ -6295,3 +6296,54 @@ components:
                 message:
                   type: string
                   description: Human-readable alert message
+        members_near_limit:
+          type: object
+          description: |
+            Active members whose Deckel has reached the terminal's warning band,
+            biggest tab first — who the bar is about to have to turn away.
+
+            The band and the ceiling are the terminal's own (UC-T11 E3, UC-T12):
+            a member appears here exactly when the terminal has started warning
+            them, and carries `status: exceeded` once it refuses their next
+            checkout. Members who are deactivated or deleted are left out — the
+            terminal serves neither, so there is nothing to warn about.
+          required: [limit_cents, warn_at_cents, total, members]
+          properties:
+            limit_cents:
+              type: integer
+              description: The ceiling a tab may reach, in cents. Zero means no limit is enforced.
+            warn_at_cents:
+              type: integer
+              description: Tab from which a member counts as close to their limit, in cents
+            total:
+              type: integer
+              description: >-
+                How many members are at or above `warn_at_cents` in total. `members`
+                is capped, so this can be larger than its length.
+            members:
+              type: array
+              description: The biggest tabs at or above `warn_at_cents`, capped
+              items:
+                type: object
+                required: [id, name, balance_cents, percent_of_limit, status]
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                    description: Display name (first + last name)
+                  balance_cents:
+                    type: integer
+                    description: The member's unsettled balance in cents — the same figure their own page shows
+                  percent_of_limit:
+                    type: integer
+                    description: >-
+                      Share of `limit_cents` the tab uses, as a whole percentage.
+                      Not clamped: a tab past the limit reports more than 100.
+                  status:
+                    type: string
+                    enum: [approaching, exceeded]
+                    description: |
+                      - approaching: inside the warning band, still served
+                      - exceeded: past the limit, the terminal refuses the next checkout
