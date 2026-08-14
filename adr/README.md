@@ -29,7 +29,7 @@ Each ADR follows this structure:
 | [0002](./0002-product-internationalization.md) | Product Internationalization (i18n) Strategy | Accepted | 2025-01-23 |
 | [0003](./0003-gzip-compression-http.md) | Enable GZIP Compression for Frontend/Backend Communication | Accepted | 2025-01-23 |
 | [0004](./0004-immutable-transaction-storage.md) | Immutable Storage of Purchase Transactions | Accepted | 2025-01-23 |
-| [0005](./0005-iban-storage-and-validation.md) | IBAN Storage and Validation | Accepted | 2025-01-23 |
+| [0005](./0005-iban-storage-and-validation.md) | IBAN Storage and Validation | Accepted (amended by 0036: at-rest encryption rejection revoked) | 2025-01-23 |
 | [0006](./0006-sepa-mandate-reference-strategy.md) | SEPA Mandate Reference Strategy | Accepted | 2025-01-23 |
 | [0007](./0007-organization-sepa-configuration-storage.md) | Organization-Level SEPA Configuration Storage | Accepted | 2025-01-23 |
 | [0008](./0008-sepa-xml-export-format-selection.md) | SEPA XML Export Format Selection (pain.008.001.02) | Accepted | 2025-01-23 |
@@ -53,7 +53,7 @@ Each ADR follows this structure:
 | [0026](./0026-mandatory-totp-two-factor-authentication.md) | Mandatory TOTP Two-Factor Authentication for Admin Panel | Accepted | 2026-03-22 |
 | [0027](./0027-terminal-session-lifecycle.md) | Terminal Session Lifecycle and Cart Ownership | Accepted | 2026-08-05 |
 | [0028](./0028-legal-constraints-on-money-handling.md) | Legal and Regulatory Constraints on Money Handling | Accepted | 2026-08-07 |
-| [0029](./0029-two-tier-retention-and-erasure.md) | Two-Tier Retention and Erasure | Accepted | 2026-08-07 |
+| [0029](./0029-two-tier-retention-and-erasure.md) | Two-Tier Retention and Erasure | Accepted (amended by 0037: mandate document dropped from the retention tier) | 2026-08-07 |
 | [0030](./0030-settlement-selection-is-a-member-picker.md) | Settlement Selection Is a Member Picker | Accepted | 2026-08-08 |
 | [0031](./0031-production-hardening-on-shared-hosting.md) | Production Hardening on Shared Hosting | Accepted | 2026-08-09 |
 | [0032](./0032-settlement-lifecycle.md) | Settlement Lifecycle | Accepted | 2026-08-09 |

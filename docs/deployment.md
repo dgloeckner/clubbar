@@ -207,6 +207,15 @@ curl -I https://your-domain.com/api/health
 
 ## Database Backup & Restore
 
+**A dump is no longer the whole secret, but it is still personal data
+([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)).** Every IBAN in it is
+now a libsodium sealed box the dump alone cannot open — but names, emails,
+addresses and the last four digits of every IBAN are still in there in the
+clear. Encrypt the dump at rest the same as you would have before; the
+commands below pipe through `gpg -c` (a passphrase, not a keypair — the
+libsodium keypair discussed further down is a separate secret with a separate
+job).
+
 ### Automated Daily Backups (Cron)
 
 Create a backup script at `/opt/clubbar/backup.sh`:
@@ -216,15 +225,21 @@ Create a backup script at `/opt/clubbar/backup.sh`:
 BACKUP_DIR="/opt/clubbar/backups"
 RETENTION_DAYS=30
 DATE=$(date +%Y-%m-%d_%H%M%S)
+# Store this in a file the script reads (0600), not inline in the script —
+# the same rule as any other credential on this host (ADR-0031 decision 4).
+GPG_PASSPHRASE_FILE="/opt/clubbar/.backup-passphrase"
 
 mkdir -p "$BACKUP_DIR"
 
-mysqldump -u clubbar_prod -p'PASSWORD' clubbar | gzip > "$BACKUP_DIR/clubbar_$DATE.sql.gz"
+mysqldump -u clubbar_prod -p'PASSWORD' clubbar \
+  | gzip \
+  | gpg --batch --yes --passphrase-file "$GPG_PASSPHRASE_FILE" -c \
+  > "$BACKUP_DIR/clubbar_$DATE.sql.gz.gpg"
 
 # Remove backups older than retention period
-find "$BACKUP_DIR" -name "clubbar_*.sql.gz" -mtime +$RETENTION_DAYS -delete
+find "$BACKUP_DIR" -name "clubbar_*.sql.gz.gpg" -mtime +$RETENTION_DAYS -delete
 
-echo "Backup complete: clubbar_$DATE.sql.gz"
+echo "Backup complete: clubbar_$DATE.sql.gz.gpg"
 ```
 
 Add to crontab (`crontab -e`):
@@ -235,27 +250,138 @@ Add to crontab (`crontab -e`):
 ### Manual Backup
 
 ```bash
-mysqldump -u clubbar_prod -p clubbar > backup.sql
+mysqldump -u clubbar_prod -p clubbar | gpg -c > backup.sql.gpg
 ```
 
 ### Restore from Backup
 
 ```bash
-gunzip < backup.sql.gz | mysql -u clubbar_prod -p clubbar
+gpg -d backup.sql.gz.gpg | gunzip | mysql -u clubbar_prod -p clubbar
 ```
+
+Restoring an older dump does not touch IBAN recoverability either way: every
+`mandates` row it contains is still sealed under whichever `encryption_keys`
+row it names, and that row is never deleted (`RESTRICT`, not `CASCADE` —
+see the ERM's [Data Integrity Rules](./erm-master.md#data-integrity-rules)).
+The only way a restored row becomes unreadable is if the private key it was
+sealed under is *also* gone — which is a key-archive problem, not a database
+problem, and is exactly why the private key gets its own backup story below
+rather than piggybacking on this one.
 
 ### Pre-Upgrade Backup
 
 Always create a backup before upgrading:
 ```bash
 # 1. Backup database
-mysqldump -u clubbar_prod -p clubbar > pre-upgrade-backup.sql
+mysqldump -u clubbar_prod -p clubbar | gpg -c > pre-upgrade-backup.sql.gpg
 
 # 2. Backup config file
 cp config.php config.php.pre-upgrade
 
 # 3. Proceed with upgrade (see Upgrading section)
 ```
+
+**First deploy of an IBAN-encryption release specifically:** the server
+cannot store an IBAN until an admin has registered *and activated* a
+libsodium key ([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)) — there
+is no legacy plaintext column left to migrate (nothing had shipped when
+[migration `020`](../backend/db/migrations/020_drop_legacy_plaintext_iban.sql)
+removed it, so there was never a batch-encryption step to run). The order is:
+
+1. Backup (above)
+2. Upgrade (below)
+3. Generate a keypair offline with `tools/keypair-generator.html` (never
+   uploaded anywhere; the private half never touches the server)
+4. Register the public half and activate it, from Settings → Security &
+   Credentials — every member create/edit that submits an IBAN is a `409`
+   until this step is done
+
+There is no step 5. Nothing needs re-encrypting because nothing was ever
+stored unencrypted on a shipped release — nothing to run a converse of
+"register key → batch-encrypt" against. A **rotation** (swapping the
+operational key while mandates already exist) does have a batch step; see
+below.
+
+### The Private Key Is the Other Half of This Backup Story
+
+The database backup above is necessary but not sufficient: it is ciphertext,
+and this system deliberately keeps no private key anywhere the database
+backup — or the server itself — could hand over. **Losing the last valid
+private key makes every IBAN sealed under it permanently unrecoverable, no
+matter how many database backups exist.** That risk is inherent to sealed
+boxes, not a gap to close; it is the tradeoff that keeps a stolen dump or a
+compromised server from ever being enough to read a bank account number on
+its own.
+
+What this means operationally:
+
+- **Generation is offline, on purpose.** `tools/keypair-generator.html` runs
+  entirely in the browser (vendored libsodium.js, no network calls) so the
+  private key is created on a machine this system never touches. Do not
+  paste it into a chat client, a password manager's "notes" field synced to
+  a phone, or anything else with its own backup/sync story you have not
+  vetted.
+- **Archive it like the safe key, not like a password.** At minimum: one
+  copy with the treasurer, one copy offsite (a second board member, a safe
+  deposit box). The DB backup and the key archive should never be the *only*
+  two copies of anything sitting in the same building.
+- **Test the archive, don't just trust it.** A private key file that was
+  corrupted on write, saved with the wrong encoding, or is quietly the
+  *previous* rotation's key is indistinguishable from a good one until the
+  day it is needed — which is the worst possible day to find out.
+  Periodically (annually is reasonable), pull a copy of the archived key
+  material and confirm it still validates against the *currently ACTIVE*
+  key's fingerprint shown on Settings → Security & Credentials. That page's
+  full-IBAN view (step-up + the archived key, on one member you don't mind
+  looking up) is the practical way to do this without writing a standalone
+  script.
+- **A compromised key is revoked immediately, regardless of remaining
+  lifetime.** Do not wait for the 365-day cryptoperiod to run out — mark it
+  compromised (or merely revoked, if the concern is procedural rather than
+  "someone may have this private key") as soon as it is suspected, then
+  register and activate a replacement and run the rotation batch below
+  against it. A revoked or compromised key never quietly becomes `retired`
+  once its rows are moved off it the way an ordinary `retiring` key does —
+  it keeps saying what happened to it, permanently, which is what makes "was
+  this key ever compromised" answerable by looking at the key list instead
+  of having to reconstruct it from the audit log. Every state transition is
+  audited regardless (`key_registered`, `key_activated`, `key_rotation_*`,
+  `key_retired`, `key_revoked`, `key_marked_compromised`).
+
+### Key Rotation (Annual, or on Suspected Compromise)
+
+Unlike the initial-deploy case above, a rotation runs against a database that
+already holds sealed mandates, so it has a real batch step. All of it happens
+from Settings → Security & Credentials, behind a fresh TOTP step-up:
+
+1. **Register** the new public key (generated the same offline way as the
+   first one) — status `PENDING`.
+2. **Activate** it. The new key becomes `ACTIVE`. If the old key was still
+   `ACTIVE` (the routine annual case), it moves to `RETIRING` automatically;
+   if it had already been marked `revoked` or `compromised` (the incident
+   case — do that *before* this step, without waiting for a replacement),
+   it keeps that status. From this instant, every new or edited IBAN is
+   sealed under the new key — the old key's mandates are simply not caught
+   up yet.
+3. **Run rotation batches** against the old key — `retiring`, `revoked` and
+   `compromised` are all rotatable statuses — supplying its private key each
+   time; the key is never stored server-side, only held in memory for the
+   request. Each batch re-encrypts up to 100 rows with an optimistic
+   `UPDATE … WHERE encryption_key_id = :old`, so a member edit landing mid-batch
+   loses the race safely rather than corrupting anything. Repeat until the
+   outstanding count reaches zero.
+4. **Complete the rotation.** This is refused server-side while any row still
+   references the old key, so a batch that was skipped or interrupted cannot
+   be waved through by mistake. A `retiring` key moves to `RETIRED` on
+   success; a `revoked`/`compromised` key keeps that status forever instead —
+   what happened to it stays visible in the key list, not just recoverable
+   from the audit log.
+5. **Archive the old key's private material** the same way as an active one,
+   for as long as any Beleg-bearing mandate sealed under it is still within
+   its retention window (see the ERM's
+   [Retention Periods](./erm-master.md#retention-periods)) — moving off a
+   key for new writes is not the same as being done needing to read what it
+   already sealed.
 
 ---
 
