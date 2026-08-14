@@ -45,6 +45,7 @@ import {
   headerRowStyle,
   headerCellBaseStyle,
   tableColors,
+  tableSpacing,
   getRowStyle,
 } from '../styles/tableTokens'
 
@@ -169,6 +170,8 @@ export function MembersPage() {
     { value: 'last_name_asc', label: t('members.sortName'), direction: 'asc' as const },
     { value: 'last_name_desc', label: t('members.sortNameDesc'), direction: 'desc' as const },
     { value: 'card_uid_asc', label: t('members.sortCard'), direction: 'asc' as const },
+    { value: 'balance_desc', label: t('members.sortBalanceDesc'), direction: 'desc' as const },
+    { value: 'balance_asc', label: t('members.sortBalanceAsc'), direction: 'asc' as const },
     { value: 'created_at_desc', label: t('members.sortNewest'), direction: 'desc' as const },
     { value: 'created_at_asc', label: t('members.sortOldest'), direction: 'asc' as const },
   ]
@@ -776,6 +779,23 @@ export function MembersPage() {
                     <span style={{ flex: 1, fontWeight: 600, color: theme.colors.text.primary, fontSize: '14px' }}>
                       {member.first_name} {member.last_name}
                     </span>
+                    {/* The Deckel rides on the name row rather than down with
+                        the metadata: on a phone it is the one figure worth
+                        reading without opening anything. */}
+                    <span
+                      data-testid={`member-card-balance-${member.id}`}
+                      style={{
+                        fontFamily: 'JetBrains Mono, monospace',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        fontVariantNumeric: 'tabular-nums',
+                        color: (member.balance_cents ?? 0) === 0
+                          ? theme.colors.text.muted
+                          : theme.colors.text.primary,
+                      }}
+                    >
+                      {formatters.formatPrice(member.balance_cents ?? 0)}
+                    </span>
                   </div>
                   {/* Row 2: SEPA + Card info */}
                   <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '6px' }}>
@@ -1195,6 +1215,15 @@ export function MembersPage() {
                       testId="members-table-header-card-uid"
                     />
                   </th>
+                  <th style={{ ...headerCellBaseStyle, width: '130px' }}>
+                    <SortableTableHeader
+                      label={t('members.table.balance')}
+                      sortKey="balance"
+                      currentSort={{ key: list.sortKey, direction: list.sortDirection }}
+                      onSort={(key: string, direction: 'asc' | 'desc') => list.setSort(key as MemberSortKey, direction)}
+                      testId="members-table-header-balance"
+                    />
+                  </th>
                   <th style={{ ...headerCellBaseStyle, width: '120px' }}>
                     <SortableTableHeader
                       label={t('members.memberSince')}
@@ -1252,6 +1281,25 @@ export function MembersPage() {
                     <TableCell testId="member-card-uid">
                       {member.card_uid || '—'}
                     </TableCell>
+                    {/* The Deckel. Zero is greyed rather than hidden: the
+                        treasurer scanning the column wants the settled rows to
+                        fall away, but a blank cell would read as "not known"
+                        instead of "owes nothing". */}
+                    <td
+                      data-testid={`members-table-cell-balance-${member.id}`}
+                      style={{
+                        padding: tableSpacing.cellPadding,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        fontVariantNumeric: 'tabular-nums',
+                        color: (member.balance_cents ?? 0) === 0
+                          ? theme.colors.text.muted
+                          : tableColors.cellText,
+                      }}
+                    >
+                      {formatters.formatPrice(member.balance_cents ?? 0)}
+                    </td>
                     <TableCell testId={`members-table-cell-created-${member.id}`}>
                       {member.created_at ? formatters.formatDate(member.created_at.split('T')[0]) : '—'}
                     </TableCell>

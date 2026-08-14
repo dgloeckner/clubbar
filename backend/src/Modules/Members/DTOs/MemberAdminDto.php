@@ -22,6 +22,7 @@ final readonly class MemberAdminDto
         public ?string $mandateReference,
         public ?string $mandateSignedAt,
         public ?string $bankName,
+        public int $balanceCents,
         public ?string $deletedAt,
         public string $createdAt,
         public string $updatedAt,
@@ -31,6 +32,11 @@ final readonly class MemberAdminDto
      * The stored IBAN is sealed (ADR-0036); the API exposes only its last
      * four characters — enough to recognize the account, useless to debit it.
      * `iban_masked` keeps its established shape (`****3000`) for display.
+     *
+     * `balance_cents` is the member's Deckel, summed by the repository over
+     * their unsettled transactions (#371). It defaults to zero only so that a
+     * row assembled by hand — a test fixture, say — still builds; every query
+     * that feeds this DTO selects the column.
      */
     public static function fromRow(array $row): self
     {
@@ -51,6 +57,7 @@ final readonly class MemberAdminDto
             mandateReference: $row['mandate_reference'] ?? null,
             mandateSignedAt: $row['mandate_signed_at'] ?? null,
             bankName: $row['bank_name'] ?? null,
+            balanceCents: (int) ($row['balance_cents'] ?? 0),
             deletedAt: $row['deleted_at'] ?? null,
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],
@@ -75,6 +82,7 @@ final readonly class MemberAdminDto
             'mandate_reference' => $this->mandateReference,
             'mandate_signed_at' => $this->mandateSignedAt, // DATE-only field, no timezone needed
             'bank_name' => $this->bankName,
+            'balance_cents' => $this->balanceCents,
             'deleted_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->deletedAt),
             'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
             'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),

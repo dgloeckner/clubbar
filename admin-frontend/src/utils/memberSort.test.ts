@@ -15,6 +15,11 @@ describe('buildMemberSortBy', () => {
     expect(buildMemberSortBy('card_uid', 'desc')).toBe('card_uid_desc')
   })
 
+  it('sends the Deckel column as the API balance field', () => {
+    expect(buildMemberSortBy('balance', 'asc')).toBe('balance_asc')
+    expect(buildMemberSortBy('balance', 'desc')).toBe('balance_desc')
+  })
+
   it('sorts oldest first when the date column asks for it', () => {
     expect(buildMemberSortBy('created_at', 'asc')).toBe('created_at_asc')
     expect(buildMemberSortBy('created_at', 'desc')).toBe('created_at_desc')
@@ -23,7 +28,7 @@ describe('buildMemberSortBy', () => {
   it('only produces values the generated API client accepts', () => {
     const allowed = Object.values(ListMembersSortBy)
 
-    for (const key of ['last_name', 'card_uid', 'created_at'] as const) {
+    for (const key of ['last_name', 'card_uid', 'balance', 'created_at'] as const) {
       for (const direction of ['asc', 'desc'] as const) {
         expect(allowed).toContain(buildMemberSortBy(key, direction))
       }

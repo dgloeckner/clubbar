@@ -35,7 +35,6 @@ test.describe('Members Page Statistics', () => {
     await membersPage.waitForStatsToLoad()
 
     const initialCount = parseInt(await membersPage.getMemberCount(), 10)
-    const initialBalanceCents = parseGermanCurrencyToCents(await membersPage.getOpenBalance())
 
     // ── Create test data ────────────────────────────────────────────────
     // 2 active members → count should increase by 2
@@ -73,7 +72,7 @@ test.describe('Members Page Statistics', () => {
     )
     await membersPage.navigate()
     await membersPage.expectPageVisible()
-    await dashboardResp2
+    const dashboard = await (await dashboardResp2).json()
     await membersPage.waitForStatsToLoad()
 
     // Member count: increased by at least 3 (2 active + 1 balance member; inactive excluded)
@@ -81,10 +80,21 @@ test.describe('Members Page Statistics', () => {
     const finalCount = parseInt(await membersPage.getMemberCount(), 10)
     expect(finalCount).toBeGreaterThanOrEqual(initialCount + 3)
 
-    // Balance: increased by at least 1050 cents (3 × 350)
-    // The settlement consumes 500 cents but the 3×350 are unsettled
+    // Balance: the card is a club-wide figure, so it cannot be asserted as
+    // "the baseline plus what this test booked" — a settlement run by another
+    // worker subtracts from the very same total, and this test then fails for
+    // something it never did (Pattern 001). The two things the card actually
+    // promises are checked instead, and both are isolation-safe.
+    //
+    // First: the card shows what the backend says is outstanding, right now.
     const finalBalanceCents = parseGermanCurrencyToCents(await membersPage.getOpenBalance())
-    expect(finalBalanceCents).toBeGreaterThanOrEqual(initialBalanceCents + 1050)
+    expect(finalBalanceCents).toBe(dashboard.metrics.outstanding_balance_cents)
+    // Second: the 3 × 350 this test left open are part of it, and the 500 it
+    // settled is not — read off this test's own member, whom nobody else
+    // touches.
+    const balanceRow = await authenticatedRequest.get(`${API_BASE}/admin/members/${balanceMember.id}`)
+    expect(balanceRow.status()).toBe(200)
+    expect((await balanceRow.json()).balance_cents).toBe(1050)
 
     // Last settlement date: contains current year (settlement was just created)
     const settlementDate = await membersPage.getLastSettlementDate()

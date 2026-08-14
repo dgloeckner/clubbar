@@ -646,6 +646,30 @@ export class MembersPage extends BasePage {
   }
 
   /**
+   * DECKEL COLUMN (#371)
+   */
+
+  async expectBalanceColumnHeaderVisible() {
+    await expect(this.page.getByTestId('members-table-header-balance')).toBeVisible()
+  }
+
+  async clickBalanceColumnHeader(expectedSortBy: 'balance_asc' | 'balance_desc' = 'balance_asc') {
+    await this.clickSortableHeader('members-table-header-balance', expectedSortBy)
+  }
+
+  /** The Deckel rendered on one member's row, as the treasurer reads it. */
+  async getMemberBalance(memberId: string): Promise<string> {
+    const cell = this.page.getByTestId(`members-table-cell-balance-${memberId}`)
+    await expect(cell).toBeVisible()
+    return (await cell.textContent()) || ''
+  }
+
+  /** The Deckel of the visible rows, top to bottom, as rendered. */
+  async getMemberBalances(): Promise<string[]> {
+    return await this.page.locator('[data-testid^="members-table-cell-balance-"]').allTextContents()
+  }
+
+  /**
    * Click a sortable column header and wait for the list it asks the API for.
    *
    * The expected `sort_by` is part of the contract, not a detail: the Card-UID

@@ -45,6 +45,9 @@ test.describe('Admin Members List Endpoint', () => {
     expect(member.is_active).toBeDefined();
     expect(member.is_sepa_valid).toBeDefined();
     expect(member.iban_masked).toBeDefined();
+    // The Deckel the list renders (#371) — a number on every row, including
+    // the members who owe nothing.
+    expect(typeof member.balance_cents).toBe('number');
     expect(member.created_at).toBeDefined();
     expect(member.updated_at).toBeDefined();
   });
