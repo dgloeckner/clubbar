@@ -857,6 +857,62 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->membersRepository->listPaginated(10, 0, [], 'iban', 'asc');
     }
 
+    // ------------------------------------------------------------------
+    // Search. `escapeLike` used to escape `%` and `_` before the backslash and
+    // so re-escaped its own output, leaving a pattern that matched nothing.
+    // These run against MariaDB because the bug was in what LIKE made of the
+    // pattern, not in what PHP made of the string.
+    // ------------------------------------------------------------------
+
+    public function test_listPaginated_search_finds_a_name_containing_an_underscore(): void
+    {
+        $marker = $this->sortMarker();
+        $member = $this->createTestMember("Jean{$marker}_Luc", 'Picard');
+
+        $result = $this->membersRepository->listPaginated(50, 0, [], 'created_at', 'desc', "Jean{$marker}_Luc");
+
+        $this->assertContains($member, array_column($result['items'], 'id'));
+    }
+
+    public function test_listPaginated_search_finds_a_name_containing_a_percent_sign(): void
+    {
+        $marker = $this->sortMarker();
+        $member = $this->createTestMember("Cent{$marker}100%", 'Proof');
+
+        $result = $this->membersRepository->listPaginated(50, 0, [], 'created_at', 'desc', "Cent{$marker}100%");
+
+        $this->assertContains($member, array_column($result['items'], 'id'));
+    }
+
+    public function test_listPaginated_search_treats_an_underscore_as_a_character_not_a_wildcard(): void
+    {
+        // The other half of the escape's job, and the reason the fix is an
+        // ordering change rather than dropping the escaping: a searched `_`
+        // must not quietly match every other character in that position.
+        $marker = $this->sortMarker();
+        $typed = $this->createTestMember("Wild{$marker}_x", 'Escape');
+        $decoy = $this->createTestMember("Wild{$marker}Zx", 'Escape');
+
+        $result = $this->membersRepository->listPaginated(50, 0, [], 'created_at', 'desc', "Wild{$marker}_x");
+        $ids = array_column($result['items'], 'id');
+
+        $this->assertContains($typed, $ids);
+        $this->assertNotContains($decoy, $ids);
+    }
+
+    public function test_listPaginated_search_treats_a_percent_sign_as_a_character_not_a_wildcard(): void
+    {
+        $marker = $this->sortMarker();
+        $typed = $this->createTestMember("Pct{$marker}%end", 'Escape');
+        $decoy = $this->createTestMember("Pct{$marker}ANYTHINGend", 'Escape');
+
+        $result = $this->membersRepository->listPaginated(50, 0, [], 'created_at', 'desc', "Pct{$marker}%end");
+        $ids = array_column($result['items'], 'id');
+
+        $this->assertContains($typed, $ids);
+        $this->assertNotContains($decoy, $ids);
+    }
+
     /** A per-test name fragment, so a sort assertion only sees its own rows. */
     private function sortMarker(): string
     {
