@@ -102,6 +102,10 @@ void main() {
     when(() => syncProvider.isSyncing).thenReturn(false);
     when(() => syncProvider.connectionStatus).thenReturn(ConnectionStatus.online);
     when(() => syncProvider.pairingMismatch).thenReturn(false);
+    // #395: MainLayout renders CredentialExpiredBanner above every
+    // screen, and an unstubbed non-nullable getter throws rather than
+    // reading as false.
+    when(() => syncProvider.credentialExpired).thenReturn(false);
     when(() => syncProvider.addListener(any())).thenReturn(null);
     when(() => syncProvider.removeListener(any())).thenReturn(null);
 
