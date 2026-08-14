@@ -815,7 +815,6 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(MembersAdminController::class, fn() => new MembersAdminController(
             $this->getMembersService(),
             $this->getValidator(),
-            $this->getSepaConfigService(),
             $this->getSettlementsService(),
             $this->getCollectionHoldService(),
         ));

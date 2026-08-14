@@ -1195,25 +1195,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /admin/sepa-mandate-template:
-    get:
-      summary: Download SEPA mandate template PDF
-      tags: [Members]
-      security:
-        - sessionAuth: []
-      responses:
-        '200':
-          description: PDF template with org config pre-filled
-          content:
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          description: SEPA configuration incomplete
-
   # ============================================================================
   # TRANSACTIONS
   # ============================================================================

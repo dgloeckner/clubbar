@@ -8,7 +8,6 @@ use App\Modules\Members\Controllers\AdminController;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Settlements\DTOs\CollectionHoldDto;
 use App\Modules\Settlements\Services\CollectionHoldService;
-use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Shared\Validation\Validator;
 use PHPUnit\Framework\TestCase;
@@ -38,7 +37,6 @@ class AdminControllerCollectionHoldsTest extends TestCase
         $this->controller = new AdminController(
             $this->createMock(MembersService::class),
             new Validator($this->createMock(\PDO::class)),
-            $this->createMock(SepaConfigService::class),
             $this->createMock(SettlementsService::class),
             $this->collectionHoldService,
         );

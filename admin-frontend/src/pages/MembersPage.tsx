@@ -421,15 +421,6 @@ export function MembersPage() {
     }
   }
 
-  const handleDownloadSepaTemplate = async () => {
-    try {
-      const blob = await getMembersFactory().getAdminSepaMandateTemplate()
-      downloadBlob(blob, 'sepa-mandate-template.pdf')
-    } catch {
-      setError(t('members.sepaTemplateError'))
-    }
-  }
-
   function handleExtractionComplete(extraction: ExtractionResult) {
     setPreExtractionFormData({ ...formData })
     setExtractedFields(extraction)
@@ -569,16 +560,6 @@ export function MembersPage() {
               title={scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
             >
               {scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
-            </PageActionButton>
-            <PageActionButton
-              variant="secondary"
-              data-testid="members-sepa-template-download-button"
-              onClick={handleDownloadSepaTemplate}
-              iconOnly={isMobile}
-              icon={<DownloadIcon size={18} />}
-              title={t('members.downloadSepaTemplate')}
-            >
-              {t('members.downloadSepaTemplate')}
             </PageActionButton>
             <PageActionButton
               data-testid="members-create-button"

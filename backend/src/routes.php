@@ -126,7 +126,6 @@ return function (App $app): void {
         // Clearing is an admin decision, not a member edit — it lets the next
         // collection run reach this member again (ruling #148 §5).
         $group->post('/members/{memberId}/collection-hold/clear', [MembersAdminController::class, 'clearCollectionHold']);
-        $group->get('/sepa-mandate-template', [MembersAdminController::class, 'downloadMandateTemplate']);
 
         // Stateless mandate-scan extraction — no document is stored (ADR-0037)
         $group->post('/mandate-document/extract', [ExtractionController::class, 'extract']);

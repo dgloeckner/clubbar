@@ -235,8 +235,6 @@
     "newFromScan": "Neu aus Scan",
     "countFound_one": "{{count}} Mitglied gefunden",
     "countFound_other": "{{count}} Mitglieder gefunden",
-    "downloadSepaTemplate": "SEPA-Vorlage",
-    "sepaTemplateError": "Die SEPA-Konfiguration ist unvollständig. Bitte hinterlegen Sie zuerst die Gläubigerdaten in den Einstellungen.",
     "storedIban": "Gespeichert: {{masked}}",
     "removeStoredIban": "Bankdaten entfernen",
     "storedIbanWillBeRemoved": "Bankdaten werden beim Speichern entfernt, das Mandat wird widerrufen."

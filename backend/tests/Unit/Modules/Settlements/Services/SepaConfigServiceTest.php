@@ -6,7 +6,6 @@ namespace Tests\Unit\Modules\Settlements\Services;
 
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Settlements\Services\SepaConfigService;
-use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
@@ -142,39 +141,5 @@ class SepaConfigServiceTest extends TestCase
         $this->sepaConfigRepository->method('isConfigured')->willReturn(true);
 
         $this->assertTrue($this->service->isConfigured());
-    }
-
-    // ── generateMandateTemplatePdf ────────────────────────────────────
-
-    public function test_generateMandateTemplatePdf_throws_when_not_configured(): void
-    {
-        $this->sepaConfigRepository->method('getConfig')->willReturn(null);
-
-        $this->expectException(BusinessRuleException::class);
-        $this->expectExceptionMessage('SEPA configuration is incomplete');
-
-        $this->service->generateMandateTemplatePdf();
-    }
-
-    public function test_generateMandateTemplatePdf_throws_when_creditor_address_is_missing(): void
-    {
-        $this->sepaConfigRepository->method('getConfig')->willReturn(
-            $this->configRow(['creditor_address_street' => null])
-        );
-
-        $this->expectException(BusinessRuleException::class);
-        $this->expectExceptionMessage('SEPA configuration is incomplete');
-
-        $this->service->generateMandateTemplatePdf();
-    }
-
-    public function test_generateMandateTemplatePdf_renders_a_pdf_when_fully_configured(): void
-    {
-        $this->sepaConfigRepository->method('getConfig')->willReturn($this->configRow());
-
-        $pdf = $this->service->generateMandateTemplatePdf();
-
-        // %PDF is the magic header of every valid PDF document
-        $this->assertStringStartsWith('%PDF', $pdf);
     }
 }

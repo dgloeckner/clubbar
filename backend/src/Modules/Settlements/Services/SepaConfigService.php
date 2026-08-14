@@ -9,7 +9,6 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Shared\Services\AuditService;
-use App\Shared\Exceptions\BusinessRuleException;
 
 class SepaConfigService
 {
@@ -51,60 +50,5 @@ class SepaConfigService
     public function isConfigured(): bool
     {
         return $this->sepaConfigRepository->isConfigured();
-    }
-
-    public function generateMandateTemplatePdf(): string
-    {
-        $config = $this->getConfig();
-
-        if (
-            !$config ||
-            empty($config->creditorId) ||
-            empty($config->creditorName) ||
-            empty($config->creditorAddressStreet) ||
-            empty($config->creditorAddressCity) ||
-            empty($config->creditorAddressCountry)
-        ) {
-            throw new BusinessRuleException(
-                'SEPA configuration is incomplete. Please configure creditor details in Settings first.'
-            );
-        }
-
-        $address = htmlspecialchars(
-            $config->creditorAddressStreet . ' · ' . $config->creditorAddressCity . ', ' . $config->creditorAddressCountry,
-            ENT_QUOTES,
-            'UTF-8'
-        );
-        $footer = htmlspecialchars(
-            $config->creditorName . ' · ' . $config->creditorAddressStreet . ' · ' . $config->creditorAddressCity,
-            ENT_QUOTES,
-            'UTF-8'
-        );
-
-        $templatePath = __DIR__ . '/../../../../resources/templates/sepa-mandate.html';
-        $html = (string) file_get_contents($templatePath);
-
-        $html = str_replace(
-            ['{{APP_NAME}}', '{{CREDITOR}}', '{{CREDITOR_ID}}', '{{ADDRESS}}', '{{FOOTER}}'],
-            [
-                'Club Bar',
-                htmlspecialchars($config->creditorName, ENT_QUOTES, 'UTF-8'),
-                htmlspecialchars($config->creditorId, ENT_QUOTES, 'UTF-8'),
-                $address,
-                $footer,
-            ],
-            $html
-        );
-
-        $options = new \Dompdf\Options();
-        $options->set('isRemoteEnabled', false);
-        $options->set('defaultFont', 'Arial');
-
-        $dompdf = new \Dompdf\Dompdf($options);
-        $dompdf->loadHtml($html, 'UTF-8');
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-
-        return (string) $dompdf->output();
     }
 }

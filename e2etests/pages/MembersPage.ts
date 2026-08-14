@@ -906,13 +906,6 @@ export class MembersPage extends BasePage {
     ).not.toBeVisible()
   }
 
-  private readonly sepaTemplateDownloadButton = () =>
-    this.page.getByTestId('members-sepa-template-download-button')
-
-  async clickSepaTemplateDownloadButton(): Promise<void> {
-    await this.sepaTemplateDownloadButton().click()
-  }
-
   /**
    * ACCESSIBLE NAMES (#138)
    *

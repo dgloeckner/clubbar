@@ -235,8 +235,6 @@
     "newFromScan": "New from scan",
     "countFound_one": "{{count}} member found",
     "countFound_other": "{{count}} members found",
-    "downloadSepaTemplate": "SEPA Template",
-    "sepaTemplateError": "SEPA configuration is incomplete. Please configure creditor details in Settings first.",
     "storedIban": "On file: {{masked}}",
     "removeStoredIban": "Remove bank details",
     "storedIbanWillBeRemoved": "Bank details will be removed on save, revoking the mandate."

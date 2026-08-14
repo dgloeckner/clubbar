@@ -8,7 +8,6 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Shared\Validation\Validator;
 use App\Modules\Settlements\Services\CollectionHoldService;
-use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Http\ListQuery;
@@ -135,7 +134,6 @@ class AdminController
     public function __construct(
         private MembersService $membersService,
         private Validator $validator,
-        private SepaConfigService $sepaConfigService,
         private SettlementsService $settlementsService,
         private CollectionHoldService $collectionHoldService,
     ) {}
@@ -355,12 +353,4 @@ class AdminController
         return $this->json($response, $hold->toArray());
     }
 
-    public function downloadMandateTemplate(Request $request, Response $response): Response
-    {
-        $pdf = $this->sepaConfigService->generateMandateTemplatePdf();
-        $response->getBody()->write($pdf);
-        return $response
-            ->withHeader('Content-Type', 'application/pdf')
-            ->withHeader('Content-Disposition', 'attachment; filename="sepa-mandate-template.pdf"');
-    }
 }
