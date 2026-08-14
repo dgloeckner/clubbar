@@ -24,6 +24,7 @@ export class SettlementsPage extends BasePage {
   // Main page locators (PRIVATE)
   private readonly table = () => this.page.getByTestId('settlements-table')
   private readonly emptyState = () => this.page.getByTestId('settlements-empty-state')
+  private readonly mobileCards = () => this.page.getByTestId('settlements-mobile-cards')
 
   // Settlement list row/cell locators
   private readonly settlementRow = (settlementId: string) =>
@@ -34,6 +35,10 @@ export class SettlementsPage extends BasePage {
     this.page.getByTestId(`settlements-price-${settlementId}`)
   private readonly settlementStatusBadge = (settlementId: string) =>
     this.page.getByTestId(`settlements-badge-status-${settlementId}`)
+  // "wartet auf Bestätigung" — a file was generated and nobody has said it
+  // reached the bank (#377, ruling #142 §2).
+  private readonly awaitingConfirmationMarker = (settlementId: string) =>
+    this.page.getByTestId(`settlements-badge-status-${settlementId}-awaiting`)
   private readonly settlementRows = () => this.page.locator('[data-testid^="settlements-table-row-"]')
   // The second line of the date cell — the period the run swept, printed only
   // when it says something the settlement's own date does not (#378).
@@ -67,6 +72,25 @@ export class SettlementsPage extends BasePage {
   private readonly undoDialogBlockedReason = () => this.page.getByTestId('undo-settlement-blocked-reason')
   private readonly undoDialogExportWarning = () => this.page.getByTestId('undo-settlement-export-warning')
   private readonly undoDialogExportAck = () => this.page.getByTestId('undo-settlement-export-ack')
+
+  // Mark as submitted (#377). Generating the pain.008 file is not sending it,
+  // so this is the click that records the treasurer uploaded it — and the
+  // point after which the run can only be reversed, never cancelled.
+  private readonly markSubmittedButton = (settlementId: string) =>
+    this.page.getByTestId(`settlements-mark-submitted-btn-${settlementId}`)
+  private readonly markSubmittedDialog = () => this.page.getByTestId('confirm-dialog')
+  private readonly markSubmittedConfirm = () => this.page.getByTestId('confirm-dialog-ok')
+  private readonly markSubmittedCancel = () => this.page.getByTestId('confirm-dialog-cancel')
+  private readonly markSubmittedDetail = (field: 'date' | 'amount' | 'members') =>
+    this.page.getByTestId(`mark-submitted-detail-${field}`)
+  private readonly markSubmittedWarning = () => this.page.getByTestId('mark-submitted-warning')
+  private readonly submitSuccessBanner = () => this.page.getByTestId('settlements-submit-success')
+
+  // Status filter pills (#377): Alle / Entwurf / Exportiert / Übermittelt /
+  // Zurückgebucht / Storniert.
+  private readonly statusFilterPill = (
+    status: 'all' | 'draft' | 'exported' | 'submitted' | 'reversed' | 'cancelled'
+  ) => this.page.getByTestId(`settlements-status-filter-${status}`)
 
   // Pagination (PaginationToolbar rendered with testId="settlements")
   private readonly paginationPageButton = (pageNumber: number) =>
@@ -102,6 +126,19 @@ export class SettlementsPage extends BasePage {
     } catch {
       throw new Error('Page loaded but neither settlements table nor empty state appeared')
     }
+  }
+
+  /**
+   * Wait for the phone layout, which renders cards instead of a table.
+   *
+   * The card and the table share their status test IDs, so every status
+   * assertion below works against either — which is the point: the card used
+   * to know only cancelled vs active, and a badge that exists in one layout
+   * and not the other is exactly how that regression survived (#377).
+   */
+  async waitForMobileCardsLoad(timeout = 15000) {
+    await expect(this.loadingIndicator()).toBeHidden({ timeout })
+    await expect(this.mobileCards()).toBeVisible({ timeout })
   }
 
   /**
@@ -417,6 +454,129 @@ export class SettlementsPage extends BasePage {
     await this.undoDialogConfirm().click()
     await responsePromise
     await this.waitForPageLoad()
+  }
+
+  /**
+   * MARK AS SUBMITTED (#377)
+   */
+
+  /** Open the "mark as submitted" dialog and leave it open for inspection. */
+  async openMarkSubmittedDialog(settlementId: string) {
+    await this.markSubmittedButton(settlementId).click()
+    await expect(this.markSubmittedDialog()).toBeVisible()
+  }
+
+  async dismissMarkSubmittedDialog() {
+    await this.markSubmittedCancel().click()
+    await expect(this.markSubmittedDialog()).toBeHidden()
+  }
+
+  /** The figures the dialog states about the run it is asking about. */
+  async getMarkSubmittedDialogDetails(): Promise<{ date: string; amount: string; members: string }> {
+    return {
+      date: (await this.markSubmittedDetail('date').textContent())?.trim() ?? '',
+      amount: (await this.markSubmittedDetail('amount').textContent())?.trim() ?? '',
+      members: (await this.markSubmittedDetail('members').textContent())?.trim() ?? '',
+    }
+  }
+
+  /** The cost the button does not carry: cancellation is foreclosed. */
+  async expectMarkSubmittedWarning(expected: RegExp) {
+    await expect(this.markSubmittedWarning()).toBeVisible()
+    await expect(this.markSubmittedWarning()).toHaveText(expected)
+  }
+
+  /**
+   * Confirm an already-open dialog and wait for the reloaded list.
+   *
+   * The reload is awaited as an HTTP response rather than through
+   * `waitForPageLoad`, because this flow is exercised from the phone layout
+   * too and that one renders cards where the desktop renders a table.
+   */
+  async confirmMarkSubmitted(settlementId: string) {
+    const submitted = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes(`/api/admin/settlements/${settlementId}/submit`) &&
+        resp.request().method() === 'POST' &&
+        resp.status() === 200
+    )
+    const reloaded = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/settlements?') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200
+    )
+    await this.markSubmittedConfirm().click()
+    await submitted
+    await reloaded
+  }
+
+  /** Open the dialog, confirm it, and wait for the list the submission produced. */
+  async markSubmitted(settlementId: string) {
+    await this.openMarkSubmittedDialog(settlementId)
+    await this.confirmMarkSubmitted(settlementId)
+  }
+
+  async expectMarkSubmittedOffered(settlementId: string) {
+    await expect(this.markSubmittedButton(settlementId)).toBeVisible()
+  }
+
+  /**
+   * The action is absent, not disabled: for a run nobody exported there is no
+   * claim to make, and a dead button would invite the click anyway.
+   */
+  async expectMarkSubmittedNotOffered(settlementId: string) {
+    await expect(this.markSubmittedButton(settlementId)).toHaveCount(0)
+  }
+
+  async expectSubmitSuccessVisible() {
+    await expect(this.submitSuccessBanner()).toBeVisible()
+  }
+
+  async expectExportSepaEnabled(settlementId: string) {
+    await expect(this.exportSepaButton(settlementId)).toBeEnabled()
+  }
+
+  /** A file already with the bank must not be generated a second time (#377). */
+  async expectExportSepaDisabled(settlementId: string) {
+    await expect(this.exportSepaButton(settlementId)).toBeDisabled()
+  }
+
+  /**
+   * STATUS (#377)
+   */
+
+  async expectStatusBadge(settlementId: string, expected: RegExp | string) {
+    await expect(this.settlementStatusBadge(settlementId)).toHaveText(expected)
+  }
+
+  /** Exported, and nobody has said the file reached the bank. */
+  async expectAwaitingConfirmation(settlementId: string) {
+    await expect(this.awaitingConfirmationMarker(settlementId)).toBeVisible()
+  }
+
+  async expectNoAwaitingConfirmation(settlementId: string) {
+    await expect(this.awaitingConfirmationMarker(settlementId)).toHaveCount(0)
+  }
+
+  /**
+   * Click a status pill and wait for the list that pill produced.
+   *
+   * "Alle" sends no `status` at all, so the two cases are told apart on the
+   * parameter's presence rather than its value.
+   */
+  async filterByStatus(status: 'all' | 'draft' | 'exported' | 'submitted' | 'reversed' | 'cancelled') {
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/settlements') || resp.status() !== 200) return false
+      const sent = new URL(resp.url()).searchParams.get('status')
+      return status === 'all' ? sent === null : sent === status
+    })
+    await this.statusFilterPill(status).click()
+    await responsePromise
+  }
+
+  async expectSettlementRowAbsent(settlementId: string) {
+    await expect(this.settlementRow(settlementId)).toHaveCount(0)
   }
 
   /**

@@ -110,9 +110,16 @@ Example: `sepa-SET-2025-001-20250123.xml`
 - XML file downloaded
 - Audit log records export
 - Settlement data unchanged
-- Can re-export multiple times
+- Settlement status becomes `exported`, and carries an
+  **awaiting-confirmation** marker until step 7 below
+- Can re-export while the settlement has not been marked submitted
 
-## Bank Upload (Outside System)
+## Bank Upload (Outside System) and Confirmation
+
+Generating the file is not sending it (ADR-0032, ruling #142 §1), so the flow
+does not end at the download. Until step 7 the system cannot tell an
+un-uploaded file from a forgotten click, which is why the settlement carries an
+explicit marker in the meantime.
 
 1. Admin logs into online banking
 2. Admin navigates to SEPA Direct Debit upload
@@ -120,6 +127,27 @@ Example: `sepa-SET-2025-001-20250123.xml`
 4. Bank validates and displays summary
 5. Admin authorizes with TAN
 6. Bank schedules execution for specified date
+7. **Admin returns to the settlements list and marks the settlement as
+   submitted** (issue #377)
+
+### Marking a settlement submitted
+
+- Offered only for a `direct_debit` settlement whose status is `exported` — a
+  run with no generated file has nothing at the bank, and a bank transfer or
+  write-off never goes to one
+- A confirmation dialog states the settlement's date, total and member count,
+  and that cancellation is foreclosed afterwards
+- Records `submitted_at` and `submitted_by_admin_id`, and writes a
+  `settlement_submit` audit entry
+- No step-up credential is required, unlike the export itself: nothing is
+  decrypted
+
+### Postconditions of confirmation
+
+- Settlement status becomes `submitted`; the awaiting-confirmation marker is gone
+- SEPA export is no longer offered — a second file is a second debit
+- Cancellation is refused; a bank return is recorded as a **reversal**
+  (UC-SEPA reversal flow, ruling #148)
 
 ## Test Scenarios
 
@@ -138,5 +166,10 @@ Example: `sepa-SET-2025-001-20250123.xml`
 | T11 | Mandate reference in XML | Correct reference per member |
 | T12 | Re-export same settlement | Same XML generated |
 | T13 | EndToEndId format | SET-YYYY-NNN-NNNN format |
+| T14 | Exported settlement, never confirmed | Awaiting-confirmation marker shown |
+| T15 | Mark exported settlement submitted | Status `submitted`, audit entry written |
+| T16 | Mark unexported settlement submitted | Refused — nothing is at the bank yet |
+| T17 | Export a submitted settlement | Refused — a second file is a second debit |
+| T18 | Undo a submitted settlement | Refused, naming reversal as the remedy |
 | T14 | Audit log entry | Contains export details |
 | T15 | Export without authentication | Access denied (401) |

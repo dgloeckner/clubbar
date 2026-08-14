@@ -28,6 +28,7 @@ import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { UndoSettlementDialog } from '../components/modals/UndoSettlementDialog'
+import { MarkSubmittedDialog } from '../components/modals/MarkSubmittedDialog'
 import { StepUpConfirmDialog, type StepUpCredentials } from '../components/modals/StepUpConfirmDialog'
 import { PrivateKeyInput } from '../components/modals/PrivateKeyInput'
 import { getProfile } from '../auth/session'
@@ -40,6 +41,8 @@ import { useListQuery } from '../hooks/useListQuery'
 import { downloadBlob, downloadFile } from '../api/client'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
 import { formatTransactionPeriod } from '../utils/settlementPeriod'
+import { awaitsBankConfirmation, canExportSepa, settlementStatusColor } from '../utils/settlementStatus'
+import { SettlementStatusBadge } from '../components/common/SettlementStatusBadge'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -66,15 +69,6 @@ interface SettlementListItemExtended extends SettlementListItem {
 }
 
 /**
- * Derive settlement status from fields
- */
-function getSettlementStatus(settlement: SettlementListItemExtended): 'active' | 'cancelled' | 'exported' {
-  if (settlement.is_cancelled) return 'cancelled'
-  if (settlement.exported_at !== null && settlement.exported_at !== undefined) return 'exported'
-  return 'active'
-}
-
-/**
  * The Undo button's colour. Red says "this undoes a live run"; the muted stone
  * says "the gate is shut" — the button still opens the dialog, which states
  * the backend's reason, but it is not dressed as a destructive action (#127).
@@ -92,11 +86,27 @@ const defaultPageSize = 20
 
 type SettlementSortKey = 'created_at' | 'created_by'
 
+/**
+ * The pills the status filter offers (#377). `draft`, `exported`, `submitted`,
+ * `reversed` and `cancelled` partition the list exactly — the backend evaluates
+ * them down the same ladder it derives each row's badge from, so no settlement
+ * can be missing from all five or returned by two.
+ *
+ * `reversed` merges `partly_reversed` and `fully_reversed`: a treasurer asking
+ * "where did money come back?" does not yet care how much of it did. This is
+ * the only place the pill vocabulary departs from the badge vocabulary, and
+ * the badge still shows the two apart.
+ *
+ * The old `active` pill is gone. The backend still accepts it as a deprecated
+ * alias for "not cancelled" so bookmarked links keep working.
+ */
+type SettlementStatusFilterValue = 'all' | 'draft' | 'exported' | 'submitted' | 'reversed' | 'cancelled'
+
 interface SettlementFilters {
   period: PeriodKey
   dateFrom: string | undefined
   dateTo: string | undefined
-  status: 'all' | 'active' | 'cancelled'
+  status: SettlementStatusFilterValue
 }
 
 export function SettlementsPage() {
@@ -172,6 +182,12 @@ export function SettlementsPage() {
   // easy to miss, so the outcome is stated outright (#130).
   const [undoSuccess, setUndoSuccess] = useState<string | null>(null)
 
+  // The settlement the "mark as submitted" dialog is asking about (#377). The
+  // whole row again, because the dialog states its date, total and members
+  // before closing off cancellation for good.
+  const [submitTarget, setSubmitTarget] = useState<SettlementListItemExtended | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
+
   // Mobile responsive
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -181,10 +197,13 @@ export function SettlementsPage() {
     statusFilter !== 'all' ? 1 : 0,
   ].reduce((a, b) => a + b, 0)
 
-  const statusOptions: ReadonlyArray<PillFilterOption<SettlementFilters['status']>> = [
+  const statusOptions: ReadonlyArray<PillFilterOption<SettlementStatusFilterValue>> = [
     { value: 'all', label: t('common.all'), color: theme.colors.semantic.neutral },
-    { value: 'active', label: t('settlements.active'), color: theme.colors.semantic.primary },
-    { value: 'cancelled', label: t('settlements.cancelled'), color: theme.colors.semantic.danger },
+    { value: 'draft', label: t('settlements.statusLabels.draft'), color: settlementStatusColor('draft') },
+    { value: 'exported', label: t('settlements.statusLabels.exported'), color: settlementStatusColor('exported') },
+    { value: 'submitted', label: t('settlements.statusLabels.submitted'), color: settlementStatusColor('submitted') },
+    { value: 'reversed', label: t('settlements.reversed'), color: settlementStatusColor('partly_reversed') },
+    { value: 'cancelled', label: t('settlements.statusLabels.cancelled'), color: settlementStatusColor('cancelled') },
   ]
 
   const mobileSortOptions = [
@@ -308,6 +327,7 @@ export function SettlementsPage() {
     try {
       setError(null)
       setUndoSuccess(null)
+      setSubmitSuccess(null)
       await getSettlementsFactory().cancelSettlement(settlementId)
       await list.reload()
       setUndoSuccess(t('settlements.undoSuccess'))
@@ -322,7 +342,36 @@ export function SettlementsPage() {
     }
   }
 
-  const status = (settlement: SettlementListItemExtended) => getSettlementStatus(settlement)
+  /**
+   * Record that the exported file reached the bank (#377).
+   *
+   * The eligibility rule is not repeated here: the button is offered only for
+   * a run the server says is `exported`, and the server 409s on everything
+   * else. A refusal is shown as it arrives rather than translated, because it
+   * names the specific reason — never exported, already submitted, not a
+   * direct debit.
+   */
+  const handleMarkSubmittedConfirmed = async () => {
+    const settlementId = submitTarget?.id
+    if (!settlementId) return
+    setSubmitTarget(null)
+    try {
+      setError(null)
+      setUndoSuccess(null)
+      setSubmitSuccess(null)
+      await getSettlementsFactory().submitSettlement(settlementId)
+      await list.reload()
+      setSubmitSuccess(t('settlements.markSubmittedSuccess'))
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message ?? err.message)
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError(t('settlements.errors.markSubmitted'))
+      }
+    }
+  }
 
   const transactionPeriod = (settlement: SettlementListItemExtended) =>
     formatTransactionPeriod(
@@ -412,6 +461,23 @@ export function SettlementsPage() {
             </div>
           )}
 
+          {/* The run is with the bank now — same reasoning as the undo banner:
+              the only other sign is one badge in one row (#377). */}
+          {submitSuccess && (
+            <div
+              data-testid="settlements-submit-success"
+              style={{
+                padding: tableSpacing.cellPadding,
+                backgroundColor: theme.colors.banner.successBg,
+                color: theme.colors.banner.successText,
+                borderRadius: 6,
+                margin: tableSpacing.cellPadding,
+              }}
+            >
+              {submitSuccess}
+            </div>
+          )}
+
         {isMobile ? (
           <>
             <MobileToolbar
@@ -482,19 +548,14 @@ export function SettlementsPage() {
                           </span>
                         )}
                       </span>
-                      <span
-                        data-testid={`settlements-badge-status-${settlement.id}`}
-                        style={{
-                          padding: '3px 8px',
-                          borderRadius: 4,
-                          fontSize: 11,
-                          fontWeight: 500,
-                          backgroundColor: settlement.is_cancelled ? theme.colors.semantic.danger : theme.colors.semantic.emerald,
-                          color: 'white',
-                        }}
-                      >
-                        {settlement.is_cancelled ? t('settlements.cancelled') : t('settlements.active')}
-                      </span>
+                      {/* The same badge the table renders. The card used to
+                          know only cancelled vs active, so on a phone an
+                          exported run looked exactly like a draft (#377). */}
+                      <SettlementStatusBadge
+                        settlement={settlement}
+                        testId={`settlements-badge-status-${settlement.id}`}
+                        compact
+                      />
                     </div>
 
                     {/* Row 2: admin user */}
@@ -523,25 +584,50 @@ export function SettlementsPage() {
 
                     {/* Row 5: action buttons */}
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {/* Gated on status, not on cancellation alone: a file
+                          that is already with the bank must not be generated
+                          a second time (#377). */}
                       <button
                         data-testid={`settlements-export-sepa-btn-${settlement.id}`}
                         onClick={() => handleExportSepa(settlement.id ?? '')}
-                        disabled={settlement.is_cancelled}
+                        disabled={!canExportSepa(settlement)}
                         title={t('settlements.exportSepaHint')}
                         aria-label={t('settlements.exportSepaHint')}
                         style={{
                           padding: '5px 10px',
-                          backgroundColor: settlement.is_cancelled ? theme.colors.semantic.neutral : theme.colors.semantic.primary,
+                          backgroundColor: canExportSepa(settlement) ? theme.colors.semantic.primary : theme.colors.semantic.neutral,
                           color: 'white',
                           border: 'none',
                           borderRadius: 4,
                           fontSize: 11,
                           fontWeight: 500,
-                          cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
+                          cursor: canExportSepa(settlement) ? 'pointer' : 'not-allowed',
                         }}
                       >
                         {t('settlements.exportSepa')}
                       </button>
+                      {/* Offered only while the run is exported-and-unsent —
+                          the one state the click is about (#377). */}
+                      {awaitsBankConfirmation(settlement) && (
+                        <button
+                          data-testid={`settlements-mark-submitted-btn-${settlement.id}`}
+                          onClick={() => setSubmitTarget(settlement)}
+                          title={t('settlements.markSubmittedHint')}
+                          aria-label={t('settlements.markSubmittedHint')}
+                          style={{
+                            padding: '5px 10px',
+                            backgroundColor: theme.colors.semantic.emerald,
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 4,
+                            fontSize: 11,
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {t('settlements.markSubmitted')}
+                        </button>
+                      )}
                       <button
                         data-testid={`settlements-export-csv-btn-${settlement.id}`}
                         onClick={() => handleExportCsv(settlement.id ?? '')}
@@ -831,24 +917,13 @@ export function SettlementsPage() {
                             padding: tableSpacing.cellPadding,
                           }}
                         >
-                          <span
-                            data-testid={`settlements-badge-status-${settlement.id}`}
-                            style={{
-                              padding: '4px 8px',
-                              borderRadius: 4,
-                              fontSize: 12,
-                              fontWeight: 500,
-                              backgroundColor:
-                                status(settlement) === 'exported' ? theme.colors.semantic.emerald :
-                                status(settlement) === 'cancelled' ? theme.colors.semantic.danger :
-                                theme.colors.semantic.primary,
-                              color: 'white',
-                            }}
-                          >
-                            {status(settlement) === 'exported' ? t('settlements.exported') :
-                             status(settlement) === 'cancelled' ? t('settlements.cancelled') :
-                             t('settlements.active')}
-                          </span>
+                          {/* All six server states, and the marker for the one
+                              the server cannot distinguish from a forgotten
+                              click. Nothing is derived here (#377). */}
+                          <SettlementStatusBadge
+                            settlement={settlement}
+                            testId={`settlements-badge-status-${settlement.id}`}
+                          />
                         </td>
 
                         {/* Actions */}
@@ -860,11 +935,14 @@ export function SettlementsPage() {
                           }}
                         >
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-                            {/* Export SEPA XML */}
+                            {/* Export SEPA XML. Gated on status: the button
+                                used to stay live through submission and
+                                reversal alike, which is how a file goes to the
+                                bank twice (#377). */}
                             <PillActionButton
                               data-testid={`settlements-export-sepa-btn-${settlement.id}`}
                               onClick={() => handleExportSepa(settlement.id ?? '')}
-                              disabled={settlement.is_cancelled}
+                              disabled={!canExportSepa(settlement)}
                               color={theme.colors.semantic.primary}
                               hoverColor={theme.colors.semantic.primaryHover}
                               title={t('settlements.exportSepaHint')}
@@ -872,6 +950,22 @@ export function SettlementsPage() {
                             >
                               {t('settlements.exportSepa')}
                             </PillActionButton>
+
+                            {/* Mark as submitted to the bank. Offered only for
+                                an exported direct debit — the one state the
+                                backend accepts it in (#377). */}
+                            {awaitsBankConfirmation(settlement) && (
+                              <PillActionButton
+                                data-testid={`settlements-mark-submitted-btn-${settlement.id}`}
+                                onClick={() => setSubmitTarget(settlement)}
+                                color={theme.colors.semantic.emerald}
+                                hoverColor={theme.colors.semantic.emeraldHover}
+                                title={t('settlements.markSubmittedHint')}
+                                aria-label={t('settlements.markSubmittedHint')}
+                              >
+                                {t('settlements.markSubmitted')}
+                              </PillActionButton>
+                            )}
 
                             {/* Export CSV (aggregated) */}
                             <PillActionButton
@@ -945,6 +1039,14 @@ export function SettlementsPage() {
         settlement={undoTarget}
         onConfirm={handleUndoSettlementConfirmed}
         onCancel={() => setUndoTarget(null)}
+      />
+
+      {/* The point of no return (#377): after this the run cannot be cancelled,
+          only reversed, so the dialog names the run and says so. */}
+      <MarkSubmittedDialog
+        settlement={submitTarget}
+        onConfirm={handleMarkSubmittedConfirmed}
+        onCancel={() => setSubmitTarget(null)}
       />
 
       {/*
