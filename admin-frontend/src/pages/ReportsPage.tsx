@@ -7,6 +7,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '../components/layout/PageHeader'
 import {
   BarChart,
   Bar,
@@ -968,8 +969,8 @@ export function ReportsPage() {
   // ─── Main render ──────────────────────────────────────────────────────────
 
   return (
-    <div data-testid="reports-page" style={{ padding: '20px' }}>
-      <h1 style={{ margin: '0 0 20px 0' }}>{t('reports.title')}</h1>
+    <div data-testid="reports-page">
+      <PageHeader title={t('reports.title')} />
 
       {/* Tab Bar */}
       <div

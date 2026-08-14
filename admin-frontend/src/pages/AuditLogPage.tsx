@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { getAuditLog } from '../api/generated/audit-log/audit-log'
@@ -534,9 +535,8 @@ export function AuditLogPage() {
   )
 
   return (
-    <div data-testid="audit-log-page" style={{ padding: '20px' }}>
-      {/* Page Header */}
-      <h1 style={{ margin: '0 0 20px 0' }}>{t('auditLog.title')}</h1>
+    <div data-testid="audit-log-page">
+      <PageHeader title={t('auditLog.title')} />
 
       {isMobile ? (
         <>

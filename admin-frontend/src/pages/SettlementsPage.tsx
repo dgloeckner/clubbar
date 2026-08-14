@@ -40,6 +40,8 @@ import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { PillFilter, type PillFilterOption } from '../components/forms/PillFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { PillActionButton } from '../components/common/PillActionButton'
+import { PageActionButton } from '../components/common/PageActionButton'
+import { PageHeader } from '../components/layout/PageHeader'
 import { useListQuery } from '../hooks/useListQuery'
 import { downloadBlob, downloadFile } from '../api/client'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
@@ -532,64 +534,39 @@ export function SettlementsPage() {
 
     return (
       <div data-testid="settlements-page">
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: theme.spacing.md,
-            flexWrap: 'wrap',
-            margin: '0 0 20px 0',
-          }}
-        >
-          <h1 style={{ margin: 0 }}>{t('settlements.title')}</h1>
-          <div style={{ display: 'flex', gap: theme.spacing.sm, flexWrap: 'wrap' }}>
-            {/*
-              The way in for a treasurer holding a bank statement (§3). A page
-              action rather than a row action, because a row action presumes the
-              one fact they are missing: they do not know which run the return
-              came out of.
+        <PageHeader
+          title={t('settlements.title')}
+          actions={
+            <>
+              {/*
+                The way in for a treasurer holding a bank statement (§3). A page
+                action rather than a row action, because a row action presumes the
+                one fact they are missing: they do not know which run the return
+                came out of.
 
-              Always visible, never gated on a reversible settlement existing —
-              a missing button tells someone holding a real statement nothing
-              about why. The empty case belongs one step later, where the lookup
-              can say something actionable.
-            */}
-            <button
-              data-testid="settlements-record-bank-return-btn"
-              onClick={() => setLookupOpen(true)}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: theme.colors.semantic.amber,
-                color: 'white',
-                border: 'none',
-                borderRadius: 6,
-                fontSize: 14,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              {t('settlements.recordBankReturn')}
-            </button>
-            {/* UC-A30's trigger, and since ADR-0030 the only way in. */}
-            <button
-              data-testid="settlements-new-btn"
-              onClick={() => navigate('/settlements/new')}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: theme.colors.semantic.emerald,
-                color: 'white',
-                border: 'none',
-                borderRadius: 6,
-                fontSize: 14,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              {t('newSettlement.title')}
-            </button>
-          </div>
-        </div>
+                Always visible, never gated on a reversible settlement existing —
+                a missing button tells someone holding a real statement nothing
+                about why. The empty case belongs one step later, where the lookup
+                can say something actionable.
+              */}
+              <PageActionButton
+                variant="warning"
+                data-testid="settlements-record-bank-return-btn"
+                onClick={() => setLookupOpen(true)}
+              >
+                {t('settlements.recordBankReturn')}
+              </PageActionButton>
+              {/* UC-A30's trigger, and since ADR-0030 the only way in. */}
+              <PageActionButton
+                variant="success"
+                data-testid="settlements-new-btn"
+                onClick={() => navigate('/settlements/new')}
+              >
+                {t('newSettlement.title')}
+              </PageActionButton>
+            </>
+          }
+        />
 
           {/* Error state */}
           {error && (

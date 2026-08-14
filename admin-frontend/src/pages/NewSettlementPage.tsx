@@ -19,6 +19,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { PageActionButton } from '../components/common/PageActionButton'
+import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
 import { SearchIcon } from '../components/icons'
 import { useFormatters } from '../hooks/useFormatters'
@@ -48,31 +50,6 @@ function mandateIssue(m: SettlementPreviewMember): 'iban' | 'mandate' | 'both' {
   const hasMandate = !!m.mandate_reference
   if (!hasIban && !hasMandate) return 'both'
   return hasIban ? 'mandate' : 'iban'
-}
-
-const pageHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  gap: theme.spacing.lg,
-  flexWrap: 'wrap',
-  margin: `0 0 ${theme.spacing.xl} 0`,
-}
-
-const pageTitleStyle: React.CSSProperties = {
-  fontSize: theme.typography.fontSize['3xl'],
-  fontWeight: theme.typography.fontWeight.bold,
-  color: theme.colors.text.primary,
-  margin: 0,
-}
-
-/** One line under the title. Longer prose belongs to a section, not the header. */
-const subtitleStyle: React.CSSProperties = {
-  margin: `${theme.spacing.sm} 0 0 0`,
-  fontSize: theme.typography.fontSize.sm,
-  color: theme.colors.text.muted,
-  maxWidth: '76ch',
-  lineHeight: theme.typography.lineHeight.normal,
 }
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -323,37 +300,27 @@ export function NewSettlementPage() {
         Same header shape as the list this screen is reached from: title left,
         primary action right (#378). It used to sit inside the summary card
         with `marginLeft: auto`, which put the run's one irreversible button
-        somewhere no other tab keeps its primary action.
+        somewhere no other tab keeps its primary action. #375 turned that
+        argument into `PageHeader`, so this page states the shape by using it.
       */}
-      <div style={pageHeaderStyle}>
-        <div style={{ minWidth: 0, flex: '1 1 360px' }}>
-          <h1 style={pageTitleStyle}>{t('newSettlement.title')}</h1>
-          <p data-testid="new-settlement-sweep-note" style={subtitleStyle}>
-            {t('newSettlement.sweepNote')}
-          </p>
-        </div>
-
-        {!loading && (
-          <button
-            data-testid="new-settlement-create-btn"
-            onClick={handleCreate}
-            disabled={submitting || !canCreate}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: canCreate ? theme.colors.semantic.emerald : theme.colors.semantic.neutral,
-              color: 'white',
-              border: 'none',
-              borderRadius: 6,
-              fontSize: theme.typography.fontSize.base,
-              fontWeight: theme.typography.fontWeight.medium,
-              whiteSpace: 'nowrap',
-              cursor: submitting || !canCreate ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {submitting ? t('common.loading') : t('newSettlement.create')}
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title={t('newSettlement.title')}
+        subtitle={
+          <span data-testid="new-settlement-sweep-note">{t('newSettlement.sweepNote')}</span>
+        }
+        actions={
+          !loading && (
+            <PageActionButton
+              variant="success"
+              data-testid="new-settlement-create-btn"
+              onClick={handleCreate}
+              disabled={submitting || !canCreate}
+            >
+              {submitting ? t('common.loading') : t('newSettlement.create')}
+            </PageActionButton>
+          )
+        }
+      />
 
       {error && (
         <div

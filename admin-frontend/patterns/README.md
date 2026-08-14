@@ -52,6 +52,18 @@ const list = useListQuery<Item, ItemFilters, ItemSortKey>({
 
 **When to use**: Before writing a new component — check whether one exists
 
+**Every page starts the same way** (#375) — `PageHeader` owns the title/actions
+grid and `MainLayout` owns the page gutter, so a page adds neither:
+```typescript
+<div data-testid="products-page">
+  <PageHeader
+    title={t('products.title')}
+    actions={<PageActionButton data-testid="products-create-button" onClick={openCreateModal} icon={<PlusIcon size={18} />}>{t('products.createProduct')}</PageActionButton>}
+  />
+  {/* toolbar, table, pagination */}
+</div>
+```
+
 ---
 
 ### [Data Fetching Pattern](./data-fetching.md)

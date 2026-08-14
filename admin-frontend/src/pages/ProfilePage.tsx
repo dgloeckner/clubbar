@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
 import { getAuthentication } from '../api/generated/authentication/authentication'
 import { getProfile, updateProfileWithSession } from '../auth/session'
@@ -197,7 +198,7 @@ export function ProfilePage() {
 
   if (loading) {
     return (
-      <div data-testid="profile-page" style={{ padding: '20px' }}>
+      <div data-testid="profile-page">
         <div style={{ textAlign: 'center', padding: theme.spacing.xl, color: theme.colors.text.secondary }}>
           {t('common.loading')}
         </div>
@@ -206,8 +207,8 @@ export function ProfilePage() {
   }
 
   return (
-    <div data-testid="profile-page" style={{ padding: '20px', maxWidth: '600px' }}>
-      <h1 style={{ margin: 0, marginBottom: theme.spacing.xl }}>{t('profile.title')}</h1>
+    <div data-testid="profile-page" style={{ maxWidth: '600px' }}>
+      <PageHeader title={t('profile.title')} />
 
       {/* Profile Section */}
       <div data-testid="profile-section" style={cardStyle}>

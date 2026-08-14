@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useFormatters } from '../hooks/useFormatters'
@@ -65,7 +66,7 @@ export function DashboardPage() {
 
   if (loading && !data) {
     return (
-      <div data-testid="dashboard-page" style={{ padding: theme.spacing['2xl'] }}>
+      <div data-testid="dashboard-page">
         <div data-testid="dashboard-loading" style={{ color: theme.colors.text.secondary }}>
           {t('common.loading')}
         </div>
@@ -75,7 +76,7 @@ export function DashboardPage() {
 
   if (error && !data) {
     return (
-      <div data-testid="dashboard-page" style={{ padding: theme.spacing['2xl'] }}>
+      <div data-testid="dashboard-page">
         <div data-testid="dashboard-error" style={{ color: theme.colors.semantic.danger }}>
           {error}
         </div>
@@ -123,7 +124,11 @@ export function DashboardPage() {
   }
 
   return (
-    <div data-testid="dashboard-page" style={{ padding: isMobile ? `${theme.spacing.sm} 0` : theme.spacing['2xl'], maxWidth: '1200px' }}>
+    <div data-testid="dashboard-page" style={{ maxWidth: '1200px' }}>
+      {/* The one tab that never named itself. Every other page opens with its
+          own name, so arriving here read as having landed mid-page (#375). */}
+      <PageHeader title={t('dashboard.title')} />
+
       {/* A failing auto-refresh below an unchanged page is indistinguishable
           from a quiet club, so say the numbers have stopped moving. */}
       {error && data && (
