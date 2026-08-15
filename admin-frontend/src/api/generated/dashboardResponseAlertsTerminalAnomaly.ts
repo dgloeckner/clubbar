@@ -57,17 +57,37 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { DashboardResponseTerminalStatusItemStatus } from './dashboardResponseTerminalStatusItemStatus';
+import type { DashboardResponseAlertsTerminalAnomalyKindsItem } from './dashboardResponseAlertsTerminalAnomalyKindsItem';
+import type { DashboardResponseAlertsTerminalAnomalySeverity } from './dashboardResponseAlertsTerminalAnomalySeverity';
 
-export type DashboardResponseTerminalStatusItem = {
-  id: string;
-  name: string;
-  is_active: boolean;
-  /** @nullable */
-  last_sync_at?: string | null;
-  /** - online: synced within 5 minutes
-- offline: no sync or synced > 5 minutes ago
-- disabled: terminal is inactive
+/**
+ * Terminals whose credential looks like it is in use on more than
+one device (ADR-0041). Raised by the cron tick from two signals
+recorded on ordinary terminal traffic: two source addresses
+active at the same time for a sustained period, or a delta sync
+cursor that does not continue the history this token has been
+building.
+
+Alert only. Nothing here has blocked, revoked or rate-limited
+anything — every kind has an innocent explanation, and the cost
+of acting on a false positive is a bar that cannot sell.
+
  */
-  status: DashboardResponseTerminalStatusItemStatus;
+export type DashboardResponseAlertsTerminalAnomaly = {
+  /** Open, unacknowledged anomaly rows */
+  count?: number;
+  /** - none: nothing open
+- warning: only cursor anomalies, which a restore from
+  backup or a re-provisioning also produces
+- error: concurrent use, the one kind with no routine
+  innocent cause
+ */
+  severity?: DashboardResponseAlertsTerminalAnomalySeverity;
+  /** Distinct anomaly kinds currently open */
+  kinds?: DashboardResponseAlertsTerminalAnomalyKindsItem[];
+  /** Human-readable alert message. Names the terminal when
+exactly one is affected; counts distinct terminals beyond
+that.
+ */
+  message?: string;
 };

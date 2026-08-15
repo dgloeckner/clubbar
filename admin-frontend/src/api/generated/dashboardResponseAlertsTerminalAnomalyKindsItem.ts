@@ -57,17 +57,12 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { DashboardResponseTerminalStatusItemStatus } from './dashboardResponseTerminalStatusItemStatus';
 
-export type DashboardResponseTerminalStatusItem = {
-  id: string;
-  name: string;
-  is_active: boolean;
-  /** @nullable */
-  last_sync_at?: string | null;
-  /** - online: synced within 5 minutes
-- offline: no sync or synced > 5 minutes ago
-- disabled: terminal is inactive
- */
-  status: DashboardResponseTerminalStatusItemStatus;
-};
+export type DashboardResponseAlertsTerminalAnomalyKindsItem = typeof DashboardResponseAlertsTerminalAnomalyKindsItem[keyof typeof DashboardResponseAlertsTerminalAnomalyKindsItem];
+
+
+export const DashboardResponseAlertsTerminalAnomalyKindsItem = {
+  concurrent_ip: 'concurrent_ip',
+  cursor_regression: 'cursor_regression',
+  cursor_reset: 'cursor_reset',
+} as const;

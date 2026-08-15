@@ -60,6 +60,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 import type { DashboardResponseAlertsEncryptionKey } from './dashboardResponseAlertsEncryptionKey';
 import type { DashboardResponseAlertsSepaConfig } from './dashboardResponseAlertsSepaConfig';
 import type { DashboardResponseAlertsSepaIssues } from './dashboardResponseAlertsSepaIssues';
+import type { DashboardResponseAlertsTerminalAnomaly } from './dashboardResponseAlertsTerminalAnomaly';
 
 /**
  * Admin alerts requiring attention
@@ -84,4 +85,16 @@ either is missing — this is the same completeness check,
 surfaced before an admin hits that block.
  */
   sepa_config?: DashboardResponseAlertsSepaConfig;
+  /** Terminals whose credential looks like it is in use on more than
+one device (ADR-0041). Raised by the cron tick from two signals
+recorded on ordinary terminal traffic: two source addresses
+active at the same time for a sustained period, or a delta sync
+cursor that does not continue the history this token has been
+building.
+
+Alert only. Nothing here has blocked, revoked or rate-limited
+anything — every kind has an innocent explanation, and the cost
+of acting on a false positive is a bar that cannot sell.
+ */
+  terminal_anomaly?: DashboardResponseAlertsTerminalAnomaly;
 };

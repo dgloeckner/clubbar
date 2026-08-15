@@ -57,17 +57,20 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { DashboardResponseTerminalStatusItemStatus } from './dashboardResponseTerminalStatusItemStatus';
 
-export type DashboardResponseTerminalStatusItem = {
-  id: string;
-  name: string;
-  is_active: boolean;
-  /** @nullable */
-  last_sync_at?: string | null;
-  /** - online: synced within 5 minutes
-- offline: no sync or synced > 5 minutes ago
-- disabled: terminal is inactive
+/**
+ * - none: nothing open
+- warning: only cursor anomalies, which a restore from
+  backup or a re-provisioning also produces
+- error: concurrent use, the one kind with no routine
+  innocent cause
+
  */
-  status: DashboardResponseTerminalStatusItemStatus;
-};
+export type DashboardResponseAlertsTerminalAnomalySeverity = typeof DashboardResponseAlertsTerminalAnomalySeverity[keyof typeof DashboardResponseAlertsTerminalAnomalySeverity];
+
+
+export const DashboardResponseAlertsTerminalAnomalySeverity = {
+  none: 'none',
+  warning: 'warning',
+  error: 'error',
+} as const;

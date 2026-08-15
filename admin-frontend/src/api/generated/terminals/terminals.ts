@@ -58,6 +58,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type {
+  AcknowledgeTerminalAnomaly200,
   CreateTerminalRequest,
   GetTerminal200,
   ListTerminals200,
@@ -164,7 +165,31 @@ const revokeTerminalAccess = (
     },
       options);
     }
-  return {listTerminals,createTerminal,getTerminal,updateTerminal,deleteTerminal,rotateTerminalToken,revokeTerminalAccess}};
+  /**
+ * Marks a detected anomaly as seen (ADR-0041 §4). It clears the alert from
+the dashboard and the terminals list and changes **nothing** about the
+credential — an admin who concludes a till really was cloned revokes it
+through `/revoke`, which is a separate, deliberate act.
+
+No step-up gate: this hands out nothing, and an alert that is awkward to
+dismiss is an alert that gets ignored.
+
+The anomaly must belong to the terminal in the path, so a mistyped URL
+cannot silently clear an alert about a different till. Acknowledging an
+anomaly another admin already cleared answers 404.
+
+ * @summary Acknowledge a terminal credential anomaly
+ */
+const acknowledgeTerminalAnomaly = (
+    terminalId: string,
+    anomalyId: string,
+ options?: SecondParameter<typeof customInstance<AcknowledgeTerminalAnomaly200>>,) => {
+      return customInstance<AcknowledgeTerminalAnomaly200>(
+      {url: `/admin/terminals/${terminalId}/anomalies/${anomalyId}/acknowledge`, method: 'POST'
+    },
+      options);
+    }
+  return {listTerminals,createTerminal,getTerminal,updateTerminal,deleteTerminal,rotateTerminalToken,revokeTerminalAccess,acknowledgeTerminalAnomaly}};
 export type ListTerminalsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTerminals>['listTerminals']>>>
 export type CreateTerminalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTerminals>['createTerminal']>>>
 export type GetTerminalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTerminals>['getTerminal']>>>
@@ -172,3 +197,4 @@ export type UpdateTerminalResult = NonNullable<Awaited<ReturnType<ReturnType<typ
 export type DeleteTerminalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTerminals>['deleteTerminal']>>>
 export type RotateTerminalTokenResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTerminals>['rotateTerminalToken']>>>
 export type RevokeTerminalAccessResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTerminals>['revokeTerminalAccess']>>>
+export type AcknowledgeTerminalAnomalyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTerminals>['acknowledgeTerminalAnomaly']>>>

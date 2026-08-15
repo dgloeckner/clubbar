@@ -562,6 +562,8 @@
     "lastSync": "Last Sync",
     "lastTransaction": "Last Transaction",
     "tokenExpires": "Token Expires",
+    "terminalAnomaly": "Check",
+    "terminalAnomalyHint": "This terminal’s credential may be in use on more than one device. Nothing has been blocked — please review.",
     "tokenNone": "No token",
     "noTerminals": "No terminals configured",
     "deactivateTerminalConfirm": "Are you sure you want to deactivate this terminal? It will no longer be able to sync. Credentials stay stored, so reactivating it makes it work again instantly.",
@@ -952,7 +954,8 @@
     "stale": "The last refresh failed — these figures may be out of date.",
     "staleSince": "The last refresh failed — these figures are from {{time}}.",
     "manageKeys": "Manage keys",
-    "manageSepaConfig": "Configure SEPA"
+    "manageSepaConfig": "Configure SEPA",
+    "reviewTerminals": "Review terminals"
   },
   "pagination": {
     "firstPage": "First page",

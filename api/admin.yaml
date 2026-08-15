@@ -3379,6 +3379,53 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /admin/terminals/{terminalId}/anomalies/{anomalyId}/acknowledge:
+    post:
+      tags: [Terminals]
+      summary: Acknowledge a terminal credential anomaly
+      description: |
+        Marks a detected anomaly as seen (ADR-0041 §4). It clears the alert from
+        the dashboard and the terminals list and changes **nothing** about the
+        credential — an admin who concludes a till really was cloned revokes it
+        through `/revoke`, which is a separate, deliberate act.
+
+        No step-up gate: this hands out nothing, and an alert that is awkward to
+        dismiss is an alert that gets ignored.
+
+        The anomaly must belong to the terminal in the path, so a mistyped URL
+        cannot silently clear an alert about a different till. Acknowledging an
+        anomaly another admin already cleared answers 404.
+      operationId: acknowledgeTerminalAnomaly
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: terminalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: anomalyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Anomaly acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   # ============================================================================
   # TRANSACTIONS (global journal)
   # ============================================================================
@@ -5623,6 +5670,17 @@ components:
           description: >
             Whole days until the current token expires, negative once it has.
             Null when no token is outstanding.
+        open_anomaly_count:
+          type: integer
+          description: >
+            Unacknowledged credential anomalies for this terminal (ADR-0041) —
+            concurrent use from two addresses, or a sync cursor that does not
+            continue this token's history. Answers the same question the
+            lifecycle fields do, from the other direction: not "is this about
+            to expire" but "is somebody else already using it".
+        has_open_anomaly:
+          type: boolean
+          description: Whether `open_anomaly_count` is greater than zero.
         created_at:
           type: string
           format: date-time
@@ -6750,6 +6808,44 @@ components:
                 message:
                   type: string
                   description: Human-readable alert message
+            terminal_anomaly:
+              type: object
+              description: |
+                Terminals whose credential looks like it is in use on more than
+                one device (ADR-0041). Raised by the cron tick from two signals
+                recorded on ordinary terminal traffic: two source addresses
+                active at the same time for a sustained period, or a delta sync
+                cursor that does not continue the history this token has been
+                building.
+
+                Alert only. Nothing here has blocked, revoked or rate-limited
+                anything — every kind has an innocent explanation, and the cost
+                of acting on a false positive is a bar that cannot sell.
+              properties:
+                count:
+                  type: integer
+                  description: Open, unacknowledged anomaly rows
+                severity:
+                  type: string
+                  enum: [none, warning, error]
+                  description: |
+                    - none: nothing open
+                    - warning: only cursor anomalies, which a restore from
+                      backup or a re-provisioning also produces
+                    - error: concurrent use, the one kind with no routine
+                      innocent cause
+                kinds:
+                  type: array
+                  description: Distinct anomaly kinds currently open
+                  items:
+                    type: string
+                    enum: [concurrent_ip, cursor_regression, cursor_reset]
+                message:
+                  type: string
+                  description: |
+                    Human-readable alert message. Names the terminal when
+                    exactly one is affected; counts distinct terminals beyond
+                    that.
         members_near_limit:
           type: object
           description: |
