@@ -51,7 +51,8 @@ class MailConfigHttpTest extends HttpTestCase
             $this->db->prepare(
                 'UPDATE mail_config SET sender_name = ?, sender_address = ?, reply_to_address = ?, header_style = ?,
                         footer_org_name = ?, footer_address_line = ?, website_url = ?, logo_url = ?,
-                        cron_interval = ?, drain_batch_size = ?, updated_by_admin_id = NULL
+                        cron_interval = ?, drain_batch_size = ?, cron_secret_hash = ?, cron_secret_rotated_at = ?,
+                        updated_by_admin_id = NULL
                  WHERE id = 1'
             )->execute([
                 $this->originalConfig['sender_name'],
@@ -64,6 +65,8 @@ class MailConfigHttpTest extends HttpTestCase
                 $this->originalConfig['logo_url'],
                 $this->originalConfig['cron_interval'],
                 $this->originalConfig['drain_batch_size'],
+                $this->originalConfig['cron_secret_hash'],
+                $this->originalConfig['cron_secret_rotated_at'],
             ]);
         }
 
@@ -263,6 +266,88 @@ class MailConfigHttpTest extends HttpTestCase
         $_SESSION = [];
 
         $this->assertSame(401, $this->request('GET', '/api/admin/mail-config')->getStatusCode());
+    }
+
+    /* ──────────────────── Rotating the URL-trigger secret (#473) ──────────────────── */
+
+    public function test_rotate_mints_a_secret_shown_once_and_never_stores_it_in_the_clear(): void
+    {
+        $response = $this->request('POST', '/api/admin/mail-config/cron-secret/rotate', [
+            'current_password' => 'password123',
+        ], headers: ['X-CSRF-Token' => $this->csrfToken]);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $body = $this->decode($response);
+
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $body['cron_secret']);
+        $this->assertTrue($body['cron_secret_configured']);
+        $this->assertNotNull($body['cron_secret_rotated_at']);
+
+        $row = $this->db->query('SELECT * FROM mail_config WHERE id = 1')->fetch();
+        $this->assertNotSame($body['cron_secret'], $row['cron_secret_hash'], 'only a hash may reach the column');
+        $this->assertSame(hash('sha256', $body['cron_secret']), $row['cron_secret_hash']);
+        $this->assertNotNull($row['cron_secret_rotated_at']);
+    }
+
+    public function test_rotate_is_audited_without_any_secret_material(): void
+    {
+        $response = $this->request('POST', '/api/admin/mail-config/cron-secret/rotate', [
+            'current_password' => 'password123',
+        ], headers: ['X-CSRF-Token' => $this->csrfToken]);
+        $secret = $this->decode($response)['cron_secret'];
+
+        $entry = $this->db->prepare(
+            "SELECT * FROM audit_log WHERE admin_user_id = ? AND action = 'cron_secret_rotated'"
+        );
+        $entry->execute([$this->adminId]);
+        $row = $entry->fetch();
+
+        $this->assertNotFalse($row, 'the rotation must be audited');
+        $this->assertStringNotContainsString($secret, (string) $row['old_values']);
+        $this->assertStringNotContainsString($secret, (string) $row['new_values']);
+    }
+
+    public function test_rotate_refuses_a_wrong_password_and_writes_nothing(): void
+    {
+        $before = $this->db->query('SELECT cron_secret_hash FROM mail_config WHERE id = 1')->fetchColumn();
+
+        $response = $this->request('POST', '/api/admin/mail-config/cron-secret/rotate', [
+            'current_password' => 'wrong-password',
+        ], headers: ['X-CSRF-Token' => $this->csrfToken]);
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame(
+            $before,
+            $this->db->query('SELECT cron_secret_hash FROM mail_config WHERE id = 1')->fetchColumn(),
+        );
+    }
+
+    public function test_rotate_requires_a_password_in_the_body(): void
+    {
+        $response = $this->request(
+            'POST',
+            '/api/admin/mail-config/cron-secret/rotate',
+            [],
+            headers: ['X-CSRF-Token' => $this->csrfToken],
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+    }
+
+    /**
+     * A rotated secret supersedes `config.php`'s rather than living beside it —
+     * the same "one live credential" rule terminal token rotation follows.
+     */
+    public function test_rotate_makes_the_url_trigger_accept_only_the_new_secret(): void
+    {
+        $secret = $this->decode($this->request('POST', '/api/admin/mail-config/cron-secret/rotate', [
+            'current_password' => 'password123',
+        ], headers: ['X-CSRF-Token' => $this->csrfToken]))['cron_secret'];
+
+        $this->assertSame(
+            204,
+            $this->request('POST', '/api/cron/drain', headers: [\App\Modules\Notifications\Controllers\CronController::HEADER => $secret])->getStatusCode(),
+        );
     }
 
     private function uuid(): string

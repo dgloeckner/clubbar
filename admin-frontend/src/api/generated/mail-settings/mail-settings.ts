@@ -58,8 +58,10 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type {
+  CronSecretRotated,
   MailConfig,
   MailConfigUpdateRequest,
+  RotateCronSecretRequest,
   TestMailResult
 } from './..';
 
@@ -135,7 +137,31 @@ const sendTestMail = (
     },
       options);
     }
-  return {getMailConfig,updateMailConfig,sendTestMail}};
+  /**
+ * Generates a replacement for the secret `/api/cron/drain` checks, and
+returns it in the clear exactly once (#473) — only its SHA-256 hash is
+ever stored, the same way terminal API tokens are kept. Mints a
+credential, so it carries the same step-up as issuing one.
+
+Once this succeeds, the new secret is the *only* one the URL trigger
+accepts: `config.php`'s `cron.secret`, if this installation had one,
+stops mattering from this point on rather than staying valid
+alongside it.
+
+ * @summary Rotate the URL-trigger secret
+ */
+const rotateCronSecret = (
+    rotateCronSecretRequest: RotateCronSecretRequest,
+ options?: SecondParameter<typeof customInstance<CronSecretRotated>>,) => {
+      return customInstance<CronSecretRotated>(
+      {url: `/admin/mail-config/cron-secret/rotate`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: rotateCronSecretRequest
+    },
+      options);
+    }
+  return {getMailConfig,updateMailConfig,sendTestMail,rotateCronSecret}};
 export type GetMailConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailSettings>['getMailConfig']>>>
 export type UpdateMailConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailSettings>['updateMailConfig']>>>
 export type SendTestMailResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailSettings>['sendTestMail']>>>
+export type RotateCronSecretResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailSettings>['rotateCronSecret']>>>

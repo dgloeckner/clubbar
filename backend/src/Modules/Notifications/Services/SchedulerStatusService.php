@@ -160,13 +160,14 @@ class SchedulerStatusService
     /**
      * The URL trigger, or null when it is switched off.
      *
-     * Absent `cron.secret` the route answers 404 (#403), so printing the URL
-     * would be instructions for something that is not there. The CLI command is
-     * always offered; the URL is the fallback for tariffs with no CLI cron.
+     * No secret at all — panel-rotated or `config.php`'s (#473) — and the
+     * route answers 404, so printing the URL would be instructions for
+     * something that is not there. The CLI command is always offered; the URL
+     * is the fallback for tariffs with no CLI cron.
      */
     public function drainUrl(): ?string
     {
-        if ($this->config->cronSecret === null) {
+        if (!$this->mailConfigService->cronSecretConfigured()) {
             return null;
         }
 

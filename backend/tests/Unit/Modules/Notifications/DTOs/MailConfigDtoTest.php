@@ -90,4 +90,41 @@ class MailConfigDtoTest extends TestCase
         // The DSN is never part of this resource — it is a secret in config.php.
         $this->assertArrayNotHasKey('dsn', $payload);
     }
+
+    /**
+     * A fresh row (or one that predates migration 034) has no rotation on
+     * record — the file fallback in config.php is what CronController falls
+     * back to, and this is what tells the admin panel there is nothing to
+     * show but a "not yet rotated" state (#473).
+     */
+    public function test_no_secret_rotation_reads_as_not_configured(): void
+    {
+        $dto = MailConfigDto::fromRow(['sender_address' => 'bar@example.org']);
+
+        $this->assertNull($dto->cronSecretHash);
+        $this->assertNull($dto->cronSecretRotatedAt);
+        $payload = $dto->toArray();
+        $this->assertFalse($payload['cron_secret_configured']);
+        $this->assertNull($payload['cron_secret_rotated_at']);
+    }
+
+    /**
+     * The hash is never part of the API payload — only whether one exists.
+     * There is no operator value in a hash once past the comparison it exists
+     * for, so there is no reason to widen a secret's exposure by returning it.
+     */
+    public function test_a_rotated_secret_reports_configured_but_never_the_hash(): void
+    {
+        $dto = MailConfigDto::fromRow([
+            'sender_address' => 'bar@example.org',
+            'cron_secret_hash' => hash('sha256', 'some-secret'),
+            'cron_secret_rotated_at' => '2026-08-15 12:00:00',
+        ]);
+
+        $payload = $dto->toArray();
+        $this->assertTrue($payload['cron_secret_configured']);
+        $this->assertSame('2026-08-15 12:00:00', $payload['cron_secret_rotated_at']);
+        $this->assertArrayNotHasKey('cron_secret_hash', $payload);
+        $this->assertStringNotContainsString(hash('sha256', 'some-secret'), json_encode($payload));
+    }
 }

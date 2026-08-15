@@ -40,6 +40,10 @@ class SchedulerStatusServiceTest extends TestCase
 
         $mailConfig = $this->createMock(MailConfigService::class);
         $mailConfig->method('getConfig')->willReturn(self::config($declared));
+        // A mock overrides every method, concrete ones included — so
+        // cronSecretConfigured() needs its own stub rather than inheriting
+        // real MailConfigService's derivation from getConfig() (#473).
+        $mailConfig->method('cronSecretConfigured')->willReturn($cronSecret !== null);
 
         return new SchedulerStatusService($heartbeat, new AppConfig(), $mailConfig);
     }

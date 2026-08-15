@@ -55,4 +55,25 @@ class MailConfigRepository
         $this->logger->info('Mail config updated');
         return $this->getConfig();
     }
+
+    /**
+     * Store a freshly rotated secret's hash. Deliberately not routed through
+     * {@see updateConfig()}: that path diffs `UPDATABLE_COLUMNS` into the
+     * audit log, which is right for a batch size and wrong for anything that
+     * authenticates a request — {@see \App\Modules\Notifications\Services\MailConfigService::rotateCronSecret()}
+     * audits the *event* instead, with no secret material in it.
+     */
+    public function rotateCronSecret(string $hash, string $adminUserId): array
+    {
+        $now = date('Y-m-d H:i:s');
+        $stmt = $this->db->prepare(
+            'UPDATE mail_config
+                SET cron_secret_hash = ?, cron_secret_rotated_at = ?, updated_by_admin_id = ?, updated_at = ?
+              WHERE id = 1'
+        );
+        $stmt->execute([$hash, $now, $adminUserId, $now]);
+
+        $this->logger->info('Cron secret rotated');
+        return $this->getConfig();
+    }
 }

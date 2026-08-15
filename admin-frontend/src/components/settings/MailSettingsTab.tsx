@@ -8,6 +8,7 @@
  * |---|---|
  * | Sender, reply-to, header variant, footer | This form; club data |
  * | Scheduler interval, drain batch size | This form; operational dials, no secret in either |
+ * | **The URL-trigger secret** (`/api/cron/drain`) | Its own rotate action below (#473) — a credential, not a form field |
  * | **The SMTP DSN** | `config.php`, next to the database password (ADR-0031 decision 2) |
  *
  * The DSN is shown as a **measured, read-only** state, never as a field. It
@@ -16,10 +17,19 @@
  * for it in exactly this form, which is why the transport panel says where it
  * is instead of leaving a gap.
  *
+ * The cron secret sits between those two: unlike the DSN it *is* editable from
+ * here, but unlike every other field it is never round-tripped through
+ * `form`/PATCH — only a hash is ever persisted, so rotating mints a fresh one
+ * (step-up gated, same as a terminal token) and shows it exactly once. Once
+ * rotated it supersedes `config.php`'s `cron.secret`, if this installation had
+ * one, rather than leaving two live credentials.
+ *
  * Self-contained rather than driven by `SettingsPage`'s state, following
  * `SecurityCheckTab` in this same directory: this tab owns a form, a measured
  * status panel and an action with its own result, and threading all three
- * through a page that is already a thousand lines would buy nothing.
+ * through a page that is already a thousand lines would buy nothing. The one
+ * thing it still takes from the caller is `callerTotpEnabled` (#337) — the
+ * step-up dialog needs to know that before it can ask for a code.
  *
  * Test IDs: `settings-mail-*`.
  */
@@ -27,10 +37,12 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
-import { theme } from '../../styles/design-system'
+import { theme, formatDateTime } from '../../styles/design-system'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getMailSettings } from '../../api/generated/mail-settings/mail-settings'
 import type { MailConfig, MailConfigUpdateRequest, TestMailResult } from '../../api/generated'
+import { StepUpConfirmDialog, type StepUpCredentials } from '../modals/StepUpConfirmDialog'
+import { SecretDisplayModal } from '../modals/SecretDisplayModal'
 
 const HEADER_STYLES = ['red', 'petrol', 'paper'] as const
 const CRON_INTERVALS = ['hourly', 'daily'] as const
@@ -63,7 +75,12 @@ function toForm(config: MailConfig): FormState {
   }
 }
 
-export function MailSettingsTab() {
+export interface MailSettingsTabProps {
+  /** Whether the *caller* has 2FA enabled — decides whether rotating the cron secret asks for a TOTP code too (#337, #473). */
+  callerTotpEnabled: boolean
+}
+
+export function MailSettingsTab({ callerTotpEnabled }: MailSettingsTabProps) {
   const { t } = useTranslation()
   const request = useLatestRequest()
 
@@ -76,6 +93,14 @@ export function MailSettingsTab() {
   const [success, setSuccess] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<TestMailResult | null>(null)
+
+  // Rotating the URL-trigger secret (#473) — a credential, not a form field,
+  // so it has its own step-up dialog and one-time display rather than living
+  // in `form`/`save()`.
+  const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false)
+  const [rotating, setRotating] = useState(false)
+  const [rotateError, setRotateError] = useState<string | null>(null)
+  const [issuedSecret, setIssuedSecret] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const signal = request.next()
@@ -152,6 +177,24 @@ export function MailSettingsTab() {
       setTestResult({ sent: false, error: parseError(err, t('settings.mail.errors.test')) })
     } finally {
       setTesting(false)
+    }
+  }
+
+  const rotateCronSecret = async (credentials: StepUpCredentials) => {
+    setRotating(true)
+    try {
+      const result = await getMailSettings().rotateCronSecret(credentials)
+      setConfig(result)
+      setForm(toForm(result))
+      setRotateConfirmOpen(false)
+      setRotateError(null)
+      // Shown exactly once — only the hash is persisted, so a secret closed
+      // away unread has to be rotated again to be seen at all.
+      setIssuedSecret(result.cron_secret ?? null)
+    } catch (err: unknown) {
+      setRotateError(parseError(err, t('settings.mail.errors.rotateCronSecret')))
+    } finally {
+      setRotating(false)
     }
   }
 
@@ -233,6 +276,41 @@ export function MailSettingsTab() {
               : (testResult.error ?? t('settings.mail.errors.test'))}
           </div>
         )}
+      </div>
+
+      {/* The URL-trigger secret (#473). A credential, not a form field: shown
+          only as configured/not, rotated through its own step-up action, and
+          the plaintext appears exactly once, in the modal below. */}
+      <div data-testid="settings-mail-cron-secret" style={transportPanelStyle(config)}>
+        <div style={{ fontWeight: theme.typography.fontWeight.semibold, marginBottom: theme.spacing.xs }}>
+          {t('settings.mail.cronSecretTitle')}
+        </div>
+        <div data-testid="settings-mail-cron-secret-state" style={{ fontSize: theme.typography.fontSize.sm }}>
+          {config?.cron_secret_configured
+            ? t('settings.mail.cronSecretConfigured')
+            : t('settings.mail.cronSecretNotConfigured')}
+        </div>
+        <div style={hintStyle}>
+          {config?.cron_secret_rotated_at
+            ? t('settings.mail.cronSecretRotatedAt', { date: formatDateTime(config.cron_secret_rotated_at) })
+            : t('settings.mail.cronSecretNeverRotated')}
+        </div>
+        <div style={hintStyle}>{t('settings.mail.cronSecretHint')}</div>
+
+        <button
+          type="button"
+          data-testid="settings-mail-cron-secret-rotate"
+          onClick={() => {
+            setRotateError(null)
+            setRotateConfirmOpen(true)
+          }}
+          disabled={rotating}
+          style={secondaryButtonStyle}
+        >
+          {config?.cron_secret_configured
+            ? t('settings.mail.rotateCronSecret')
+            : t('settings.mail.generateCronSecret')}
+        </button>
       </div>
 
       {error && (
@@ -339,6 +417,30 @@ export function MailSettingsTab() {
           </button>
         </div>
       </form>
+
+      <StepUpConfirmDialog
+        isOpen={rotateConfirmOpen}
+        title={config?.cron_secret_configured ? t('settings.mail.rotateCronSecret') : t('settings.mail.generateCronSecret')}
+        message={t('settings.mail.rotateCronSecretConfirm')}
+        confirmLabel={t('common.confirm')}
+        requiresTotp={callerTotpEnabled}
+        error={rotateError}
+        confirmDisabled={rotating}
+        onConfirm={rotateCronSecret}
+        onCancel={() => {
+          setRotateConfirmOpen(false)
+          setRotateError(null)
+        }}
+      />
+
+      <SecretDisplayModal
+        isOpen={issuedSecret !== null}
+        secret={issuedSecret}
+        title={t('settings.mail.cronSecretGenerated')}
+        warning={t('settings.mail.cronSecretWarning')}
+        testIdPrefix="settings-mail-cron-secret-value"
+        onClose={() => setIssuedSecret(null)}
+      />
     </div>
   )
 }

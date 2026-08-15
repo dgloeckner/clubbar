@@ -125,6 +125,21 @@ the transport is serial either way.
    * @maximum 1000
    */
   drain_batch_size?: number;
+  /** Whether the URL trigger (`/api/cron/drain`) has a secret to check —
+one rotated from this panel, or `config.php`'s `cron.secret`
+(#473). Never the secret itself: use
+`POST /mail-config/cron-secret/rotate` to mint a new one, shown
+exactly once.
+ */
+  readonly cron_secret_configured?: boolean;
+  /**
+   * When a secret was last rotated from this panel. `null` means no
+panel rotation has ever happened — `config.php`'s value, if any, is
+what the URL trigger is still checking.
+
+   * @nullable
+   */
+  readonly cron_secret_rotated_at?: string | null;
   /** Whether a sender address is set at all. */
   readonly is_complete?: boolean;
   /** Both halves present — a usable transport and a sender address. */

@@ -27,9 +27,15 @@ class AppConfig
      */
     public readonly ?string $mailDsn;
     /**
-     * Authorises the URL drain trigger (ADR-0038 rule 3, #403). Absent leaves
+     * Authorises the URL drain trigger (ADR-0038 rule 3, #403) — the
+     * install-time, file-editing-only origin of that secret. Absent leaves
      * the route unmounted, which is the right default: a tariff with a CLI cron
      * has no reason to expose a second, unauthenticated way in.
+     *
+     * Superseded the moment an admin rotates one from Settings → Mail (#473,
+     * {@see \App\Modules\Notifications\Services\MailConfigService}): this
+     * value keeps whatever the installer wrote, but stops being checked once a
+     * panel-rotated hash exists, rather than staying valid alongside it.
      */
     public readonly ?string $cronSecret;
     /**

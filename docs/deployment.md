@@ -431,6 +431,17 @@ The header form is the supported one. The query-string variant works and is
 degraded: the secret lands verbatim in the webserver's access log. Without
 `cron.secret` the route is not mounted at all.
 
+**Rotating the secret without file access.** Settings → Mail in the admin
+panel can generate and rotate this secret too (#473), for exactly the
+situation above: an external scheduler that only offers a bare URL field
+forces the degraded query-string form, and if that secret leaks into an
+access log, rotating it from `config.php` needs file access the "relocated
+data directory" layout (decision 2 below) may not expose to anything
+web-reachable. A panel-rotated secret supersedes `config.php`'s entirely —
+the old value stops working the moment a new one is generated, rather than
+staying valid alongside it — and it is shown exactly once; only its hash is
+stored, the same way terminal API tokens are kept.
+
 ### IONOS specifically
 
 IONOS is this project's reference host ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md)), and its **Cronjobs** tool (IONOS account → Hosting → Cronjobs) is a webcron: the form takes a URL in an "HTTP GET" field and fetches it on schedule, with no field for a shell command or a PHP path. On a standard IONOS webhosting contract the CLI entrypoint above has nowhere to go — use the URL trigger instead. (This is specific to that panel tool; an IONOS VPS/Cloud Server with SSH access has a real crontab, where the CLI entrypoint applies as documented above.)

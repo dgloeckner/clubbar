@@ -468,6 +468,7 @@ class ServiceFactory implements ContainerInterface
             $this->getInstanceConfigService(),
             $this->getMailTransportFactory(),
             $this->getAuditService(),
+            $this->config,
         ));
     }
 
@@ -981,6 +982,7 @@ class ServiceFactory implements ContainerInterface
             $this->getMailConfigService(),
             $this->getValidator(),
             $this->getTestMailService(),
+            $this->getStepUpAuthService(),
         ));
     }
 
@@ -1021,6 +1023,7 @@ class ServiceFactory implements ContainerInterface
             $this->config,
             $this->getLogger(),
             $this->getTerminalAnomalyDetector(),
+            $this->getMailConfigService(),
         ));
     }
 
