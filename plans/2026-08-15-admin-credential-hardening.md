@@ -106,8 +106,9 @@ npx playwright test tests/api/self-service-credentials.spec.ts --project=api-tes
 npx playwright test tests/admin/profile-credentials.spec.ts --project=admin-chromium --workers=4
 ```
 
-**Results:** 272/272 targeted backend unit tests green; 14/14 API credential
-tests; 5/5 UI credential tests.
+**Results:** 272/272 targeted backend unit tests green. Full Playwright run
+(`--project=api-tests --project=admin-chromium --workers=4`): **917 passed, 0
+failed, 0 flaky**, including the 14 API and 5 UI credential specs added here.
 
 ## Known issues, not introduced here
 
