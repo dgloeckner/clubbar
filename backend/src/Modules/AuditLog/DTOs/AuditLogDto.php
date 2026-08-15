@@ -9,7 +9,7 @@ final readonly class AuditLogDto
     public function __construct(
         public int $id,
         public ?string $adminUserId,
-        public ?string $adminUserName,
+        public ?string $adminUserEmail,
         public string $action,
         public string $entityType,
         public string $entityId,
@@ -25,7 +25,7 @@ final readonly class AuditLogDto
         return new self(
             id: (int) $row['id'],
             adminUserId: $row['admin_user_id'] ?? null,
-            adminUserName: $row['admin_user_name'] ?? null,
+            adminUserEmail: $row['admin_user_email'] ?? null,
             action: $row['action'],
             entityType: $row['entity_type'],
             entityId: $row['entity_id'],
@@ -42,7 +42,7 @@ final readonly class AuditLogDto
         return [
             'id' => $this->id,
             'admin_user_id' => $this->adminUserId,
-            'admin_user_name' => $this->adminUserName,
+            'admin_user_email' => $this->adminUserEmail,
             'action' => $this->action,
             'entity_type' => $this->entityType,
             'entity_id' => $this->entityId,
