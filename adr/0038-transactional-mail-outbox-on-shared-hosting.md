@@ -1,6 +1,6 @@
 # ADR-0038: Transactional Mail Outbox on Shared Hosting
 
-**Status**: Accepted
+**Status**: Accepted (amended by [ADR-0039](./0039-periodic-deckel-statement.md): enqueue may be triggered by time; rule 5's no-body principle survives but its immutability justification does not; rule 6's stall alarm stops keying on age; retention varies by kind)
 
 **Date**: 2026-08-14
 
@@ -266,6 +266,7 @@ The queue itself is not settlement-specific: #438's encryption-key and terminal-
 - [ADR-0029](./0029-two-tier-retention-and-erasure.md) — amended here: `mail_outbox.recipient` joins the operational tier
 - [ADR-0031](./0031-production-hardening-on-shared-hosting.md) — amended here: the mail/scheduler layers, and the first accepted hard host dependency
 - [ADR-0032](./0032-settlement-lifecycle.md) — amended here: enqueue is part of the create transaction; cancellation supersedes or notifies
+- [ADR-0039](./0039-periodic-deckel-statement.md) — amends this one. The Deckelauszug is the first message with no business transaction to join, no subject entity, and a *live* value, so it tests the generality claimed above: the `kind` dispatch and the unique index hold, while rule 5's justification, rule 6's stall threshold and the single retention rule do not
 
 ## References
 
