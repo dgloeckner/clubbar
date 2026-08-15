@@ -31,7 +31,7 @@ import { Badge } from '../common/Badge'
 import { StepUpConfirmDialog, type StepUpCredentials } from '../modals/StepUpConfirmDialog'
 import { KeyRotationDialog, type KeyRotationProgress } from '../modals/KeyRotationDialog'
 import { TerminalCredentials } from './TerminalCredentials'
-import { modalInputStyle } from '../modals/ModalError'
+import { modalInputStyle, modalLabelStyle } from '../modals/ModalError'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getSecurity } from '../../api/generated/security/security'
 import { getApiErrorMessage } from '../../utils/apiErrors'
@@ -318,20 +318,36 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
         confirmDisabled={busy || newIdentifier.trim() === '' || newPublicKey.trim() === ''}
         extraFields={
           <>
+            <label htmlFor="credentials-key-identifier-input" style={modalLabelStyle()}>
+              {t('settings.credentials.identifierFieldLabel')}
+            </label>
             <input
+              id="credentials-key-identifier-input"
               data-testid="credentials-key-identifier"
               type="text"
-              placeholder={t('settings.credentials.identifierLabel')}
+              placeholder={t('settings.credentials.identifierPlaceholder')}
               value={newIdentifier}
               onChange={(e) => setNewIdentifier(e.target.value)}
               style={modalInputStyle(false)}
             />
+            <label htmlFor="credentials-public-key-input" style={modalLabelStyle()}>
+              {t('settings.credentials.publicKeyLabel')}
+            </label>
             <input
+              id="credentials-public-key-input"
               data-testid="credentials-public-key"
               type="text"
               autoComplete="off"
               spellCheck={false}
-              placeholder={t('settings.credentials.publicKeyLabel')}
+              // The club's public key is not a secret — it is meant to be
+              // pasted around freely (that is the point of asymmetric
+              // sealing, ADR-0036). These two attributes stop password
+              // managers from flagging it as one anyway, which otherwise
+              // makes it look like a second password field next to the real
+              // one below (#440).
+              data-1p-ignore="true"
+              data-lpignore="true"
+              placeholder={t('settings.credentials.publicKeyPlaceholder')}
               value={newPublicKey}
               onChange={(e) => setNewPublicKey(e.target.value.trim())}
               style={{ ...modalInputStyle(false), fontFamily: 'monospace' }}

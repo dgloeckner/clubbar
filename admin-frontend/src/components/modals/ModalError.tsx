@@ -71,3 +71,18 @@ export function modalInputStyle(hasError: boolean): React.CSSProperties {
     color: theme.colors.text.primary,
   }
 }
+
+/**
+ * Label sitting above a modal input. A placeholder alone disappears the
+ * moment a value (typed or autofilled) is present, which leaves nothing
+ * telling the admin which field they are looking at (#440).
+ */
+export function modalLabelStyle(): React.CSSProperties {
+  return {
+    display: 'block',
+    marginBottom: theme.spacing.xs,
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+  }
+}

@@ -22,7 +22,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from './ConfirmDialog'
-import { ModalError, modalInputStyle } from './ModalError'
+import { ModalError, modalInputStyle, modalLabelStyle } from './ModalError'
 import { theme } from '../../styles/design-system'
 
 export interface StepUpCredentials {
@@ -65,6 +65,7 @@ export function StepUpConfirmDialog({
   onConfirm,
   onCancel,
 }: StepUpConfirmDialogProps) {
+  const { t } = useTranslation()
   const [password, setPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
 
@@ -95,14 +96,44 @@ export function StepUpConfirmDialog({
 
           {extraFields}
 
-          <StepUpCredentialFields
-            requiresTotp={requiresTotp}
-            password={password}
-            totpCode={totpCode}
-            invalid={!!error}
-            onPasswordChange={setPassword}
-            onTotpCodeChange={setTotpCode}
-          />
+          {/* Everything above this line is the thing being submitted (a key,
+              a form field); everything below is proof of who is submitting
+              it. Without the break the two blur into one list of look-alike
+              boxes, and a public key ends up looking like a second password
+              (#440). */}
+          <div
+            style={
+              extraFields
+                ? {
+                    marginTop: theme.spacing.lg,
+                    paddingTop: theme.spacing.lg,
+                    borderTop: `1px solid ${theme.colors.border.light}`,
+                  }
+                : undefined
+            }
+          >
+            {extraFields && (
+              <p
+                style={{
+                  margin: `0 0 ${theme.spacing.md} 0`,
+                  fontSize: theme.typography.fontSize.sm,
+                  fontWeight: theme.typography.fontWeight.semibold,
+                  color: theme.colors.text.primary,
+                }}
+              >
+                {t('settings.stepUpSectionTitle')}
+              </p>
+            )}
+
+            <StepUpCredentialFields
+              requiresTotp={requiresTotp}
+              password={password}
+              totpCode={totpCode}
+              invalid={!!error}
+              onPasswordChange={setPassword}
+              onTotpCodeChange={setTotpCode}
+            />
+          </div>
         </>
       }
     />
@@ -139,11 +170,14 @@ export function StepUpCredentialFields({
 
   return (
     <>
+      <label htmlFor="step-up-password-input" style={modalLabelStyle()}>
+        {t('settings.stepUpPasswordLabel')}
+      </label>
       <input
+        id="step-up-password-input"
         data-testid="step-up-password"
         type="password"
         autoComplete="current-password"
-        placeholder={t('settings.stepUpPasswordLabel')}
         value={password}
         onChange={(e) => onPasswordChange(e.target.value)}
         style={modalInputStyle(invalid)}
@@ -154,12 +188,15 @@ export function StepUpCredentialFields({
           <p style={{ margin: `0 0 ${theme.spacing.sm} 0`, fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary }}>
             {t('settings.stepUpTotpHint')}
           </p>
+          <label htmlFor="step-up-totp-input" style={modalLabelStyle()}>
+            {t('settings.stepUpTotpLabel')}
+          </label>
           <input
+            id="step-up-totp-input"
             data-testid="step-up-totp-code"
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder={t('settings.stepUpTotpLabel')}
             value={totpCode}
             // Digits only, six at most: the field is the last thing standing
             // between the admin and a 401 they would read as a wrong password.
