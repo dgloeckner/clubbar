@@ -442,14 +442,26 @@ jobs:
       # job-log API only returns the tail, so that dump pushed Playwright's
       # summary past the horizon and made a red run undiagnosable through the
       # API. The teardown below is bounded and runs before the failure report.
+      # `mailpit` is named explicitly: it is deliberately not a dependency of
+      # `backend` (the backend must run with no mail server anywhere), so
+      # nothing would start it otherwise — and the mail-chain project reads its
+      # API for what a drain actually delivered.
       - name: Start services
-        run: docker compose -f ./docker-compose.yml -f ./docker-compose.ci.yml up -d database backend
+        run: docker compose -f ./docker-compose.yml -f ./docker-compose.ci.yml up -d database backend mailpit
 
       - name: Wait for backend health
         run: |
           for i in $(seq 1 30); do
             curl -sf http://localhost:8080/api/health && break
             if [ $i -eq 30 ]; then echo "Backend not ready after 60s" && exit 1; fi
+            sleep 2
+          done
+
+      - name: Wait for Mailpit
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8025/readyz && break
+            if [ $i -eq 30 ]; then echo "Mailpit not ready after 60s" && exit 1; fi
             sleep 2
           done
 
@@ -493,13 +505,13 @@ jobs:
         working-directory: e2etests
 
       - name: Run E2E tests
-        # `api-ordered` and `api-rotation` carry the specs that cannot run
-        # alongside anything else — see the projects in playwright.config.ts.
-        # Each depends on the suites it must follow, so they run after them
-        # rather than beside them. Listing them explicitly matters: those specs
-        # are excluded from `api-tests`, so leaving one out drops it from CI
-        # silently.
-        run: npx playwright test --project=api-tests --project=api-ordered --project=api-rotation --project=admin-chromium --project=admin-mobile --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        # `api-ordered`, `api-rotation` and `mail-chain` carry the specs that
+        # cannot run alongside anything else — see the projects in
+        # playwright.config.ts. Each depends on the suites it must follow, so
+        # they run after them rather than beside them. Listing them explicitly
+        # matters: those specs live in their own testDir or are excluded from
+        # `api-tests`, so leaving one out drops it from CI silently.
+        run: npx playwright test --project=api-tests --project=api-ordered --project=api-rotation --project=admin-chromium --project=admin-mobile --project=mail-chain --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
         working-directory: e2etests
         env:
           CI: true

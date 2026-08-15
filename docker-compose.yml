@@ -106,9 +106,25 @@ services:
       # Installation
       INSTALL_KEY: dev-install-key-x
 
-      # Outgoing mail (ADR-0038). Empty disables sending silently — the dev
-      # stack has no MTA, and no test may open a socket. Point it at Mailpit
-      # (smtp://mailpit:1025) once #409 adds it to the stack.
+      # Outgoing mail (ADR-0038). Empty disables sending silently, and that is
+      # the default on purpose even though the `mailpit` service below is now
+      # part of the stack (#409):
+      #
+      #   A drain claims whatever is due, globally. With a transport wired into
+      #   the long-running backend, the URL-trigger spec's drains would sweep
+      #   the queue while the admin suite is asserting on it — `pending` is a
+      #   state a live sender is entitled to leave, so those assertions would go
+      #   intermittent for a reason that has nothing to do with what they test.
+      #   The mail-chain suite instead passes the DSN to the run it triggers
+      #   (`docker compose exec -e MAIL_DSN=… backend php bin/cron.php`), so
+      #   exactly one drain in the suite delivers, and it is the one asserting
+      #   on what arrived.
+      #
+      # To watch real mail land in Mailpit's UI on http://localhost:8025 while
+      # developing, start the stack with the variable set — it is interpolated
+      # here, so nothing needs editing:
+      #
+      #   MAIL_DSN=smtp://mailpit:1025 docker compose up -d
       MAIL_DSN: "${MAIL_DSN:-}"
       # Authorises the URL drain trigger (ADR-0038 rule 3, #403). Fixed dev
       # value so the API suite can exercise the route end to end; on a real
@@ -144,6 +160,54 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+
+  # =============================================================================
+  # Mailpit - the mail server the tests read (#409)
+  # =============================================================================
+  # An SMTP sink with an HTTP API. It is what makes the announcement chain
+  # assertable end to end: finalize → drain → *a real message*, with the
+  # creditor id, the mandate reference and the seven-day distance read out of
+  # what a member would actually receive rather than out of our own bookkeeping.
+  #
+  # Deliberately not a dependency of `backend`: the backend must boot, serve and
+  # finalize settlements with no mail server anywhere, which is the state every
+  # installation is in until it is configured (ADR-0038). Nothing here is
+  # wired to it unless MAIL_DSN says so — see the note on that variable above.
+  #
+  # Storage is in-memory (no MP_DATABASE), so the messages are gone with the
+  # container. They are test output, not a record.
+  mailpit:
+    image: axllent/mailpit:v1.30
+    container_name: clubbar-mailpit
+    restart: unless-stopped
+    environment:
+      # The DSN in the compose file carries no credentials, but a developer
+      # pointing this at a DSN copied from a real config should not have to
+      # care what it authenticates with.
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_MAX_MESSAGES: "2000"
+      # Lets a test ask this server to answer 5xx (Mailpit's "chaos" API). It
+      # is the only way to produce a *permanent* delivery failure through the
+      # real code — and permanent vs. transient is the judgement the whole
+      # retry ladder hangs on, so it is worth being able to reach. Enabling it
+      # changes nothing on its own: every trigger's probability starts at zero,
+      # and the one test that raises one puts it back.
+      MP_ENABLE_CHAOS: "1"
+    ports:
+      # 1025 SMTP (what the drain talks to), 8025 the UI and the API the tests
+      # read. The UI is worth knowing about: http://localhost:8025 renders the
+      # announcement exactly as it was built, which is faster than
+      # bin/preview-mails.php when the question is "what did this run send".
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      # Mailpit's own readiness subcommand — the image carries no curl.
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
 
   # =============================================================================
   # Admin Frontend - React + Apache (production-like, mass hoster compatible)

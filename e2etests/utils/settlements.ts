@@ -31,6 +31,14 @@ export interface SettlementFixtureOptions {
    * (ruling #163) and the factory refuses more.
    */
   memberCount?: number
+  /**
+   * `members.preferred_language`. Default 'de'.
+   *
+   * The announcement is rendered in it (#404), so the mail chain tests
+   * (#409) need members who prefer each of them — including `fr`, which is a
+   * language a member may prefer and no mail exists in.
+   */
+  preferredLanguage?: 'de' | 'en' | 'fr'
 }
 
 /** One member of a factory-built settlement. */
@@ -116,11 +124,15 @@ export async function ensureSepaConfigured(request: ApiRequestLike): Promise<voi
 async function createMemberWithPurchase(
   adminRequest: ApiRequestLike,
   terminalRequest: ApiRequestLike,
-  amountCents: number
+  amountCents: number,
+  preferredLanguage: 'de' | 'en' | 'fr' = 'de'
 ): Promise<CreatedSettlementMember> {
   const suffix = uniqueSuffix()
   const firstName = 'Settle'
   const lastName = `Fixture${suffix}`
+  // Short on purpose: RFC 5321 caps the local part at 64 characters, and an
+  // address built from a longer test id has been rejected by a real SMTP
+  // server in this suite before (#409).
   const email = `settle-${suffix}@test.example`
 
   const memberResponse = await adminRequest.post('/api/admin/members', {
@@ -128,7 +140,7 @@ async function createMemberWithPurchase(
       first_name: firstName,
       last_name: lastName,
       email,
-      preferred_language: 'de',
+      preferred_language: preferredLanguage,
       iban: FACTORY_IBAN,
       mandate_signed_at: '2024-01-01',
     },
@@ -194,6 +206,7 @@ export function settlementFactory(
       const amountCents = options.amountCents ?? 2500
       const method = options.method ?? 'direct_debit'
       const memberCount = options.memberCount ?? 1
+      const preferredLanguage = options.preferredLanguage ?? 'de'
 
       if (memberCount > 1 && method !== 'direct_debit') {
         // Ruling #163, enforced by the DB CHECK: a bank_transfer or write_off
@@ -205,7 +218,9 @@ export function settlementFactory(
 
       const members: CreatedSettlementMember[] = []
       for (let i = 0; i < memberCount; i++) {
-        members.push(await createMemberWithPurchase(adminRequest, terminalRequest, amountCents))
+        members.push(
+          await createMemberWithPurchase(adminRequest, terminalRequest, amountCents, preferredLanguage)
+        )
       }
 
       // The settlement's own date is recorded by the server (issue #113); the

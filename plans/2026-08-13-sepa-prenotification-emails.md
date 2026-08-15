@@ -243,10 +243,26 @@ One thing #408 asks about that has **no test yet**: the fold-in comment wants "p
 
 ### P9 — Test automation: Mailpit in dev/CI, E2E over the full chain ([#409](https://github.com/dgloeckner/clubbar/issues/409))
 
-- [ ] Mailpit in the dev stack and CI; mirrored into `ghcr.io/dgloeckner/*` via `scripts/mirrored-images.txt` (Docker Hub rate limits — see CLAUDE.md)
-- [ ] E2E: finalize → drain → captured mail asserting creditor ID, mandate reference, amount, masked IBAN, itemized statement and a due date ≥ 7 days out
-- [ ] E2E: the finalize gate bites with an empty heartbeat and lifts after a run
-- Verify: `cd e2etests && npx playwright test` green on all shards; `node scripts/report-failures.mjs` clean
+- [x] `axllent/mailpit:v1.30` in the dev stack and in CI, added to `scripts/mirrored-images.txt` (Docker Hub rate limits — see CLAUDE.md; the mirror workflow copies it with `buildx imagetools` when the list changes). Chaos enabled, because a 5xx is the only way to reach a *permanent* delivery failure through the real code
+- [x] `scripts/dev-setup.sh` verifies Mailpit **and** that chaos is enabled — a container from an older compose file is healthy, reachable and still refuses the chaos call — and that `bin/cron.php` runs in the backend container
+- [x] The drain the suite triggers is `backend/bin/cron.php` in the backend container (`utils/drain.ts`), never a test-only sending path
+- [x] `tests/mail/prenotification-chain.spec.ts` (10) over the full chain: every promised field in the delivered message, the seven-day distance from the **server's** today, the text part carrying the same facts, `en` and the `fr`→`de` fallback, two drains leaving one message, the per-member send in the settlement detail, cancel-before/cancel-after, a 550 recorded and the retry after it delivering, and a real CLI run showing up as the verified scheduler
+- [x] `utils/mailpit.ts` + `patterns/pattern-010-mail-assertions.md` — the harness [#462](https://github.com/dgloeckner/clubbar/issues/462)/[#463](https://github.com/dgloeckner/clubbar/issues/463) and P10 assert against
+- [x] One flake fixed on the way past: `notifications-queue.spec.ts`'s finalize banner compared the banner's count against `data.length` of a **paged** endpoint, so once the suite had seeded more collectable members than fit on a page it compared the count against the page size. It reads `pagination.total` now
+- Verify: **passed** — `api-tests` + `api-ordered` + `api-rotation` + `admin-chromium` + `mail-chain` at the default 4 workers with CI's retry policy, on a freshly seeded database: **928 passed, 0 failed, 0 skipped**, `node scripts/report-failures.mjs` clean, and all ten `mail-chain` specs `expected` rather than skipped. Ten of them run the whole chain against a real drain and a real SMTP server in 13s
+
+Four decisions this milestone had to make, and one thing #409 asks for that is not here:
+
+| Decision | Why |
+|---|---|
+| **The stack's `MAIL_DSN` stays empty; the DSN is handed to the drain that must deliver** (`docker compose exec -e MAIL_DSN=… backend php /app/bin/cron.php`) | #409 asks for the DSN on the stack, and that is the one part not taken literally. A drain claims the **whole** queue, so a transport on the long-running backend makes every drain in the suite a sender — including the six the URL-trigger spec fires while `notifications-queue.spec.ts` asserts a freshly queued announcement is still `pending`. Those assertions would go intermittent for a reason unrelated to what they test, and "cancelled before the drain sends nothing at all" would be unassertable at all. Nothing about the code under test changes: `bin/cron.php` reads the variable through the same `Env`/`AppConfig` path a real installation reads `config.php` with. `MAIL_DSN=smtp://mailpit:1025 docker compose up -d` gives a developer the whole stack delivering into the UI on :8025 |
+| The chain runs in its **own ordered project** (`mail-chain`, after `api-tests` and `admin-chromium`) | Two pieces of state nobody owns: the queue, for the reason above, and `mail_config` — a singleton this suite writes the sender and Kassenwart reply-to into, and which `mail-settings.spec.ts` also writes and restores. One of them has to go second |
+| The **permanent** failure comes from Mailpit answering **550**, not from an unreachable port | A refused connection is transient by design (`SymfonyMailerTransport` reads the first digit; an absent code counts as "not now"), so the message waits out a ladder measured in scheduler ticks — an hour at the shortest — and lands in `pending`, which the retry button correctly refuses. Only a 5xx produces the `failed` row that #407 left untestable. Mailpit's chaos API is a real server saying no, which is exactly the case being modelled |
+| The itemised statement is asserted against **product names over two bookings**, not against a transaction note | `notes` is not on the terminal allowlist (#79, ruling #144 §3), so a synced purchase has none and `itemLabel()` falls back to the type — the settlement factory's note never reaches the mail. Two bookings rather than one because with a single line the line and the total are the same number, and "itemised" is unproven |
+
+| Not built | Why |
+|---|---|
+| The gate's **refusing** half as an E2E: no `cron_heartbeat` row → finalize refused | The row is a singleton the whole backend shares, and `hasEverRun()` never re-closes. Deleting it would block every settlement any concurrently running project creates — the shared-mutable-state failure Patterns 001/004 exist to prevent, in its intermittent form. It is asserted where it can be: `SchedulerGateHttpTest` over a real database, and `scheduler-banner.spec.ts` over the rendered component. What was missing and *is* here is the other half, which no constructed test could show: a real `bin/cron.php` run is what the panel then reports as verified, `source=cli`, with the CLI's own PHP version — the field that exists because on mass hosting it is frequently not the web PHP |
 
 ### P10 — Follow-up: payment-request email for `bank_transfer` ([#410](https://github.com/dgloeckner/clubbar/issues/410))
 

@@ -169,6 +169,44 @@ export default defineConfig({
       dependencies: ['api-tests', 'api-ordered', 'admin-chromium'],
     },
 
+    // The mail chain (#409): finalize → backend/bin/cron.php → Mailpit.
+    //
+    // Ordered rather than parallel, and for two reasons that are both about
+    // state nobody owns:
+    //
+    //   1. **A drain claims the whole queue.** These specs assert on what a run
+    //      delivered — and one of them asserts that a cancelled settlement
+    //      delivers *nothing at all*, which a foreign drain firing in the
+    //      window between the finalize and the cancel would break. Running
+    //      after the suites that create settlements keeps every drain in the
+    //      run inside this project, where the tests know about them.
+    //   2. **`mail_config` and `sepa_config` are singletons.** This project
+    //      sets the sender and the Kassenwart reply-to it asserts on, and reads
+    //      the creditor block it expects the announcement to name. Both rows are
+    //      written by specs in the two projects below — `mail-config.spec.ts`
+    //      and `settlements.spec.ts` in api-tests, `mail-settings.spec.ts` and
+    //      `settings-sepa-config.spec.ts` in admin-chromium. One side has to go
+    //      second, and it is this one.
+    //
+    // The cost of the ordering: Playwright **skips a project whose dependency
+    // failed**, so a genuine failure anywhere in those two suites leaves these
+    // specs unrun and reported as skipped. In a red run that hides nothing —
+    // the run is red — but it is worth knowing before reading "10 skipped" as
+    // "10 fine". CI retries twice, so a flake does not cost the chain.
+    //
+    // `fullyParallel: false` then serialises the file itself, so the drains
+    // inside it happen one at a time.
+    //
+    // Needs the compose stack (the drain runs through `docker compose exec`)
+    // and Mailpit on :8025. `--no-deps` runs it alone against a stack that is
+    // already seeded, which is what to use while iterating on a single spec.
+    {
+      name: 'mail-chain',
+      testDir: './tests/mail',
+      fullyParallel: false,
+      dependencies: ['api-tests', 'admin-chromium'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',

@@ -474,6 +474,27 @@ error directly:
 php backend/bin/cron.php          # add --quiet for the cron entry itself
 ```
 
+### Trying it locally
+
+The dev stack runs [Mailpit](https://mailpit.axllent.org) as the `mailpit`
+service: an SMTP sink on `1025` with a UI and an HTTP API on
+<http://localhost:8025>. Nothing points at it by default — `MAIL_DSN` is empty
+so the stack behaves like an installation that has not configured mail — so
+start it with the DSN when you want announcements to actually leave:
+
+```bash
+MAIL_DSN=smtp://mailpit:1025 docker compose up -d
+docker compose exec -T backend php /app/bin/cron.php
+```
+
+Finalize a direct debit, run that drain, and the announcement is in the UI
+exactly as a member would receive it, both parts.
+
+The `mail-chain` E2E project (`cd e2etests && npx playwright test
+--project=mail-chain`) drives the same path and asserts on what arrives —
+creditor id, mandate reference, amount, masked account, itemised statement, the
+seven-day distance, and that a second run delivers nothing a second time.
+
 ### Deliverability
 
 - **SPF**: publish a record for the sending domain that authorises the host's

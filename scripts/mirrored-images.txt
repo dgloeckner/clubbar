@@ -23,6 +23,9 @@ mariadb:10.11
 # docker-compose.yml: backend
 webdevops/php-apache:8.3
 
+# docker-compose.yml: mailpit — the mail server the #409 chain tests read
+axllent/mailpit:v1.30
+
 # docker-compose.yml: terminal-frontend (profile: frontend)
 node:20-alpine
 

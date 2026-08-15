@@ -29,6 +29,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 INSTALL_KEY="${INSTALL_KEY:-dev-install-key-x}"
 BACKEND_URL="http://localhost:8080"
+MAILPIT_URL="${MAILPIT_URL:-http://localhost:8025}"
 
 WITH_FRONTEND=0
 SKIP_E2E=0
@@ -215,6 +216,28 @@ else
     warn "backend /api/health is not responding"
 fi
 
+# Mailpit (#409) — the mail server the chain suite reads. Verified by asking it
+# for readiness *and* for the chaos configuration: chaos has to be enabled for
+# the rejected-delivery spec, and a container started from an older compose file
+# is ready, reachable and still missing MP_ENABLE_CHAOS.
+if curl -sf "$MAILPIT_URL/readyz" > /dev/null 2>&1; then
+    if curl -sf "$MAILPIT_URL/api/v1/chaos" > /dev/null 2>&1; then
+        note "mailpit on $MAILPIT_URL: ok (chaos enabled)"
+    else
+        warn "mailpit is up but chaos is disabled — run: docker compose up -d mailpit"
+    fi
+else
+    warn "mailpit is not answering on $MAILPIT_URL — the mail-chain E2E project will not run"
+fi
+
+# The drain the chain suite triggers is the production entrypoint, run in the
+# backend container. Checked with --help so nothing is claimed or sent.
+if docker compose exec -T backend php /app/bin/cron.php --help > /dev/null 2>&1; then
+    note "backend/bin/cron.php runs in the container: ok"
+else
+    warn "backend/bin/cron.php could not run in the container — the mail-chain E2E project will not run"
+fi
+
 # bcmath: the IBAN checksum in Validator.php calls bcmod(), so the extension is
 # not optional. The backend container has it; a host PHP built without it fails
 # those tests with "Call to undefined function bcmod()".
@@ -263,6 +286,10 @@ fi
 echo ""
 echo "Run the API suite:   cd e2etests && npx playwright test --project=api-tests"
 echo "Run backend tests:   docker compose exec -w /app backend ./vendor/bin/phpunit"
+echo "Mail chain (#409):   cd e2etests && npx playwright test --project=mail-chain --no-deps"
+echo "  (--no-deps runs it against the stack as seeded; without it the api and"
+echo "   admin suites run first, which is how CI orders them. Mailpit's UI, with"
+echo "   every message a run delivered, is on $MAILPIT_URL)"
 if [ "$WITH_FRONTEND" -eq 1 ]; then
     echo "Admin UI tests:      cd e2etests && npx playwright test --project=admin-chromium"
     echo "Mobile UI tests:     cd e2etests && npx playwright test --project=admin-mobile"

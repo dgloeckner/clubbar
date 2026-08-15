@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "E2E and API tests for Club Bar POS system",
   "scripts": {
-    "test": "playwright test --workers 4 --project=api-tests --project=api-ordered --project=api-rotation --project=admin-chromium --project=admin-mobile --project=terminal-touch",
+    "test": "playwright test --workers 4 --project=api-tests --project=api-ordered --project=api-rotation --project=admin-chromium --project=admin-mobile --project=terminal-touch --project=mail-chain",
+    "test:mail": "playwright test --project=mail-chain",
     "test:api": "playwright test --project=api-tests --project=api-ordered --project=api-rotation",
     "test:admin": "playwright test --project=admin-chromium",
     "test:terminal": "playwright test --project=terminal-touch",
