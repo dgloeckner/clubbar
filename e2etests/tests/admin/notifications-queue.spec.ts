@@ -15,9 +15,16 @@
  *
  * **Not here, and deliberately**: the retry happy path. A `failed` row cannot
  * be produced through the API on a stack with no mail transport — the drain
- * refuses to claim anything, so nothing can fail. That belongs with the Mailpit
- * chain in #409. The transition itself is covered end to end against a real
- * database and the real routes in `NotificationsHttpTest`.
+ * refuses to claim anything, so nothing can fail. It lives with the Mailpit
+ * chain instead (`tests/mail/prenotification-chain.spec.ts`, #409), where a
+ * real server answers 550 and the retry that follows delivers. The transition
+ * itself is covered end to end against a real database and the real routes in
+ * `NotificationsHttpTest`.
+ *
+ * The `pending` assertions below are safe for the same reason: the stack's
+ * `MAIL_DSN` is empty, and the one suite that sends hands the DSN to its own
+ * drain and runs after this project (see `utils/drain.ts`). Nothing sweeps the
+ * queue while these tests are looking at it.
  */
 
 import { test, expect } from '../../fixtures/auth.fixture'
@@ -212,9 +219,15 @@ test.describe('Notifications — the finalize confirmation', () => {
     // here would be asserting how many members the picker happened to hold —
     // which varies with what else the suite has seeded — rather than the claim
     // under test: the banner states what was queued.
+    //
+    // `pagination.total`, not `data.length`: this endpoint pages, and once the
+    // suite has seeded more collectable members than fit on one page the run
+    // covers more members than the first page lists. That is not a smaller
+    // number to compare against — it is the page size, compared against the
+    // truth, and it made this test flaky as the database filled up.
     const queued = (await (
       await authenticatedRequest.get(`/api/admin/notifications?subject_id=${settlementId}`)
-    ).json()).data.length
+    ).json()).pagination.total
     expect(queued).toBeGreaterThan(0)
 
     const banner = page.getByTestId('settlements-announcements-queued')

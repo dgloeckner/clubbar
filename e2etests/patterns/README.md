@@ -19,6 +19,7 @@ This directory contains established patterns for writing robust, reliable E2E te
 | [Pattern 007: Page Object Fixtures](006-page-object-fixtures.md) | Inject ready-to-use page objects with Playwright fixtures | Manual page object initialization → Boilerplate |
 | [Pattern 008: Playwright Assertions & Auto-Waiting](008-playwright-assertions.md) | Use `expect()` instead of try-catch visibility checks | Silent failures → Clear error messages |
 | [Pattern 009: User-Flow-Based Tests](pattern-009-user-flow-based-tests.md) | Chain related operations into flow tests instead of one-assert-per-test | Bloated suites with redundant setup → Concise flows with shared setup |
+| [Pattern 010: Asserting on Delivered Mail](pattern-010-mail-assertions.md) | Read the message a real drain delivered to a real SMTP server | Asserting on our own queue rows → Blank amounts, stub text parts and duplicates go unnoticed |
 
 ---
 

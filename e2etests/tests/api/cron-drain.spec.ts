@@ -13,10 +13,12 @@ import { test, expect, request as playwrightRequest } from '@playwright/test'
  * No session, no CSRF token, no cookies: a scheduler has none of those, so
  * these use a bare request context rather than the authenticated fixture.
  *
- * Nothing is sent. The dev stack has no `MAIL_DSN`, so the drain stops before
- * claiming anything — which is also the state the assertions rely on: a 204
- * here means "the request was accepted and the run happened", not "mail went
- * out".
+ * Nothing is sent. The stack runs a mail server since #409, but its `MAIL_DSN`
+ * is deliberately empty — the chain suite hands the DSN to the drain it
+ * triggers itself, precisely so the drains fired here cannot sweep a queue
+ * another spec is asserting on (`utils/drain.ts`). So the drain stops before
+ * claiming anything, which is also the state the assertions rely on: a 204 here
+ * means "the request was accepted and the run happened", not "mail went out".
  *
  * The secret matches `CRON_SECRET` in docker-compose.yml. It is a fixed dev
  * value; a real installation generates one at install time and keeps it in
