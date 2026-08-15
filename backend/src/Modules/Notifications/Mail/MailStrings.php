@@ -102,6 +102,37 @@ final class MailStrings
             'cancel.label_amount'   => 'Angekündigter Betrag',
             'cancel.label_due_date' => 'Angekündigte Fälligkeit',
 
+            // ── Terminal-Auffälligkeit (ADR-0041) ───────────────────────────
+            // Bewusst zurückhaltend formuliert: jede gemeldete Art hat eine
+            // harmlose Erklärung, und eine Mail, die mit „Dein Terminal wurde
+            // gestohlen" beginnt, wird so oft falsch liegen, dass sie beim
+            // einen Mal, an dem sie recht hat, ignoriert wird.
+            'terminal_anomaly.subject'   => 'Terminal „{terminal}“: bitte einmal prüfen',
+            'terminal_anomaly.preheader' => 'Möglicherweise wird der Zugang von „{terminal}“ auf mehr als einem Gerät verwendet',
+            'terminal_anomaly.eyebrow'   => 'Terminal-Zugang',
+            'terminal_anomaly.title'     => 'Auffälligkeit bei einem Terminal-Zugang',
+            'terminal_anomaly.lede'      => 'beim Terminal <strong>{terminal}</strong> sieht es so aus, '
+                                          . 'als würde sein Zugang auf mehr als einem Gerät verwendet.',
+            'terminal_anomaly.lede_text' => 'beim Terminal {terminal} sieht es so aus, '
+                                          . 'als würde sein Zugang auf mehr als einem Gerät verwendet.',
+            'terminal_anomaly.kind.concurrent_ip' => 'Zwei verschiedene Netzwerk-Adressen waren gleichzeitig aktiv — '
+                                          . 'nicht nacheinander, sondern über einen längeren Zeitraum parallel.',
+            'terminal_anomaly.kind.cursor_regression' => 'Das Terminal hat einen älteren Synchronisationsstand gemeldet, '
+                                          . 'als es zuvor bereits erhalten hatte.',
+            'terminal_anomaly.kind.cursor_reset' => 'Das Terminal hat gar keinen Synchronisationsstand gemeldet, '
+                                          . 'obwohl es zuvor bereits einen hatte.',
+            'terminal_anomaly.innocent.concurrent_ip' => 'Harmlos ist das, wenn der Anschluss zwei Internet-Leitungen '
+                                          . 'parallel nutzt. Ein gewöhnlicher Wechsel der IP-Adresse löst diese '
+                                          . 'Meldung nicht aus.',
+            'terminal_anomaly.innocent.cursor_regression' => 'Harmlos ist das, wenn das Terminal aus einer Sicherung '
+                                          . 'wiederhergestellt wurde.',
+            'terminal_anomaly.innocent.cursor_reset' => 'Harmlos ist das, wenn das Terminal neu eingerichtet oder '
+                                          . 'seine lokale Datenbank geleert wurde.',
+            'terminal_anomaly.next'      => 'Bitte prüfe, ob Du die zweite Verwendung erklären kannst. '
+                                          . 'Falls nicht, kannst Du den Zugang im Admin-Bereich erneuern oder entziehen.',
+            'terminal_anomaly.no_action_taken' => 'Es wurde nichts gesperrt und nichts geändert — der Betrieb an der '
+                                          . 'Theke läuft unverändert weiter.',
+
             // ── Shared ──────────────────────────────────────────────────────
             'greeting'         => 'Hallo {name},',
             'greeting_generic' => 'Hallo,',
@@ -150,6 +181,30 @@ final class MailStrings
             'cancel.next'      => 'Anything still owed stays open and may be announced again with a later collection.',
             'cancel.label_amount'   => 'Announced amount',
             'cancel.label_due_date' => 'Announced due date',
+
+            'terminal_anomaly.subject'   => 'Terminal "{terminal}": worth a look',
+            'terminal_anomaly.preheader' => 'The credential for "{terminal}" may be in use on more than one device',
+            'terminal_anomaly.eyebrow'   => 'Terminal credential',
+            'terminal_anomaly.title'     => 'Something looks off about a terminal credential',
+            'terminal_anomaly.lede'      => 'the credential for terminal <strong>{terminal}</strong> looks as though '
+                                          . 'it is being used on more than one device.',
+            'terminal_anomaly.lede_text' => 'the credential for terminal {terminal} looks as though '
+                                          . 'it is being used on more than one device.',
+            'terminal_anomaly.kind.concurrent_ip' => 'Two different network addresses were active at the same time — '
+                                          . 'not one after the other, but overlapping for a sustained period.',
+            'terminal_anomaly.kind.cursor_regression' => 'The terminal reported an older synchronisation position '
+                                          . 'than one it had already been given.',
+            'terminal_anomaly.kind.cursor_reset' => 'The terminal reported no synchronisation position at all, '
+                                          . 'having previously had one.',
+            'terminal_anomaly.innocent.concurrent_ip' => 'This is harmless if the site runs two internet connections '
+                                          . 'at once. An ordinary change of IP address does not trigger this message.',
+            'terminal_anomaly.innocent.cursor_regression' => 'This is harmless if the terminal was restored from a backup.',
+            'terminal_anomaly.innocent.cursor_reset' => 'This is harmless if the terminal was re-provisioned or its '
+                                          . 'local database was cleared.',
+            'terminal_anomaly.next'      => 'Please check whether you can account for the second use. If not, you can '
+                                          . 'rotate or revoke the credential in the admin panel.',
+            'terminal_anomaly.no_action_taken' => 'Nothing has been blocked and nothing has been changed — the bar '
+                                          . 'carries on exactly as before.',
 
             'greeting'         => 'Hello {name},',
             'greeting_generic' => 'Hello,',

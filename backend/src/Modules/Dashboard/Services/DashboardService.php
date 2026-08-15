@@ -11,6 +11,8 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
+use App\Modules\Terminals\Enums\TerminalAnomalyKind;
+use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Security\CredentialLifecycle;
@@ -51,6 +53,7 @@ class DashboardService
         private TerminalsRepository $terminalsRepository,
         private EncryptionKeysRepository $encryptionKeysRepository,
         private SepaConfigRepository $sepaConfigRepository,
+        private TerminalAnomaliesRepository $terminalAnomaliesRepository,
     ) {}
 
     public function getDashboard(): DashboardDto
@@ -111,6 +114,7 @@ class DashboardService
                 'sepa_issues' => self::sepaAlert($sepaIssueCount),
                 'encryption_key' => self::encryptionKeyAlert($this->encryptionKeysRepository->findActive()),
                 'sepa_config' => self::sepaConfigAlert($this->sepaConfigRepository->getConfig()),
+                'terminal_anomaly' => self::terminalAnomalyAlert($this->terminalAnomaliesRepository->listOpen()),
             ],
             membersNearLimit: $this->membersNearLimit(),
         );
@@ -300,6 +304,69 @@ class DashboardService
         }
 
         return ['severity' => 'none', 'message' => 'SEPA configuration is complete'];
+    }
+
+    /**
+     * Terminals whose credential looks like it is on more than one device
+     * (ADR-0041).
+     *
+     * The message names the terminal when there is exactly one, because that is
+     * the case where an admin can act without opening anything: the alert says
+     * which till to go and look at. Beyond one they are counted instead — a
+     * banner is not a list.
+     *
+     * `concurrent_ip` is the only kind that reads as an error. The two cursor
+     * kinds have routine innocent causes (a restore from backup, a
+     * re-provisioning), so a warning is the honest volume for them.
+     *
+     * @param list<array<string, mixed>> $openAnomalies rows from terminal_anomalies, unacknowledged
+     * @return array{count: int, severity: string, kinds: list<string>, message: string}
+     */
+    public static function terminalAnomalyAlert(array $openAnomalies): array
+    {
+        if ($openAnomalies === []) {
+            return [
+                'count' => 0,
+                'severity' => 'none',
+                'kinds' => [],
+                'message' => 'No terminal credential anomalies',
+            ];
+        }
+
+        $kinds = [];
+        foreach ($openAnomalies as $anomaly) {
+            $kind = (string) ($anomaly['kind'] ?? '');
+            if ($kind !== '' && !in_array($kind, $kinds, true)) {
+                $kinds[] = $kind;
+            }
+        }
+
+        $severity = in_array(TerminalAnomalyKind::CONCURRENT_IP->value, $kinds, true) ? 'error' : 'warning';
+
+        // Distinct terminals, not distinct rows: one till can carry a
+        // concurrent-use row and a cursor row about the same incident, and
+        // "2 terminals" would then be wrong in the direction that matters.
+        $terminalIds = [];
+        foreach ($openAnomalies as $anomaly) {
+            $terminalIds[(string) ($anomaly['terminal_id'] ?? '')] = true;
+        }
+        $terminalCount = count($terminalIds);
+
+        if ($terminalCount === 1) {
+            $name = (string) ($openAnomalies[0]['terminal_name'] ?? '');
+            $message = $name !== ''
+                ? sprintf('Terminal "%s" may be in use on more than one device — review it', $name)
+                : 'A terminal may be in use on more than one device — review it';
+        } else {
+            $message = sprintf('%d terminals may be in use on more than one device — review them', $terminalCount);
+        }
+
+        return [
+            'count' => count($openAnomalies),
+            'severity' => $severity,
+            'kinds' => $kinds,
+            'message' => $message,
+        ];
     }
 
     /**

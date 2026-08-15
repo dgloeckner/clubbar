@@ -9,6 +9,7 @@ use App\Modules\Terminals\DTOs\TerminalWithTokenDto;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
@@ -22,12 +23,22 @@ class TerminalsService
         private TerminalsRepository $terminalsRepository,
         private AuditService $auditService,
         private AppConfig $config,
+        private TerminalAnomaliesRepository $anomaliesRepository,
     ) {}
 
     public function listTerminals(int $limit, int $offset, ?bool $isActive = null): PaginatedResultDto
     {
         $result = $this->terminalsRepository->listPaginated($limit, $offset, $isActive);
-        $items = array_map(fn($row) => TerminalDto::fromRow($row)->toArray(), $result['items']);
+
+        // One grouped read for the whole page rather than a query per row
+        // (ADR-0041 §4).
+        $anomalyCounts = $this->anomaliesRepository->openCountsByTerminal();
+        $items = array_map(
+            fn($row) => TerminalDto::fromRow(
+                $row + ['open_anomaly_count' => $anomalyCounts[$row['id']] ?? 0]
+            )->toArray(),
+            $result['items'],
+        );
 
         return new PaginatedResultDto(items: $items, total: $result['total'], limit: $limit, offset: $offset);
     }
@@ -36,7 +47,12 @@ class TerminalsService
     {
         $terminal = $this->terminalsRepository->findById($terminalId);
         if (!$terminal) throw NotFoundException::forResource('Terminal', $terminalId);
-        return TerminalDto::fromRow($terminal);
+
+        $anomalyCounts = $this->anomaliesRepository->openCountsByTerminal();
+
+        return TerminalDto::fromRow(
+            $terminal + ['open_anomaly_count' => $anomalyCounts[$terminal['id']] ?? 0]
+        );
     }
 
     public function createTerminal(string $name, string $deviceId, ?string $adminUserId = null): array
@@ -188,5 +204,48 @@ class TerminalsService
             newValues: ['api_token_hash' => null, 'is_active' => false],
             adminUserId: $adminUserId,
         );
+    }
+
+    /**
+     * Mark a detected anomaly as seen (ADR-0041 §4).
+     *
+     * This clears the alert and changes nothing about the credential. That is
+     * the whole posture: the detector raises a question a human has to answer,
+     * and answering it is not the same as acting on it — an admin who decides a
+     * terminal really was cloned revokes it separately, through the path that
+     * already exists for that.
+     *
+     * @return bool False when there is no such open anomaly for this terminal —
+     *              an unknown id, or one another admin cleared first.
+     */
+    public function acknowledgeAnomaly(string $terminalId, string $anomalyId, ?string $adminUserId = null): bool
+    {
+        $anomaly = $this->anomaliesRepository->findById($anomalyId);
+
+        // The terminal in the path has to be the one the anomaly belongs to.
+        // Without this the id alone would be the authority, and a mistyped URL
+        // would silently clear an alert about a different till.
+        if ($anomaly === null || (string) $anomaly['terminal_id'] !== $terminalId) {
+            return false;
+        }
+
+        if (!$this->anomaliesRepository->acknowledge($anomalyId, (string) $adminUserId, time())) {
+            return false;
+        }
+
+        $this->auditService->log(
+            action: AuditAction::TERMINAL_ANOMALY_ACKNOWLEDGED,
+            entityType: EntityType::TERMINAL,
+            entityId: $terminalId,
+            newValues: [
+                'anomaly_id' => $anomalyId,
+                'kind' => $anomaly['kind'],
+                'first_detected_at' => $anomaly['first_detected_at'],
+                'occurrence_count' => (int) $anomaly['occurrence_count'],
+            ],
+            adminUserId: $adminUserId,
+        );
+
+        return true;
     }
 }

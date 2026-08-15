@@ -66,6 +66,7 @@ use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
+use App\Modules\Notifications\Services\TerminalAnomalyMailBuilder;
 use App\Shared\Mail\MailTransportFactory;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Modules\Settlements\Services\SettlementReversalService;
@@ -495,6 +496,22 @@ class ServiceFactory implements ContainerInterface
     {
         return $this->resolve(MailContentRegistry::class, fn() => new MailContentRegistry(
             $this->getSettlementMailBuilder(),
+            $this->getTerminalAnomalyMailBuilder(),
+        ));
+    }
+
+    /**
+     * ADR-0041. The first admin-addressed builder — `warnAdmins()` has been able
+     * to queue since #438, and until this was registered nothing could render
+     * what it queued.
+     */
+    public function getTerminalAnomalyMailBuilder(): TerminalAnomalyMailBuilder
+    {
+        return $this->resolve(TerminalAnomalyMailBuilder::class, fn() => new TerminalAnomalyMailBuilder(
+            $this->getTerminalsRepository(),
+            $this->getTerminalAnomaliesRepository(),
+            $this->getAdminUsersRepository(),
+            $this->getMailConfigService(),
         ));
     }
 
@@ -584,6 +601,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalsRepository(),
             $this->getAuditService(),
             $this->config,
+            $this->getTerminalAnomaliesRepository(),
         ));
     }
 
@@ -974,6 +992,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalsRepository(),
             $this->getEncryptionKeysRepository(),
             $this->getSepaConfigRepository(),
+            $this->getTerminalAnomaliesRepository(),
         ));
     }
 
