@@ -693,6 +693,26 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->assertSame('backfilled@example.com', $updated['email']);
     }
 
+    /** The `has_email` list filter (#362) — surfaces legacy NULL-email members. */
+    public function test_listPaginated_filters_by_has_email(): void
+    {
+        $marker = $this->uniqueSurname('HasEmail');
+        $withEmail = $this->createTestMember('Has', $marker);
+
+        $withoutEmailId = $this->generateUuid();
+        $this->testMemberIds[] = $withoutEmailId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO members (id, first_name, last_name, email, preferred_language, is_active) VALUES (?, ?, ?, NULL, ?, ?)'
+        );
+        $stmt->execute([$withoutEmailId, 'Missing', $marker, 'de', 1]);
+
+        $withEmailOnly = $this->membersRepository->listPaginated(10, 0, ['has_email' => true], 'created_at', 'desc', $marker);
+        $this->assertSame([$withEmail], array_column($withEmailOnly['items'], 'id'));
+
+        $withoutEmailOnly = $this->membersRepository->listPaginated(10, 0, ['has_email' => false], 'created_at', 'desc', $marker);
+        $this->assertSame([$withoutEmailId], array_column($withoutEmailOnly['items'], 'id'));
+    }
+
     public function test_anonymize_ends_the_mandate_but_keeps_the_record(): void
     {
         $member = $this->createMemberWithBankingData();
