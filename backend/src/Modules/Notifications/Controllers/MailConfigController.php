@@ -7,6 +7,7 @@ namespace App\Modules\Notifications\Controllers;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Services\MailConfigService;
+use App\Modules\Notifications\Services\TestMailService;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Mail\MailLayout;
 use App\Shared\Validation\Validator;
@@ -29,6 +30,7 @@ class MailConfigController
     public function __construct(
         private MailConfigService $mailConfigService,
         private Validator $validator,
+        private TestMailService $testMailService,
     ) {}
 
     public function show(Request $request, Response $response): Response
@@ -81,6 +83,27 @@ class MailConfigController
         }
 
         return $this->json($response, $this->payload());
+    }
+
+    /**
+     * Send the *requesting admin* a test mail (#407).
+     *
+     * The recipient comes from the session, never from the body: an endpoint
+     * that mails an arbitrary address on request is an authenticated open relay
+     * on the club's own domain. See {@see TestMailService} for why this is the
+     * one place that sends from a request without contradicting ADR-0038
+     * rule 3.
+     *
+     * Always 200. Every outcome here — no transport, bad credentials, refused
+     * relay — is the answer the admin pressed the button to get, and an error
+     * status would put the diagnosis behind a generic failure banner.
+     */
+    public function sendTestMail(Request $request, Response $response): Response
+    {
+        return $this->json(
+            $response,
+            $this->testMailService->sendTo((string) $request->getAttribute('admin_user_id'))
+        );
     }
 
     /**

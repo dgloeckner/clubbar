@@ -15,7 +15,7 @@
  * freed, and the figure the member checklist has to show before one is made.
  */
 
-import type { SettlementItem, SettlementReversal } from '../api/generated'
+import type { QueuedMail, SettlementItem, SettlementReversal } from '../api/generated'
 
 export interface SettlementMemberLine {
   memberId: string
@@ -25,15 +25,35 @@ export interface SettlementMemberLine {
   transactionCount: number
   /** The reversal naming this member, when one exists. */
   reversal: SettlementReversal | null
+  /**
+   * The announcement queued for this member, when there is one (#407).
+   *
+   * Absent for a member with no email address — no row is written for them at
+   * all — which is why the breakdown says *"no address"* rather than leaving a
+   * gap the reader has to interpret.
+   *
+   * The **announcement**, not the cancellation notice: the question the
+   * breakdown answers is "was this member told about the collection", and a
+   * notice retracting it is a different message with a different fate.
+   */
+  notification: QueuedMail | null
 }
 
 export function settlementMemberLines(
   items: SettlementItem[] | undefined,
-  reversals: SettlementReversal[] | undefined
+  reversals: SettlementReversal[] | undefined,
+  notifications?: QueuedMail[]
 ): SettlementMemberLine[] {
   const reversalByMember = new Map<string, SettlementReversal>()
   for (const reversal of reversals ?? []) {
     if (reversal.member_id) reversalByMember.set(reversal.member_id, reversal)
+  }
+
+  const announcementByMember = new Map<string, QueuedMail>()
+  for (const message of notifications ?? []) {
+    if (message.member_id && message.kind === 'sepa_prenotification') {
+      announcementByMember.set(message.member_id, message)
+    }
   }
 
   const lines = new Map<string, SettlementMemberLine>()
@@ -47,6 +67,7 @@ export function settlementMemberLines(
       amountCents: 0,
       transactionCount: 0,
       reversal: reversalByMember.get(memberId) ?? null,
+      notification: announcementByMember.get(memberId) ?? null,
     }
 
     line.amountCents += item.amount_cents ?? 0

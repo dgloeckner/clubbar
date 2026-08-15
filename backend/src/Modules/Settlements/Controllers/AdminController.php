@@ -173,7 +173,12 @@ class AdminController
                 : null,
         );
 
-        return $this->json($response, $settlement->toArray(), 201);
+        // Read back rather than echo, so the response carries what was queued
+        // to announce the run (#407). The count is the only honest thing the
+        // confirmation can say at this moment — *"N announcements queued,
+        // sending"*, never *"N sent"*, because nothing has been sent: the
+        // scheduler is the only sender and has not run yet (ADR-0038 rule 3).
+        return $this->json($response, ($this->settlementsService->getSettlement($settlement->id) ?? $settlement)->toArray(), 201);
     }
 
     public function index(Request $request, Response $response): Response

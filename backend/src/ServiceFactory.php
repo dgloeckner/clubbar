@@ -67,6 +67,7 @@ use App\Modules\Notifications\Services\MailDeliveryCheck;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\TestMailService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
 use App\Modules\Notifications\Services\TerminalAnomalyMailBuilder;
@@ -97,6 +98,7 @@ use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
+use App\Modules\Notifications\Controllers\NotificationsController;
 use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
 use App\Modules\Terminals\Controllers\PairingController;
@@ -156,6 +158,7 @@ class ServiceFactory implements ContainerInterface
 
         // Notifications
         MailConfigController::class => 'getMailConfigController',
+        NotificationsController::class => 'getNotificationsController',
         SchedulerController::class => 'getSchedulerController',
         CronController::class => 'getCronController',
 
@@ -965,7 +968,36 @@ class ServiceFactory implements ContainerInterface
 
     public function getMailConfigController(): MailConfigController
     {
-        return $this->resolve(MailConfigController::class, fn() => new MailConfigController($this->getMailConfigService(), $this->getValidator()));
+        return $this->resolve(MailConfigController::class, fn() => new MailConfigController(
+            $this->getMailConfigService(),
+            $this->getValidator(),
+            $this->getTestMailService(),
+        ));
+    }
+
+    /**
+     * The mail queue's read/retry surface (#407).
+     */
+    public function getNotificationsController(): NotificationsController
+    {
+        return $this->resolve(NotificationsController::class, fn() => new NotificationsController(
+            $this->getNotificationsService(),
+        ));
+    }
+
+    /**
+     * The test-mail diagnostic. Separate from the drain on purpose: it is not a
+     * queue sender, and keeping it out of DrainService is what keeps that
+     * class's "exactly two callers" check meaningful.
+     */
+    public function getTestMailService(): TestMailService
+    {
+        return $this->resolve(TestMailService::class, fn() => new TestMailService(
+            $this->getMailConfigService(),
+            $this->getMailTransportFactory(),
+            $this->getAdminUsersRepository(),
+            $this->getAuditService(),
+        ));
     }
 
     public function getSchedulerController(): SchedulerController

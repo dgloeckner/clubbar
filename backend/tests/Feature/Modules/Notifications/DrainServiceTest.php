@@ -60,16 +60,62 @@ class DrainServiceTest extends DatabaseTestCase
     /** @var list<string> */
     private array $adminIds = [];
 
+    /** @var list<array{id: string, next_attempt_at: string}> */
+    private array $parked = [];
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->outbox = new MailOutboxRepository($this->db, $this->logger);
         $this->heartbeat = new CronHeartbeatRepository($this->db);
+        $this->parkForeignMessages();
+    }
+
+    /**
+     * Give this class a queue of its own — the same measure
+     * {@see MailOutboxRepositoryTest} takes, and for the same reason.
+     *
+     * A drain claims whatever is due; that is the whole point of it. So an
+     * assertion like "this run failed exactly one message" only means anything
+     * when nothing else is waiting — and something else routinely is, because
+     * the API suite creates settlements against this same database and every
+     * one of them queues an announcement that nothing drains.
+     *
+     * Anything already due is pushed a day out for the duration and put back
+     * exactly as it was afterwards. Deleting would be simpler and wrong: those
+     * rows are somebody else's fixture.
+     */
+    private function parkForeignMessages(): void
+    {
+        $due = $this->db
+            ->query("SELECT id, next_attempt_at FROM mail_outbox WHERE status = 'pending'")
+            ->fetchAll();
+
+        foreach ($due as $row) {
+            $this->parked[] = ['id' => (string) $row['id'], 'next_attempt_at' => (string) $row['next_attempt_at']];
+        }
+
+        if ($this->parked !== []) {
+            $this->db->exec(
+                "UPDATE mail_outbox SET next_attempt_at = DATE_ADD(NOW(), INTERVAL 1 DAY) WHERE status = 'pending'"
+            );
+        }
+    }
+
+    private function unparkForeignMessages(): void
+    {
+        $stmt = $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = ? WHERE id = ?');
+        foreach ($this->parked as $row) {
+            $stmt->execute([$row['next_attempt_at'], $row['id']]);
+        }
+        $this->parked = [];
     }
 
     protected function tearDown(): void
     {
+        $this->unparkForeignMessages();
+
         foreach ($this->settlementIds as $id) {
             $this->db->prepare('DELETE FROM settlements WHERE id = ?')->execute([$id]);
         }

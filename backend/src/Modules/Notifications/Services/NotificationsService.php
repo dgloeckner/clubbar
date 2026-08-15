@@ -8,6 +8,7 @@ use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\EnqueueResultDto;
 use App\Modules\Notifications\DTOs\MailRequestDto;
+use App\Modules\Notifications\DTOs\QueuedMailDto;
 use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
@@ -15,6 +16,7 @@ use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Http\ListQuery;
 use App\Shared\Mail\MailSendResult;
 use App\Shared\Services\AuditService;
 
@@ -257,6 +259,76 @@ class NotificationsService
     }
 
     /**
+     * A page of the queue, for the admin panel's Notifications list (#407).
+     *
+     * @param array<string,mixed> $filters `kind`, `status`, `subject_id`, `search`
+     * @return array{items: list<QueuedMailDto>, total: int}
+     */
+    public function search(array $filters, ListQuery $query): array
+    {
+        $rows = $this->mailOutboxRepository->search(
+            $filters,
+            $query->perPage,
+            $query->offset,
+            $query->sortKey,
+            $query->sortOrder,
+        );
+
+        return [
+            'items' => array_map(QueuedMailDto::fromRow(...), $rows),
+            'total' => $this->mailOutboxRepository->countMatching($filters),
+        ];
+    }
+
+    /**
+     * Put one failed message back in the queue — the only state change the UI
+     * is allowed to make (ADR-0038 rule 4).
+     *
+     * It changes state and does not orchestrate time: the row becomes due, and
+     * the scheduler sends it whenever it next runs. There is deliberately
+     * nothing here that reports *when* that will be, because the honest answer
+     * is "at the next tick", and a UI that promised better would be inventing a
+     * second sending path in the reader's head.
+     *
+     * Audited: retrying is a decision a person made about a member's
+     * announcement, and it is the one queue transition with a human behind it.
+     *
+     * @return QueuedMailDto|null The row as it now stands, or null when it was
+     *         not retryable — a `sent` row, a `superseded` one, or no row at all
+     */
+    public function retry(string $outboxId, string $adminUserId): ?QueuedMailDto
+    {
+        if (!$this->mailOutboxRepository->resetToPending($outboxId)) {
+            return null;
+        }
+
+        $row = $this->mailOutboxRepository->findById($outboxId);
+        if ($row === null) {
+            return null;
+        }
+
+        $dto = QueuedMailDto::fromRow($row);
+
+        $this->auditService->log(
+            action: AuditAction::MAIL_RETRIED,
+            entityType: $dto->kind->subjectType()->auditEntityType(),
+            entityId: $dto->subjectId,
+            newValues: ['kind' => $dto->kind->value, 'outbox_id' => $dto->id, 'member_id' => $dto->memberId],
+            adminUserId: $adminUserId,
+        );
+
+        return $dto;
+    }
+
+    /** One queued message, or null. */
+    public function find(string $outboxId): ?QueuedMailDto
+    {
+        $row = $this->mailOutboxRepository->findById($outboxId);
+
+        return $row === null ? null : QueuedMailDto::fromRow($row);
+    }
+
+    /**
      * The earliest moment anything in the queue became due, or null when
      * nothing is pending.
      *
@@ -279,14 +351,35 @@ class NotificationsService
     }
 
     /**
-     * Every queued message about one settlement, key or terminal — what #407's
-     * detail view reads, and what a self-check would show for a credential.
+     * Every queued message about one settlement, key or terminal, as raw rows.
      *
      * @return list<array<string,mixed>>
      */
     public function findBySubjectId(string $subjectId): array
     {
         return $this->mailOutboxRepository->findBySubjectId($subjectId);
+    }
+
+    /**
+     * The same, as the DTO the settlement detail renders (#407).
+     *
+     * Goes through {@see search()} rather than `findBySubjectId()` so the rows
+     * arrive with the member name joined — the breakdown lists members, and a
+     * row that could only say "member 4f3a…" would send the reader back to the
+     * member list to find out whose announcement failed.
+     *
+     * The limit is a guard rather than a page: a settlement queues one message
+     * per collected member plus, at most, one cancellation notice each, so a
+     * club that exceeded this would have bigger surprises waiting.
+     *
+     * @return list<QueuedMailDto>
+     */
+    public function findQueuedFor(string $subjectId, int $limit = 2000): array
+    {
+        return array_map(
+            QueuedMailDto::fromRow(...),
+            $this->mailOutboxRepository->search(['subject_id' => $subjectId], $limit, 0, 'queued_at', 'asc'),
+        );
     }
 
     /* ──────────────── Operational mail, addressed to an admin ──────────────── */

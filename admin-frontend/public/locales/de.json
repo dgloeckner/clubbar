@@ -13,7 +13,8 @@
     "logout": "Abmelden",
     "more": "Mehr",
     "journalShort": "Journal",
-    "settlementsShort": "Abrechn."
+    "settlementsShort": "Abrechn.",
+    "notifications": "Benachrichtigungen"
   },
   "common": {
     "save": "Speichern",
@@ -467,7 +468,16 @@
       "keyPastePlaceholder": "Privater Schlüssel (Base64)",
       "keyFileInvalid": "Diese Datei enthält keinen gültigen Schlüssel (32 Byte, Base64).",
       "keyFileUnreadable": "Die Datei konnte nicht gelesen werden."
-    }
+    },
+    "announcement": {
+      "noAddress": "Keine E-Mail-Adresse — nicht angekündigt",
+      "queued": "Ankündigung eingereiht",
+      "sent": "Ankündigung versendet {{when}}",
+      "failed": "Ankündigung fehlgeschlagen: {{reason}}",
+      "superseded": "Ankündigung entfallen",
+      "unknownError": "Unbekannter Fehler"
+    },
+    "announcementsQueued": "{{count}} Ankündigungen eingereiht, Versand läuft"
   },
   "statistics": {
     "title": "Statistik",
@@ -754,6 +764,45 @@
           "load": "Terminal-Tokens konnten nicht geladen werden",
           "rotate": "Neues Terminal-Token konnte nicht ausgestellt werden"
         }
+      }
+    },
+    "mail": {
+      "tab": "E-Mail",
+      "transportTitle": "Mailserver",
+      "transportConfigured": "Konfiguriert",
+      "transportMissing": "Kein Mailserver konfiguriert — es kann nichts versendet werden.",
+      "transportHint": "Der Mailserver (mail.dsn) steht in der config.php neben dem Datenbank-Passwort und ist hier bewusst nicht änderbar. Zusätzlich muss der Scheduler laufen: die Warteschlange wird ausschließlich von ihm geleert.",
+      "sendTest": "Testmail an mich senden",
+      "testSent": "Testmail an {{recipient}} versendet.",
+      "senderName": "Absendername",
+      "senderAddress": "Absenderadresse",
+      "senderAddressHint": "Muss ein Postfach auf einer Domain sein, die bei diesem Hoster liegt — sonst verwirft der Hoster die Mail stillschweigend.",
+      "replyTo": "Antwort an",
+      "replyToHint": "Die Kassenwart-Adresse: eine Vorabankündigung lädt zur Antwort ein (Beanstandung binnen sechs Wochen).",
+      "headerStyle": "Kopfvariante",
+      "headerStyles": {
+        "red": "Rot",
+        "petrol": "Petrol",
+        "paper": "Briefbogen"
+      },
+      "footerOrgName": "Verein (Impressum)",
+      "footerAddress": "Anschrift (Impressum)",
+      "websiteUrl": "Website",
+      "logoUrl": "Logo-URL",
+      "logoUrlHint": "Nur PNG — Gmail und Outlook stellen SVG in E-Mails nicht dar.",
+      "cronInterval": "Scheduler-Intervall",
+      "cronIntervals": {
+        "hourly": "Stündlich",
+        "daily": "Täglich"
+      },
+      "cronIntervalHint": "Wie oft der Cron dieser Installation tatsächlich läuft. Wiederholversuche und die Stau-Warnung rechnen in diesem Takt. Wöchentlich wird abgelehnt — die Sieben-Tage-Zusage aus § 7 Abs. 3 wäre dann nicht mehr einzuhalten.",
+      "batchSize": "Nachrichten pro Lauf",
+      "batchSizeHint": "Herabsetzen, wenn der Mailserver pro Verbindung strenger begrenzt. Schneller wird ein Lauf dadurch nicht — versendet wird ohnehin nacheinander.",
+      "saved": "Mail-Einstellungen gespeichert.",
+      "errors": {
+        "load": "Mail-Einstellungen konnten nicht geladen werden.",
+        "save": "Mail-Einstellungen konnten nicht gespeichert werden.",
+        "test": "Die Testmail konnte nicht versendet werden."
       }
     }
   },
@@ -1117,6 +1166,46 @@
       "title": "Geplanter Mailversand fehlt — Einzüge sind gesperrt",
       "body": "Jeder Einzug wird mindestens sieben Tage vorher per E-Mail angekündigt. Diese Ankündigungen verschickt eine geplante Aufgabe, und auf dieser Installation lief sie noch nie. Trage den folgenden Befehl im Hosting-Panel als Cronjob ein, alle {{minutes}} Minuten. Der Hinweis verschwindet, sobald der erste Lauf erfasst ist.",
       "urlFallback": "Ohne CLI-Cron geht es auch per URL-Abruf: {{url}} — mit dem Secret aus config.php im Header X-Cron-Secret."
+    }
+  },
+  "notifications": {
+    "title": "Benachrichtigungen",
+    "subtitle": "Warteschlange der ausgehenden E-Mails. Versendet wird ausschließlich vom Scheduler.",
+    "filterKind": "Art",
+    "filterStatus": "Status",
+    "allKinds": "Alle Arten",
+    "allStatuses": "Alle Status",
+    "search": "Suche",
+    "searchPlaceholder": "Name oder E-Mail-Adresse",
+    "queuedAt": "Eingereiht",
+    "recipient": "Empfänger",
+    "kind": "Art",
+    "status": "Status",
+    "detail": "Details",
+    "action": "Aktion",
+    "retry": "Erneut versuchen",
+    "retryQueued": "Zurück in die Warteschlange. Der Scheduler versendet beim nächsten Lauf.",
+    "waitingForScheduler": "Wartet auf den Scheduler",
+    "unknownRecipient": "Unbekannt",
+    "unknownError": "Unbekannter Fehler",
+    "empty": "Keine Nachrichten in der Warteschlange.",
+    "kinds": {
+      "sepa_prenotification": "Vorabankündigung",
+      "cancellation_notice": "Absage",
+      "payment_request": "Zahlungsaufforderung",
+      "key_expiry_warning": "Schlüssel läuft ab",
+      "terminal_token_expiry_warning": "Terminal-Token läuft ab",
+      "terminal_anomaly_warning": "Terminal-Auffälligkeit"
+    },
+    "statuses": {
+      "pending": "Eingereiht",
+      "sent": "Versendet",
+      "failed": "Fehlgeschlagen",
+      "superseded": "Entfallen"
+    },
+    "errors": {
+      "load": "Warteschlange konnte nicht geladen werden.",
+      "retry": "Die Nachricht konnte nicht erneut eingereiht werden."
     }
   }
 }

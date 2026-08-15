@@ -59,7 +59,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type {
   MailConfig,
-  MailConfigUpdateRequest
+  MailConfigUpdateRequest,
+  TestMailResult
 } from './..';
 
 import { customInstance } from '../../client';
@@ -103,6 +104,38 @@ const updateMailConfig = (
     },
       options);
     }
-  return {getMailConfig,updateMailConfig}};
+  /**
+ * The one place in this application that opens an SMTP connection from a
+web request rather than from the scheduler, and the boundaries that keep
+that from contradicting ADR-0038 rule 3 are enforced rather than
+documented:
+
+- **The recipient is the requesting admin's own address**, read from the
+  session. There is no parameter, because an endpoint that mails an
+  arbitrary address on request is an authenticated open relay on the
+  club's own domain.
+- **The content is fixed** — no member, no settlement, nothing
+  interpolated from a request. A test mail cannot be turned into a
+  message to somebody about something.
+
+Rule 3 governs *queued* messages: a settlement's announcements must not
+leave from inside a request, because a gateway timeout mid-loop leaves
+announcement state that cannot be reconstructed. None of that applies to
+a message that is never queued, carries no member data, and whose entire
+value is the error text arriving while the admin is still looking at the
+screen.
+
+ * @summary Send yourself a test mail
+ */
+const sendTestMail = (
+    
+ options?: SecondParameter<typeof customInstance<TestMailResult>>,) => {
+      return customInstance<TestMailResult>(
+      {url: `/admin/mail-config/test-mail`, method: 'POST'
+    },
+      options);
+    }
+  return {getMailConfig,updateMailConfig,sendTestMail}};
 export type GetMailConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailSettings>['getMailConfig']>>>
 export type UpdateMailConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailSettings>['updateMailConfig']>>>
+export type SendTestMailResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailSettings>['sendTestMail']>>>
