@@ -35,6 +35,7 @@ class SepaConfigServiceTest extends TestCase
             'creditor_address_city' => '12345 Musterstadt',
             'creditor_address_country' => 'DE',
             'payment_reference_prefix' => 'BAR',
+            'mandate_template_url' => 'https://club.example/anmeldung',
         ], $overrides);
     }
 
@@ -55,7 +56,24 @@ class SepaConfigServiceTest extends TestCase
 
         $this->assertSame('DE98ZZZ09999999999', $result->creditorId);
         $this->assertSame('DE89370400440532013000', $result->creditorIban);
+        $this->assertSame('https://club.example/anmeldung', $result->mandateTemplateUrl);
         $this->assertTrue($result->isConfigured);
+    }
+
+    /**
+     * #360/#456: the mandate template URL joined creditor_id/name/iban as a
+     * requirement for `isConfigured` — SepaExportService refuses to export
+     * without it, same as it always refused without a creditor IBAN.
+     */
+    public function test_getConfig_isConfigured_is_false_when_the_mandate_template_url_is_missing(): void
+    {
+        $this->sepaConfigRepository->method('getConfig')->willReturn(
+            $this->configRow(['mandate_template_url' => null])
+        );
+
+        $result = $this->service->getConfig();
+
+        $this->assertFalse($result->isConfigured);
     }
 
     public function test_getConfig_masks_creditor_id_and_iban_when_requested(): void

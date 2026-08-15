@@ -14,10 +14,11 @@ import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { MembersTabs } from '../components/members/MembersTabs'
 import { useExcludedFromCollection } from '../hooks/useExcludedFromCollection'
 import { useFormatters } from '../hooks/useFormatters'
-import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ScanIcon } from '../components/icons'
+import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ScanIcon, ExternalLinkIcon } from '../components/icons'
 import { downloadBlob } from '../api/client'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
+import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
 import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, MemberCreateRequest, MemberUpdateRequest } from '../api/generated'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
@@ -90,6 +91,8 @@ export function MembersPage() {
   // The dashboard metrics are a second, independent stream, so they get their
   // own abort slot — the member list's lives inside useListQuery (#96).
   const metricsRequest = useLatestRequest()
+  // The SEPA-Vorlage link is a third, independent stream for the same reason.
+  const sepaConfigRequest = useLatestRequest()
   // The excluded tab's badge is the figure that makes the tab worth clicking,
   // so it has to be readable from the roster — a count only visible once you
   // are already on the page it advertises is no invitation at all. The hook
@@ -102,6 +105,10 @@ export function MembersPage() {
   const [totalBalance, setTotalBalance] = useState<number | null>(null)
   const [lastSettlementDate, setLastSettlementDate] = useState<string | null>(null)
   const [metricsFailed, setMetricsFailed] = useState(false)
+  // The externally hosted registration form's link (#360/#456). Null while
+  // loading or genuinely unset — either way the button that opens it stays
+  // disabled, since there's nothing to send an admin to.
+  const [mandateTemplateUrl, setMandateTemplateUrl] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
 
@@ -203,6 +210,24 @@ export function MembersPage() {
     loadDashboardMetrics(metricsRequest.next())
     return () => metricsRequest.abort()
   }, [loadDashboardMetrics, metricsRequest])
+
+  // Load the SEPA-Vorlage link (#360/#456). Any failure — no config saved
+  // yet, or a genuine error — leaves it null, which is exactly the state the
+  // button already treats as "nothing to open".
+  useEffect(() => {
+    const signal = sepaConfigRequest.next()
+    getSepaConfiguration()
+      .getSepaConfig({ signal })
+      .then((config) => {
+        if (signal.aborted) return
+        setMandateTemplateUrl(config.mandate_template_url ?? null)
+      })
+      .catch(() => {
+        if (signal.aborted) return
+        setMandateTemplateUrl(null)
+      })
+    return () => sepaConfigRequest.abort()
+  }, [sepaConfigRequest])
 
   // Handle GDPR data export — downloads a JSON file with the member's personal data
   const handleExportData = async () => {
@@ -560,6 +585,21 @@ export function MembersPage() {
               title={scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
             >
               {scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
+            </PageActionButton>
+            <PageActionButton
+              variant="secondary"
+              data-testid="members-sepa-template-link-button"
+              onClick={() => {
+                if (mandateTemplateUrl) {
+                  window.open(mandateTemplateUrl, '_blank', 'noopener,noreferrer')
+                }
+              }}
+              disabled={!mandateTemplateUrl}
+              iconOnly={isMobile}
+              icon={<ExternalLinkIcon size={18} />}
+              title={mandateTemplateUrl ? t('members.openSepaTemplate') : t('members.sepaTemplateNotConfigured')}
+            >
+              {t('members.openSepaTemplate')}
             </PageActionButton>
             <PageActionButton
               data-testid="members-create-button"

@@ -60,6 +60,54 @@ class SepaExportServiceTest extends TestCase
         $this->service->export('missing-id', self::opener());
     }
 
+    public function test_export_refuses_when_creditor_details_are_missing(): void
+    {
+        $this->settlementsRepository->method('findById')->willReturn([
+            'id' => self::SETTLEMENT_ID,
+            'method' => SettlementMethod::DIRECT_DEBIT->value,
+            'is_cancelled' => 0,
+            'execution_date' => '2026-08-20',
+        ]);
+        $this->sepaConfigRepository->method('getConfig')->willReturn([
+            'creditor_id' => null,
+            'creditor_name' => null,
+            'creditor_iban' => null,
+            'mandate_template_url' => 'https://club.example/anmeldung',
+        ]);
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('SEPA configuration incomplete');
+
+        $this->service->export(self::SETTLEMENT_ID, self::opener());
+    }
+
+    /**
+     * #360/#456: the blank mandate form moved out of the app to an
+     * externally hosted registration form. A member has nothing to sign
+     * until the club has told the system where it lives, so this is refused
+     * the same way missing creditor details always were.
+     */
+    public function test_export_refuses_when_the_mandate_template_url_is_missing(): void
+    {
+        $this->settlementsRepository->method('findById')->willReturn([
+            'id' => self::SETTLEMENT_ID,
+            'method' => SettlementMethod::DIRECT_DEBIT->value,
+            'is_cancelled' => 0,
+            'execution_date' => '2026-08-20',
+        ]);
+        $this->sepaConfigRepository->method('getConfig')->willReturn([
+            'creditor_id' => 'DE98ZZZ09999999999',
+            'creditor_name' => 'Ruderclub',
+            'creditor_iban' => 'DE89370400440532013000',
+            'mandate_template_url' => null,
+        ]);
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('SEPA configuration incomplete');
+
+        $this->service->export(self::SETTLEMENT_ID, self::opener());
+    }
+
     public function test_export_refuses_a_cancelled_settlement_with_an_accurate_error(): void
     {
         // #114 / #142 §5. This never had a guard: cancellation used to delete
@@ -471,6 +519,7 @@ class SepaExportServiceTest extends TestCase
             'creditor_name' => 'Ruderclub',
             'creditor_iban' => 'DE89370400440532013000',
             'payment_reference_prefix' => null,
+            'mandate_template_url' => 'https://club.example/anmeldung',
         ]);
     }
 

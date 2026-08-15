@@ -236,7 +236,13 @@ test.describe('Journal & Settlements', () => {
     const creditorId = 'DE98ZZZ09999999999'
     const creditorIban = 'DE89370400440532013000'
     const configResp = await authenticatedRequest.put('/api/admin/sepa-config', {
-      data: { creditor_id: creditorId, creditor_name: creditorName, creditor_iban: creditorIban },
+      data: {
+        creditor_id: creditorId,
+        creditor_name: creditorName,
+        creditor_iban: creditorIban,
+        // #360/#456: SepaExportService also requires this now.
+        mandate_template_url: 'https://club.example/anmeldung',
+      },
     })
     expect(configResp.status()).toBe(200)
 
@@ -337,7 +343,13 @@ test.describe('Journal & Settlements', () => {
     // Re-apply SEPA config right before export to guard against parallel test contamination
     // (sepa_config is a singleton row shared across all tests)
     const reConfigResp = await authenticatedRequest.put('/api/admin/sepa-config', {
-      data: { creditor_id: creditorId, creditor_name: creditorName, creditor_iban: creditorIban },
+      data: {
+        creditor_id: creditorId,
+        creditor_name: creditorName,
+        creditor_iban: creditorIban,
+        // #360/#456: SepaExportService also requires this now.
+        mandate_template_url: 'https://club.example/anmeldung',
+      },
     })
     expect(reConfigResp.status()).toBe(200)
 

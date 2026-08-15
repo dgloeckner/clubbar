@@ -58,38 +58,15 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export interface SepaConfig {
-  /** Gläubiger-ID (masked) */
-  creditor_id?: string;
-  /** @maxLength 70 */
-  creditor_name?: string;
-  /** Masked IBAN */
-  creditor_iban?: string;
-  /** @maxLength 70 */
-  creditor_address_street?: string;
-  /** @maxLength 70 */
-  creditor_address_city?: string;
-  /**
-   * @minLength 2
-   * @maxLength 2
-   */
-  creditor_address_country?: string;
-  /**
-   * Prefix of the payment reference shown on member bank statements
-   * @maxLength 100
-   */
-  payment_reference_prefix?: string;
-  /**
-   * The externally hosted registration form ("Anmeldung zur
-bargeldlosen Vereinsbar") a new member signs (#360). The blank
-mandate PDF used to be generated in-app; the club now maintains
-this form elsewhere and links to it instead.
+/**
+ * - none: creditor details and mandate_template_url are all set
+- error: something required for SEPA export is missing
 
-   * @maxLength 255
-   * @nullable
-   */
-  mandate_template_url?: string | null;
-  /** True once creditor_id, creditor_name, creditor_iban and mandate_template_url are all set */
-  is_configured?: boolean;
-  updated_at?: string;
-}
+ */
+export type DashboardResponseAlertsSepaConfigSeverity = typeof DashboardResponseAlertsSepaConfigSeverity[keyof typeof DashboardResponseAlertsSepaConfigSeverity];
+
+
+export const DashboardResponseAlertsSepaConfigSeverity = {
+  none: 'none',
+  error: 'error',
+} as const;

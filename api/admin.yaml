@@ -5789,9 +5789,18 @@ components:
           type: string
           maxLength: 100
           description: Prefix of the payment reference shown on member bank statements
+        mandate_template_url:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: |
+            The externally hosted registration form ("Anmeldung zur
+            bargeldlosen Vereinsbar") a new member signs (#360). The blank
+            mandate PDF used to be generated in-app; the club now maintains
+            this form elsewhere and links to it instead.
         is_configured:
           type: boolean
-          description: True once creditor_id, creditor_name and creditor_iban are all set
+          description: True once creditor_id, creditor_name, creditor_iban and mandate_template_url are all set
         updated_at:
           type: string
           format: date-time
@@ -5826,6 +5835,11 @@ components:
           type: string
           maxLength: 100
           description: Prefix of the payment reference shown on member bank statements
+        mandate_template_url:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: The externally hosted registration form a new member signs (#360)
 
     InstanceConfig:
       type: object
@@ -5981,6 +5995,11 @@ components:
           type: string
           maxLength: 100
           description: Prefix of the payment reference shown on member bank statements
+        mandate_template_url:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: The externally hosted registration form a new member signs (#360)
 
     # --------------------------------------------------------------------------
     # Admin Users
@@ -6677,6 +6696,25 @@ components:
                 days_until_expiry:
                   type: integer
                   nullable: true
+                message:
+                  type: string
+                  description: Human-readable alert message
+            sepa_config:
+              type: object
+              description: |
+                Whether SEPA is actually ready to collect: the creditor
+                identity the bank needs, and the externally hosted mandate
+                template URL a new member is sent to sign (#360/#456).
+                `SepaExportService` refuses to export a settlement while
+                either is missing — this is the same completeness check,
+                surfaced before an admin hits that block.
+              properties:
+                severity:
+                  type: string
+                  enum: [none, error]
+                  description: |
+                    - none: creditor details and mandate_template_url are all set
+                    - error: something required for SEPA export is missing
                 message:
                   type: string
                   description: Human-readable alert message

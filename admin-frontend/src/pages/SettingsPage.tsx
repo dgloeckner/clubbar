@@ -76,6 +76,7 @@ export function SettingsPage() {
     creditor_address_city: '',
     creditor_address_country: '',
     payment_reference_prefix: '',
+    mandate_template_url: '',
   })
   const [formData, setFormData] = useState<SepaConfigFormData>({
     creditor_id: '',
@@ -85,6 +86,7 @@ export function SettingsPage() {
     creditor_address_city: '',
     creditor_address_country: '',
     payment_reference_prefix: '',
+    mandate_template_url: '',
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   // Tracks the pending "clear the success message" timer so a later save
@@ -195,6 +197,7 @@ export function SettingsPage() {
             creditor_address_city: config.creditor_address_city,
             creditor_address_country: config.creditor_address_country,
             payment_reference_prefix: config.payment_reference_prefix,
+            mandate_template_url: config.mandate_template_url ?? undefined,
           }
           setFormData(formValues)
           setOriginalFormData(formValues)
@@ -573,6 +576,13 @@ export function SettingsPage() {
 
     if (formData.payment_reference_prefix && formData.payment_reference_prefix.length > 100) {
       newErrors.payment_reference_prefix = t('settings.validation.paymentReferencePrefixTooLong')
+    }
+
+    // Not required at save time (#456): a club can save creditor details
+    // before the externally hosted form exists. SepaExportService blocks
+    // export until this is set, and the dashboard warns in the meantime.
+    if (formData.mandate_template_url && formData.mandate_template_url.length > 255) {
+      newErrors.mandate_template_url = t('settings.validation.mandateTemplateUrlTooLong')
     }
 
     if (!creditorIdLocked && !formData.creditor_id?.trim()) {

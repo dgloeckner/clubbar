@@ -14,6 +14,7 @@ final readonly class SepaConfigDto
         public ?string $creditorAddressCity,
         public ?string $creditorAddressCountry,
         public ?string $paymentReferencePrefix,
+        public ?string $mandateTemplateUrl,
         public bool $isConfigured,
     ) {}
 
@@ -27,9 +28,13 @@ final readonly class SepaConfigDto
             $creditorIban = self::maskString($creditorIban);
         }
 
+        // Whether SEPA is ready to actually collect: the creditor identity the
+        // bank needs, and the mandate template link a new member is sent to
+        // sign (#360) — SepaExportService refuses to export without either.
         $isConfigured = !empty($row['creditor_id'])
             && !empty($row['creditor_name'])
-            && !empty($row['creditor_iban']);
+            && !empty($row['creditor_iban'])
+            && !empty($row['mandate_template_url']);
 
         return new self(
             creditorId: $creditorId,
@@ -39,6 +44,7 @@ final readonly class SepaConfigDto
             creditorAddressCity: $row['creditor_address_city'] ?? null,
             creditorAddressCountry: $row['creditor_address_country'] ?? null,
             paymentReferencePrefix: $row['payment_reference_prefix'] ?? null,
+            mandateTemplateUrl: $row['mandate_template_url'] ?? null,
             isConfigured: $isConfigured,
         );
     }
@@ -61,6 +67,7 @@ final readonly class SepaConfigDto
             'creditor_address_city' => $this->creditorAddressCity,
             'creditor_address_country' => $this->creditorAddressCountry,
             'payment_reference_prefix' => $this->paymentReferencePrefix,
+            'mandate_template_url' => $this->mandateTemplateUrl,
             'is_configured' => $this->isConfigured,
         ];
     }

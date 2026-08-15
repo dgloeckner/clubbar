@@ -124,6 +124,8 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
       creditor_iban: 'DE89370400440532013000',
       creditor_bic: 'COBADEFFXXX',
       creditor_id: 'DE98ZZZ09999999999',
+      // #360/#456: SepaExportService also requires this now.
+      mandate_template_url: 'https://club.example/anmeldung',
     },
   });
   console.log(`SEPA config: ${sepaResp.status()}`);

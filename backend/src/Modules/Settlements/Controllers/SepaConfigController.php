@@ -64,6 +64,10 @@ class SepaConfigController
         $rules = [
             'creditor_name' => ['required', 'string', 'max:70'],
             'payment_reference_prefix' => ['string', 'max:100'],
+            // No dedicated URL rule exists (mirrors MailConfig's website_url /
+            // logo_url, Pattern 001) — this is a link the admin controls, not
+            // a value the system parses.
+            'mandate_template_url' => ['nullable', 'string', 'max:255'],
         ];
         if (!$keepsStoredIban) {
             $rules['creditor_iban'] = ['required', 'string', 'iban'];

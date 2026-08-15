@@ -85,4 +85,10 @@ export interface SepaConfigUpdateRequest {
    * @maxLength 100
    */
   payment_reference_prefix?: string;
+  /**
+   * The externally hosted registration form a new member signs (#360)
+   * @maxLength 255
+   * @nullable
+   */
+  mandate_template_url?: string | null;
 }

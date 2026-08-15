@@ -233,6 +233,8 @@
     "anonymizeSuccess": "Mitglied wurde anonymisiert",
     "anonymizeButton": "Anonymisieren",
     "newFromScan": "Neu aus Scan",
+    "openSepaTemplate": "SEPA-Vorlage",
+    "sepaTemplateNotConfigured": "Es ist keine URL für das Mandatsformular hinterlegt — bitte zuerst in den Einstellungen konfigurieren.",
     "countFound_one": "{{count}} Mitglied gefunden",
     "countFound_other": "{{count}} Mitglieder gefunden",
     "storedIban": "Gespeichert: {{masked}}",
@@ -494,6 +496,7 @@
     "creditorIban": "Gläubiger-IBAN",
     "creditorBic": "BIC",
     "paymentReferencePrefix": "Verwendungszweck-Präfix",
+    "mandateTemplateUrl": "URL des Mandatsformulars",
     "adminUsers": "Admin-Benutzer",
     "loadingSettings": "Lade Einstellungen...",
     "loadingAdminUsers": "Lade Admin-Benutzer...",
@@ -522,7 +525,8 @@
       "street": "z.B. Hauptstraße 123",
       "city": "z.B. München",
       "country": "z.B. DE",
-      "paymentPrefix": "z.B. Club Bar Abrechnung"
+      "paymentPrefix": "z.B. Club Bar Abrechnung",
+      "mandateTemplateUrl": "z.B. https://club.example/anmeldung"
     },
     "sepaHelpers": {
       "creditorId": "SEPA Gläubiger-Identifikationsnummer (max 35 Zeichen)",
@@ -533,7 +537,8 @@
       "city": "Stadtname (max 70 Zeichen)",
       "country": "2-stelliger ISO-Ländercode (DE, AT, CH)",
       "paymentPrefix": "Präfix für den Verwendungszweck. Das Abrechnungsdatum wird automatisch angehängt.",
-      "creditorIbanStored": "Gespeichert: {{masked}}. Leer lassen, um sie zu behalten, oder vollständige IBAN eingeben, um sie zu ersetzen."
+      "creditorIbanStored": "Gespeichert: {{masked}}. Leer lassen, um sie zu behalten, oder vollständige IBAN eingeben, um sie zu ersetzen.",
+      "mandateTemplateUrl": "Link zum extern gehosteten Anmeldeformular, das ein neues Mitglied unterschreibt. Abrechnungen können erst exportiert werden, wenn dies hinterlegt ist."
     },
     "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?",
     "ownAccount": "Sie",
@@ -601,6 +606,7 @@
       "countryRequired": "Ländercode ist erforderlich",
       "countryInvalid": "Land muss ein zweistelliger ISO-Code sein (z. B. DE, AT, CH)",
       "paymentReferencePrefixTooLong": "Verwendungszweck-Präfix darf höchstens 100 Zeichen lang sein",
+      "mandateTemplateUrlTooLong": "URL des Mandatsformulars darf höchstens 255 Zeichen lang sein",
       "creditorIdRequired": "Gläubiger-ID ist erforderlich",
       "creditorIdTooLong": "Gläubiger-ID darf höchstens 35 Zeichen lang sein",
       "stepUpRequired": "Zum Ausstellen des Terminal-Tokens Ihr eigenes Passwort (und ggf. 2FA-Code) eingeben"
@@ -933,7 +939,8 @@
     "membersNeedSepaData_other": "{{count}} Mitglieder ohne SEPA-Daten",
     "stale": "Die letzte Aktualisierung ist fehlgeschlagen – die Werte sind möglicherweise veraltet.",
     "staleSince": "Die letzte Aktualisierung ist fehlgeschlagen – die Werte stammen von {{time}} Uhr.",
-    "manageKeys": "Schlüssel verwalten"
+    "manageKeys": "Schlüssel verwalten",
+    "manageSepaConfig": "SEPA konfigurieren"
   },
   "pagination": {
     "firstPage": "Erste Seite",

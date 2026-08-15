@@ -45,6 +45,7 @@ test.describe('Settlements API', () => {
           creditor_address_street: '123 Test Street',
           creditor_address_city: 'Berlin',
           creditor_address_country: 'DE',
+          mandate_template_url: 'https://club.example/anmeldung',
         },
       });
 
@@ -121,6 +122,7 @@ test.describe('Settlements API', () => {
           creditor_address_city: 'Berlin',
           creditor_address_country: 'DE',
           payment_reference_prefix: 'RUDERBAR',
+          mandate_template_url: 'https://club.example/anmeldung',
         },
       });
 
@@ -139,6 +141,7 @@ test.describe('Settlements API', () => {
           creditor_address_street: 'Musterstraße 2',
           creditor_address_city: 'Frankfurt',
           creditor_address_country: 'DE',
+          mandate_template_url: 'https://club.example/anmeldung',
         },
       });
 

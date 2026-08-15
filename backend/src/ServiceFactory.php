@@ -938,6 +938,7 @@ class ServiceFactory implements ContainerInterface
             $this->getSettlementsRepository(),
             $this->getTerminalsRepository(),
             $this->getEncryptionKeysRepository(),
+            $this->getSepaConfigRepository(),
         ));
     }
 

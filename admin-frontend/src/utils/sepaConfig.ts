@@ -19,6 +19,7 @@ export interface SepaConfigFormData {
   creditor_address_city?: string
   creditor_address_country?: string
   payment_reference_prefix?: string
+  mandate_template_url?: string
 }
 
 /**
@@ -43,6 +44,7 @@ export function buildCreateSepaConfigRequest(form: SepaConfigFormData): SepaConf
     creditor_address_city: form.creditor_address_city ?? '',
     creditor_address_country: form.creditor_address_country ?? '',
     payment_reference_prefix: form.payment_reference_prefix ?? '',
+    mandate_template_url: form.mandate_template_url ?? '',
   }
 }
 
@@ -62,6 +64,7 @@ export function buildUpdateSepaConfigRequest(form: SepaConfigFormData): SepaConf
     creditor_address_city: form.creditor_address_city,
     creditor_address_country: form.creditor_address_country,
     payment_reference_prefix: form.payment_reference_prefix ?? '',
+    mandate_template_url: form.mandate_template_url ?? '',
   }
 
   if (form.creditor_iban?.trim()) {

@@ -9,6 +9,7 @@ use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Dashboard\Services\DashboardService;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
@@ -31,6 +32,7 @@ class DashboardServiceTest extends TestCase
     private SettlementsRepository $settlementsRepository;
     private TerminalsRepository $terminalsRepository;
     private EncryptionKeysRepository $encryptionKeysRepository;
+    private SepaConfigRepository $sepaConfigRepository;
     private DashboardService $service;
 
     protected function setUp(): void
@@ -41,6 +43,7 @@ class DashboardServiceTest extends TestCase
         $this->settlementsRepository = $this->createMock(SettlementsRepository::class);
         $this->terminalsRepository = $this->createMock(TerminalsRepository::class);
         $this->encryptionKeysRepository = $this->createMock(EncryptionKeysRepository::class);
+        $this->sepaConfigRepository = $this->createMock(SepaConfigRepository::class);
 
         $this->service = new DashboardService(
             $this->dashboardRepository,
@@ -49,6 +52,7 @@ class DashboardServiceTest extends TestCase
             $this->settlementsRepository,
             $this->terminalsRepository,
             $this->encryptionKeysRepository,
+            $this->sepaConfigRepository,
         );
     }
 
@@ -185,6 +189,54 @@ class DashboardServiceTest extends TestCase
         ];
     }
 
+    // ── SEPA config alert (#360/#456) ───────────────────────────────────────
+
+    public function test_no_sepa_config_row_is_an_error(): void
+    {
+        $alert = DashboardService::sepaConfigAlert(null);
+
+        $this->assertSame('error', $alert['severity']);
+        $this->assertStringContainsString('creditor details', $alert['message']);
+    }
+
+    public function test_missing_creditor_details_is_an_error(): void
+    {
+        $alert = DashboardService::sepaConfigAlert([
+            'creditor_id' => null,
+            'creditor_name' => null,
+            'creditor_iban' => null,
+            'mandate_template_url' => 'https://club.example/anmeldung',
+        ]);
+
+        $this->assertSame('error', $alert['severity']);
+        $this->assertStringContainsString('creditor details', $alert['message']);
+    }
+
+    public function test_missing_mandate_template_url_is_its_own_error(): void
+    {
+        $alert = DashboardService::sepaConfigAlert([
+            'creditor_id' => 'DE98ZZZ09999999999',
+            'creditor_name' => 'Musterverein e.V.',
+            'creditor_iban' => 'DE89370400440532013000',
+            'mandate_template_url' => null,
+        ]);
+
+        $this->assertSame('error', $alert['severity']);
+        $this->assertStringContainsString('mandate template URL', $alert['message']);
+    }
+
+    public function test_a_fully_configured_club_raises_nothing(): void
+    {
+        $alert = DashboardService::sepaConfigAlert([
+            'creditor_id' => 'DE98ZZZ09999999999',
+            'creditor_name' => 'Musterverein e.V.',
+            'creditor_iban' => 'DE89370400440532013000',
+            'mandate_template_url' => 'https://club.example/anmeldung',
+        ]);
+
+        $this->assertSame('none', $alert['severity']);
+    }
+
     // ── Product display name ────────────────────────────────────────────────
 
     public function test_a_product_shows_its_german_name_when_it_has_one(): void
@@ -257,6 +309,7 @@ class DashboardServiceTest extends TestCase
         $this->assertSame('2026-07-02T19:04:11', $transaction['timestamp'], 'the API speaks ISO-8601');
 
         $this->assertSame('warning', $dashboard['alerts']['sepa_issues']['severity']);
+        $this->assertSame('error', $dashboard['alerts']['sepa_config']['severity'], 'no SEPA config was stubbed in');
         $this->assertSame('2026-07-01 08:00:00', $dashboard['system_status']['last_settlement_date']);
     }
 

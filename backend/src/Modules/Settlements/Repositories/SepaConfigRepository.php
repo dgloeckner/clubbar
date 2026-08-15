@@ -23,7 +23,7 @@ class SepaConfigRepository
 
     public function updateConfig(array $data): ?array
     {
-        $allowed = ['creditor_id', 'creditor_name', 'creditor_iban', 'creditor_address_street', 'creditor_address_city', 'creditor_address_country', 'payment_reference_prefix'];
+        $allowed = ['creditor_id', 'creditor_name', 'creditor_iban', 'creditor_address_street', 'creditor_address_city', 'creditor_address_country', 'payment_reference_prefix', 'mandate_template_url'];
         [$set, $values] = SafeQuery::buildUpdate($data, $allowed);
         $values[] = date('Y-m-d H:i:s');
 
@@ -40,6 +40,7 @@ class SepaConfigRepository
         return $config
             && !empty($config['creditor_id'])
             && !empty($config['creditor_name'])
-            && !empty($config['creditor_iban']);
+            && !empty($config['creditor_iban'])
+            && !empty($config['mandate_template_url']);
     }
 }

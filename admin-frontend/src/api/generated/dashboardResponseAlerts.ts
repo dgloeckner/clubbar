@@ -58,6 +58,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type { DashboardResponseAlertsEncryptionKey } from './dashboardResponseAlertsEncryptionKey';
+import type { DashboardResponseAlertsSepaConfig } from './dashboardResponseAlertsSepaConfig';
 import type { DashboardResponseAlertsSepaIssues } from './dashboardResponseAlertsSepaIssues';
 
 /**
@@ -75,4 +76,12 @@ until a key is activated, no member's bank details can be
 stored at all.
  */
   encryption_key?: DashboardResponseAlertsEncryptionKey;
+  /** Whether SEPA is actually ready to collect: the creditor
+identity the bank needs, and the externally hosted mandate
+template URL a new member is sent to sign (#360/#456).
+`SepaExportService` refuses to export a settlement while
+either is missing — this is the same completeness check,
+surfaced before an admin hits that block.
+ */
+  sepa_config?: DashboardResponseAlertsSepaConfig;
 };
