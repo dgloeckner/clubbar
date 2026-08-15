@@ -141,6 +141,28 @@ erDiagram
         datetime created_at "Record creation (append-only)"
     }
 
+    settlement_announcements {
+        bigint id PK "Internal reference"
+        char_36 settlement_id FK "Which collection was announced"
+        char_36 member_id FK "Who was announced to"
+        enum kind "sepa_prenotification, cancellation_notice, payment_request"
+        datetime sent_at "When the transport accepted it (copied from the queue row)"
+    }
+
+    mail_outbox {
+        char_36 id PK "UUID"
+        enum kind "What this message is"
+        char_36 subject_id "What it is about; polymorphic, no FK"
+        varchar_64 dedup_key "The rest of a message's identity"
+        char_36 member_id FK "Member written to, if any"
+        char_36 admin_user_id FK "Admin written to, if any"
+        varchar_255 recipient "Address snapshot; cleared on erasure"
+        char_2 language "Frozen at enqueue"
+        enum status "pending, sent, failed, superseded"
+        datetime next_attempt_at "When due again"
+        datetime sent_at "Delivery time; the prune predicate"
+    }
+
     terminals {
         binary_16 id PK "UUID"
         varchar_100 name "Terminal display name"
@@ -217,6 +239,10 @@ erDiagram
     settlements ||--o{ settlement_reversals : "clawed back by"
     members ||--o{ settlement_reversals : "affects"
     admin_users ||--o{ settlement_reversals : "records"
+    settlements ||--o{ settlement_announcements : "announced to"
+    members ||--o{ settlement_announcements : "was told"
+    members ||--o{ mail_outbox : "addressed in"
+    admin_users ||--o{ mail_outbox : "warned in"
     members ||--o{ mandates : "grants"
     admin_users ||--o{ mandates : "records"
     encryption_keys ||--o{ mandates : "seals"
@@ -521,6 +547,93 @@ The bank clawing back a collection without asking — distinct from cancellation
 
 ---
 
+### settlement_announcements
+
+Durable proof that one member was announced to about one settlement, and when ([#408](https://github.com/dgloeckner/clubbar/issues/408)).
+
+The queue row in `mail_outbox` carries the same fact plus the *address*, and the two do not expire together: the address is operational-tier and is erased with the member and pruned 90 days after delivery, while the fact that the § 7 Abs. 3 announcement went out is retention-tier ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)). This table is the half that stays. It names no address, which is exactly what lets it be kept.
+
+An event table rather than columns on `settlement_items` for the reason [ADR-0032](../adr/0032-settlement-lifecycle.md) §6 gives for reversals: `settlement_items` is one row per settled *transaction*, so a member with thirty bookings would carry thirty copies of one timestamp and no single row meaning "this member was told".
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | BIGINT | PK, AUTO_INCREMENT | Internal reference |
+| settlement_id | CHAR(36) | FK → settlements.id (CASCADE), NOT NULL | Which collection was announced |
+| member_id | CHAR(36) | FK → members.id (RESTRICT), NOT NULL | Who was announced to. RESTRICT because a member is anonymised, never deleted — and the retention tier must not leave with them |
+| kind | ENUM | NOT NULL | `sepa_prenotification` · `cancellation_notice` · `payment_request`. Only member-addressed settlement mail; an expiry warning has no settlement to be evidence against |
+| sent_at | DATETIME | NOT NULL | When the transport accepted it. **Copied from the queue row**, not stamped from a second clock, so the two cannot disagree while both exist |
+
+**Indexes:**
+- `(settlement_id, member_id, kind)` (UNIQUE) — one announcement of one kind per member per settlement; also what makes the drain's write idempotent across a re-marked send
+- `settlement_id`
+
+**Retention tier:** retention. Kept for the settlement's retention period; **not** touched by erasure.
+
+---
+
+### mail_outbox
+
+The transactional outbox ([ADR-0038](../adr/0038-transactional-mail-outbox-on-shared-hosting.md)). Finalizing a settlement writes rows here inside the settlement's own transaction and makes no network call; the scheduler drains them and is the only sender.
+
+There is **no body column**. Content is rendered from settlement data at send time, which is safe because ADR-0032 makes a settlement append-only — and storing bodies would multiply copies of member PII for no evidentiary gain.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | CHAR(36) | PK | UUID |
+| kind | ENUM | NOT NULL | `sepa_prenotification` · `cancellation_notice` · `payment_request` · `key_expiry_warning` · `terminal_token_expiry_warning` · `terminal_anomaly_warning` |
+| subject_id | CHAR(36) | NOT NULL, no FK | What the message is about; which table it points at is decided by `kind`. Polymorphic, so no foreign key is possible — stated rather than hidden |
+| dedup_key | VARCHAR(64) | NOT NULL | The rest of a message's identity: the member for settlement mail, the warning tier for an expiry warning |
+| member_id | CHAR(36) | FK → members.id (CASCADE), NULL | The member written to, when there is one. The FK is how erasure finds this table |
+| admin_user_id | CHAR(36) | FK → admin_users.id (CASCADE), NULL | The admin written to, for operational warnings |
+| recipient | VARCHAR(255) | NOT NULL | **Snapshot** of the address at enqueue — the proof of who was announced to, and the one field not reproducible later. Cleared to `''` on erasure |
+| language | CHAR(2) | NOT NULL, default `de` | Frozen at enqueue so a later language change cannot alter what was announced |
+| status | ENUM | NOT NULL, default `pending` | `pending` · `sent` · `failed` · `superseded` (withdrawn: a cancelled collection, or an erased member) |
+| attempts | TINYINT | NOT NULL, default 0 | Attempts so far; the ladder is in scheduler ticks |
+| next_attempt_at | DATETIME | NOT NULL, default epoch | When this row is due again |
+| last_error | TEXT | NULL | What the receiving server said — the text the Kassenwart reads |
+| claim_token / claimed_at | CHAR(36) / DATETIME | NULL | Claim by `UPDATE`, then select by token; deliberately not `SELECT … FOR UPDATE SKIP LOCKED`, which needs MariaDB 10.6+ |
+| queued_at | DATETIME | NOT NULL | Enqueue time |
+| sent_at | DATETIME | NULL | Delivery time; the prune predicate reads this |
+| message_id | VARCHAR(255) | NULL | The transport's handle, for correlating with an MTA log |
+
+**Indexes:**
+- `(kind, subject_id, dedup_key)` (UNIQUE) — the whole of the "a retried finalize does not duplicate emails" guarantee. Every column is NOT NULL because in MySQL a NULL never equals a NULL, and one nullable column would silently stop the index being unique
+- `(status, next_attempt_at, claimed_at)` — the drain's claim predicate
+- `(subject_id, status)` — the settlement detail and the cancellation path
+- `member_id` — erasure
+- `sent_at` — pruning
+
+**Retention tier:** operational. `recipient` is cleared on erasure; `sent` rows are pruned after 90 days per kind, and `pending`/`failed`/`superseded` rows are never pruned at any age.
+
+---
+
+### mail_config
+
+Club-editable mail settings — sender name and address, reply-to, header style, footer identity, and the declared scheduler interval and drain batch size. Singleton row.
+
+The **DSN, including the SMTP password, is deliberately not here**: it stays in `config.php`, consistent with the database password and the TOTP key ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) decision 2). Changing the mail server is an installer or file operation.
+
+**Retention tier:** configuration. No personal data; untouched by erasure and by pruning.
+
+---
+
+### cron_heartbeat
+
+One row, written by every drain run. Read for three different questions: has a scheduled run ever been observed (the install gate), is the queue moving (the monitoring), and what does the self-check show.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TINYINT | PK, always 1 |
+| last_run_at / previous_run_at | DATETIME | The last two runs — two timestamps answer "how far apart do runs actually arrive?", which a growing log of cron ticks would answer at the cost of a table nobody prunes |
+| source | ENUM | `cli` (preferred) · `url` |
+| sent / failed | INT | Counts from the last run |
+| php_version | VARCHAR(32) | The **CLI** interpreter, which on shared hosting is frequently not the web one |
+| missing_extensions | VARCHAR | `''` means checked and complete; NULL means never checked |
+
+**Retention tier:** operational. No personal data.
+
+---
+
 ### terminals
 
 Registered POS terminals with API authentication.
@@ -771,6 +884,10 @@ flowchart TB
 | settlements → settlement_reversals | 1:N | A settlement may be clawed back per member |
 | members → settlement_reversals | 1:N | Member's reversed collections |
 | admin_users → settlement_reversals | 1:N | Admin who recorded the reversal |
+| settlements → settlement_announcements | 1:N | Which members this collection was announced to |
+| members → settlement_announcements | 1:N | The member's own announcement history |
+| members → mail_outbox | 1:N | Messages queued for a member (cascades, so mail never outlives them) |
+| admin_users → mail_outbox | 1:N | Operational warnings queued for an admin |
 | members → mandates | 1:N | Member's mandate history (append-only; at most one active) |
 | admin_users → mandates | 1:N | Admin who recorded the mandate |
 | encryption_keys → mandates | 1:N | The key generation a mandate's IBAN is sealed under; what a rotation batch walks |
@@ -801,6 +918,10 @@ flowchart TB
 | settlement_reversals | settlement_id | settlements | RESTRICT |
 | settlement_reversals | member_id | members | RESTRICT |
 | settlement_reversals | created_by_admin_id | admin_users | RESTRICT |
+| settlement_announcements | settlement_id | settlements | CASCADE |
+| settlement_announcements | member_id | members | RESTRICT |
+| mail_outbox | member_id | members | CASCADE |
+| mail_outbox | admin_user_id | admin_users | CASCADE |
 | mandates | member_id | members | CASCADE |
 | mandates | created_by_admin_id | admin_users | SET NULL |
 | mandates | encryption_key_id | encryption_keys | RESTRICT |
@@ -848,7 +969,14 @@ When a member requests deletion (GDPR Art. 17):
 
 `iban` and `mandate_reference` no longer live on `members` at all — they moved to `mandates` in [#164](https://github.com/dgloeckner/ruderbar/issues/164)/[#165](https://github.com/dgloeckner/ruderbar/issues/165) and are **not** touched by member anonymization ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): both are Beleg-bearing, and nulling them would break matching a returned collection that arrives after the erasure request.
 
-**Retained:** `id`, `created_at`, `updated_at`, `retention_expires_at` — plus the whole **retention tier**: `mandates` rows (`reference`, `iban_ciphertext`, `signed_at`), transactions, settlements, payment/return/reversal records.
+The outbox is the **second place a member's address lives**, and erasure covers it in the same transaction ([#408](https://github.com/dgloeckner/clubbar/issues/408)) — otherwise anonymisation clears `members.email` and leaves the same address sitting in a queue row:
+
+| Table.column | Before | After |
+|--------------|--------|-------|
+| mail_outbox.recipient | "max@example.com" | `''` (every row of that member, keyed on `member_id`) |
+| mail_outbox.status | `pending` | `superseded` — a message queued for an erased member is withdrawn, not left addressed to nobody |
+
+**Retained:** `id`, `created_at`, `updated_at`, `retention_expires_at` — plus the whole **retention tier**: `mandates` rows (`reference`, `iban_ciphertext`, `signed_at`), transactions, settlements, payment/return/reversal records. `settlement_announcements` is retention tier and is **not** touched: it records that a member was announced to and names no address.
 
 ### Retention Periods
 
@@ -859,6 +987,9 @@ When a member requests deletion (GDPR Art. 17):
 | audit_log | 10 years | Accountability requirement |
 | Anonymized members | 10 years | Transaction linkage |
 | Active member PII | Until deletion request | GDPR Art. 17 |
+| settlement_announcements | 10 years (with the settlement) | § 147 AO; proof the Nutzungsordnung § 7 Abs. 3 announcement was made |
+| mail_outbox (`sent` rows) | 90 days from delivery, per kind | Operational tier — a delivered message has no reason to keep an address ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) |
+| mail_outbox (`pending`/`failed`/`superseded`) | Not pruned | A failed row is the record that somebody was **not** reached |
 
 ---
 
@@ -876,3 +1007,4 @@ When a member requests deletion (GDPR Art. 17):
 - [ADR-0029: Two-Tier Retention and Erasure](../adr/0029-two-tier-retention-and-erasure.md)
 - [ADR-0036: IBAN Encryption at Rest with libsodium Sealed Boxes](../adr/0036-iban-encryption-sealed-box.md)
 - [ADR-0037: Mandate Documents Are Not Retained in the System](../adr/0037-mandate-documents-not-retained.md)
+- [ADR-0038: Transactional Mail Outbox on Shared Hosting](../adr/0038-transactional-mail-outbox-on-shared-hosting.md)

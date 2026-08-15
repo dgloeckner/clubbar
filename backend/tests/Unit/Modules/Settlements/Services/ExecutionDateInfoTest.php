@@ -10,6 +10,7 @@ use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Shared\Config\AppConfig;
+use App\Modules\Settlements\Repositories\SettlementAnnouncementsRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Settlements\Services\SettlementsService;
@@ -38,6 +39,7 @@ class ExecutionDateInfoTest extends TestCase
                 new AppConfig(),
                 $this->createMock(MailConfigService::class),
             ),
+            $this->createMock(SettlementAnnouncementsRepository::class),
         );
     }
 

@@ -224,9 +224,22 @@ Two things #407 asks for that are **not** here, and why:
 
 ### P8 — Privacy and retention: erasure covers `mail_outbox`, sent rows pruned ([#408](https://github.com/dgloeckner/clubbar/issues/408))
 
-- [ ] Anonymisation clears `mail_outbox.recipient` in the same transaction that clears `members.email` — otherwise the erasure quietly did not happen
-- [ ] Pruning of sent rows; the durable per-member proof stays the settlement-side sent timestamp
-- Verify: PHPUnit — after anonymisation no outbox row holds the member's address; pruning leaves the settlement-side timestamp intact
+- [x] `settlement_announcements` (migration `033`, with rollback and a backfill from existing `sent` rows) — the durable per-member proof that outlives the queue row, carrying settlement, member, kind and the timestamp **copied from** the outbox row. The drain writes it at the moment of delivery
+- [x] Anonymisation clears `mail_outbox.recipient` in the same transaction that clears `members.email`, and supersedes anything still `pending` for that member — otherwise the erasure quietly did not happen, or leaves a message the next drain fails to deliver to nobody
+- [x] Pruning of `sent` rows at 90 days, keyed on `MailKind` ({@see `MailRetention`}), bounded per pass, run at the tail of a drain — the only unattended process there is
+- [x] `GET /admin/settlements/{id}` returns `announcements[]` beside `notifications[]`; the member breakdown prefers the queue row and falls back to the durable one, so the announcement line survives the pruning
+- [x] `docs/erm-master.md` gains `settlement_announcements`, `mail_outbox`, `mail_config` and `cron_heartbeat` — table definitions, ER diagram, relationships, referential integrity, the erasure mapping and the retention tiers
+- Verify: **passed** — `MailRetentionTest` (7, over a real database, every assertion made by selecting the column rather than trusting the method: both kinds cleared, a bystander untouched, the member-column key that a `subject_id` shortcut would fail, `pending` superseded, `failed` left failed, pruning bounded on status/age/kind/limit), `MemberErasureMailTest` (2, through the real `MembersService::anonymizeMember()` and its transaction), `Feature\…\DrainServiceTest` +4 (the delivered announcement recorded with the queue's own timestamp, a failed send recording nothing, a run that prunes and keeps the settlement record, and a run with **no transport** that prunes anyway — retention does not wait for the mail server), `SettlementAnnouncementTest` +1 (the detail read after the queue row is deleted outright), `NotificationsServiceTest` +4 and the frontend's `settlementMembers` +4. Backend **1649 Unit + 514 Feature**, frontend unit 312/312, `tsc --noEmit` clean
+
+Three decisions this milestone had to make:
+
+| Decision | Why |
+|---|---|
+| The durable record is a **table**, not a column on `settlement_items` | ADR-0029 words it as "the `settlement_items`-side sent timestamp", which reads as a column. It cannot be one: `settlement_items` is one row per settled *transaction*, so a member with thirty bookings would carry thirty copies of one timestamp with no row meaning "this member was told" — and [ADR-0032](../adr/0032-settlement-lifecycle.md) §6 already rejected exactly that shape for reversals, in those words. `settlement_reversals` is the precedent this follows. **The ADR's phrasing is read as "settlement-side"** (which is what its own rule 2 calls it) rather than amended, since amending an ADR needs the maintainer |
+| `recipient` is **cleared**, not the row deleted | The row is the record that the club queued a message; erasure removes the contact data, not the fact. The same split anonymisation already makes on `members`, where the row survives with its name nulled |
+| Pruning runs **at the tail of a drain**, and is skipped when the run spent its budget | The scheduler is the only unattended process ADR-0038 allows, so it is the only thing that can carry out ADR-0029's pruning. Sending is the more urgent half; rows that are already ninety days old can wait a tick |
+
+One thing #408 asks about that has **no test yet**: the fold-in comment wants "pruning removes `sent` statement rows past 90 days and leaves `sent` pre-notification rows of the same age untouched". `deckel_statement` does not exist until [#462](https://github.com/dgloeckner/clubbar/issues/462), so the divergence cannot be asserted. What is asserted instead is the property that makes it possible: `pruneSent()` takes a kind and a cutoff, `MailRetention::sentDaysFor()` is a `match` over `MailKind`, and `test_pruning_one_kind_leaves_another_alone` pins that a pass over one kind does not reach another. #462 adds one arm and one assertion.
 
 ### P9 — Test automation: Mailpit in dev/CI, E2E over the full chain ([#409](https://github.com/dgloeckner/clubbar/issues/409))
 

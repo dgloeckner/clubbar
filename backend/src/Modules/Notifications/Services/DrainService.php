@@ -181,9 +181,20 @@ class DrainService
         $transport = $this->resolveTransport();
 
         if ($transport === null) {
+            // Retention does not wait for the mail server. Pruning deletes what
+            // has *already* been delivered, so it is neither helped nor blocked
+            // by there being somewhere to send to — and an installation whose
+            // SMTP has been wrong for a month must not also have stopped
+            // erasing addresses it no longer needs (#408).
+            $pruned = $this->notificationsService->pruneDelivered();
+
             // Nothing claimed, nothing burnt. The queue waits for the
             // configuration rather than being spent against it.
-            $result = DrainResultDto::idle($source, microtime(true) - $startedAt);
+            $result = new DrainResultDto(
+                source: $source,
+                pruned: $pruned,
+                durationSeconds: microtime(true) - $startedAt,
+            );
             $this->recordHeartbeat($result);
             // The scheduler works and nothing can leave the host — the exact
             // state a liveness-only check would report as green.
@@ -232,7 +243,7 @@ class DrainService
                     // permanent — and it is a data problem, not a mail one.
                     $skipped++;
                     $this->notificationsService->recordResult(
-                        (string) $row['id'],
+                        $row,
                         MailSendResult::permanentFailure('Cannot render message: ' . $e->getMessage()),
                         $interval,
                     );
@@ -257,7 +268,7 @@ class DrainService
                     );
                 }
 
-                $status = $this->notificationsService->recordResult((string) $row['id'], $sendResult, $interval);
+                $status = $this->notificationsService->recordResult($row, $sendResult, $interval);
 
                 match (true) {
                     $status === MailStatus::SENT => $sent++,
@@ -269,6 +280,14 @@ class DrainService
             }
         }
 
+        // Retention, at the tail of the run and only when there is time left for
+        // it (#408). The scheduler is the only unattended process this system
+        // has, so it is the only thing that can carry out the pruning ADR-0029
+        // asks for — and sending comes first: a run that spent its budget
+        // delivering has done the more urgent half, and the rows it did not
+        // prune are ninety days old and can wait for the next tick.
+        $pruned = $budgetExhausted ? 0 : $this->notificationsService->pruneDelivered();
+
         $result = new DrainResultDto(
             source: $source,
             claimed: $claimed,
@@ -276,6 +295,7 @@ class DrainService
             retrying: $retrying,
             failed: $failed,
             skipped: $skipped,
+            pruned: $pruned,
             budgetExhausted: $budgetExhausted,
             durationSeconds: microtime(true) - $startedAt,
         );

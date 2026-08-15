@@ -5431,6 +5431,25 @@ components:
             to say *"the announcement bounced"* without a second round trip.
           items:
             $ref: '#/components/schemas/QueuedMail'
+        announcements:
+          type: array
+          description: |
+            The announcements that actually went out, per member — the record
+            that outlives the queue (ADR-0029).
+
+            Not a duplicate of `notifications`, and the difference is a
+            lifetime. A queue row carries the recipient address, which is
+            operational-tier data: erased with the member and pruned 90 days
+            after delivery. This carries only *that* a member was announced to
+            and when, names no address, and is kept for the retention period —
+            so the breakdown still answers "was this member told?" about a
+            collection whose queue rows are long gone. While both exist they
+            agree: the timestamp here is copied from the queue row at delivery.
+
+            Present on the single-settlement read; the list endpoint returns an
+            empty array.
+          items:
+            $ref: '#/components/schemas/SettlementAnnouncement'
         created_at:
           type: string
           format: date-time
@@ -5575,6 +5594,48 @@ components:
             to say *"the announcement bounced"* without a second round trip.
           items:
             $ref: '#/components/schemas/QueuedMail'
+        announcements:
+          type: array
+          description: |
+            The announcements that actually went out, per member — the record
+            that outlives the queue (ADR-0029).
+
+            Not a duplicate of `notifications`, and the difference is a
+            lifetime. A queue row carries the recipient address, which is
+            operational-tier data: erased with the member and pruned 90 days
+            after delivery. This carries only *that* a member was announced to
+            and when, names no address, and is kept for the retention period —
+            so the breakdown still answers "was this member told?" about a
+            collection whose queue rows are long gone. While both exist they
+            agree: the timestamp here is copied from the queue row at delivery.
+
+            Present on the single-settlement read; the list endpoint returns an
+            empty array.
+          items:
+            $ref: '#/components/schemas/SettlementAnnouncement'
+
+    SettlementAnnouncement:
+      type: object
+      description: |
+        Durable proof that one member was announced to about one settlement, and
+        when. Written when the scheduler hands the message to the transport, and
+        deliberately address-free so it can be kept after the queue row that
+        carried the address has been pruned.
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [sepa_prenotification, cancellation_notice, payment_request]
+          description: |
+            Only member-addressed settlement mail appears here. An expiry
+            warning is about a credential and goes to an admin — there is no
+            settlement for it to be evidence against.
+        sent_at:
+          type: string
+          format: date-time
+      required: [member_id, kind, sent_at]
 
     SettlementItem:
       type: object

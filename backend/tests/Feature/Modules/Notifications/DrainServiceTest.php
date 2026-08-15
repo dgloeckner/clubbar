@@ -17,7 +17,9 @@ use App\Modules\Notifications\Services\DrainService;
 use App\Modules\Notifications\Services\HeartbeatPinger;
 use App\Modules\Notifications\Services\RetrySchedule;
 use App\Modules\Notifications\Services\MailConfigService;
+use App\Modules\Notifications\Services\MailRetention;
 use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Settlements\Repositories\SettlementAnnouncementsRepository;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
@@ -328,6 +330,115 @@ class DrainServiceTest extends DatabaseTestCase
         $this->assertSame(DrainSource::CLI->value, $row['source']);
     }
 
+
+    // -------------------------------------------------------------------
+    // The record that outlives the queue (#408)
+    // -------------------------------------------------------------------
+
+    /**
+     * A delivered announcement leaves a settlement-side row carrying the
+     * queue's own timestamp — the fact the retention tier keeps once the queue
+     * row, and the address on it, have been pruned.
+     */
+    public function test_a_delivered_announcement_is_recorded_on_the_settlement(): void
+    {
+        [$settlementId, $memberIds] = $this->queue(2);
+
+        $this->service(new CountingTransport())->run(DrainSource::CLI);
+
+        $recorded = (new SettlementAnnouncementsRepository($this->db, $this->logger))
+            ->findBySettlementId($settlementId);
+
+        $this->assertCount(2, $recorded);
+        // Compared as a set: both rows are written inside the same second, so
+        // any ordering the query imposes on them is arbitrary (Pattern 003).
+        $recordedMembers = array_map(static fn(array $r): string => $r['member_id'], $recorded);
+        sort($recordedMembers);
+        $expected = $memberIds;
+        sort($expected);
+        $this->assertSame($expected, $recordedMembers);
+
+        // Copied from the queue row, not read from a second clock — while both
+        // exist they must not be able to disagree.
+        foreach ($recorded as $row) {
+            $this->assertSame(MailKind::SEPA_PRENOTIFICATION->value, $row['kind']);
+
+            $stmt = $this->db->prepare(
+                'SELECT sent_at FROM mail_outbox WHERE subject_id = ? AND member_id = ? AND kind = ?'
+            );
+            $stmt->execute([$settlementId, $row['member_id'], MailKind::SEPA_PRENOTIFICATION->value]);
+            $this->assertSame((string) $stmt->fetchColumn(), $row['sent_at']);
+        }
+    }
+
+    /**
+     * A message that never left records nothing. The row means "this member was
+     * announced to", and its whole value is that it is absent when that is not
+     * true.
+     */
+    public function test_a_failed_send_records_no_announcement(): void
+    {
+        [$settlementId] = $this->queue(1);
+
+        $this->service(new CountingTransport(MailSendResult::permanentFailure('550 no such mailbox')))
+            ->run(DrainSource::CLI);
+
+        $this->assertSame(
+            [],
+            (new SettlementAnnouncementsRepository($this->db, $this->logger))->findBySettlementId($settlementId),
+        );
+    }
+
+    /**
+     * The scheduler is the only unattended process this system has, so it is
+     * where ADR-0029's pruning happens — and what it takes is delivered rows
+     * past their window, leaving the settlement-side record behind.
+     */
+    public function test_a_run_prunes_delivered_rows_and_keeps_the_settlement_record(): void
+    {
+        [$settlementId, $memberIds] = $this->queue(1);
+
+        $this->service(new CountingTransport())->run(DrainSource::CLI);
+
+        // Age the delivered row past its window, then run again. Written
+        // directly rather than waited for — no test owns a clock.
+        $this->db->prepare(
+            'UPDATE mail_outbox SET sent_at = DATE_SUB(NOW(), INTERVAL ? DAY) WHERE subject_id = ?'
+        )->execute([MailRetention::sentDaysFor(MailKind::SEPA_PRENOTIFICATION) + 1, $settlementId]);
+
+        $result = $this->service(new CountingTransport())->run(DrainSource::CLI);
+
+        $this->assertGreaterThanOrEqual(1, $result->pruned);
+        $this->assertSame([], $this->outbox->findBySubjectId($settlementId), 'the queue row is gone');
+
+        $recorded = (new SettlementAnnouncementsRepository($this->db, $this->logger))
+            ->findBySettlementId($settlementId);
+        $this->assertCount(1, $recorded, 'the proof that the member was announced to is not');
+        $this->assertSame($memberIds[0], $recorded[0]['member_id']);
+    }
+
+    /**
+     * Retention does not wait for the mail server.
+     *
+     * Pruning deletes what has already been delivered, so a run that cannot
+     * send anything is still a run that can do it — and an installation whose
+     * SMTP has been wrong for a month must not also have stopped clearing
+     * addresses it no longer needs.
+     */
+    public function test_a_run_with_no_transport_still_prunes(): void
+    {
+        [$settlementId] = $this->queue(1);
+        $this->db->prepare(
+            "UPDATE mail_outbox SET status = 'sent', sent_at = DATE_SUB(NOW(), INTERVAL ? DAY) WHERE subject_id = ?"
+        )->execute([MailRetention::sentDaysFor(MailKind::SEPA_PRENOTIFICATION) + 1, $settlementId]);
+
+        $result = $this->serviceWithoutTransport()->run(DrainSource::CLI);
+
+        $this->assertSame(0, $result->claimed, 'an unsendable configuration claims nothing');
+        $this->assertGreaterThanOrEqual(1, $result->pruned);
+        $this->assertSame([], $this->outbox->findBySubjectId($settlementId));
+    }
+
     // -------------------------------------------------------------------
     // Fixtures
     // -------------------------------------------------------------------
@@ -342,6 +453,10 @@ class DrainServiceTest extends DatabaseTestCase
             $this->createMock(MembersRepository::class),
             $this->createMock(AuditService::class),
             $this->createMock(AdminUsersRepository::class),
+            // A delivered announcement leaves a durable settlement-side record
+            // (#408); this suite drains real rows, so it gets the real one.
+            new SettlementAnnouncementsRepository($this->db, $this->logger),
+            $this->logger,
         );
 
         // A real registry with a stub builder: the registry is final, and the
@@ -375,6 +490,48 @@ class DrainServiceTest extends DatabaseTestCase
             new HeartbeatPinger($this->createMock(OutboundHttpClient::class), $this->createMock(Logger::class), null),
             $this->createMock(Logger::class),
             $batchSize,
+        );
+    }
+
+    /**
+     * A drain on an installation whose mail DSN is unset — the state in which
+     * the run claims nothing and still has retention to carry out.
+     */
+    private function serviceWithoutTransport(): DrainService
+    {
+        $transportFactory = $this->createMock(MailTransportFactory::class);
+        // `status()` unconfigured is what the drain reads; `create()` is never
+        // reached, and its signature does not permit null anyway.
+        $transportFactory->method('status')->willReturn(MailTransportStatus::unconfigured());
+
+        $mailConfig = $this->createMock(MailConfigService::class);
+        $mailConfig->method('getConfig')->willReturn(new MailConfigDto(
+            senderName: 'Testverein',
+            senderAddress: 'kasse@example.org',
+            replyToAddress: null,
+            headerStyle: MailLayout::DEFAULT_HEADER_STYLE,
+            footerOrgName: 'Testverein e.V.',
+            footerAddressLine: null,
+            websiteUrl: null,
+            logoUrl: null,
+            cronInterval: CronInterval::HOURLY,
+        ));
+
+        return new DrainService(
+            new NotificationsService(
+                new MailOutboxRepository($this->db, $this->logger),
+                $this->createMock(MembersRepository::class),
+                $this->createMock(AuditService::class),
+                $this->createMock(AdminUsersRepository::class),
+                new SettlementAnnouncementsRepository($this->db, $this->logger),
+                $this->logger,
+            ),
+            new MailContentRegistry(new FixedContentBuilder()),
+            $transportFactory,
+            $mailConfig,
+            $this->heartbeat,
+            new HeartbeatPinger($this->createMock(OutboundHttpClient::class), $this->createMock(Logger::class), null),
+            $this->createMock(Logger::class),
         );
     }
 

@@ -58,7 +58,14 @@ export function SettlementMemberBreakdown({ settlementId }: SettlementMemberBrea
       .getSettlement(settlementId, { signal })
       .then((detail) => {
         if (signal.aborted) return
-        setLines(settlementMemberLines(detail.items, detail.reversals, detail.notifications))
+        setLines(
+          settlementMemberLines(
+            detail.items,
+            detail.reversals,
+            detail.notifications,
+            detail.announcements
+          )
+        )
       })
       .catch((err: unknown) => {
         if (signal.aborted) return
@@ -81,9 +88,20 @@ export function SettlementMemberBreakdown({ settlementId }: SettlementMemberBrea
    * A missing row is not "unknown" — it is a member the announcement could not
    * be addressed to, and saying so is the point: they are the ones somebody has
    * to ring up.
+   *
+   * Except when it was pruned. Ninety days after delivery the queue row is
+   * deleted, address and all (ADR-0029), and reading only `notification` would
+   * turn every settled collection older than a quarter into a wall of *"no
+   * address"* — the worst possible way to be wrong, since that line is the one
+   * that means somebody has to be rung up. `announcedAt` is the durable record
+   * the drain wrote beside the send, and it is what answers for those.
    */
   const announcementLabel = (line: SettlementMemberLine): string => {
-    if (!line.notification) return t('settlements.announcement.noAddress')
+    if (!line.notification) {
+      return line.announcedAt
+        ? t('settlements.announcement.sent', { when: formatters.formatDate(line.announcedAt) })
+        : t('settlements.announcement.noAddress')
+    }
 
     switch (line.notification.status) {
       case 'sent':
@@ -185,10 +203,15 @@ export function SettlementMemberBreakdown({ settlementId }: SettlementMemberBrea
   )
 }
 
+/**
+ * Red means somebody has to act. A pruned announcement that did go out is
+ * neither a failure nor an unreachable member, so `announcedAt` clears the
+ * warning colour the same way a live `sent` row does.
+ */
 const announcementStyle = (line: SettlementMemberLine): CSSProperties => ({
   fontSize: theme.typography.fontSize.xs,
   color:
-    line.notification?.status === 'failed' || !line.notification
+    line.notification?.status === 'failed' || (!line.notification && !line.announcedAt)
       ? theme.colors.semantic.danger
       : theme.colors.text.muted,
 })

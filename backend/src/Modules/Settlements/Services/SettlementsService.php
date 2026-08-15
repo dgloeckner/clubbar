@@ -17,6 +17,7 @@ use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Modules\Settlements\Repositories\SettlementAnnouncementsRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Shared\Exceptions\NotFoundException;
@@ -43,6 +44,7 @@ class SettlementsService
         private SettlementReversalsRepository $reversalsRepository,
         private NotificationsService $notificationsService,
         private SchedulerStatusService $schedulerStatusService,
+        private SettlementAnnouncementsRepository $settlementAnnouncementsRepository,
     ) {}
 
     /**
@@ -580,7 +582,15 @@ class SettlementsService
         // to say "the announcement bounced" without a second round trip.
         $notifications = $this->notificationsService->findQueuedFor($settlementId);
 
-        return SettlementDto::fromRow($settlement, $itemDtos, $reversals, $notifications);
+        // And what actually went out, from the record that outlives the queue
+        // (#408). Both are returned rather than one merged list: while a queue
+        // row exists it says more — the address, the error, whether a retry is
+        // possible — and once it has been pruned this is all there is. The
+        // breakdown prefers the queue row and falls back to this one, so the
+        // announcement line survives the pruning that ADR-0029 requires.
+        $announcements = $this->settlementAnnouncementsRepository->findBySettlementId($settlementId);
+
+        return SettlementDto::fromRow($settlement, $itemDtos, $reversals, $notifications, $announcements);
     }
 
     public function listSettlements(int $limit, int $offset, ?string $status = null, string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $dateFrom = null, ?string $dateTo = null): PaginatedResultDto

@@ -58,6 +58,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type { QueuedMail } from './queuedMail';
+import type { SettlementAnnouncement } from './settlementAnnouncement';
 import type { SettlementItem } from './settlementItem';
 import type { SettlementMethod } from './settlementMethod';
 import type { SettlementReversal } from './settlementReversal';
@@ -153,4 +154,20 @@ breakdown that answers "what happened to this member" has to be able
 to say *"the announcement bounced"* without a second round trip.
  */
   notifications?: QueuedMail[];
+  /** The announcements that actually went out, per member — the record
+that outlives the queue (ADR-0029).
+
+Not a duplicate of `notifications`, and the difference is a
+lifetime. A queue row carries the recipient address, which is
+operational-tier data: erased with the member and pruned 90 days
+after delivery. This carries only *that* a member was announced to
+and when, names no address, and is kept for the retention period —
+so the breakdown still answers "was this member told?" about a
+collection whose queue rows are long gone. While both exist they
+agree: the timestamp here is copied from the queue row at delivery.
+
+Present on the single-settlement read; the list endpoint returns an
+empty array.
+ */
+  announcements?: SettlementAnnouncement[];
 }

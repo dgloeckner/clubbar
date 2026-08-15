@@ -19,6 +19,7 @@ use App\Modules\Notifications\Services\SettlementMailBuilder;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
+use App\Modules\Settlements\Repositories\SettlementAnnouncementsRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Settlements\Services\SettlementsService;
@@ -88,8 +89,11 @@ class SettlementAnnouncementTest extends DatabaseTestCase
                 $membersRepository,
                 $auditService,
                 new AdminUsersRepository($this->db, $this->logger),
+                new SettlementAnnouncementsRepository($this->db, $this->logger),
+                $this->logger,
             ),
             $this->ensureObservedSchedulerRun(),
+            new SettlementAnnouncementsRepository($this->db, $this->logger),
         );
 
         $mailConfigService = new MailConfigService(
@@ -197,6 +201,8 @@ class SettlementAnnouncementTest extends DatabaseTestCase
             ),
             new AuditService(new AuditLogRepository($this->db, $this->logger)),
             new AdminUsersRepository($this->db, $this->logger),
+            new SettlementAnnouncementsRepository($this->db, $this->logger),
+            $this->logger,
         );
         $result = $notifications->enqueueForSettlement($settlementId, [$memberId => 400], $this->adminId);
 
@@ -320,6 +326,42 @@ class SettlementAnnouncementTest extends DatabaseTestCase
      * is the assertion that a queued row can still become a complete message
      * — with the member's own line items, reassembled from the settlement.
      */
+    /**
+     * The acceptance criterion that outlives the queue (#408).
+     *
+     * *"Per-member sent timestamp visible in the settlement detail"* must not
+     * depend on a row that pruning removes — so this test deletes the queue row
+     * outright, exactly as pruning does, and reads the detail again.
+     */
+    public function test_the_settlement_detail_still_shows_the_announcement_after_pruning(): void
+    {
+        $memberId = $this->collectableMember('Fritz');
+        $settlementId = $this->finalize([$this->purchase($memberId, 500)]);
+
+        // Delivery, as the drain records it: the queue row is marked and the
+        // settlement-side record is written from it.
+        $sentAt = date('Y-m-d H:i:s');
+        $this->db->prepare(
+            "UPDATE mail_outbox SET status = 'sent', sent_at = ? WHERE subject_id = ? AND member_id = ?"
+        )->execute([$sentAt, $settlementId, $memberId]);
+        (new SettlementAnnouncementsRepository($this->db, $this->logger))
+            ->record($settlementId, $memberId, MailKind::SEPA_PRENOTIFICATION, $sentAt);
+
+        $before = $this->service->getSettlement($settlementId);
+        $this->assertCount(1, $before->notifications);
+        $this->assertCount(1, $before->announcements);
+
+        // Pruning, ninety days later.
+        $this->db->prepare('DELETE FROM mail_outbox WHERE subject_id = ?')->execute([$settlementId]);
+
+        $after = $this->service->getSettlement($settlementId);
+        $this->assertSame([], $after->notifications, 'the queue row is gone, as retention requires');
+        $this->assertCount(1, $after->announcements, 'and the proof that the member was told is not');
+        $this->assertSame($memberId, $after->announcements[0]['member_id']);
+        $this->assertSame($sentAt, $after->announcements[0]['sent_at']);
+        $this->assertSame(MailKind::SEPA_PRENOTIFICATION->value, $after->announcements[0]['kind']);
+    }
+
     public function test_a_queued_row_renders_into_a_complete_announcement(): void
     {
         $this->configureCreditor();

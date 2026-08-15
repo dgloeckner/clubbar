@@ -32,6 +32,7 @@ use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Repositories\SessionRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\CollectionHoldRepository;
+use App\Modules\Settlements\Repositories\SettlementAnnouncementsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalIpSightingsRepository;
@@ -304,6 +305,11 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(SettlementsRepository::class, fn() => new SettlementsRepository($this->pdo, $this->logger));
     }
 
+    public function getSettlementAnnouncementsRepository(): SettlementAnnouncementsRepository
+    {
+        return $this->resolve(SettlementAnnouncementsRepository::class, fn() => new SettlementAnnouncementsRepository($this->pdo, $this->logger));
+    }
+
     public function getSettlementReversalsRepository(): SettlementReversalsRepository
     {
         return $this->resolve(SettlementReversalsRepository::class, fn() => new SettlementReversalsRepository($this->pdo, $this->logger));
@@ -432,7 +438,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getMembersService(): MembersService
     {
-        return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService(), $this->getAuditLogRepository(), $this->pdo, $this->getBankCodeService()));
+        return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService(), $this->getAuditLogRepository(), $this->getNotificationsService(), $this->pdo, $this->getBankCodeService()));
     }
 
     public function getProductsService(): ProductsService
@@ -472,6 +478,8 @@ class ServiceFactory implements ContainerInterface
             $this->getMembersRepository(),
             $this->getAuditService(),
             $this->getAdminUsersRepository(),
+            $this->getSettlementAnnouncementsRepository(),
+            $this->logger,
         ));
     }
 
@@ -622,6 +630,7 @@ class ServiceFactory implements ContainerInterface
             $this->getSettlementReversalsRepository(),
             $this->getNotificationsService(),
             $this->getSchedulerStatusService(),
+            $this->getSettlementAnnouncementsRepository(),
         ));
     }
 
