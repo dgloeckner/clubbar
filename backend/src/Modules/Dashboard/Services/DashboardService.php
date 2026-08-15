@@ -89,7 +89,10 @@ class DashboardService
                 'wtd_revenue_cents' => $wtdRevenueCents,
                 'mtd_revenue_cents' => $mtdRevenueCents,
                 'terminal_count' => count($terminalRows),
-                'active_terminals' => $this->terminalsRepository->countActive(),
+                'active_terminals' => count(array_filter(
+                    $terminalStatus,
+                    fn(array $terminal): bool => $terminal['status'] === 'online',
+                )),
                 'settled_members' => 0,
                 'sepa_issue_count' => $sepaIssueCount,
             ],

@@ -215,7 +215,6 @@ class DashboardServiceTest extends TestCase
         $this->transactionsRepository->method('sumUnsettledAmountCents')->willReturn(7_500);
         $this->settlementsRepository->method('countPending')->willReturn(2);
         $this->settlementsRepository->method('getLatest')->willReturn(['created_at' => '2026-07-01 08:00:00']);
-        $this->terminalsRepository->method('countActive')->willReturn(1);
         $this->terminalsRepository->method('findAll')->willReturn([
             [
                 'id' => 'term-1',
@@ -223,6 +222,13 @@ class DashboardServiceTest extends TestCase
                 'device_id' => 'dev-1',
                 'is_active' => 1,
                 'last_sync_at' => date('Y-m-d H:i:s'),
+            ],
+            [
+                'id' => 'term-2',
+                'name' => 'Stale',
+                'device_id' => 'dev-2',
+                'is_active' => 1,
+                'last_sync_at' => date('Y-m-d H:i:s', time() - DashboardService::TERMINAL_ONLINE_WINDOW_SECONDS - 1),
             ],
         ]);
 
@@ -246,10 +252,16 @@ class DashboardServiceTest extends TestCase
         $this->assertSame(90, $dashboard['metrics']['active_members']);
         $this->assertSame(30, $dashboard['metrics']['inactive_members']);
         $this->assertSame(3, $dashboard['metrics']['sepa_issue_count']);
-        $this->assertSame(1, $dashboard['metrics']['terminal_count']);
+        $this->assertSame(2, $dashboard['metrics']['terminal_count']);
 
         $this->assertSame('online', $dashboard['terminal_status'][0]['status']);
         $this->assertTrue($dashboard['terminal_status'][0]['is_active']);
+        $this->assertSame('offline', $dashboard['terminal_status'][1]['status']);
+        $this->assertTrue($dashboard['terminal_status'][1]['is_active']);
+
+        // term-2 is enabled but stale, so it must not inflate active_terminals —
+        // the count has to agree with how many entries terminal_status reports as 'online'.
+        $this->assertSame(1, $dashboard['metrics']['active_terminals']);
 
         $transaction = $dashboard['recent_transactions'][0];
         $this->assertSame('Bier', $transaction['product_name']);
@@ -268,7 +280,6 @@ class DashboardServiceTest extends TestCase
         $this->transactionsRepository->method('sumUnsettledAmountCents')->willReturn(0);
         $this->settlementsRepository->method('countPending')->willReturn(0);
         $this->settlementsRepository->method('getLatest')->willReturn(null);
-        $this->terminalsRepository->method('countActive')->willReturn(0);
         $this->terminalsRepository->method('findAll')->willReturn([]);
         $this->dashboardRepository->method('sumRevenueSince')->willReturn(0);
         $this->dashboardRepository->method('countMembersWithoutMandate')->willReturn(0);
@@ -378,7 +389,6 @@ class DashboardServiceTest extends TestCase
         $this->transactionsRepository->method('sumUnsettledAmountCents')->willReturn(0);
         $this->settlementsRepository->method('countPending')->willReturn(0);
         $this->settlementsRepository->method('getLatest')->willReturn(null);
-        $this->terminalsRepository->method('countActive')->willReturn(0);
         $this->terminalsRepository->method('findAll')->willReturn([]);
         $this->dashboardRepository->method('sumRevenueSince')->willReturn(0);
         $this->dashboardRepository->method('countMembersWithoutMandate')->willReturn(0);

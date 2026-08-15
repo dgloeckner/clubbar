@@ -264,8 +264,28 @@ test.describe("Dashboard API", () => {
       } else if (terminal.last_sync_at === null) {
         expect(terminal.status).toBe("offline");
       }
-      // online status requires last_sync_at within 24h (can't verify exact time)
+      // online status requires last_sync_at within 5 minutes (can't verify exact time)
     }
+  });
+
+  test("should have active_terminals match the count of terminal_status entries marked online", async ({
+    authenticatedRequest,
+  }) => {
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/dashboard`
+    );
+
+    expect(response.status()).toBe(200);
+    const data = await response.json();
+
+    const onlineCount = data.terminal_status.filter(
+      (terminal: { status: string }) => terminal.status === "online"
+    ).length;
+
+    // The two dashboard widgets built from these fields must agree on how many
+    // terminals are online, rather than active_terminals also counting enabled
+    // terminals that have gone stale.
+    expect(data.metrics.active_terminals).toBe(onlineCount);
   });
 
   // ========== SYSTEM STATUS ==========

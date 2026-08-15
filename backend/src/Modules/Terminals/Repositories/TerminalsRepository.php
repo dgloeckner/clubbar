@@ -226,11 +226,6 @@ class TerminalsRepository
         return $stmt->execute([$now, $now, $id]);
     }
 
-    public function countActive(): int
-    {
-        return (int) $this->db->query('SELECT COUNT(*) FROM terminals WHERE is_active = 1')->fetchColumn();
-    }
-
     public function listPaginated(int $limit, int $offset, ?bool $isActive = null): array
     {
         $where = [];
