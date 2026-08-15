@@ -14,6 +14,7 @@ const form: SepaConfigFormData = {
   creditor_address_city: 'Munich',
   creditor_address_country: 'DE',
   payment_reference_prefix: 'Club Bar Settlement',
+  mandate_template_url: 'https://club.example/anmeldung',
 }
 
 describe('isCreditorIdSet', () => {
@@ -43,6 +44,7 @@ describe('buildCreateSepaConfigRequest', () => {
       creditor_address_city: 'Munich',
       creditor_address_country: 'DE',
       payment_reference_prefix: 'Club Bar Settlement',
+      mandate_template_url: 'https://club.example/anmeldung',
     })
   })
 
@@ -55,6 +57,7 @@ describe('buildCreateSepaConfigRequest', () => {
       creditor_address_city: '',
       creditor_address_country: '',
       payment_reference_prefix: '',
+      mandate_template_url: '',
     })
   })
 })
@@ -87,7 +90,20 @@ describe('buildUpdateSepaConfigRequest', () => {
       creditor_address_city: 'Munich',
       creditor_address_country: 'DE',
       payment_reference_prefix: 'Club Bar Settlement',
+      mandate_template_url: 'https://club.example/anmeldung',
     })
+  })
+
+  /** #360/#456: the externally hosted registration form's link. */
+  it('carries the mandate template URL', () => {
+    expect(buildUpdateSepaConfigRequest(form).mandate_template_url).toBe('https://club.example/anmeldung')
+  })
+
+  it('sends an empty string rather than dropping an unfilled mandate template URL', () => {
+    expect(buildUpdateSepaConfigRequest({ ...form, mandate_template_url: undefined })).toHaveProperty(
+      'mandate_template_url',
+      '',
+    )
   })
 
   /**
@@ -114,6 +130,7 @@ describe('buildUpdateSepaConfigRequest', () => {
       creditor_address_city: 'Munich',
       creditor_address_country: 'DE',
       payment_reference_prefix: 'Club Bar Settlement',
+      mandate_template_url: 'https://club.example/anmeldung',
     })
   })
 })
