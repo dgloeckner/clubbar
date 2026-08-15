@@ -442,6 +442,15 @@ class MembersRepository
                 $where[] = 'm.card_uid IS NULL';
             }
         }
+        // Email presence filter — finds the legacy members predating the
+        // required-email rule (#362) so a Kassenwart can backfill them.
+        if (isset($filters['has_email'])) {
+            if ($filters['has_email']) {
+                $where[] = 'm.email IS NOT NULL';
+            } else {
+                $where[] = 'm.email IS NULL';
+            }
+        }
         // SEPA status filter. An active mandate is now the whole predicate: the
         // record cannot exist without both an IBAN and a reference, since both
         // are NOT NULL on `mandates`.

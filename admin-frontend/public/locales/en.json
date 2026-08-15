@@ -175,7 +175,8 @@
     },
     "table": {
       "cardUid": "Card UID",
-      "balance": "Tab"
+      "balance": "Tab",
+      "email": "Email"
     },
     "filters": {
       "status": {
@@ -193,6 +194,12 @@
         "all": "All",
         "valid": "Valid",
         "missing": "Missing"
+      },
+      "email": {
+        "label": "Email",
+        "all": "All",
+        "withEmail": "With Email",
+        "withoutEmail": "Without Email"
       },
       "resetFilters": "Reset Filters"
     },
@@ -226,6 +233,9 @@
     "filterWithoutCard": "Without",
     "filterSepaValid": "Valid",
     "filterSepaMissing": "Missing",
+    "filterEmail": "Email",
+    "filterWithEmail": "With",
+    "filterWithoutEmail": "Without",
     "anonymizeMember": "Anonymize Member",
     "editMemberNamed": "Edit member {{name}}",
     "anonymizeMemberNamed": "Anonymize member {{name}}",

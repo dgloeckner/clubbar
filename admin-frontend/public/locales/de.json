@@ -175,7 +175,8 @@
     },
     "table": {
       "cardUid": "Karten-UID",
-      "balance": "Deckel"
+      "balance": "Deckel",
+      "email": "E-Mail"
     },
     "filters": {
       "status": {
@@ -193,6 +194,12 @@
         "all": "Alle",
         "valid": "Gültig",
         "missing": "Fehlend"
+      },
+      "email": {
+        "label": "E-Mail",
+        "all": "Alle",
+        "withEmail": "Mit E-Mail",
+        "withoutEmail": "Ohne E-Mail"
       },
       "resetFilters": "Filter zurücksetzen"
     },
@@ -226,6 +233,9 @@
     "filterWithoutCard": "Ohne",
     "filterSepaValid": "Gültig",
     "filterSepaMissing": "Fehlend",
+    "filterEmail": "E-Mail",
+    "filterWithEmail": "Mit",
+    "filterWithoutEmail": "Ohne",
     "anonymizeMember": "Mitglied anonymisieren",
     "editMemberNamed": "Mitglied {{name}} bearbeiten",
     "anonymizeMemberNamed": "Mitglied {{name}} anonymisieren",

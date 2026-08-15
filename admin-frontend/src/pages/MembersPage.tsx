@@ -19,7 +19,7 @@ import { downloadBlob } from '../api/client'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
 import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
-import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, MemberCreateRequest, MemberUpdateRequest } from '../api/generated'
+import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, ListMembersHasEmail, MemberCreateRequest, MemberUpdateRequest } from '../api/generated'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { MobileFilterRow } from '../components/tables/MobileFilterRow'
@@ -82,6 +82,7 @@ interface MemberFilters {
   status: 'all' | 'active' | 'inactive'
   cardUid: 'all' | 'with' | 'without'
   sepaStatus: 'all' | 'valid' | 'invalid'
+  email: 'all' | 'with' | 'without'
 }
 
 export function MembersPage() {
@@ -115,7 +116,7 @@ export function MembersPage() {
   // One query, one fetch path: the loader effect and every post-mutation reload
   // go through the same state, so a reload can no longer drop the filters (#121).
   const list = useListQuery<MemberListItem, MemberFilters, MemberSortKey>({
-    initialFilters: { status: 'all', cardUid: 'all', sepaStatus: 'all' },
+    initialFilters: { status: 'all', cardUid: 'all', sepaStatus: 'all', email: 'all' },
     initialSortKey: 'created_at',
     initialSortDirection: 'desc',
     initialPageSize: PER_PAGE,
@@ -129,6 +130,7 @@ export function MembersPage() {
       if (filters.status !== 'all') params.status = filters.status as ListMembersStatus
       if (filters.sepaStatus !== 'all') params.sepa_status = filters.sepaStatus as ListMembersSepaStatus
       if (filters.cardUid !== 'all') params.has_card_uid = filters.cardUid as ListMembersHasCardUid
+      if (filters.email !== 'all') params.has_email = filters.email as ListMembersHasEmail
 
       const response = await getMembersFactory().listMembers(params, { signal })
       return { items: response.data ?? [], total: response.pagination?.total ?? 0 }
@@ -137,7 +139,7 @@ export function MembersPage() {
   })
 
   const { items: members, total: totalMembers, totalPages, loading, error, setError, search } = list
-  const { status: filterIsActive, cardUid: filterCardUid, sepaStatus: filterSepaStatus } = list.filters
+  const { status: filterIsActive, cardUid: filterCardUid, sepaStatus: filterSepaStatus, email: filterEmail } = list.filters
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -172,6 +174,7 @@ export function MembersPage() {
     filterIsActive !== 'all' ? 1 : 0,
     filterCardUid !== 'all' ? 1 : 0,
     filterSepaStatus !== 'all' ? 1 : 0,
+    filterEmail !== 'all' ? 1 : 0,
   ].reduce((a, b) => a + b, 0)
 
   const mobileSortOptions = [
@@ -253,7 +256,9 @@ export function MembersPage() {
       setFormErrors({})
 
       // Every client-side rule reports at once, so fixing the IBAN does not
-      // then reveal a card UID complaint that was true all along.
+      // then reveal a card UID complaint that was true all along. Email has
+      // no entry here: it is `required` on the input itself (like first/last
+      // name), so the browser blocks submission before this handler runs.
       const validationErrors: Record<string, string> = {}
       if (formData.iban && !validateIban(formData.iban)) {
         validationErrors.iban = t('members.validation.invalidIban')
@@ -271,7 +276,9 @@ export function MembersPage() {
         const updatePayload: MemberUpdateRequest = {
           first_name: formData.first_name,
           last_name: formData.last_name,
-          email: formData.email || null,
+          // Required by the form validation above, so this is never blank —
+          // the backend also refuses to clear it for an active member (#362).
+          email: formData.email,
           // Now that these fields can be left empty, clearing one has to reach
           // the backend as an explicit null — `undefined` would drop the key
           // and silently keep the old value (#131).
@@ -294,7 +301,8 @@ export function MembersPage() {
         const createPayload: MemberCreateRequest = {
           first_name: formData.first_name,
           last_name: formData.last_name,
-          email: formData.email || undefined,
+          // Required by the form validation above, so this is never blank.
+          email: formData.email,
           // A member who has not brought their bank details yet is a state the
           // list already shows as "SEPA: Missing" — the form no longer refuses
           // to create one (#131).
@@ -764,6 +772,17 @@ export function MembersPage() {
                   onChange={(v) => list.setFilter('sepaStatus', v as MemberFilters['sepaStatus'])}
                   testId="members-mobile-filter-sepa"
                 />
+                <MobileFilterRow
+                  label={t('members.filterEmail')}
+                  options={[
+                    { value: 'all', label: t('common.all') },
+                    { value: 'with', label: t('members.filterWithEmail') },
+                    { value: 'without', label: t('members.filterWithoutEmail') },
+                  ]}
+                  value={filterEmail}
+                  onChange={(v) => list.setFilter('email', v as MemberFilters['email'])}
+                  testId="members-mobile-filter-email"
+                />
               </>
             }
           />
@@ -829,6 +848,11 @@ export function MembersPage() {
                       )}
                     </span>
                     {member.card_uid && <span>Card: {member.card_uid}</span>}
+                    {!member.email && (
+                      <span data-testid={`member-card-email-missing-${member.id}`} style={{ color: theme.colors.semantic.danger }}>
+                        {t('members.table.email')}: {t('members.missing')}
+                      </span>
+                    )}
                   </div>
                   {/* Row 3: member since */}
                   <div style={{ fontSize: '12px', color: theme.colors.text.muted, marginBottom: '10px' }}>
@@ -1169,14 +1193,93 @@ export function MembersPage() {
           </button>
         </div>
 
+        {/* Divider */}
+        <div style={{ width: '1px', height: '28px', background: theme.colors.border.subtle }} />
+
+        {/* Email filter group */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span
+            style={{
+              fontSize: '12px',
+              color: theme.colors.text.label,
+              marginRight: '4px',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+            }}
+          >
+            {t('members.filters.email.label')}
+          </span>
+          <button
+            data-testid="filter-email-all"
+            aria-pressed={filterEmail === 'all'}
+            onClick={() => {
+              list.setFilter('email', 'all')
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterEmail === 'all' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterEmail === 'all' ? 'white' : theme.pillButton.idleText,
+            }}
+          >
+            {t('members.filters.email.all')}
+          </button>
+          <button
+            data-testid="filter-email-with"
+            aria-pressed={filterEmail === 'with'}
+            onClick={() => {
+              list.setFilter('email', 'with')
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterEmail === 'with' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterEmail === 'with' ? 'white' : theme.pillButton.idleText,
+            }}
+          >
+            {t('members.filters.email.withEmail')}
+          </button>
+          <button
+            data-testid="filter-email-without"
+            aria-pressed={filterEmail === 'without'}
+            onClick={() => {
+              list.setFilter('email', 'without')
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterEmail === 'without' ? theme.colors.semantic.primary : theme.pillButton.idleBg,
+              color: filterEmail === 'without' ? 'white' : theme.pillButton.idleText,
+            }}
+          >
+            {t('members.filters.email.withoutEmail')}
+          </button>
+        </div>
+
         {/* Clear filters */}
-        {((filterIsActive !== 'all') || (filterCardUid !== 'all') || (filterSepaStatus !== 'all') || search) && (
+        {((filterIsActive !== 'all') || (filterCardUid !== 'all') || (filterSepaStatus !== 'all') || (filterEmail !== 'all') || search) && (
           <>
             <div style={{ flex: 1 }} />
             <button
               onClick={() => {
                 list.setSearch('')
-                list.setFilters({ status: 'all', cardUid: 'all', sepaStatus: 'all' })
+                list.setFilters({ status: 'all', cardUid: 'all', sepaStatus: 'all', email: 'all' })
               }}
               data-testid="members-clear-filters"
               style={{
@@ -1227,6 +1330,9 @@ export function MembersPage() {
                       onSort={(key: string, direction: 'asc' | 'desc') => list.setSort(key as MemberSortKey, direction)}
                       testId="members-table-header-name"
                     />
+                  </th>
+                  <th style={{ ...headerCellBaseStyle, width: '180px' }} data-testid="members-table-header-email">
+                    {t('members.table.email')}
                   </th>
                   <th style={{ ...headerCellBaseStyle, width: '150px' }}>
                     <SortableTableHeader
@@ -1300,6 +1406,24 @@ export function MembersPage() {
                     <TableCell testId={`members-table-cell-name-${member.id}`}>
                       {member.first_name} {member.last_name}
                     </TableCell>
+                    <td data-testid={`members-table-cell-email-${member.id}`} style={{ padding: tableSpacing.cellPadding }}>
+                      {member.email ?? (
+                        <span
+                          data-testid={`members-table-cell-email-missing-${member.id}`}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: 4,
+                            fontSize: 12,
+                            fontWeight: 500,
+                            backgroundColor: theme.colors.semantic.danger,
+                            color: 'white',
+                            display: 'inline-block',
+                          }}
+                        >
+                          {t('members.missing')}
+                        </span>
+                      )}
+                    </td>
                     <TableCell testId="member-card-uid">
                       {member.card_uid || '—'}
                     </TableCell>
@@ -1542,12 +1666,13 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.email')}
+                  {t('members.email')} *
                 </label>
                 <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <input
                     data-testid="members-form-email-input"
                     type="email"
+                    required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="max@example.com"

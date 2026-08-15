@@ -120,6 +120,53 @@ class AdminControllerValidationTest extends TestCase
         $this->assertArrayHasKey($field, $this->decode($response)['messages'], "the 422 must name {$field}");
     }
 
+    /**
+     * Email is required to create a member (#362): the pre-notification and
+     * settlement statement emails are a contractual promise (Nutzungsordnung
+     * § 7), so a member cannot be onboarded without one.
+     */
+    public function test_store_rejects_a_missing_email(): void
+    {
+        $this->membersService->expects($this->never())->method('createMember');
+
+        $body = self::validBody();
+        unset($body['email']);
+
+        $response = $this->controller->store($this->post($body), new Response());
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('email', $this->decode($response)['messages']);
+    }
+
+    /** A blank email is not a value — same rejection as an absent one. */
+    public function test_store_rejects_a_blank_email(): void
+    {
+        $this->membersService->expects($this->never())->method('createMember');
+
+        $response = $this->controller->store($this->post(self::validBody(['email' => ''])), new Response());
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('email', $this->decode($response)['messages']);
+    }
+
+    /**
+     * Blank normalizes to null here exactly like the other clearable fields
+     * (#362) — whether it may reach the row is `MembersService::updateMember()`'s
+     * decision (it depends on the member's active status, which this layer
+     * cannot see), not something the validator rejects outright.
+     */
+    public function test_update_normalizes_a_blank_email_to_null(): void
+    {
+        $this->membersService->expects($this->once())
+            ->method('updateMember')
+            ->with('m-1', $this->identicalTo(['email' => null]), 'admin-1')
+            ->willReturn($this->member());
+
+        $response = $this->controller->update($this->patch(['email' => '']), new Response(), ['memberId' => 'm-1']);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
     public function test_store_accepts_a_body_that_fits_every_column(): void
     {
         $this->membersService->expects($this->once())

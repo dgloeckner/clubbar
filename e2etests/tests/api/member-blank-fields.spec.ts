@@ -115,6 +115,94 @@ test.describe('Clearing an optional member field', () => {
   })
 
   /**
+   * Email is required at application level for an active member (#362): the
+   * pre-notification and settlement statement emails are a contractual
+   * promise (Nutzungsordnung § 7). Unlike the fields above, clearing it is
+   * refused outright rather than normalized to null — the column itself
+   * stays nullable only for GDPR erasure, which anonymizes through a
+   * separate endpoint.
+   */
+  test('PATCH /admin/members/{id} rejects clearing email with a blank string', async ({
+    authenticatedRequest,
+  }) => {
+    const created = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
+      data: uniqueMemberBody(),
+    })
+    expect(created.status()).toBe(201)
+    const member = await created.json()
+
+    const patched = await authenticatedRequest.patch(`${API_BASE}/admin/members/${member.id}`, {
+      data: { email: '' },
+    })
+
+    expect(patched.status()).toBe(422)
+    const body = await patched.json()
+    expect(body.error).toBe('validation_failed')
+    expect(body.messages.email).toBeDefined()
+
+    const reread = await authenticatedRequest.get(`${API_BASE}/admin/members/${member.id}`)
+    expect((await reread.json()).email).toBe(member.email)
+  })
+
+  test('PATCH /admin/members/{id} rejects clearing email with null', async ({
+    authenticatedRequest,
+  }) => {
+    const created = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
+      data: uniqueMemberBody(),
+    })
+    expect(created.status()).toBe(201)
+    const member = await created.json()
+
+    const patched = await authenticatedRequest.patch(`${API_BASE}/admin/members/${member.id}`, {
+      data: { email: null },
+    })
+
+    expect(patched.status()).toBe(422)
+    expect((await patched.json()).messages.email).toBeDefined()
+  })
+
+  test('PATCH /admin/members/{id} allows clearing email once the member is inactive', async ({
+    authenticatedRequest,
+  }) => {
+    const created = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
+      data: uniqueMemberBody(),
+    })
+    expect(created.status()).toBe(201)
+    const member = await created.json()
+
+    const deactivated = await authenticatedRequest.patch(`${API_BASE}/admin/members/${member.id}`, {
+      data: { is_active: false },
+    })
+    expect(deactivated.status()).toBe(200)
+
+    const patched = await authenticatedRequest.patch(`${API_BASE}/admin/members/${member.id}`, {
+      data: { email: '' },
+    })
+
+    expect(patched.status()).toBe(200)
+    expect((await patched.json()).email).toBeNull()
+  })
+
+  test('PATCH /admin/members/{id} allows clearing email while deactivating in the same request', async ({
+    authenticatedRequest,
+  }) => {
+    const created = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
+      data: uniqueMemberBody(),
+    })
+    expect(created.status()).toBe(201)
+    const member = await created.json()
+
+    const patched = await authenticatedRequest.patch(`${API_BASE}/admin/members/${member.id}`, {
+      data: { is_active: false, email: null },
+    })
+
+    expect(patched.status()).toBe(200)
+    const body = await patched.json()
+    expect(body.email).toBeNull()
+    expect(body.is_active).toBe(false)
+  })
+
+  /**
    * Overwrite-only IBAN (#392).
    *
    * The IBAN is sealed at rest (ADR-0036) and the API returns only its last four

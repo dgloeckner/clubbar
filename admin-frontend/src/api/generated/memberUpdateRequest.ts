@@ -59,7 +59,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 
 /**
- * Only the fields the request carries are changed. A field being cleared may be sent as `""` as well as `null` — a blank string is read as no value for `phone`, `card_uid`, `account_holder_name` and `mandate_signed_at`, so a form that empties an input clears the field rather than storing the empty string.
+ * Only the fields the request carries are changed. A field being cleared may be sent as `""` as well as `null` — a blank string is read as no value for `phone`, `card_uid`, `account_holder_name`, `email` and `mandate_signed_at`, so a form that empties an input clears the field rather than storing the empty string. `email` is the exception that does not always clear: see the field for when it is rejected instead.
 `iban` is the exception, because it is the one field the form cannot prefill: it is sealed at rest and never returned, so it arrives blank on every save that did not deliberately retype it. A blank `iban` therefore keeps the stored account, and only an explicit `null` removes it. See the field for the three cases.
  */
 export interface MemberUpdateRequest {
@@ -68,6 +68,7 @@ export interface MemberUpdateRequest {
   /** @maxLength 100 */
   last_name?: string;
   /**
+   * `null` or `""` is only accepted while the update also sets (or finds) the member inactive — an active member's email cannot be cleared (#362); the DB column stays nullable for GDPR erasure, which anonymizes through a separate endpoint.
    * @maxLength 255
    * @nullable
    */

@@ -165,6 +165,7 @@ export * from './listEncryptionKeys200';
 export * from './listMembers200';
 export * from './listMembersBalance';
 export * from './listMembersHasCardUid';
+export * from './listMembersHasEmail';
 export * from './listMembersParams';
 export * from './listMembersSepaStatus';
 export * from './listMembersSortBy';

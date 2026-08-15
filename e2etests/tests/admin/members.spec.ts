@@ -466,6 +466,43 @@ test.describe('Admin Members Page', () => {
   })
 
   /**
+   * Email is required at application level (#362): the pre-notification and
+   * settlement statement emails are a contractual promise (Nutzungsordnung
+   * § 7), so a member cannot be onboarded without one. The input carries
+   * `required` like first/last name, so a blank submission never reaches the
+   * network; the 255-char column width is not expressible in HTML5 and is
+   * therefore still enforced — and surfaced — server-side.
+   */
+  test('email validation: required on create, rejects an over-long address', async ({
+    authenticatedMembersPage,
+  }) => {
+    const ts = Date.now()
+
+    await authenticatedMembersPage.openCreateModal()
+    await authenticatedMembersPage.expectFormModalVisible()
+
+    // ── Blank email blocks submission — the input is `required` ────────
+    await authenticatedMembersPage.fillMemberForm(`EReq${ts}`, `Last${ts}`, '', '')
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalVisible()
+
+    // ── An email past the 255-char column width is rejected server-side ─
+    const overlongEmail = `${'a'.repeat(250)}@test.com`
+    await authenticatedMembersPage.fillMemberForm(`EReq${ts}`, `Last${ts}`, '', '', overlongEmail, 'de')
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalVisible()
+    await authenticatedMembersPage.expectEmailErrorVisible()
+
+    // ── A valid email allows the create to proceed ──────────────────────
+    await authenticatedMembersPage.fillMemberForm(`EReq${ts}`, `Last${ts}`, '', '', `ereq-${ts}@test.com`, 'de')
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    await authenticatedMembersPage.search(`EReq${ts}`)
+    await authenticatedMembersPage.expectMemberVisibleInTable(`EReq${ts}`)
+  })
+
+  /**
    * Deactivating a member used to fire on the toggle click — on the mobile card
    * list that toggle sits right beside the name, so a mistap cut a member off
    * from the terminal silently (#130). Reactivating only restores access, so it
