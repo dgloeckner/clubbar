@@ -52,7 +52,7 @@ Nothing is ever blocked or revoked. Alert only.
 
 ### M5 — Tests
 
-- [x] **5.1** PHPUnit: sighting upsert/bucketing, cursor observer, overlap arithmetic (handover vs clone), detector dedup, pruning.
+- [x] **5.1** PHPUnit: sighting upsert/bucketing, cursor observer, overlap arithmetic (handover vs clone), detector dedup, pruning. Plus **Feature tests against a real database** for all three repositories — the upsert, the `GREATEST` high-water rule and the guarded acknowledgement UPDATE are SQL, and mocks cannot check any of them. Added after CI's patch-coverage gate failed at 67%.
 - [ ] **5.2** E2E API: two IPs via distinct `X-Forwarded-For`… **not possible** — `REMOTE_ADDR` is the only source and all test traffic is `127.0.0.1`. Drive the detector against seeded sighting rows instead, then assert the dashboard alert and the acknowledge endpoint over HTTP.
 - [ ] **5.3** E2E admin: banner appears for a seeded anomaly, acknowledging clears it.
 

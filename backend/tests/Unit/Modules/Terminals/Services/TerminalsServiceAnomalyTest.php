@@ -121,4 +121,51 @@ class TerminalsServiceAnomalyTest extends TestCase
 
         $this->assertFalse($this->service->acknowledgeAnomaly('terminal-1', 'anomaly-1', 'admin-2'));
     }
+
+    // ── Decorating the list and the detail (ADR-0041 §4) ────────────────────
+
+    /**
+     * One grouped read for the whole page. A query per row would put the
+     * anomaly lookup on the terminals page's critical path for no reason.
+     */
+    public function testTheListCarriesEachTerminalsOpenAnomalyCount(): void
+    {
+        $this->terminalsRepository->method('listPaginated')->willReturn([
+            'items' => [
+                $this->terminalRow('terminal-1', 'Theke 1'),
+                $this->terminalRow('terminal-2', 'Theke 2'),
+            ],
+            'total' => 2,
+        ]);
+        $this->anomalies->expects($this->once())
+            ->method('openCountsByTerminal')
+            ->willReturn(['terminal-1' => 2]);
+
+        $items = $this->service->listTerminals(50, 0)->items;
+
+        $this->assertSame(2, $items[0]['open_anomaly_count']);
+        $this->assertTrue($items[0]['has_open_anomaly']);
+        $this->assertSame(0, $items[1]['open_anomaly_count']);
+        $this->assertFalse($items[1]['has_open_anomaly']);
+    }
+
+    public function testTheDetailCarriesTheCountToo(): void
+    {
+        $this->terminalsRepository->method('findById')->willReturn($this->terminalRow('terminal-1', 'Theke 1'));
+        $this->anomalies->method('openCountsByTerminal')->willReturn(['terminal-1' => 1]);
+
+        $this->assertSame(1, $this->service->getTerminal('terminal-1')->toArray()['open_anomaly_count']);
+    }
+
+    private function terminalRow(string $id, string $name): array
+    {
+        return [
+            'id' => $id,
+            'name' => $name,
+            'device_id' => 'device-' . $id,
+            'is_active' => 1,
+            'created_at' => '2026-01-01 00:00:00',
+            'updated_at' => '2026-01-01 00:00:00',
+        ];
+    }
 }

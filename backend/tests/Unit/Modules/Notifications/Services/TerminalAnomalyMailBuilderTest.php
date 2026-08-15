@@ -181,4 +181,104 @@ class TerminalAnomalyMailBuilderTest extends TestCase
             TerminalAnomalyMailBuilder::parseOccasion('cursor_regression:abcd1234:some-admin-uuid'),
         );
     }
+
+    /**
+     * The recipient's name is resolved for the greeting, but the *address*
+     * always comes from the outbox row — it is the snapshot of who was told,
+     * and re-reading it would quietly send the warning somewhere else.
+     */
+    public function testItGreetsTheAdminByNameWithoutRereadingTheirAddress(): void
+    {
+        $this->terminals->method('findById')->willReturn(['id' => 'terminal-1', 'name' => 'Theke 1']);
+        $this->anomalies->method('listOpen')->willReturn([]);
+
+        $adminUsers = $this->createMock(AdminUsersRepository::class);
+        $adminUsers->method('findActiveRecipients')->willReturn([
+            ['id' => 'admin-1', 'email' => 'moved-away@example.org', 'locale' => 'de', 'display_name' => 'Kassenwart Klaus'],
+        ]);
+
+        $builder = $this->rebuildWith($adminUsers);
+        $message = $builder->build($this->outboxRow());
+
+        $this->assertStringContainsString('Kassenwart Klaus', $message->text);
+        $this->assertSame('kassenwart@example.org', $message->to);
+    }
+
+    public function testAnAdminWithNoDisplayNameGetsTheGenericGreeting(): void
+    {
+        $this->terminals->method('findById')->willReturn(['id' => 'terminal-1', 'name' => 'Theke 1']);
+        $this->anomalies->method('listOpen')->willReturn([]);
+
+        $adminUsers = $this->createMock(AdminUsersRepository::class);
+        $adminUsers->method('findActiveRecipients')->willReturn([
+            ['id' => 'admin-1', 'email' => 'a@example.org', 'locale' => 'de', 'display_name' => ''],
+        ]);
+
+        $message = $this->rebuildWith($adminUsers)->build($this->outboxRow());
+
+        $this->assertNotSame('', trim($message->text));
+    }
+
+    /**
+     * The anomaly is matched within this terminal's open rows, so another
+     * till's row must not supply the evidence.
+     */
+    public function testEvidenceFromAnotherTerminalIsNotUsed(): void
+    {
+        $this->terminals->method('findById')->willReturn(['id' => 'terminal-1', 'name' => 'Theke 1']);
+        $this->anomalies->method('listOpen')->willReturn([[
+            'id' => 'abcd1234-0000-4000-8000-000000000000',
+            'terminal_id' => 'terminal-2',
+            'kind' => 'concurrent_ip',
+            'details' => json_encode(['overlap_seconds' => 1500, 'ips' => [['ip_address' => '10.9.9.9']]]),
+        ]]);
+
+        $message = $this->builder->build($this->outboxRow());
+
+        $this->assertStringNotContainsString('10.9.9.9', $message->text);
+    }
+
+    public function testEvidenceFromADifferentAnomalyOnTheSameTerminalIsNotUsed(): void
+    {
+        $this->terminals->method('findById')->willReturn(['id' => 'terminal-1', 'name' => 'Theke 1']);
+        $this->anomalies->method('listOpen')->willReturn([[
+            'id' => '99999999-0000-4000-8000-000000000000',
+            'terminal_id' => 'terminal-1',
+            'kind' => 'concurrent_ip',
+            'details' => json_encode(['overlap_seconds' => 1500, 'ips' => [['ip_address' => '10.9.9.9']]]),
+        ]]);
+
+        $message = $this->builder->build($this->outboxRow('concurrent_ip:abcd1234:admin-1'));
+
+        $this->assertStringNotContainsString('10.9.9.9', $message->text);
+    }
+
+    /** A malformed entry in the payload is skipped rather than rendered as "?". */
+    public function testDescribeSkipsAMalformedAddressEntry(): void
+    {
+        $rows = TerminalAnomalyMailBuilder::describe('concurrent_ip', [
+            'overlap_seconds' => 900,
+            'ips' => ['not-an-array', ['ip_address' => '203.0.113.10']],
+        ]);
+
+        $this->assertSame('15 min', $rows['Overlap']);
+        $this->assertCount(2, $rows, 'the overlap plus the one usable address');
+    }
+
+    private function rebuildWith(AdminUsersRepository $adminUsers): TerminalAnomalyMailBuilder
+    {
+        $mailConfigService = $this->createMock(MailConfigService::class);
+        $mailConfigService->method('getConfig')->willReturn(MailConfigDto::fromRow([
+            'sender_name' => 'FRGS Ruderbar',
+            'sender_address' => 'bar@example.org',
+            'footer_org_name' => 'FRGS Ruderbar',
+        ]));
+
+        return new TerminalAnomalyMailBuilder(
+            $this->terminals,
+            $this->anomalies,
+            $adminUsers,
+            $mailConfigService,
+        );
+    }
 }
