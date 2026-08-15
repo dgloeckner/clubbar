@@ -6692,7 +6692,10 @@ components:
               description: Total number of terminals (active and inactive)
             active_terminals:
               type: integer
-              description: Count of active terminals
+              description: >-
+                Count of terminals currently online (enabled and synced within the last
+                5 minutes) — matches the `online` count in `terminal_status`, not merely
+                enabled terminals
             settled_members:
               type: integer
               description: Number of unique members with settled transactions
@@ -6753,8 +6756,8 @@ components:
                 type: string
                 enum: [online, offline, disabled]
                 description: |
-                  - online: synced within 24 hours
-                  - offline: no sync or synced > 24 hours ago
+                  - online: synced within 5 minutes
+                  - offline: no sync or synced > 5 minutes ago
                   - disabled: terminal is inactive
         system_status:
           type: object
