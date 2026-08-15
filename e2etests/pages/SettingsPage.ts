@@ -21,6 +21,7 @@ export class SettingsPage {
   private readonly cityInput: Locator
   private readonly countryInput: Locator
   private readonly paymentPrefixInput: Locator
+  private readonly mandateTemplateUrlInput: Locator
   private readonly creditorIdWarning: Locator
   private readonly saveButton: Locator
   private readonly cancelButton: Locator
@@ -43,6 +44,7 @@ export class SettingsPage {
     this.cityInput = page.getByTestId('settings-sepa-input-creditor_address_city')
     this.countryInput = page.getByTestId('settings-sepa-input-creditor_address_country')
     this.paymentPrefixInput = page.getByTestId('settings-sepa-input-payment_reference_prefix')
+    this.mandateTemplateUrlInput = page.getByTestId('settings-sepa-input-mandate_template_url')
     this.creditorIdWarning = page.getByTestId('settings-sepa-alert-warning')
     this.saveButton = page.getByTestId('settings-sepa-save-button')
     this.cancelButton = page.getByTestId('settings-sepa-cancel-button')
@@ -130,6 +132,13 @@ export class SettingsPage {
   }
 
   /**
+   * Get current mandate template URL value (#360/#456)
+   */
+  async getMandateTemplateUrlValue(): Promise<string> {
+    return await this.mandateTemplateUrlInput.inputValue()
+  }
+
+  /**
    * Fill SEPA configuration form with provided data
    */
   async fillSepaConfig(data: {
@@ -140,6 +149,7 @@ export class SettingsPage {
     creditor_address_city?: string
     creditor_address_country?: string
     payment_reference_prefix?: string
+    mandate_template_url?: string
   }) {
     if (data.creditor_id !== undefined) {
       // Only fill if not disabled (immutability check)
@@ -171,6 +181,10 @@ export class SettingsPage {
 
     if (data.payment_reference_prefix !== undefined) {
       await this.paymentPrefixInput.fill(data.payment_reference_prefix)
+    }
+
+    if (data.mandate_template_url !== undefined) {
+      await this.mandateTemplateUrlInput.fill(data.mandate_template_url)
     }
   }
 

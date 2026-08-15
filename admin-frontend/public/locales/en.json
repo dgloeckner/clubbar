@@ -243,10 +243,10 @@
     "anonymizeSuccess": "Member has been anonymized",
     "anonymizeButton": "Anonymize",
     "newFromScan": "New from scan",
+    "openSepaTemplate": "SEPA Template",
+    "sepaTemplateNotConfigured": "No mandate template URL is configured — set one in Settings first.",
     "countFound_one": "{{count}} member found",
     "countFound_other": "{{count}} members found",
-    "downloadSepaTemplate": "SEPA Template",
-    "sepaTemplateError": "SEPA configuration is incomplete. Please configure creditor details in Settings first.",
     "storedIban": "On file: {{masked}}",
     "removeStoredIban": "Remove bank details",
     "storedIbanWillBeRemoved": "Bank details will be removed on save, revoking the mandate."
@@ -506,6 +506,7 @@
     "creditorIban": "Creditor IBAN",
     "creditorBic": "BIC",
     "paymentReferencePrefix": "Payment Reference Prefix",
+    "mandateTemplateUrl": "Mandate Template URL",
     "adminUsers": "Admin Users",
     "loadingSettings": "Loading settings...",
     "loadingAdminUsers": "Loading admin users...",
@@ -535,7 +536,8 @@
       "street": "e.g. Main Street 123",
       "city": "e.g. Munich",
       "country": "e.g. DE",
-      "paymentPrefix": "e.g. Club Bar Settlement"
+      "paymentPrefix": "e.g. Club Bar Settlement",
+      "mandateTemplateUrl": "e.g. https://club.example/anmeldung"
     },
     "sepaHelpers": {
       "creditorId": "SEPA creditor identification number (max 35 characters)",
@@ -546,7 +548,8 @@
       "city": "City name (max 70 characters)",
       "country": "2-letter ISO country code (DE, AT, CH)",
       "paymentPrefix": "Prefix for the payment reference. The settlement date is appended automatically.",
-      "creditorIbanStored": "On file: {{masked}}. Leave empty to keep it, or enter the full IBAN to replace it."
+      "creditorIbanStored": "On file: {{masked}}. Leave empty to keep it, or enter the full IBAN to replace it.",
+      "mandateTemplateUrl": "Link to the externally hosted registration form a new member signs. Settlements cannot be exported to the bank until this is set."
     },
     "deactivateAdminConfirm": "Are you sure you want to deactivate this admin user?",
     "ownAccount": "You",
@@ -614,6 +617,7 @@
       "countryRequired": "Country code is required",
       "countryInvalid": "Country must be a 2-letter ISO code (e.g., DE, AT, CH)",
       "paymentReferencePrefixTooLong": "Payment reference prefix must be 100 characters or less",
+      "mandateTemplateUrlTooLong": "Mandate template URL must be 255 characters or less",
       "creditorIdRequired": "Creditor ID is required",
       "creditorIdTooLong": "Creditor ID must be 35 characters or less",
       "stepUpRequired": "Enter your own password (and 2FA code) to issue the terminal token"
@@ -948,7 +952,8 @@
     "membersNeedSepaData_other": "{{count}} members missing SEPA data",
     "stale": "The last refresh failed — these figures may be out of date.",
     "staleSince": "The last refresh failed — these figures are from {{time}}.",
-    "manageKeys": "Manage keys"
+    "manageKeys": "Manage keys",
+    "manageSepaConfig": "Configure SEPA"
   },
   "pagination": {
     "firstPage": "First page",

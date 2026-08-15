@@ -37,6 +37,7 @@ export class MembersPage extends BasePage {
   // Search and filter
   private readonly searchInput = () => this.page.getByTestId('members-search-input')
   private readonly createBtn = () => this.page.getByTestId('members-create-button')
+  private readonly sepaTemplateLinkButton = () => this.page.getByTestId('members-sepa-template-link-button')
 
   // Table elements
   private readonly table = () => this.page.getByTestId('members-table')
@@ -215,6 +216,28 @@ export class MembersPage extends BasePage {
 
   async openCreateModal() {
     await this.createBtn().click()
+  }
+
+  /**
+   * The SEPA-Vorlage button opens the externally hosted registration form in
+   * a new tab (#360/#456) rather than triggering a download, so tests assert
+   * on its enabled state and target rather than a download event.
+   */
+  async expectSepaTemplateLinkEnabled() {
+    await expect(this.sepaTemplateLinkButton()).toBeEnabled()
+  }
+
+  async expectSepaTemplateLinkDisabled() {
+    await expect(this.sepaTemplateLinkButton()).toBeDisabled()
+  }
+
+  /** Resolves the `href`-equivalent target: the URL the button would open. */
+  async clickSepaTemplateLinkButton(): Promise<Page> {
+    const [newPage] = await Promise.all([
+      this.page.context().waitForEvent('page'),
+      this.sepaTemplateLinkButton().click(),
+    ])
+    return newPage
   }
 
   /**
@@ -904,13 +927,6 @@ export class MembersPage extends BasePage {
     await expect(
       this.page.locator('[data-testid^="members-table-cell-name-"]').filter({ hasText: firstName })
     ).not.toBeVisible()
-  }
-
-  private readonly sepaTemplateDownloadButton = () =>
-    this.page.getByTestId('members-sepa-template-download-button')
-
-  async clickSepaTemplateDownloadButton(): Promise<void> {
-    await this.sepaTemplateDownloadButton().click()
   }
 
   /**

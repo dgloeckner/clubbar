@@ -96,6 +96,8 @@ export * from './dashboardResponseAlerts';
 export * from './dashboardResponseAlertsEncryptionKey';
 export * from './dashboardResponseAlertsEncryptionKeySeverity';
 export * from './dashboardResponseAlertsEncryptionKeyState';
+export * from './dashboardResponseAlertsSepaConfig';
+export * from './dashboardResponseAlertsSepaConfigSeverity';
 export * from './dashboardResponseAlertsSepaIssues';
 export * from './dashboardResponseAlertsSepaIssuesSeverity';
 export * from './dashboardResponseMembersNearLimit';

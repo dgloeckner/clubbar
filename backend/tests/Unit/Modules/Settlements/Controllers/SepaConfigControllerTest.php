@@ -68,6 +68,7 @@ class SepaConfigControllerTest extends TestCase
             creditorAddressCity: 'Musterstadt',
             creditorAddressCountry: 'DE',
             paymentReferencePrefix: $paymentReferencePrefix,
+            mandateTemplateUrl: 'https://club.example/anmeldung',
             isConfigured: true,
         );
     }
@@ -146,6 +147,59 @@ class SepaConfigControllerTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
     }
 
+    /**
+     * #360/#456: not required at save time — a club can configure creditor
+     * details before the externally hosted form exists. SepaExportService
+     * (not this controller) is what refuses to export until it is set.
+     */
+    public function test_update_passes_the_mandate_template_url_to_the_service(): void
+    {
+        $this->service->expects($this->once())
+            ->method('updateConfig')
+            ->with(
+                $this->callback(fn (array $attributes) => ($attributes['mandate_template_url'] ?? null) === 'https://club.example/anmeldung'),
+                'admin-1',
+            )
+            ->willReturn($this->dto());
+
+        $response = $this->controller->update(
+            $this->write('PATCH', $this->validBody(['mandate_template_url' => 'https://club.example/anmeldung'])),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_update_rejects_a_mandate_template_url_longer_than_the_column(): void
+    {
+        $this->service->expects($this->never())->method('updateConfig');
+
+        $response = $this->controller->update(
+            $this->write('PATCH', $this->validBody(['mandate_template_url' => str_repeat('x', 256)])),
+            new Response(),
+        );
+
+        $body = $this->decode($response);
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame('validation_failed', $body['error']);
+        $this->assertArrayHasKey('mandate_template_url', $body['messages']);
+    }
+
+    public function test_initial_setup_does_not_require_a_mandate_template_url(): void
+    {
+        $this->service->expects($this->once())
+            ->method('updateConfig')
+            ->willReturn($this->dto());
+
+        $response = $this->controller->update(
+            $this->write('POST', $this->validBody(['creditor_id' => 'DE98ZZZ09999999999'])),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
     public function test_initial_setup_requires_a_creditor_id(): void
     {
         $this->service->expects($this->never())->method('updateConfig');
@@ -188,6 +242,7 @@ class SepaConfigControllerTest extends TestCase
                 creditorAddressCity: 'Musterstadt',
                 creditorAddressCountry: 'DE',
                 paymentReferencePrefix: 'Club Bar',
+                mandateTemplateUrl: 'https://club.example/anmeldung',
                 isConfigured: true,
             ));
 

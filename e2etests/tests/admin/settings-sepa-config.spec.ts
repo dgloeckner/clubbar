@@ -8,6 +8,7 @@
  */
 
 import { test, expect } from '../../fixtures/pageObjects'
+import { MembersPage } from '../../pages'
 
 /**
  * Helper: Generate unique string for test data isolation
@@ -33,6 +34,7 @@ function generateTestSepaConfig() {
     creditor_address_city: `Test City ${unique}`,
     creditor_address_country: 'DE',
     payment_reference_prefix: `Prefix ${unique}`,
+    mandate_template_url: `https://club.example/anmeldung-${unique}`,
   }
 }
 
@@ -226,6 +228,79 @@ test.describe('SEPA Configuration Settings', () => {
       testData.payment_reference_prefix,
     )
     expect(await authenticatedSettingsPage.getCreditorNameValue()).toBe(testData.creditor_name)
+  })
+
+  /**
+   * Test: The mandate template URL survives a save (#360/#456)
+   *
+   * The externally hosted registration form's link — SepaExportService
+   * refuses to export a settlement without it, and the Members page's
+   * "SEPA-Vorlage" button opens it directly, so it has to actually persist
+   * rather than round-trip through the form only.
+   */
+  test('should persist the mandate template URL', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
+
+    const testData = generateTestSepaConfig()
+
+    await authenticatedSettingsPage.fillSepaConfig(testData)
+    const { status } = await authenticatedSettingsPage.saveAndWaitForResponse()
+
+    expect(status).toBe(200)
+    await authenticatedSettingsPage.expectSuccessMessage()
+    await authenticatedSettingsPage.expectNoErrorMessage()
+
+    await authenticatedSettingsPage.page.reload({ waitUntil: 'domcontentloaded' })
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
+
+    expect(await authenticatedSettingsPage.getMandateTemplateUrlValue()).toBe(
+      testData.mandate_template_url,
+    )
+  })
+
+  /**
+   * Test: the Members page's "SEPA-Vorlage" button opens the configured URL
+   * (#360/#456)
+   *
+   * The button used to trigger a generated-PDF download; it now opens this
+   * URL directly in a new tab. Navigates straight to Members right after
+   * saving, minimising the window in which a parallel worker could
+   * overwrite the singleton `sepa_config` row (same mitigation
+   * `journal-and-settlements.spec.ts` uses around SEPA export).
+   */
+  test('the SEPA-Vorlage button on Members opens the configured mandate template URL', async ({
+    authenticatedSettingsPage,
+  }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
+
+    const testData = generateTestSepaConfig()
+    await authenticatedSettingsPage.fillSepaConfig(testData)
+    const { status } = await authenticatedSettingsPage.saveAndWaitForResponse()
+    expect(status).toBe(200)
+
+    const page = authenticatedSettingsPage.page
+
+    // The URL isn't a real host, so without interception Chromium replaces
+    // the popup with an error page before we can read its target — fulfil
+    // it locally instead, which is enough to prove the navigation was aimed
+    // at the right place.
+    await page.context().route(testData.mandate_template_url, (route) =>
+      route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body>ok</body></html>' }),
+    )
+
+    await page.goto('/members', { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('[data-testid="members-page"]', { timeout: 5000 })
+
+    const membersPage = new MembersPage(page)
+    await membersPage.expectSepaTemplateLinkEnabled()
+
+    const newTab = await membersPage.clickSepaTemplateLinkButton()
+    await newTab.waitForLoadState('domcontentloaded')
+    expect(newTab.url()).toBe(testData.mandate_template_url)
+    await newTab.close()
   })
 
   /**

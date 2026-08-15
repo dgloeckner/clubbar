@@ -7,7 +7,6 @@ import {
   target2ClosingDays,
   tuesdayAfterNextEaster,
 } from '../../utils/dates';
-import { ensureSepaConfigured } from '../../utils/settlements';
 import { exportSepaXml } from '../../fixtures/encryption'
 
 test.describe('Settlements API', () => {
@@ -46,6 +45,7 @@ test.describe('Settlements API', () => {
           creditor_address_street: '123 Test Street',
           creditor_address_city: 'Berlin',
           creditor_address_country: 'DE',
+          mandate_template_url: 'https://club.example/anmeldung',
         },
       });
 
@@ -122,6 +122,7 @@ test.describe('Settlements API', () => {
           creditor_address_city: 'Berlin',
           creditor_address_country: 'DE',
           payment_reference_prefix: 'RUDERBAR',
+          mandate_template_url: 'https://club.example/anmeldung',
         },
       });
 
@@ -140,6 +141,7 @@ test.describe('Settlements API', () => {
           creditor_address_street: 'Musterstraße 2',
           creditor_address_city: 'Frankfurt',
           creditor_address_country: 'DE',
+          mandate_template_url: 'https://club.example/anmeldung',
         },
       });
 
@@ -197,37 +199,6 @@ test.describe('Settlements API', () => {
       expect(response.status()).toBe(422);
       const body = await response.json();
       expect(body.error).toBe('validation_failed');
-    });
-  });
-
-  /**
-   * SEPA mandate template (#100).
-   *
-   * `GET /admin/sepa-mandate-template` is the blank mandate form the club
-   * hands a new member to sign. It is rendered from the creditor config, and
-   * had no API coverage — a broken template only surfaced when someone
-   * downloaded it.
-   */
-  test.describe('SEPA Mandate Template', () => {
-    test('A11: GET /sepa-mandate-template returns a PDF', async ({ authenticatedRequest }) => {
-      await ensureSepaConfigured(authenticatedRequest);
-
-      const response = await authenticatedRequest.get('/api/admin/sepa-mandate-template');
-
-      expect(response.status(), await response.text()).toBe(200);
-      expect(response.headers()['content-type']).toContain('application/pdf');
-      expect(response.headers()['content-disposition']).toContain('sepa-mandate-template.pdf');
-
-      // A PDF, not an error page that merely arrived with the right header.
-      const body = await response.body();
-      expect(body.subarray(0, 5).toString('latin1')).toBe('%PDF-');
-      expect(body.length).toBeGreaterThan(1000);
-    });
-
-    test('A12: GET /sepa-mandate-template requires authentication', async ({ request }) => {
-      const response = await request.get('/api/admin/sepa-mandate-template');
-
-      expect([301, 302, 401, 403]).toContain(response.status());
     });
   });
 

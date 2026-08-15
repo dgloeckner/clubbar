@@ -20,6 +20,7 @@ class SepaConfigDtoTest extends TestCase
             creditorAddressCity: 'Berlin',
             creditorAddressCountry: 'DE',
             paymentReferencePrefix: 'CLUB',
+            mandateTemplateUrl: 'https://club.example/anmeldung',
             isConfigured: true,
         );
 
@@ -31,6 +32,7 @@ class SepaConfigDtoTest extends TestCase
         $this->assertSame('Berlin', $dto->creditorAddressCity);
         $this->assertSame('DE', $dto->creditorAddressCountry);
         $this->assertSame('CLUB', $dto->paymentReferencePrefix);
+        $this->assertSame('https://club.example/anmeldung', $dto->mandateTemplateUrl);
         $this->assertTrue($dto->isConfigured);
     }
 
@@ -45,6 +47,7 @@ class SepaConfigDtoTest extends TestCase
             creditorAddressCity: null,
             creditorAddressCountry: null,
             paymentReferencePrefix: null,
+            mandateTemplateUrl: null,
             isConfigured: false,
         );
 
@@ -56,6 +59,7 @@ class SepaConfigDtoTest extends TestCase
         $this->assertNull($dto->creditorAddressCity);
         $this->assertNull($dto->creditorAddressCountry);
         $this->assertNull($dto->paymentReferencePrefix);
+        $this->assertNull($dto->mandateTemplateUrl);
         $this->assertFalse($dto->isConfigured);
     }
 
@@ -70,6 +74,7 @@ class SepaConfigDtoTest extends TestCase
             'creditor_address_city' => 'Berlin',
             'creditor_address_country' => 'DE',
             'payment_reference_prefix' => 'CLUB',
+            'mandate_template_url' => 'https://club.example/anmeldung',
         ];
 
         // Act
@@ -83,6 +88,7 @@ class SepaConfigDtoTest extends TestCase
         $this->assertSame('Berlin', $dto->creditorAddressCity);
         $this->assertSame('DE', $dto->creditorAddressCountry);
         $this->assertSame('CLUB', $dto->paymentReferencePrefix);
+        $this->assertSame('https://club.example/anmeldung', $dto->mandateTemplateUrl);
         $this->assertTrue($dto->isConfigured);
     }
 
@@ -97,6 +103,7 @@ class SepaConfigDtoTest extends TestCase
             'creditor_address_city' => 'Berlin',
             'creditor_address_country' => 'DE',
             'payment_reference_prefix' => 'CLUB',
+            'mandate_template_url' => 'https://club.example/anmeldung',
         ];
 
         // Act
@@ -110,6 +117,7 @@ class SepaConfigDtoTest extends TestCase
         $this->assertSame('Berlin', $dto->creditorAddressCity);
         $this->assertSame('DE', $dto->creditorAddressCountry);
         $this->assertSame('CLUB', $dto->paymentReferencePrefix);
+        $this->assertSame('https://club.example/anmeldung', $dto->mandateTemplateUrl);
         $this->assertTrue($dto->isConfigured);
     }
 
@@ -133,6 +141,11 @@ class SepaConfigDtoTest extends TestCase
         $this->assertSame('****', $dto->creditorId);
     }
 
+    /**
+     * Address and payment-reference-prefix are optional; creditor_id/name/iban
+     * and mandate_template_url (#360/#456) are not, so the latter is supplied
+     * here to isolate what "optional" actually means.
+     */
     public function test_from_row_handles_missing_optional_fields(): void
     {
         // Arrange
@@ -140,6 +153,7 @@ class SepaConfigDtoTest extends TestCase
             'creditor_id' => 'DE89ZZZ09999999999',
             'creditor_name' => 'My Club',
             'creditor_iban' => 'DE89370400440532013000',
+            'mandate_template_url' => 'https://club.example/anmeldung',
         ];
 
         // Act
@@ -154,6 +168,23 @@ class SepaConfigDtoTest extends TestCase
         $this->assertNull($dto->creditorAddressCountry);
         $this->assertNull($dto->paymentReferencePrefix);
         $this->assertTrue($dto->isConfigured);
+    }
+
+    public function test_from_row_marks_as_not_configured_when_mandate_template_url_missing(): void
+    {
+        // Arrange
+        $row = [
+            'creditor_id' => 'DE89ZZZ09999999999',
+            'creditor_name' => 'My Club',
+            'creditor_iban' => 'DE89370400440532013000',
+        ];
+
+        // Act
+        $dto = SepaConfigDto::fromRow($row);
+
+        // Assert
+        $this->assertNull($dto->mandateTemplateUrl);
+        $this->assertFalse($dto->isConfigured);
     }
 
     public function test_from_row_marks_as_not_configured_when_creditor_id_missing(): void
@@ -260,6 +291,7 @@ class SepaConfigDtoTest extends TestCase
             creditorAddressCity: 'Berlin',
             creditorAddressCountry: 'DE',
             paymentReferencePrefix: 'CLUB',
+            mandateTemplateUrl: 'https://club.example/anmeldung',
             isConfigured: true,
         );
 
@@ -274,6 +306,7 @@ class SepaConfigDtoTest extends TestCase
         $this->assertArrayHasKey('creditor_address_city', $array);
         $this->assertArrayHasKey('creditor_address_country', $array);
         $this->assertArrayHasKey('payment_reference_prefix', $array);
+        $this->assertArrayHasKey('mandate_template_url', $array);
         $this->assertArrayHasKey('is_configured', $array);
 
         $this->assertSame('DE89ZZZ09999999999', $array['creditor_id']);
@@ -283,6 +316,7 @@ class SepaConfigDtoTest extends TestCase
         $this->assertSame('Berlin', $array['creditor_address_city']);
         $this->assertSame('DE', $array['creditor_address_country']);
         $this->assertSame('CLUB', $array['payment_reference_prefix']);
+        $this->assertSame('https://club.example/anmeldung', $array['mandate_template_url']);
         $this->assertTrue($array['is_configured']);
     }
 
@@ -297,6 +331,7 @@ class SepaConfigDtoTest extends TestCase
             creditorAddressCity: null,
             creditorAddressCountry: null,
             paymentReferencePrefix: null,
+            mandateTemplateUrl: null,
             isConfigured: false,
         );
 
@@ -311,6 +346,7 @@ class SepaConfigDtoTest extends TestCase
         $this->assertNull($array['creditor_address_city']);
         $this->assertNull($array['creditor_address_country']);
         $this->assertNull($array['payment_reference_prefix']);
+        $this->assertNull($array['mandate_template_url']);
         $this->assertFalse($array['is_configured']);
     }
 

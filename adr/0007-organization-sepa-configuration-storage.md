@@ -48,6 +48,39 @@ Three viable approaches:
 5. **Audit logging**: All changes tracked with before/after values
 6. **Fallback defaults**: System has sensible defaults (allow override)
 
+### Amendment: Mandate Template URL (#360/#456)
+
+The blank SEPA mandate PDF used to be generated in-app from `creditor_id`/
+`creditor_name` and a bundled HTML template (`SepaConfigService::
+generateMandateTemplatePdf()`). Issue #360 removed that generation: the club
+now maintains a statically hosted registration form (with the Art. 13
+privacy notice as its second page) outside this repository, and the admin
+panel only needs to know where it lives.
+
+`mandate_template_url` (migration 028) is that link — nullable, a plain
+string, unvalidated for format at the API layer, matching `mail_config`'s
+`website_url`/`logo_url` (migration 024) rather than the encrypted/checksummed
+columns beside it. It participates in the same completeness gate as the
+creditor fields:
+
+- **`is_configured`** (`SepaConfigDto::fromRow`, `SepaConfigRepository::
+  isConfigured()`) is true only once `creditor_id`, `creditor_name`,
+  `creditor_iban` **and** `mandate_template_url` are all set.
+- **`SepaExportService::export()`** refuses to generate a SEPA XML file
+  while any of those four is missing — the same `BusinessRuleException`
+  the creditor-completeness check already raised, now naming a superset of
+  conditions rather than a new one.
+- The admin **Dashboard** surfaces incompleteness as a top-of-page banner
+  (`DashboardService::sepaConfigAlert()`, mirroring the IBAN-encryption-key
+  warning, ADR-0011) before an admin reaches the export-time block.
+- The Members page's "SEPA-Vorlage" button opens this URL directly
+  (`window.open`, new tab) instead of downloading a generated PDF, and is
+  disabled while it is unset.
+
+Settlement **creation** is deliberately left ungated, same as it always was
+for the creditor fields — only export (the point money actually moves) has
+ever enforced completeness.
+
 ### Database Schema
 
 #### SEPA Configuration Table
@@ -83,6 +116,12 @@ CREATE TABLE sepa_config (
   creditor_address_country VARCHAR(2) NOT NULL DEFAULT 'DE',
     -- ISO 3166-1 country code
     -- Example: DE
+
+  mandate_template_url VARCHAR(255) NULL,
+    -- The externally hosted registration form a new member signs
+    -- ("Anmeldung zur bargeldlosen Vereinsbar"), added in migration 028
+    -- (#360/#456) — see Amendment below. Not part of the original design;
+    -- nullable and unvalidated for format, like mail_config's website_url.
 
   -- Metadata
   created_at DATETIME NOT NULL DEFAULT NOW(),

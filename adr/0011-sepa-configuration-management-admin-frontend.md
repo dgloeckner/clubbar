@@ -39,6 +39,7 @@ The admin panel provides a dedicated settings page for SEPA configuration manage
 | Street Address | Text | Required, mutable | Max 255 characters |
 | City/Postal Code | Text | Required, mutable | Max 255 characters |
 | Country | Dropdown | Required, mutable | SEPA-participating country (DE, AT, CH, etc.) |
+| Mandate Template URL | Text (URL) | Optional, mutable | Max 255 characters; not format-validated (#360/#456, see Amendment below) |
 | Last Updated | Display | Metadata | Shows timestamp and admin who last modified |
 
 ### UX Requirements
@@ -113,6 +114,43 @@ sequenceDiagram
         Admin->>UI: Click link to SEPA settings
     end
 ```
+
+---
+
+## Amendment: Mandate Template URL and the Dashboard Warning (#360/#456)
+
+Issue #360 removed the in-app generation of a blank SEPA mandate PDF (a
+bundled HTML template rendered from the creditor fields). The club now
+maintains that registration form externally, and the admin panel's job
+shrank to: let the admin say where it lives, link to it, and make it obvious
+when nobody has.
+
+This landed differently from what the wizard/store language above describes
+— the actual SEPA tab is a single `SepaConfigTab` form component (no
+step wizard, no Zustand/Redux; plain `useState` in `SettingsPage`, matching
+every other settings tab) — and the new field follows that existing,
+simpler shape rather than the aspirational one:
+
+- **Settings → SEPA tab**: one more `FormField`, spanning both grid columns
+  like `payment_reference_prefix`, with `type="url"` and a character
+  counter. Not required to save — a club can configure creditor details
+  before the external form exists.
+- **Members page**: the "SEPA-Vorlage" button that used to trigger a PDF
+  download (`GET /admin/sepa-mandate-template`, removed in #360) is back,
+  but now opens `mandate_template_url` in a new tab (`window.open`) and is
+  disabled while it is unset.
+- **Dashboard**: a new top-of-page warning banner
+  (`dashboard-sepa-config-warning`), styled and positioned exactly like the
+  existing IBAN-encryption-key banner (ADR-0036, #394), appears whenever
+  creditor details or the mandate template URL are incomplete — this is the
+  "Settlement Integration: Block SEPA export if configuration is incomplete"
+  requirement from this ADR's Context, made visible *before* an admin hits
+  the export-time block, rather than only as an error at export time.
+
+The setup-wizard, Zustand/Redux, and React-Hook-Form-plus-Zod language
+elsewhere in this document was never built; this amendment does not attempt
+to reconcile that gap — it only documents where the new field actually
+landed, in the implementation that exists.
 
 ---
 

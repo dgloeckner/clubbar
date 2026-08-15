@@ -340,19 +340,7 @@ const importMembersConfirm = (
     },
       options);
     }
-  /**
- * @summary Download SEPA mandate template PDF
- */
-const getAdminSepaMandateTemplate = (
-    
- options?: SecondParameter<typeof customInstance<Blob>>,) => {
-      return customInstance<Blob>(
-      {url: `/admin/sepa-mandate-template`, method: 'GET',
-        responseType: 'blob'
-    },
-      options);
-    }
-  return {listMembers,createMember,listCreditBalances,listCollectionHolds,listMembersWithoutMandate,clearCollectionHold,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm,getAdminSepaMandateTemplate}};
+  return {listMembers,createMember,listCreditBalances,listCollectionHolds,listMembersWithoutMandate,clearCollectionHold,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm}};
 export type ListMembersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listMembers']>>>
 export type CreateMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['createMember']>>>
 export type ListCreditBalancesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listCreditBalances']>>>
@@ -365,4 +353,3 @@ export type ExportMemberDataResult = NonNullable<Awaited<ReturnType<ReturnType<t
 export type AnonymizeMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['anonymizeMember']>>>
 export type ImportMembersPreviewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['importMembersPreview']>>>
 export type ImportMembersConfirmResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['importMembersConfirm']>>>
-export type GetAdminSepaMandateTemplateResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['getAdminSepaMandateTemplate']>>>

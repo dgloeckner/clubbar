@@ -96,6 +96,8 @@ export function DashboardPage() {
   // An alert whose severity the API left out is treated as nothing to say,
   // rather than as an unstyled banner shouting a blank message.
   const encryptionKeySeverity = encryptionKeyAlert?.severity ?? 'none'
+  const sepaConfigAlert = alerts.sepa_config
+  const sepaConfigSeverity = sepaConfigAlert?.severity ?? 'none'
   const members_near_limit = data.members_near_limit
   const near_limit_members = members_near_limit?.members ?? []
   // The list is capped by the backend; the total says whether it is the whole
@@ -214,6 +216,51 @@ export function DashboardPage() {
             }}
           >
             {t('dashboard.manageKeys')}
+          </Link>
+        </div>
+      )}
+
+      {/* SEPA configuration completeness (#360/#456): the club's creditor
+          details and the externally hosted mandate template's URL both have
+          to be set before a settlement can be exported to the bank. Nothing
+          evaluates this on a schedule, so — same as the encryption key above
+          — the landing page is where it surfaces, before an admin hits the
+          export-time block instead. Silent once both are configured. */}
+      {sepaConfigAlert && sepaConfigSeverity !== 'none' && (
+        <div
+          data-testid="dashboard-sepa-config-warning"
+          data-severity={sepaConfigSeverity}
+          style={{
+            padding: theme.spacing.md,
+            marginBottom: theme.spacing.lg,
+            background:
+              sepaConfigSeverity === 'error' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(249, 115, 22, 0.12)',
+            border: `1px solid ${severityColor(sepaConfigSeverity)}`,
+            borderRadius: theme.borderRadius.md,
+            color: severityColor(sepaConfigSeverity),
+            fontSize: theme.typography.fontSize.sm,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: theme.spacing.md,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>{sepaConfigAlert.message}</span>
+          <Link
+            data-testid="dashboard-sepa-config-link"
+            to="/settings"
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: `1px solid ${severityColor(sepaConfigSeverity)}`,
+              color: severityColor(sepaConfigSeverity),
+              fontSize: '13px',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            {t('dashboard.manageSepaConfig')}
           </Link>
         </div>
       )}

@@ -53,6 +53,7 @@ class SepaExportPersistenceTest extends DatabaseTestCase
             'creditor_name' => 'Ruderclub',
             'creditor_iban' => 'DE89370400440532013000',
             'payment_reference_prefix' => null,
+            'mandate_template_url' => 'https://club.example/anmeldung',
         ]);
 
         $this->service = new SepaExportService(

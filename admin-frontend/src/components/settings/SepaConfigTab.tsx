@@ -353,6 +353,27 @@ export function SepaConfigTab({
               validateIban={validateIban}
             />
           </div>
+
+          {/* Mandate Template URL Field - spans both columns. The blank
+              mandate PDF moved out of the app (#360); this is where the club
+              says where the externally hosted form now lives. Left blank,
+              SepaExportService refuses to export (#456), and the dashboard
+              warns before an admin gets that far. */}
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FormField
+              label={t('settings.mandateTemplateUrl')}
+              fieldKey="mandate_template_url"
+              value={formData.mandate_template_url}
+              type="url"
+              placeholder={t('settings.sepaPlaceholders.mandateTemplateUrl')}
+              helperText={t('settings.sepaHelpers.mandateTemplateUrl')}
+              maxLength={255}
+              showCharCounter={true}
+              fieldErrors={fieldErrors}
+              onFieldChange={onFieldChange}
+              validateIban={validateIban}
+            />
+          </div>
         </div>
 
         {/* Action Buttons */}

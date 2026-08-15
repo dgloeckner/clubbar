@@ -99,6 +99,8 @@ export async function ensureSepaConfigured(request: ApiRequestLike): Promise<voi
       creditor_address_street: 'Musterstrasse 1',
       creditor_address_city: 'Berlin',
       creditor_address_country: 'DE',
+      // #360/#456: is_configured (and SepaExportService) also require this now.
+      mandate_template_url: 'https://club.example/anmeldung',
     },
   })
 

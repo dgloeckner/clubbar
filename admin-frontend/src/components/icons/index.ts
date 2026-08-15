@@ -36,6 +36,7 @@ export { CalendarIcon } from './CalendarIcon'
 export { BankIcon } from './BankIcon'
 export { HomeIcon } from './HomeIcon'
 export { DownloadIcon } from './DownloadIcon'
+export { ExternalLinkIcon } from './ExternalLinkIcon'
 export { ScanIcon } from './ScanIcon'
 export { SearchIcon } from './SearchIcon'
 

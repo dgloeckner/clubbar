@@ -9,6 +9,7 @@ use App\Modules\Dashboard\DTOs\DashboardDto;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
@@ -49,6 +50,7 @@ class DashboardService
         private SettlementsRepository $settlementsRepository,
         private TerminalsRepository $terminalsRepository,
         private EncryptionKeysRepository $encryptionKeysRepository,
+        private SepaConfigRepository $sepaConfigRepository,
     ) {}
 
     public function getDashboard(): DashboardDto
@@ -105,6 +107,7 @@ class DashboardService
             alerts: [
                 'sepa_issues' => self::sepaAlert($sepaIssueCount),
                 'encryption_key' => self::encryptionKeyAlert($this->encryptionKeysRepository->findActive()),
+                'sepa_config' => self::sepaConfigAlert($this->sepaConfigRepository->getConfig()),
             ],
             membersNearLimit: $this->membersNearLimit(),
         );
@@ -264,6 +267,36 @@ class DashboardService
                 default => "IBAN encryption key {$identifier} expires in {$days} day(s) — plan a rotation",
             },
         ];
+    }
+
+    /**
+     * Whether SEPA is actually ready to collect: the creditor identity the
+     * bank needs, and the mandate template URL a new member is sent to sign
+     * (#360) — SepaExportService refuses to export a settlement without
+     * either. Unlike `sepaAlert()`, which counts individual members with
+     * missing mandate data, this is a single club-wide setup state.
+     *
+     * @param array<string, mixed>|null $config the sepa_config row, or null
+     *     if the singleton row is somehow missing
+     * @return array{severity: string, message: string}
+     */
+    public static function sepaConfigAlert(?array $config): array
+    {
+        if (!$config || empty($config['creditor_id']) || empty($config['creditor_name']) || empty($config['creditor_iban'])) {
+            return [
+                'severity' => 'error',
+                'message' => 'SEPA creditor details are not configured — settlements cannot be exported to the bank',
+            ];
+        }
+
+        if (empty($config['mandate_template_url'])) {
+            return [
+                'severity' => 'error',
+                'message' => 'No mandate template URL configured — settlements cannot be exported until members have a form to sign',
+            ];
+        }
+
+        return ['severity' => 'none', 'message' => 'SEPA configuration is complete'];
     }
 
     /**

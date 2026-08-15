@@ -95,7 +95,16 @@ class SepaExportService
         }
 
         $config = $this->sepaConfigRepository->getConfig();
-        if (!$config || empty($config['creditor_id']) || empty($config['creditor_name']) || empty($config['creditor_iban'])) {
+        if (
+            !$config
+            || empty($config['creditor_id'])
+            || empty($config['creditor_name'])
+            || empty($config['creditor_iban'])
+            // #360/#456: the blank mandate form moved out of the app to an
+            // externally hosted registration form; a member has nothing to
+            // sign until the club has told the system where it lives.
+            || empty($config['mandate_template_url'])
+        ) {
             throw new BusinessRuleException('SEPA configuration incomplete');
         }
 
