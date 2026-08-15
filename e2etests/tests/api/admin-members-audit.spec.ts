@@ -272,8 +272,8 @@ test.describe('Admin Members Audit Logging', () => {
 
     const entry = auditData.data[0];
     expect(entry.admin_user_id).toBeDefined();
-    // admin_user_name should be populated from the joined admin_users table
-    expect(entry.admin_user_name).toBeDefined();
+    // admin_user_email should be populated from the joined admin_users table
+    expect(entry.admin_user_email).toBeDefined();
   });
 
   // Test 11: Audit Entry Includes IP and User Agent
