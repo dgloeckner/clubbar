@@ -38,10 +38,48 @@ function testConnection() {
         });
 }
 
+// Step 5 (#405): has a scheduled drain run ever been observed? A read, never a
+// trigger — running the drain from here would prove the code works, not that
+// anything is scheduled to call it, which is the only thing the gate asks.
+function checkScheduler() {
+    var btn = document.getElementById('cronCheckBtn');
+    var result = document.getElementById('cronCheckResult');
+    btn.disabled = true;
+    result.textContent = 'Checking...';
+    result.className = '';
+    fetch('?action=check_cron')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.verified) {
+                result.textContent = 'A scheduled run was recorded at ' + data.last_run_at +
+                    (data.source ? ' (' + data.source + ')' : '') + '. The scheduler is working.';
+                result.className = 'test-ok';
+            } else if (data.error) {
+                result.textContent = 'Could not check: ' + data.error;
+                result.className = 'test-fail';
+            } else {
+                result.textContent = 'No run recorded yet. If you have just added the cron job, wait for the ' +
+                    'next tick and check again — you can also finish now and check from the admin panel.';
+                result.className = 'test-fail';
+            }
+            btn.disabled = false;
+        })
+        .catch(function() {
+            result.textContent = 'Request failed — check your server.';
+            result.className = 'test-fail';
+            btn.disabled = false;
+        });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     var testBtn = document.getElementById('testBtn');
     if (testBtn) {
         testBtn.addEventListener('click', testConnection);
+    }
+
+    var cronCheckBtn = document.getElementById('cronCheckBtn');
+    if (cronCheckBtn) {
+        cronCheckBtn.addEventListener('click', checkScheduler);
     }
 
     var migrateBtn = document.getElementById('migrateBtn');

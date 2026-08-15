@@ -90,6 +90,7 @@ class SettlementReversalTest extends DatabaseTestCase
                 $auditService,
                 new AdminUsersRepository($this->db, $this->logger),
             ),
+            $this->ensureObservedSchedulerRun(),
         );
 
         $this->collectionHoldService = new CollectionHoldService(

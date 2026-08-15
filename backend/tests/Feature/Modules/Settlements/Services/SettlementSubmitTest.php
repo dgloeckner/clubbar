@@ -82,6 +82,7 @@ class SettlementSubmitTest extends DatabaseTestCase
                 new AuditService(new AuditLogRepository($this->db, $this->logger)),
                 new AdminUsersRepository($this->db, $this->logger),
             ),
+            $this->ensureObservedSchedulerRun(),
         );
 
         $this->adminId = $this->createTestAdminUser('submit-' . substr($this->generateUuid(), 0, 8) . '@example.com');

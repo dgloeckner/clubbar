@@ -1021,6 +1021,10 @@
       "loadPreview": "Abrechnungsvorschau konnte nicht geladen werden",
       "create": "Abrechnung konnte nicht erstellt werden",
       "loadExecutionDate": "Ausführungsdatum konnte nicht geladen werden"
+    },
+    "withoutEmail": {
+      "title": "Ohne E-Mail-Adresse — keine Vorabankündigung",
+      "note": "Diese Mitglieder werden ganz normal eingezogen, können die Ankündigung des Einzugs aber nicht bekommen. Trag eine E-Mail-Adresse nach, damit sie beim nächsten Mal informiert werden."
     }
   },
   "periods": {
@@ -1107,6 +1111,13 @@
         "member": "Mitglied",
         "balance": "Offen"
       }
+    }
+  },
+  "scheduler": {
+    "banner": {
+      "title": "Geplanter Mailversand fehlt — Einzüge sind gesperrt",
+      "body": "Jeder Einzug wird mindestens sieben Tage vorher per E-Mail angekündigt. Diese Ankündigungen verschickt eine geplante Aufgabe, und auf dieser Installation lief sie noch nie. Trage den folgenden Befehl im Hosting-Panel als Cronjob ein, alle {{minutes}} Minuten. Der Hinweis verschwindet, sobald der erste Lauf erfasst ist.",
+      "urlFallback": "Ohne CLI-Cron geht es auch per URL-Abruf: {{url}} — mit dem Secret aus config.php im Header X-Cron-Secret."
     }
   }
 }

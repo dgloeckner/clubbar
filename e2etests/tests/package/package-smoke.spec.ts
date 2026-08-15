@@ -122,6 +122,31 @@ test.describe('Package: Install Wizard', () => {
     });
     expect(step4.status()).toBe(302);
     expect(step4.headers()['location']).toContain('step=5');
+
+    // Step 5: the scheduler (#405). A prerequisite step, not a suggestion —
+    // the drain is the only thing that sends announcement emails, and until a
+    // run has been observed the panel refuses to finalize a collection.
+    const step5 = await request.get(`${PACKAGE_URL}/install.php?step=5`);
+    expect(step5.status()).toBe(200);
+    const step5Html = await step5.text();
+    // The command has to be printed with an absolute path: a hosting panel's
+    // cron form has no working directory to resolve a relative one against.
+    expect(step5Html).toContain('backend/bin/cron.php');
+    expect(step5Html).toContain('cronCheckBtn');
+
+    // The Prüfen button reads cron_heartbeat and reports what it found. A
+    // fresh install has never been drained, so the honest answer is "no".
+    const check = await request.get(`${PACKAGE_URL}/install.php?action=check_cron`);
+    expect(check.status()).toBe(200);
+    const checkBody = await check.json();
+    expect(checkBody.verified).toBe(false);
+    expect(checkBody.error).toBeUndefined();
+
+    // Step 6: the completion page, which repeats the outcome rather than
+    // letting an unverified scheduler pass silently.
+    const step6 = await request.get(`${PACKAGE_URL}/install.php?step=6`);
+    expect(step6.status()).toBe(200);
+    expect(await step6.text()).toContain('Installation Complete');
   });
 });
 

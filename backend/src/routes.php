@@ -18,6 +18,7 @@ use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
+use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
@@ -225,6 +226,10 @@ return function (App $app): void {
         // a secret in config.php; these are the club-editable fields only.
         $group->get('/mail-config', [MailConfigController::class, 'show']);
         $group->patch('/mail-config', [MailConfigController::class, 'update']);
+
+        // Whether a drain run has ever been observed, and what to schedule if
+        // not (#405). Read-only: it reports the heartbeat, it never writes one.
+        $group->get('/scheduler', [SchedulerController::class, 'show']);
 
         // Reports
         $group->get('/reports/terminal-activity', [ReportsAdminController::class, 'terminalActivity']);

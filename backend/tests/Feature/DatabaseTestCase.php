@@ -116,6 +116,40 @@ abstract class DatabaseTestCase extends TestCase
     }
 
     /**
+     * Make sure a drain run has been observed (#405).
+     *
+     * Finalizing a direct-debit settlement is refused while `cron_heartbeat`
+     * has never been stamped, so every test that creates one needs this. The
+     * dev/e2e seed provides it, but CI's phpunit job applies only the
+     * migrations — and migration 025 seeds the row with `last_run_at` NULL,
+     * which is the honest initial state and exactly the state that blocks.
+     *
+     * Idempotent, and deliberately non-destructive: an existing run — from the
+     * seed, or from the drain's own tests — is left alone.
+     *
+     * @return App\Modules\Notifications\Services\SchedulerStatusService The gate the service under test should hold.
+     */
+    protected function ensureObservedSchedulerRun(): \App\Modules\Notifications\Services\SchedulerStatusService
+    {
+        $this->db->exec(
+            "INSERT INTO cron_heartbeat (id, last_run_at, source, sent, failed, php_version, missing_extensions)
+             VALUES (1, NOW(), 'cli', 0, 0, 'phpunit', '')
+             ON DUPLICATE KEY UPDATE last_run_at = COALESCE(last_run_at, NOW()), source = COALESCE(source, 'cli')"
+        );
+
+        return $this->schedulerStatusService();
+    }
+
+    /** The scheduler gate over this connection, reading whatever the heartbeat says. */
+    protected function schedulerStatusService(): \App\Modules\Notifications\Services\SchedulerStatusService
+    {
+        return new \App\Modules\Notifications\Services\SchedulerStatusService(
+            new \App\Modules\Notifications\Repositories\CronHeartbeatRepository($this->db),
+            new \App\Shared\Config\AppConfig(),
+        );
+    }
+
+    /**
      * Clean up test data by deleting records with specific IDs
      */
     protected function cleanupTestData(string $table, array $ids): void
