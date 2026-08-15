@@ -431,6 +431,17 @@ The header form is the supported one. The query-string variant works and is
 degraded: the secret lands verbatim in the webserver's access log. Without
 `cron.secret` the route is not mounted at all.
 
+### IONOS specifically
+
+IONOS is this project's reference host ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md)), and its **Cronjobs** tool (IONOS account → Hosting → Cronjobs) is a webcron: the form takes a URL in an "HTTP GET" field and fetches it on schedule, with no field for a shell command or a PHP path. On a standard IONOS webhosting contract the CLI entrypoint above has nowhere to go — use the URL trigger instead. (This is specific to that panel tool; an IONOS VPS/Cloud Server with SSH access has a real crontab, where the CLI entrypoint applies as documented above.)
+
+Two more points where the wizard doesn't line up with the rest of this section, both already accounted for on our side:
+
+- **Interval.** The wizard's top-level choice is monthly/weekly/daily — there is no hourly or every-N-minutes option. Declare **daily** under Settings → Mail. Never weekly: the wizard offers it, this application refuses it (see above), and it would erode the 7-day announcement distance.
+- **Execution time limit.** IONOS aborts a cron call after 60 seconds. `DrainService`'s default run budget is 50 seconds for exactly this reason — a killed run just leaves its remaining rows for the next tick — so there is nothing to configure.
+
+The URL field is a bare URL with no documented way to attach a custom header, so the `X-Cron-Secret` header form above is likely unreachable from the wizard. Use the degraded query-string form instead — `https://your-domain.com/api/cron/drain?secret=<secret>` — and expect the access-log exposure noted above. Confirm against your own contract's form before relying on this: verify whether a header option exists, and rotate `cron.secret` if you conclude it does not.
+
 ### The heartbeat check
 
 Configure `cron.heartbeat_url` in `config.php` with a push monitor's check URL —
