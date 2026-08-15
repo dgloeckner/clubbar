@@ -47,3 +47,15 @@ _Avoid_: refund (that is what the bank does to a member under the SEPA return ri
 **Settlement**:
 A periodic run that collects members' unsettled transactions into a SEPA direct-debit batch (or manual settlement).
 _Avoid_: billing run, invoice
+
+### Notifications
+
+**Vorabankündigung**:
+The announcement that a settlement will collect a named amount from a member on a named date, sent at least seven days ahead (Nutzungsordnung § 7 Abs. 3). It belongs to one settlement, states the amount that settlement will actually take, and carries the mandate reference and creditor identifier. A collection without it is one the club promised not to make.
+_Avoid_: pre-notification in member-facing text (the German term is the one the Nutzungsordnung uses), reminder
+
+**Deckelauszug**:
+A periodic statement of a member's Deckel, sent to every member on a fixed calendar boundary regardless of what they owe. It states the Deckel **as it stood at that boundary** — not as it stands when the mail is written — and itemises the unsettled transactions behind it, netted.
+
+It announces nothing and collects nothing. That is what separates it from the Vorabankündigung: the Vorabankündigung is a step in taking money and names a date on which money moves; a Deckelauszug is information about a tab that is simply open, and the same drink appears on every Deckelauszug until a settlement finally claims it. A member who owes nothing still gets one.
+_Avoid_: Kontoauszug (that is a bank's document about a bank account), Mahnung and reminder (it never asks to be paid), balance statement (see Deckel)

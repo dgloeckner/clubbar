@@ -53,16 +53,17 @@ Each ADR follows this structure:
 | [0026](./0026-mandatory-totp-two-factor-authentication.md) | Mandatory TOTP Two-Factor Authentication for Admin Panel | Accepted | 2026-03-22 |
 | [0027](./0027-terminal-session-lifecycle.md) | Terminal Session Lifecycle and Cart Ownership | Accepted | 2026-08-05 |
 | [0028](./0028-legal-constraints-on-money-handling.md) | Legal and Regulatory Constraints on Money Handling | Accepted | 2026-08-07 |
-| [0029](./0029-two-tier-retention-and-erasure.md) | Two-Tier Retention and Erasure | Accepted (amended by 0037: mandate document dropped from the retention tier; by 0038: `mail_outbox.recipient` joins the operational tier) | 2026-08-07 |
+| [0029](./0029-two-tier-retention-and-erasure.md) | Two-Tier Retention and Erasure | Accepted (amended by 0037: mandate document dropped from the retention tier; by 0038: `mail_outbox.recipient` joins the operational tier; by 0039: outbox retention varies by message kind) | 2026-08-07 |
 | [0030](./0030-settlement-selection-is-a-member-picker.md) | Settlement Selection Is a Member Picker | Accepted | 2026-08-08 |
-| [0031](./0031-production-hardening-on-shared-hosting.md) | Production Hardening on Shared Hosting | Accepted (amended by 0038: mail/scheduler layers, first hard host dependency) | 2026-08-09 |
+| [0031](./0031-production-hardening-on-shared-hosting.md) | Production Hardening on Shared Hosting | Accepted (amended by 0038: mail/scheduler layers, first hard host dependency; by 0039: the scheduler's interval is a declared, verified host fact and weekly-only hosts are refused) | 2026-08-09 |
 | [0032](./0032-settlement-lifecycle.md) | Settlement Lifecycle | Accepted (amended by 0038: announcement enqueue is part of the create transaction) | 2026-08-09 |
 | [0033](./0033-terminal-sync-contract.md) | Terminal Sync Contract | Accepted | 2026-08-09 |
 | [0034](./0034-instance-branding-configuration.md) | Instance Branding Configuration | Accepted | 2026-08-11 |
 | [0035](./0035-terminal-backend-instance-pairing.md) | Terminal-Backend Instance Pairing | Accepted | 2026-08-12 |
 | [0036](./0036-iban-encryption-sealed-box.md) | IBAN Encryption at Rest with libsodium Sealed Boxes | Accepted | 2026-08-13 |
 | [0037](./0037-mandate-documents-not-retained.md) | Mandate Documents Are Not Retained in the System | Accepted | 2026-08-13 |
-| [0038](./0038-transactional-mail-outbox-on-shared-hosting.md) | Transactional Mail Outbox on Shared Hosting | Accepted | 2026-08-14 |
+| [0038](./0038-transactional-mail-outbox-on-shared-hosting.md) | Transactional Mail Outbox on Shared Hosting | Accepted (amended by 0039: time-triggered enqueue, rule 5's justification, the stall threshold, per-kind retention) | 2026-08-14 |
+| [0039](./0039-periodic-deckel-statement.md) | The Periodic Deckelauszug | Accepted | 2026-08-15 |
 
 ## Creating a New ADR
 

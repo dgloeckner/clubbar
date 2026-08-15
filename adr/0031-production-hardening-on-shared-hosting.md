@@ -1,6 +1,6 @@
 # ADR-0031: Production Hardening on Shared Hosting
 
-**Status**: Accepted (amended by [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md): mail delivery adds the first accepted *hard* dependency on a host feature — see "Mail and the scheduler")
+**Status**: Accepted (amended by [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md): mail delivery adds the first accepted *hard* dependency on a host feature — see "Mail and the scheduler"; by [ADR-0039](./0039-periodic-deckel-statement.md): the scheduler's *interval* joins its existence as a declared and verified host fact, and a weekly-only host is refused)
 **Date**: 2026-08-09
 
 ## Context

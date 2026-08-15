@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { theme, formatDateTime } from '../../styles/design-system'
 import { Alert } from '../common/Alert'
 import { Badge } from '../common/Badge'
+import { TerminalLifecycleBadge } from './TerminalLifecycleBadge'
 import { StepUpConfirmDialog, type StepUpCredentials } from '../modals/StepUpConfirmDialog'
 import { TokenDisplayModal } from '../modals/TokenDisplayModal'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
@@ -38,14 +39,6 @@ const LIFECYCLE_COLOR: Record<string, string> = {
   warning: theme.colors.semantic.warning,
   critical: theme.colors.semantic.danger,
   expired: theme.colors.semantic.danger,
-}
-
-const LIFECYCLE_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
-  ok: 'success',
-  info: 'info',
-  warning: 'warning',
-  critical: 'danger',
-  expired: 'danger',
 }
 
 /**
@@ -224,21 +217,7 @@ function TerminalCard({ terminal, onRotate }: { terminal: Terminal; onRotate: ()
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md, flexWrap: 'wrap' }}>
           <strong style={{ fontSize: theme.typography.fontSize.base }}>{terminal.name}</strong>
-          {hasToken ? (
-            <Badge
-              label={t(`settings.credentials.terminals.state.${lifecycle}`)}
-              variant={LIFECYCLE_VARIANT[lifecycle] ?? 'neutral'}
-              showDot={false}
-              testId={`credentials-terminal-state-${terminal.id}`}
-            />
-          ) : (
-            <Badge
-              label={t('settings.tokenNone')}
-              variant="neutral"
-              showDot={false}
-              testId={`credentials-terminal-state-${terminal.id}`}
-            />
-          )}
+          <TerminalLifecycleBadge lifecycle={lifecycle} testId={`credentials-terminal-state-${terminal.id}`} />
           {pending && (
             <Badge
               label={t('settings.credentials.terminals.pending')}
