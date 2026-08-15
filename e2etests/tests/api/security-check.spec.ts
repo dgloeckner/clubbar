@@ -31,7 +31,10 @@ type Finding = {
   remedy: string | null
 }
 
-const CATEGORIES = ['runtime', 'session', 'data', 'exposure', 'transport']
+// `delivery` is appended by SecurityCheckService rather than produced by the
+// engine (#406): those rows need the database, and the engine is dependency-free
+// because install.php loads it before Composer's autoloader exists.
+const CATEGORIES = ['runtime', 'session', 'data', 'exposure', 'transport', 'delivery']
 
 test.describe('Security self-check API', () => {
   test('requires an authenticated admin session', async ({ request }) => {
@@ -107,6 +110,33 @@ test.describe('Security self-check API', () => {
       expect(finding.observed.toLowerCase()).not.toContain('could not be measured')
       expect(finding.observed.toLowerCase()).not.toContain('not measurable')
     }
+  })
+
+  test('carries the delivery rows an alarm sends somebody to', async ({ authenticatedRequest }) => {
+    const findings: Finding[] = (await (
+      await authenticatedRequest.get(`${API_BASE}/admin/security-check`)
+    ).json()).findings
+
+    const byId = new Map(findings.map((finding) => [finding.id, finding]))
+
+    // The heartbeat (#406) says *something* is wrong and, being external, cannot
+    // say what. These five rows are the answer — an alarm with no diagnosis page
+    // just produces a phone call.
+    for (const id of [
+      'mail_transport',
+      'mail_scheduler_run',
+      'mail_scheduler_interval',
+      'mail_queue_backlog',
+      'mail_queue_failed',
+    ]) {
+      const row = byId.get(id)
+      expect(row, `${id} is part of the report`).toBeTruthy()
+      expect(row?.category).toBe('delivery')
+      expect(row?.observed.length, `${id} reports what was observed`).toBeGreaterThan(0)
+    }
+
+    // The seed stamps a run, so this environment has an observed scheduler.
+    expect(byId.get('mail_scheduler_run')?.observed).toContain('last run')
   })
 
   test('exposes no failing row on the environment the suite runs against', async ({

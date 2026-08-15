@@ -385,6 +385,115 @@ from Settings → Security & Credentials, behind a fresh TOTP step-up:
 
 ---
 
+## Outgoing Mail and the Scheduler
+
+Every SEPA collection has to be announced by email at least seven days before
+the due date (Nutzungsordnung § 7 Abs. 3). The application queues those
+announcements inside the settlement's own transaction and **sends nothing
+itself** — a scheduled drain is the only sending path (ADR-0038). Two
+consequences follow, and both are operational rather than technical:
+
+- **No scheduler, no mail.** Direct-debit settlements are refused until a run
+  has been observed, with a banner in the admin panel until then.
+- **A scheduler that dies later is silent.** Nothing in the application errors;
+  announcements simply accumulate. That is what the heartbeat below is for.
+
+### Scheduling the drain
+
+The CLI entrypoint is preferred: no gateway timeout, and no secret in a URL.
+
+```
+php /path/to/htdocs/backend/bin/cron.php
+```
+
+The admin panel prints this line with the absolute path for *this* installation
+(Settings → the scheduler banner, and the installer's prerequisite step). Paste
+it into the hosting panel's cron form.
+
+**Interval.** Every 15 minutes is the recommendation; the practical minimum is
+tariff-dependent and hourly is common. Declare what the host actually offers
+under Settings → Mail (`cron_interval`) — the retry ladder and the stall
+thresholds are measured in ticks of it, and the self-check reports when the
+declaration and the observed gap between runs disagree.
+
+**Weekly is refused.** An announcement queued shortly after a weekly tick can
+leave six days later and land on the collection date itself, taking the § 7
+Abs. 3 distance to nothing. A host that can only schedule weekly needs an
+external scheduler driving the URL trigger instead (ADR-0039 decision 5).
+
+**No CLI cron?** Set `cron.secret` in `config.php` and schedule a fetch:
+
+```bash
+curl -sS -H 'X-Cron-Secret: <secret>' https://your-domain.com/api/cron/drain
+```
+
+The header form is the supported one. The query-string variant works and is
+degraded: the secret lands verbatim in the webserver's access log. Without
+`cron.secret` the route is not mounted at all.
+
+### The heartbeat check
+
+Configure `cron.heartbeat_url` in `config.php` with a push monitor's check URL —
+healthchecks.io is the reference; Uptime Kuma, Cronitor and Better Stack take
+the same shape and self-hosting one is fine. The alarm must live outside this
+installation: a report that "SMTP is dead", delivered over the dead SMTP, never
+arrives.
+
+| Event | What is pinged |
+|---|---|
+| A run starts | `<url>/start` — a start with no finish is a hung run |
+| A run finishes with a usable transport | `<url>`, with `pending`/`failed`/`sent` counts in the body |
+| No usable transport, or the run died | `<url>/fail` |
+| A message has been **due** for three ticks and nothing took it | `<url>/fail` |
+
+A single rejected address is deliberately **not** an alarm — it is a `failed`
+row the Kassenwart can see and act on. An alarm that fires on every typo'd
+address is one that gets switched off within weeks, and then the real outage is
+silent too.
+
+**Recommended check settings: period 1 day, grace 1–2 hours.** The announcement
+is queued at finalize and the collection is at least seven days out, so a
+one-day alarm still leaves six days to react — while a tighter period would fire
+on every single missed tick.
+
+The ping body carries counts only. No address and no name ever leaves the host
+through the monitor.
+
+### Diagnosing it
+
+The security self-check (admin panel) carries a **delivery** section with five
+measured rows: the transport and sender, the last observed run, declared versus
+observed interval, anything overdue in the queue, and how many messages have
+been given up on. That is the page to open when the heartbeat fires — an alarm
+with no diagnosis just produces a phone call.
+
+Running the drain by hand from a shell is the fastest way to see a transport
+error directly:
+
+```bash
+php backend/bin/cron.php          # add --quiet for the cron entry itself
+```
+
+### Deliverability
+
+- **SPF**: publish a record for the sending domain that authorises the host's
+  outbound mail servers. Most panels offer this as a checkbox; without it, a
+  large share of announcements land in spam.
+- **DKIM**: enable signing in the hosting panel for the sending domain.
+- **The envelope sender must be a mailbox on a domain hosted there.** Sending
+  `From:` an address the host does not own is the single most common reason a
+  shared host silently drops outbound mail.
+- **Reply-to is the Kassenwart** (Settings → Mail). A pre-notification invites
+  a reply — Beanstandungen within six weeks — so it has to reach a person.
+- **Bounces land in that mailbox and are not parsed.** Nothing in the
+  application reads them; somebody has to.
+- **Send limits are per-tariff.** A settlement for a club of a few hundred
+  members is a few hundred messages in one tick. If the relay throttles,
+  lower `drain_batch_size` under Settings → Mail — the rest simply goes out on
+  the following ticks.
+
+---
+
 ## Monitoring
 
 ### Health Endpoint

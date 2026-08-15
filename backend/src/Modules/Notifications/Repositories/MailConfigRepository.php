@@ -24,6 +24,12 @@ class MailConfigRepository
         'footer_address_line',
         'website_url',
         'logo_url',
+        // Operational dials rather than branding, but they belong here for the
+        // same reason the rest does: no secret in either, and a club on a
+        // stricter relay should not have to edit a file to lower a batch size
+        // (ADR-0039 decision 5).
+        'cron_interval',
+        'drain_batch_size',
     ];
 
     public function __construct(

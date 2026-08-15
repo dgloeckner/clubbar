@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\Services;
 
+use App\Modules\Notifications\DTOs\MailConfigDto;
+use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
+use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Shared\Config\AppConfig;
 use App\Shared\Exceptions\SchedulerNotVerifiedException;
@@ -18,8 +21,11 @@ class SchedulerStatusServiceTest extends TestCase
 {
     private ?string $originalCronSecret = null;
 
-    private function service(?array $row, ?string $cronSecret = null): SchedulerStatusService
-    {
+    private function service(
+        ?array $row,
+        ?string $cronSecret = null,
+        CronInterval $declared = CronInterval::HOURLY,
+    ): SchedulerStatusService {
         $heartbeat = $this->createMock(CronHeartbeatRepository::class);
         $heartbeat->method('get')->willReturn($row);
         $heartbeat->method('hasEverRun')->willReturn($row !== null && ($row['last_run_at'] ?? null) !== null);
@@ -32,7 +38,26 @@ class SchedulerStatusServiceTest extends TestCase
         // what this test observes.
         $_ENV['CRON_SECRET'] = $cronSecret ?? '';
 
-        return new SchedulerStatusService($heartbeat, new AppConfig());
+        $mailConfig = $this->createMock(MailConfigService::class);
+        $mailConfig->method('getConfig')->willReturn(self::config($declared));
+
+        return new SchedulerStatusService($heartbeat, new AppConfig(), $mailConfig);
+    }
+
+    /** The declared interval is the only field these tests care about. */
+    private static function config(CronInterval $interval): MailConfigDto
+    {
+        return new MailConfigDto(
+            senderName: 'Club',
+            senderAddress: 'bar@example.org',
+            replyToAddress: null,
+            headerStyle: 'paper',
+            footerOrgName: 'Club',
+            footerAddressLine: null,
+            websiteUrl: null,
+            logoUrl: null,
+            cronInterval: $interval,
+        );
     }
 
     protected function setUp(): void
@@ -170,6 +195,78 @@ class SchedulerStatusServiceTest extends TestCase
         );
     }
 
+    /* ────────────── The declared interval, and what is observed ────────────── */
+
+    /**
+     * Both halves are needed (ADR-0039 decision 5). The declaration is what the
+     * first run has to schedule retries from, before anything has been
+     * measured; the observation is the only thing that catches a crontab that
+     * says hourly and fires daily.
+     */
+    public function test_two_runs_an_hour_apart_agree_with_an_hourly_declaration(): void
+    {
+        $status = $this->service([
+            'previous_run_at' => '2026-08-15 10:00:00',
+            'last_run_at' => '2026-08-15 11:00:00',
+        ])->status();
+
+        $this->assertSame('hourly', $status->declaredInterval);
+        $this->assertSame('hourly', $status->observedInterval);
+        $this->assertFalse($status->intervalDisagrees);
+    }
+
+    public function test_declared_hourly_while_runs_arrive_daily_is_surfaced_not_a_green_light(): void
+    {
+        $status = $this->service([
+            'previous_run_at' => '2026-08-14 11:00:00',
+            'last_run_at' => '2026-08-15 11:00:00',
+        ])->status();
+
+        $this->assertSame('hourly', $status->declaredInterval);
+        $this->assertSame('daily', $status->observedInterval);
+        $this->assertTrue($status->intervalDisagrees);
+    }
+
+    /**
+     * Reported, never acted on: a declaration that turns out to be wrong is a
+     * fact about the host somebody has to go and fix in a hosting panel, and
+     * silently re-deriving it would hide exactly that.
+     */
+    public function test_the_declaration_is_not_overridden_by_what_is_observed(): void
+    {
+        $status = $this->service([
+            'previous_run_at' => '2026-08-14 11:00:00',
+            'last_run_at' => '2026-08-15 11:00:00',
+        ])->status();
+
+        $this->assertSame('hourly', $status->declaredInterval, 'the declaration stands until an admin changes it');
+    }
+
+    public function test_a_first_run_has_nothing_to_compare_against(): void
+    {
+        $status = $this->service(['previous_run_at' => null, 'last_run_at' => '2026-08-15 11:00:00'])->status();
+
+        $this->assertNull($status->observedInterval);
+        $this->assertFalse($status->intervalDisagrees);
+    }
+
+    /**
+     * A daily installation whose cron fires hourly is not a problem: every
+     * threshold downstream becomes conservative, so the alarm is late rather
+     * than wrong.
+     */
+    public function test_a_scheduler_faster_than_declared_is_not_a_disagreement(): void
+    {
+        $status = $this->service(
+            ['previous_run_at' => '2026-08-15 10:00:00', 'last_run_at' => '2026-08-15 11:00:00'],
+            declared: CronInterval::DAILY,
+        )->status();
+
+        $this->assertSame('daily', $status->declaredInterval);
+        $this->assertSame('hourly', $status->observedInterval);
+        $this->assertFalse($status->intervalDisagrees);
+    }
+
     public function test_the_status_serialises_the_setup_instructions_for_the_banner(): void
     {
         $payload = $this->service(['last_run_at' => null], 'a-secret')->status()->toArray();
@@ -178,6 +275,9 @@ class SchedulerStatusServiceTest extends TestCase
         $this->assertNull($payload['last_run_at']);
         $this->assertStringEndsWith('/backend/bin/cron.php', $payload['setup']['cli_command']);
         $this->assertStringEndsWith('/api/cron/drain', $payload['setup']['drain_url']);
+        $this->assertSame('hourly', $payload['declared_interval']);
+        $this->assertNull($payload['observed_interval']);
+        $this->assertFalse($payload['interval_disagrees']);
         $this->assertSame(
             SchedulerStatusService::RECOMMENDED_INTERVAL_MINUTES,
             $payload['setup']['recommended_interval_minutes'],

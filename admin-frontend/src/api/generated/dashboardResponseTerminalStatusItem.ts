@@ -65,8 +65,8 @@ export type DashboardResponseTerminalStatusItem = {
   is_active: boolean;
   /** @nullable */
   last_sync_at?: string | null;
-  /** - online: synced within 24 hours
-- offline: no sync or synced > 24 hours ago
+  /** - online: synced within 5 minutes
+- offline: no sync or synced > 5 minutes ago
 - disabled: terminal is inactive
  */
   status: DashboardResponseTerminalStatusItemStatus;

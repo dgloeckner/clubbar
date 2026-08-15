@@ -77,5 +77,10 @@ final class ConfigFile
 
         // Absent leaves the URL drain trigger unmounted — see CronController.
         $_ENV['CRON_SECRET'] = $config['cron']['secret'] ?? '';
+
+        // Absent switches the external alarm off (#406). It is a capability
+        // URL — the UUID in it *is* the credential — which is why it is a
+        // config key and not an admin-panel field.
+        $_ENV['CRON_HEARTBEAT_URL'] = $config['cron']['heartbeat_url'] ?? '';
     }
 }

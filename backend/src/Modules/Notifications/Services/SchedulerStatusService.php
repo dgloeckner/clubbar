@@ -57,6 +57,7 @@ class SchedulerStatusService
     public function __construct(
         private CronHeartbeatRepository $cronHeartbeatRepository,
         private AppConfig $config,
+        private MailConfigService $mailConfigService,
     ) {}
 
     /** Has a drain run ever been observed on this installation? */
@@ -97,6 +98,17 @@ class SchedulerStatusService
         $row = $this->cronHeartbeatRepository->get();
         $lastRunAt = $row['last_run_at'] ?? null;
 
+        // Declared by the admin, observed from the gap between the last two
+        // runs. Both halves are needed: the first run has to schedule a
+        // sensible retry before anything has been measured, and only
+        // observation catches a crontab that says hourly and fires daily
+        // (ADR-0039 decision 5).
+        $declared = $this->mailConfigService->getConfig()->cronInterval;
+        $observed = QueueHealth::observedInterval(
+            self::toDateTime($row['previous_run_at'] ?? null),
+            self::toDateTime($lastRunAt),
+        );
+
         return new SchedulerStatusDto(
             verified: $lastRunAt !== null,
             lastRunAt: $lastRunAt === null ? null : (string) $lastRunAt,
@@ -108,7 +120,27 @@ class SchedulerStatusService
             cliCommand: $this->cliCommand(),
             drainUrl: $this->drainUrl(),
             recommendedIntervalMinutes: self::RECOMMENDED_INTERVAL_MINUTES,
+            declaredInterval: $declared->value,
+            observedInterval: $observed?->value,
+            intervalDisagrees: QueueHealth::intervalDisagrees($declared, $observed),
         );
+    }
+
+    /** A DATETIME as the database hands it back, or null. */
+    private static function toDateTime(mixed $value): ?\DateTimeImmutable
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        try {
+            return new \DateTimeImmutable((string) $value);
+        } catch (\Exception) {
+            // A column that cannot be parsed is the same as one that is not
+            // there: nothing to compare, and nothing worth failing a status
+            // endpoint over.
+            return null;
+        }
     }
 
     /**

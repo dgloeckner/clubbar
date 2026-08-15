@@ -222,21 +222,39 @@ class MailOutboxRepository
     }
 
     /**
-     * Record a failure and decide whether there is another go.
+     * How many attempts this message has already had.
      *
-     * A transient failure below the cap goes back to `pending` with a backoff —
-     * greylisting is the case this exists for, and it is ordinary operation
-     * rather than an error. Anything else, or a transient one that has used up
-     * its attempts, becomes `failed` with the reason the Kassenwart reads.
+     * Read by the service so the *policy* — how many goes there are and how
+     * long each waits — lives with the rest of the policy
+     * ({@see \App\Modules\Notifications\Services\RetrySchedule}) rather than in
+     * the write below. The ladder is now a function of the attempt number, so
+     * whoever picks the backoff has to know the count first.
+     */
+    public function attemptsFor(string $id): int
+    {
+        $stmt = $this->db->prepare('SELECT attempts FROM mail_outbox WHERE id = ?');
+        $stmt->execute([$id]);
+        $value = $stmt->fetchColumn();
+
+        return $value === false || $value === null ? 0 : (int) $value;
+    }
+
+    /**
+     * Record a failure with the decision already made.
+     *
+     * A transient failure with a go left goes back to `pending` with its
+     * backoff — greylisting is the case this exists for, and it is ordinary
+     * operation rather than an error. Anything else becomes `failed` with the
+     * reason the Kassenwart reads.
+     *
+     * @param int  $attempts       The count including the failure being recorded
+     * @param bool $retry          Whether another attempt is scheduled
+     * @param int  $backoffSeconds How long until it, ignored when not retrying
      *
      * @return MailStatus The status the row now carries.
      */
-    public function markFailed(string $id, string $error, bool $transient, int $maxAttempts, int $backoffSeconds): MailStatus
+    public function markFailed(string $id, string $error, int $attempts, bool $retry, int $backoffSeconds): MailStatus
     {
-        $current = $this->findById($id);
-        $attempts = (int) ($current['attempts'] ?? 0) + 1;
-
-        $retry = $transient && $attempts < $maxAttempts;
         $status = $retry ? MailStatus::PENDING : MailStatus::FAILED;
 
         $stmt = $this->db->prepare(
@@ -280,8 +298,11 @@ class MailOutboxRepository
     }
 
     /**
-     * The oldest message still waiting — the stall signal #406 alarms on. Null
-     * when the queue is empty, which is the healthy answer.
+     * The oldest message still waiting.
+     *
+     * Kept for the diagnosis surface, where "how long has anything been in this
+     * queue?" is a question a human asks. It is deliberately **not** what the
+     * alarm keys on — see {@see oldestDueAt()}.
      */
     public function oldestPendingQueuedAt(): ?string
     {
@@ -292,5 +313,50 @@ class MailOutboxRepository
         $value = $stmt->fetchColumn();
 
         return $value === false || $value === null ? null : (string) $value;
+    }
+
+    /**
+     * The earliest moment at which anything in the queue became due — the stall
+     * signal (ADR-0039 decision 5).
+     *
+     * `next_attempt_at`, not `queued_at`, and that is the entire correction:
+     * a message waiting out its backoff has a due time in the *future* and
+     * cannot be overdue however old it is, while ADR-0038's age-based predicate
+     * fired on exactly that row every time. Null when nothing is pending, which
+     * is the healthy answer and the usual one.
+     */
+    public function oldestDueAt(): ?string
+    {
+        $stmt = $this->db->prepare(
+            'SELECT MIN(next_attempt_at) FROM mail_outbox WHERE status = ?'
+        );
+        $stmt->execute([MailStatus::PENDING->value]);
+        $value = $stmt->fetchColumn();
+
+        return $value === false || $value === null ? null : (string) $value;
+    }
+
+    /**
+     * How many messages sit in each status — the self-check's counts, and the
+     * body of the heartbeat ping.
+     *
+     * Every status is present in the result even at zero, so a caller never has
+     * to tell "no failures" apart from "the key is missing".
+     *
+     * @return array<string,int>
+     */
+    public function countsByStatus(): array
+    {
+        $counts = [];
+        foreach (MailStatus::cases() as $status) {
+            $counts[$status->value] = 0;
+        }
+
+        $stmt = $this->db->query('SELECT status, COUNT(*) AS total FROM mail_outbox GROUP BY status');
+        foreach ($stmt->fetchAll() as $row) {
+            $counts[(string) $row['status']] = (int) $row['total'];
+        }
+
+        return $counts;
     }
 }

@@ -12,7 +12,10 @@ use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
+use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Services\DrainService;
+use App\Modules\Notifications\Services\HeartbeatPinger;
+use App\Modules\Notifications\Services\RetrySchedule;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
@@ -20,6 +23,7 @@ use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\Config\PhpRuntime;
+use App\Shared\Http\OutboundHttpClient;
 use App\Shared\Logging\Logger;
 use App\Shared\Mail\MailDsn;
 use App\Shared\Mail\MailLayout;
@@ -156,8 +160,9 @@ class DrainServiceTest extends DatabaseTestCase
      * and stops.
      *
      * Greylisting is why this exists — the receiving MTA rejects the first
-     * attempt on purpose. Three attempts, then the reason is put in front of
-     * the Kassenwart and nothing chases it further (ADR-0038 rule 6).
+     * attempt on purpose. Four attempts on a ladder measured in scheduler ticks
+     * (ADR-0039 decision 5), then the reason is put in front of the Kassenwart
+     * and nothing chases it further (ADR-0038 rule 6).
      */
     public function test_a_transient_failure_retries_until_the_cap_then_fails(): void
     {
@@ -176,24 +181,30 @@ class DrainServiceTest extends DatabaseTestCase
         // The backoff is real: the same run started again finds nothing due.
         $this->assertSame(0, $service->run(DrainSource::CLI)->claimed, 'the backoff must hold the message back');
 
-        // Attempt 2
-        $this->fastForward($settlementId);
-        $this->assertSame(1, $service->run(DrainSource::CLI)->retrying);
-        $this->assertSame(2, (int) $this->rowFor($settlementId, $memberIds[0])['attempts']);
+        // Attempts 2 and 3, each after its rung of the ladder has elapsed.
+        for ($attempt = 2; $attempt < RetrySchedule::MAX_ATTEMPTS; $attempt++) {
+            $this->fastForward($settlementId);
+            $this->assertSame(1, $service->run(DrainSource::CLI)->retrying);
+            $this->assertSame($attempt, (int) $this->rowFor($settlementId, $memberIds[0])['attempts']);
+        }
 
-        // Attempt 3 — the cap
+        // The last attempt — no rung after it.
         $this->fastForward($settlementId);
         $this->assertSame(1, $service->run(DrainSource::CLI)->failed);
 
         $row = $this->rowFor($settlementId, $memberIds[0]);
         $this->assertSame(MailStatus::FAILED->value, $row['status']);
-        $this->assertSame(NotificationsService::MAX_ATTEMPTS, (int) $row['attempts']);
+        $this->assertSame(RetrySchedule::MAX_ATTEMPTS, (int) $row['attempts']);
 
         // And it stops: a failed message is not claimed again, however many
         // ticks go by.
         $this->fastForward($settlementId);
         $this->assertSame(0, $service->run(DrainSource::CLI)->claimed);
-        $this->assertSame(3, $transport->sends, 'exactly MAX_ATTEMPTS attempts were made');
+        $this->assertSame(
+            RetrySchedule::MAX_ATTEMPTS,
+            $transport->sends,
+            'exactly MAX_ATTEMPTS attempts were made'
+        );
     }
 
     public function test_a_permanent_refusal_does_not_get_a_second_attempt(): void
@@ -306,6 +317,7 @@ class DrainServiceTest extends DatabaseTestCase
             footerAddressLine: null,
             websiteUrl: null,
             logoUrl: null,
+            cronInterval: CronInterval::HOURLY,
         ));
 
         return new DrainService(
@@ -314,6 +326,7 @@ class DrainServiceTest extends DatabaseTestCase
             $transportFactory,
             $mailConfig,
             $this->heartbeat,
+            new HeartbeatPinger($this->createMock(OutboundHttpClient::class), $this->createMock(Logger::class), null),
             $this->createMock(Logger::class),
             $batchSize,
         );

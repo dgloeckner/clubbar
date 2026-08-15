@@ -76,7 +76,7 @@ export type DashboardResponseMetrics = {
   mtd_revenue_cents?: number;
   /** Total number of terminals (active and inactive) */
   terminal_count?: number;
-  /** Count of active terminals */
+  /** Count of terminals currently online (enabled and synced within the last 5 minutes) — matches the `online` count in `terminal_status`, not merely enabled terminals */
   active_terminals?: number;
   /** Number of unique members with settled transactions */
   settled_members?: number;

@@ -40,6 +40,16 @@ final class SecuritySelfCheck
     public const CATEGORY_DATA      = 'data';
     public const CATEGORY_EXPOSURE  = 'exposure';
     public const CATEGORY_TRANSPORT = 'transport';
+    /**
+     * Whether announcements can actually leave the host (#406).
+     *
+     * The rows themselves are not produced here — they need the database, and
+     * this class is dependency-free by contract. They come from
+     * {@see \App\Modules\Notifications\Services\MailDeliveryCheck} and are
+     * appended by {@see \App\Shared\Services\SecurityCheckService}. The name
+     * lives here so there is one list of categories rather than two.
+     */
+    public const CATEGORY_DELIVERY  = 'delivery';
 
     /**
      * The `PHP_INI_ALL` directives this deployment depends on, and the state
