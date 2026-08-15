@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\Settlements\Services;
 
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
+use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Shared\Config\AppConfig;
@@ -32,7 +33,11 @@ class ExecutionDateInfoTest extends TestCase
             $this->createMock(\PDO::class),
             $this->createMock(SettlementReversalsRepository::class),
             $this->createMock(NotificationsService::class),
-            new SchedulerStatusService($this->createMock(CronHeartbeatRepository::class), new AppConfig()),
+            new SchedulerStatusService(
+                $this->createMock(CronHeartbeatRepository::class),
+                new AppConfig(),
+                $this->createMock(MailConfigService::class),
+            ),
         );
     }
 

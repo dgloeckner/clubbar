@@ -59,8 +59,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 
 /**
- * - online: synced within 24 hours
-- offline: no sync or synced > 24 hours ago
+ * - online: synced within 5 minutes
+- offline: no sync or synced > 5 minutes ago
 - disabled: terminal is inactive
 
  */

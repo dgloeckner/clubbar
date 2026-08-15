@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\Settlements\Services;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\EnqueueResultDto;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
+use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Settlements\DTOs\SettlementDto;
@@ -36,6 +37,7 @@ class SettlementsServiceTest extends TestCase
     private SettlementReversalsRepository $reversalsRepository;
     private NotificationsService $notificationsService;
     private CronHeartbeatRepository $cronHeartbeatRepository;
+    private MailConfigService $mailConfigService;
     private \PDO $db;
     private SettlementsService $service;
 
@@ -65,6 +67,10 @@ class SettlementsServiceTest extends TestCase
         $this->cronHeartbeatRepository = $this->createMock(CronHeartbeatRepository::class);
         $this->cronHeartbeatRepository->method('hasEverRun')->willReturn(true);
 
+        // Only reached by status(); the gate this test cares about asks
+        // hasEverRun() and nothing else.
+        $this->mailConfigService = $this->createMock(MailConfigService::class);
+
         $this->service = new SettlementsService(
             $this->settlementsRepository,
             $this->membersRepository,
@@ -73,7 +79,7 @@ class SettlementsServiceTest extends TestCase
             $this->db,
             $this->reversalsRepository,
             $this->notificationsService,
-            new SchedulerStatusService($this->cronHeartbeatRepository, new AppConfig()),
+            new SchedulerStatusService($this->cronHeartbeatRepository, new AppConfig(), $this->mailConfigService),
         );
     }
 
@@ -88,7 +94,7 @@ class SettlementsServiceTest extends TestCase
             $this->db,
             $this->reversalsRepository,
             $notifications,
-            new SchedulerStatusService($this->cronHeartbeatRepository, new AppConfig()),
+            new SchedulerStatusService($this->cronHeartbeatRepository, new AppConfig(), $this->mailConfigService),
         );
     }
 
@@ -106,7 +112,7 @@ class SettlementsServiceTest extends TestCase
             $this->db,
             $this->reversalsRepository,
             $this->notificationsService,
-            new SchedulerStatusService($heartbeat, new AppConfig()),
+            new SchedulerStatusService($heartbeat, new AppConfig(), $this->mailConfigService),
         );
     }
 

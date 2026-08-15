@@ -49,11 +49,35 @@ final readonly class SchedulerStatusDto
         public ?string $drainUrl,
         /** Minutes between ticks the setup instructions recommend. */
         public int $recommendedIntervalMinutes,
+        /**
+         * What this installation says its scheduler does (ADR-0039 decision 5).
+         * Every retry and alarm threshold is measured in ticks of it.
+         */
+        public string $declaredInterval = 'hourly',
+        /**
+         * What the gap between the last two observed runs looks like, or null
+         * while there has been only one run — or a gap too short to conclude
+         * anything from.
+         */
+        public ?string $observedInterval = null,
+        /**
+         * The declaration is slower than reality allows.
+         *
+         * Reported rather than acted on: the self-check shows the
+         * disagreement, and nothing silently overrides what the admin
+         * declared. A declaration that turns out to be wrong is a fact about
+         * the host that somebody has to go and fix in a hosting panel, and
+         * quietly re-deriving it would hide exactly that.
+         */
+        public bool $intervalDisagrees = false,
     ) {}
 
     public function toArray(): array
     {
         return [
+            'declared_interval' => $this->declaredInterval,
+            'observed_interval' => $this->observedInterval,
+            'interval_disagrees' => $this->intervalDisagrees,
             'verified' => $this->verified,
             'last_run_at' => $this->lastRunAt,
             'source' => $this->source,

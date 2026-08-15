@@ -111,5 +111,30 @@ return [
         // Leave empty and the URL route is not mounted at all: an installation
         // on a CLI cron carries no second, unauthenticated entrance.
         'secret' => '',
+
+        // Where each drain run reports in, so somebody finds out when it stops
+        // (#406). Strongly recommended: the queue is the only sending path, and
+        // a scheduler that quietly dies erodes the seven-day announcement
+        // promise without a single error anywhere in this application.
+        //
+        // Any push monitor with a check URL works — healthchecks.io,
+        // Uptime Kuma, Cronitor, Better Stack. Paste the check's ping URL:
+        //
+        //   'heartbeat_url' => 'https://hc-ping.com/<uuid>',
+        //
+        // Each run pings <url>/start when it begins and <url> when it finishes;
+        // an unusable transport or a queue that has been due for three ticks
+        // pings <url>/fail. A single rejected address does not — it is recorded
+        // on the message for the Kassenwart, and an alarm that fires on every
+        // typo'd address gets switched off within weeks.
+        //
+        // Recommended check settings: period 1 day, grace 1–2 hours. The mail
+        // is queued at finalize and the collection is at least seven days out,
+        // so a one-day alarm still leaves six days to react — while a tighter
+        // period would fire on every single missed tick.
+        //
+        // The ping body carries counts only: never an address, never a name.
+        // Leave empty and nothing is pinged.
+        'heartbeat_url' => '',
     ],
 ];

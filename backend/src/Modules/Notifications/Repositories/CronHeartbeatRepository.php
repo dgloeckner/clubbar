@@ -38,6 +38,15 @@ class CronHeartbeatRepository
      * missing heartbeat reads as "the scheduler never ran", which is the one
      * conclusion that blocks finalize.
      *
+     * `previous_run_at = last_run_at` is assigned **before** `last_run_at` is
+     * overwritten, and that order is load-bearing: MariaDB evaluates the
+     * assignment list left to right, so on the right-hand side of the first one
+     * `last_run_at` still holds the run being replaced. The gap between the two
+     * is the *observed* interval (ADR-0039 decision 5) — the only thing that
+     * can catch a crontab that says hourly and fires daily, which is the same
+     * class of declared-versus-real mismatch `php_version` is recorded to
+     * expose.
+     *
      * @param string $phpVersion        The *drain's* interpreter, which is often not the web's
      * @param string $missingExtensions Comma-separated; `''` means checked and complete
      */
@@ -52,6 +61,7 @@ class CronHeartbeatRepository
             'INSERT INTO cron_heartbeat (id, last_run_at, source, sent, failed, php_version, missing_extensions)
              VALUES (?, NOW(), ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
+                previous_run_at = last_run_at,
                 last_run_at = VALUES(last_run_at),
                 source = VALUES(source),
                 sent = VALUES(sent),

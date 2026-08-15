@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Shared\Services;
 
+use App\Modules\Notifications\Services\MailDeliveryCheck;
 use App\Shared\Config\AppConfig;
 use App\Shared\Config\DataDirectory;
 use App\Shared\DTOs\SecurityReportDto;
@@ -24,8 +25,15 @@ use App\Shared\Security\SecuritySelfCheck;
  */
 class SecurityCheckService
 {
+    /**
+     * @param MailDeliveryCheck|null $mailDeliveryCheck Appends the delivery rows
+     *        (#406). Optional because the engine has callers with no database:
+     *        `install.php` runs before there is one, and the package smoke test
+     *        checks a deployment rather than an installation.
+     */
     public function __construct(
         private readonly AppConfig $config,
+        private readonly ?MailDeliveryCheck $mailDeliveryCheck = null,
     ) {}
 
     /**
@@ -33,13 +41,38 @@ class SecurityCheckService
      */
     public function check(array $serverParams): SecurityReportDto
     {
-        $findings = SecuritySelfCheck::run($this->context($serverParams));
+        $findings = [
+            ...SecuritySelfCheck::run($this->context($serverParams)),
+            ...$this->deliveryFindings(),
+        ];
 
         return new SecurityReportDto(
             generatedAt: (new \DateTimeImmutable())->format('Y-m-d\TH:i:s\Z'),
             findings: $findings,
             summary: SecuritySelfCheck::summarize($findings),
         );
+    }
+
+    /**
+     * The mail-delivery rows, or nothing when they cannot be produced.
+     *
+     * Wrapped because this endpoint's job is to *report* on a possibly broken
+     * installation: a database that has gone away must not turn the security
+     * report into a 500, which is the one moment somebody needs to read it.
+     *
+     * @return list<\App\Shared\Security\SecurityFinding>
+     */
+    private function deliveryFindings(): array
+    {
+        if ($this->mailDeliveryCheck === null) {
+            return [];
+        }
+
+        try {
+            return $this->mailDeliveryCheck->findings();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /**

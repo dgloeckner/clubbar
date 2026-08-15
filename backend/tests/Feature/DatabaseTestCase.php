@@ -146,6 +146,28 @@ abstract class DatabaseTestCase extends TestCase
         return new \App\Modules\Notifications\Services\SchedulerStatusService(
             new \App\Modules\Notifications\Repositories\CronHeartbeatRepository($this->db),
             new \App\Shared\Config\AppConfig(),
+            $this->mailConfigService(),
+        );
+    }
+
+    /**
+     * The real mail configuration over this connection.
+     *
+     * Real rather than mocked because the scheduler status reports the declared
+     * cron interval, and that comes out of `mail_config` — a double would let a
+     * schema mistake there pass unnoticed in exactly the tests that touch the
+     * database on purpose.
+     */
+    protected function mailConfigService(): \App\Modules\Notifications\Services\MailConfigService
+    {
+        return new \App\Modules\Notifications\Services\MailConfigService(
+            new \App\Modules\Notifications\Repositories\MailConfigRepository($this->db, $this->logger),
+            new \App\Modules\Instance\Services\InstanceConfigService(
+                new \App\Modules\Instance\Repositories\InstanceConfigRepository($this->db, $this->logger),
+                $this->createMock(\App\Shared\Services\AuditService::class),
+            ),
+            new \App\Shared\Mail\MailTransportFactory(new \App\Shared\Config\AppConfig(), $this->logger),
+            $this->createMock(\App\Shared\Services\AuditService::class),
         );
     }
 

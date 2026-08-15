@@ -57,44 +57,16 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { MailConfigUpdateRequestCronInterval } from './mailConfigUpdateRequestCronInterval';
-import type { MailConfigUpdateRequestHeaderStyle } from './mailConfigUpdateRequestHeaderStyle';
 
-export interface MailConfigUpdateRequest {
-  /** @maxLength 120 */
-  sender_name?: string;
-  /** @maxLength 255 */
-  sender_address?: string;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  reply_to_address?: string | null;
-  header_style?: MailConfigUpdateRequestHeaderStyle;
-  /** @maxLength 200 */
-  footer_org_name?: string;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  footer_address_line?: string | null;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  website_url?: string | null;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  logo_url?: string | null;
-  /** `weekly` is rejected with 422 and a message naming Nutzungsordnung
+/**
+ * `weekly` is rejected with 422 and a message naming Nutzungsordnung
 § 7 Abs. 3 — see the same field on `MailConfig`.
+
  */
-  cron_interval?: MailConfigUpdateRequestCronInterval;
-  /**
-   * @minimum 1
-   * @maximum 1000
-   */
-  drain_batch_size?: number;
-}
+export type MailConfigUpdateRequestCronInterval = typeof MailConfigUpdateRequestCronInterval[keyof typeof MailConfigUpdateRequestCronInterval];
+
+
+export const MailConfigUpdateRequestCronInterval = {
+  hourly: 'hourly',
+  daily: 'daily',
+} as const;

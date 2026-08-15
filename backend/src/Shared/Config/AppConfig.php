@@ -33,6 +33,25 @@ class AppConfig
      */
     public readonly ?string $cronSecret;
     /**
+     * Where the drain reports that it ran, and how it went (#406, ADR-0038
+     * rule 6).
+     *
+     * A push-monitor check URL — healthchecks.io is the reference, Uptime Kuma,
+     * Cronitor and Better Stack take the same shape — deliberately named
+     * provider-neutrally, because clubs self-host. The UUID in the URL *is* the
+     * credential, which is why it belongs here rather than in an admin-editable
+     * table.
+     *
+     * Absent switches the alarm off, and that is the right default: a fresh
+     * install has no monitor account, and a missing URL must not make the drain
+     * noisy or slow.
+     *
+     * The whole point of an external monitor is that the alarm channel does not
+     * depend on what it monitors — a report of "SMTP is dead" delivered over
+     * the dead SMTP would never arrive.
+     */
+    public readonly ?string $cronHeartbeatUrl;
+    /**
      * The deployment's document root — the directory `backend/` sits in.
      *
      * Needed to *print* a path rather than to read one: the scheduler setup
@@ -60,6 +79,7 @@ class AppConfig
         $this->appUrl               = Env::get('APP_URL', 'http://localhost:8080');
         $this->mailDsn              = trim(Env::get('MAIL_DSN', '')) ?: null;
         $this->cronSecret           = trim(Env::get('CRON_SECRET', '')) ?: null;
+        $this->cronHeartbeatUrl     = trim(Env::get('CRON_HEARTBEAT_URL', '')) ?: null;
         $this->documentRoot         = self::resolveDocumentRoot();
 
         // Resolved last — the default depends on $this->appUrl.

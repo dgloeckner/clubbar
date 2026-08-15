@@ -38,6 +38,8 @@ test.describe.serial('Mail Settings API', () => {
         footer_address_line: original.footer_address_line,
         website_url: original.website_url,
         logo_url: original.logo_url,
+        cron_interval: original.cron_interval,
+        drain_batch_size: original.drain_batch_size,
       },
     })
   })
@@ -119,6 +121,38 @@ test.describe.serial('Mail Settings API', () => {
     expect(response.status()).toBe(422)
     const body = await response.json()
     expect(body.messages).toHaveProperty('header_style')
+  })
+
+  test('PATCH stores the declared scheduler interval and batch size', async ({
+    authenticatedRequest,
+  }) => {
+    const response = await authenticatedRequest.patch(URL, {
+      data: { cron_interval: 'daily', drain_batch_size: 40 },
+    })
+
+    expect(response.status()).toBe(200)
+    const body = await response.json()
+    expect(body.cron_interval).toBe('daily')
+    expect(body.drain_batch_size).toBe(40)
+
+    // Read back through a fresh request: the response could be echoing the
+    // payload rather than the row.
+    const reread = await (await authenticatedRequest.get(URL)).json()
+    expect(reread.cron_interval).toBe('daily')
+    expect(reread.drain_batch_size).toBe(40)
+  })
+
+  test('PATCH refuses a weekly scheduler and says why', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.patch(URL, { data: { cron_interval: 'weekly' } })
+
+    expect(response.status()).toBe(422)
+
+    // The one rejected value somebody will deliberately try, because it is what
+    // their tariff offers. A generic "must be one of" would read as an arbitrary
+    // limitation rather than as the club's own announcement promise failing
+    // (ADR-0039 decision 5).
+    const body = await response.json()
+    expect(body.messages.cron_interval).toContain('§ 7 Abs. 3')
   })
 
   test('requires an authenticated session', async ({ request }) => {

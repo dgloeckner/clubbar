@@ -52,6 +52,52 @@ class SecurityCheckServiceTest extends TestCase
         );
     }
 
+    /**
+     * The delivery rows are appended by this service rather than produced by
+     * the engine, because the engine is dependency-free by contract and they
+     * need the database (#406). Without the collaborator the report is the
+     * shorter one `install.php` and the package smoke test get — and it must
+     * still be a report rather than a crash.
+     */
+    public function test_delivery_rows_are_absent_when_no_mail_check_is_wired(): void
+    {
+        $ids = array_map(static fn($finding) => $finding->id, $this->report()->findings);
+
+        $this->assertNotContains('mail_transport', $ids);
+        $this->assertNotEmpty($ids);
+    }
+
+    public function test_delivery_rows_are_appended_when_the_mail_check_is_wired(): void
+    {
+        $mailCheck = $this->createMock(\App\Modules\Notifications\Services\MailDeliveryCheck::class);
+        $mailCheck->method('findings')->willReturn([
+            \App\Shared\Security\SecurityFinding::pass('mail_transport', 'delivery', 'Mail can leave', 'smtp'),
+        ]);
+
+        $report = (new SecurityCheckService(new AppConfig(), $mailCheck))
+            ->check(['DOCUMENT_ROOT' => sys_get_temp_dir()]);
+
+        $ids = array_map(static fn($finding) => $finding->id, $report->findings);
+        $this->assertContains('mail_transport', $ids);
+        $this->assertSame(count($report->findings), array_sum(array_filter($report->summary, 'is_int')));
+    }
+
+    /**
+     * This endpoint's job is to report on a possibly broken installation. A
+     * database that has gone away must not turn it into a 500 — that is the one
+     * moment somebody needs to read it.
+     */
+    public function test_a_failing_mail_check_does_not_take_the_report_down(): void
+    {
+        $mailCheck = $this->createMock(\App\Modules\Notifications\Services\MailDeliveryCheck::class);
+        $mailCheck->method('findings')->willThrowException(new \RuntimeException('the database went away'));
+
+        $report = (new SecurityCheckService(new AppConfig(), $mailCheck))
+            ->check(['DOCUMENT_ROOT' => sys_get_temp_dir()]);
+
+        $this->assertNotEmpty($report->findings);
+    }
+
     /** The backfill row is gone, and must not come back as a stale "unknown". */
     public function test_there_is_no_iban_backfill_finding_any_more(): void
     {

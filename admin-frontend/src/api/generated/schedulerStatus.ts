@@ -57,6 +57,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { SchedulerStatusDeclaredInterval } from './schedulerStatusDeclaredInterval';
+import type { SchedulerStatusObservedInterval } from './schedulerStatusObservedInterval';
 import type { SchedulerStatusSetup } from './schedulerStatusSetup';
 import type { SchedulerStatusSource } from './schedulerStatusSource';
 
@@ -94,5 +96,25 @@ checked and found nothing missing, which is a different statement.
    * @nullable
    */
   missing_extensions?: string[] | null;
+  /** What this installation says its scheduler does. Every retry and
+alarm threshold is measured in ticks of it (ADR-0039 decision 5).
+ */
+  declared_interval?: SchedulerStatusDeclaredInterval;
+  /**
+   * What the gap between the last two recorded runs looks like. `null`
+while there has been only one run, or when the gap is too short to
+conclude anything from — a manual run minutes after a scheduled one
+says nothing about the schedule.
+
+   * @nullable
+   */
+  observed_interval?: SchedulerStatusObservedInterval;
+  /** The scheduler fires less often than it was declared to. Reported,
+never acted on: the declaration is what an admin has to go and fix
+in a hosting panel, and silently re-deriving it would hide exactly
+that. A scheduler *faster* than declared is not a disagreement — it
+only makes every threshold conservative.
+ */
+  interval_disagrees?: boolean;
   setup?: SchedulerStatusSetup;
 }

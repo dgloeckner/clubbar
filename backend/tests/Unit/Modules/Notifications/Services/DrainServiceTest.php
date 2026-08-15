@@ -5,16 +5,19 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Notifications\Services;
 
 use App\Modules\Notifications\DTOs\MailConfigDto;
+use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Enums\DrainSource;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Services\DrainService;
+use App\Modules\Notifications\Services\HeartbeatPinger;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Shared\Config\PhpRuntime;
+use App\Shared\Http\OutboundHttpClient;
 use App\Shared\Logging\Logger;
 use App\Shared\Mail\InvalidMailDsnException;
 use App\Shared\Mail\MailDsn;
@@ -42,6 +45,8 @@ class DrainServiceTest extends TestCase
     private MailConfigService&MockObject $mailConfig;
     private CronHeartbeatRepository&MockObject $heartbeat;
     private MailTransport&MockObject $transport;
+    /** Unconfigured by default: most tests are about the loop, not the alarm. */
+    private HeartbeatPinger $pinger;
 
     /**
      * What the stubbed builder does with the next row.
@@ -64,6 +69,7 @@ class DrainServiceTest extends TestCase
         $this->mailConfig = $this->createMock(MailConfigService::class);
         $this->heartbeat = $this->createMock(CronHeartbeatRepository::class);
         $this->transport = $this->createMock(MailTransport::class);
+        $this->pinger = new HeartbeatPinger(new RecordingHttpClient(), $this->createMock(Logger::class), null);
 
         $this->transport->method('describe')->willReturn('smtp://mail.example.org:587');
         $this->render = fn (array $row): MailMessage => $this->message();
@@ -321,6 +327,165 @@ class DrainServiceTest extends TestCase
     }
 
     // -------------------------------------------------------------------
+    // The external alarm (#406)
+    // -------------------------------------------------------------------
+
+    /**
+     * Liveness first, outcome second. A start with no finish is a hung run,
+     * which is a different picture from a cron that never fired.
+     */
+    public function test_a_healthy_run_pings_start_and_then_success(): void
+    {
+        $this->claims([$this->row('a')], []);
+        $this->transport->method('send')->willReturn(MailSendResult::sent());
+        $this->notifications->method('recordResult')->willReturn(MailStatus::SENT);
+        $this->notifications->method('queueCounts')->willReturn(['pending' => 0, 'failed' => 0, 'sent' => 1]);
+        $this->notifications->method('oldestDueAt')->willReturn(null);
+
+        [$pinger, $http] = $this->recordingPinger();
+        $this->service(pinger: $pinger)->run(DrainSource::CLI);
+
+        $this->assertSame(['/abc/start', '/abc'], $http->paths());
+    }
+
+    /**
+     * The state a liveness-only check reports as green: the scheduler runs
+     * reliably, and nothing can leave the host.
+     */
+    public function test_an_unsendable_configuration_pings_fail(): void
+    {
+        $mailConfig = $this->createMock(MailConfigService::class);
+        $mailConfig->method('getConfig')->willReturn($this->config(senderAddress: ''));
+        $this->notifications->method('queueCounts')->willReturn(['pending' => 4, 'failed' => 0, 'sent' => 0]);
+
+        [$pinger, $http] = $this->recordingPinger();
+        $this->service(mailConfig: $mailConfig, pinger: $pinger)->run(DrainSource::CLI);
+
+        $this->assertSame(['/abc/start', '/abc/fail'], $http->paths());
+        $this->assertStringContainsString(HeartbeatPinger::REASON_TRANSPORT_UNAVAILABLE, $http->calls[1]['body']);
+    }
+
+    /**
+     * A message that has been *due* for three ticks with nothing taking it.
+     * Note what does not trip this: the run below delivered nothing and failed
+     * nothing — being overdue is the whole predicate.
+     */
+    public function test_a_queue_that_is_overdue_pings_fail(): void
+    {
+        $this->claims([]);
+        $this->notifications->method('queueCounts')->willReturn(['pending' => 2, 'failed' => 0, 'sent' => 0]);
+        $this->notifications->method('oldestDueAt')
+            ->willReturn((new \DateTimeImmutable('-5 hours'))->format('Y-m-d H:i:s'));
+
+        [$pinger, $http] = $this->recordingPinger();
+        $this->service(pinger: $pinger)->run(DrainSource::CLI);
+
+        $this->assertSame(['/abc/start', '/abc/fail'], $http->paths());
+        $this->assertStringContainsString(HeartbeatPinger::REASON_QUEUE_STALLED, $http->calls[1]['body']);
+    }
+
+    /**
+     * ADR-0038: *"a switch that cries wolf for three weeks is a switch someone
+     * turns off."* One rejected address is a `failed` row for the Kassenwart,
+     * not an alarm.
+     */
+    public function test_a_single_rejected_address_is_not_an_alarm(): void
+    {
+        $this->claims([$this->row('a')], []);
+        $this->transport->method('send')->willReturn(MailSendResult::permanentFailure('550 no such mailbox'));
+        $this->notifications->method('recordResult')->willReturn(MailStatus::FAILED);
+        $this->notifications->method('queueCounts')->willReturn(['pending' => 0, 'failed' => 1, 'sent' => 0]);
+        $this->notifications->method('oldestDueAt')->willReturn(null);
+
+        [$pinger, $http] = $this->recordingPinger();
+        $result = $this->service(pinger: $pinger)->run(DrainSource::CLI);
+
+        $this->assertSame(1, $result->failed);
+        $this->assertSame(['/abc/start', '/abc'], $http->paths());
+    }
+
+    /**
+     * A run waiting out its backoff is not overdue — `next_attempt_at` is in
+     * the future — so a long ladder cannot produce an alarm.
+     */
+    public function test_a_message_still_inside_its_backoff_is_not_an_alarm(): void
+    {
+        $this->claims([]);
+        $this->notifications->method('queueCounts')->willReturn(['pending' => 1, 'failed' => 0, 'sent' => 0]);
+        $this->notifications->method('oldestDueAt')
+            ->willReturn((new \DateTimeImmutable('+2 hours'))->format('Y-m-d H:i:s'));
+
+        [$pinger, $http] = $this->recordingPinger();
+        $this->service(pinger: $pinger)->run(DrainSource::CLI);
+
+        $this->assertSame(['/abc/start', '/abc'], $http->paths());
+    }
+
+    /** The counts, and nothing that could identify a member. */
+    public function test_the_success_ping_carries_counts_and_no_addresses(): void
+    {
+        $this->claims([$this->row('a')], []);
+        $this->transport->method('send')->willReturn(MailSendResult::sent());
+        $this->notifications->method('recordResult')->willReturn(MailStatus::SENT);
+        $this->notifications->method('queueCounts')->willReturn(['pending' => 3, 'failed' => 2, 'sent' => 9]);
+        $this->notifications->method('oldestDueAt')->willReturn(null);
+
+        [$pinger, $http] = $this->recordingPinger();
+        $this->service(pinger: $pinger)->run(DrainSource::CLI);
+
+        $body = $http->calls[1]['body'];
+        $this->assertStringContainsString('pending=3', $body);
+        $this->assertStringContainsString('failed=2', $body);
+        $this->assertStringNotContainsString('@', $body, 'the queued rows carry addresses; the ping must not');
+    }
+
+    /**
+     * `run()` is called from a crontab nobody reads, so it does not throw — but
+     * the alarm still has to hear about it, or a database that went away looks
+     * exactly like a healthy idle installation.
+     */
+    public function test_a_run_that_dies_pings_fail_instead_of_throwing(): void
+    {
+        $this->notifications->method('claimBatch')->willThrowException(new \RuntimeException('the database went away'));
+
+        [$pinger, $http] = $this->recordingPinger();
+        $result = $this->service(pinger: $pinger)->run(DrainSource::CLI);
+
+        $this->assertSame(0, $result->sent);
+        $this->assertSame(['/abc/start', '/abc/fail'], $http->paths());
+        $this->assertStringContainsString(HeartbeatPinger::REASON_RUN_ABORTED, $http->calls[1]['body']);
+    }
+
+    // -------------------------------------------------------------------
+    // Batch size
+    // -------------------------------------------------------------------
+
+    /**
+     * The dial's normal home is `mail_config`, so a treasurer on a stricter
+     * relay can turn it without editing a file.
+     */
+    public function test_the_batch_size_comes_from_the_mail_configuration(): void
+    {
+        $mailConfig = $this->createMock(MailConfigService::class);
+        $mailConfig->method('getConfig')->willReturn($this->config(drainBatchSize: 7));
+
+        $this->notifications->expects($this->once())->method('claimBatch')->with(7)->willReturn([]);
+
+        $this->service(mailConfig: $mailConfig)->run(DrainSource::CLI);
+    }
+
+    /** An explicit `--batch` on the command line still wins over everything. */
+    public function test_an_explicit_batch_size_overrides_the_configuration(): void
+    {
+        $mailConfig = $this->createMock(MailConfigService::class);
+        $mailConfig->method('getConfig')->willReturn($this->config(drainBatchSize: 7));
+
+        $this->notifications->expects($this->once())->method('claimBatch')->with(2)->willReturn([]);
+
+        $this->service(mailConfig: $mailConfig)->run(DrainSource::CLI, batchSize: 2);
+    }
+
+    // -------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------
 
@@ -354,8 +519,10 @@ class DrainServiceTest extends TestCase
         );
     }
 
-    private function config(string $senderAddress = 'kasse@example.org'): MailConfigDto
-    {
+    private function config(
+        string $senderAddress = 'kasse@example.org',
+        int $drainBatchSize = MailConfigDto::DEFAULT_DRAIN_BATCH_SIZE,
+    ): MailConfigDto {
         return new MailConfigDto(
             senderName: 'Beispielverein',
             senderAddress: $senderAddress,
@@ -365,12 +532,15 @@ class DrainServiceTest extends TestCase
             footerAddressLine: null,
             websiteUrl: null,
             logoUrl: null,
+            cronInterval: CronInterval::HOURLY,
+            drainBatchSize: $drainBatchSize,
         );
     }
 
     private function service(
         ?MailTransportFactory $transportFactory = null,
         ?MailConfigService $mailConfig = null,
+        ?HeartbeatPinger $pinger = null,
     ): DrainService {
         return new DrainService(
             $this->notifications,
@@ -378,7 +548,46 @@ class DrainServiceTest extends TestCase
             $transportFactory ?? $this->transportFactory,
             $mailConfig ?? $this->mailConfig,
             $this->heartbeat,
+            $pinger ?? $this->pinger,
             $this->createMock(Logger::class),
+        );
+    }
+
+    /**
+     * A pinger wired to a client that records instead of connecting.
+     *
+     * ADR-0038 is explicit that no test opens a socket, and this is the one
+     * class whose whole job is to open one.
+     */
+    private function recordingPinger(): array
+    {
+        $http = new RecordingHttpClient();
+
+        return [new HeartbeatPinger($http, $this->createMock(Logger::class), 'https://monitor.example/abc'), $http];
+    }
+}
+
+/**
+ * Every ping this run would have made, in order — and not one socket.
+ */
+final class RecordingHttpClient implements OutboundHttpClient
+{
+    /** @var list<array{url:string,body:string}> */
+    public array $calls = [];
+
+    public function post(string $url, string $body = '', int $timeoutSeconds = 3): bool
+    {
+        $this->calls[] = ['url' => $url, 'body' => $body];
+
+        return true;
+    }
+
+    /** @return list<string> */
+    public function paths(): array
+    {
+        return array_map(
+            static fn (array $call): string => (string) parse_url($call['url'], PHP_URL_PATH),
+            $this->calls
         );
     }
 }

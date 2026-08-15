@@ -7,10 +7,12 @@ namespace Tests\Unit\Modules\Notifications\Services;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\MailRequestDto;
+use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\RetrySchedule;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Mail\MailSendResult;
@@ -466,25 +468,28 @@ class NotificationsServiceTest extends TestCase
 
         $this->assertSame(
             MailStatus::SENT,
-            $this->service->recordResult('outbox-1', MailSendResult::sent('mid-9')),
+            $this->service->recordResult('outbox-1', MailSendResult::sent('mid-9'), CronInterval::HOURLY),
         );
     }
 
     /**
      * Greylisting arrives as a transient failure, and it is the reason the
-     * retry path exists at all — the cap and the backoff are passed through
-     * from here so the queue's policy has one home.
+     * retry path exists at all. The decision — another go, and how long it
+     * waits — is made here rather than in the repository, because the ladder is
+     * a function of the attempt count and of the scheduler's interval
+     * (ADR-0039 decision 5); the queue is handed the answer.
      */
-    public function test_recordResult_passes_the_retry_policy_to_the_queue(): void
+    public function test_recordResult_schedules_the_next_attempt_a_tick_out(): void
     {
+        $this->outbox->method('attemptsFor')->with('outbox-1')->willReturn(0);
         $this->outbox->expects($this->once())
             ->method('markFailed')
             ->with(
                 'outbox-1',
                 '451 greylisted, try again later',
+                1,
                 true,
-                NotificationsService::MAX_ATTEMPTS,
-                NotificationsService::RETRY_BACKOFF_SECONDS,
+                RetrySchedule::backoffSeconds(CronInterval::HOURLY, 1),
             )
             ->willReturn(MailStatus::PENDING);
 
@@ -493,20 +498,64 @@ class NotificationsServiceTest extends TestCase
             $this->service->recordResult(
                 'outbox-1',
                 MailSendResult::transientFailure('451 greylisted, try again later'),
+                CronInterval::HOURLY,
+            ),
+        );
+    }
+
+    /**
+     * The same failure on a daily scheduler waits a day, not fifteen minutes.
+     * A backoff finer than the schedule is a number describing a machine this
+     * installation does not have.
+     */
+    public function test_the_backoff_is_measured_in_the_installations_own_ticks(): void
+    {
+        $this->outbox->method('attemptsFor')->willReturn(1);
+        $this->outbox->expects($this->once())
+            ->method('markFailed')
+            ->with('outbox-1', $this->anything(), 2, true, RetrySchedule::backoffSeconds(CronInterval::DAILY, 2))
+            ->willReturn(MailStatus::PENDING);
+
+        $this->service->recordResult(
+            'outbox-1',
+            MailSendResult::transientFailure('451 greylisted'),
+            CronInterval::DAILY,
+        );
+    }
+
+    public function test_the_last_attempt_closes_the_message_instead_of_scheduling_another(): void
+    {
+        $this->outbox->method('attemptsFor')->willReturn(RetrySchedule::MAX_ATTEMPTS - 1);
+        $this->outbox->expects($this->once())
+            ->method('markFailed')
+            ->with('outbox-1', $this->anything(), RetrySchedule::MAX_ATTEMPTS, false, 0)
+            ->willReturn(MailStatus::FAILED);
+
+        $this->assertSame(
+            MailStatus::FAILED,
+            $this->service->recordResult(
+                'outbox-1',
+                MailSendResult::transientFailure('451 still greylisted'),
+                CronInterval::HOURLY,
             ),
         );
     }
 
     public function test_recordResult_records_a_permanent_failure_without_a_retry(): void
     {
+        $this->outbox->method('attemptsFor')->willReturn(0);
         $this->outbox->expects($this->once())
             ->method('markFailed')
-            ->with('outbox-1', '550 no such mailbox', false, $this->anything(), $this->anything())
+            ->with('outbox-1', '550 no such mailbox', 1, false, 0)
             ->willReturn(MailStatus::FAILED);
 
         $this->assertSame(
             MailStatus::FAILED,
-            $this->service->recordResult('outbox-1', MailSendResult::permanentFailure('550 no such mailbox')),
+            $this->service->recordResult(
+                'outbox-1',
+                MailSendResult::permanentFailure('550 no such mailbox'),
+                CronInterval::HOURLY,
+            ),
         );
     }
 }

@@ -265,7 +265,7 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         [$settlementId, $memberIds] = $this->queue(1);
 
         $claimed = $this->repository->claimBatch(1);
-        $status = $this->repository->markFailed($claimed[0]['id'], '451 greylisted', true, 3, 900);
+        $status = $this->repository->markFailed($claimed[0]['id'], '451 greylisted', 1, true, 900);
 
         $this->assertSame(MailStatus::PENDING, $status);
 
@@ -278,25 +278,41 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         $this->assertSame([], $this->repository->claimBatch(5));
     }
 
+    /**
+     * How many goes there are is the *service's* decision now (the ladder is a
+     * function of the attempt count and the scheduler's interval), so what this
+     * asserts is that the queue honours the decision it is handed: `retry` back
+     * to pending, no retry terminal, and `attempts` recorded either way.
+     */
     public function test_the_attempt_cap_stops_the_retrying(): void
     {
         [$settlementId, $memberIds] = $this->queue(1);
+        $cap = 3;
 
-        for ($attempt = 1; $attempt <= 3; $attempt++) {
+        for ($attempt = 1; $attempt <= $cap; $attempt++) {
             $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = NOW() WHERE subject_id = ?')
                 ->execute([$settlementId]);
 
             $claimed = $this->repository->claimBatch(1);
             $this->assertCount(1, $claimed, "attempt {$attempt} should have been claimable");
 
-            $status = $this->repository->markFailed($claimed[0]['id'], '451 greylisted', true, 3, 900);
-            $expected = $attempt < 3 ? MailStatus::PENDING : MailStatus::FAILED;
+            $this->assertSame($attempt - 1, $this->repository->attemptsFor($claimed[0]['id']));
+
+            $retry = $attempt < $cap;
+            $status = $this->repository->markFailed(
+                $claimed[0]['id'],
+                '451 greylisted',
+                $attempt,
+                $retry,
+                $retry ? 900 : 0
+            );
+            $expected = $retry ? MailStatus::PENDING : MailStatus::FAILED;
             $this->assertSame($expected, $status, "attempt {$attempt} landed in the wrong state");
         }
 
         $row = $this->row($settlementId, $memberIds[0]);
         $this->assertSame(MailStatus::FAILED->value, $row['status']);
-        $this->assertSame(3, (int) $row['attempts']);
+        $this->assertSame($cap, (int) $row['attempts']);
 
         // Failed is terminal for the drain. The Kassenwart decides what happens
         // next (#407) — best effort means visible, not chased.
@@ -310,7 +326,7 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         [$settlementId, $memberIds] = $this->queue(1);
 
         $claimed = $this->repository->claimBatch(1);
-        $status = $this->repository->markFailed($claimed[0]['id'], '550 no such mailbox', false, 3, 900);
+        $status = $this->repository->markFailed($claimed[0]['id'], '550 no such mailbox', 1, false, 0);
 
         $this->assertSame(MailStatus::FAILED, $status);
         $this->assertSame('550 no such mailbox', $this->row($settlementId, $memberIds[0])['last_error']);
@@ -322,7 +338,7 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         [$settlementId, $memberIds] = $this->queue(1);
 
         $claimed = $this->repository->claimBatch(1);
-        $this->repository->markFailed($claimed[0]['id'], '550 no such mailbox', false, 3, 900);
+        $this->repository->markFailed($claimed[0]['id'], '550 no such mailbox', 1, false, 0);
 
         $this->assertTrue($this->repository->resetToPending($claimed[0]['id']));
 
@@ -353,7 +369,7 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         // One went out, one failed, one is still waiting.
         $claimed = $this->repository->claimBatch(3);
         $this->repository->markSent($claimed[0]['id'], null);
-        $this->repository->markFailed($claimed[1]['id'], '550 gone', false, 3, 900);
+        $this->repository->markFailed($claimed[1]['id'], '550 gone', 1, false, 0);
         $this->db->prepare('UPDATE mail_outbox SET status = ?, claim_token = NULL, claimed_at = NULL WHERE id = ?')
             ->execute([MailStatus::PENDING->value, $claimed[2]['id']]);
 
@@ -416,5 +432,62 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         $stmt->execute([$settlementId]);
 
         $this->assertSame(0, (int) $stmt->fetchColumn(), 'a sent message no longer waits');
+    }
+
+    /**
+     * What the alarm actually keys on (ADR-0039 decision 5): the earliest
+     * moment anything became **due**, not the oldest thing in the queue.
+     *
+     * The distinction is the whole correction. A message on the fourth rung of
+     * its ladder is days old and not due for hours; under the old age-based
+     * predicate it tripped the alarm every time, which is precisely the
+     * wolf-crying ADR-0038 forbids.
+     */
+    public function test_a_message_inside_its_backoff_is_not_reported_as_due(): void
+    {
+        [$settlementId] = $this->queue(1);
+
+        $this->assertNotNull($this->repository->oldestDueAt(), 'a freshly queued message is due immediately');
+
+        $this->db->prepare('UPDATE mail_outbox SET next_attempt_at = DATE_ADD(NOW(), INTERVAL 4 HOUR) WHERE subject_id = ?')
+            ->execute([$settlementId]);
+
+        // Everything else pending is parked a day out for the duration of this
+        // class, so with this message backed off there is nothing due at all.
+        $dueAt = $this->repository->oldestDueAt();
+        $this->assertTrue(
+            $dueAt === null || $dueAt > date('Y-m-d H:i:s'),
+            'a message waiting out its backoff must not be reported as due'
+        );
+
+        // And the row is unmistakably still old, which is what the old
+        // predicate would have alarmed on.
+        $this->db->prepare('UPDATE mail_outbox SET queued_at = DATE_SUB(NOW(), INTERVAL 30 DAY) WHERE subject_id = ?')
+            ->execute([$settlementId]);
+
+        $stmt = $this->db->prepare(
+            'SELECT MIN(next_attempt_at) FROM mail_outbox WHERE subject_id = ? AND status = ?'
+        );
+        $stmt->execute([$settlementId, MailStatus::PENDING->value]);
+        $this->assertGreaterThan(date('Y-m-d H:i:s'), (string) $stmt->fetchColumn());
+    }
+
+    /** The numbers the self-check shows and the heartbeat ping carries. */
+    public function test_the_status_counts_name_every_status_even_at_zero(): void
+    {
+        [$settlementId] = $this->queue(2);
+
+        $before = $this->repository->countsByStatus();
+        foreach (MailStatus::cases() as $status) {
+            $this->assertArrayHasKey($status->value, $before, 'a missing key and a zero must not look alike');
+        }
+
+        $claimed = $this->repository->claimBatch(2);
+        $this->repository->markSent($claimed[0]['id'], null);
+        $this->repository->markFailed($claimed[1]['id'], '550 gone', 1, false, 0);
+
+        $after = $this->repository->countsByStatus();
+        $this->assertSame($before[MailStatus::SENT->value] + 1, $after[MailStatus::SENT->value]);
+        $this->assertSame($before[MailStatus::FAILED->value] + 1, $after[MailStatus::FAILED->value]);
     }
 }

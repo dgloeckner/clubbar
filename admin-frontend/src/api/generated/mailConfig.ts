@@ -57,6 +57,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { MailConfigCronInterval } from './mailConfigCronInterval';
 import type { MailConfigHeaderStyle } from './mailConfigHeaderStyle';
 import type { MailConfigTransport } from './mailConfigTransport';
 
@@ -103,6 +104,27 @@ export interface MailConfig {
    * @nullable
    */
   logo_url?: string | null;
+  /** How often this installation's scheduler actually fires (ADR-0039
+decision 5). The retry ladder and both stall thresholds are measured
+in ticks of this interval, not in wall-clock minutes — the drain
+cannot act between ticks, so a backoff finer than the schedule
+describes a machine that does not exist.
+
+`weekly` is refused with 422: an announcement queued shortly after a
+weekly run leaves up to seven days later and would land on the
+collection date, taking the Nutzungsordnung § 7 Abs. 3 distance to
+zero.
+ */
+  cron_interval?: MailConfigCronInterval;
+  /**
+   * Messages claimed per drain round. Lower it for a relay with a
+stricter per-connection limit; it does not make a run faster, since
+the transport is serial either way.
+
+   * @minimum 1
+   * @maximum 1000
+   */
+  drain_batch_size?: number;
   /** Whether a sender address is set at all. */
   readonly is_complete?: boolean;
   /** Both halves present — a usable transport and a sender address. */
