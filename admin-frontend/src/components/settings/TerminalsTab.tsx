@@ -8,6 +8,7 @@ import { theme, formatDateTime } from '../../styles/design-system'
 import { Toggle } from '../common/Toggle'
 import { Badge } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
+import { TerminalLifecycleBadge, type TokenLifecycleBadgeState } from './TerminalLifecycleBadge'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import type { Terminal as GeneratedTerminal } from '../../api/generated'
 
@@ -59,22 +60,21 @@ function RevokeIcon() {
  *
  * The thresholds are the server's, not this table's (#395). They used to be a
  * local 14-day rule, which meant this table and the Security & Credentials page
- * could disagree about whether the same token was "expiring soon" — and the one
- * that shouted later is the one an admin would have believed. Three tiers
- * collapse to one badge here; the credentials page is where they are told apart.
+ * could disagree about whether the same token was "expiring soon". Both tabs
+ * now render the tier through `TerminalLifecycleBadge`, so the same
+ * `lifecycle_state` always reads the same way on either page.
  */
-type TokenExpiryState = 'none' | 'expired' | 'expiringSoon' | 'valid'
+type TokenExpiryState = 'none' | 'valid' | TokenLifecycleBadgeState
 
 function tokenExpiryState(terminal: Terminal): TokenExpiryState {
   if (!terminal.token_expires_at) return 'none'
 
   switch (terminal.lifecycle_state) {
-    case 'expired':
-      return 'expired'
     case 'info':
     case 'warning':
     case 'critical':
-      return 'expiringSoon'
+    case 'expired':
+      return terminal.lifecycle_state
     default:
       return 'valid'
   }
@@ -124,12 +124,7 @@ function TokenExpiry({ terminal }: { terminal: Terminal }) {
       data-token-expiry-state={state}
       style={{ display: 'inline-flex', alignItems: 'center', gap: theme.spacing.sm }}
     >
-      <Badge
-        label={state === 'expired' ? t('settings.tokenExpired') : t('settings.tokenExpiringSoon')}
-        variant={state === 'expired' ? 'danger' : 'warning'}
-        showDot={false}
-        testId={`settings-terminal-token-expiry-badge-${terminal.id}`}
-      />
+      <TerminalLifecycleBadge lifecycle={state} testId={`settings-terminal-token-expiry-badge-${terminal.id}`} />
       {formatDateTime(terminal.token_expires_at!)}
     </span>
   )
@@ -221,17 +216,19 @@ export function TerminalsTab({
             >
               {/* Top row: Toggle + Name + Device ID */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                <Toggle
-                  isEnabled={terminal.is_active}
-                  onChange={(enabled) => {
-                    if (enabled) {
-                      onReactivateTerminal(terminal.id)
-                    } else {
-                      onDeactivateTerminal(terminal.id)
-                    }
-                  }}
-                  testId={`settings-terminal-toggle-${terminal.id}`}
-                />
+                <Tooltip content={t('settings.deactivateToggleHint')} position="right">
+                  <Toggle
+                    isEnabled={terminal.is_active}
+                    onChange={(enabled) => {
+                      if (enabled) {
+                        onReactivateTerminal(terminal.id)
+                      } else {
+                        onDeactivateTerminal(terminal.id)
+                      }
+                    }}
+                    testId={`settings-terminal-toggle-${terminal.id}`}
+                  />
+                </Tooltip>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     data-testid={`settings-terminal-name-${terminal.id}`}
@@ -416,17 +413,19 @@ export function TerminalsTab({
                       gap: theme.spacing.md,
                     }}
                   >
-                    <Toggle
-                      isEnabled={terminal.is_active}
-                      onChange={(enabled) => {
-                        if (enabled) {
-                          onReactivateTerminal(terminal.id)
-                        } else {
-                          onDeactivateTerminal(terminal.id)
-                        }
-                      }}
-                      testId={`settings-terminal-toggle-${terminal.id}`}
-                    />
+                    <Tooltip content={t('settings.deactivateToggleHint')} position="right">
+                      <Toggle
+                        isEnabled={terminal.is_active}
+                        onChange={(enabled) => {
+                          if (enabled) {
+                            onReactivateTerminal(terminal.id)
+                          } else {
+                            onDeactivateTerminal(terminal.id)
+                          }
+                        }}
+                        testId={`settings-terminal-toggle-${terminal.id}`}
+                      />
+                    </Tooltip>
                     <span data-testid={`settings-terminal-name-${terminal.id}`}>{terminal.name}</span>
                   </td>
 
@@ -521,7 +520,7 @@ export function TerminalsTab({
                       </Tooltip>
 
                       {/* Revoke Access Button */}
-                      <Tooltip content={t('settings.revokeAccess')} position="top">
+                      <Tooltip content={t('settings.revokeAccessHint')} position="top">
                         <button
                           data-testid={`settings-terminal-revoke-button-${terminal.id}`}
                           onClick={() => onRevokeAccess(terminal.id)}
