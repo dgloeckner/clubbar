@@ -476,7 +476,8 @@ class NotificationsService
     }
 
     /**
-     * Every queued message about one settlement, key or terminal, as raw rows.
+     * Every queued message about one settlement, key, terminal or admin
+     * account, as raw rows.
      *
      * @return list<array<string,mixed>>
      */

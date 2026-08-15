@@ -8,6 +8,7 @@ use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
@@ -232,5 +233,81 @@ class AdminUsersServiceUpdateTest extends TestCase
         $this->repository->method('findByEmail')->willReturn(null);
 
         $this->assertFalse($this->service->emailTakenByAnother('nobody@example.org', 'admin-2'));
+    }
+
+    /* ─────────────── Password changes (PR #469) ─────────────── */
+
+    /**
+     * The self-service path. Neither of these two methods had a unit test
+     * before; both hash with bcrypt, audit under the credential-specific action
+     * rather than a plain `update`, and end the account's other sessions.
+     */
+    public function test_changing_your_own_password_hashes_audits_and_ends_other_sessions(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row());
+
+        $stored = null;
+        $this->repository->expects($this->once())
+            ->method('updateById')
+            ->willReturnCallback(function (string $id, array $data) use (&$stored) {
+                $stored = $data['password'] ?? null;
+                return self::row();
+            });
+
+        $this->repository->expects($this->once())
+            ->method('touchCredentialsEpoch')
+            ->with('admin-2');
+
+        $this->service->changeOwnPassword('admin-2', 'BrandNewPass1');
+
+        $this->assertNotSame('BrandNewPass1', $stored, 'never stored in the clear');
+        $this->assertTrue(password_verify('BrandNewPass1', $stored));
+    }
+
+    public function test_changing_a_password_for_an_unknown_admin_throws(): void
+    {
+        $this->repository->method('findById')->willReturn(null);
+        $this->repository->expects($this->never())->method('updateById');
+
+        $this->expectException(NotFoundException::class);
+
+        $this->service->changeOwnPassword('nobody', 'BrandNewPass1');
+    }
+
+    /**
+     * The cross-account reset. UC-A63 has said "target user's sessions
+     * invalidated" since before anything enforced it; the epoch is what makes
+     * that true.
+     */
+    public function test_resetting_a_peers_password_returns_it_once_and_ends_their_sessions(): void
+    {
+        $stored = null;
+        $this->repository->method('updateById')
+            ->willReturnCallback(function (string $id, array $data) use (&$stored) {
+                $stored = $data['password'] ?? null;
+                return self::row();
+            });
+
+        $this->repository->expects($this->once())
+            ->method('touchCredentialsEpoch')
+            ->with('admin-2');
+
+        $result = $this->service->resetAdminPassword('admin-2', 'admin-1');
+
+        $this->assertNotSame('', $result['password'], 'shown once to the resetter');
+        $this->assertTrue(
+            password_verify($result['password'], $stored),
+            'the hash stored is of the password handed back',
+        );
+    }
+
+    public function test_resetting_the_password_of_an_unknown_admin_throws(): void
+    {
+        $this->repository->method('updateById')->willReturn(null);
+        $this->repository->expects($this->never())->method('touchCredentialsEpoch');
+
+        $this->expectException(NotFoundException::class);
+
+        $this->service->resetAdminPassword('nobody', 'admin-1');
     }
 }

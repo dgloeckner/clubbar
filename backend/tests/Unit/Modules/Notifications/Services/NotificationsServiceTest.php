@@ -689,4 +689,121 @@ class NotificationsServiceTest extends TestCase
             $this->assertSame(MailRetention::cutoffFor($kind, $now), $seen[$kind->value] ?? null);
         }
     }
+
+    /* ─────────────── notifyFormerAddress (PR #469) ─────────────── */
+
+    /**
+     * The one kind whose recipient cannot be derived at send time: by then
+     * `admin_users.email` holds the *new* address, and the new address is
+     * precisely the one that does not need telling. The former one is passed in
+     * and frozen into the row.
+     */
+    public function test_notifyFormerAddress_queues_one_row_to_the_address_that_was_left(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'en']);
+
+        $queued = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$queued): bool {
+                $queued[] = $request;
+                return true;
+            }
+        );
+
+        $this->assertTrue(
+            $this->service->notifyFormerAddress(self::ADMIN, 'former@club.example', 'changed:1786795704')
+        );
+
+        $this->assertCount(1, $queued);
+        $this->assertSame(MailKind::ADMIN_EMAIL_CHANGED, $queued[0]->kind);
+        $this->assertSame('former@club.example', $queued[0]->recipient);
+        $this->assertSame(self::ADMIN, $queued[0]->subjectId);
+        $this->assertSame(self::ADMIN, $queued[0]->adminUserId);
+        $this->assertNull($queued[0]->memberId, 'an admin security notice is not member data');
+        $this->assertSame('en', $queued[0]->language->value, "the admin's own locale");
+    }
+
+    /**
+     * `mail_outbox.dedup_key` is VARCHAR(64) and `forAdmin` appends a 36-char
+     * UUID to whatever occasion it is given. A `Y-m-d H:i:s` occasion overran
+     * the column, and because the enqueue failure is swallowed — the email
+     * change is already committed by then — the notice was dropped in silence.
+     * This is the guard for that.
+     */
+    public function test_notifyFormerAddress_keeps_the_dedup_key_inside_its_column(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'de']);
+
+        $key = null;
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$key): bool {
+                $key = $request->dedupKey;
+                return true;
+            }
+        );
+
+        $this->service->notifyFormerAddress(self::ADMIN, 'former@club.example', 'changed:' . time());
+
+        $this->assertLessThanOrEqual(64, strlen($key), "dedup_key is VARCHAR(64)");
+    }
+
+    /**
+     * Two changes of one account's address are two things to be told about —
+     * including a change back to an address used before — so the occasion is
+     * the moment of the change rather than a tier.
+     */
+    public function test_notifyFormerAddress_treats_each_change_as_its_own_message(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'de']);
+
+        $keys = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$keys): bool {
+                $keys[] = $request->dedupKey;
+                return true;
+            }
+        );
+
+        $this->service->notifyFormerAddress(self::ADMIN, 'a@club.example', 'changed:1000');
+        $this->service->notifyFormerAddress(self::ADMIN, 'b@club.example', 'changed:2000');
+
+        $this->assertCount(2, array_unique($keys));
+    }
+
+    public function test_notifyFormerAddress_queues_nothing_without_an_address(): void
+    {
+        $this->outbox->expects($this->never())->method('enqueue');
+
+        $this->assertFalse($this->service->notifyFormerAddress(self::ADMIN, '   ', 'changed:1000'));
+    }
+
+    /** Audited only when a row was actually queued, as `warnAdmins` is. */
+    public function test_notifyFormerAddress_audits_only_a_row_that_was_queued(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'de']);
+        $this->outbox->method('enqueue')->willReturn(false);
+
+        $this->audit->expects($this->never())->method('log');
+
+        $this->assertFalse(
+            $this->service->notifyFormerAddress(self::ADMIN, 'former@club.example', 'changed:1000')
+        );
+    }
+
+    /** The audit entry hangs off the admin account, not off a settlement. */
+    public function test_notifyFormerAddress_files_its_audit_entry_against_the_admin(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'de']);
+        $this->outbox->method('enqueue')->willReturn(true);
+
+        $this->audit->expects($this->once())
+            ->method('log')
+            ->with(
+                AuditAction::MAIL_ENQUEUED,
+                EntityType::ADMIN_USER,
+                self::ADMIN,
+            );
+
+        $this->service->notifyFormerAddress(self::ADMIN, 'former@club.example', 'changed:1000', 'actor-1');
+    }
 }

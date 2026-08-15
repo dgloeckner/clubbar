@@ -70,7 +70,14 @@ final class MailRetention
             MailKind::PAYMENT_REQUEST,
             MailKind::KEY_EXPIRY_WARNING,
             MailKind::TERMINAL_TOKEN_EXPIRY_WARNING,
-            MailKind::TERMINAL_ANOMALY_WARNING => self::DEFAULT_SENT_DAYS,
+            MailKind::TERMINAL_ANOMALY_WARNING,
+            // The security notice to a former address (#469) keeps the default
+            // for the same reason the operational warnings do: what it holds is
+            // an address, and the durable record of the change it announces is
+            // the `email_changed` audit entry, which names both addresses and
+            // is not touched here. Ninety days is well past the point at which
+            // an admin would still be asking whether they were told.
+            MailKind::ADMIN_EMAIL_CHANGED => self::DEFAULT_SENT_DAYS,
         };
     }
 

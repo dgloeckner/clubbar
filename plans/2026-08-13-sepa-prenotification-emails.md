@@ -241,6 +241,30 @@ Three decisions this milestone had to make:
 
 One thing #408 asks about that has **no test yet**: the fold-in comment wants "pruning removes `sent` statement rows past 90 days and leaves `sent` pre-notification rows of the same age untouched". `deckel_statement` does not exist until [#462](https://github.com/dgloeckner/clubbar/issues/462), so the divergence cannot be asserted. What is asserted instead is the property that makes it possible: `pruneSent()` takes a kind and a cutoff, `MailRetention::sentDaysFor()` is a `match` over `MailKind`, and `test_pruning_one_kind_leaves_another_alone` pins that a pass over one kind does not reach another. #462 adds one arm and one assertion.
 
+> **`recipient` is no longer always a member's address.** The admin credential
+> hardening ([PR #469](https://github.com/dgloeckner/clubbar/pull/469)) adds
+> `admin_email_changed`, which stores an **admin's former** address with
+> `member_id NULL` and `admin_user_id` set — the one kind whose recipient is
+> deliberately an address the system no longer holds.
+>
+> This milestone's two mechanisms already handle it correctly, and for reasons
+> worth keeping written down rather than rediscovering:
+>
+> - **Erasure keys on the member**, through `supersedePendingForMember()` and
+>   `eraseMemberRecipients()`, so an admin's address is untouched by a member's
+>   Art. 17 request. A sweep phrased "every row with a recipient" would have
+>   cleared the only record of who a security notice reached.
+> - **Pruning is keyed on the kind**, so the new kind had to name its own window
+>   rather than inherit one silently. It takes `DEFAULT_SENT_DAYS`: what it holds
+>   is an address, and the durable record of the change it announces is the
+>   `email_changed` audit entry, which names both addresses and is not pruned.
+>
+> `MailRetention::sentDaysFor()` is an exhaustive `match` and `pruneDelivered()`
+> iterates `MailKind::cases()`, so a kind added without an arm there is not a
+> missed policy but an `UnhandledMatchError` on every drain tick. That is the
+> right failure — loud, and at the first tick — but it is why adding a kind means
+> touching this file.
+
 ### P9 — Test automation: Mailpit in dev/CI, E2E over the full chain ([#409](https://github.com/dgloeckner/clubbar/issues/409))
 
 - [x] `axllent/mailpit:v1.30` in the dev stack and in CI, added to `scripts/mirrored-images.txt` (Docker Hub rate limits — see CLAUDE.md; the mirror workflow copies it with `buildx imagetools` when the list changes). Chaos enabled, because a 5xx is the only way to reach a *permanent* delivery failure through the real code
