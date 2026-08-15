@@ -18,7 +18,7 @@
  *    test.skip() — the latter is a banned pattern in this suite (ESLint rule
  *    clubbar/no-data-dependent-skip, ruling #146: it lets a real wiring break through
  *    the API pass silently as "skipped" instead of failing). Mocking the dashboard
- *    response (same technique as mandate-document-extraction.spec.ts) keeps the
+ *    response (same technique as silent-failures.spec.ts) keeps the
  *    assertion on the exact rendering code this issue changed, deterministically.
  */
 

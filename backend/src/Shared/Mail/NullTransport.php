@@ -9,9 +9,8 @@ use App\Shared\Logging\Logger;
 /**
  * The transport for an installation with no `mail.dsn`.
  *
- * It sends nothing, logs a warning and never throws — the same shape
- * `LlmClientFactory` uses for absent LLM configuration, so a fresh install
- * runs rather than crashing on a feature it has not configured yet. It is also
+ * It sends nothing, logs a warning and never throws, so a fresh install runs
+ * rather than crashing on a feature it has not configured yet. It is also
  * the test default, which is how the promise "no test opens a socket" is kept.
  *
  * **It reports a permanent failure, not a success.** Two rejected alternatives:

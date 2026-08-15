@@ -112,13 +112,4 @@ return [
         // on a CLI cron carries no second, unauthenticated entrance.
         'secret' => '',
     ],
-    'llm' => [
-        // Optional: enables AI-powered mandate document extraction.
-        // Leave provider empty (or omit this section) to disable extraction silently.
-        // Supported providers: 'anthropic', 'openai'
-        'provider' => '',
-        'api_key' => '',
-        'model' => '',  // defaults: claude-haiku-4-5-20251001 (anthropic) / gpt-4o-mini (openai)
-        'thinking_budget' => 0,
-    ],
 ];

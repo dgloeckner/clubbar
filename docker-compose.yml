@@ -46,8 +46,8 @@ services:
       SSL_MODE: "off"
 
       # PHP-FPM Worker Pool
-      # Default is 5 workers — too few when LLM extraction tests (up to 3 min each)
-      # run in parallel with the rest of the suite (4 Playwright workers).
+      # Default is 5 workers — too few when the browser and multiple API calls
+      # overlap across the 4 Playwright workers.
       FPM_PM_MAX_CHILDREN: "15"
       FPM_PM_MAX_SPARE_SERVERS: "10"
 
@@ -98,15 +98,6 @@ services:
       # Installation
       INSTALL_KEY: dev-install-key-x
 
-      # LLM Extraction (optional)
-      # Set LLM_API_KEY in a root-level .env file or in your shell environment.
-      # Empty value disables extraction silently — no errors, no extraction badges.
-      # Example root .env: LLM_API_KEY=sk-ant-...
-      LLM_PROVIDER: "${LLM_PROVIDER:-anthropic}"
-      LLM_MODEL: "${LLM_MODEL:-claude-sonnet-4-6}"
-      LLM_API_KEY: "${LLM_API_KEY:-}"
-      LLM_THINKING_BUDGET: "${LLM_THINKING_BUDGET:-5000}"
-      GCLOUD_VISION_API: "${GCLOUD_VISION_API:-}"
       # Outgoing mail (ADR-0038). Empty disables sending silently — the dev
       # stack has no MTA, and no test may open a socket. Point it at Mailpit
       # (smtp://mailpit:1025) once #409 adds it to the stack.

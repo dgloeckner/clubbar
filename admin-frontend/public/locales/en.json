@@ -242,7 +242,6 @@
     "anonymizeConfirm": "All personal data of {{name}} will be permanently deleted (GDPR Art. 17). This action cannot be undone.",
     "anonymizeSuccess": "Member has been anonymized",
     "anonymizeButton": "Anonymize",
-    "newFromScan": "New from scan",
     "openSepaTemplate": "SEPA Template",
     "sepaTemplateNotConfigured": "No mandate template URL is configured — set one in Settings first.",
     "countFound_one": "{{count}} member found",
@@ -964,27 +963,6 @@
   "confirmDialog": {
     "title": "Confirmation",
     "areYouSure": "Are you sure?"
-  },
-  "mandateDocument": {
-    "title": "SEPA Mandate Scan",
-    "dropzone": "Drop file here or click to browse",
-    "compressed": "compressed",
-    "willConvert": "Will be converted to PDF",
-    "extract": "Extract fields",
-    "processingError": "Could not process file.",
-    "heicConversionError": "This HEIC photo could not be converted automatically. Please convert it to JPEG first (most phones offer this under Share or Export) and select it again.",
-    "extractError": "Extraction failed.",
-    "uploadingAndExtracting": "Extracting…",
-    "extractionComplete": "Extraction complete",
-    "extractionFailed": "Extraction failed — check LLM config",
-    "extractedValue": "Extracted from scan",
-    "discardExtracted": "Discard extracted values",
-    "notFoundInScan": "Not found in scan",
-    "extractionReviewHint": "Fields pre-filled from scan. Review before saving.",
-    "confidenceHigh": "High",
-    "confidenceMedium": "Medium",
-    "confidenceLow": "Low",
-    "ibanCandidates": "Multiple IBAN candidates found — please select the correct one:"
   },
   "newSettlement": {
     "title": "New Settlement",

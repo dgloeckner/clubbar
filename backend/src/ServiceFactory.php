@@ -80,14 +80,7 @@ use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminControlle
 use App\Shared\Controllers\HealthController;
 use App\Shared\Controllers\SecurityCheckController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
-use App\Modules\Members\Controllers\ExtractionController;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
-use App\Modules\Members\Contracts\ExtractionServiceInterface;
-use App\Modules\Members\Contracts\LlmClientInterface;
-use App\Modules\Members\Factories\LlmClientFactory;
-use App\Modules\Members\Factories\VisionClientFactory;
-use App\Modules\Members\Services\DirectExtractionService;
-use App\Modules\Members\Services\ExtractionService;
 use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
 use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
@@ -137,7 +130,6 @@ class ServiceFactory implements ContainerInterface
 
         // Members
         MembersAdminController::class => 'getMembersAdminController',
-        ExtractionController::class => 'getExtractionController',
         MembersSyncController::class => 'getMembersSyncController',
 
         // Products
@@ -414,40 +406,6 @@ class ServiceFactory implements ContainerInterface
     public function getMembersService(): MembersService
     {
         return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService(), $this->getAuditLogRepository(), $this->pdo, $this->getBankCodeService()));
-    }
-
-    public function getLlmClientFactory(): LlmClientFactory
-    {
-        return $this->resolve(LlmClientFactory::class, fn() => new LlmClientFactory($this->config));
-    }
-
-    public function getVisionClientFactory(): VisionClientFactory
-    {
-        return $this->resolve(VisionClientFactory::class, fn() => new VisionClientFactory($this->config));
-    }
-
-    public function getExtractionService(): ?ExtractionServiceInterface
-    {
-        $llmClient = $this->getLlmClientFactory()->create();
-        if ($llmClient === null) {
-            return null;
-        }
-
-        $visionClient = $this->getVisionClientFactory()->create();
-        if ($visionClient !== null) {
-            // Full Vision OCR pipeline: Google Vision → OcrPreprocessor → LLM text extraction
-            return $this->resolve(ExtractionService::class, fn() => new ExtractionService($visionClient, $llmClient));
-        }
-
-        // Direct vision pipeline: image sent straight to the LLM's vision capability
-        return $this->resolve(DirectExtractionService::class, fn() => new DirectExtractionService($llmClient));
-    }
-
-    public function getExtractionController(): ExtractionController
-    {
-        return $this->resolve(ExtractionController::class, fn() => new ExtractionController(
-            $this->getExtractionService(),
-        ));
     }
 
     public function getProductsService(): ProductsService

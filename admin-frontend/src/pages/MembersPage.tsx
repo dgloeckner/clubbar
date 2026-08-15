@@ -3,7 +3,7 @@
  * Member management (list, create, edit, delete)
  */
 
-import React, { useCallback, useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/common/StatCard'
 import { PageActionButton } from '../components/common/PageActionButton'
@@ -14,7 +14,7 @@ import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { MembersTabs } from '../components/members/MembersTabs'
 import { useExcludedFromCollection } from '../hooks/useExcludedFromCollection'
 import { useFormatters } from '../hooks/useFormatters'
-import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ScanIcon, ExternalLinkIcon } from '../components/icons'
+import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ExternalLinkIcon } from '../components/icons'
 import { downloadBlob } from '../api/client'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
@@ -37,10 +37,7 @@ import { useBankName } from '../hooks/useBankName'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { useListQuery } from '../hooks/useListQuery'
 import { ValidationIndicator } from '../components/forms/ValidationIndicator'
-import { MandateDocumentSection } from '../components/MandateDocumentSection'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
-import { getMandateDocument } from '../api/generated/mandate-document/mandate-document'
-import type { ExtractionResult } from '../api/generated'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -60,14 +57,6 @@ const PER_PAGE = 20
  * the API anyway (#131).
  */
 const CARD_UID_PATTERN = /^[0-9A-F]{8,20}$/
-
-function normalizeCardUid(raw: string | null | undefined): string {
-  if (!raw) return ''
-  // Strip common separators (hyphens, spaces, colons), then remove non-hex chars
-  const cleaned = raw.toUpperCase().replace(/[\s\-:]/g, '').replace(/[^0-9A-F]/g, '')
-  // Only use the result if it has enough hex chars to be a plausible UID (≥4)
-  return cleaned.length >= 4 ? cleaned : ''
-}
 
 /**
  * Name used to tell one row's actions apart from another's. Icon-only buttons
@@ -155,10 +144,6 @@ export function MembersPage() {
   // Removing the stored account is its own act, because a blank IBAN field now
   // means "keep" (#392). Reset wherever the form is opened or cleared.
   const [removeStoredIban, setRemoveStoredIban] = useState(false)
-  const [extractedFields, setExtractedFields] = useState<ExtractionResult | null>(null)
-  const [preExtractionFormData, setPreExtractionFormData] = useState<typeof formData | null>(null)
-  const [scanExtracting, setScanExtracting] = useState(false)
-  const scanInputRef = useRef<HTMLInputElement>(null)
   const { bankName, isLoading: isBankNameLoading } = useBankName(formData.iban)
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
@@ -319,8 +304,6 @@ export function MembersPage() {
       // Reset form
       setShowModal(false)
       setEditingMember(null)
-      setExtractedFields(null)
-      setPreExtractionFormData(null)
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
       setRemoveStoredIban(false)
 
@@ -454,94 +437,6 @@ export function MembersPage() {
     }
   }
 
-  function handleExtractionComplete(extraction: ExtractionResult) {
-    setPreExtractionFormData({ ...formData })
-    setExtractedFields(extraction)
-
-    const updates: Partial<typeof formData> = {}
-    const f = extraction.fields ?? {}
-    if (f.first_name?.value)          updates.first_name           = f.first_name.value
-    if (f.last_name?.value)           updates.last_name            = f.last_name.value
-    if (f.email?.value)               updates.email                = f.email.value
-    if (f.iban?.value)                updates.iban                 = f.iban.value.replace(/\s/g, '').toUpperCase()
-    if (f.account_holder_name?.value) updates.account_holder_name  = f.account_holder_name.value
-    if (f.mandate_signed_at?.value)   updates.mandate_signed_at    = f.mandate_signed_at.value
-    if (f.card_uid?.value) {
-      const normalized = normalizeCardUid(f.card_uid.value)
-      if (normalized) updates.card_uid = normalized
-    }
-
-    setFormData(prev => ({ ...prev, ...updates }))
-  }
-
-  function handleDiscardExtracted() {
-    if (preExtractionFormData) {
-      setFormData(preExtractionFormData)
-    }
-    setExtractedFields(null)
-    setPreExtractionFormData(null)
-  }
-
-  async function handleNewFromScan(file: File) {
-    setScanExtracting(true)
-    setEditingMember(null)
-    setExtractedFields(null)
-    setFormErrors({})
-    setShowModal(true)
-    try {
-      const result = await getMandateDocument().extractMandateDocument({ file })
-      const rf = result.fields ?? {}
-      const initialForm = { first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' }
-      setFormData({
-        ...initialForm,
-        first_name:           rf.first_name?.value           ?? '',
-        last_name:            rf.last_name?.value            ?? '',
-        email:                rf.email?.value                ?? '',
-        iban:                 (rf.iban?.value ?? '').replace(/\s/g, '').toUpperCase(),
-        account_holder_name:  rf.account_holder_name?.value  ?? '',
-        mandate_signed_at:    rf.mandate_signed_at?.value    ?? '',
-        card_uid:             normalizeCardUid(rf.card_uid?.value),
-      })
-      setExtractedFields(result)
-      setPreExtractionFormData(null)
-    } catch {
-      setError(t('mandateDocument.extractionFailed'))
-      setShowModal(false)
-    } finally {
-      setScanExtracting(false)
-    }
-  }
-
-  function confidenceBadge(fieldName: keyof NonNullable<ExtractionResult['fields']>) {
-    if (!extractedFields) return null
-    const field = extractedFields.fields?.[fieldName]
-    if (!field?.confidence) return null
-    const styles: Record<string, React.CSSProperties> = {
-      high:   { background: theme.softTint.success,  color: theme.colors.pastel.green, border: `1px solid ${theme.badges.success.border}`  },
-      medium: { background: 'rgba(234,179,8,0.15)',  color: theme.colors.pastel.yellow, border: '1px solid rgba(234,179,8,0.3)'  },
-      low:    { background: theme.softTint.danger,   color: theme.colors.banner.dangerText, border: `1px solid ${theme.badges.danger.border}`  },
-    }
-    const labels: Record<string, string> = {
-      high:   t('mandateDocument.confidenceHigh'),
-      medium: t('mandateDocument.confidenceMedium'),
-      low:    t('mandateDocument.confidenceLow'),
-    }
-    return (
-      <span style={{
-        ...styles[field.confidence],
-        borderRadius: '4px',
-        padding: '2px 6px',
-        fontSize: '10px',
-        fontWeight: 700,
-        flexShrink: 0,
-        whiteSpace: 'nowrap',
-      }}>
-        ● {labels[field.confidence]}
-      </span>
-    )
-  }
-
-
   // Grid columns based on breakpoint
   const gridColumns =
     breakpoint === 'desktop' || breakpoint === 'tablet'
@@ -568,32 +463,6 @@ export function MembersPage() {
         }
         actions={
           <>
-            <input
-              ref={scanInputRef}
-              type="file"
-              accept="image/*,.pdf"
-              style={{ display: 'none' }}
-              data-testid="members-scan-input"
-              onChange={async (e) => {
-                const file = e.target.files?.[0]
-                if (file) await handleNewFromScan(file)
-                if (scanInputRef.current) scanInputRef.current.value = ''
-              }}
-            />
-            <PageActionButton
-              variant="secondary"
-              data-testid="members-new-from-scan-button"
-              onClick={() => scanInputRef.current?.click()}
-              disabled={scanExtracting}
-              iconOnly={isMobile}
-              icon={<ScanIcon size={18} />}
-              // The upload is in flight, not refused — `not-allowed` would say
-              // the wrong thing about a button that works again in a second.
-              style={scanExtracting ? { cursor: 'wait' } : undefined}
-              title={scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
-            >
-              {scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
-            </PageActionButton>
             <PageActionButton
               variant="secondary"
               data-testid="members-sepa-template-link-button"
@@ -1546,35 +1415,9 @@ export function MembersPage() {
               overflowY: 'auto',
             }}
           >
-            <style>{`
-              @keyframes members-spin { to { transform: rotate(360deg); } }
-              @media (max-width: 768px) {
-                .field-with-badge { flex-wrap: wrap; }
-                .field-with-badge > input,
-                .field-with-badge > select { width: 100%; min-width: 0; }
-              }
-            `}</style>
-
             <h2 data-testid="members-form-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
               {editingMember ? t('members.editMember') : t('members.createMember')}
             </h2>
-
-            {/* Scan loading pane */}
-            {scanExtracting && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: '16px' }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  border: '3px solid rgba(196,181,253,0.2)',
-                  borderTopColor: theme.colors.pastel.purple,
-                  borderRadius: '50%',
-                  animation: 'members-spin 0.8s linear infinite',
-                }} />
-                <p style={{ margin: 0, color: theme.colors.text.secondary, fontSize: theme.typography.fontSize.sm }}>
-                  {t('mandateDocument.uploadingAndExtracting')}
-                </p>
-              </div>
-            )}
 
             {/* SEPA Status Indicator */}
             {editingMember && (
@@ -1609,85 +1452,76 @@ export function MembersPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: scanExtracting ? 'none' : 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
+            <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.firstName')} *
                 </label>
-                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <input
-                    data-testid="members-form-first-name-input"
-                    type="text"
-                    required
-                    value={formData.first_name}
-                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                    placeholder="Max"
-                    maxLength={100}
-                    style={{
-                      flex: 1,
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  {confidenceBadge('first_name')}
-                </div>
+                <input
+                  data-testid="members-form-first-name-input"
+                  type="text"
+                  required
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                  placeholder="Max"
+                  maxLength={100}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                  }}
+                />
               </div>
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.lastName')} *
                 </label>
-                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <input
-                    data-testid="members-form-last-name-input"
-                    type="text"
-                    required
-                    value={formData.last_name}
-                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                    placeholder="Mustermann"
-                    maxLength={100}
-                    style={{
-                      flex: 1,
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  {confidenceBadge('last_name')}
-                </div>
+                <input
+                  data-testid="members-form-last-name-input"
+                  type="text"
+                  required
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                  placeholder="Mustermann"
+                  maxLength={100}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                  }}
+                />
               </div>
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.email')} *
                 </label>
-                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <input
-                    data-testid="members-form-email-input"
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="max@example.com"
-                    style={{
-                      flex: 1,
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${formErrors.email ? theme.colors.semantic.danger : theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  {confidenceBadge('email')}
-                </div>
+                <input
+                  data-testid="members-form-email-input"
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="max@example.com"
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${formErrors.email ? theme.colors.semantic.danger : theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                  }}
+                />
                 {/* The API requires an email on create; without this the 422 it
                     answers with was mapped into formErrors and never rendered. */}
                 {formErrors.email && (
@@ -1704,34 +1538,31 @@ export function MembersPage() {
                     ({t('common.requiredForTerminal')})
                   </span>
                 </label>
-                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <input
-                    data-testid="member-form-card-uid"
-                    type="text"
-                    value={formData.card_uid}
-                    onChange={(e) => {
-                      const value = e.target.value.toUpperCase().replace(/[^0-9A-F]/g, '')
-                      setFormData({ ...formData, card_uid: value })
-                      // Clear error when user starts typing
-                      if (formErrors.card_uid) {
-                        setFormErrors({ ...formErrors, card_uid: '' })
-                      }
-                    }}
-                    placeholder={t('members.form.cardUidPlaceholder')}
-                    maxLength={20}
-                    style={{
-                      flex: 1,
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${formErrors.card_uid ? theme.colors.semantic.danger : theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      boxSizing: 'border-box',
-                      fontFamily: 'monospace',
-                    }}
-                  />
-                  {confidenceBadge('card_uid')}
-                </div>
+                <input
+                  data-testid="member-form-card-uid"
+                  type="text"
+                  value={formData.card_uid}
+                  onChange={(e) => {
+                    const value = e.target.value.toUpperCase().replace(/[^0-9A-F]/g, '')
+                    setFormData({ ...formData, card_uid: value })
+                    // Clear error when user starts typing
+                    if (formErrors.card_uid) {
+                      setFormErrors({ ...formErrors, card_uid: '' })
+                    }
+                  }}
+                  placeholder={t('members.form.cardUidPlaceholder')}
+                  maxLength={20}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${formErrors.card_uid ? theme.colors.semantic.danger : theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                    fontFamily: 'monospace',
+                  }}
+                />
                 {formData.card_uid && !CARD_UID_PATTERN.test(formData.card_uid) && (
                   <p data-testid="member-form-card-uid-format-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
                     {t('members.validation.invalidCardUid')}
@@ -1753,28 +1584,25 @@ export function MembersPage() {
                     testId="members-form-iban-validation"
                   />
                 </label>
-                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <input
-                    data-testid="members-form-iban-input"
-                    type="text"
-                    value={formData.iban}
-                    onChange={(e) => { setFormData({ ...formData, iban: e.target.value.replace(/\s/g, '').toUpperCase() }); if (formErrors.iban) setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban'))) }}
-                    placeholder="DE89370400440532013000"
-                    minLength={15}
-                    maxLength={34}
-                    style={{
-                      flex: 1,
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${formErrors.iban ? theme.colors.semantic.danger : theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      boxSizing: 'border-box',
-                      fontFamily: 'monospace',
-                    }}
-                  />
-                  {confidenceBadge('iban')}
-                </div>
+                <input
+                  data-testid="members-form-iban-input"
+                  type="text"
+                  value={formData.iban}
+                  onChange={(e) => { setFormData({ ...formData, iban: e.target.value.replace(/\s/g, '').toUpperCase() }); if (formErrors.iban) setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban'))) }}
+                  placeholder="DE89370400440532013000"
+                  minLength={15}
+                  maxLength={34}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${formErrors.iban ? theme.colors.semantic.danger : theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                    fontFamily: 'monospace',
+                  }}
+                />
                 {/*
                   The stored account, for a member who has one. The IBAN itself
                   is sealed (ADR-0036), so this is the whole of what the admin
@@ -1860,80 +1688,29 @@ export function MembersPage() {
                     {formErrors.iban}
                   </p>
                 )}
-                {extractedFields?.ibanCandidates && extractedFields.ibanCandidates.length > 1 && (
-                  <div
-                    data-testid="members-form-iban-candidates"
-                    style={{
-                      marginTop: theme.spacing.sm,
-                      padding: '10px 12px',
-                      background: 'rgba(234,179,8,0.08)',
-                      border: '1px solid rgba(234,179,8,0.35)',
-                      borderRadius: theme.borderRadius.md,
-                    }}
-                  >
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: theme.colors.pastel.yellow, marginBottom: '8px' }}>
-                      {t('mandateDocument.ibanCandidates')}
-                    </div>
-                    {extractedFields.ibanCandidates.map(candidate => (
-                      <button
-                        key={candidate}
-                        type="button"
-                        data-testid={`members-form-iban-candidate-${candidate}`}
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, iban: candidate }))
-                          if (formErrors.iban) setFormErrors(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban')))
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          width: '100%',
-                          padding: '5px 8px',
-                          marginBottom: '3px',
-                          background: formData.iban === candidate ? 'rgba(37,99,235,0.2)' : 'transparent',
-                          border: `1px solid ${formData.iban === candidate ? 'rgba(37,99,235,0.5)' : 'transparent'}`,
-                          borderRadius: theme.borderRadius.sm,
-                          color: theme.colors.text.primary,
-                          fontFamily: 'monospace',
-                          fontSize: '13px',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <span style={{ fontSize: '10px', color: formData.iban === candidate ? theme.colors.pastel.blue : theme.colors.text.secondary }}>
-                          {formData.iban === candidate ? '●' : '○'}
-                        </span>
-                        {candidate}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.accountHolderName')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
                 </label>
-                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <input
-                    data-testid="members-form-account-holder-name-input"
-                    type="text"
-                    value={formData.account_holder_name}
-                    onChange={(e) => setFormData({ ...formData, account_holder_name: e.target.value })}
-                    placeholder={t('members.accountHolderPlaceholder')}
-                    maxLength={70}
-                    style={{
-                      flex: 1,
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  {confidenceBadge('account_holder_name')}
-                </div>
+                <input
+                  data-testid="members-form-account-holder-name-input"
+                  type="text"
+                  value={formData.account_holder_name}
+                  onChange={(e) => setFormData({ ...formData, account_holder_name: e.target.value })}
+                  placeholder={t('members.accountHolderPlaceholder')}
+                  maxLength={70}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                  }}
+                />
                 <span style={{ fontSize: '12px', color: theme.colors.text.secondary, marginTop: '4px', display: 'block' }}>
                   {t('members.accountHolderHint')}
                 </span>
@@ -1970,25 +1747,22 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.mandateSignedAt')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
                 </label>
-                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <input
-                    data-testid="members-form-mandate-date-input"
-                    type="date"
-                    value={formData.mandate_signed_at}
-                    onChange={(e) => setFormData({ ...formData, mandate_signed_at: e.target.value })}
-                    max={toIsoDate(new Date())}
-                    style={{
-                      flex: 1,
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  {confidenceBadge('mandate_signed_at')}
-                </div>
+                <input
+                  data-testid="members-form-mandate-date-input"
+                  type="date"
+                  value={formData.mandate_signed_at}
+                  onChange={(e) => setFormData({ ...formData, mandate_signed_at: e.target.value })}
+                  max={toIsoDate(new Date())}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                  }}
+                />
               </div>
 
               <div style={{ gridColumn: '1 / -1' }}>
@@ -2002,45 +1776,6 @@ export function MembersPage() {
                   required
                 />
               </div>
-
-              {extractedFields && (
-                <div
-                  style={{
-                    gridColumn: '1 / -1',
-                    background: 'rgba(124,58,237,0.1)',
-                    border: '1px solid rgba(124,58,237,0.3)',
-                    borderRadius: '6px',
-                    padding: '8px 12px',
-                    fontSize: '12px',
-                    color: theme.colors.pastel.purple,
-                    marginBottom: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '8px',
-                  }}
-                  data-testid="extraction-review-banner"
-                >
-                  <span>✦ {t('mandateDocument.extractionReviewHint')}</span>
-                  <button
-                    onClick={handleDiscardExtracted}
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid rgba(124,58,237,0.4)',
-                      borderRadius: '4px',
-                      color: theme.colors.pastel.purple,
-                      fontSize: '11px',
-                      padding: '3px 8px',
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                    }}
-                    data-testid="discard-extracted-btn"
-                  >
-                    {t('mandateDocument.discardExtracted')}
-                  </button>
-                </div>
-              )}
 
               <div style={{ gridColumn: '1 / -1', display: 'flex', gap: theme.spacing.lg, justifyContent: editingMember ? 'space-between' : 'flex-end', marginTop: theme.spacing.lg }}>
                 {editingMember && (
@@ -2073,7 +1808,7 @@ export function MembersPage() {
                   <button
                     data-testid="members-form-cancel-button"
                     type="button"
-                    onClick={() => { setShowModal(false); setExtractedFields(null); setPreExtractionFormData(null) }}
+                    onClick={() => setShowModal(false)}
                     style={{
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                       background: 'transparent',
@@ -2106,10 +1841,6 @@ export function MembersPage() {
                 </div>
               </div>
             </form>
-
-            {editingMember && editingMember.id && (
-              <MandateDocumentSection onExtractionComplete={handleExtractionComplete} />
-            )}
           </div>
         </div>
       )}

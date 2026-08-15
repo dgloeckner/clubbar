@@ -61,9 +61,10 @@ Each ADR follows this structure:
 | [0034](./0034-instance-branding-configuration.md) | Instance Branding Configuration | Accepted | 2026-08-11 |
 | [0035](./0035-terminal-backend-instance-pairing.md) | Terminal-Backend Instance Pairing | Accepted | 2026-08-12 |
 | [0036](./0036-iban-encryption-sealed-box.md) | IBAN Encryption at Rest with libsodium Sealed Boxes | Accepted | 2026-08-13 |
-| [0037](./0037-mandate-documents-not-retained.md) | Mandate Documents Are Not Retained in the System | Accepted | 2026-08-13 |
+| [0037](./0037-mandate-documents-not-retained.md) | Mandate Documents Are Not Retained in the System | Accepted (amended by 0040: stateless extraction endpoint removed; document non-retention unaffected) | 2026-08-13 |
 | [0038](./0038-transactional-mail-outbox-on-shared-hosting.md) | Transactional Mail Outbox on Shared Hosting | Accepted (amended by 0039: time-triggered enqueue, rule 5's justification, the stall threshold, per-kind retention) | 2026-08-14 |
 | [0039](./0039-periodic-deckel-statement.md) | The Periodic Deckelauszug | Accepted | 2026-08-15 |
+| [0040](./0040-remove-mandate-scan-extraction.md) | Remove Mandate Scan Extraction | Accepted | 2026-08-15 |
 
 ## Creating a New ADR
 

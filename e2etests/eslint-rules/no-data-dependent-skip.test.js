@@ -22,12 +22,11 @@ ruleTester.run('no-data-dependent-skip', rule, {
       code: `test.skip(!process.env.LLM_API_KEY, 'needs LLM_API_KEY')`,
     },
     // A module-scope const whose initializer is itself an allowed (env-derived) expression
-    // stays legal when referenced by identifier — this is how EXTRACTION_CONFIGURED works
-    // in mandate-document-extraction.spec.ts.
+    // stays legal when referenced by identifier.
     {
       code: `
-        const EXTRACTION_CONFIGURED = !!process.env.LLM_API_KEY
-        test.skip(!EXTRACTION_CONFIGURED, 'LLM_API_KEY not set — skipping positive extraction test')
+        const FEATURE_CONFIGURED = !!process.env.SOME_API_KEY
+        test.skip(!FEATURE_CONFIGURED, 'SOME_API_KEY not set — skipping positive test')
       `,
     },
     // A boolean literal condition is statically decidable (not data-dependent).

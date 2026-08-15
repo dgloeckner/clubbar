@@ -795,9 +795,8 @@ edit-button hover backgrounds (`CategoriesPage`, `MembersPage`, `ProductsPage`,
 And for `theme.badges.success.bg`/`.border` (`rgba(34, 197, 94, 0.1)` /
 `rgba(34, 197, 94, 0.3)`): reused for success banners (`ProfilePage`'s profile
 and password success messages), the valid-SEPA highlight (`MembersPage`,
-`DashboardPage`), the SEPA success message (`SepaConfigTab`), and the stored
-mandate document panel border (`MandateDocumentSection`) — the success mirror
-of the danger banner pattern above.
+`DashboardPage`), and the SEPA success message (`SepaConfigTab`) — the success
+mirror of the danger banner pattern above.
 
 ### Overlay Backdrop
 
@@ -914,10 +913,9 @@ background — also reused (likely coincidentally, same numeric value) as
 `ListLoadingOverlay`'s spinner border. `primaryBorder` is the strongest
 variant, used as the open/hover-state `border` on dropdowns and toggles
 (`ReportsPage`, `CategoryFilter`, `LanguageSelector`, and hover handlers in
-`ProductsPage`/`JournalPage`), also reused as the in-progress `background` in
-`MandateDocumentSection`'s upload bar. All four are different alphas by
-design (all exist in the app today) — don't conflate them when tokenizing a
-new call site; match the literal's alpha to the correct field.
+`ProductsPage`/`JournalPage`). All four are different alphas by design (all
+exist in the app today) — don't conflate them when tokenizing a new call
+site; match the literal's alpha to the correct field.
 
 ### Soft Color-Coded Tint (0.15 alpha)
 

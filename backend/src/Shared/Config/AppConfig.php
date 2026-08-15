@@ -19,16 +19,11 @@ class AppConfig
     public readonly string $logDir;
     public readonly string $installKey;
     public readonly string $appUrl;
-    public readonly ?string $llmProvider;
-    public readonly ?string $llmApiKey;
-    public readonly ?string $llmModel;
-    public readonly int     $llmThinkingBudget;
-    public readonly ?string $googleVisionKey;
     /**
      * The one field that selects a mail transport (ADR-0038). It carries an
      * SMTP password, so it belongs with the DB password and the TOTP key in
      * config.php rather than in an admin-editable table. Absent disables mail
-     * silently, the same way an absent llm.provider disables extraction.
+     * silently.
      */
     public readonly ?string $mailDsn;
     /**
@@ -63,11 +58,6 @@ class AppConfig
         $this->sessionSavePath      = self::resolveSessionSavePath($this->storageDir);
         $this->installKey           = Env::get('INSTALL_KEY', '');
         $this->appUrl               = Env::get('APP_URL', 'http://localhost:8080');
-        $this->llmProvider          = Env::get('LLM_PROVIDER', '') ?: null;
-        $this->llmApiKey            = Env::get('LLM_API_KEY', '') ?: null;
-        $this->llmModel             = Env::get('LLM_MODEL', '') ?: null;
-        $this->llmThinkingBudget    = (int) Env::get('LLM_THINKING_BUDGET', '0');
-        $this->googleVisionKey      = Env::get('GCLOUD_VISION_API', '') ?: null;
         $this->mailDsn              = trim(Env::get('MAIL_DSN', '')) ?: null;
         $this->cronSecret           = trim(Env::get('CRON_SECRET', '')) ?: null;
         $this->documentRoot         = self::resolveDocumentRoot();
