@@ -23,6 +23,9 @@ class AuditLogRepositoryTest extends DatabaseTestCase
     /** @var list<int> */
     private array $testEntryIds = [];
 
+    /** @var list<string> */
+    private array $testAdminUserIds = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -32,7 +35,37 @@ class AuditLogRepositoryTest extends DatabaseTestCase
     protected function tearDown(): void
     {
         $this->cleanupTestData('audit_log', $this->testEntryIds);
+        $this->cleanupTestData('admin_users', $this->testAdminUserIds);
         parent::tearDown();
+    }
+
+    /**
+     * The audit log page's Admin column reads `admin_user_email` off each
+     * entry (matching the OpenAPI contract). The repository used to join in
+     * `admin_users.display_name` under the key `admin_user_name` instead, so
+     * every row showed a blank Admin column regardless of action type.
+     */
+    public function test_listWithFilters_resolves_the_acting_admins_email(): void
+    {
+        $adminId = $this->createAdminUser('auditor@example.com');
+        $entityId = $this->entityId();
+        $this->insertEntry($entityId, 'update', '2026-04-01 09:00:00', adminUserId: $adminId);
+
+        $result = $this->repository->listWithFilters(10, 0, ['entity_id' => $entityId]);
+
+        $this->assertSame('auditor@example.com', $result['items'][0]['admin_user_email']);
+    }
+
+    private function createAdminUser(string $email): string
+    {
+        $adminId = $this->generateUuid();
+        $this->testAdminUserIds[] = $adminId;
+
+        $this->db->prepare(
+            'INSERT INTO admin_users (id, email, password_hash, display_name, is_active) VALUES (?, ?, ?, ?, 1)'
+        )->execute([$adminId, $email, password_hash('test123', PASSWORD_BCRYPT), 'Auditor']);
+
+        return $adminId;
     }
 
     public function test_listWithFilters_defaults_to_newest_first(): void
@@ -222,9 +255,10 @@ class AuditLogRepositoryTest extends DatabaseTestCase
         string $createdAt,
         string $entityType = 'member',
         ?array $payload = null,
+        ?string $adminUserId = null,
     ): int {
         $this->repository->insert([
-            'admin_user_id' => null,
+            'admin_user_id' => $adminUserId,
             'action' => $action,
             'entity_type' => $entityType,
             'entity_id' => $entityId,

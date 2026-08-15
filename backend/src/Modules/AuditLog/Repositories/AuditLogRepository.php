@@ -146,7 +146,7 @@ class AuditLogRepository
         // id, so paging through the log cannot show a row twice or skip one.
         $dataParams = array_merge($params, [$limit, $offset]);
         $stmt = $this->db->prepare(
-            "SELECT al.*, au.display_name as admin_user_name FROM audit_log al LEFT JOIN admin_users au ON al.admin_user_id = au.id {$whereClause} ORDER BY {$sortColumn} {$dir}, al.id {$dir} LIMIT ? OFFSET ?"
+            "SELECT al.*, au.email as admin_user_email FROM audit_log al LEFT JOIN admin_users au ON al.admin_user_id = au.id {$whereClause} ORDER BY {$sortColumn} {$dir}, al.id {$dir} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
 
