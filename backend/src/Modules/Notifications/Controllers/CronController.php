@@ -6,6 +6,7 @@ namespace App\Modules\Notifications\Controllers;
 
 use App\Modules\Notifications\Enums\DrainSource;
 use App\Modules\Notifications\Services\DrainService;
+use App\Modules\Terminals\Services\TerminalAnomalyDetector;
 use App\Shared\Config\AppConfig;
 use App\Shared\Logging\Logger;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -64,6 +65,7 @@ class CronController
         private DrainService $drainService,
         private AppConfig $config,
         private Logger $logger,
+        private TerminalAnomalyDetector $anomalyDetector,
     ) {}
 
     public function drain(Request $request, Response $response): Response
@@ -112,6 +114,11 @@ class CronController
 
                 return $response->withStatus(204);
             }
+
+            // ADR-0041, before the drain for the same reason the CLI entrypoint
+            // does it in that order: a warning this raises is queued into the
+            // outbox, and the drain that follows is what sends it.
+            $this->anomalyDetector->run();
 
             $this->drainService->run(DrainSource::URL);
         } catch (\Throwable $e) {

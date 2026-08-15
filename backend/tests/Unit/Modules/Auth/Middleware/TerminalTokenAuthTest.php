@@ -7,9 +7,11 @@ namespace Tests\Unit\Modules\Auth\Middleware;
 use App\Modules\Auth\Middleware\TerminalTokenAuth;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Services\TokenService;
+use App\Modules\Terminals\Repositories\TerminalIpSightingsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Terminals\Services\TerminalTokenAuthenticator;
 use App\Shared\Enums\AuditAction;
+use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -23,6 +25,7 @@ class TerminalTokenAuthTest extends TestCase
     private TerminalsRepository $terminalsRepository;
     private LoginAttemptsRepository $authAttempts;
     private AuditService $auditService;
+    private TerminalIpSightingsRepository $ipSightings;
     private TerminalTokenAuth $middleware;
 
     protected function setUp(): void
@@ -33,10 +36,13 @@ class TerminalTokenAuthTest extends TestCase
         // The authenticator is real, not a double: what this middleware answers
         // is decided by the lookup order inside it, and a stubbed authenticator
         // would assert only that the middleware forwards its own opinion.
+        $this->ipSightings = $this->createMock(TerminalIpSightingsRepository::class);
         $this->middleware = new TerminalTokenAuth(
             $this->terminalsRepository,
             $this->authAttempts,
             new TerminalTokenAuthenticator($this->terminalsRepository, $this->auditService),
+            $this->ipSightings,
+            $this->createMock(Logger::class),
         );
     }
 
@@ -204,6 +210,62 @@ class TerminalTokenAuthTest extends TestCase
                     && $request->getAttribute('terminal') === $terminal;
             }))
             ->willReturn(new Response(200));
+
+        $response = $this->middleware->process($this->request('Bearer valid-token'), $handler);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * ADR-0041: every authenticated request is a sighting, because "two
+     * addresses at once" can only be answered from the ordinary traffic — there
+     * is no separate moment a terminal announces where it is.
+     */
+    public function test_process_records_an_ip_sighting_for_an_authenticated_request(): void
+    {
+        $this->terminalsRepository->method('findByTokenHash')->willReturn($this->terminal());
+
+        $this->ipSightings->expects($this->once())
+            ->method('record')
+            ->with('terminal-1', '127.0.0.1', $this->anything());
+
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->method('handle')->willReturn(new Response(200));
+
+        $this->middleware->process($this->request('Bearer valid-token'), $handler);
+    }
+
+    /**
+     * A rejected request has no terminal to attribute a sighting to — that is
+     * what `terminal_auth_attempts` is for, and it is keyed by IP alone.
+     */
+    public function test_process_records_no_sighting_when_the_token_is_rejected(): void
+    {
+        $this->terminalsRepository->method('findByTokenHash')->willReturn(null);
+        $this->terminalsRepository->method('findByPendingTokenHash')->willReturn(null);
+        $this->terminalsRepository->method('findExpiredByTokenHash')->willReturn(null);
+
+        $this->ipSightings->expects($this->never())->method('record');
+
+        $response = $this->middleware->process(
+            $this->request('Bearer nope'),
+            $this->createMock(RequestHandlerInterface::class),
+        );
+
+        $this->assertSame(401, $response->getStatusCode());
+    }
+
+    /**
+     * The observation is worth less than the sale. If the sightings table
+     * cannot be written, the request it was observing still has to go through.
+     */
+    public function test_process_serves_the_request_when_the_sighting_cannot_be_recorded(): void
+    {
+        $this->terminalsRepository->method('findByTokenHash')->willReturn($this->terminal());
+        $this->ipSightings->method('record')->willThrowException(new \RuntimeException('table is gone'));
+
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->expects($this->once())->method('handle')->willReturn(new Response(200));
 
         $response = $this->middleware->process($this->request('Bearer valid-token'), $handler);
 

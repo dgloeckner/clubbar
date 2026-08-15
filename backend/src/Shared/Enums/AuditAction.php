@@ -73,4 +73,12 @@ enum AuditAction: string
     case MAIL_ENQUEUED = 'mail_enqueued';
     /** Unsent announcements were closed out because the settlement was cancelled. */
     case MAIL_SUPERSEDED = 'mail_superseded';
+    // Terminal credential anomalies (ADR-0041). Observed by the cron tick, so
+    // the detection entry carries no actor; the acknowledgement carries the
+    // admin who decided the alert had been dealt with. Neither changes the
+    // token — this whole path alerts and never enforces.
+    /** Concurrent use or a cursor discontinuity was observed for a terminal. */
+    case TERMINAL_ANOMALY_DETECTED = 'terminal_anomaly_detected';
+    /** An admin marked a terminal anomaly as seen, clearing it from the panel. */
+    case TERMINAL_ANOMALY_ACKNOWLEDGED = 'terminal_anomaly_acknowledged';
 }

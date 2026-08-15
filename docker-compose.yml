@@ -74,6 +74,14 @@ services:
       # To run auth-rate-limit.spec.ts, remove this line and restart the container.
       DISABLE_LOGIN_RATE_LIMITING: "true"
 
+      # Terminal credential anomaly detection (ADR-0041). Left at the defaults —
+      # named here so the knobs are discoverable next to the rate-limit ones
+      # they sit beside conceptually. Detection alerts and never enforces, so
+      # unlike the two above there is nothing here a test suite needs to defeat.
+      TERMINAL_ANOMALY_LOOKBACK_MINUTES: "60"
+      TERMINAL_ANOMALY_MIN_OVERLAP_MINUTES: "15"
+      TERMINAL_IP_RETENTION_DAYS: "30"
+
       # Database Configuration
       DB_HOST: database
       DB_PORT: 3306

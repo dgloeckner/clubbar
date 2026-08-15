@@ -6,6 +6,8 @@ namespace App\Modules\Members\Controllers;
 
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Members\Enums\SupportedLanguage;
+use App\Modules\Terminals\Enums\SyncStream;
+use App\Modules\Terminals\Services\TerminalSyncCursorService;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Validation\Validator;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -18,6 +20,7 @@ class SyncController
     public function __construct(
         private MembersService $membersService,
         private Validator $validator,
+        private TerminalSyncCursorService $syncCursors,
     ) {}
 
     public function index(Request $request, Response $response): Response
@@ -25,6 +28,11 @@ class SyncController
         $params = $request->getQueryParams();
         // Client sends milliseconds timestamp
         $since = isset($params['since']) ? (int) $params['since'] : 0;
+
+        // ADR-0041: the presented cursor exists only here, so this is where it
+        // is compared against what this terminal has previously been given. It
+        // does not change the delta below in any way.
+        $this->syncCursors->observe($request->getAttribute('terminal_id'), SyncStream::MEMBERS, $since);
 
         $result = $this->membersService->syncSince($since);
 
