@@ -7,7 +7,6 @@ use App\Shared\Controllers\SecurityCheckController;
 use App\Modules\Security\Controllers\EncryptionKeysController;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
-use App\Modules\Members\Controllers\ExtractionController;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
 use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
@@ -127,9 +126,6 @@ return function (App $app): void {
         // Clearing is an admin decision, not a member edit — it lets the next
         // collection run reach this member again (ruling #148 §5).
         $group->post('/members/{memberId}/collection-hold/clear', [MembersAdminController::class, 'clearCollectionHold']);
-
-        // Stateless mandate-scan extraction — no document is stored (ADR-0037)
-        $group->post('/mandate-document/extract', [ExtractionController::class, 'extract']);
 
         // Categories
         $group->get('/categories', [ProductsAdminController::class, 'listCategories']);

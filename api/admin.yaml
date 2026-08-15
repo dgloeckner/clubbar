@@ -1156,54 +1156,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /admin/mandate-document/extract:
-    post:
-      summary: Extract member fields from a mandate scan (no storage)
-      description: >
-        Stateless extraction endpoint — accepts an image or PDF, calls the configured LLM,
-        and returns extracted fields with confidence levels. No file is stored.
-        Used by the create-member-from-scan flow.
-      operationId: extractMandateDocument
-      tags:
-        - mandate-document
-      security:
-        - sessionAuth: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: JPEG, PNG, or PDF of the scanned mandate
-      responses:
-        '200':
-          description: Extraction result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ExtractionResult'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          description: LLM extraction is not configured
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-        '500':
-          description: Extraction failed (LLM error or parse failure)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
   # ============================================================================
   # TRANSACTIONS
   # ============================================================================
@@ -4605,60 +4557,6 @@ components:
           type: integer
           description: Total unsettled position, negative because the club owes this member money
           example: -1500
-
-    ExtractionField:
-      type: object
-      nullable: true
-      properties:
-        value:
-          type: string
-          nullable: true
-          description: Extracted value, null if not found or illegible
-        confidence:
-          type: string
-          nullable: true
-          enum: [high, medium, low, null]
-          description: Model confidence in the extracted value
-
-    ExtractionResult:
-      type: object
-      properties:
-        fields:
-          type: object
-          properties:
-            first_name:
-              $ref: '#/components/schemas/ExtractionField'
-            last_name:
-              $ref: '#/components/schemas/ExtractionField'
-            email:
-              $ref: '#/components/schemas/ExtractionField'
-            street:
-              $ref: '#/components/schemas/ExtractionField'
-            zip_code:
-              $ref: '#/components/schemas/ExtractionField'
-            city:
-              $ref: '#/components/schemas/ExtractionField'
-            iban:
-              $ref: '#/components/schemas/ExtractionField'
-            account_holder_name:
-              $ref: '#/components/schemas/ExtractionField'
-            mandate_signed_at:
-              $ref: '#/components/schemas/ExtractionField'
-            card_uid:
-              $ref: '#/components/schemas/ExtractionField'
-        needsReview:
-          type: boolean
-          description: >
-            True when any field has confidence "low" or when ibanCandidates is
-            non-empty (ambiguous IBAN repair — user must select the correct IBAN).
-        ibanCandidates:
-          type: array
-          items:
-            type: string
-          description: >
-            Two or more valid IBAN alternatives when MOD-97 repair is ambiguous.
-            The first candidate is pre-selected in fields.iban.value. Empty or
-            absent when the IBAN is unambiguous.
 
     BankLookupResponse:
       type: object

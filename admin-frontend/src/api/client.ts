@@ -109,11 +109,11 @@ export const customInstance = <T>(
   options?: { signal?: AbortSignal }
 ): Promise<T> => {
   // The instance defaults to Content-Type: application/json (set above). Generated
-  // multipart endpoints (uploadMandateDocument, extractMandateDocument, ...) pass a
-  // FormData body without overriding that header — axios then sends the JSON
-  // Content-Type with a multipart body, and the backend never sees any uploaded
-  // files. Clearing it here lets the browser set the correct
-  // "multipart/form-data; boundary=..." header itself.
+  // multipart endpoints (importMembersPreview, ...) pass a FormData body without
+  // overriding that header — axios then sends the JSON Content-Type with a
+  // multipart body, and the backend never sees any uploaded files. Clearing it
+  // here lets the browser set the correct "multipart/form-data; boundary=..."
+  // header itself.
   const headers =
     config.data instanceof FormData ? { ...config.headers, 'Content-Type': undefined } : config.headers
 

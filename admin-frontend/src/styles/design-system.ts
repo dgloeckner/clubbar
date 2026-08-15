@@ -108,8 +108,9 @@ export const theme = {
     },
 
     // Light, saturated text on a translucent tinted background — small badges
-    // and highlighted text (e.g. mandate-extraction confidence, matched IBAN
-    // candidates), distinct from the `banner` family's full-width bars.
+    // and highlighted text (e.g. the exclusion-reason badges on
+    // ExcludedFromCollectionPage), distinct from the `banner` family's
+    // full-width bars.
     pastel: {
       green: '#86efac',
       yellow: '#fde047',
@@ -280,10 +281,9 @@ export const theme = {
     primaryStrong: withAlpha('#3b82f6', 0.2),
     // A third, even stronger variant used as the open/hover-state border on
     // dropdowns and toggles (ReportsPage, CategoryFilter, LanguageSelector,
-    // and hover handlers in ProductsPage/JournalPage), also reused as the
-    // in-progress background in MandateDocumentSection's upload bar —
-    // reimplemented identically (sometimes with drifted comma spacing) at
-    // every call site (#289).
+    // and hover handlers in ProductsPage/JournalPage) — reimplemented
+    // identically (sometimes with drifted comma spacing) at every call site
+    // (#289).
     primaryBorder: withAlpha('#3b82f6', 0.5),
     // The Profile nav item's active/hover background in MainLayout — a
     // stronger tint than `primaryStrong`'s general active-nav background —

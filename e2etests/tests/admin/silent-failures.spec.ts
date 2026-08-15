@@ -14,8 +14,8 @@
  *    than re-rendering the last good numbers indefinitely.
  *
  * Failures are injected with page.route() — the same technique as
- * dashboard-revenue.spec.ts and mandate-document-extraction.spec.ts. Route
- * handlers are per-page and torn down with the page, so nothing leaks into a
+ * dashboard-revenue.spec.ts. Route handlers are per-page and torn down with
+ * the page, so nothing leaks into a
  * parallel worker (Pattern 004), and no test data is created or mutated
  * (Pattern 001).
  *

@@ -12,9 +12,5 @@ services:
       # (63 zero bytes + 0x01, hex-encoded). Never use in production.
       TOTP_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000001"
       IBAN_FINGERPRINT_KEY: "0000000000000000000000000000000000000000000000000000000000000002"
-      # LLM extraction — set LLM_API_KEY in the environment (or GitHub secret) to enable extraction tests.
-      # Empty string is normalised to null by AppConfig, silently disabling extraction.
-      LLM_PROVIDER: "anthropic"
-      LLM_API_KEY: "${LLM_API_KEY:-}"
     volumes:
       - ./api:/api:ro

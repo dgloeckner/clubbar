@@ -25,8 +25,8 @@ final class ConfigFile
      * Publish a parsed `config.php` into `$_ENV`.
      *
      * Only keys the file actually carries are set, so an absent optional
-     * section (`llm`, `mail`, `cron`) leaves the variable unset rather than
-     * setting it to an empty string — `AppConfig` treats both as "off", but the
+     * section (`mail`, `cron`) leaves the variable unset rather than setting
+     * it to an empty string — `AppConfig` treats both as "off", but the
      * distinction survives for anything that checks presence.
      *
      * @param array<string,mixed> $config  The array returned by `config.php`
@@ -77,11 +77,5 @@ final class ConfigFile
 
         // Absent leaves the URL drain trigger unmounted — see CronController.
         $_ENV['CRON_SECRET'] = $config['cron']['secret'] ?? '';
-
-        $_ENV['LLM_PROVIDER'] = $config['llm']['provider'] ?? '';
-        $_ENV['LLM_API_KEY'] = $config['llm']['api_key'] ?? '';
-        $_ENV['LLM_MODEL'] = $config['llm']['model'] ?? '';
-        $_ENV['LLM_THINKING_BUDGET'] = (string) ($config['llm']['thinking_budget'] ?? 0);
-        $_ENV['GCLOUD_VISION_API'] = $config['vision']['api_key'] ?? '';
     }
 }

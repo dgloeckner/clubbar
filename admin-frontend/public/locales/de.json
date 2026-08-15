@@ -242,7 +242,6 @@
     "anonymizeConfirm": "Alle persönlichen Daten von {{name}} werden unwiderruflich gelöscht (DSGVO Art. 17). Diese Aktion kann nicht rückgängig gemacht werden.",
     "anonymizeSuccess": "Mitglied wurde anonymisiert",
     "anonymizeButton": "Anonymisieren",
-    "newFromScan": "Neu aus Scan",
     "openSepaTemplate": "SEPA-Vorlage",
     "sepaTemplateNotConfigured": "Es ist keine URL für das Mandatsformular hinterlegt — bitte zuerst in den Einstellungen konfigurieren.",
     "countFound_one": "{{count}} Mitglied gefunden",
@@ -964,27 +963,6 @@
   "confirmDialog": {
     "title": "Bestätigung",
     "areYouSure": "Sind Sie sicher?"
-  },
-  "mandateDocument": {
-    "title": "SEPA-Mandat Scan",
-    "dropzone": "Datei hier ablegen oder klicken",
-    "compressed": "komprimiert",
-    "willConvert": "Wird zu PDF konvertiert",
-    "extract": "Felder extrahieren",
-    "processingError": "Datei konnte nicht verarbeitet werden.",
-    "heicConversionError": "Dieses HEIC-Foto konnte nicht automatisch konvertiert werden. Bitte zuerst in JPEG umwandeln (auf den meisten Handys über \"Teilen\" oder \"Exportieren\" möglich) und erneut auswählen.",
-    "extractError": "Extraktion fehlgeschlagen.",
-    "uploadingAndExtracting": "Extrahiere…",
-    "extractionComplete": "Extraktion abgeschlossen",
-    "extractionFailed": "Extraktion fehlgeschlagen — LLM-Konfiguration prüfen",
-    "extractedValue": "Aus Scan extrahiert",
-    "discardExtracted": "Extrahierte Werte verwerfen",
-    "notFoundInScan": "Nicht im Scan gefunden",
-    "extractionReviewHint": "Felder aus Scan vorausgefüllt. Bitte vor dem Speichern prüfen.",
-    "confidenceHigh": "Hoch",
-    "confidenceMedium": "Mittel",
-    "confidenceLow": "Niedrig",
-    "ibanCandidates": "Mehrere mögliche IBANs erkannt — bitte die richtige auswählen:"
   },
   "newSettlement": {
     "title": "Neue Abrechnung",

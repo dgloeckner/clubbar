@@ -1,6 +1,6 @@
 # ADR-0037: Mandate Documents Are Not Retained in the System
 
-**Status**: Accepted
+**Status**: Accepted (amended by [ADR-0040](./0040-remove-mandate-scan-extraction.md): the stateless extraction endpoint this ADR kept is removed entirely, over Datenschutz risk and a high error rate. Everything else this ADR decided — no document retention, no upload/download/delete, the treasurer's paper archive as the Beleg — still stands.)
 
 **Date**: 2026-08-13
 

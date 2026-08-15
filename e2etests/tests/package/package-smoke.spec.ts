@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { generateTotp } from '../../utils/totp';
 
@@ -495,21 +494,14 @@ test.describe('Package: Security self-check', () => {
 /**
  * #250, ADR-0031 layer L2: the admin SPA renders member PII and IBANs behind
  * a session cookie, and now behind a Content-Security-Policy that has to
- * survive real use — not just a header edit. Both bugs this suite would have
- * caught were invisible to a header diff: `install.js`'s Run Migrations
- * button silently stopped submitting once its own click handler disabled it
- * (disabling a submit button inside its own click handler can cancel the
- * browser's default submission), and the mandate-scan picker never broke
- * on a plain JPEG — only on a HEIC file, whose conversion library needs
- * `unsafe-eval` this policy does not grant (heic2any bundles an
- * Emscripten-compiled decoder; ADR-0031 layer L2 grants no unsafe-eval, so
- * MandateDocumentSection degrades that one path with a clear message instead
- * of hanging).
+ * survive real use — not just a header edit. This suite caught `install.js`'s
+ * Run Migrations button silently stopping submission once its own click
+ * handler disabled it (disabling a submit button inside its own click
+ * handler can cancel the browser's default submission), invisible to a
+ * header diff.
  */
 test.describe.serial('Package: Admin SPA under the enforcing CSP', () => {
   test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
-
-  const FIXTURE_DIR = path.resolve(__dirname, '../../fixtures/files');
 
   test('the enforcing policy is actually sent, with no unsafe-eval', async ({ request }) => {
     const response = await request.get(`${PACKAGE_URL}/`);
@@ -521,85 +513,6 @@ test.describe.serial('Package: Admin SPA under the enforcing CSP', () => {
     expect(header).toContain("worker-src 'self' blob:");
     expect(header).toContain("frame-ancestors 'none'");
     expect(header).toContain("object-src 'none'");
-  });
-
-  test('login, TOTP enrollment and picking a JPEG mandate scan work with no CSP violation, and a HEIC file fails gracefully', async ({ page }) => {
-    const cspViolations: string[] = [];
-    page.on('console', (msg) => {
-      if (msg.type() === 'error' && /Content Security Policy|Refused to/i.test(msg.text())) {
-        cspViolations.push(msg.text());
-      }
-    });
-
-    // The install wizard block above already created this admin, but never
-    // enrolled TOTP — do it through the real UI so the app's own
-    // localStorage-backed auth state (not just the session cookie) ends up
-    // populated the way a real admin's browser would leave it.
-    await page.goto(`${PACKAGE_URL}/`, { waitUntil: 'networkidle' });
-    await page.getByTestId('login-email-input').fill('admin@example.com');
-    await page.getByTestId('login-password-input').fill('password123');
-    await page.getByTestId('login-submit-button').click();
-
-    const secretEl = page.getByTestId('totp-setup-secret');
-    await secretEl.waitFor({ timeout: 10000 });
-    const secret = (await secretEl.innerText()).trim();
-    await page.getByTestId('setup-code-input').fill(generateTotp(secret));
-    await page.getByTestId('setup-confirm-button').click();
-    await page.waitForURL(/dashboard/, { timeout: 10000 });
-
-    const csrfToken = await page.evaluate(() => localStorage.getItem('csrf_token') ?? '');
-
-    // No IBAN can be stored until the club's public key is registered
-    // (ADR-0036), so a fresh install has to do this before its first member
-    // with bank details — the member create below is a 409 without it.
-    await registerAndActivateEncryptionKey(page.request, csrfToken, secret);
-
-    const ts = Date.now();
-    const memberResp = await page.request.post(`${PACKAGE_URL}/api/admin/members`, {
-      data: {
-        first_name: 'CSP',
-        last_name: `Check${ts}`,
-        email: `csp-check-${ts}@example.com`,
-        iban: 'DE89370400440532013000',
-        mandate_signed_at: '2025-01-01',
-        preferred_language: 'de',
-      },
-      headers: { 'X-CSRF-Token': csrfToken },
-    });
-    expect(memberResp.ok()).toBe(true);
-    const member = await memberResp.json();
-
-    await page.goto(`${PACKAGE_URL}/members`, { waitUntil: 'networkidle' });
-    await page.getByTestId('members-search-input').fill(`Check${ts}`);
-    await page.getByTestId(`members-table-action-edit-${member.id}`).click();
-
-    const dropzone = page.getByTestId('mandate-document-dropzone');
-    await expect(dropzone).toBeVisible();
-
-    // The compression path (browser-image-compression's own worker) must
-    // survive `worker-src 'self' blob:` — this is the case that would have
-    // regressed silently if that directive were ever dropped.
-    await page.getByTestId('mandate-document-input').setInputFiles({
-      name: 'test-mandate-large.jpg',
-      mimeType: 'image/jpeg',
-      buffer: readFileSync(path.join(FIXTURE_DIR, 'test-mandate-large.jpg')),
-    });
-    await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 });
-
-    await page.getByTestId('mandate-document-cancel-btn').click();
-    await expect(dropzone).toBeVisible();
-
-    // heic2any's decoder needs unsafe-eval and never gets it here — the
-    // screen must show the graceful message, not hang or crash.
-    await page.getByTestId('mandate-document-input').setInputFiles({
-      name: 'test-mandate.heic',
-      mimeType: 'image/heic',
-      buffer: Buffer.from('not a real heic file — the conversion is expected to fail before decoding it'),
-    });
-    await expect(page.getByTestId('mandate-document-error')).toBeVisible({ timeout: 20000 });
-    await expect(dropzone).toBeVisible();
-
-    expect(cspViolations).toEqual([]);
   });
 });
 

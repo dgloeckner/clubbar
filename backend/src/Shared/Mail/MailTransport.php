@@ -7,8 +7,7 @@ namespace App\Shared\Mail;
 /**
  * The seam between "what to send" and "how it leaves the host" (ADR-0038 rule 2).
  *
- * Mirrors the LlmClientInterface / VisionClientInterface shape already in the
- * codebase: one interface, a factory that reads configuration, and a null
+ * One interface, a factory that reads configuration, and a null
  * implementation so an unconfigured install degrades instead of failing.
  *
  * Implementations must not throw. Every outcome is a MailSendResult, because
