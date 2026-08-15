@@ -347,6 +347,96 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.messages.account_holder_name).toBeDefined();
   });
 
+  // Bank change — the admin edit form round-trips the mandate reference, so a
+  // plain "this member moved banks" resubmits the reference of the mandate it
+  // is about to supersede.
+  test('PATCH /api/admin/members/{id} changes the IBAN when the old mandate reference is resubmitted', async ({ authenticatedRequest }) => {
+    const createResponse = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'BankChange',
+        last_name: `Member${Date.now()}`,
+        email: `bankchange-${Date.now()}@example.com`,
+        preferred_language: 'de',
+        iban: 'DE89370400440532013000',
+        mandate_signed_at: '2025-01-15',
+      },
+    });
+    expect(createResponse.status()).toBe(201);
+    const created = await createResponse.json();
+    expect(created.mandate_reference).toBeTruthy();
+
+    // Exactly what the form sends: the new IBAN plus every other field as it
+    // was loaded, the old reference among them.
+    const patchResponse = await authenticatedRequest.patch(`/api/admin/members/${created.id}`, {
+      data: {
+        iban: 'DE02120300000000202051',
+        mandate_reference: created.mandate_reference,
+        mandate_signed_at: '2025-01-15',
+      },
+    });
+
+    expect(patchResponse.status()).toBe(200);
+
+    const updated = await patchResponse.json();
+    expect(updated.iban_last4).toBe('2051');
+    expect(updated.mandate_reference).not.toBe(created.mandate_reference);
+    expect(updated.mandate_reference).toBeTruthy();
+
+    // The change is persisted, not just echoed.
+    const reread = await authenticatedRequest.get(`/api/admin/members/${created.id}`);
+    expect(reread.status()).toBe(200);
+    const fresh = await reread.json();
+    expect(fresh.iban_last4).toBe('2051');
+    expect(fresh.mandate_reference).toBe(updated.mandate_reference);
+  });
+
+  test('PATCH /api/admin/members/{id} refuses a mandate reference another member holds without dropping the current mandate', async ({ authenticatedRequest }) => {
+    const stamp = Date.now();
+    const others = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'RefHolder',
+        last_name: `Member${stamp}`,
+        email: `refholder-${stamp}@example.com`,
+        preferred_language: 'de',
+        iban: 'DE89370400440532013000',
+        mandate_signed_at: '2025-01-15',
+      },
+    });
+    expect(others.status()).toBe(201);
+    const takenReference = (await others.json()).mandate_reference;
+
+    const targetResponse = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'RefTaker',
+        last_name: `Member${stamp}`,
+        email: `reftaker-${stamp}@example.com`,
+        preferred_language: 'de',
+        iban: 'DE89370400440532013000',
+        mandate_signed_at: '2025-01-15',
+      },
+    });
+    expect(targetResponse.status()).toBe(201);
+    const target = await targetResponse.json();
+
+    const patchResponse = await authenticatedRequest.patch(`/api/admin/members/${target.id}`, {
+      data: { iban: 'DE02120300000000202051', mandate_reference: takenReference },
+    });
+
+    // A collision the admin can correct, so it must be a 422 naming it — not
+    // the unactionable "internal server error" a raw PDOException produced.
+    expect(patchResponse.status()).toBe(422);
+    const body = await patchResponse.json();
+    expect(body.message).toContain(takenReference);
+
+    // And the refusal must leave the member's existing mandate intact rather
+    // than stranding them SEPA-invalid.
+    const reread = await authenticatedRequest.get(`/api/admin/members/${target.id}`);
+    const fresh = await reread.json();
+    expect(fresh.mandate_reference).toBe(target.mandate_reference);
+    expect(fresh.iban_last4).toBe('3000');
+    expect(fresh.is_sepa_valid).toBe(true);
+  });
+
   test('All CRUD endpoints return JSON content type', async ({ authenticatedRequest }) => {
     const data = {
       first_name: 'JsonTest',

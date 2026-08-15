@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Members\Repositories;
 
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Shared\Exceptions\DuplicateResourceException;
 use App\Shared\Security\IbanSealedBox;
 use App\Shared\Utils\Uuid;
 use PDO;
@@ -152,30 +153,51 @@ class MembersRepository
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
 
-        $stmt->execute([
-            $id,
-            $data['card_uid'] ?? null,
-            $data['first_name'],
-            $data['last_name'],
-            $data['email'],
-            $data['phone'] ?? null,
-            $data['preferred_language'] ?? 'de',
-            $data['is_active'] ?? true ? 1 : 0,
-            $data['account_holder_name'] ?? null,
-            $now,
-            $now,
-        ]);
+        // The member and their mandate are created as one unit: openMandate can
+        // refuse (a reference already taken, no operational encryption key), and
+        // a refusal after the members row landed would leave behind a member the
+        // admin never got told about — created, bankless, and reported as an
+        // error.
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
+        }
 
-        // Per ADR-0006 a reference is minted from the member id when none is
-        // given. A caller who explicitly passes an empty one is saying there is
-        // no mandate, and gets none — auto-minting over that is exactly what
-        // makes a missing signature invisible (#164).
-        $reference = array_key_exists('mandate_reference', $data)
-            ? ($data['mandate_reference'] ?: null)
-            : str_replace('-', '', $id);
+        try {
+            $stmt->execute([
+                $id,
+                $data['card_uid'] ?? null,
+                $data['first_name'],
+                $data['last_name'],
+                $data['email'],
+                $data['phone'] ?? null,
+                $data['preferred_language'] ?? 'de',
+                $data['is_active'] ?? true ? 1 : 0,
+                $data['account_holder_name'] ?? null,
+                $now,
+                $now,
+            ]);
 
-        if (($data['iban'] ?: null) !== null && $reference !== null) {
-            $this->openMandate($id, ['mandate_reference' => $reference] + $data);
+            // Per ADR-0006 a reference is minted from the member id when none is
+            // given. A caller who explicitly passes an empty one is saying there is
+            // no mandate, and gets none — auto-minting over that is exactly what
+            // makes a missing signature invisible (#164).
+            $reference = array_key_exists('mandate_reference', $data)
+                ? ($data['mandate_reference'] ?: null)
+                : str_replace('-', '', $id);
+
+            if (($data['iban'] ?: null) !== null && $reference !== null) {
+                $this->openMandate($id, ['mandate_reference' => $reference] + $data);
+            }
+
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownsTransaction) {
+                $this->db->rollBack();
+            }
+            throw $e;
         }
 
         $this->logger->info('Member created', ['id' => $id]);
@@ -258,23 +280,61 @@ class MembersRepository
             return;
         }
 
-        if ($current !== null) {
-            $this->endMandate($current['id'], $submittedIban === null ? 'revoked' : 'bank_change');
+        // A new account gets a freshly minted reference unless the caller named
+        // one; carrying the old one forward is impossible anyway, since the
+        // superseded mandate keeps its row — and its UNIQUE reference — after
+        // being ended.
+        //
+        // "Named one" therefore excludes the reference of the mandate being
+        // superseded. The admin edit form prefills that field from the mandate
+        // in hand, so a plain "this member moved banks" submits the old
+        // reference right back; reading that as a request to reuse it hit the
+        // UNIQUE key and turned the save into a 500. Echoing it means
+        // unchanged, not reuse. A genuinely different reference is still
+        // honoured — that is the caller stating what the new mandate was
+        // signed under.
+        $namedReference = ($data['mandate_reference'] ?? null) ?: null;
+        if ($current !== null && $namedReference === $current['reference']) {
+            $namedReference = null;
         }
 
-        if ($submittedIban !== null) {
-            // A new account gets a freshly minted reference unless the caller
-            // named one; carrying the old one forward is impossible anyway,
-            // since the superseded mandate still holds it.
-            $this->openMandate($id, [
-                'iban' => $submittedIban,
-                'bank_name' => $data['bank_name'] ?? null,
-                'mandate_reference' => $current === null ? $reference : ($data['mandate_reference'] ?? null),
-                'mandate_signed_at' => $signedAt,
-            ]);
+        // End-then-open is one move and must be atomic. openMandate can refuse
+        // for reasons the caller cannot see coming — no operational encryption
+        // key (ADR-0036), a reference already taken — and a failure landing
+        // between the two writes leaves the member with no active mandate at
+        // all: SEPA-invalid, excluded from the next collection, from a save
+        // that reported an error. That is precisely what the duplicate-reference
+        // 500 did before this ran in a transaction.
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
         }
 
-        $this->touchMember($id);
+        try {
+            if ($current !== null) {
+                $this->endMandate($current['id'], $submittedIban === null ? 'revoked' : 'bank_change');
+            }
+
+            if ($submittedIban !== null) {
+                $this->openMandate($id, [
+                    'iban' => $submittedIban,
+                    'bank_name' => $data['bank_name'] ?? null,
+                    'mandate_reference' => $namedReference,
+                    'mandate_signed_at' => $signedAt,
+                ]);
+            }
+
+            $this->touchMember($id);
+
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownsTransaction) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
     }
 
     /**
@@ -309,19 +369,48 @@ class MembersRepository
             'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_ciphertext, iban_last4, iban_fingerprint, encryption_key_id, bank_name, signed_at, created_by_admin_id)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([
-            $mandateId,
-            $memberId,
-            $memberId,
-            $reference,
-            $this->sealedBox->seal($data['iban'], $key['public_key']),
-            IbanSealedBox::lastFour($data['iban']),
-            $this->sealedBox->fingerprint($data['iban']),
-            $key['id'],
-            $data['bank_name'] ?? null,
-            ($data['mandate_signed_at'] ?? null) ?: null,
-            $data['created_by_admin_id'] ?? null,
-        ]);
+        try {
+            $stmt->execute([
+                $mandateId,
+                $memberId,
+                $memberId,
+                $reference,
+                $this->sealedBox->seal($data['iban'], $key['public_key']),
+                IbanSealedBox::lastFour($data['iban']),
+                $this->sealedBox->fingerprint($data['iban']),
+                $key['id'],
+                $data['bank_name'] ?? null,
+                ($data['mandate_signed_at'] ?? null) ?: null,
+                $data['created_by_admin_id'] ?? null,
+            ]);
+        } catch (\PDOException $e) {
+            // A reference the caller named that some other mandate already
+            // holds is their mistake to correct, and the only way out is to
+            // name a different one — so it belongs in the response as a 422
+            // naming the collision, not as the unactionable "internal server
+            // error" the bare PDOException produced. The minted
+            // reference cannot land here: it is a fresh UUID.
+            if ($this->isDuplicateReference($e)) {
+                throw new DuplicateResourceException("Mandate reference '{$reference}' is already in use");
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Whether a write failed on the UNIQUE key over `mandates.reference`.
+     *
+     * Matched on the key name rather than the SQLSTATE alone: the table's other
+     * unique key, `uq_mandates_active_member`, guards "at most one active
+     * mandate per member" and is an invariant of this code, not of the caller's
+     * input — reporting that one as a validation error would blame the admin
+     * for a bug.
+     */
+    private function isDuplicateReference(\PDOException $e): bool
+    {
+        return $e->getCode() === '23000'
+            && str_contains($e->getMessage(), 'Duplicate entry')
+            && str_contains($e->getMessage(), 'reference');
     }
 
     private function endMandate(string $mandateId, string $reason): void
