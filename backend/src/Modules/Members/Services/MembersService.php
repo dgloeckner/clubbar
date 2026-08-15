@@ -18,6 +18,7 @@ use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Services\AuditService;
 use PDO;
@@ -29,6 +30,7 @@ class MembersService
         private TransactionsRepository $transactionsRepository,
         private AuditService $auditService,
         private AuditLogRepository $auditLogRepository,
+        private NotificationsService $notificationsService,
         private PDO $db,
         private ?BankCodeService $bankCodeService = null,
     ) {}
@@ -302,6 +304,16 @@ class MembersService
             if (!$anonymized) {
                 throw new BusinessRuleException('Anonymization failed');
             }
+
+            // The outbox is the second place this member's address lives
+            // (ADR-0029, #408): the queue snapshots it at enqueue so it can
+            // prove who was announced to, and a snapshot is exactly what
+            // clearing `members.email` does not reach. Inside this transaction
+            // rather than after it, because the ADR words it as "both or
+            // neither" — an erasure that committed the member row and then
+            // failed here would not have erased the address, it would have
+            // moved it somewhere nobody looks.
+            $this->notificationsService->eraseMember($memberId);
 
             // Scrub the payload of every historical audit entry about this
             // member (GDPR Art. 17) — every entry keyed to their id, whatever

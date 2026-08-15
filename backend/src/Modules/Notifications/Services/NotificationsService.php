@@ -14,7 +14,9 @@ use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
+use App\Modules\Settlements\Repositories\SettlementAnnouncementsRepository;
 use App\Shared\Enums\AuditAction;
+use App\Shared\Logging\Logger;
 use App\Shared\Enums\EntityType;
 use App\Shared\Http\ListQuery;
 use App\Shared\Mail\MailSendResult;
@@ -39,6 +41,8 @@ class NotificationsService
         private MembersRepository $membersRepository,
         private AuditService $auditService,
         private AdminUsersRepository $adminUsersRepository,
+        private SettlementAnnouncementsRepository $settlementAnnouncementsRepository,
+        private Logger $logger,
     ) {}
 
     /**
@@ -238,11 +242,24 @@ class NotificationsService
      * number that describes a machine we do not have. The drain already holds
      * the mail configuration, so it passes the interval down rather than this
      * service loading the row once per message.
+     *
+     * The **claimed row** is the argument rather than its id, because a delivery
+     * is two writes and the second one needs to know what was delivered: the
+     * queue row is marked `sent`, and — for a member's money mail — a
+     * `settlement_announcements` row records that the member was announced to
+     * (#408). The queue row is pruned ninety days later; that one is not, and it
+     * is what the settlement detail reads once the queue row is gone.
+     *
+     * @param array<string,mixed> $row A claimed `mail_outbox` row.
      */
-    public function recordResult(string $outboxId, MailSendResult $result, CronInterval $interval): MailStatus
+    public function recordResult(array $row, MailSendResult $result, CronInterval $interval): MailStatus
     {
+        $outboxId = (string) $row['id'];
+
         if ($result->sent) {
-            $this->mailOutboxRepository->markSent($outboxId, $result->messageId);
+            $sentAt = $this->mailOutboxRepository->markSent($outboxId, $result->messageId);
+            $this->recordAnnouncement($row, $sentAt);
+
             return MailStatus::SENT;
         }
 
@@ -256,6 +273,114 @@ class NotificationsService
             $retry,
             $retry ? RetrySchedule::backoffSeconds($interval, $attempts) : 0,
         );
+    }
+
+    /**
+     * Leave the durable trace of a delivered announcement (#408, ADR-0029).
+     *
+     * Only for mail addressed to a member about a settlement. An expiry warning
+     * is about a credential and goes to an admin — there is no settlement for it
+     * to be evidence against, and no promise it discharges.
+     *
+     * A missing `sent_at` means the queue row vanished between the mark and the
+     * read, which on a live installation means somebody deleted it by hand. It
+     * is logged rather than thrown: the message *was* sent, and failing the
+     * drain over a lost bookkeeping row would turn one missing record into a
+     * batch that never went out.
+     *
+     * @param array<string,mixed> $row
+     */
+    private function recordAnnouncement(array $row, ?string $sentAt): void
+    {
+        $kind = MailKind::tryFrom((string) ($row['kind'] ?? ''));
+        $memberId = (string) ($row['member_id'] ?? '');
+        $subjectId = (string) ($row['subject_id'] ?? '');
+
+        if ($kind === null || !$kind->addressesMember() || $memberId === '' || $subjectId === '') {
+            return;
+        }
+
+        if ($sentAt === null) {
+            $this->logger->warning('Sent mail left no announcement record', [
+                'outbox_id' => $row['id'] ?? null,
+                'kind' => $kind->value,
+                'subject_id' => $subjectId,
+            ]);
+
+            return;
+        }
+
+        $this->settlementAnnouncementsRepository->record($subjectId, $memberId, $kind, $sentAt);
+    }
+
+    /* ─────────────────────── Erasure and retention (#408) ─────────────────────── */
+
+    /**
+     * Take a member's address out of the queue, as part of erasing them.
+     *
+     * **Must be called inside the offboarding transaction.** ADR-0029 is
+     * explicit that the outbox is covered "or neither": an anonymisation that
+     * commits `members.email = NULL` and then fails here has not erased the
+     * address, it has moved it somewhere nobody looks.
+     *
+     * Two writes, in this order. Pending rows are withdrawn first — a message
+     * queued for somebody being erased is not going out — and then every row's
+     * address is cleared, the withdrawn ones included.
+     *
+     * @return array{superseded: int, cleared: int}
+     */
+    public function eraseMember(string $memberId): array
+    {
+        $superseded = $this->mailOutboxRepository->supersedePendingForMember($memberId);
+        $cleared = $this->mailOutboxRepository->eraseMemberRecipients($memberId);
+
+        if ($superseded > 0 || $cleared > 0) {
+            $this->logger->info('Mail outbox erased for member', [
+                'member_id' => $memberId,
+                'superseded' => $superseded,
+                'cleared' => $cleared,
+            ]);
+        }
+
+        return ['superseded' => $superseded, 'cleared' => $cleared];
+    }
+
+    /**
+     * Drop delivered rows whose retention window has passed (#408).
+     *
+     * ADR-0029 refuses an unattended sweep over *accounting records*, because no
+     * scheduled job can know whether the Ablaufhemmung under § 147 Abs. 3 S. 5
+     * AO still runs. That objection does not reach here, and the ADR says so:
+     * this deletes queue rows the scheduler has already delivered, and the
+     * retention-tier fact they carried — that the member was announced to — was
+     * copied to `settlement_announcements` at the moment of delivery and is not
+     * touched.
+     *
+     * Per kind, because the window is per kind, and bounded per kind so one
+     * enormous backlog cannot starve the others of their pass.
+     *
+     * @param int|null $now Unix timestamp; injected by the tests so an age can be
+     *                      stated rather than waited for.
+     * @return int Rows deleted across all kinds.
+     */
+    public function pruneDelivered(?int $now = null): int
+    {
+        $now ??= time();
+        $deleted = 0;
+
+        foreach (MailKind::cases() as $kind) {
+            $deleted += $this->mailOutboxRepository->pruneSent(
+                $kind,
+                MailRetention::cutoffFor($kind, $now),
+                MailRetention::PRUNE_BATCH,
+            );
+        }
+
+        if ($deleted > 0) {
+            $this->logger->info('Pruned delivered mail from the outbox', ['deleted' => $deleted]);
+        }
+
+        return $deleted;
     }
 
     /**

@@ -76,18 +76,37 @@ final readonly class SettlementDto
          * @var list<QueuedMailDto>
          */
         public array $notifications = [],
+        /**
+         * The announcements that actually went out, per member (#408).
+         *
+         * Not a duplicate of `notifications`, and the difference is a lifetime.
+         * A queue row carries the recipient address, which ADR-0029 puts in the
+         * operational tier: erased with the member, and pruned ninety days after
+         * delivery. This carries only *that* a member was announced to and when,
+         * names no address, and is kept for the retention period — so the
+         * breakdown still answers "was this member told?" about a collection
+         * from three years ago, whose queue rows are long gone.
+         *
+         * While both exist they agree by construction: the timestamp here is
+         * copied from the queue row at the moment of delivery.
+         *
+         * @var list<array{member_id: string, kind: string, sent_at: string}>
+         */
+        public array $announcements = [],
     ) {}
 
     /**
      * @param list<SettlementReversalDto> $reversals Only the single-settlement
      *        read passes these; the list endpoint does not join them.
      * @param list<QueuedMailDto> $notifications Likewise.
+     * @param list<array{member_id: string, kind: string, sent_at: string}> $announcements Likewise.
      */
     public static function fromRow(
         array $row,
         array $items = [],
         array $reversals = [],
         array $notifications = [],
+        array $announcements = [],
     ): self {
         // Rows read outside SettlementsRepository (minimal fixtures, older
         // tests) carry no counts. Absent means none, which derives the same
@@ -128,6 +147,7 @@ final readonly class SettlementDto
             reversedMemberCount: $reversedMemberCount,
             reversals: $reversals,
             notifications: $notifications,
+            announcements: $announcements,
         );
     }
 
@@ -172,6 +192,7 @@ final readonly class SettlementDto
                 static fn($n) => $n instanceof QueuedMailDto ? $n->toArray() : $n,
                 $this->notifications,
             ),
+            'announcements' => $this->announcements,
         ];
     }
 }

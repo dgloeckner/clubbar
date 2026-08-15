@@ -274,6 +274,8 @@ export * from './sepaConfig';
 export * from './sepaConfigRequest';
 export * from './sepaConfigUpdateRequest';
 export * from './settlement';
+export * from './settlementAnnouncement';
+export * from './settlementAnnouncementKind';
 export * from './settlementCreateRequest';
 export * from './settlementCreateRequestMethod';
 export * from './settlementFilterPreview';

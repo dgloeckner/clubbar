@@ -15,7 +15,12 @@
  * freed, and the figure the member checklist has to show before one is made.
  */
 
-import type { QueuedMail, SettlementItem, SettlementReversal } from '../api/generated'
+import type {
+  QueuedMail,
+  SettlementAnnouncement,
+  SettlementItem,
+  SettlementReversal,
+} from '../api/generated'
 
 export interface SettlementMemberLine {
   memberId: string
@@ -37,12 +42,26 @@ export interface SettlementMemberLine {
    * notice retracting it is a different message with a different fate.
    */
   notification: QueuedMail | null
+  /**
+   * When the announcement actually went out, from the record that outlives the
+   * queue (#408).
+   *
+   * The queue row is pruned ninety days after delivery, because it carries the
+   * recipient address and that is operational-tier data (ADR-0029). This one
+   * names no address and is kept, so it is the only thing left to read on a
+   * settlement from three years ago — and `notification` being null there means
+   * "the row was pruned", not "nobody was told". Preferring the queue row while
+   * it exists keeps the richer answer (which address, which error) for the weeks
+   * in which anybody is still asking.
+   */
+  announcedAt: string | null
 }
 
 export function settlementMemberLines(
   items: SettlementItem[] | undefined,
   reversals: SettlementReversal[] | undefined,
-  notifications?: QueuedMail[]
+  notifications?: QueuedMail[],
+  announcements?: SettlementAnnouncement[]
 ): SettlementMemberLine[] {
   const reversalByMember = new Map<string, SettlementReversal>()
   for (const reversal of reversals ?? []) {
@@ -53,6 +72,13 @@ export function settlementMemberLines(
   for (const message of notifications ?? []) {
     if (message.member_id && message.kind === 'sepa_prenotification') {
       announcementByMember.set(message.member_id, message)
+    }
+  }
+
+  const announcedByMember = new Map<string, string>()
+  for (const announcement of announcements ?? []) {
+    if (announcement.kind === 'sepa_prenotification') {
+      announcedByMember.set(announcement.member_id, announcement.sent_at)
     }
   }
 
@@ -68,6 +94,7 @@ export function settlementMemberLines(
       transactionCount: 0,
       reversal: reversalByMember.get(memberId) ?? null,
       notification: announcementByMember.get(memberId) ?? null,
+      announcedAt: announcedByMember.get(memberId) ?? null,
     }
 
     line.amountCents += item.amount_cents ?? 0

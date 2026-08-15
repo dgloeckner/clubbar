@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Members\Services;
 
 use App\Modules\Members\Services\MembersService;
+use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
@@ -20,6 +21,7 @@ class MembersServiceTest extends TestCase
     private TransactionsRepository $transactionsRepository;
     private AuditService $auditService;
     private AuditLogRepository $auditLogRepository;
+    private NotificationsService $notificationsService;
     private \PDO $db;
     private MembersService $membersService;
 
@@ -33,6 +35,9 @@ class MembersServiceTest extends TestCase
         $this->auditService = $this->createMock(AuditService::class);
         $this->auditLogRepository = $this->createMock(AuditLogRepository::class);
         $this->db = $this->createMock(\PDO::class);
+        // Erasure reaches the mail outbox too (#408); these tests do not
+        // exercise it, so the collaborator is present and silent.
+        $this->notificationsService = $this->createMock(NotificationsService::class);
 
         // Create service instance
         $this->membersService = new MembersService(
@@ -40,6 +45,7 @@ class MembersServiceTest extends TestCase
             $this->transactionsRepository,
             $this->auditService,
             $this->auditLogRepository,
+            $this->notificationsService,
             $this->db,
         );
     }

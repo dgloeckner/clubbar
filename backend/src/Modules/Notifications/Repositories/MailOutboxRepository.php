@@ -329,7 +329,14 @@ class MailOutboxRepository
         $stmt->execute([$id, MailStatus::PENDING->value]);
     }
 
-    public function markSent(string $id, ?string $messageId): void
+    /**
+     * @return string|null The `sent_at` that was written, or null if the row is
+     *         gone. The caller copies it onto the durable settlement-side record
+     *         (#408), and reading it back rather than stamping a PHP timestamp
+     *         is what keeps the two from disagreeing: `NOW()` is the database's
+     *         clock, and on a shared host it is not always the web server's.
+     */
+    public function markSent(string $id, ?string $messageId): ?string
     {
         $stmt = $this->db->prepare(
             'UPDATE mail_outbox
@@ -338,6 +345,12 @@ class MailOutboxRepository
               WHERE id = ?'
         );
         $stmt->execute([MailStatus::SENT->value, $messageId, $id]);
+
+        $read = $this->db->prepare('SELECT sent_at FROM mail_outbox WHERE id = ?');
+        $read->execute([$id]);
+        $sentAt = $read->fetchColumn();
+
+        return $sentAt === false || $sentAt === null ? null : (string) $sentAt;
     }
 
     /**
@@ -477,5 +490,94 @@ class MailOutboxRepository
         }
 
         return $counts;
+    }
+
+    /* ─────────────────────── Erasure and retention (#408) ─────────────────────── */
+
+    /**
+     * Take a member's address out of every row that holds it (ADR-0029).
+     *
+     * Keyed on `member_id`, and that is the whole substance of the method. The
+     * shortcut is to key on `subject_id` — which happens to be the member for
+     * some kinds and is the *settlement* for a Vorabankündigung, so an erasure
+     * written that way would clear the rows nobody was worried about and leave
+     * every announcement address in place. The column is the one the foreign
+     * key is on for exactly this reason.
+     *
+     * The address is replaced with the empty string rather than the row being
+     * deleted: `recipient` is `NOT NULL`, and more to the point the row is the
+     * record that a message was queued for this member. Erasure removes the
+     * contact data, not the fact that the club wrote to somebody — the same
+     * split anonymisation already makes on `members` itself, where the row
+     * survives with its name nulled.
+     *
+     * @return int Rows whose address was cleared.
+     */
+    public function eraseMemberRecipients(string $memberId): int
+    {
+        $stmt = $this->db->prepare(
+            "UPDATE mail_outbox SET recipient = '' WHERE member_id = ? AND recipient <> ''"
+        );
+        $stmt->execute([$memberId]);
+
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Close out anything still queued for a member being erased.
+     *
+     * Without this the erasure would leave a `pending` row addressed to an empty
+     * string, which the drain would then claim, fail to send, and report as a
+     * delivery failure against a member who no longer exists — a fabricated
+     * problem, on a queue whose failures are supposed to mean something.
+     *
+     * `superseded` rather than `failed` because nothing went wrong: the message
+     * was withdrawn, which is what that status already means everywhere else in
+     * this table (a cancellation retiring an announcement that never left).
+     *
+     * @return int Rows superseded.
+     */
+    public function supersedePendingForMember(string $memberId): int
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE mail_outbox
+                SET status = ?, claim_token = NULL, claimed_at = NULL
+              WHERE member_id = ? AND status = ?'
+        );
+        $stmt->execute([MailStatus::SUPERSEDED->value, $memberId, MailStatus::PENDING->value]);
+
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Delete delivered rows of one kind older than a cutoff (#408).
+     *
+     * Three predicates, and each of them is load-bearing:
+     *
+     * - `status = 'sent'` — pruning is not a way to lose a message that never
+     *   went out. A `failed` row is the record that somebody was not reached and
+     *   is kept at any age; so are `pending` and `superseded`.
+     * - `sent_at < cutoff` — the cutoff comes from
+     *   {@see \App\Modules\Notifications\Services\MailRetention}, per kind, so
+     *   the policy is in one place and this method holds none of it.
+     * - `LIMIT` — the run this is called from has a wall-clock budget, and the
+     *   first prune after an upgrade can face years of queue.
+     *
+     * @return int Rows deleted.
+     */
+    public function pruneSent(MailKind $kind, string $sentBefore, int $limit): int
+    {
+        $stmt = $this->db->prepare(
+            'DELETE FROM mail_outbox
+              WHERE kind = ? AND status = ? AND sent_at IS NOT NULL AND sent_at < ?
+              LIMIT ?'
+        );
+        $stmt->bindValue(1, $kind->value);
+        $stmt->bindValue(2, MailStatus::SENT->value);
+        $stmt->bindValue(3, $sentBefore);
+        $stmt->bindValue(4, $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->rowCount();
     }
 }

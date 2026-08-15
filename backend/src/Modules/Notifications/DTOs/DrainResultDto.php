@@ -24,6 +24,11 @@ use App\Modules\Notifications\Enums\DrainSource;
  * limit with work still queued, and the next tick continues. It matters only
  * because a run that reports it on every tick means the schedule is too slow
  * for the queue, which no single run can tell you.
+ *
+ * `pruned` counts rows the run *deleted* rather than sent (#408) — delivered
+ * messages past their retention window. It is reported for the same reason the
+ * rest is: an unattended deletion that nobody can see is how a retention policy
+ * quietly stops running.
  */
 final readonly class DrainResultDto
 {
@@ -34,6 +39,7 @@ final readonly class DrainResultDto
         public int $retrying = 0,
         public int $failed = 0,
         public int $skipped = 0,
+        public int $pruned = 0,
         public bool $budgetExhausted = false,
         public float $durationSeconds = 0.0,
     ) {}
@@ -53,6 +59,7 @@ final readonly class DrainResultDto
             'retrying' => $this->retrying,
             'failed' => $this->failed,
             'skipped' => $this->skipped,
+            'pruned' => $this->pruned,
             'budget_exhausted' => $this->budgetExhausted,
             'duration_seconds' => round($this->durationSeconds, 3),
         ];
@@ -62,13 +69,14 @@ final readonly class DrainResultDto
     public function summary(): string
     {
         return sprintf(
-            'source=%s claimed=%d sent=%d retrying=%d failed=%d skipped=%d budget_exhausted=%s duration=%.2fs',
+            'source=%s claimed=%d sent=%d retrying=%d failed=%d skipped=%d pruned=%d budget_exhausted=%s duration=%.2fs',
             $this->source->value,
             $this->claimed,
             $this->sent,
             $this->retrying,
             $this->failed,
             $this->skipped,
+            $this->pruned,
             $this->budgetExhausted ? 'yes' : 'no',
             $this->durationSeconds,
         );

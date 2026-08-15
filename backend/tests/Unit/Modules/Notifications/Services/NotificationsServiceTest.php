@@ -11,10 +11,13 @@ use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
+use App\Modules\Notifications\Services\MailRetention;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\RetrySchedule;
+use App\Modules\Settlements\Repositories\SettlementAnnouncementsRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Logging\Logger;
 use App\Shared\Mail\MailSendResult;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
@@ -34,10 +37,12 @@ class NotificationsServiceTest extends TestCase
     private MembersRepository $members;
     private AuditService $audit;
     private AdminUsersRepository $admins;
+    private SettlementAnnouncementsRepository $announcements;
     private NotificationsService $service;
 
     private const SETTLEMENT = '11111111-1111-4111-8111-111111111111';
     private const ADMIN = '22222222-2222-4222-8222-222222222222';
+    private const MEMBER = '33333333-3333-4333-8333-333333333333';
 
     protected function setUp(): void
     {
@@ -47,12 +52,15 @@ class NotificationsServiceTest extends TestCase
         $this->members = $this->createMock(MembersRepository::class);
         $this->audit = $this->createMock(AuditService::class);
         $this->admins = $this->createMock(AdminUsersRepository::class);
+        $this->announcements = $this->createMock(SettlementAnnouncementsRepository::class);
 
         $this->service = new NotificationsService(
             $this->outbox,
             $this->members,
             $this->audit,
             $this->admins,
+            $this->announcements,
+            $this->createMock(Logger::class),
         );
     }
 
@@ -463,12 +471,22 @@ class NotificationsServiceTest extends TestCase
 
     public function test_recordResult_marks_a_delivered_message_sent(): void
     {
-        $this->outbox->expects($this->once())->method('markSent')->with('outbox-1', 'mid-9');
+        $this->outbox->expects($this->once())
+            ->method('markSent')
+            ->with('outbox-1', 'mid-9')
+            ->willReturn('2026-08-15 10:00:00');
         $this->outbox->expects($this->never())->method('markFailed');
+
+        // The delivery leaves a record the queue row's pruning cannot take with
+        // it (#408) — same settlement, same member, the timestamp the queue
+        // wrote rather than a second reading of the clock.
+        $this->announcements->expects($this->once())
+            ->method('record')
+            ->with(self::SETTLEMENT, self::MEMBER, MailKind::SEPA_PRENOTIFICATION, '2026-08-15 10:00:00');
 
         $this->assertSame(
             MailStatus::SENT,
-            $this->service->recordResult('outbox-1', MailSendResult::sent('mid-9'), CronInterval::HOURLY),
+            $this->service->recordResult($this->claimed(), MailSendResult::sent('mid-9'), CronInterval::HOURLY),
         );
     }
 
@@ -496,7 +514,7 @@ class NotificationsServiceTest extends TestCase
         $this->assertSame(
             MailStatus::PENDING,
             $this->service->recordResult(
-                'outbox-1',
+                $this->claimed(),
                 MailSendResult::transientFailure('451 greylisted, try again later'),
                 CronInterval::HOURLY,
             ),
@@ -517,7 +535,7 @@ class NotificationsServiceTest extends TestCase
             ->willReturn(MailStatus::PENDING);
 
         $this->service->recordResult(
-            'outbox-1',
+            $this->claimed(),
             MailSendResult::transientFailure('451 greylisted'),
             CronInterval::DAILY,
         );
@@ -534,7 +552,7 @@ class NotificationsServiceTest extends TestCase
         $this->assertSame(
             MailStatus::FAILED,
             $this->service->recordResult(
-                'outbox-1',
+                $this->claimed(),
                 MailSendResult::transientFailure('451 still greylisted'),
                 CronInterval::HOURLY,
             ),
@@ -552,10 +570,123 @@ class NotificationsServiceTest extends TestCase
         $this->assertSame(
             MailStatus::FAILED,
             $this->service->recordResult(
-                'outbox-1',
+                $this->claimed(),
                 MailSendResult::permanentFailure('550 no such mailbox'),
                 CronInterval::HOURLY,
             ),
         );
+    }
+
+    /**
+     * A claimed row as the drain hands it over — id, and enough to say what was
+     * sent to whom.
+     *
+     * @param array<string,mixed> $overrides
+     * @return array<string,mixed>
+     */
+    private function claimed(array $overrides = []): array
+    {
+        return $overrides + [
+            'id' => 'outbox-1',
+            'kind' => MailKind::SEPA_PRENOTIFICATION->value,
+            'subject_id' => self::SETTLEMENT,
+            'member_id' => self::MEMBER,
+        ];
+    }
+
+    /* ──────────────────── the durable record and erasure (#408) ──────────────────── */
+
+    /**
+     * An expiry warning is about a credential and goes to an admin. There is no
+     * settlement for it to be evidence against, and writing one would put a
+     * terminal id in a column with a settlement foreign key on it.
+     */
+    public function test_an_admin_warning_leaves_no_settlement_announcement(): void
+    {
+        $this->outbox->method('markSent')->willReturn('2026-08-15 10:00:00');
+        $this->announcements->expects($this->never())->method('record');
+
+        $this->service->recordResult(
+            $this->claimed([
+                'kind' => MailKind::TERMINAL_TOKEN_EXPIRY_WARNING->value,
+                'member_id' => null,
+                'subject_id' => 'terminal-1',
+            ]),
+            MailSendResult::sent('mid-9'),
+            CronInterval::HOURLY,
+        );
+    }
+
+    /**
+     * A failed send records nothing durable. The record means "this member was
+     * announced to", and the whole value of it is that it is never written when
+     * that is untrue.
+     */
+    public function test_a_failed_send_leaves_no_settlement_announcement(): void
+    {
+        $this->outbox->method('attemptsFor')->willReturn(0);
+        $this->outbox->method('markFailed')->willReturn(MailStatus::FAILED);
+        $this->announcements->expects($this->never())->method('record');
+
+        $this->service->recordResult(
+            $this->claimed(),
+            MailSendResult::permanentFailure('550 no such mailbox'),
+            CronInterval::HOURLY,
+        );
+    }
+
+    /**
+     * Erasure withdraws before it clears, and both happen. The order is the
+     * substance: clearing first would leave a `pending` row addressed to an
+     * empty string for the drain to claim and report as a delivery failure.
+     */
+    public function test_erasing_a_member_supersedes_then_clears(): void
+    {
+        $order = [];
+
+        $this->outbox->expects($this->once())
+            ->method('supersedePendingForMember')
+            ->with(self::MEMBER)
+            ->willReturnCallback(function () use (&$order): int {
+                $order[] = 'supersede';
+                return 1;
+            });
+        $this->outbox->expects($this->once())
+            ->method('eraseMemberRecipients')
+            ->with(self::MEMBER)
+            ->willReturnCallback(function () use (&$order): int {
+                $order[] = 'clear';
+                return 3;
+            });
+
+        $this->assertSame(
+            ['superseded' => 1, 'cleared' => 3],
+            $this->service->eraseMember(self::MEMBER),
+        );
+        $this->assertSame(['supersede', 'clear'], $order);
+    }
+
+    /**
+     * Pruning asks every kind for its own window rather than applying one
+     * number to the table — the property #462's statement mail depends on when
+     * its window diverges.
+     */
+    public function test_pruning_uses_the_window_of_each_kind(): void
+    {
+        $now = mktime(12, 0, 0, 8, 15, 2026);
+        $seen = [];
+
+        $this->outbox->method('pruneSent')
+            ->willReturnCallback(function (MailKind $kind, string $cutoff, int $limit) use (&$seen): int {
+                $seen[$kind->value] = $cutoff;
+                return 1;
+            });
+
+        $deleted = $this->service->pruneDelivered($now);
+
+        $this->assertSame(count(MailKind::cases()), $deleted);
+        foreach (MailKind::cases() as $kind) {
+            $this->assertSame(MailRetention::cutoffFor($kind, $now), $seen[$kind->value] ?? null);
+        }
     }
 }

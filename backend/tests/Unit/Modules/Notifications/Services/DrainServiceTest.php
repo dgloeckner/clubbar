@@ -163,7 +163,7 @@ class DrainServiceTest extends TestCase
 
         $recorded = null;
         $this->notifications->method('recordResult')
-            ->willReturnCallback(function (string $id, MailSendResult $result) use (&$recorded): MailStatus {
+            ->willReturnCallback(function (array $row, MailSendResult $result) use (&$recorded): MailStatus {
                 $recorded = $result;
                 return MailStatus::FAILED;
             });
@@ -193,7 +193,7 @@ class DrainServiceTest extends TestCase
 
         $statuses = [];
         $this->notifications->method('recordResult')
-            ->willReturnCallback(function (string $id, MailSendResult $r) use (&$statuses): MailStatus {
+            ->willReturnCallback(function (array $row, MailSendResult $r) use (&$statuses): MailStatus {
                 $statuses[] = $r;
                 return $r->sent ? MailStatus::SENT : MailStatus::PENDING;
             });
