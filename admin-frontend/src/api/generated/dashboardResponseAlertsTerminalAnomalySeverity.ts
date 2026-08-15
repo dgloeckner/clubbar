@@ -57,44 +57,20 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { DashboardResponseAlertsEncryptionKey } from './dashboardResponseAlertsEncryptionKey';
-import type { DashboardResponseAlertsSepaConfig } from './dashboardResponseAlertsSepaConfig';
-import type { DashboardResponseAlertsSepaIssues } from './dashboardResponseAlertsSepaIssues';
-import type { DashboardResponseAlertsTerminalAnomaly } from './dashboardResponseAlertsTerminalAnomaly';
 
 /**
- * Admin alerts requiring attention
- */
-export type DashboardResponseAlerts = {
-  sepa_issues?: DashboardResponseAlertsSepaIssues;
-  /** Remaining lifetime of the ACTIVE IBAN encryption key
-([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)).
+ * - none: nothing open
+- warning: only cursor anomalies, which a restore from
+  backup or a re-provisioning also produces
+- error: concurrent use, the one kind with no routine
+  innocent cause
 
-Computed on every dashboard load rather than by a scheduler:
-shared hosting guarantees no cron (ADR-0031), and this is the
-warning an admin cannot miss. `missing` is the loudest state —
-until a key is activated, no member's bank details can be
-stored at all.
  */
-  encryption_key?: DashboardResponseAlertsEncryptionKey;
-  /** Whether SEPA is actually ready to collect: the creditor
-identity the bank needs, and the externally hosted mandate
-template URL a new member is sent to sign (#360/#456).
-`SepaExportService` refuses to export a settlement while
-either is missing — this is the same completeness check,
-surfaced before an admin hits that block.
- */
-  sepa_config?: DashboardResponseAlertsSepaConfig;
-  /** Terminals whose credential looks like it is in use on more than
-one device (ADR-0041). Raised by the cron tick from two signals
-recorded on ordinary terminal traffic: two source addresses
-active at the same time for a sustained period, or a delta sync
-cursor that does not continue the history this token has been
-building.
+export type DashboardResponseAlertsTerminalAnomalySeverity = typeof DashboardResponseAlertsTerminalAnomalySeverity[keyof typeof DashboardResponseAlertsTerminalAnomalySeverity];
 
-Alert only. Nothing here has blocked, revoked or rate-limited
-anything — every kind has an innocent explanation, and the cost
-of acting on a false positive is a bar that cannot sell.
- */
-  terminal_anomaly?: DashboardResponseAlertsTerminalAnomaly;
-};
+
+export const DashboardResponseAlertsTerminalAnomalySeverity = {
+  none: 'none',
+  warning: 'warning',
+  error: 'error',
+} as const;

@@ -46,6 +46,17 @@ enum MailKind: string
     /** Reserved for #438: the same, for a terminal token (ADR-0036). */
     case TERMINAL_TOKEN_EXPIRY_WARNING = 'terminal_token_expiry_warning';
 
+    /**
+     * ADR-0041: a terminal's credential looks like it is on more than one
+     * device — two addresses active at once, or a sync cursor that does not
+     * continue the history this token has been building.
+     *
+     * The anomaly, not the terminal, is what makes a message distinct: the
+     * `dedup_key` carries a slice of the anomaly id, so an ongoing condition
+     * mails once while a genuinely new one mails again.
+     */
+    case TERMINAL_ANOMALY_WARNING = 'terminal_anomaly_warning';
+
     /** What `subject_id` refers to for this kind. */
     public function subjectType(): MailSubject
     {
@@ -54,7 +65,8 @@ enum MailKind: string
             self::CANCELLATION_NOTICE,
             self::PAYMENT_REQUEST => MailSubject::SETTLEMENT,
             self::KEY_EXPIRY_WARNING => MailSubject::ENCRYPTION_KEY,
-            self::TERMINAL_TOKEN_EXPIRY_WARNING => MailSubject::TERMINAL,
+            self::TERMINAL_TOKEN_EXPIRY_WARNING,
+            self::TERMINAL_ANOMALY_WARNING => MailSubject::TERMINAL,
         };
     }
 

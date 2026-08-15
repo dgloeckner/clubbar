@@ -562,6 +562,8 @@
     "lastSync": "Letzte Synchronisation",
     "lastTransaction": "Letzte Buchung",
     "tokenExpires": "Token läuft ab",
+    "terminalAnomaly": "Auffällig",
+    "terminalAnomalyHint": "Der Zugang dieses Terminals wird möglicherweise auf mehr als einem Gerät verwendet. Es wurde nichts gesperrt — bitte prüfen.",
     "tokenNone": "Kein Token",
     "noTerminals": "Keine Terminals konfiguriert",
     "deactivateTerminalConfirm": "Möchten Sie dieses Terminal wirklich deaktivieren? Es kann dann nicht mehr synchronisieren. Die Zugangsdaten bleiben gespeichert – ein erneutes Aktivieren macht das Terminal sofort wieder einsatzbereit.",
@@ -952,7 +954,8 @@
     "stale": "Die letzte Aktualisierung ist fehlgeschlagen – die Werte sind möglicherweise veraltet.",
     "staleSince": "Die letzte Aktualisierung ist fehlgeschlagen – die Werte stammen von {{time}} Uhr.",
     "manageKeys": "Schlüssel verwalten",
-    "manageSepaConfig": "SEPA konfigurieren"
+    "manageSepaConfig": "SEPA konfigurieren",
+    "reviewTerminals": "Terminals prüfen"
   },
   "pagination": {
     "firstPage": "Erste Seite",

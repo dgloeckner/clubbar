@@ -33,7 +33,10 @@ use App\Modules\Auth\Repositories\SessionRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\CollectionHoldRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
+use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
+use App\Modules\Terminals\Repositories\TerminalIpSightingsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
+use App\Modules\Terminals\Repositories\TerminalSyncCursorsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 
 // BankCodes
@@ -66,12 +69,15 @@ use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
+use App\Modules\Notifications\Services\TerminalAnomalyMailBuilder;
 use App\Shared\Mail\MailTransportFactory;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Modules\Settlements\Services\SettlementReversalService;
 use App\Modules\Settlements\Services\CollectionHoldService;
 use App\Modules\Settlements\Services\SettlementsService;
+use App\Modules\Terminals\Services\TerminalAnomalyDetector;
 use App\Modules\Terminals\Services\TerminalsService;
+use App\Modules\Terminals\Services\TerminalSyncCursorService;
 use App\Modules\Terminals\Services\TerminalTokenAuthenticator;
 use App\Modules\Transactions\Services\TransactionsService;
 
@@ -310,6 +316,21 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(TerminalsRepository::class, fn() => new TerminalsRepository($this->pdo, $this->logger));
     }
 
+    public function getTerminalIpSightingsRepository(): TerminalIpSightingsRepository
+    {
+        return $this->resolve(TerminalIpSightingsRepository::class, fn() => new TerminalIpSightingsRepository($this->pdo));
+    }
+
+    public function getTerminalSyncCursorsRepository(): TerminalSyncCursorsRepository
+    {
+        return $this->resolve(TerminalSyncCursorsRepository::class, fn() => new TerminalSyncCursorsRepository($this->pdo));
+    }
+
+    public function getTerminalAnomaliesRepository(): TerminalAnomaliesRepository
+    {
+        return $this->resolve(TerminalAnomaliesRepository::class, fn() => new TerminalAnomaliesRepository($this->pdo));
+    }
+
     public function getTransactionsRepository(): TransactionsRepository
     {
         return $this->resolve(TransactionsRepository::class, fn() => new TransactionsRepository($this->pdo, $this->logger));
@@ -479,6 +500,22 @@ class ServiceFactory implements ContainerInterface
     {
         return $this->resolve(MailContentRegistry::class, fn() => new MailContentRegistry(
             $this->getSettlementMailBuilder(),
+            $this->getTerminalAnomalyMailBuilder(),
+        ));
+    }
+
+    /**
+     * ADR-0041. The first admin-addressed builder — `warnAdmins()` has been able
+     * to queue since #438, and until this was registered nothing could render
+     * what it queued.
+     */
+    public function getTerminalAnomalyMailBuilder(): TerminalAnomalyMailBuilder
+    {
+        return $this->resolve(TerminalAnomalyMailBuilder::class, fn() => new TerminalAnomalyMailBuilder(
+            $this->getTerminalsRepository(),
+            $this->getTerminalAnomaliesRepository(),
+            $this->getAdminUsersRepository(),
+            $this->getMailConfigService(),
         ));
     }
 
@@ -611,6 +648,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalsRepository(),
             $this->getAuditService(),
             $this->config,
+            $this->getTerminalAnomaliesRepository(),
         ));
     }
 
@@ -624,6 +662,38 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(TerminalTokenAuthenticator::class, fn() => new TerminalTokenAuthenticator(
             $this->getTerminalsRepository(),
             $this->getAuditService(),
+        ));
+    }
+
+    /**
+     * ADR-0041. Called from the three delta endpoints on every pull, so it is
+     * memoised like any other service and holds no per-request state.
+     */
+    public function getTerminalSyncCursorService(): TerminalSyncCursorService
+    {
+        return $this->resolve(TerminalSyncCursorService::class, fn() => new TerminalSyncCursorService(
+            $this->getTerminalSyncCursorsRepository(),
+            $this->getLogger(),
+        ));
+    }
+
+    /**
+     * ADR-0041. Runs on the cron tick, not on a request — the sustained-overlap
+     * rule is a question about a window, and asking it per request would repeat
+     * the same aggregate scan hundreds of times an hour.
+     */
+    public function getTerminalAnomalyDetector(): TerminalAnomalyDetector
+    {
+        return $this->resolve(TerminalAnomalyDetector::class, fn() => new TerminalAnomalyDetector(
+            $this->getTerminalIpSightingsRepository(),
+            $this->getTerminalSyncCursorsRepository(),
+            $this->getTerminalAnomaliesRepository(),
+            $this->getNotificationsService(),
+            $this->getAuditService(),
+            $this->getLogger(),
+            self::positiveEnv('TERMINAL_ANOMALY_LOOKBACK_MINUTES', TerminalAnomalyDetector::DEFAULT_LOOKBACK_MINUTES),
+            self::positiveEnv('TERMINAL_ANOMALY_MIN_OVERLAP_MINUTES', TerminalAnomalyDetector::DEFAULT_MIN_OVERLAP_MINUTES),
+            self::positiveEnv('TERMINAL_IP_RETENTION_DAYS', TerminalAnomalyDetector::DEFAULT_RETENTION_DAYS),
         ));
     }
 
@@ -658,6 +728,8 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalsRepository(),
             $this->getTerminalAuthAttemptsRepository(),
             $this->getTerminalTokenAuthenticator(),
+            $this->getTerminalIpSightingsRepository(),
+            $this->getLogger(),
         ));
     }
 
@@ -824,6 +896,7 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(MembersSyncController::class, fn() => new MembersSyncController(
             $this->getMembersService(),
             $this->getValidator(),
+            $this->getTerminalSyncCursorService(),
         ));
     }
 
@@ -844,7 +917,11 @@ class ServiceFactory implements ContainerInterface
 
     public function getProductsSyncController(): ProductsSyncController
     {
-        return $this->resolve(ProductsSyncController::class, fn() => new ProductsSyncController($this->getCategoriesService(), $this->getProductsService()));
+        return $this->resolve(ProductsSyncController::class, fn() => new ProductsSyncController(
+            $this->getCategoriesService(),
+            $this->getProductsService(),
+            $this->getTerminalSyncCursorService(),
+        ));
     }
 
     public function getTransactionsAdminController(): TransactionsAdminController
@@ -902,6 +979,7 @@ class ServiceFactory implements ContainerInterface
             $this->getDrainService(),
             $this->config,
             $this->getLogger(),
+            $this->getTerminalAnomalyDetector(),
         ));
     }
 
@@ -961,6 +1039,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalsRepository(),
             $this->getEncryptionKeysRepository(),
             $this->getSepaConfigRepository(),
+            $this->getTerminalAnomaliesRepository(),
         ));
     }
 

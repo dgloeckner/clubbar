@@ -9,8 +9,10 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
+use App\Modules\Terminals\Repositories\TerminalIpSightingsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Terminals\Services\TerminalTokenAuthenticator;
+use App\Shared\Logging\Logger;
 use Slim\Psr7\Response;
 
 class TerminalTokenAuth implements MiddlewareInterface
@@ -23,6 +25,8 @@ class TerminalTokenAuth implements MiddlewareInterface
         private TerminalsRepository $terminalsRepository,
         private LoginAttemptsRepository $authAttempts,
         private TerminalTokenAuthenticator $authenticator,
+        private TerminalIpSightingsRepository $ipSightings,
+        private Logger $logger,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -65,6 +69,23 @@ class TerminalTokenAuth implements MiddlewareInterface
 
         // Update last sync timestamp
         $this->terminalsRepository->updateLastSync($terminal['id']);
+
+        // ADR-0041: record where this request came from, so the cron tick can
+        // ask whether two devices are holding one token. Observation only —
+        // nothing below branches on it, and a failure here must not cost a
+        // sale, which is why it cannot escape as an exception.
+        try {
+            $this->ipSightings->record(
+                $terminal['id'],
+                $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1',
+                time(),
+            );
+        } catch (\Throwable $e) {
+            $this->logger->error('Could not record terminal IP sighting', [
+                'terminal_id' => $terminal['id'],
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         $request = $request->withAttribute('terminal_id', $terminal['id']);
         $request = $request->withAttribute('terminal', $terminal);

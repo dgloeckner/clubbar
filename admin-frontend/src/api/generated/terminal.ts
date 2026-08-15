@@ -98,6 +98,11 @@ export interface Terminal {
    * @nullable
    */
   days_until_expiry?: number | null;
+  /** Unacknowledged credential anomalies for this terminal (ADR-0041) — concurrent use from two addresses, or a sync cursor that does not continue this token's history. Answers the same question the lifecycle fields do, from the other direction: not "is this about to expire" but "is somebody else already using it".
+ */
+  open_anomaly_count?: number;
+  /** Whether `open_anomaly_count` is greater than zero. */
+  has_open_anomaly?: boolean;
   created_at?: string;
   updated_at?: string;
 }

@@ -11,6 +11,7 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
+use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use PHPUnit\Framework\TestCase;
@@ -33,6 +34,7 @@ class DashboardServiceTest extends TestCase
     private TerminalsRepository $terminalsRepository;
     private EncryptionKeysRepository $encryptionKeysRepository;
     private SepaConfigRepository $sepaConfigRepository;
+    private TerminalAnomaliesRepository $terminalAnomaliesRepository;
     private DashboardService $service;
 
     protected function setUp(): void
@@ -44,6 +46,7 @@ class DashboardServiceTest extends TestCase
         $this->terminalsRepository = $this->createMock(TerminalsRepository::class);
         $this->encryptionKeysRepository = $this->createMock(EncryptionKeysRepository::class);
         $this->sepaConfigRepository = $this->createMock(SepaConfigRepository::class);
+        $this->terminalAnomaliesRepository = $this->createMock(TerminalAnomaliesRepository::class);
 
         $this->service = new DashboardService(
             $this->dashboardRepository,
@@ -53,7 +56,72 @@ class DashboardServiceTest extends TestCase
             $this->terminalsRepository,
             $this->encryptionKeysRepository,
             $this->sepaConfigRepository,
+            $this->terminalAnomaliesRepository,
         );
+    }
+
+    // ── Terminal credential anomalies (ADR-0041) ────────────────────────────
+
+    public function test_no_open_anomalies_reads_as_no_alert(): void
+    {
+        $alert = DashboardService::terminalAnomalyAlert([]);
+
+        $this->assertSame('none', $alert['severity']);
+        $this->assertSame(0, $alert['count']);
+        $this->assertSame([], $alert['kinds']);
+    }
+
+    /**
+     * Concurrent use is the one kind with no routine innocent cause, so it is
+     * the one that reads as an error.
+     */
+    public function test_concurrent_use_reads_as_an_error(): void
+    {
+        $alert = DashboardService::terminalAnomalyAlert([
+            ['terminal_id' => 't1', 'terminal_name' => 'Theke 1', 'kind' => 'concurrent_ip'],
+        ]);
+
+        $this->assertSame('error', $alert['severity']);
+        $this->assertStringContainsString('Theke 1', $alert['message']);
+    }
+
+    /**
+     * A cursor reset is what a re-provisioned terminal looks like too, so it
+     * warns rather than alarms.
+     */
+    public function test_a_cursor_anomaly_alone_reads_as_a_warning(): void
+    {
+        $alert = DashboardService::terminalAnomalyAlert([
+            ['terminal_id' => 't1', 'terminal_name' => 'Theke 1', 'kind' => 'cursor_reset'],
+        ]);
+
+        $this->assertSame('warning', $alert['severity']);
+    }
+
+    /**
+     * One till can carry both a concurrent-use row and a cursor row about the
+     * same incident. Counting rows would then say "2 terminals" about one.
+     */
+    public function test_two_anomalies_on_one_terminal_are_reported_as_one_terminal(): void
+    {
+        $alert = DashboardService::terminalAnomalyAlert([
+            ['terminal_id' => 't1', 'terminal_name' => 'Theke 1', 'kind' => 'concurrent_ip'],
+            ['terminal_id' => 't1', 'terminal_name' => 'Theke 1', 'kind' => 'cursor_regression'],
+        ]);
+
+        $this->assertSame(2, $alert['count']);
+        $this->assertStringContainsString('Theke 1', $alert['message']);
+        $this->assertStringNotContainsString('2 terminals', $alert['message']);
+    }
+
+    public function test_several_terminals_are_counted_rather_than_named(): void
+    {
+        $alert = DashboardService::terminalAnomalyAlert([
+            ['terminal_id' => 't1', 'terminal_name' => 'Theke 1', 'kind' => 'concurrent_ip'],
+            ['terminal_id' => 't2', 'terminal_name' => 'Theke 2', 'kind' => 'concurrent_ip'],
+        ]);
+
+        $this->assertStringContainsString('2 terminals', $alert['message']);
     }
 
     // ── Terminal status ─────────────────────────────────────────────────────

@@ -336,4 +336,57 @@ class AdminControllerTest extends TestCase
         $this->assertSame('expired', $body['terminal']['lifecycle_state']);
         $this->assertLessThan(0, $body['terminal']['days_until_expiry']);
     }
+
+    // ── Acknowledging an anomaly (ADR-0041 §4) ──────────────────────────────
+
+    public function test_acknowledging_an_anomaly_reports_success(): void
+    {
+        $this->service->expects($this->once())
+            ->method('acknowledgeAnomaly')
+            ->with('terminal-1', 'anomaly-1', 'admin-1')
+            ->willReturn(true);
+
+        $response = $this->controller->acknowledgeAnomaly(
+            $this->post('/api/admin/terminals/terminal-1/anomalies/anomaly-1/acknowledge', []),
+            new Response(),
+            ['id' => 'terminal-1', 'anomalyId' => 'anomaly-1'],
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * An unknown id, or one a colleague cleared first. Reported as 404 rather
+     * than a cheerful 200, so the panel does not tell an admin they dealt with
+     * something they did not.
+     */
+    public function test_acknowledging_something_not_open_answers_404(): void
+    {
+        $this->service->method('acknowledgeAnomaly')->willReturn(false);
+
+        $response = $this->controller->acknowledgeAnomaly(
+            $this->post('/api/admin/terminals/terminal-1/anomalies/nope/acknowledge', []),
+            new Response(),
+            ['id' => 'terminal-1', 'anomalyId' => 'nope'],
+        );
+
+        $this->assertSame(404, $response->getStatusCode());
+    }
+
+    /**
+     * No step-up. The two credential-minting endpoints have one because they
+     * hand out a token; this clears a notice and hands out nothing, and an
+     * alert that is awkward to dismiss is an alert that gets ignored.
+     */
+    public function test_acknowledging_does_not_require_step_up(): void
+    {
+        $this->stepUp->expects($this->never())->method('verify');
+        $this->service->method('acknowledgeAnomaly')->willReturn(true);
+
+        $this->controller->acknowledgeAnomaly(
+            $this->post('/api/admin/terminals/terminal-1/anomalies/anomaly-1/acknowledge', []),
+            new Response(),
+            ['id' => 'terminal-1', 'anomalyId' => 'anomaly-1'],
+        );
+    }
 }

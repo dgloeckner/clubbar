@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\Members\Controllers;
 
 use App\Modules\Members\Controllers\SyncController;
 use App\Modules\Members\Services\MembersService;
+use App\Modules\Terminals\Services\TerminalSyncCursorService;
 use App\Shared\Validation\Validator;
 use PDO;
 use PHPUnit\Framework\TestCase;
@@ -26,7 +27,11 @@ class SyncControllerTest extends TestCase
     protected function setUp(): void
     {
         $this->membersService = $this->createMock(MembersService::class);
-        $this->controller = new SyncController($this->membersService, new Validator($this->createMock(PDO::class)));
+        $this->controller = new SyncController(
+            $this->membersService,
+            new Validator($this->createMock(PDO::class)),
+            $this->createMock(TerminalSyncCursorService::class),
+        );
     }
 
     private function decode(ResponseInterface $response): array

@@ -130,6 +130,36 @@ function TokenExpiry({ terminal }: { terminal: Terminal }) {
   )
 }
 
+/**
+ * A terminal whose credential looks like it is on more than one device
+ * (ADR-0041).
+ *
+ * Sits next to the token-expiry badge because it answers the same question from
+ * the other direction: not "is this credential about to lapse" but "is somebody
+ * else already using it". Nothing has been blocked — the detector only ever
+ * alerts — so this is a marker, not a status change, and the terminal reads as
+ * active because it still is.
+ *
+ * Silent for a terminal with nothing open, which is almost all of them almost
+ * all of the time.
+ */
+function AnomalyMarker({ terminal }: { terminal: Terminal }) {
+  const { t } = useTranslation()
+
+  if (!terminal.has_open_anomaly) return null
+
+  return (
+    <Tooltip content={t('settings.terminalAnomalyHint')}>
+      <span
+        data-testid={`settings-terminal-anomaly-${terminal.id}`}
+        data-anomaly-count={terminal.open_anomaly_count ?? 0}
+      >
+        <Badge label={t('settings.terminalAnomaly')} variant="danger" />
+      </span>
+    </Tooltip>
+  )
+}
+
 export function TerminalsTab({
   terminals,
   loading,
@@ -231,10 +261,15 @@ export function TerminalsTab({
                 </Tooltip>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
-                    data-testid={`settings-terminal-name-${terminal.id}`}
-                    style={{ fontWeight: 600, fontSize: '14px', color: theme.colors.text.primary }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}
                   >
-                    {terminal.name}
+                    <div
+                      data-testid={`settings-terminal-name-${terminal.id}`}
+                      style={{ fontWeight: 600, fontSize: '14px', color: theme.colors.text.primary }}
+                    >
+                      {terminal.name}
+                    </div>
+                    <AnomalyMarker terminal={terminal} />
                   </div>
                   <code
                     data-testid={`settings-terminal-device-id-${terminal.id}`}
@@ -427,6 +462,7 @@ export function TerminalsTab({
                       />
                     </Tooltip>
                     <span data-testid={`settings-terminal-name-${terminal.id}`}>{terminal.name}</span>
+                    <AnomalyMarker terminal={terminal} />
                   </td>
 
                   {/* Device ID */}

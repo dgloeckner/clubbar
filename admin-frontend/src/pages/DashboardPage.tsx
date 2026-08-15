@@ -98,6 +98,8 @@ export function DashboardPage() {
   const encryptionKeySeverity = encryptionKeyAlert?.severity ?? 'none'
   const sepaConfigAlert = alerts.sepa_config
   const sepaConfigSeverity = sepaConfigAlert?.severity ?? 'none'
+  const terminalAnomalyAlert = alerts.terminal_anomaly
+  const terminalAnomalySeverity = terminalAnomalyAlert?.severity ?? 'none'
   const members_near_limit = data.members_near_limit
   const near_limit_members = members_near_limit?.members ?? []
   // The list is capped by the backend; the total says whether it is the whole
@@ -261,6 +263,55 @@ export function DashboardPage() {
             }}
           >
             {t('dashboard.manageSepaConfig')}
+          </Link>
+        </div>
+      )}
+
+      {/* Terminal credential anomalies (ADR-0041): a terminal token that looks
+          like it is being used on more than one device. Unlike the two banners
+          above, this one is not a "you have not configured something" notice —
+          it reports an observation the cron tick made, and nothing has been
+          blocked as a result. The link goes to the terminals settings, which is
+          where the credential can be rotated or revoked if the admin decides
+          that is what this is. Silent while nothing is open. */}
+      {terminalAnomalyAlert && terminalAnomalySeverity !== 'none' && (
+        <div
+          data-testid="dashboard-terminal-anomaly-warning"
+          data-severity={terminalAnomalySeverity}
+          data-kinds={(terminalAnomalyAlert.kinds ?? []).join(',')}
+          style={{
+            padding: theme.spacing.md,
+            marginBottom: theme.spacing.lg,
+            background:
+              terminalAnomalySeverity === 'error'
+                ? 'rgba(239, 68, 68, 0.12)'
+                : 'rgba(249, 115, 22, 0.12)',
+            border: `1px solid ${severityColor(terminalAnomalySeverity)}`,
+            borderRadius: theme.borderRadius.md,
+            color: severityColor(terminalAnomalySeverity),
+            fontSize: theme.typography.fontSize.sm,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: theme.spacing.md,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>{terminalAnomalyAlert.message}</span>
+          <Link
+            data-testid="dashboard-terminal-anomaly-link"
+            to="/settings"
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: `1px solid ${severityColor(terminalAnomalySeverity)}`,
+              color: severityColor(terminalAnomalySeverity),
+              fontSize: '13px',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            {t('dashboard.reviewTerminals')}
           </Link>
         </div>
       )}

@@ -58,6 +58,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
+export * from './acknowledgeTerminalAnomaly200';
 export * from './activateEncryptionKey200';
 export * from './adminProfile';
 export * from './adminUser';
@@ -100,6 +101,9 @@ export * from './dashboardResponseAlertsSepaConfig';
 export * from './dashboardResponseAlertsSepaConfigSeverity';
 export * from './dashboardResponseAlertsSepaIssues';
 export * from './dashboardResponseAlertsSepaIssuesSeverity';
+export * from './dashboardResponseAlertsTerminalAnomaly';
+export * from './dashboardResponseAlertsTerminalAnomalyKindsItem';
+export * from './dashboardResponseAlertsTerminalAnomalySeverity';
 export * from './dashboardResponseMembersNearLimit';
 export * from './dashboardResponseMembersNearLimitMembersItem';
 export * from './dashboardResponseMembersNearLimitMembersItemStatus';

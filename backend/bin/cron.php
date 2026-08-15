@@ -162,6 +162,25 @@ try {
         exit(0);
     }
 
+    // ADR-0041, before the drain on purpose: a warning raised by this scan is
+    // queued into the outbox, and running it first means that warning leaves in
+    // the same tick rather than waiting for the next one.
+    //
+    // `run()` never throws — a detector that could not read a table must not
+    // stop the club's announcements from going out — but the belt-and-braces
+    // catch stays, because "the drain still runs" is the property that matters
+    // here and it should not depend on a promise made in another file.
+    try {
+        $scan = $factory->getTerminalAnomalyDetector()->run();
+        $say('Terminal anomaly scan: ' . $scan->summary());
+
+        if ($scan->opened > 0) {
+            fwrite(STDERR, "Terminal anomalies detected: {$scan->summary()}\n");
+        }
+    } catch (\Throwable $e) {
+        fwrite(STDERR, "Warning: terminal anomaly scan failed: {$e->getMessage()}\n");
+    }
+
     $result = $factory->getDrainService()->run(DrainSource::CLI, $batchSize, $budgetSeconds);
 
     $say($result->summary());

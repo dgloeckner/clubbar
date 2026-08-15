@@ -188,4 +188,30 @@ class AdminController
 
         return $this->json($response, ['message' => 'Terminal access revoked']);
     }
+
+    /**
+     * Mark a detected anomaly as seen (ADR-0041 §4).
+     *
+     * No step-up gate. The two credential-minting endpoints have one because
+     * they hand out a token; this one clears a notice and touches nothing an
+     * attacker would want — and an alert that is awkward to dismiss is an alert
+     * that gets ignored, which costs more than it protects.
+     */
+    public function acknowledgeAnomaly(Request $request, Response $response, array $args): Response
+    {
+        $acknowledged = $this->terminalsService->acknowledgeAnomaly(
+            $args['id'],
+            $args['anomalyId'],
+            $request->getAttribute('admin_user_id'),
+        );
+
+        if (!$acknowledged) {
+            return $this->json($response, [
+                'error' => 'not_found',
+                'message' => 'No open anomaly with that id for this terminal',
+            ], 404);
+        }
+
+        return $this->json($response, ['message' => 'Terminal anomaly acknowledged']);
+    }
 }

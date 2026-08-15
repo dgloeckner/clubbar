@@ -20,6 +20,13 @@ final readonly class TerminalDto
         public ?string $pendingTokenExpiresAt,
         public string $createdAt,
         public string $updatedAt,
+        /**
+         * Unacknowledged anomalies for this terminal (ADR-0041). Defaulted so
+         * every existing construction site keeps working — a list rendered
+         * without the counts joined in simply reports none, rather than
+         * claiming a terminal is fine when nobody asked.
+         */
+        public int $openAnomalyCount = 0,
     ) {}
 
     public static function fromRow(array $row): self
@@ -36,6 +43,7 @@ final readonly class TerminalDto
             pendingTokenExpiresAt: $row['pending_token_expires_at'] ?? null,
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],
+            openAnomalyCount: (int) ($row['open_anomaly_count'] ?? 0),
         );
     }
 
@@ -67,6 +75,12 @@ final readonly class TerminalDto
             // is read cannot go stale.
             'lifecycle_state' => CredentialLifecycle::state($this->tokenExpiresAt),
             'days_until_expiry' => CredentialLifecycle::daysUntilExpiry($this->tokenExpiresAt),
+            // ADR-0041. Sits beside the lifecycle fields because it answers the
+            // same question the credentials board exists for — is this token
+            // healthy — from the other direction: not "is it about to expire"
+            // but "is somebody else already using it".
+            'open_anomaly_count' => $this->openAnomalyCount,
+            'has_open_anomaly' => $this->openAnomalyCount > 0,
             'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
             'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),
         ];

@@ -82,5 +82,20 @@ final class ConfigFile
         // URL — the UUID in it *is* the credential — which is why it is a
         // config key and not an admin-panel field.
         $_ENV['CRON_HEARTBEAT_URL'] = $config['cron']['heartbeat_url'] ?? '';
+
+        // Terminal anomaly detection (ADR-0041). Optional to a fault: every one
+        // has a default on the detector, and the scan runs from the cron
+        // entrypoint — which reads this file and nothing else — so an
+        // installation that never mentions them still gets the intended
+        // behaviour rather than zeroes.
+        foreach ([
+            'lookback_minutes' => 'TERMINAL_ANOMALY_LOOKBACK_MINUTES',
+            'min_overlap_minutes' => 'TERMINAL_ANOMALY_MIN_OVERLAP_MINUTES',
+            'ip_retention_days' => 'TERMINAL_IP_RETENTION_DAYS',
+        ] as $key => $envVar) {
+            if (!empty($config['terminal_anomaly'][$key])) {
+                $_ENV[$envVar] = (string) $config['terminal_anomaly'][$key];
+            }
+        }
     }
 }

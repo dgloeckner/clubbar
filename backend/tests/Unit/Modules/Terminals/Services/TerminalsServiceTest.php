@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Terminals\Services;
 
+use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Terminals\Services\TerminalsService;
 use App\Shared\Config\AppConfig;
@@ -26,6 +27,7 @@ class TerminalsServiceTest extends TestCase
 {
     private TerminalsRepository $terminalsRepository;
     private AuditService $auditService;
+    private TerminalAnomaliesRepository $anomaliesRepository;
     private TerminalsService $terminalsService;
 
     protected function setUp(): void
@@ -34,10 +36,12 @@ class TerminalsServiceTest extends TestCase
 
         $this->terminalsRepository = $this->createMock(TerminalsRepository::class);
         $this->auditService = $this->createMock(AuditService::class);
+        $this->anomaliesRepository = $this->createMock(TerminalAnomaliesRepository::class);
         $this->terminalsService = new TerminalsService(
             $this->terminalsRepository,
             $this->auditService,
             new AppConfig(),
+            $this->anomaliesRepository,
         );
     }
 
