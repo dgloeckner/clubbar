@@ -68,8 +68,18 @@ return function (App $app): void {
     $app->group('/api/auth', function (RouteCollectorProxy $group) use ($stepUpRateLimit) {
         $group->post('/logout', [AuthController::class, 'logout']);
         $group->get('/profile', [AuthController::class, 'profile']);
-        $group->patch('/profile', [AuthController::class, 'updateProfile']);
-        $group->patch('/change-password', [AuthController::class, 'changePassword']);
+        // Both carry a step-up credential when they move a credential: always
+        // for the password, and for the profile only when the email — the login
+        // identifier — actually changes, so a locale switch needs no password.
+        //
+        // The limiter is on the whole profile route rather than only the
+        // email path, because a limiter the controller reaches after deciding
+        // to step up is a limiter an attacker can call unboundedly. The cost is
+        // that five failed step-ups also lock the harmless half of this
+        // endpoint for fifteen minutes — a locale switch answering 429 is a
+        // safe failure, and the alternative is an unmetered guessing oracle.
+        $group->patch('/profile', [AuthController::class, 'updateProfile'])->add($stepUpRateLimit);
+        $group->patch('/change-password', [AuthController::class, 'changePassword'])->add($stepUpRateLimit);
         // 2FA setup/confirm: accessible even with totp_setup_required (see AdminSessionAuth)
         $group->post('/2fa/setup', [AuthController::class, 'setup2fa']);
         $group->post('/2fa/confirm', [AuthController::class, 'confirm2fa']);

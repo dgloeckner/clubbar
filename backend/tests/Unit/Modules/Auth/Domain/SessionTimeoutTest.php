@@ -146,4 +146,88 @@ class SessionTimeoutTest extends TestCase
         $this->assertSame(self::NOW, $session[SessionTimeout::REGENERATED_AT]);
         $this->assertFalse(SessionTimeout::shouldRegenerateId($session, 900, self::NOW + 899));
     }
+
+    // ── The credentials epoch ────────────────────────────────────────────────
+    //
+    // ADR-0026 used to leave other sessions alive after a credential change, on
+    // the reasoning that ending them needed server-side session enumeration. It
+    // needs one comparison instead: was this session authenticated before the
+    // account's credentials last moved?
+
+    private static function at(int $timestamp): string
+    {
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    public function test_a_session_older_than_the_change_is_refused(): void
+    {
+        $session = [SessionTimeout::AUTHENTICATED_AT => self::NOW - 60];
+
+        $this->assertTrue(SessionTimeout::predatesCredentialChange($session, self::at(self::NOW)));
+    }
+
+    /**
+     * The tie counts as stale. The column is second-granular, so allowing it
+     * would leave a one-second window in which an attacker who authenticated in
+     * the same second as the victim's password change kept their session.
+     */
+    public function test_a_session_authenticated_in_the_same_second_is_refused(): void
+    {
+        $session = [SessionTimeout::AUTHENTICATED_AT => self::NOW];
+
+        $this->assertTrue(SessionTimeout::predatesCredentialChange($session, self::at(self::NOW)));
+    }
+
+    public function test_a_session_authenticated_after_the_change_is_kept(): void
+    {
+        $session = [SessionTimeout::AUTHENTICATED_AT => self::NOW + 1];
+
+        $this->assertFalse(SessionTimeout::predatesCredentialChange($session, self::at(self::NOW)));
+    }
+
+    /**
+     * The pairing that keeps the acting request alive: it stamps itself past an
+     * epoch written in the same second, so it is not refused by its own change.
+     */
+    public function test_the_acting_session_survives_the_change_it_just_made(): void
+    {
+        $session = [];
+
+        SessionTimeout::beginAfterCredentialChange($session, self::NOW);
+
+        $this->assertFalse(SessionTimeout::predatesCredentialChange($session, self::at(self::NOW)));
+        $this->assertFalse(SessionTimeout::hasExpired($session, self::NOW));
+    }
+
+    /**
+     * Every account carries no epoch until somebody changes a credential, so a
+     * null must never sign anyone out — otherwise shipping the column would log
+     * out every admin at once.
+     */
+    public function test_no_epoch_refuses_nobody(): void
+    {
+        $session = [SessionTimeout::AUTHENTICATED_AT => self::NOW - 10_000];
+
+        $this->assertFalse(SessionTimeout::predatesCredentialChange($session, null));
+        $this->assertFalse(SessionTimeout::predatesCredentialChange($session, ''));
+    }
+
+    /** A session adopted by `touch()` before these stamps existed. */
+    public function test_a_session_without_a_stamp_is_not_refused(): void
+    {
+        $this->assertFalse(SessionTimeout::predatesCredentialChange([], self::at(self::NOW)));
+        $this->assertFalse(
+            SessionTimeout::predatesCredentialChange(
+                [SessionTimeout::AUTHENTICATED_AT => 'yesterday'],
+                self::at(self::NOW)
+            )
+        );
+    }
+
+    public function test_an_unparseable_epoch_refuses_nobody(): void
+    {
+        $session = [SessionTimeout::AUTHENTICATED_AT => self::NOW - 60];
+
+        $this->assertFalse(SessionTimeout::predatesCredentialChange($session, 'not a timestamp'));
+    }
 }

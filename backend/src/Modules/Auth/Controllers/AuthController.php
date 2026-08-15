@@ -375,6 +375,19 @@ class AuthController
 
         $this->adminUsersRepository->clearTotp($body['userId']);
 
+        // ADR-0026 left the target's sessions alive here, reasoning that ending
+        // them "would require server-side session enumeration". It does not —
+        // the credentials epoch ends them with one comparison — and leaving
+        // them alive was the weaker half of the reset: stripping 2FA off an
+        // account whose active session keeps working protects nobody.
+        $this->adminUsersRepository->touchCredentialsEpoch($body['userId']);
+
+        // Resetting your own 2FA is allowed, and would otherwise end the very
+        // session performing the reset before it could enroll again.
+        if ($body['userId'] === $callerAdminId) {
+            $this->refreshOwnSession();
+        }
+
         $this->auditService->log(
             action: AuditAction::TOTP_RESET,
             entityType: EntityType::ADMIN_USER,
@@ -431,6 +444,7 @@ class AuthController
         if (!$adminId) {
             return $this->json($response, ['error' => 'Not authenticated'], 401);
         }
+        $caller = $request->getAttribute('admin_user');
 
         $body = $request->getParsedBody() ?? [];
 
@@ -438,6 +452,8 @@ class AuthController
             'email' => ['nullable', 'email', 'max:255'],
             'display_name' => ['nullable', 'string', 'max:255'],
             'locale' => ['nullable', 'in:de,en'],
+            'current_password' => ['nullable', 'string'],
+            'totp_code' => ['nullable', 'string'],
         ])) {
             return $this->validationFailed($response, $this->validator->errors());
         }
@@ -449,10 +465,37 @@ class AuthController
             return $this->validationFailed($response, ['email' => ['Email already exists']]);
         }
 
+        // Changing the email changes the login identifier, so it is gated by the
+        // same step-up the cross-account resets carry (#337). The gate is
+        // conditional on the address actually changing, and that condition is
+        // load-bearing: the profile page PATCHes this endpoint on every language
+        // toggle, and an unconditional gate would demand a password to switch
+        // locale. Display name and locale stay free.
+        if ($this->emailIsChanging($body, $caller)) {
+            // No caller row means there is nobody to re-prove, so there is
+            // nothing to step up: refuse rather than let a null reach the
+            // verifier. `AdminSessionAuth` always attaches it, which is exactly
+            // why its absence must not be treated as permission.
+            if (!is_array($caller) || !$this->stepUpAuthService->verify($caller, $body, $request)) {
+                return $this->json($response, [
+                    'error' => 'invalid_credentials',
+                    'message' => 'Re-enter your password to change your email address',
+                ], 401);
+            }
+        }
+
+        $emailChanged = $this->emailIsChanging($body, $caller);
+
         $admin = $this->adminUsersService->updateAdminUser($adminId, $body, $adminId);
 
         if (!$admin) {
             return $this->json($response, ['error' => 'update_failed', 'message' => 'Failed to update profile'], 500);
+        }
+
+        // An email change advances this account's epoch, which would otherwise
+        // refuse the session that just made the change.
+        if ($emailChanged) {
+            $this->refreshOwnSession();
         }
 
         return $this->json($response, [
@@ -461,12 +504,48 @@ class AuthController
         ]);
     }
 
+    /**
+     * Carry the acting session across a credential change of its own account.
+     *
+     * The epoch refuses every session authenticated at or before the change,
+     * and this session is one of them — so it is re-stamped past it. The session
+     * ID is rotated at the same time, for the reason ADR-0025 gives about login:
+     * a credential just changed, and an ID that predates the change should not
+     * outlive it either.
+     */
+    private function refreshOwnSession(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        session_regenerate_id(true);
+        SessionTimeout::beginAfterCredentialChange($_SESSION);
+    }
+
+    /**
+     * Is this request actually moving the login identifier?
+     *
+     * Compared case-insensitively because `admin_users.email` is UNIQUE under a
+     * `_ci` collation — re-submitting the same address in different case is not
+     * a change the database would record, so it must not trip the step-up.
+     */
+    private function emailIsChanging(array $body, ?array $caller): bool
+    {
+        if (!isset($body['email'])) {
+            return false;
+        }
+
+        return strcasecmp((string) $body['email'], (string) ($caller['email'] ?? '')) !== 0;
+    }
+
     public function changePassword(Request $request, Response $response): Response
     {
         $adminId = $request->getAttribute('admin_user_id');
         if (!$adminId) {
             return $this->json($response, ['error' => 'Not authenticated'], 401);
         }
+        $caller = $request->getAttribute('admin_user');
 
         $body = $request->getParsedBody() ?? [];
 
@@ -474,18 +553,26 @@ class AuthController
             'current_password' => ['required', 'string'],
             'new_password' => ['required', 'string', 'min:8', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'],
             'new_password_confirmation' => ['required', 'same:new_password'],
+            'totp_code' => ['nullable', 'string'],
         ])) {
             return $this->validationFailed($response, $this->validator->errors());
         }
 
-        if (!$this->adminUsersService->verifyCurrentPassword($adminId, $body['current_password'])) {
+        // Step-up rather than a bare `verifyCurrentPassword`: the password is the
+        // credential an attacker holding a hijacked session is most likely to
+        // rotate, and re-proving it alone is what a stolen session already
+        // implies. `verify()` checks `current_password` itself and adds the
+        // caller's own fresh TOTP code, matching the gate on the cross-account
+        // resets — so it replaces the old check rather than joining it.
+        if (!is_array($caller) || !$this->stepUpAuthService->verify($caller, $body, $request)) {
             return $this->json($response, [
                 'error' => 'invalid_credentials',
-                'message' => 'Current password is incorrect',
+                'message' => 'Current password or two-factor code is incorrect',
             ], 401);
         }
 
         $this->adminUsersService->changeOwnPassword($adminId, $body['new_password']);
+        $this->refreshOwnSession();
 
         return $this->json($response, ['message' => 'Password changed']);
     }

@@ -133,6 +133,22 @@ final class MailStrings
             'terminal_anomaly.no_action_taken' => 'Es wurde nichts gesperrt und nichts geändert — der Betrieb an der '
                                           . 'Theke läuft unverändert weiter.',
 
+            // ── Admin email change ──────────────────────────────────────────
+            'email_changed.subject'   => 'Die Anmelde-E-Mail-Adresse Deines Admin-Kontos wurde geändert',
+            'email_changed.preheader' => 'Diese Adresse ist nicht mehr die Anmeldeadresse des Kontos.',
+            'email_changed.eyebrow'   => 'Sicherheitshinweis',
+            'email_changed.title'     => 'Anmeldeadresse geändert',
+            'email_changed.lede'      => 'die Anmelde-E-Mail-Adresse Deines Admin-Kontos wurde geändert. '
+                                       . 'Diese Adresse — <strong>{former}</strong> — kann sich nicht mehr anmelden.',
+            'email_changed.lede_text' => 'die Anmelde-E-Mail-Adresse Deines Admin-Kontos wurde geändert. '
+                                       . 'Diese Adresse ({former}) kann sich nicht mehr anmelden.',
+            'email_changed.label_former' => 'Bisherige Adresse',
+            'email_changed.label_when'   => 'Geändert am',
+            'email_changed.expected'  => 'Wenn Du das selbst warst, ist nichts weiter zu tun.',
+            'email_changed.unexpected' => 'Wenn nicht, wende Dich bitte sofort an eine andere '
+                                        . 'Administratorin oder einen anderen Administrator: '
+                                        . 'nur sie können das Konto zurücksetzen.',
+
             // ── Shared ──────────────────────────────────────────────────────
             'greeting'         => 'Hallo {name},',
             'greeting_generic' => 'Hallo,',
@@ -205,6 +221,20 @@ final class MailStrings
                                           . 'rotate or revoke the credential in the admin panel.',
             'terminal_anomaly.no_action_taken' => 'Nothing has been blocked and nothing has been changed — the bar '
                                           . 'carries on exactly as before.',
+
+            'email_changed.subject'   => 'The sign-in email address for your admin account was changed',
+            'email_changed.preheader' => 'This address is no longer the account’s sign-in address.',
+            'email_changed.eyebrow'   => 'Security notice',
+            'email_changed.title'     => 'Sign-in address changed',
+            'email_changed.lede'      => 'the sign-in email address for your admin account was changed. '
+                                       . 'This address — <strong>{former}</strong> — can no longer sign in.',
+            'email_changed.lede_text' => 'the sign-in email address for your admin account was changed. '
+                                       . 'This address ({former}) can no longer sign in.',
+            'email_changed.label_former' => 'Previous address',
+            'email_changed.label_when'   => 'Changed on',
+            'email_changed.expected'  => 'If this was you, there is nothing further to do.',
+            'email_changed.unexpected' => 'If it was not, contact another administrator immediately: '
+                                        . 'only they can reset the account.',
 
             'greeting'         => 'Hello {name},',
             'greeting_generic' => 'Hello,',

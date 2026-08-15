@@ -59,8 +59,28 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type { UpdateProfileRequestLocale } from './updateProfileRequestLocale';
 
+/**
+ * Changing `email` moves the login identifier, so it requires a step-up
+credential (`current_password`, plus `totp_code` when the caller has 2FA
+enabled) and answers 401 `invalid_credentials` without one.
+
+The gate is conditional on the address actually changing — compared
+case-insensitively, since `admin_users.email` is UNIQUE under a `_ci`
+collation. Updating only `display_name` or `locale`, or re-submitting
+the address the account already has, needs no credential.
+
+ */
 export interface UpdateProfileRequest {
   email?: string;
   display_name?: string;
   locale?: UpdateProfileRequestLocale;
+  /** Required only when `email` differs from the current address. */
+  current_password?: string;
+  /**
+   * The caller's own fresh 6-digit TOTP code. Required alongside
+`current_password` when the caller has 2FA enabled.
+
+   * @pattern ^\d{6}$
+   */
+  totp_code?: string;
 }

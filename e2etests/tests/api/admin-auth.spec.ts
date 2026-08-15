@@ -522,18 +522,28 @@ test.describe("Admin Authentication", () => {
       return { admin, context };
     }
 
-    test("should update the caller's own display name, email and locale", async ({
+    /**
+     * Email is deliberately not exercised here any more. Changing it moves the
+     * login identifier and now needs a step-up — the caller's own password and
+     * their own fresh TOTP code — and this context cannot produce one: `loginAs`
+     * enrolls a fresh admin against a secret the server generated and then
+     * discards it. The email path, both halves of it, is covered in
+     * tests/api/self-service-credentials.spec.ts, which enrolls inline and keeps
+     * the secret.
+     *
+     * What is worth keeping here is the other half of the contract: the fields
+     * that are *not* credentials still update with no credential at all.
+     */
+    test("should update the caller's own display name and locale", async ({
       request,
       playwright,
     }) => {
       const { admin, context } = await freshAdminContext(request, playwright);
-      const newEmail = `renamed-${Date.now()}@test.example.com`;
 
       try {
         const response = await context.patch(`${API_BASE}/auth/profile`, {
           data: {
             display_name: "Renamed Admin",
-            email: newEmail,
             locale: "en",
           },
         });
@@ -543,7 +553,6 @@ test.describe("Admin Authentication", () => {
         expect(body.message).toBe("Profile updated");
         expect(body.admin.id).toBe(admin.id);
         expect(body.admin.display_name).toBe("Renamed Admin");
-        expect(body.admin.email).toBe(newEmail);
         expect(body.admin.locale).toBe("en");
 
         // Persisted, not just echoed back.
@@ -551,7 +560,6 @@ test.describe("Admin Authentication", () => {
         expect(profile.status()).toBe(200);
         const stored = (await profile.json()).admin;
         expect(stored.display_name).toBe("Renamed Admin");
-        expect(stored.email).toBe(newEmail);
         expect(stored.locale).toBe("en");
       } finally {
         await context.dispose();

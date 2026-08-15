@@ -26,9 +26,17 @@ export class ProfilePage extends BasePage {
   private readonly currentPasswordInput = () => this.page.locator('[data-testid="password-current"]')
   private readonly newPasswordInput = () => this.page.locator('[data-testid="password-new"]')
   private readonly confirmPasswordInput = () => this.page.locator('[data-testid="password-confirm"]')
+  private readonly totpCodeInput = () => this.page.locator('[data-testid="password-totp-code"]')
   private readonly changePasswordButton = () => this.page.locator('[data-testid="password-change-button"]')
   private readonly passwordError = () => this.page.locator('[data-testid="password-error"]')
+  private readonly passwordSuccess = () => this.page.locator('[data-testid="password-success"]')
   private readonly headerUserBadge = () => this.page.locator('[data-testid="header-user-badge"]')
+  // The email change routes through the shared StepUpConfirmDialog, so its
+  // test IDs are the ConfirmDialog's plus the credential fields (#337).
+  private readonly stepUpPassword = () => this.page.locator('[data-testid="step-up-password"]')
+  private readonly stepUpTotpCode = () => this.page.locator('[data-testid="step-up-totp-code"]')
+  private readonly stepUpError = () => this.page.locator('[data-testid="step-up-error"]')
+  private readonly stepUpConfirm = () => this.page.locator('[data-testid="confirm-dialog-ok"]')
 
   constructor(page: Page) {
     super(page)
@@ -149,8 +157,80 @@ export class ProfilePage extends BasePage {
     await this.confirmPasswordInput().fill(password)
   }
 
+  /** Only rendered when the signed-in admin has 2FA enrolled. */
+  async fillTotpCode(code: string) {
+    await this.totpCodeInput().fill(code)
+  }
+
   async clickChangePassword() {
     await this.changePasswordButton().click()
+  }
+
+  async expectPasswordSuccess() {
+    await expect(this.passwordSuccess()).toBeVisible()
+  }
+
+  async expectTotpCodeFieldVisible() {
+    await expect(this.totpCodeInput()).toBeVisible()
+  }
+
+  /**
+   * Change the password and wait for the request itself, so the assertion that
+   * follows is about the server's answer rather than about client-side
+   * validation that returned before any call.
+   */
+  async submitPasswordChange(): Promise<number> {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/auth/change-password') && resp.request().method() === 'PATCH',
+      { timeout: 10000 }
+    )
+    await this.changePasswordButton().click()
+    return (await responsePromise).status()
+  }
+
+  /**
+   * EMAIL STEP-UP DIALOG
+   */
+
+  async setEmail(email: string) {
+    await this.emailInput().clear()
+    await this.emailInput().fill(email)
+  }
+
+  async expectStepUpDialogVisible() {
+    await expect(this.stepUpPassword()).toBeVisible()
+  }
+
+  async expectStepUpDialogHidden() {
+    await expect(this.stepUpPassword()).toBeHidden()
+  }
+
+  async expectStepUpError() {
+    await expect(this.stepUpError()).toBeVisible()
+  }
+
+  /**
+   * Press Save when the email has been changed. No PATCH is expected — the
+   * dialog opens instead, which is the behaviour under test, so this waits for
+   * the dialog rather than for a request that must not happen.
+   */
+  async saveProfileExpectingStepUp() {
+    await this.saveButton().click()
+    await expect(this.stepUpPassword()).toBeVisible()
+  }
+
+  /** Fills the dialog and confirms, returning the PATCH status. */
+  async confirmEmailStepUp(password: string, totpCode?: string): Promise<number> {
+    await this.stepUpPassword().fill(password)
+    if (totpCode) {
+      await this.stepUpTotpCode().fill(totpCode)
+    }
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/auth/profile') && resp.request().method() === 'PATCH',
+      { timeout: 10000 }
+    )
+    await this.stepUpConfirm().click()
+    return (await responsePromise).status()
   }
 
   /**

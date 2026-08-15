@@ -58,6 +58,13 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * Carries a step-up credential: the caller's own password and, when they
+have 2FA enabled, their own fresh TOTP code — the same gate the
+cross-account resets use. A missing or wrong second factor answers 401
+`invalid_credentials`.
+
+ */
 export interface ChangePasswordRequest {
   current_password: string;
   /**
@@ -65,5 +72,12 @@ export interface ChangePasswordRequest {
    * @minLength 8
    */
   new_password: string;
-  confirm_password: string;
+  new_password_confirmation: string;
+  /**
+   * The caller's own fresh 6-digit TOTP code. Required when the caller
+has 2FA enabled; ignored otherwise.
+
+   * @pattern ^\d{6}$
+   */
+  totp_code?: string;
 }

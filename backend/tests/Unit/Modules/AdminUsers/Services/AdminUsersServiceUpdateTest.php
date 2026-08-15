@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\AdminUsers\Services;
 
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
+use App\Modules\Notifications\Services\NotificationsService;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
@@ -21,12 +22,18 @@ use PHPUnit\Framework\TestCase;
 class AdminUsersServiceUpdateTest extends TestCase
 {
     private AdminUsersRepository $repository;
+    private NotificationsService $notifications;
     private AdminUsersService $service;
 
     protected function setUp(): void
     {
         $this->repository = $this->createMock(AdminUsersRepository::class);
-        $this->service = new AdminUsersService($this->repository, $this->createMock(AuditService::class));
+        $this->notifications = $this->createMock(NotificationsService::class);
+        $this->service = new AdminUsersService(
+            $this->repository,
+            $this->createMock(AuditService::class),
+            $this->notifications,
+        );
     }
 
     /** @param array<string, mixed> $overrides */
@@ -113,6 +120,77 @@ class AdminUsersServiceUpdateTest extends TestCase
         $admin = $this->service->updateAdminUser('admin-2', ['display_name' => 'Renamed'], 'admin-1');
 
         $this->assertSame('Renamed', $admin->displayName);
+    }
+
+    /**
+     * Moving the login identifier has three consequences beyond the write, and
+     * all three are the point of the change: the previous owner is told at the
+     * address they still control, the account's other sessions stop working,
+     * and the event is findable in the audit log under its own name.
+     */
+    public function test_moving_the_email_notifies_the_former_address_and_ends_other_sessions(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row(['email' => 'before@example.org']));
+        $this->repository->method('updateById')->willReturn(self::row(['email' => 'after@example.org']));
+
+        $this->notifications->expects($this->once())
+            ->method('notifyFormerAddress')
+            ->with('admin-2', 'before@example.org', $this->stringStartsWith('changed:'), 'admin-1');
+
+        $this->repository->expects($this->once())
+            ->method('touchCredentialsEpoch')
+            ->with('admin-2');
+
+        $this->service->updateAdminUser('admin-2', ['email' => 'after@example.org'], 'admin-1');
+    }
+
+    /**
+     * The conditionality the whole design rests on. A display-name edit is not
+     * a credential change: nobody is written to, and no session is ended.
+     */
+    public function test_a_non_email_update_notifies_nobody_and_ends_no_session(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row());
+        $this->repository->method('updateById')->willReturn(self::row(['display_name' => 'Renamed']));
+
+        $this->notifications->expects($this->never())->method('notifyFormerAddress');
+        $this->repository->expects($this->never())->method('touchCredentialsEpoch');
+
+        $this->service->updateAdminUser('admin-2', ['display_name' => 'Renamed'], 'admin-1');
+    }
+
+    /**
+     * `admin_users.email` is UNIQUE under a case-insensitive collation, so
+     * re-submitting the same address in different case changes nothing — and
+     * must not sign the account out of its own sessions.
+     */
+    public function test_a_case_only_email_difference_is_not_a_credential_change(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row(['email' => 'someone@example.org']));
+        $this->repository->method('updateById')->willReturn(self::row());
+
+        $this->notifications->expects($this->never())->method('notifyFormerAddress');
+        $this->repository->expects($this->never())->method('touchCredentialsEpoch');
+
+        $this->service->updateAdminUser('admin-2', ['email' => 'SOMEONE@EXAMPLE.ORG'], 'admin-1');
+    }
+
+    /**
+     * The notification is best effort by construction: the change is already
+     * committed when it runs, so a queue that will not take the notice must not
+     * turn a successful change into a failure.
+     */
+    public function test_a_failed_notification_does_not_fail_the_change(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row(['email' => 'before@example.org']));
+        $this->repository->method('updateById')->willReturn(self::row(['email' => 'after@example.org']));
+
+        $this->notifications->method('notifyFormerAddress')
+            ->willThrowException(new \RuntimeException('outbox unavailable'));
+
+        $admin = $this->service->updateAdminUser('admin-2', ['email' => 'after@example.org'], 'admin-1');
+
+        $this->assertSame('after@example.org', $admin->email);
     }
 
     public function test_a_body_carrying_only_is_active_still_toggles(): void

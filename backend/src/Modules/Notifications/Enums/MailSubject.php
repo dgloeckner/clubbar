@@ -30,6 +30,14 @@ enum MailSubject: string
     case TERMINAL = 'terminal';
 
     /**
+     * An admin account. Used by the security notices that tell somebody
+     * something changed about their own login — where the subject and the
+     * recipient are the same account, and the address written to is one the
+     * account no longer has.
+     */
+    case ADMIN_USER = 'admin_user';
+
+    /**
      * What the audit entry for this message hangs off (ADR-0013).
      *
      * An announcement is an event in a settlement's life; a key expiry warning
@@ -43,6 +51,7 @@ enum MailSubject: string
             self::SETTLEMENT => EntityType::SETTLEMENT,
             self::ENCRYPTION_KEY => EntityType::ENCRYPTION_KEY,
             self::TERMINAL => EntityType::TERMINAL,
+            self::ADMIN_USER => EntityType::ADMIN_USER,
         };
     }
 }

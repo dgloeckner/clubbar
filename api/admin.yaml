@@ -175,7 +175,7 @@ paths:
   # Implementation uses GET /auth/profile instead. See use-case-implementation-audit.md.
 
   /auth/change-password:
-    post:
+    patch:
       tags: [Authentication]
       summary: Change password
       description: |
@@ -205,10 +205,11 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [message]
                 properties:
-                  success:
-                    type: boolean
-                    example: true
+                  message:
+                    type: string
+                    example: Password changed
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
@@ -243,6 +244,10 @@ paths:
       summary: Update current admin profile
       description: |
         Update email, display name, or locale for the currently authenticated admin user.
+
+        Changing `email` moves the login identifier and requires a step-up
+        credential; changing only the display name or locale does not. See
+        `UpdateProfileRequest`.
 
         **Use Case**: UC-A03
       operationId: updateProfile
@@ -4500,7 +4505,12 @@ components:
 
     ChangePasswordRequest:
       type: object
-      required: [current_password, new_password, confirm_password]
+      description: |
+        Carries a step-up credential: the caller's own password and, when they
+        have 2FA enabled, their own fresh TOTP code — the same gate the
+        cross-account resets use. A missing or wrong second factor answers 401
+        `invalid_credentials`.
+      required: [current_password, new_password, new_password_confirmation]
       properties:
         current_password:
           type: string
@@ -4510,9 +4520,15 @@ components:
           format: password
           minLength: 8
           description: "Min 8 chars, 1 uppercase, 1 lowercase, 1 digit"
-        confirm_password:
+        new_password_confirmation:
           type: string
           format: password
+        totp_code:
+          type: string
+          description: |
+            The caller's own fresh 6-digit TOTP code. Required when the caller
+            has 2FA enabled; ignored otherwise.
+          pattern: '^\d{6}$'
 
     AdminProfile:
       type: object
@@ -4557,6 +4573,15 @@ components:
 
     UpdateProfileRequest:
       type: object
+      description: |
+        Changing `email` moves the login identifier, so it requires a step-up
+        credential (`current_password`, plus `totp_code` when the caller has 2FA
+        enabled) and answers 401 `invalid_credentials` without one.
+
+        The gate is conditional on the address actually changing — compared
+        case-insensitively, since `admin_users.email` is UNIQUE under a `_ci`
+        collation. Updating only `display_name` or `locale`, or re-submitting
+        the address the account already has, needs no credential.
       properties:
         email:
           type: string
@@ -4566,6 +4591,16 @@ components:
         locale:
           type: string
           enum: [de, en]
+        current_password:
+          type: string
+          format: password
+          description: Required only when `email` differs from the current address.
+        totp_code:
+          type: string
+          description: |
+            The caller's own fresh 6-digit TOTP code. Required alongside
+            `current_password` when the caller has 2FA enabled.
+          pattern: '^\d{6}$'
 
     # --------------------------------------------------------------------------
     # Members

@@ -54,12 +54,20 @@ class AuthControllerProfileTest extends TestCase
     }
 
     /** @param array<string, mixed> $body */
-    private function patch(array $body): ServerRequestInterface
+    /**
+     * Both attributes, because `AdminSessionAuth` attaches both — and the
+     * `admin_user` row is what decides whether the email is actually moving,
+     * and therefore whether a step-up is demanded. A request carrying only the
+     * id would make every address look like a change away from the empty
+     * string.
+     */
+    private function patch(array $body, string $currentEmail = 'mine@example.org'): ServerRequestInterface
     {
         return (new ServerRequestFactory())
             ->createServerRequest('PATCH', '/api/auth/profile')
             ->withParsedBody($body)
-            ->withAttribute('admin_user_id', 'admin-1');
+            ->withAttribute('admin_user_id', 'admin-1')
+            ->withAttribute('admin_user', ['id' => 'admin-1', 'email' => $currentEmail, 'totp_enabled' => 0]);
     }
 
     /** @return array<string, mixed> */

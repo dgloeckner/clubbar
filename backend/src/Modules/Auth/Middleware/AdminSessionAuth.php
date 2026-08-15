@@ -49,6 +49,18 @@ class AdminSessionAuth implements MiddlewareInterface
             return $this->unauthorized();
         }
 
+        // A credential change ends every session that predates it — including
+        // an attacker's, which is the point. The acting session survives
+        // because the service that wrote the epoch re-stamped it (#337).
+        if (SessionTimeout::predatesCredentialChange($_SESSION, $admin['credentials_changed_at'] ?? null)) {
+            $_SESSION = [];
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_destroy();
+            }
+
+            return $this->credentialsChanged();
+        }
+
         SessionTimeout::touch($_SESSION);
 
         // Periodic session-ID rotation (#340): limits how long a leaked ID stays
@@ -90,6 +102,21 @@ class AdminSessionAuth implements MiddlewareInterface
         $response->getBody()->write(json_encode([
             'error' => 'session_expired',
             'message' => 'Your session has expired. Please sign in again.',
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Distinct from `session_expired` because the cause and the remedy differ:
+     * nothing timed out, a credential moved underneath this session, and the
+     * admin needs to know the new one is what signs them back in.
+     */
+    private function credentialsChanged(): ResponseInterface
+    {
+        $response = new Response(401);
+        $response->getBody()->write(json_encode([
+            'error' => 'credentials_changed',
+            'message' => 'Your credentials were changed. Please sign in again.',
         ]));
         return $response->withHeader('Content-Type', 'application/json');
     }

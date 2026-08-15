@@ -72,6 +72,7 @@ use App\Modules\Notifications\Services\TestMailService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
 use App\Modules\Notifications\Services\TerminalAnomalyMailBuilder;
+use App\Modules\Notifications\Services\AdminSecurityMailBuilder;
 use App\Shared\Mail\MailTransportFactory;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Modules\Settlements\Services\SettlementReversalService;
@@ -367,9 +368,18 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(TotpService::class, fn() => new TotpService($this->getInstanceConfigService()));
     }
 
+    /**
+     * Takes the notifications service so an email change can tell the address
+     * it moved from. Not a cycle: `NotificationsService` reaches for the admin
+     * *repository*, never this service.
+     */
     public function getAdminUsersService(): AdminUsersService
     {
-        return $this->resolve(AdminUsersService::class, fn() => new AdminUsersService($this->getAdminUsersRepository(), $this->getAuditService()));
+        return $this->resolve(AdminUsersService::class, fn() => new AdminUsersService(
+            $this->getAdminUsersRepository(),
+            $this->getAuditService(),
+            $this->getNotificationsService(),
+        ));
     }
 
     public function getStepUpAuthService(): StepUpAuthService
@@ -503,9 +513,17 @@ class ServiceFactory implements ContainerInterface
         ));
     }
 
+    public function getAdminSecurityMailBuilder(): AdminSecurityMailBuilder
+    {
+        return $this->resolve(AdminSecurityMailBuilder::class, fn() => new AdminSecurityMailBuilder(
+            $this->getAdminUsersRepository(),
+            $this->getMailConfigService(),
+        ));
+    }
+
     /**
      * What the drain (#403) asks to turn a claimed row into a message. One
-     * builder today; #410 and #438 add theirs here and the drain does not
+     * builder per subject; #410 and #438 add theirs here and the drain does not
      * change.
      */
     public function getMailContentRegistry(): MailContentRegistry
@@ -513,6 +531,7 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(MailContentRegistry::class, fn() => new MailContentRegistry(
             $this->getSettlementMailBuilder(),
             $this->getTerminalAnomalyMailBuilder(),
+            $this->getAdminSecurityMailBuilder(),
         ));
     }
 

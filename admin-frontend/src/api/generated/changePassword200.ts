@@ -59,5 +59,5 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 
 export type ChangePassword200 = {
-  success?: boolean;
+  message: string;
 };

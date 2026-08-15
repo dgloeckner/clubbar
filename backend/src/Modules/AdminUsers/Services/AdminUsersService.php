@@ -9,6 +9,7 @@ use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\Notifications\Services\NotificationsService;
 use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
@@ -18,6 +19,7 @@ class AdminUsersService
     public function __construct(
         private AdminUsersRepository $adminUsersRepository,
         private AuditService $auditService,
+        private NotificationsService $notificationsService,
     ) {}
 
     public function listAdminUsers(int $limit, int $offset, array $filters = []): PaginatedResultDto
@@ -102,18 +104,86 @@ class AdminUsersService
 
         if (empty($data)) return $activated ?? $this->findAdminUserById($id);
 
+        // Read before the write: the old address is what the audit entry and the
+        // notification are about, and it is gone the moment the UPDATE lands.
+        $before = $this->adminUsersRepository->findById($id);
+        $previousEmail = $before['email'] ?? null;
+        $emailMoved = isset($data['email'])
+            && $previousEmail !== null
+            && strcasecmp($data['email'], $previousEmail) !== 0;
+
         $admin = $this->adminUsersRepository->updateById($id, $data);
         if (!$admin) return null;
 
+        if ($emailMoved) {
+            $this->onEmailChanged($id, $previousEmail, $data['email'], $currentAdminId);
+        }
+
+        // The email half is audited under its own action above; what is left
+        // here is the ordinary profile edit.
+        $remaining = $emailMoved ? array_diff_key($data, ['email' => null]) : $data;
+        if (!empty($remaining)) {
+            $this->auditService->log(
+                action: AuditAction::UPDATE,
+                entityType: EntityType::ADMIN_USER,
+                entityId: $id,
+                newValues: $remaining,
+                adminUserId: $currentAdminId,
+            );
+        }
+
+        return AdminUserDto::fromRow($admin);
+    }
+
+    /**
+     * The consequences of moving a login identifier: the old address is told,
+     * the change is audited under its own name, and every session that
+     * predates it stops working.
+     *
+     * The notification is best effort by construction — it is queued, not sent
+     * (ADR-0038), and an install with no `mail.dsn` queues it to a transport
+     * that logs and discards. None of that may block the change itself, which
+     * has already been committed by the time this runs.
+     */
+    private function onEmailChanged(
+        string $id,
+        string $previousEmail,
+        string $newEmail,
+        ?string $currentAdminId,
+    ): void {
         $this->auditService->log(
-            action: AuditAction::UPDATE,
+            action: AuditAction::EMAIL_CHANGED,
             entityType: EntityType::ADMIN_USER,
             entityId: $id,
-            newValues: $data,
+            oldValues: ['email' => $previousEmail],
+            newValues: ['email' => $newEmail],
             adminUserId: $currentAdminId,
         );
 
-        return AdminUserDto::fromRow($admin);
+        // Never allowed to fail the change it describes. The change is already
+        // committed; a queue that will not take the notice is a smaller problem
+        // than an admin told their address did not move when it did.
+        try {
+            // Unix seconds, not a formatted date: `forAdmin` appends a 36-char
+            // UUID to build the dedup key and the column is VARCHAR(64), which
+            // a 'Y-m-d H:i:s' occasion overruns.
+            $this->notificationsService->notifyFormerAddress(
+                adminUserId: $id,
+                formerEmail: $previousEmail,
+                occasion: 'changed:' . time(),
+                actorAdminUserId: $currentAdminId,
+            );
+        } catch (\Throwable $e) {
+            $this->auditService->log(
+                action: AuditAction::EMAIL_CHANGED,
+                entityType: EntityType::ADMIN_USER,
+                entityId: $id,
+                newValues: ['notification_failed' => $e->getMessage()],
+                adminUserId: $currentAdminId,
+            );
+        }
+
+        $this->adminUsersRepository->touchCredentialsEpoch($id);
     }
 
     public function deactivateAdminUser(string $id, string $currentAdminId): AdminUserDto
@@ -166,12 +236,18 @@ class AdminUsersService
         if (!$admin) throw NotFoundException::forResource('AdminUser', $targetAdminId);
 
         $this->auditService->log(
-            action: AuditAction::UPDATE,
+            action: AuditAction::PASSWORD_CHANGED,
             entityType: EntityType::ADMIN_USER,
             entityId: $targetAdminId,
             newValues: ['password' => '[RESET]'],
             adminUserId: $currentAdminId,
         );
+
+        // UC-A63 has always said a reset invalidates the target's sessions; now
+        // it does. The target is someone else, so no session of the caller's is
+        // affected — unless they reset their own, which the epoch handles the
+        // same way as any other credential change.
+        $this->adminUsersRepository->touchCredentialsEpoch($targetAdminId);
 
         return ['admin' => AdminUserDto::fromRow($admin), 'password' => $password];
     }
@@ -195,12 +271,17 @@ class AdminUsersService
         $this->adminUsersRepository->updateById($adminId, ['password' => $hash]);
 
         $this->auditService->log(
-            action: AuditAction::UPDATE,
+            action: AuditAction::PASSWORD_CHANGED,
             entityType: EntityType::ADMIN_USER,
             entityId: $adminId,
             newValues: ['password' => '[CHANGED]'],
             adminUserId: $adminId,
         );
+
+        // Every other session on this account stops working. The caller keeps
+        // theirs: `AuthController::changePassword` re-stamps it immediately
+        // after this returns.
+        $this->adminUsersRepository->touchCredentialsEpoch($adminId);
     }
 
     private function generateRandomPassword(int $length = 16): string

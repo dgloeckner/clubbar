@@ -32,6 +32,21 @@ enum AuditAction: string
     case COLLECTION_HOLD_CLEARED = 'collection_hold_cleared';
     case TOTP_ENROLLED = 'totp_enrolled';
     case TOTP_RESET = 'totp_reset';
+
+    /**
+     * A self-service password change. Distinct from the plain `update` a
+     * display-name edit produces, and from the cross-account reset — an
+     * investigation asks "when did this account's password change", and the
+     * answer should be one filter rather than a scan of every admin-user
+     * update's payload (ADR-0013).
+     */
+    case PASSWORD_CHANGED = 'password_changed';
+
+    /**
+     * A change to `admin_users.email`. The email is the login identifier, so
+     * this records a change to who can sign in — never merely a contact detail.
+     */
+    case EMAIL_CHANGED = 'email_changed';
     case MANDATE_DOCUMENT_UPLOAD = 'mandate_document_upload';
     case MANDATE_DOCUMENT_DELETE = 'mandate_document_delete';
     // IBAN encryption key lifecycle (ADR-0036). The private key never touches

@@ -121,7 +121,8 @@
     "passwordMismatch": "Passwords do not match",
     "invalidIban": "Invalid IBAN",
     "invalidPrice": "Invalid price",
-    "atLeastOneLanguage": "At least one language required"
+    "atLeastOneLanguage": "At least one language required",
+    "totpCodeRequired": "Enter a current 6-digit code from your authenticator app."
   },
   "errors": {
     "generic": "An error occurred",
@@ -930,7 +931,9 @@
     "passwordChanged": "Password changed successfully",
     "profileUpdated": "Profile updated successfully",
     "saveFailed": "Save failed",
-    "lastLogin": "Last Login"
+    "lastLogin": "Last Login",
+    "emailChangeTitle": "Change email address",
+    "emailChangeMessage": "Your email address is your login name. After this change you will sign in as {{email}}."
   },
   "languages": {
     "de": "Deutsch",
