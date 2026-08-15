@@ -2632,6 +2632,43 @@ paths:
   # ============================================================================
   # SCHEDULER
   # ============================================================================
+  /admin/scheduler:
+    get:
+      tags: [Scheduler]
+      summary: Has the mail drain ever run, and what to schedule if not
+      description: |
+        The scheduler is a hard prerequisite, not a fallback layer (#405). The
+        drain (`backend/bin/cron.php`, ADR-0038 rule 3) is the only thing that
+        sends announcement emails, so an installation where no run has ever
+        been observed cannot keep Nutzungsordnung § 7 Abs. 3's promise that
+        every collection is announced seven days ahead — and finalizing a
+        direct-debit settlement is refused there with
+        `error: scheduler_not_verified`.
+
+        `verified` keys on *ever*, not *recently*, and never returns to
+        `false`. A scheduler that dies later is a monitoring alarm (#406), not
+        a lockout: refusing a collection at the moment the treasurer needs it
+        is the worse failure, and the member's eight-week no-questions refund
+        stands regardless.
+
+        `setup` carries the instructions for *this* installation, so the
+        installer's prerequisite step, the admin banner and the refusal all
+        print the same command. `drain_url` is `null` when `cron.secret` is
+        unset — the route is not mounted then, and offering the URL would be
+        instructions for something that is not there.
+      operationId: getSchedulerStatus
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Scheduler status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchedulerStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /cron/drain:
     get:
       tags: [Scheduler]
@@ -5450,6 +5487,18 @@ components:
             never silent.
           items:
             $ref: '#/components/schemas/SettlementPreviewMember'
+        members_without_email:
+          type: array
+          description: |
+            Collected members with no email address (#405). A **subset of
+            `eligible_members`**, not a fifth bucket — nobody here is excluded
+            from anything. The run collects from them like everybody else;
+            what it cannot do is send them the pre-notification Nutzungsordnung
+            § 7 Abs. 3 promises. A warning before finalizing, never a block.
+            Members closing out at 0.00 are not listed: they are settled but
+            not collected from, so there is no announcement to miss.
+          items:
+            $ref: '#/components/schemas/SettlementPreviewMember'
         eligible_total:
           type: integer
         ineligible_total:
@@ -5859,6 +5908,62 @@ components:
           minLength: 1
           maxLength: 100
           example: FRGS Ruderbar
+
+    SchedulerStatus:
+      type: object
+      properties:
+        verified:
+          type: boolean
+          description: |
+            Has a drain run ever been recorded? Once true it stays true.
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: UTC. `null` on an installation that has never been drained.
+        source:
+          type: string
+          nullable: true
+          enum: [cli, url]
+          description: How the last observed run was triggered.
+        last_sent:
+          type: integer
+          nullable: true
+        last_failed:
+          type: integer
+          nullable: true
+        php_version:
+          type: string
+          nullable: true
+          description: |
+            The **drain's** interpreter, which on mass hosting is frequently
+            not the web's — a different build, a different `php.ini`, a
+            different extension set.
+        missing_extensions:
+          type: array
+          nullable: true
+          description: |
+            Extensions this application needs that the drain's PHP did not
+            load. `null` means the run predates migration 027; `[]` means it
+            checked and found nothing missing, which is a different statement.
+          items:
+            type: string
+        setup:
+          type: object
+          properties:
+            cli_command:
+              type: string
+              description: The line to paste into a hosting panel's cron form.
+              example: php /var/www/htdocs/backend/bin/cron.php
+            drain_url:
+              type: string
+              nullable: true
+              description: |
+                The URL trigger, or `null` when `cron.secret` is unset and the
+                route is therefore not mounted.
+            recommended_interval_minutes:
+              type: integer
+              example: 15
 
     MailConfig:
       type: object

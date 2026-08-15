@@ -6,7 +6,9 @@ namespace Tests\Unit\Modules\Settlements\Services;
 
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\EnqueueResultDto;
+use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
 use App\Modules\Settlements\Enums\SettlementMethod;
@@ -18,7 +20,9 @@ use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Config\AppConfig;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\SchedulerNotVerifiedException;
 use App\Shared\Exceptions\ValidationException;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
@@ -31,6 +35,7 @@ class SettlementsServiceTest extends TestCase
     private AuditService $auditService;
     private SettlementReversalsRepository $reversalsRepository;
     private NotificationsService $notificationsService;
+    private CronHeartbeatRepository $cronHeartbeatRepository;
     private \PDO $db;
     private SettlementsService $service;
 
@@ -53,6 +58,13 @@ class SettlementsServiceTest extends TestCase
         $this->notificationsService->method('cancelSettlementNotifications')->willReturn(EnqueueResultDto::empty());
         $this->db = $this->createMock(\PDO::class);
 
+        // #405: the scheduler gate. Verified by default — every existing test
+        // here is about settlement arithmetic, and a gate that answered "no"
+        // by default would make all of them fail on a precondition none of
+        // them is testing. `serviceWithScheduler()` builds the other case.
+        $this->cronHeartbeatRepository = $this->createMock(CronHeartbeatRepository::class);
+        $this->cronHeartbeatRepository->method('hasEverRun')->willReturn(true);
+
         $this->service = new SettlementsService(
             $this->settlementsRepository,
             $this->membersRepository,
@@ -61,6 +73,7 @@ class SettlementsServiceTest extends TestCase
             $this->db,
             $this->reversalsRepository,
             $this->notificationsService,
+            new SchedulerStatusService($this->cronHeartbeatRepository, new AppConfig()),
         );
     }
 
@@ -75,6 +88,25 @@ class SettlementsServiceTest extends TestCase
             $this->db,
             $this->reversalsRepository,
             $notifications,
+            new SchedulerStatusService($this->cronHeartbeatRepository, new AppConfig()),
+        );
+    }
+
+    /** The same service, wired to a heartbeat that answers as the test says. */
+    private function serviceWithScheduler(bool $hasEverRun): SettlementsService
+    {
+        $heartbeat = $this->createMock(CronHeartbeatRepository::class);
+        $heartbeat->method('hasEverRun')->willReturn($hasEverRun);
+
+        return new SettlementsService(
+            $this->settlementsRepository,
+            $this->membersRepository,
+            $this->transactionsRepository,
+            $this->auditService,
+            $this->db,
+            $this->reversalsRepository,
+            $this->notificationsService,
+            new SchedulerStatusService($heartbeat, new AppConfig()),
         );
     }
 
@@ -90,6 +122,10 @@ class SettlementsServiceTest extends TestCase
             'id' => $id,
             'first_name' => 'Max',
             'last_name' => 'Mustermann',
+            // #362 makes an address required at application level, so a member
+            // with one is the ordinary case. A test that wants the legacy row
+            // #405's warning bucket exists for overrides it with ''.
+            'email' => 'max@example.com',
             'has_iban' => empty($iban) ? 0 : 1,
             'iban_last4' => empty($iban) ? null : substr(str_replace(' ', '', $iban), -4),
             'mandate_reference' => 'F3332CA866B249E7A202BFBF4836B605',
@@ -450,6 +486,98 @@ class SettlementsServiceTest extends TestCase
         $this->assertSame(0, $result->eligibleMembers[0]['balance_cents']);
         $this->assertSame([], $result->creditMembers);
         $this->assertSame([], $result->warnings);
+    }
+
+    // ── The missing-email warning bucket (#405) ──────────────────────
+
+    /**
+     * Collected from, and unreachable.
+     *
+     * The member owes the money and the run collects it — this bucket removes
+     * nobody from anything. What it says is that one of the people being
+     * collected from will not be told, which Nutzungsordnung § 7 Abs. 3
+     * promises they would be.
+     */
+    public function test_previewSettlement_lists_collected_members_without_an_email_without_excluding_them(): void
+    {
+        $reachable = 'reachable-member';
+        $unreachable = 'unreachable-member';
+
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$reachable, $unreachable]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
+            $reachable => 500,
+            $unreachable => 1500,
+        ]);
+        $this->membersRepository->method('findById')->willReturnMap([
+            [$reachable, $this->member($reachable)],
+            [$unreachable, $this->member($unreachable, ['email' => '', 'first_name' => 'Erika'])],
+        ]);
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertSame([$unreachable], array_column($result->membersWithoutEmail, 'member_id'));
+        $this->assertSame(
+            [$reachable, $unreachable],
+            array_column($result->eligibleMembers, 'member_id'),
+            'the bucket is a subset of eligible, not a fifth exclusion',
+        );
+        $this->assertSame(2000, $result->eligibleTotal, 'and the run still collects from them');
+        $this->assertCount(1, $result->warnings);
+        $this->assertStringContainsString('Erika', $result->warnings[0]);
+        $this->assertStringContainsString('no email address', $result->warnings[0]);
+    }
+
+    /**
+     * A member closing out at 0.00 is settled but not collected from, so there
+     * is no announcement for them to miss. Listing them would turn a warning
+     * about an unkept promise into noise about members nobody promised
+     * anything.
+     */
+    public function test_previewSettlement_does_not_warn_about_a_zero_balance_member_without_an_email(): void
+    {
+        $zeroBalance = 'zero-member';
+        $owing = 'owing-member';
+
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$zeroBalance, $owing]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
+            $zeroBalance => 0,
+            $owing => 500,
+        ]);
+        $this->membersRepository->method('findById')->willReturnMap([
+            [$zeroBalance, $this->member($zeroBalance, ['email' => null])],
+            [$owing, $this->member($owing)],
+        ]);
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertSame([], $result->membersWithoutEmail);
+        $this->assertSame([], $result->warnings);
+    }
+
+    /**
+     * Members who are excluded anyway are not listed: an excluded member is not
+     * collected from, so the announcement they cannot receive was never going
+     * to be sent, and their real remedy is the one their own bucket names.
+     */
+    public function test_previewSettlement_does_not_warn_about_excluded_members_without_an_email(): void
+    {
+        $held = 'held-member';
+        $noMandate = 'no-mandate-member';
+
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$held, $noMandate]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
+            $held => 500,
+            $noMandate => 500,
+        ]);
+        $this->membersRepository->method('findById')->willReturnMap([
+            [$held, $this->member($held, ['email' => '', 'collection_hold' => 1])],
+            [$noMandate, $this->member($noMandate, ['email' => '', 'iban' => ''])],
+        ]);
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertSame([], $result->membersWithoutEmail);
+        $this->assertCount(2, $result->warnings, 'each still warns about its own exclusion');
     }
 
     public function test_previewSettlement_sepaEligibleOnly_drops_ineligible_members_and_warnings(): void
@@ -1110,6 +1238,103 @@ class SettlementsServiceTest extends TestCase
             null,
             'admin-1',
         );
+    }
+
+    // ── The scheduler gate (#405) ────────────────────────────────────
+
+    /**
+     * The gate: no observed drain run, no direct debit.
+     *
+     * The announcement would be queued and never leave, and a collection
+     * nobody was told about is what Nutzungsordnung § 7 Abs. 3 rules out. The
+     * refusal carries its own type so the panel can point at the setup
+     * instructions rather than at the member list, and the message names both
+     * the cause and the command that fixes it.
+     */
+    public function test_createSettlement_is_refused_while_no_drain_run_has_ever_been_observed(): void
+    {
+        $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->stubEligibleSweep($transactions);
+
+        // Nothing is written, and nothing is even attempted: the gate runs
+        // before the transaction opens, because there is nothing wrong with
+        // this settlement to roll back.
+        $this->db->expects($this->never())->method('beginTransaction');
+        $this->settlementsRepository->expects($this->never())->method('create');
+
+        try {
+            $this->serviceWithScheduler(false)->createSettlement(
+                ['tx-1'],
+                '2026-01-15',
+                null,
+                null,
+                SettlementMethod::DIRECT_DEBIT,
+                null,
+                'admin-1',
+            );
+            $this->fail('Expected SchedulerNotVerifiedException');
+        } catch (SchedulerNotVerifiedException $e) {
+            $this->assertSame('scheduler_not_verified', $e->getErrorCode());
+            $this->assertSame(409, $e->getHttpStatusCode());
+            $this->assertStringContainsString('backend/bin/cron.php', $e->getMessage(), 'the remedy has to be in the refusal');
+        }
+    }
+
+    /** Once a run has been recorded the gate is open and stays open. */
+    public function test_createSettlement_succeeds_once_a_drain_run_has_been_recorded(): void
+    {
+        $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->stubEligibleSweep($transactions);
+        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
+        $this->settlementsRepository->method('create')->willReturn($this->settlementRow());
+        $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
+
+        $result = $this->serviceWithScheduler(true)->createSettlement(
+            ['tx-1'],
+            '2026-01-15',
+            null,
+            null,
+            SettlementMethod::DIRECT_DEBIT,
+            null,
+            'admin-1',
+        );
+
+        $this->assertSame('settlement-1', $result->id);
+    }
+
+    /**
+     * A write-off announces nothing — no money moves and no member is asked to
+     * do anything — so the gate has no promise to protect and must not refuse
+     * it. Blocking it would refuse an operation this installation *can* honour.
+     */
+    public function test_createSettlement_gate_does_not_block_a_write_off(): void
+    {
+        $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->stubEligibleSweep($transactions);
+        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
+        $this->settlementsRepository->method('create')->willReturn($this->settlementRow(['method' => 'write_off']));
+        $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
+
+        $result = $this->serviceWithScheduler(false)->createSettlement(
+            ['tx-1'],
+            '2026-01-15',
+            null,
+            null,
+            SettlementMethod::WRITE_OFF,
+            null,
+            'admin-1',
+        );
+
+        $this->assertSame('settlement-1', $result->id);
     }
 
     /**

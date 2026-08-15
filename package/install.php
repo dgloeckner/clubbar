@@ -14,7 +14,8 @@ declare(strict_types=1);
  * 2. Database credentials (form + AJAX test connection)
  * 3. Run migrations
  * 4. Create admin user
- * 5. Done
+ * 5. Scheduler (setup instructions + AJAX heartbeat check)
+ * 6. Done
  *
  * State is tracked in .installer-data (JSON):
  *   {"key": "<random hex>", "completed_step": <0|2|3>}
@@ -120,6 +121,62 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_db') {
         echo json_encode(['success' => true]);
     } catch (\PDOException $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// --- Handle AJAX scheduler check (session-protected) ---
+// The **Prüfen** button of step 5 (#405). It reads `cron_heartbeat` and answers
+// whether a run has ever been observed — nothing here triggers a drain, because
+// a self-triggered test call would only prove the endpoint answers, not that
+// anything is scheduled to call it, which is the only thing the gate asks.
+//
+// The installer holds the database credentials it just wrote, so it asks the
+// database directly rather than through an API that would need a session it
+// does not have.
+if (isset($_GET['action']) && $_GET['action'] === 'check_cron') {
+    header('Content-Type: application/json');
+    if (empty($_SESSION['install_key_verified'])) {
+        echo json_encode(['verified' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    if (!file_exists($configFile)) {
+        echo json_encode(['verified' => false, 'error' => 'config.php not found — complete step 2 first.']);
+        exit;
+    }
+    try {
+        $config = require $configFile;
+        $checkPdo = new PDO(
+            sprintf(
+                'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+                $config['db']['host'],
+                $config['db']['port'],
+                $config['db']['name']
+            ),
+            $config['db']['user'],
+            $config['db']['pass'],
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '" . Utc::SQL_OFFSET . "'",
+            ]
+        );
+        $row = $checkPdo->query('SELECT last_run_at, source, php_version FROM cron_heartbeat WHERE id = 1')->fetch();
+        $lastRunAt = $row['last_run_at'] ?? null;
+        // Remembered in the session so the completion page can state the
+        // outcome, verified or not. A finish without a green check is allowed —
+        // the treasurer should not have to stare at the installer waiting for a
+        // tick that may be fifteen minutes away — but it is recorded as an
+        // explicit unverified state rather than a silent pass.
+        $_SESSION['scheduler_verified'] = $lastRunAt !== null;
+        echo json_encode([
+            'verified' => $lastRunAt !== null,
+            'last_run_at' => $lastRunAt,
+            'source' => $row['source'] ?? null,
+            'php_version' => $row['php_version'] ?? null,
+        ]);
+    } catch (\PDOException $e) {
+        echo json_encode(['verified' => false, 'error' => $e->getMessage()]);
     }
     exit;
 }
@@ -720,7 +777,7 @@ function renderPage(string $step, ?string $error, bool $isUpdate): void
 
             <?php if (!$isUpdate): ?>
             <div class="steps">
-                <?php for ($i = 1; $i <= 5; $i++): ?>
+                <?php for ($i = 1; $i <= 6; $i++): ?>
                     <span class="step <?php echo $i == (int)$step ? 'active' : ($i < (int)$step ? 'done' : ''); ?>">
                         <?php echo $i; ?>
                     </span>
@@ -749,6 +806,9 @@ function renderPage(string $step, ?string $error, bool $isUpdate): void
                     break;
                 case '5':
                     renderStep5();
+                    break;
+                case '6':
+                    renderStep6();
                     break;
                 default:
                     renderStep1($isUpdate);
@@ -953,7 +1013,67 @@ function renderStep4(bool $isUpdate): void
     <?php
 }
 
+/**
+ * Step 5: the scheduler (#405).
+ *
+ * A prerequisite step rather than a suggestion. The drain is the only thing
+ * that sends announcement emails, and until a run has been observed the admin
+ * panel carries a banner and refuses to finalize a direct-debit settlement — so
+ * this page exists to make the setup a step of the installation instead of a
+ * paragraph in a manual somebody reads afterwards.
+ *
+ * It does not block. The first scheduled tick can be up to fifteen minutes
+ * away, and holding the wizard on a spinner for that is not acceptable; the
+ * outcome is recorded either way and repeated on the completion page.
+ */
 function renderStep5(): void
+{
+    $cronCommand = 'php ' . rtrim(__DIR__, '/') . '/backend/bin/cron.php';
+
+    // The URL trigger only exists where `cron.secret` does — absent it the
+    // route answers 404, and printing the URL would be instructions for
+    // something that is not there. Step 2 writes one unconditionally, so on a
+    // fresh install this is present; an upgrade from before ADR-0038 may not
+    // have it yet.
+    $configFile = DataDirectory::configPath(__DIR__);
+    $cronSecret = null;
+    $appUrl = null;
+    if (file_exists($configFile)) {
+        $config = require $configFile;
+        $cronSecret = $config['cron']['secret'] ?? null;
+        $appUrl = $config['app']['url'] ?? null;
+    }
+    $drainUrl = ($cronSecret && $appUrl) ? rtrim($appUrl, '/') . '/api/cron/drain' : null;
+    ?>
+    <h2>Step 5: Schedule the mail drain</h2>
+    <p>Club Bar announces every direct debit by email at least seven days before it is collected. Those emails
+    are queued when you finalize a collection and sent by a scheduled task — so <strong>until this task runs,
+    Club Bar will not let you finalize a collection</strong>.</p>
+
+    <h3 style="margin: 20px 0 8px; font-size: 16px; color: #374151;">Add this to your hosting panel&rsquo;s cron</h3>
+    <p>Run it every <strong>15 minutes</strong>:</p>
+    <pre id="cronCommand"><?php echo htmlspecialchars($cronCommand); ?></pre>
+
+    <?php if ($drainUrl !== null): ?>
+        <p><small>No CLI cron on your tariff? Schedule a URL fetch instead, sending the secret from
+        <code>config.php</code> as a header:</small></p>
+        <pre><?php echo htmlspecialchars("curl -sS -H 'X-Cron-Secret: <secret>' " . $drainUrl); ?></pre>
+        <p><small>The header form keeps the secret out of your webserver&rsquo;s access log. Where a panel cannot
+        send headers, <code><?php echo htmlspecialchars($drainUrl); ?>?secret=&lt;secret&gt;</code> also works,
+        and is a degraded fallback.</small></p>
+    <?php endif; ?>
+
+    <p style="margin-top: 20px;">Once you have saved it, wait for the first run and check here. The first tick can
+    be up to 15 minutes away — you can finish the installation now and check again from the admin panel, which
+    shows the same instructions until a run has been seen.</p>
+    <button type="button" class="btn btn-secondary" id="cronCheckBtn">Check</button>
+    <p id="cronCheckResult"></p>
+
+    <p style="margin-top: 20px;"><a href="?step=6" class="btn">Finish</a></p>
+    <?php
+}
+
+function renderStep6(): void
 {
     // Resolved live rather than remembered: .installer-data is deleted when the
     // install completes, and what matters on this page is where the data
@@ -977,6 +1097,17 @@ function renderStep5(): void
         the document root, so your data stays inside it. It is protected by the <code>.htaccess</code> rules
         shipped with Club Bar — which your host may stop honouring after a tariff or server change. If you can
         create a writable directory next to your document root, re-run this installer to move the data there.</small></p>
+    <?php endif; ?>
+
+    <h3 style="margin: 20px 0 8px; font-size: 16px; color: #374151;">Scheduled mail drain</h3>
+    <?php if (!empty($_SESSION['scheduler_verified'])): ?>
+        <p class="check-ok"><small>A scheduled run has been observed. Announcement emails will go out, and
+        collections can be finalized.</small></p>
+    <?php else: ?>
+        <p class="check-warn"><small><strong>Not yet verified.</strong> No run of the mail drain has been seen on
+        this installation. That is expected if you have only just added the cron job — the first tick can be up
+        to 15 minutes away. Until one has been recorded, the admin panel shows the setup instructions and
+        finalizing a collection is refused, because the announcement it promises could not be sent.</small></p>
     <?php endif; ?>
 
     <a href="/" class="btn">Go to Admin Panel</a>
@@ -1168,6 +1299,18 @@ code {
     padding: 2px 6px;
     border-radius: 3px;
     font-size: 13px;
+}
+pre {
+    background: #f3f4f6;
+    padding: 10px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    /* A command line is meant to be selected and pasted whole; wrapping keeps
+       the tail of a long document-root path on screen instead of behind a
+       horizontal scrollbar. */
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 8px 0;
 }
 .reset-link {
     text-align: center;

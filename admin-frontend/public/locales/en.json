@@ -1026,6 +1026,10 @@
       "loadPreview": "Failed to load settlement preview",
       "create": "Failed to create settlement",
       "loadExecutionDate": "Failed to load execution date"
+    },
+    "withoutEmail": {
+      "title": "No email address — no pre-notification",
+      "note": "These members are collected from as usual, but cannot receive the announcement of the collection. Add an email address so they are told next time."
     }
   },
   "periods": {
@@ -1112,6 +1116,13 @@
         "member": "Member",
         "balance": "Owed"
       }
+    }
+  },
+  "scheduler": {
+    "banner": {
+      "title": "Scheduled mail delivery is missing — collections are blocked",
+      "body": "Every collection is announced by email at least seven days in advance. A scheduled task sends those announcements, and it has never run on this installation. Add the following command to your hosting panel as a cron job, every {{minutes}} minutes. This notice disappears once the first run has been recorded.",
+      "urlFallback": "No CLI cron? A scheduled URL fetch works too: {{url}} — with the secret from config.php in the X-Cron-Secret header."
     }
   }
 }

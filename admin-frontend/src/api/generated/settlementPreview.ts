@@ -75,6 +75,15 @@ each entry carries `collection_hold_reason` so the exclusion is
 never silent.
  */
   held_members?: SettlementPreviewMember[];
+  /** Collected members with no email address (#405). A **subset of
+`eligible_members`**, not a fifth bucket — nobody here is excluded
+from anything. The run collects from them like everybody else;
+what it cannot do is send them the pre-notification Nutzungsordnung
+§ 7 Abs. 3 promises. A warning before finalizing, never a block.
+Members closing out at 0.00 are not listed: they are settled but
+not collected from, so there is no announcement to miss.
+ */
+  members_without_email?: SettlementPreviewMember[];
   eligible_total?: number;
   ineligible_total?: number;
   /** Sum of the credit bucket; negative, or zero if nobody is in credit */

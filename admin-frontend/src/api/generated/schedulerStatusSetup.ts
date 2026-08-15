@@ -58,69 +58,15 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export interface Member {
-  id?: string;
+export type SchedulerStatusSetup = {
+  /** The line to paste into a hosting panel's cron form. */
+  cli_command?: string;
   /**
-   * @maxLength 100
-   * @nullable
-   */
-  first_name?: string | null;
-  /**
-   * @maxLength 100
-   * @nullable
-   */
-  last_name?: string | null;
-  /** @nullable */
-  email?: string | null;
-  /** @nullable */
-  card_uid?: string | null;
-  /** ISO 639-1 language code */
-  preferred_language?: string;
-  /**
-   * The last four characters of the IBAN. The stored IBAN is sealed
-under the club's public key ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md))
-and the server holds no private key, so no admin endpoint can
-return the full value — enough to recognize the account, useless
-to debit it. The plaintext is reachable only through the SEPA
-export, which takes the private key for the length of one request.
+   * The URL trigger, or `null` when `cron.secret` is unset and the
+route is therefore not mounted.
 
-   * @minLength 4
-   * @maxLength 4
    * @nullable
    */
-  iban_last4?: string | null;
-  /**
-   * `iban_last4` in the established display shape, e.g. ****3000
-   * @nullable
-   */
-  iban_masked?: string | null;
-  /**
-   * Account holder name if different from member. Used in SEPA XML.
-   * @maxLength 70
-   * @nullable
-   */
-  account_holder_name?: string | null;
-  /**
-   * @maxLength 35
-   * @nullable
-   */
-  mandate_reference?: string | null;
-  /** @nullable */
-  mandate_signed_at?: string | null;
-  /**
-   * Bank name resolved from IBAN via Bundesbank BLZ lookup (German IBANs only)
-   * @nullable
-   */
-  bank_name?: string | null;
-  is_active?: boolean;
-  is_sepa_valid?: boolean;
-  /** The member's Deckel: the sum of their transactions that no
-settlement has collected yet, in cents. Positive means they owe
-the club; negative is a credit, which a payout leaves behind.
- */
-  balance_cents?: number;
-  /** @nullable */
-  deleted_at?: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
+  drain_url?: string | null;
+  recommended_interval_minutes?: number;
+};

@@ -122,3 +122,31 @@ VALUES (
     NOW() + INTERVAL 365 DAY
 )
 ON DUPLICATE KEY UPDATE status = 'active', activated_at = NOW(), expires_at = NOW() + INTERVAL 365 DAY, retired_at = NULL;
+
+-- ---------------------------------------------------------------------------
+-- Observed scheduler run (#405)
+-- ---------------------------------------------------------------------------
+-- Finalizing a direct-debit settlement is refused on an installation where no
+-- run of the mail drain has ever been recorded: the announcement would be
+-- queued and never sent, and a collection nobody was told about is the one
+-- thing Nutzungsordnung § 7 Abs. 3 rules out.
+--
+-- A development stack and a CI database have no cron. Without this row every
+-- settlement test would fail at once, and the failure would read as
+-- "settlement creation is broken" rather than "a new precondition exists" —
+-- which is exactly the diagnosis cost the gate must not impose on its own test
+-- suite. The row therefore states the truth for a seeded environment: a run has
+-- been observed. `cron-drain.spec.ts` and the drain's own tests overwrite it
+-- with a real one.
+--
+-- `source = 'cli'` and the counters at zero describe an idle run, which is what
+-- an installation with an empty queue records for eleven months of the year.
+INSERT INTO cron_heartbeat (id, last_run_at, source, sent, failed, php_version, missing_extensions)
+VALUES (1, NOW(), 'cli', 0, 0, 'seed', '')
+-- COALESCE throughout: a real run already recorded by the drain is left exactly
+-- as it is. Re-running the seed must not overwrite evidence with a fiction.
+ON DUPLICATE KEY UPDATE
+    last_run_at = COALESCE(last_run_at, NOW()),
+    source = COALESCE(source, 'cli'),
+    php_version = COALESCE(php_version, 'seed'),
+    missing_extensions = COALESCE(missing_extensions, '');

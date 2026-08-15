@@ -37,6 +37,17 @@ class AppConfig
      * has no reason to expose a second, unauthenticated way in.
      */
     public readonly ?string $cronSecret;
+    /**
+     * The deployment's document root — the directory `backend/` sits in.
+     *
+     * Needed to *print* a path rather than to read one: the scheduler setup
+     * instructions (#405) name `backend/bin/cron.php` by absolute path, and
+     * that path is the single thing an admin has to paste into a hosting
+     * panel's cron form. Deriving it here rather than asking the admin to
+     * work it out is the difference between a copyable line and a support
+     * question.
+     */
+    public readonly string $documentRoot;
 
     public function __construct()
     {
@@ -59,6 +70,7 @@ class AppConfig
         $this->googleVisionKey      = Env::get('GCLOUD_VISION_API', '') ?: null;
         $this->mailDsn              = trim(Env::get('MAIL_DSN', '')) ?: null;
         $this->cronSecret           = trim(Env::get('CRON_SECRET', '')) ?: null;
+        $this->documentRoot         = self::resolveDocumentRoot();
 
         // Resolved last — the default depends on $this->appUrl.
         $this->sessionCookieSecure  = self::resolveSessionCookieSecure($this->appUrl);
@@ -171,6 +183,25 @@ class AppConfig
         }
 
         return dirname(__DIR__, 3);
+    }
+
+    /**
+     * The directory `backend/` lives in.
+     *
+     * Derived from this file's own location rather than from an environment
+     * variable, for the same reason `bin/cron.php` derives it as
+     * `dirname(__DIR__, 2)`: it is a fact about where the code was unpacked,
+     * and a configured copy of it could disagree with reality. `DOCUMENT_ROOT`
+     * from the webserver is deliberately not consulted — on a CLI run there is
+     * none, and on a host with an aliased root it names the URL space rather
+     * than the deployment.
+     *
+     * `backend/src/Shared/Config` → `backend/src/Shared` → `backend/src` →
+     * `backend` → the document root.
+     */
+    private static function resolveDocumentRoot(): string
+    {
+        return dirname(__DIR__, 4);
     }
 
     /**

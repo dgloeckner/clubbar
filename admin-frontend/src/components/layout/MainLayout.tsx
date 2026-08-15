@@ -12,6 +12,7 @@ import { useInstanceConfig } from '../../context/InstanceConfigContext'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { LoadingIndicator } from '../common/LoadingIndicator'
 import { BottomTabBar } from './BottomTabBar'
+import { SchedulerBanner } from './SchedulerBanner'
 import {
   AuditLogIcon,
   HomeIcon,
@@ -303,6 +304,14 @@ export function MainLayout({ children }: MainLayoutProps) {
           </div>
         )}
       </header>
+
+      {/*
+        The scheduler gate (#405). Above the content and below the header, so
+        it is the first thing on every page until a drain run has been
+        observed — the state in which finalizing a collection is refused.
+        Renders nothing at all once verified, which is permanent.
+      */}
+      <SchedulerBanner />
 
       {/*
         Main Content.

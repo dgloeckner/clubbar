@@ -40,6 +40,18 @@ final readonly class SettlementPreviewDto
          * understate the run, which is the mismatch issue #128 is about.
          */
         public int $transactionCount = 0,
+        /**
+         * Collected members with no email address (#405).
+         *
+         * A **subset of `eligibleMembers`**, not a fifth bucket: nobody here is
+         * excluded from anything. The run collects from them exactly as it
+         * does from everybody else; what it cannot do is announce it to them,
+         * and Nutzungsordnung § 7 Abs. 3 promises that announcement. So it is a
+         * warning the treasurer sees before finalizing and never a block —
+         * #362 makes an address required at application level, and this covers
+         * the legacy rows until they are backfilled.
+         */
+        public array $membersWithoutEmail = [],
     ) {}
 
     public function toArray(): array
@@ -49,6 +61,7 @@ final readonly class SettlementPreviewDto
             'ineligible_members' => $this->ineligibleMembers,
             'credit_members' => $this->creditMembers,
             'held_members' => $this->heldMembers,
+            'members_without_email' => $this->membersWithoutEmail,
             'eligible_total' => $this->eligibleTotal,
             'ineligible_total' => $this->ineligibleTotal,
             'credit_total' => $this->creditTotal,
