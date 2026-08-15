@@ -728,6 +728,35 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->assertSame(1, $this->countMandates($member['id']));
     }
 
+    public function test_creating_a_member_on_a_taken_reference_leaves_no_half_created_member(): void
+    {
+        // The member row lands before openMandate runs, so a refused mandate
+        // used to leave behind a member the admin was never told about:
+        // created, bankless, and reported as an error. Creation is one unit.
+        $other = $this->createMemberWithBankingData();
+
+        $id = $this->generateUuid();
+        $this->testMemberIds[] = $id;
+
+        try {
+            $this->membersRepository->create([
+                'id' => $id,
+                'first_name' => 'Colliding',
+                'last_name' => 'Member',
+                'email' => "colliding-{$id}@example.com",
+                'iban' => 'DE02120300000000202051',
+                'mandate_reference' => $other['mandate_reference'],
+                'mandate_signed_at' => '2025-01-01',
+            ]);
+            $this->fail('expected the taken reference to be refused');
+        } catch (DuplicateResourceException $e) {
+            $this->assertStringContainsString($other['mandate_reference'], $e->getMessage());
+        }
+
+        $this->assertNull($this->membersRepository->findById($id), 'the member row must not survive a refused mandate');
+        $this->assertSame(0, $this->countMandates($id));
+    }
+
     public function test_clearing_the_iban_revokes_the_mandate(): void
     {
         $member = $this->createMemberWithBankingData();
