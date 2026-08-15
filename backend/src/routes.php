@@ -17,6 +17,7 @@ use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
+use App\Modules\Notifications\Controllers\NotificationsController;
 use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
@@ -221,6 +222,16 @@ return function (App $app): void {
         // a secret in config.php; these are the club-editable fields only.
         $group->get('/mail-config', [MailConfigController::class, 'show']);
         $group->patch('/mail-config', [MailConfigController::class, 'update']);
+        // The one diagnostic that sends from a request. It goes to the
+        // requesting admin's own address and nowhere else — see TestMailService
+        // for why that does not make it a second sending path.
+        $group->post('/mail-config/test-mail', [MailConfigController::class, 'sendTestMail']);
+
+        // The mail queue (#407). Read, and exactly one state change: a failed
+        // message can go back to `pending`. Nothing here drains, and nothing
+        // here reports progress for a client to poll (ADR-0038 rule 4).
+        $group->get('/notifications', [NotificationsController::class, 'index']);
+        $group->post('/notifications/{id}/retry', [NotificationsController::class, 'retry']);
 
         // Whether a drain run has ever been observed, and what to schedule if
         // not (#405). Read-only: it reports the heartbeat, it never writes one.

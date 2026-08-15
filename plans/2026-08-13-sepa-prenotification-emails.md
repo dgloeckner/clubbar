@@ -190,11 +190,37 @@ Five decisions #406 leaves open, and one it was written before:
 
 ### P7 — Admin UI: send status, retry, mail settings, test mail ([#407](https://github.com/dgloeckner/clubbar/issues/407))
 
-- [ ] Per-member send status and timestamp in the settlement detail; failures visible with their reason
-- [ ] A retry button that sets one row back to `pending` — and nothing that orchestrates timing (ADR-0038 rule 4: no polling, no batch loop, no progress driver)
-- [ ] Mail settings page for `mail_config`; test-mail action
-- [ ] Post-finalize wording is *"N announcements queued, sending"*, never *"N sent"*
-- Verify: Playwright per `admin-frontend/patterns/` (test IDs, `useListQuery` where a list is involved); E2E asserts real persistence, not just that a form closed
+- [x] **Notifications page** (`/notifications`) listing `mail_outbox`, filterable by kind and status, searchable by recipient or member name — the fold-in's replacement for per-settlement-only status, because the Deckelauszug (#462) has no settlement to appear under. Built on `useListQuery` per `admin-frontend/patterns/table-implementation.md`
+- [x] Backend to serve it: `GET /admin/notifications` (paginated, filtered, sorted; an unknown `kind`/`status` is **422, not ignored**) and `POST /admin/notifications/{id}/retry` (**409** for a `sent`/`pending`/`superseded` row, with the reason). `QueuedMailDto`, `MailOutboxRepository::search()/countMatching()`, `NotificationsService::search()/retry()/find()`
+- [x] Per-member announcement state in the settlement detail's expandable breakdown — queued / sent / failed with the server's words / **no address at all**, which is the case that names who has to be rung up. `notifications[]` rides along on the single-settlement read beside `reversals[]`
+- [x] A retry button that sets one row back to `pending` and nothing else. `reload()` after it rather than a local patch: the row's new state is the server's to state
+- [x] `MailSettingsTab` on the Settings page: sender, reply-to, header variant, footer, plus `cron_interval` and `drain_batch_size` from P6 — and the **measured, read-only** transport panel. The DSN is not a field and is asserted absent
+- [x] Test-mail action — `POST /admin/mail-config/test-mail`, to the **requesting admin's own address only**, fixed content, audited (`mail_test_sent`)
+- [x] Post-finalize wording is *"N Ankündigungen eingereiht, Versand läuft"*, never *"versendet"*; the count comes from the create response, which now reads the settlement back so it carries what was queued
+- [x] `audit_log.action` gains `mail_retried` and `mail_test_sent` (migration `030`, with a rollback that rewrites existing rows rather than dropping them)
+- Verify: **passed** — `NotificationsHttpTest` (14, over a real database and the real routes: the joined member name, each filter, an unknown filter refused, retry asserted **against the row rather than the response body**, the audit entry, and the three not-retryable statuses), `TestMailServiceTest` (10, including the two boundaries that let this endpoint exist at all — the recipient comes from the session and the content is fixed), `notifications-queue.spec.ts` (7) and `mail-settings.spec.ts` (6) over the built frontend. Backend **1645 Unit + 500 Feature**, `api-tests` 615/615, `admin-chromium` 299/299, frontend unit 308/308 and `tsc --noEmit` clean — re-run after rebasing onto [#470](https://github.com/dgloeckner/clubbar/pull/470)'s terminal anomaly detection, on a **freshly seeded** database (the admin suite reads seeded terminal state that 615 API tests in the same database consume; CI gives each shard its own stack)
+
+Four decisions #407 leaves open, and one thing it turned out to depend on:
+
+| Decision | Why |
+|---|---|
+| The test mail sends **synchronously**, and that does not contradict ADR-0038 rule 3 | Rule 3 is about *queued* messages: announcements must not leave from inside a request, because a gateway timeout mid-loop leaves announcement state nobody can reconstruct, and because the queue is the record of what the club committed to. None of that applies to a message that is never queued, carries no member data, and whose entire value is the error text arriving **while the admin is still looking at the screen**. Queuing it would give the worst of both — an hour's wait for a diagnosis, and an outbox row corresponding to nothing anybody was promised. `DrainService::run()` still has exactly two callers |
+| The test mail goes to the **session's** admin address, never to one in the body | Otherwise the endpoint is an authenticated open relay on the club's own domain, which is a considerably better prize than anything else in the panel. Enforced, not documented: there is no parameter |
+| An unknown `kind` or `status` filter is **422**, not ignored | Silently dropping it answers a question nobody asked — the whole queue, presented as if it were the failures — and the caller cannot tell that from an empty result |
+| `is_retryable` is computed **server-side** and returned on the row | The button and the endpoint would otherwise each decide which rows are eligible, and drift the day a status is added |
+
+| Dependency found | Resolution |
+|---|---|
+| [#470](https://github.com/dgloeckner/clubbar/pull/470) (ADR-0041) landed mid-review, taking migrations **030 and 031** — and 031 rewrites the very `audit_log.action` enum this milestone extends | This migration is renumbered **032** and now lists 031's two terminal-anomaly actions alongside its own two. `MODIFY COLUMN … ENUM(...)` is a *replacement*, not an addition, so a migration naming only its own values would silently drop the anomaly actions and invalidate every row already written with one. The rollback restores the post-031 state rather than the pre-030 one |
+| The same PR added a sixth `MailKind`, `terminal_anomaly_warning` | Added to the OpenAPI enum, the queue page's filter list and both locale files. A kind the server can queue and the queue page cannot name would render its own slug at somebody |
+| `Feature\…\DrainServiceTest` asserted "this run failed exactly one message" against a **global** queue, and passed only while the queue happened to be near-empty. The new HTTP tests filled it, and the assertion started reading 101 | The suite now parks foreign `pending` rows a day out for its duration and restores them afterwards — the same measure `MailOutboxRepositoryTest` already takes, for the same reason (Patterns 001/004). A drain claims whatever is due; that is the point of it, and it makes any per-run count meaningless without isolation |
+
+Two things #407 asks for that are **not** here, and why:
+
+| Not built | Why |
+|---|---|
+| The retry **happy path** as a browser E2E | A `failed` row cannot be produced through the API on a stack with no mail transport: the drain refuses to claim anything, so nothing can fail. That chain needs Mailpit and belongs to [#409](https://github.com/dgloeckner/clubbar/issues/409). The transition itself is covered end to end in `NotificationsHttpTest` against a real database, asserted on the row |
+| `statement_cadence` in the settings form, and its switch-on prompt | The column does not exist yet — it lands with [#462](https://github.com/dgloeckner/clubbar/issues/462) step 11.4, together with the migration that sets existing installations to `off`. Adding the control first would be a form field for a setting nothing reads |
 
 ### P8 — Privacy and retention: erasure covers `mail_outbox`, sent rows pruned ([#408](https://github.com/dgloeckner/clubbar/issues/408))
 

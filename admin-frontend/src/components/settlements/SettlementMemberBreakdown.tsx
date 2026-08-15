@@ -11,7 +11,15 @@
  * It shows the **full** member breakdown, not the reversals alone. A treasurer
  * expanding *"1 von 40 zurückgebucht"* is asking *which one*, and a reversal
  * shown without the other thirty-nine loses the denominator. One fetch covers
- * it — the single read returns `items[]` and `reversals[]` together.
+ * it — the single read returns `items[]`, `reversals[]` and, since #407, the
+ * queued announcements together.
+ *
+ * The announcement state rides along for the same reason the reversals do:
+ * *"was this member actually told?"* is part of "what happened to this member",
+ * and ADR-0038 rule 6 makes that question the club's to answer — delivery is
+ * best effort, and best effort has to be visible. A member with no email
+ * address has no queued row at all, which is why they are named here rather
+ * than left as a gap.
  *
  * Test IDs: `settlement-breakdown-*`.
  */
@@ -50,7 +58,7 @@ export function SettlementMemberBreakdown({ settlementId }: SettlementMemberBrea
       .getSettlement(settlementId, { signal })
       .then((detail) => {
         if (signal.aborted) return
-        setLines(settlementMemberLines(detail.items, detail.reversals))
+        setLines(settlementMemberLines(detail.items, detail.reversals, detail.notifications))
       })
       .catch((err: unknown) => {
         if (signal.aborted) return
@@ -66,6 +74,32 @@ export function SettlementMemberBreakdown({ settlementId }: SettlementMemberBrea
         if (!signal.aborted) setLoading(false)
       })
   }, [settlementId, request, t])
+
+  /**
+   * What the announcement line says, in the member's row.
+   *
+   * A missing row is not "unknown" — it is a member the announcement could not
+   * be addressed to, and saying so is the point: they are the ones somebody has
+   * to ring up.
+   */
+  const announcementLabel = (line: SettlementMemberLine): string => {
+    if (!line.notification) return t('settlements.announcement.noAddress')
+
+    switch (line.notification.status) {
+      case 'sent':
+        return t('settlements.announcement.sent', {
+          when: line.notification.sent_at ? formatters.formatDate(line.notification.sent_at) : '',
+        })
+      case 'failed':
+        return t('settlements.announcement.failed', {
+          reason: line.notification.last_error ?? t('settlements.announcement.unknownError'),
+        })
+      case 'superseded':
+        return t('settlements.announcement.superseded')
+      default:
+        return t('settlements.announcement.queued')
+    }
+  }
 
   if (loading) {
     return (
@@ -119,6 +153,13 @@ export function SettlementMemberBreakdown({ settlementId }: SettlementMemberBrea
             </span>
           </div>
 
+          {/* Was this member told? Queued, sent, or failed with the reason
+              the receiving server gave — the same words the Notifications page
+              shows, because they are the ones that point at a fix. */}
+          <div data-testid={`settlement-breakdown-announcement-${line.memberId}`} style={announcementStyle(line)}>
+            {announcementLabel(line)}
+          </div>
+
           {/* The reversal in full: how much came back, why, the bank's
               reference, and who recorded it when. This is what makes the
               expand answer "did someone already do this?" (§3). */}
@@ -143,6 +184,14 @@ export function SettlementMemberBreakdown({ settlementId }: SettlementMemberBrea
     </div>
   )
 }
+
+const announcementStyle = (line: SettlementMemberLine): CSSProperties => ({
+  fontSize: theme.typography.fontSize.xs,
+  color:
+    line.notification?.status === 'failed' || !line.notification
+      ? theme.colors.semantic.danger
+      : theme.colors.text.muted,
+})
 
 const messageStyle: CSSProperties = {
   padding: theme.spacing.lg,

@@ -33,6 +33,7 @@ import { TerminalsTab } from '../components/settings/TerminalsTab'
 import { SecurityCheckTab } from '../components/settings/SecurityCheckTab'
 import { CredentialsTab } from '../components/settings/CredentialsTab'
 import { InstanceBrandingTab } from '../components/settings/InstanceBrandingTab'
+import { MailSettingsTab } from '../components/settings/MailSettingsTab'
 import { CreateTerminalModal } from '../components/modals/CreateTerminalModal'
 import { EditTerminalModal } from '../components/modals/EditTerminalModal'
 import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
@@ -53,7 +54,7 @@ export function SettingsPage() {
   const { refetch: refetchInstanceConfig } = useInstanceConfig()
 
   // State management
-  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals' | 'security' | 'credentials' | 'instance'>('admin-users')
+  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals' | 'security' | 'credentials' | 'instance' | 'mail'>('admin-users')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   // Page-level failure, rendered above the tab content. A modal covers that
@@ -293,7 +294,7 @@ export function SettingsPage() {
     setModalFieldErrors({})
   }
 
-  const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals' | 'security' | 'credentials' | 'instance') => {
+  const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals' | 'security' | 'credentials' | 'instance' | 'mail') => {
     // The banner reports what failed on the tab that is being left behind.
     setError(null)
     setActionSuccess(null)
@@ -881,6 +882,19 @@ export function SettingsPage() {
             )}
             {t('settings.instance.tab')}
           </button>
+          <button
+            data-testid="settings-tab-mail"
+            onClick={() => switchTab('mail')}
+            style={tabStyle(activeTab === 'mail') as any}
+          >
+            {!isMobile && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <polyline points="2 7 12 14 22 7" />
+              </svg>
+            )}
+            {t('settings.mail.tab')}
+          </button>
         </div>
       </div>
 
@@ -981,6 +995,10 @@ export function SettingsPage() {
           onCancel={handleCancelInstance}
         />
       )}
+
+      {/* Mail settings (#407, ADR-0038). Self-contained like SecurityCheckTab:
+          it owns a form, a measured transport panel and the test-mail action. */}
+      {activeTab === 'mail' && <MailSettingsTab />}
 
       {/* Modals */}
       <CreateAdminModal

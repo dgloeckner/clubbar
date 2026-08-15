@@ -141,6 +141,125 @@ class MailOutboxRepository
     }
 
     /**
+     * Sort keys the queue page may order by, mapped to their columns.
+     *
+     * A whitelist because the value reaches an `ORDER BY`, where a bound
+     * parameter cannot go. `status` is here because "show me what failed" is
+     * the question this page exists to answer, and sorting is the cheapest way
+     * to ask it when the filter is already spent on a kind.
+     *
+     * @var array<string,string>
+     */
+    public const SORTABLE = [
+        'queued_at' => 'o.queued_at',
+        'sent_at' => 'o.sent_at',
+        'status' => 'o.status',
+        'kind' => 'o.kind',
+        'recipient' => 'o.recipient',
+    ];
+
+    /**
+     * The queue as an admin browses it (#407).
+     *
+     * Joined rather than resolved per row: a page of fifty would otherwise be
+     * fifty-one queries, and the name is the column somebody actually scans.
+     * `LEFT JOIN` throughout — a row addressed to an admin has no member, a row
+     * addressed to a member has no admin, and an anonymised member has neither
+     * name nor address left while the row must still render.
+     *
+     * `o.id` is the tiebreaker on every sort. `queued_at` has second
+     * granularity and a settlement queues its whole batch inside one, so an
+     * order without it lets a page boundary repeat or skip a row between two
+     * requests — the classic pagination bug that only shows up on page two.
+     *
+     * @param array<string,mixed> $filters `kind`, `status`, `subject_id`, `search`
+     * @return list<array<string,mixed>>
+     */
+    public function search(array $filters, int $limit, int $offset, string $sortKey, string $sortOrder): array
+    {
+        [$where, $params] = self::conditions($filters);
+        $column = self::SORTABLE[$sortKey] ?? self::SORTABLE['queued_at'];
+        $direction = strtolower($sortOrder) === 'asc' ? 'ASC' : 'DESC';
+
+        $stmt = $this->db->prepare(
+            'SELECT o.*,
+                    m.first_name AS member_first_name,
+                    m.last_name  AS member_last_name,
+                    a.display_name AS admin_display_name
+               FROM mail_outbox o
+               LEFT JOIN members m ON m.id = o.member_id
+               LEFT JOIN admin_users a ON a.id = o.admin_user_id
+              WHERE ' . $where . '
+              ORDER BY ' . $column . ' ' . $direction . ', o.id ASC
+              LIMIT ? OFFSET ?'
+        );
+
+        $position = 1;
+        foreach ($params as $value) {
+            $stmt->bindValue($position++, $value);
+        }
+        $stmt->bindValue($position++, $limit, PDO::PARAM_INT);
+        $stmt->bindValue($position, $offset, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
+
+    /** @param array<string,mixed> $filters As {@see search()}. */
+    public function countMatching(array $filters): int
+    {
+        [$where, $params] = self::conditions($filters);
+
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*)
+               FROM mail_outbox o
+               LEFT JOIN members m ON m.id = o.member_id
+              WHERE ' . $where
+        );
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * The `WHERE` both of the two queries above share.
+     *
+     * Kept in one place because a count that filters differently from the page
+     * it counts produces a pagination footer that lies — and it lies quietly,
+     * on page two.
+     *
+     * @param array<string,mixed> $filters
+     * @return array{0:string,1:list<string>}
+     */
+    private static function conditions(array $filters): array
+    {
+        $clauses = ['1=1'];
+        $params = [];
+
+        foreach (['kind' => 'o.kind', 'status' => 'o.status', 'subject_id' => 'o.subject_id'] as $key => $column) {
+            $value = $filters[$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                $clauses[] = $column . ' = ?';
+                $params[] = $value;
+            }
+        }
+
+        $search = $filters['search'] ?? null;
+        if (is_string($search) && trim($search) !== '') {
+            // The address and the name, because those are the two things
+            // somebody arrives holding: "did Erika get hers?" and "what went to
+            // this address?".
+            $clauses[] = '(o.recipient LIKE ? OR m.first_name LIKE ? OR m.last_name LIKE ?)';
+            $term = '%' . trim($search) . '%';
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+        }
+
+        return [implode(' AND ', $clauses), $params];
+    }
+
+    /**
      * Take ownership of up to $limit due messages and return them.
      *
      * Claim by `UPDATE`, then select by token. Deliberately **not**

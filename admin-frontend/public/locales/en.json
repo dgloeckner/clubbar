@@ -13,7 +13,8 @@
     "logout": "Logout",
     "more": "More",
     "journalShort": "Journal",
-    "settlementsShort": "Settlem."
+    "settlementsShort": "Settlem.",
+    "notifications": "Notifications"
   },
   "common": {
     "save": "Save",
@@ -467,7 +468,16 @@
       "keyPastePlaceholder": "Private key (base64)",
       "keyFileInvalid": "That file does not contain a valid key (32 bytes, base64).",
       "keyFileUnreadable": "The file could not be read."
-    }
+    },
+    "announcement": {
+      "noAddress": "No email address — not announced",
+      "queued": "Announcement queued",
+      "sent": "Announcement sent {{when}}",
+      "failed": "Announcement failed: {{reason}}",
+      "superseded": "Announcement cancelled",
+      "unknownError": "Unknown error"
+    },
+    "announcementsQueued": "{{count}} announcements queued, sending"
   },
   "statistics": {
     "title": "Statistics",
@@ -754,6 +764,45 @@
           "load": "Failed to load terminal tokens",
           "rotate": "Failed to issue a new terminal token"
         }
+      }
+    },
+    "mail": {
+      "tab": "Mail",
+      "transportTitle": "Mail server",
+      "transportConfigured": "Configured",
+      "transportMissing": "No mail server configured — nothing can be sent.",
+      "transportHint": "The mail server (mail.dsn) lives in config.php next to the database password and is deliberately not editable here. Sending also needs the scheduler: only it drains the queue.",
+      "sendTest": "Send me a test mail",
+      "testSent": "Test mail sent to {{recipient}}.",
+      "senderName": "Sender name",
+      "senderAddress": "Sender address",
+      "senderAddressHint": "Must be a mailbox on a domain hosted here — otherwise the host silently drops the mail.",
+      "replyTo": "Reply-to",
+      "replyToHint": "The treasurer's address: a pre-notification invites a reply (objections within six weeks).",
+      "headerStyle": "Header variant",
+      "headerStyles": {
+        "red": "Red",
+        "petrol": "Petrol",
+        "paper": "Letterhead"
+      },
+      "footerOrgName": "Club (footer)",
+      "footerAddress": "Address (footer)",
+      "websiteUrl": "Website",
+      "logoUrl": "Logo URL",
+      "logoUrlHint": "PNG only — Gmail and Outlook do not render SVG in mail.",
+      "cronInterval": "Scheduler interval",
+      "cronIntervals": {
+        "hourly": "Hourly",
+        "daily": "Daily"
+      },
+      "cronIntervalHint": "How often this installation's cron actually runs. Retries and the stall alarm are measured in these ticks. Weekly is refused — the seven-day promise of § 7 Abs. 3 could not be kept.",
+      "batchSize": "Messages per run",
+      "batchSizeHint": "Lower it if the mail server limits each connection more strictly. It does not make a run faster — sending is serial either way.",
+      "saved": "Mail settings saved.",
+      "errors": {
+        "load": "Mail settings could not be loaded.",
+        "save": "Mail settings could not be saved.",
+        "test": "The test mail could not be sent."
       }
     }
   },
@@ -1117,6 +1166,46 @@
       "title": "Scheduled mail delivery is missing — collections are blocked",
       "body": "Every collection is announced by email at least seven days in advance. A scheduled task sends those announcements, and it has never run on this installation. Add the following command to your hosting panel as a cron job, every {{minutes}} minutes. This notice disappears once the first run has been recorded.",
       "urlFallback": "No CLI cron? A scheduled URL fetch works too: {{url}} — with the secret from config.php in the X-Cron-Secret header."
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "subtitle": "The outgoing mail queue. Only the scheduler sends.",
+    "filterKind": "Kind",
+    "filterStatus": "Status",
+    "allKinds": "All kinds",
+    "allStatuses": "All statuses",
+    "search": "Search",
+    "searchPlaceholder": "Name or email address",
+    "queuedAt": "Queued",
+    "recipient": "Recipient",
+    "kind": "Kind",
+    "status": "Status",
+    "detail": "Details",
+    "action": "Action",
+    "retry": "Retry",
+    "retryQueued": "Back in the queue. The scheduler sends on its next run.",
+    "waitingForScheduler": "Waiting for the scheduler",
+    "unknownRecipient": "Unknown",
+    "unknownError": "Unknown error",
+    "empty": "Nothing in the queue.",
+    "kinds": {
+      "sepa_prenotification": "Pre-notification",
+      "cancellation_notice": "Cancellation notice",
+      "payment_request": "Payment request",
+      "key_expiry_warning": "Key expiring",
+      "terminal_token_expiry_warning": "Terminal token expiring",
+      "terminal_anomaly_warning": "Terminal anomaly"
+    },
+    "statuses": {
+      "pending": "Queued",
+      "sent": "Sent",
+      "failed": "Failed",
+      "superseded": "Cancelled"
+    },
+    "errors": {
+      "load": "The queue could not be loaded.",
+      "retry": "The message could not be queued again."
     }
   }
 }

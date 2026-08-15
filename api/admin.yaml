@@ -2590,6 +2590,43 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /admin/mail-config/test-mail:
+    post:
+      tags: [Mail Settings]
+      summary: Send yourself a test mail
+      description: |
+        The one place in this application that opens an SMTP connection from a
+        web request rather than from the scheduler, and the boundaries that keep
+        that from contradicting ADR-0038 rule 3 are enforced rather than
+        documented:
+
+        - **The recipient is the requesting admin's own address**, read from the
+          session. There is no parameter, because an endpoint that mails an
+          arbitrary address on request is an authenticated open relay on the
+          club's own domain.
+        - **The content is fixed** — no member, no settlement, nothing
+          interpolated from a request. A test mail cannot be turned into a
+          message to somebody about something.
+
+        Rule 3 governs *queued* messages: a settlement's announcements must not
+        leave from inside a request, because a gateway timeout mid-loop leaves
+        announcement state that cannot be reconstructed. None of that applies to
+        a message that is never queued, carries no member data, and whose entire
+        value is the error text arriving while the admin is still looking at the
+        screen.
+      operationId: sendTestMail
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: What the transport answered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestMailResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # ============================================================================
   # SCHEDULER
   # ============================================================================
@@ -2629,6 +2666,160 @@ paths:
                 $ref: '#/components/schemas/SchedulerStatus'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /admin/notifications:
+    get:
+      tags: [Notifications]
+      summary: The mail queue
+      description: |
+        Every queued message, newest first — what was queued, for whom, whether
+        it left, and the reason from the receiving server when it did not.
+        ADR-0038 rule 6 makes delivery best effort *and never invisible*; this
+        is the surface that keeps the second half of that promise.
+
+        A queue view rather than a per-settlement one on purpose: the periodic
+        Deckelauszug ([ADR-0039](../../adr/0039-periodic-deckel-statement.md))
+        has no settlement, so a page keyed on settlements would make an entire
+        message kind invisible by construction. `subject_id` narrows it to one
+        settlement where that is what the caller wants.
+
+        There is deliberately **no body** in the response and nowhere to fetch
+        one: nothing stores a rendered message (ADR-0038 rule 5), so the queue
+        can say what was queued and never "here is what was sent".
+
+        An unknown `kind` or `status` is rejected with `422` rather than
+        ignored — silently dropping the filter would answer a question nobody
+        asked, and the caller could not tell that from an empty result.
+      operationId: listNotifications
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+        - name: kind
+          in: query
+          schema:
+            $ref: '#/components/schemas/MailKind'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/MailStatus'
+        - name: subject_id
+          in: query
+          description: Narrow to one settlement, key or terminal.
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          description: Matches the snapshot recipient address, or the member's name.
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [queued_at, sent_at, status, kind, recipient]
+            default: queued_at
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: A page of the queue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueuedMail'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  filters:
+                    type: object
+                    description: |
+                      The vocabulary the filters accept, from the server that
+                      enforces it — so a client's dropdown cannot drift from the
+                      values on the day a kind is added.
+                    properties:
+                      kinds:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MailKind'
+                      statuses:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MailStatus'
+                      sortable:
+                        type: array
+                        items:
+                          type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/notifications/{id}/retry:
+    post:
+      tags: [Notifications]
+      summary: Put a failed message back in the queue
+      description: |
+        The **only** state change this API offers on the queue, and deliberately
+        the only one (ADR-0038 rule 4: the UI may change state, it may never
+        orchestrate time). The row returns to `pending` with its attempt count
+        reset, and the scheduler sends it whenever it next runs.
+
+        Nothing here reports *when* that will be, because the honest answer is
+        "at the next tick". There is no endpoint that drains, and none that
+        reports progress for a client to poll — a browser tab must not be able
+        to become a second sending path.
+
+        Only a `failed` message is eligible. A `sent` one has reached somebody
+        and resending it is not a retry; a `pending` one is already going to be
+        tried; a `superseded` one belongs to a collection that was called off,
+        and reviving it would announce a debit that is not happening. Those are
+        `409`, not `422`: nothing about the request is malformed.
+      operationId: retryNotification
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The message as it now stands
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueuedMail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No such queued message
+        '409':
+          description: |
+            The message exists but is not retryable. The body names which status
+            it carries and why that status cannot go back in the queue.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: not_retryable
+                  message:
+                    type: string
 
   /cron/drain:
     get:
@@ -5228,6 +5419,18 @@ components:
             list endpoint does not join them and returns an empty array.
           items:
             $ref: '#/components/schemas/SettlementReversal'
+        notifications:
+          type: array
+          description: |
+            What was queued to announce this settlement, per member (ADR-0038
+            rule 6). Present on the single-settlement read; the list endpoint
+            does not join them and returns an empty array.
+
+            Rides along on the same read as `reversals` for the same reason: the
+            breakdown that answers "what happened to this member" has to be able
+            to say *"the announcement bounced"* without a second round trip.
+          items:
+            $ref: '#/components/schemas/QueuedMail'
         created_at:
           type: string
           format: date-time
@@ -5360,6 +5563,18 @@ components:
             endpoint does not join them and returns an empty array.
           items:
             $ref: '#/components/schemas/SettlementReversal'
+        notifications:
+          type: array
+          description: |
+            What was queued to announce this settlement, per member (ADR-0038
+            rule 6). Present on the single-settlement read; the list endpoint
+            does not join them and returns an empty array.
+
+            Rides along on the same read as `reversals` for the same reason: the
+            breakdown that answers "what happened to this member" has to be able
+            to say *"the announcement bounced"* without a second round trip.
+          items:
+            $ref: '#/components/schemas/QueuedMail'
 
     SettlementItem:
       type: object
@@ -5890,6 +6105,150 @@ components:
           minLength: 1
           maxLength: 100
           example: FRGS Ruderbar
+
+    MailKind:
+      type: string
+      description: |
+        What a queued message is. The value is part of the outbox's uniqueness
+        key, which is why one settlement can carry both an announcement and a
+        later cancellation notice for the same member.
+
+        `payment_request` ([#410](https://github.com/dgloeckner/clubbar/issues/410))
+        and the two expiry warnings
+        ([#438](https://github.com/dgloeckner/clubbar/issues/438)) are reserved:
+        the storage accepts them, and nothing enqueues them yet.
+
+        `terminal_anomaly_warning` is queued by the anomaly detector
+        ([ADR-0041](../../adr/0041-terminal-credential-anomaly-detection.md)) and
+        addressed to an admin rather than a member.
+      enum:
+        - sepa_prenotification
+        - cancellation_notice
+        - payment_request
+        - key_expiry_warning
+        - terminal_token_expiry_warning
+        - terminal_anomaly_warning
+
+    MailStatus:
+      type: string
+      description: |
+        Where a queued message stands. `superseded` is the one worth explaining:
+        it is what a cancellation does to an announcement that never left the
+        host. Nothing went wrong — the collection was called off before anybody
+        was told, so there is nothing to retract and nothing to send.
+      enum: [pending, sent, failed, superseded]
+
+    QueuedMail:
+      type: object
+      description: |
+        One message in the outbox, as an admin reads it (ADR-0038 rule 6).
+
+        `recipient` is a **snapshot** taken when the message was queued, not a
+        join: `members.email` can change or be erased afterwards, and this is
+        the proof of who was actually written to. It is also what makes *"the
+        announcement went to the old address"* a diagnosis a name alone cannot
+        give.
+
+        There is no body and no way to fetch one — nothing stores a rendered
+        message (rule 5). The content is reproduced from settlement data at send
+        time.
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/MailKind'
+        subject_id:
+          type: string
+          format: uuid
+          description: |
+            What the message is about. Which table it points at is decided by
+            `kind`, so there is no second column to disagree with it — and no
+            foreign key, because a polymorphic one cannot exist.
+        member_id:
+          type: string
+          format: uuid
+          nullable: true
+        member_name:
+          type: string
+          nullable: true
+          description: |
+            `null` for a message addressed to an admin, and for an anonymised
+            member — ADR-0029 clears the name and keeps the booking history, and
+            the row still has to render.
+        admin_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        admin_name:
+          type: string
+          nullable: true
+        recipient:
+          type: string
+          description: The address the message was queued for. See the schema description.
+        language:
+          type: string
+          description: Frozen at enqueue from the member's preference, `de` fallback (ADR-0002).
+          example: de
+        status:
+          $ref: '#/components/schemas/MailStatus'
+        attempts:
+          type: integer
+        last_error:
+          type: string
+          nullable: true
+          description: |
+            The receiving server's own words, unedited. "Authentication failed",
+            "mailbox full" and "relay access denied" point at three different
+            fixes, and a friendly summary would erase the difference.
+        queued_at:
+          type: string
+          format: date-time
+        next_attempt_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            When the message becomes due again. In the *future* while a retry is
+            waiting out its backoff — which is why the stall alarm keys on being
+            overdue rather than on age (ADR-0039 decision 5).
+        sent_at:
+          type: string
+          format: date-time
+          nullable: true
+        is_retryable:
+          type: boolean
+          readOnly: true
+          description: |
+            Whether `POST /admin/notifications/{id}/retry` would be accepted.
+            Answered by the server so the button and the endpoint cannot
+            disagree about which rows are eligible.
+
+    TestMailResult:
+      type: object
+      description: |
+        What happened when an admin asked for a test mail. Always `200`: every
+        outcome here is the answer the button was pressed to get, and an error
+        status would put the diagnosis behind a generic failure banner.
+      properties:
+        sent:
+          type: boolean
+        recipient:
+          type: string
+          nullable: true
+          description: |
+            The requesting admin's own address. There is no parameter to point
+            it elsewhere — an endpoint that mails an arbitrary address on
+            request is an authenticated open relay on the club's own domain.
+        transport:
+          type: string
+          nullable: true
+          description: Where the mail went, redacted. Never the DSN.
+          example: smtp to mail.example.org:587
+        error:
+          type: string
+          nullable: true
+          description: The transport's own words when it refused. See `QueuedMail.last_error`.
 
     SchedulerStatus:
       type: object

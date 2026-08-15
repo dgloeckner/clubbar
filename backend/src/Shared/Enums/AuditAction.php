@@ -73,6 +73,24 @@ enum AuditAction: string
     case MAIL_ENQUEUED = 'mail_enqueued';
     /** Unsent announcements were closed out because the settlement was cancelled. */
     case MAIL_SUPERSEDED = 'mail_superseded';
+    /**
+     * An admin put a failed message back in the queue (#407).
+     *
+     * The one queue transition with a person behind it — everything else in
+     * this table is the drain recording what a mail server answered. Worth an
+     * entry for the same reason the enqueue is: somebody decided that a
+     * member's announcement should be attempted again.
+     */
+    case MAIL_RETRIED = 'mail_retried';
+    /**
+     * An admin sent themselves a test mail to check the transport (#407).
+     *
+     * Audited because it is the one place in the application that opens an SMTP
+     * connection from a web request rather than from the scheduler. It carries
+     * no member data and goes only to the requesting admin's own address — and
+     * the record is what makes that checkable afterwards rather than asserted.
+     */
+    case MAIL_TEST_SENT = 'mail_test_sent';
     // Terminal credential anomalies (ADR-0041). Observed by the cron tick, so
     // the detection entry carries no actor; the acknowledgement carries the
     // admin who decided the alert had been dealt with. Neither changes the

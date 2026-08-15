@@ -574,7 +574,13 @@ class SettlementsService
             $this->reversalsRepository->findBySettlementId($settlementId),
         );
 
-        return SettlementDto::fromRow($settlement, $itemDtos, $reversals);
+        // What was queued to announce this settlement, per member (#407).
+        // Same single read as the reversals above, and for the same reason: the
+        // breakdown that answers "what happened to this member" has to be able
+        // to say "the announcement bounced" without a second round trip.
+        $notifications = $this->notificationsService->findQueuedFor($settlementId);
+
+        return SettlementDto::fromRow($settlement, $itemDtos, $reversals, $notifications);
     }
 
     public function listSettlements(int $limit, int $offset, ?string $status = null, string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $dateFrom = null, ?string $dateTo = null): PaginatedResultDto

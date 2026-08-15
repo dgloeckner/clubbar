@@ -280,7 +280,7 @@ export function NewSettlementPage() {
     setSubmitting(true)
     setSubmitError(null)
     try {
-      await getSettlements().createSettlement(
+      const created = await getSettlements().createSettlement(
         ({
           method: 'direct_debit',
           // The run names its members. The only date it sends is the one the
@@ -290,7 +290,17 @@ export function NewSettlementPage() {
           execution_date: executionDateInfo.minimum_date,
         } as unknown) as Parameters<ReturnType<typeof getSettlements>['createSettlement']>[0],
       )
-      navigate('/settlements')
+
+      // "N announcements queued, sending" — never "N sent" (#407). At this
+      // moment nothing has been sent and nothing could have been: the queue is
+      // written inside the settlement's transaction and the scheduler is the
+      // only sender (ADR-0038 rule 3). The count is what the server just
+      // committed to, which is the only claim this screen can back.
+      const queued = (created.notifications ?? []).filter(
+        (message) => message.kind === 'sepa_prenotification'
+      ).length
+
+      navigate('/settlements', { state: { announcementsQueued: queued } })
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : t('newSettlement.errors.create'))
     } finally {

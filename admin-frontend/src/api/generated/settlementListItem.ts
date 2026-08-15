@@ -57,6 +57,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { QueuedMail } from './queuedMail';
 import type { SettlementListItemMethod } from './settlementListItemMethod';
 import type { SettlementListItemStatus } from './settlementListItemStatus';
 import type { SettlementReversal } from './settlementReversal';
@@ -118,5 +119,14 @@ never both; a cancelled one is neither.
 list endpoint does not join them and returns an empty array.
  */
   reversals?: SettlementReversal[];
+  /** What was queued to announce this settlement, per member (ADR-0038
+rule 6). Present on the single-settlement read; the list endpoint
+does not join them and returns an empty array.
+
+Rides along on the same read as `reversals` for the same reason: the
+breakdown that answers "what happened to this member" has to be able
+to say *"the announcement bounced"* without a second round trip.
+ */
+  notifications?: QueuedMail[];
   created_at?: string;
 }

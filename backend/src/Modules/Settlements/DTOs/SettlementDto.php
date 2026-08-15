@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\DTOs;
 
+use App\Modules\Notifications\DTOs\QueuedMailDto;
 use App\Modules\Settlements\Domain\CancellationGate;
 use App\Modules\Settlements\Domain\ReversalGate;
 use App\Modules\Settlements\Enums\SettlementMethod;
@@ -60,14 +61,34 @@ final readonly class SettlementDto
          * @var list<SettlementReversalDto>
          */
         public array $reversals = [],
+        /**
+         * What was queued to announce this settlement, per member (#407).
+         *
+         * Rides along on the single-settlement read for the same reason
+         * `reversals` does: the expandable breakdown answers "what happened to
+         * this member", and *"the announcement bounced"* is part of that answer.
+         * A second request per expanded row would be the alternative, and this
+         * one is already being made.
+         *
+         * Empty in list responses. Best effort per ADR-0038 rule 6 — this is
+         * the "never invisible" half of it.
+         *
+         * @var list<QueuedMailDto>
+         */
+        public array $notifications = [],
     ) {}
 
     /**
      * @param list<SettlementReversalDto> $reversals Only the single-settlement
      *        read passes these; the list endpoint does not join them.
+     * @param list<QueuedMailDto> $notifications Likewise.
      */
-    public static function fromRow(array $row, array $items = [], array $reversals = []): self
-    {
+    public static function fromRow(
+        array $row,
+        array $items = [],
+        array $reversals = [],
+        array $notifications = [],
+    ): self {
         // Rows read outside SettlementsRepository (minimal fixtures, older
         // tests) carry no counts. Absent means none, which derives the same
         // status the settlement had before reversals existed.
@@ -106,6 +127,7 @@ final readonly class SettlementDto
             reversalBlockedReason: ReversalGate::blocker($row),
             reversedMemberCount: $reversedMemberCount,
             reversals: $reversals,
+            notifications: $notifications,
         );
     }
 
@@ -145,6 +167,10 @@ final readonly class SettlementDto
             'reversals' => array_map(
                 static fn($r) => $r instanceof SettlementReversalDto ? $r->toArray() : $r,
                 $this->reversals,
+            ),
+            'notifications' => array_map(
+                static fn($n) => $n instanceof QueuedMailDto ? $n->toArray() : $n,
+                $this->notifications,
             ),
         ];
     }

@@ -21,7 +21,7 @@
  */
 
 import { Fragment, useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { theme } from '../styles/design-system'
@@ -98,6 +98,16 @@ function undoButtonHoverColor(settlement: SettlementListItemExtended): string {
 
 const defaultPageSize = 20
 
+/** The post-finalize confirmation banner (#407). */
+const announcementBannerStyle = {
+  padding: theme.spacing.md,
+  marginBottom: theme.spacing.md,
+  borderRadius: theme.borderRadius.md,
+  border: `1px solid ${theme.colors.semantic.primary}`,
+  color: theme.colors.semantic.primary,
+  fontSize: theme.typography.fontSize.sm,
+} as const
+
 type SettlementSortKey = 'created_at' | 'created_by'
 
 /**
@@ -126,6 +136,16 @@ interface SettlementFilters {
 export function SettlementsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const location = useLocation()
+  /**
+   * How many announcements the finalize just queued, when we arrived from it.
+   *
+   * Read once from router state rather than kept in state and cleared: a
+   * refresh drops it, which is right — the message is about what just happened,
+   * not a property of this list.
+   */
+  const announcementsQueued =
+    (location.state as { announcementsQueued?: number } | null)?.announcementsQueued ?? null
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
   // Pagination, filters and sorting share the list-query state (#121). The
@@ -534,6 +554,15 @@ export function SettlementsPage() {
 
     return (
       <div data-testid="settlements-page">
+        {/* What the finalize just committed to (#407). Deliberately "queued,
+            sending" rather than "sent": at this moment nothing has been sent
+            and nothing could have been — the scheduler is the only sender and
+            has not run yet (ADR-0038 rule 3). */}
+        {announcementsQueued !== null && (
+          <div data-testid="settlements-announcements-queued" style={announcementBannerStyle}>
+            {t('settlements.announcementsQueued', { count: announcementsQueued })}
+          </div>
+        )}
         <PageHeader
           title={t('settlements.title')}
           actions={
