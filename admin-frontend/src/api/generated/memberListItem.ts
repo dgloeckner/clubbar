@@ -64,6 +64,11 @@ export interface MemberListItem {
   first_name?: string | null;
   /** @nullable */
   last_name?: string | null;
+  /**
+   * Null only for a legacy member created before email became required (#362) — the list surfaces this via `has_email` so a Kassenwart can find and backfill them.
+   * @nullable
+   */
+  email?: string | null;
   /** The member's Deckel: the sum of their transactions that no
 settlement has collected yet, in cents. Positive means they owe
 the club; negative is a credit, which a payout leaves behind.

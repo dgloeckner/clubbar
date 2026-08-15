@@ -59,6 +59,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type { ListMembersBalance } from './listMembersBalance';
 import type { ListMembersHasCardUid } from './listMembersHasCardUid';
+import type { ListMembersHasEmail } from './listMembersHasEmail';
 import type { ListMembersSepaStatus } from './listMembersSepaStatus';
 import type { ListMembersSortBy } from './listMembersSortBy';
 import type { ListMembersStatus } from './listMembersStatus';
@@ -93,6 +94,10 @@ sepa_status?: ListMembersSepaStatus;
  * Filter by card UID presence
  */
 has_card_uid?: ListMembersHasCardUid;
+/**
+ * Filter by email presence — finds legacy members predating the required-email rule (#362) so they can be backfilled.
+ */
+has_email?: ListMembersHasEmail;
 /**
  * Search in first name, last name, or card UID
  */

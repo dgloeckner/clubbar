@@ -80,6 +80,11 @@ class AdminController
         'iban',
         'account_holder_name',
         'mandate_signed_at',
+        // A blank email is only reachable at all for an inactive member —
+        // MembersService::updateMember() rejects it outright for an active one
+        // (#362) — so normalizing it to null here rather than storing "" keeps
+        // "no email" one representation instead of two.
+        'email',
     ];
 
     /**
@@ -176,6 +181,14 @@ class AdminController
             $filters['has_card_uid'] = true;
         } elseif ($cardUidParam === 'without' || $cardUidParam === 'false') {
             $filters['has_card_uid'] = false;
+        }
+
+        // Email filter — OAS: has_email=with|without (top-level param)
+        $emailParam = $params['has_email'] ?? $params['filters']['has_email'] ?? null;
+        if ($emailParam === 'with' || $emailParam === 'true') {
+            $filters['has_email'] = true;
+        } elseif ($emailParam === 'without' || $emailParam === 'false') {
+            $filters['has_email'] = false;
         }
 
         // SEPA status filter — OAS: sepa_status=valid|invalid (top-level param)

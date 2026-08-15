@@ -14,6 +14,7 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Members\Repositories\MembersRepository;
@@ -176,6 +177,28 @@ class MembersService
         $oldMember = $this->membersRepository->findById($memberId);
         if (!$oldMember) {
             throw NotFoundException::forResource('Member', $memberId);
+        }
+
+        // Email is required at application level (#362): the pre-notification
+        // and settlement statement emails are a contractual promise (Nutzungsordnung
+        // § 7), so an active member cannot be left without one. The column stays
+        // nullable for GDPR erasure (ADR-0029), which nulls it through
+        // anonymizeMember() — a separate write this check never sees — after
+        // setting the member inactive, so a legitimately anonymized member never
+        // reaches this check with an active status. Deactivating a member first
+        // (or in the same request) still permits clearing it.
+        $staysActive = array_key_exists('is_active', $updateData)
+            ? filter_var($updateData['is_active'], FILTER_VALIDATE_BOOLEAN)
+            : (bool) $oldMember['is_active'];
+        if (
+            array_key_exists('email', $updateData)
+            && ($updateData['email'] === null || $updateData['email'] === '')
+            && $staysActive
+        ) {
+            throw new ValidationException(
+                'The given data was invalid.',
+                ['email' => ['email cannot be cleared for an active member']],
+            );
         }
 
         // The fields an update is allowed to carry. This used to be written as

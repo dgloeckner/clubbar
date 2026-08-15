@@ -102,6 +102,21 @@ class AdminControllerListTest extends TestCase
         $this->controller->index($this->get('/api/admin/members', ['has_card_uid' => 'with']), new Response());
     }
 
+    /** Finds the legacy members predating the required-email rule (#362). */
+    public function test_index_maps_has_email_with_to_a_boolean_filter(): void
+    {
+        $this->expectList(50, 0, ['has_email' => true], 'created_at', 'desc', null);
+
+        $this->controller->index($this->get('/api/admin/members', ['has_email' => 'with']), new Response());
+    }
+
+    public function test_index_maps_has_email_without_to_a_boolean_filter(): void
+    {
+        $this->expectList(50, 0, ['has_email' => false], 'created_at', 'desc', null);
+
+        $this->controller->index($this->get('/api/admin/members', ['has_email' => 'without']), new Response());
+    }
+
     public function test_index_accepts_the_sepa_status_filter(): void
     {
         $this->expectList(50, 0, ['sepa_status' => 'valid'], 'created_at', 'desc', null);
