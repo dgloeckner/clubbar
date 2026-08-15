@@ -1,4 +1,4 @@
--- Rollback for migration 029: terminal credential anomaly detection (ADR-0041)
+-- Rollback for migration 030: terminal credential anomaly detection (ADR-0041)
 --
 -- Dropping these loses every recorded sighting, every cursor high-water mark,
 -- and every anomaly an admin has not yet acknowledged. None of it is

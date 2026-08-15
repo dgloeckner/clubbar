@@ -67,4 +67,5 @@ export const SecurityFindingCategory = {
   data: 'data',
   exposure: 'exposure',
   transport: 'transport',
+  delivery: 'delivery',
 } as const;

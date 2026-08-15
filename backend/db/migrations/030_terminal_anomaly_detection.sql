@@ -1,5 +1,5 @@
 -- =============================================================================
--- 029_terminal_anomaly_detection.sql — is this token on more than one device?
+-- 030_terminal_anomaly_detection.sql — is this token on more than one device?
 -- =============================================================================
 -- ADR-0041. A terminal authenticates with a bearer token and nothing else, so
 -- two clients holding the same token are indistinguishable: both resolve to one
@@ -12,7 +12,7 @@
 -- Everything here is observation: nothing on the request path reads these to
 -- decide whether to serve a request (ADR-0041 decision — alert, never enforce).
 --
--- Rollback: db/rollback/029_terminal_anomaly_detection.down.sql
+-- Rollback: db/rollback/030_terminal_anomaly_detection.down.sql
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------

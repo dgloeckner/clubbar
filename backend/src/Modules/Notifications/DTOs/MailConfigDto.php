@@ -4,12 +4,28 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\DTOs;
 
+use App\Modules\Notifications\Enums\CronInterval;
 use App\Shared\Mail\MailBranding;
 use App\Shared\Mail\MailLayout;
 use App\Shared\Mail\MailSender;
 
 final readonly class MailConfigDto
 {
+    /**
+     * Messages claimed per drain round when the column says nothing — a row
+     * written before migration 029, or a restore that lost it.
+     */
+    public const DEFAULT_DRAIN_BATCH_SIZE = 100;
+
+    /**
+     * The ceiling the API enforces and this DTO clamps to.
+     *
+     * Not a performance limit — the transport is serial either way — but a
+     * bound on how many messages a killed run can leave claimed, and a guard
+     * against a typo turning a batch dial into an hour-long run.
+     */
+    public const MAX_DRAIN_BATCH_SIZE = 1000;
+
     public function __construct(
         public string $senderName,
         public string $senderAddress,
@@ -19,6 +35,8 @@ final readonly class MailConfigDto
         public ?string $footerAddressLine,
         public ?string $websiteUrl,
         public ?string $logoUrl,
+        public CronInterval $cronInterval = CronInterval::DEFAULT,
+        public int $drainBatchSize = self::DEFAULT_DRAIN_BATCH_SIZE,
     ) {}
 
     public static function fromRow(array $row): self
@@ -32,6 +50,8 @@ final readonly class MailConfigDto
             footerAddressLine: self::nullIfBlank($row['footer_address_line'] ?? null),
             websiteUrl: self::nullIfBlank($row['website_url'] ?? null),
             logoUrl: self::nullIfBlank($row['logo_url'] ?? null),
+            cronInterval: CronInterval::fromDeclared($row['cron_interval'] ?? null),
+            drainBatchSize: self::batchSize($row['drain_batch_size'] ?? null),
         );
     }
 
@@ -84,6 +104,8 @@ final readonly class MailConfigDto
             'footer_address_line' => $this->footerAddressLine,
             'website_url' => $this->websiteUrl,
             'logo_url' => $this->logoUrl,
+            'cron_interval' => $this->cronInterval->value,
+            'drain_batch_size' => $this->drainBatchSize,
             'is_complete' => $this->isComplete(),
         ];
     }
@@ -92,5 +114,22 @@ final readonly class MailConfigDto
     {
         $value = $value === null ? '' : trim((string) $value);
         return $value === '' ? null : $value;
+    }
+
+    /**
+     * A missing, zero or absurd value falls back rather than being honoured.
+     *
+     * Zero would claim nothing and drain nothing while looking configured,
+     * which is the one failure mode a batch dial must not have.
+     */
+    private static function batchSize(mixed $value): int
+    {
+        $size = (int) $value;
+
+        if ($size < 1) {
+            return self::DEFAULT_DRAIN_BATCH_SIZE;
+        }
+
+        return min($size, self::MAX_DRAIN_BATCH_SIZE);
     }
 }

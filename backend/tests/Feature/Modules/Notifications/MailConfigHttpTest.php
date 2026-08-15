@@ -50,7 +50,8 @@ class MailConfigHttpTest extends HttpTestCase
         if ($this->originalConfig !== []) {
             $this->db->prepare(
                 'UPDATE mail_config SET sender_name = ?, sender_address = ?, reply_to_address = ?, header_style = ?,
-                        footer_org_name = ?, footer_address_line = ?, website_url = ?, logo_url = ?, updated_by_admin_id = NULL
+                        footer_org_name = ?, footer_address_line = ?, website_url = ?, logo_url = ?,
+                        cron_interval = ?, drain_batch_size = ?, updated_by_admin_id = NULL
                  WHERE id = 1'
             )->execute([
                 $this->originalConfig['sender_name'],
@@ -61,6 +62,8 @@ class MailConfigHttpTest extends HttpTestCase
                 $this->originalConfig['footer_address_line'],
                 $this->originalConfig['website_url'],
                 $this->originalConfig['logo_url'],
+                $this->originalConfig['cron_interval'],
+                $this->originalConfig['drain_batch_size'],
             ]);
         }
 
@@ -181,6 +184,78 @@ class MailConfigHttpTest extends HttpTestCase
 
         $this->assertSame(422, $response->getStatusCode());
         $this->assertArrayHasKey('header_style', $this->decode($response)['messages']);
+    }
+
+    /* ──────────────────── The scheduler's declared interval ──────────────────── */
+
+    public function test_patch_stores_the_declared_cron_interval_and_batch_size(): void
+    {
+        $response = $this->request('PATCH', '/api/admin/mail-config', [
+            'cron_interval' => 'daily',
+            'drain_batch_size' => 40,
+        ], headers: ['X-CSRF-Token' => $this->csrfToken]);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertSame('daily', $body['cron_interval']);
+        $this->assertSame(40, $body['drain_batch_size']);
+
+        $row = $this->db->query('SELECT * FROM mail_config WHERE id = 1')->fetch();
+        $this->assertSame('daily', $row['cron_interval']);
+        $this->assertSame(40, (int) $row['drain_batch_size']);
+    }
+
+    /**
+     * The one rejected value somebody will deliberately try, because it is what
+     * their tariff offers. A generic "must be one of" would read as an
+     * arbitrary limitation of this application rather than as what it is: at a
+     * weekly drain the club's own announcement promise stops holding, and the
+     * remedy is a different tariff or an external scheduler (ADR-0039
+     * decision 5).
+     */
+    public function test_patch_refuses_a_weekly_scheduler_with_its_reason(): void
+    {
+        $before = $this->db->query('SELECT cron_interval FROM mail_config WHERE id = 1')->fetchColumn();
+
+        $response = $this->request('PATCH', '/api/admin/mail-config', [
+            'cron_interval' => 'weekly',
+        ], headers: ['X-CSRF-Token' => $this->csrfToken]);
+
+        $this->assertSame(422, $response->getStatusCode());
+        $message = $this->decode($response)['messages']['cron_interval'];
+        $this->assertStringContainsString('§ 7 Abs. 3', $message);
+        $this->assertStringContainsString('seven-day', $message);
+
+        $this->assertSame(
+            $before,
+            $this->db->query('SELECT cron_interval FROM mail_config WHERE id = 1')->fetchColumn(),
+            'a refused value must not have been written'
+        );
+    }
+
+    public function test_patch_rejects_a_batch_size_outside_its_bounds(): void
+    {
+        foreach ([0, 5000] as $size) {
+            $response = $this->request('PATCH', '/api/admin/mail-config', [
+                'drain_batch_size' => $size,
+            ], headers: ['X-CSRF-Token' => $this->csrfToken]);
+
+            $this->assertSame(422, $response->getStatusCode(), "batch size {$size} should have been refused");
+            $this->assertArrayHasKey('drain_batch_size', $this->decode($response)['messages']);
+        }
+    }
+
+    /**
+     * `max:` measures a string's length rather than its value, so a numeric
+     * string would otherwise walk straight past the ceiling.
+     */
+    public function test_a_batch_size_sent_as_a_string_is_still_bounded(): void
+    {
+        $response = $this->request('PATCH', '/api/admin/mail-config', [
+            'drain_batch_size' => '5000',
+        ], headers: ['X-CSRF-Token' => $this->csrfToken]);
+
+        $this->assertSame(422, $response->getStatusCode());
     }
 
     public function test_requires_a_session(): void

@@ -8,6 +8,7 @@ use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\EnqueueResultDto;
 use App\Modules\Notifications\DTOs\MailRequestDto;
+use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailStatus;
@@ -31,23 +32,6 @@ use App\Shared\Services\AuditService;
  */
 class NotificationsService
 {
-    /**
-     * Attempts before a message is given up on.
-     *
-     * Three, not one, because greylisting exists: many receiving MTAs reject
-     * the first delivery on purpose and expect another go about fifteen minutes
-     * later. One attempt would lose those permanently, and they are ordinary
-     * traffic rather than an error.
-     */
-    public const MAX_ATTEMPTS = 3;
-
-    /**
-     * How long a transient failure waits. Fifteen minutes is the greylisting
-     * convention; a seven-day announcement window makes anything finer
-     * pointless.
-     */
-    public const RETRY_BACKOFF_SECONDS = 900;
-
     public function __construct(
         private MailOutboxRepository $mailOutboxRepository,
         private MembersRepository $membersRepository,
@@ -243,21 +227,55 @@ class NotificationsService
         $this->mailOutboxRepository->releaseClaim($outboxId);
     }
 
-    /** Record what a transport reported for one claimed message. */
-    public function recordResult(string $outboxId, MailSendResult $result): MailStatus
+    /**
+     * Record what a transport reported for one claimed message.
+     *
+     * The interval is the caller's because the retry ladder is measured in
+     * ticks of *this installation's* scheduler (ADR-0039 decision 5): the drain
+     * cannot act between ticks, so a backoff finer than the schedule is a
+     * number that describes a machine we do not have. The drain already holds
+     * the mail configuration, so it passes the interval down rather than this
+     * service loading the row once per message.
+     */
+    public function recordResult(string $outboxId, MailSendResult $result, CronInterval $interval): MailStatus
     {
         if ($result->sent) {
             $this->mailOutboxRepository->markSent($outboxId, $result->messageId);
             return MailStatus::SENT;
         }
 
+        $attempts = $this->mailOutboxRepository->attemptsFor($outboxId) + 1;
+        $retry = RetrySchedule::shouldRetry($result->transient, $attempts);
+
         return $this->mailOutboxRepository->markFailed(
             $outboxId,
             $result->error ?? 'unknown error',
-            $result->transient,
-            self::MAX_ATTEMPTS,
-            self::RETRY_BACKOFF_SECONDS,
+            $attempts,
+            $retry,
+            $retry ? RetrySchedule::backoffSeconds($interval, $attempts) : 0,
         );
+    }
+
+    /**
+     * The earliest moment anything in the queue became due, or null when
+     * nothing is pending.
+     *
+     * The input to the stall alarm and to the self-check's backlog row. It is
+     * a due time rather than an age on purpose — see {@see QueueHealth}.
+     */
+    public function oldestDueAt(): ?string
+    {
+        return $this->mailOutboxRepository->oldestDueAt();
+    }
+
+    /**
+     * How many messages sit in each status.
+     *
+     * @return array<string,int>
+     */
+    public function queueCounts(): array
+    {
+        return $this->mailOutboxRepository->countsByStatus();
     }
 
     /**

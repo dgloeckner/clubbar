@@ -57,44 +57,24 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { MailConfigUpdateRequestCronInterval } from './mailConfigUpdateRequestCronInterval';
-import type { MailConfigUpdateRequestHeaderStyle } from './mailConfigUpdateRequestHeaderStyle';
 
-export interface MailConfigUpdateRequest {
-  /** @maxLength 120 */
-  sender_name?: string;
-  /** @maxLength 255 */
-  sender_address?: string;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  reply_to_address?: string | null;
-  header_style?: MailConfigUpdateRequestHeaderStyle;
-  /** @maxLength 200 */
-  footer_org_name?: string;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  footer_address_line?: string | null;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  website_url?: string | null;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  logo_url?: string | null;
-  /** `weekly` is rejected with 422 and a message naming Nutzungsordnung
-§ 7 Abs. 3 — see the same field on `MailConfig`.
+/**
+ * How often this installation's scheduler actually fires (ADR-0039
+decision 5). The retry ladder and both stall thresholds are measured
+in ticks of this interval, not in wall-clock minutes — the drain
+cannot act between ticks, so a backoff finer than the schedule
+describes a machine that does not exist.
+
+`weekly` is refused with 422: an announcement queued shortly after a
+weekly run leaves up to seven days later and would land on the
+collection date, taking the Nutzungsordnung § 7 Abs. 3 distance to
+zero.
+
  */
-  cron_interval?: MailConfigUpdateRequestCronInterval;
-  /**
-   * @minimum 1
-   * @maximum 1000
-   */
-  drain_batch_size?: number;
-}
+export type MailConfigCronInterval = typeof MailConfigCronInterval[keyof typeof MailConfigCronInterval];
+
+
+export const MailConfigCronInterval = {
+  hourly: 'hourly',
+  daily: 'daily',
+} as const;

@@ -5930,6 +5930,29 @@ components:
             checked and found nothing missing, which is a different statement.
           items:
             type: string
+        declared_interval:
+          type: string
+          enum: [hourly, daily]
+          description: |
+            What this installation says its scheduler does. Every retry and
+            alarm threshold is measured in ticks of it (ADR-0039 decision 5).
+        observed_interval:
+          type: string
+          enum: [hourly, daily]
+          nullable: true
+          description: |
+            What the gap between the last two recorded runs looks like. `null`
+            while there has been only one run, or when the gap is too short to
+            conclude anything from — a manual run minutes after a scheduled one
+            says nothing about the schedule.
+        interval_disagrees:
+          type: boolean
+          description: |
+            The scheduler fires less often than it was declared to. Reported,
+            never acted on: the declaration is what an admin has to go and fix
+            in a hosting panel, and silently re-deriving it would hide exactly
+            that. A scheduler *faster* than declared is not a disagreement — it
+            only makes every threshold conservative.
         setup:
           type: object
           properties:
@@ -5996,6 +6019,30 @@ components:
           nullable: true
           maxLength: 255
           description: PNG only — Gmail and Outlook do not render SVG in mail.
+        cron_interval:
+          type: string
+          enum: [hourly, daily]
+          description: |
+            How often this installation's scheduler actually fires (ADR-0039
+            decision 5). The retry ladder and both stall thresholds are measured
+            in ticks of this interval, not in wall-clock minutes — the drain
+            cannot act between ticks, so a backoff finer than the schedule
+            describes a machine that does not exist.
+
+            `weekly` is refused with 422: an announcement queued shortly after a
+            weekly run leaves up to seven days later and would land on the
+            collection date, taking the Nutzungsordnung § 7 Abs. 3 distance to
+            zero.
+          example: hourly
+        drain_batch_size:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: |
+            Messages claimed per drain round. Lower it for a relay with a
+            stricter per-connection limit; it does not make a run faster, since
+            the transport is serial either way.
+          example: 100
         is_complete:
           type: boolean
           readOnly: true
@@ -6054,6 +6101,16 @@ components:
           type: string
           nullable: true
           maxLength: 255
+        cron_interval:
+          type: string
+          enum: [hourly, daily]
+          description: |
+            `weekly` is rejected with 422 and a message naming Nutzungsordnung
+            § 7 Abs. 3 — see the same field on `MailConfig`.
+        drain_batch_size:
+          type: integer
+          minimum: 1
+          maximum: 1000
 
     SepaConfigUpdateRequest:
       type: object
@@ -6467,7 +6524,7 @@ components:
           example: session_strict_mode
         category:
           type: string
-          enum: [runtime, session, data, exposure, transport]
+          enum: [runtime, session, data, exposure, transport, delivery]
         label:
           type: string
           description: What the check asserts, in English

@@ -55,12 +55,15 @@ use App\Modules\Auth\Services\TokenService;
 use App\Modules\Auth\Services\TotpService;
 use App\Modules\Products\Services\CategoriesService;
 use App\Shared\Services\HealthCheckService;
+use App\Shared\Http\CurlHttpClient;
 use App\Shared\Services\SecurityCheckService;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
 use App\Modules\Notifications\Services\DrainService;
+use App\Modules\Notifications\Services\HeartbeatPinger;
+use App\Modules\Notifications\Services\MailDeliveryCheck;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
@@ -474,6 +477,7 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(SchedulerStatusService::class, fn() => new SchedulerStatusService(
             $this->getCronHeartbeatRepository(),
             $this->config,
+            $this->getMailConfigService(),
         ));
     }
 
@@ -524,9 +528,12 @@ class ServiceFactory implements ContainerInterface
      * piece that has to stay boring, and #410 and #438 add a notification type
      * by registering a builder above rather than by editing it.
      *
-     * Batch size and wall-clock budget are read from the environment so a host
-     * with a tighter gateway timeout can lower the budget without a code
-     * change; the defaults live on the service, with the reasoning.
+     * The wall-clock budget is read from the environment so a host with a
+     * tighter gateway timeout can lower it without a code change. The batch
+     * size is passed as `null` unless the environment pins it, because its
+     * normal home is now `mail_config.drain_batch_size` — an operational dial
+     * with no secret in it, which a treasurer on a stricter relay should be
+     * able to turn without editing a file (ADR-0039 decision 5).
      */
     public function getDrainService(): DrainService
     {
@@ -536,9 +543,37 @@ class ServiceFactory implements ContainerInterface
             $this->getMailTransportFactory(),
             $this->getMailConfigService(),
             $this->getCronHeartbeatRepository(),
+            $this->getHeartbeatPinger(),
             $this->getLogger(),
-            self::positiveEnv('MAIL_DRAIN_BATCH_SIZE', DrainService::DEFAULT_BATCH_SIZE),
+            self::positiveEnvOrNull('MAIL_DRAIN_BATCH_SIZE'),
             self::positiveEnv('MAIL_DRAIN_BUDGET_SECONDS', DrainService::DEFAULT_BUDGET_SECONDS),
+        ));
+    }
+
+    /**
+     * The external alarm (#406).
+     *
+     * Configured or not, the object exists: a null check URL makes every ping a
+     * no-op, which keeps the drain free of `if (monitoring enabled)` branches —
+     * and a branch that only runs on installations nobody develops against is
+     * the branch that rots.
+     */
+    public function getHeartbeatPinger(): HeartbeatPinger
+    {
+        return $this->resolve(HeartbeatPinger::class, fn() => new HeartbeatPinger(
+            new CurlHttpClient(),
+            $this->getLogger(),
+            $this->config->cronHeartbeatUrl,
+        ));
+    }
+
+    /** The delivery rows of the security self-check (#406). */
+    public function getMailDeliveryCheck(): MailDeliveryCheck
+    {
+        return $this->resolve(MailDeliveryCheck::class, fn() => new MailDeliveryCheck(
+            $this->getMailConfigService(),
+            $this->getSchedulerStatusService(),
+            $this->getNotificationsService(),
         ));
     }
 
@@ -548,6 +583,18 @@ class ServiceFactory implements ContainerInterface
         $value = (int) Env::get($key, '');
 
         return $value > 0 ? $value : $default;
+    }
+
+    /**
+     * Like {@see positiveEnv()} but with no default to fall back to: `null`
+     * means "nothing was pinned here", which lets a caller go on to ask the
+     * database rather than being handed a compiled-in number.
+     */
+    private static function positiveEnvOrNull(string $key): ?int
+    {
+        $value = (int) Env::get($key, '');
+
+        return $value > 0 ? $value : null;
     }
 
     public function getSepaExportService(): SepaExportService
@@ -825,7 +872,7 @@ class ServiceFactory implements ContainerInterface
     public function getSecurityCheckController(): SecurityCheckController
     {
         return $this->resolve(SecurityCheckController::class, fn() => new SecurityCheckController(
-            new SecurityCheckService($this->config),
+            new SecurityCheckService($this->config, $this->getMailDeliveryCheck()),
         ));
     }
 

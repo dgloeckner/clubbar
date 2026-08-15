@@ -23,9 +23,9 @@ Nothing is ever blocked or revoked. Alert only.
 
 ### M1 — Schema
 
-- [x] **1.1** Migration `029_terminal_anomaly_detection.sql`: `terminal_ip_sightings`, `terminal_sync_cursors`, `terminal_anomalies`; widen `mail_outbox.kind` with `terminal_anomaly_warning`. Rollback file.
+- [x] **1.1** Migration `030_terminal_anomaly_detection.sql`: `terminal_ip_sightings`, `terminal_sync_cursors`, `terminal_anomalies`; widen `mail_outbox.kind` with `terminal_anomaly_warning`. Rollback file.
   - *Verify*: `docker compose exec backend php public/install.php?action=migrate` equivalent runs clean; `SHOW CREATE TABLE` for all three.
-- [x] **1.2** Migration `030_audit_log_terminal_anomaly_actions.sql`: restate the full `audit_log.action` ENUM plus `terminal_anomaly_detected`, `terminal_anomaly_acknowledged`. **Must carry every value from migration 025's list** — omitting one silently un-adds it.
+- [x] **1.2** Migration `031_audit_log_terminal_anomaly_actions.sql`: restate the full `audit_log.action` ENUM plus `terminal_anomaly_detected`, `terminal_anomaly_acknowledged`. **Must carry every value from migration 025's list** — omitting one silently un-adds it.
   - *Verify*: insert one row of each new action; existing actions still accepted.
 
 ### M2 — Recording on the request path

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\Services;
 
 use App\Modules\Notifications\DTOs\DrainResultDto;
+use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Enums\DrainSource;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
@@ -50,12 +51,31 @@ use App\Shared\Mail\MailTransportFactory;
  *
  * The heartbeat is still written in that case: the scheduler genuinely ran, and
  * the install gate (#405) asks whether it ever has, not whether it achieved
- * anything.
+ * anything. The *external* heartbeat, on the other hand, is told this is a
+ * failure — see below.
+ *
+ * ### Two heartbeats, and why they are not the same thing
+ *
+ * `cron_heartbeat` is a row in this installation's own database, and it answers
+ * "did a run happen?" for the install gate and the self-check. It cannot raise
+ * an alarm: reading it requires the application to be reachable and somebody to
+ * look.
+ *
+ * {@see HeartbeatPinger} is the alarm, and it is external precisely so it does
+ * not depend on any of that (ADR-0038 rule 6). Both are written by every run,
+ * and they say different things on purpose — an idle run with no transport
+ * stamps the local heartbeat (the scheduler works) *and* pings `/fail` (nothing
+ * can be sent).
  */
 class DrainService
 {
     /**
-     * Messages claimed per round.
+     * Messages claimed per round when nothing else says.
+     *
+     * The normal source is `mail_config.drain_batch_size` (default 100), which
+     * a club on a stricter relay can lower without editing a file. This
+     * constant is the floor under a configuration that is missing or
+     * unreadable, and the environment variable still overrides both.
      *
      * Twenty-five is a claim held for a few seconds on a slow SMTP server, and
      * a settlement for a club of this size is one or two rounds. Larger batches
@@ -89,14 +109,19 @@ class DrainService
         return new FileLock(rtrim($storageDir, '/') . '/' . self::LOCK_FILENAME);
     }
 
+    /**
+     * @param int|null $batchSize `null` means "take it from mail_config"; a
+     *                            number is an environment-level override
+     */
     public function __construct(
         private NotificationsService $notificationsService,
         private MailContentRegistry $mailContent,
         private MailTransportFactory $mailTransportFactory,
         private MailConfigService $mailConfigService,
         private CronHeartbeatRepository $cronHeartbeatRepository,
+        private HeartbeatPinger $heartbeatPinger,
         private Logger $logger,
-        private int $batchSize = self::DEFAULT_BATCH_SIZE,
+        private ?int $batchSize = null,
         private int $budgetSeconds = self::DEFAULT_BUDGET_SECONDS,
     ) {}
 
@@ -116,8 +141,42 @@ class DrainService
         ?int $budgetSeconds = null,
     ): DrainResultDto {
         $startedAt = microtime(true);
-        $batchSize = max(1, $batchSize ?? $this->batchSize);
+
+        // Before anything else, so a run that hangs leaves a start with no
+        // finish — which is a different picture from a cron that never fired,
+        // and has a different remedy.
+        $this->heartbeatPinger->start();
+
+        try {
+            return $this->drain($source, $startedAt, $batchSize, $budgetSeconds);
+        } catch (\Throwable $e) {
+            // `run()` does not throw: it is called from a crontab nobody reads.
+            // But the alarm has to hear about it, or an installation whose
+            // database went away looks exactly like a healthy idle one.
+            $this->logger->error('Mail drain aborted', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+            $this->heartbeatPinger->fail(HeartbeatPinger::REASON_RUN_ABORTED);
+
+            return DrainResultDto::idle($source, microtime(true) - $startedAt);
+        }
+    }
+
+    private function drain(
+        DrainSource $source,
+        float $startedAt,
+        ?int $batchSize,
+        ?int $budgetSeconds,
+    ): DrainResultDto {
+        $config = $this->mailConfigService->getConfig();
+        // Precedence: the caller's flag, then the environment override, then
+        // the club-editable setting. Each layer exists for a different person —
+        // somebody debugging by hand, a host that has to pin the value outside
+        // the database, and the treasurer whose relay is stricter than average.
+        $batchSize = max(1, $batchSize ?? $this->batchSize ?? $config->drainBatchSize);
         $budgetSeconds = max(1, $budgetSeconds ?? $this->budgetSeconds);
+        $interval = $config->cronInterval;
 
         $transport = $this->resolveTransport();
 
@@ -126,11 +185,17 @@ class DrainService
             // configuration rather than being spent against it.
             $result = DrainResultDto::idle($source, microtime(true) - $startedAt);
             $this->recordHeartbeat($result);
+            // The scheduler works and nothing can leave the host — the exact
+            // state a liveness-only check would report as green.
+            $this->heartbeatPinger->fail(
+                HeartbeatPinger::REASON_TRANSPORT_UNAVAILABLE,
+                $this->queueCounts(),
+            );
 
             return $result;
         }
 
-        $sender = $this->mailConfigService->getConfig()->toSender();
+        $sender = $config->toSender();
 
         $claimed = $sent = $retrying = $failed = $skipped = 0;
         $budgetExhausted = false;
@@ -169,6 +234,7 @@ class DrainService
                     $this->notificationsService->recordResult(
                         (string) $row['id'],
                         MailSendResult::permanentFailure('Cannot render message: ' . $e->getMessage()),
+                        $interval,
                     );
                     $this->logger->error('Drain could not render a queued message', [
                         'outbox_id' => $row['id'] ?? null,
@@ -191,7 +257,7 @@ class DrainService
                     );
                 }
 
-                $status = $this->notificationsService->recordResult((string) $row['id'], $sendResult);
+                $status = $this->notificationsService->recordResult((string) $row['id'], $sendResult, $interval);
 
                 match (true) {
                     $status === MailStatus::SENT => $sent++,
@@ -215,12 +281,73 @@ class DrainService
         );
 
         $this->recordHeartbeat($result);
+        $this->reportOutcome($result, $interval);
 
         if ($claimed > 0) {
             $this->logger->info('Mail drain finished', $result->toArray() + ['transport' => $transport->describe()]);
         }
 
         return $result;
+    }
+
+    /**
+     * Tell the external monitor how this run went (ADR-0038 rule 6).
+     *
+     * The distinction that matters: a run that failed to deliver to one
+     * recipient is a **success** here. That message is a `failed` row the
+     * Kassenwart can see and act on, and an alarm that fires on every typo'd
+     * address is one somebody switches off. What earns `/fail` is the queue not
+     * moving — a message that has been *due* for three scheduler ticks with
+     * nothing taking it, which is precisely the state a cron that starts
+     * reliably and achieves nothing produces.
+     *
+     * Checked after the run rather than before, so a run that has just cleared
+     * the backlog does not alarm about the backlog it cleared.
+     */
+    private function reportOutcome(DrainResultDto $result, CronInterval $interval): void
+    {
+        if (!$this->heartbeatPinger->isConfigured()) {
+            return;
+        }
+
+        $counts = $this->queueCounts() + ['sent_this_run' => $result->sent];
+
+        $oldestDue = $this->notificationsService->oldestDueAt();
+        $stalled = QueueHealth::queueStalled(
+            $oldestDue === null ? null : new \DateTimeImmutable($oldestDue),
+            new \DateTimeImmutable(),
+            $interval,
+        );
+
+        if ($stalled) {
+            $this->heartbeatPinger->fail(HeartbeatPinger::REASON_QUEUE_STALLED, $counts);
+
+            return;
+        }
+
+        $this->heartbeatPinger->success($counts);
+    }
+
+    /**
+     * Counts, and nothing but counts — see {@see HeartbeatPinger}: no address
+     * and no name may leave this host through the monitor.
+     *
+     * @return array<string,int>
+     */
+    private function queueCounts(): array
+    {
+        try {
+            $counts = $this->notificationsService->queueCounts();
+        } catch (\Throwable $e) {
+            // A ping with no counts still carries the signal that matters.
+            return [];
+        }
+
+        return [
+            'pending' => (int) ($counts[MailStatus::PENDING->value] ?? 0),
+            'failed' => (int) ($counts[MailStatus::FAILED->value] ?? 0),
+            'sent' => (int) ($counts[MailStatus::SENT->value] ?? 0),
+        ];
     }
 
     /**

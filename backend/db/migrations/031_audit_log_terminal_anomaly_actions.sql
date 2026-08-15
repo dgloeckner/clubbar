@@ -8,8 +8,10 @@
 -- cleared.
 --
 -- Restating the whole list means this migration carries every value any earlier
--- one added. It runs after 025, so its list is 025's plus the two below;
--- dropping one here would silently un-add it.
+-- one added. The last migration to touch this column was 025, and nothing
+-- between it and here adds an action — 029 (#467) alters mail_config and
+-- cron_heartbeat only — so this list is 025's plus the two below. Dropping one
+-- here would silently un-add it.
 --
 -- `terminal_anomaly_detected` is written by the cron tick, which has no admin
 -- user — `audit_log.admin_user_id` is nullable and there is precedent on this
