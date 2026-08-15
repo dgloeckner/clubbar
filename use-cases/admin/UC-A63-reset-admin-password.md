@@ -30,8 +30,8 @@ Admin clicks "Reset Password" on admin user
 - Password updated
 - Old password no longer works
 - New password shown to resetter
-- Target user's sessions invalidated
-- Audit log entry
+- Target user's sessions invalidated — every session the target had open is refused on its next request, via the credentials epoch ([ADR-0026 amendment](../../adr/0026-mandatory-totp-two-factor-authentication.md#amendment-2026-08-15--a-reset-now-ends-the-targets-sessions)). This was documented here before it was implemented; since 2026-08-15 it is enforced
+- Audit log entry, recorded as `password_changed` on the target account and naming the admin who performed the reset
 
 ## Business Rules
 - Can reset own password (but UC-A03 preferred)
