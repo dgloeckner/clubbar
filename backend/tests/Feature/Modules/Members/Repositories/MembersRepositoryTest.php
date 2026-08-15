@@ -6,6 +6,7 @@ namespace Tests\Feature\Modules\Members\Repositories;
 
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
+use App\Shared\Exceptions\DuplicateResourceException;
 use App\Shared\Security\IbanSealedBox;
 use Tests\Feature\DatabaseTestCase;
 
@@ -655,6 +656,105 @@ class MembersRepositoryTest extends DatabaseTestCase
             $this->countMandates($member['id']),
             'the superseded mandate must survive so a return quoting its MREF+ still resolves'
         );
+    }
+
+    public function test_a_bank_change_that_resubmits_the_old_reference_still_opens_a_new_mandate(): void
+    {
+        // The admin edit form prefills the reference of the mandate in hand, so
+        // "this member moved banks" arrives as a new IBAN *plus* the superseded
+        // reference echoed back. That reference is unusable by construction —
+        // the ended mandate keeps its row, and the UNIQUE key on it — so
+        // carrying it forward failed the INSERT and the save 500ed.
+        $member = $this->createMemberWithBankingData();
+        $originalReference = $member['mandate_reference'];
+
+        $updated = $this->membersRepository->updateById($member['id'], [
+            'iban' => 'DE02120300000000202051',
+            'mandate_reference' => $originalReference,
+            'mandate_signed_at' => $member['mandate_signed_at'],
+        ]);
+
+        $this->assertSame('2051', $updated['iban_last4']);
+        $this->assertNotSame(
+            $originalReference,
+            $updated['mandate_reference'],
+            'the echoed-back reference belongs to the superseded mandate; the new one must be minted'
+        );
+        $this->assertNotEmpty($updated['mandate_reference']);
+        $this->assertSame(2, $this->countMandates($member['id']));
+    }
+
+    public function test_a_bank_change_may_still_name_a_new_reference(): void
+    {
+        // Echoing the old reference means "unchanged", not "reuse this" — but a
+        // caller naming a genuinely different one is stating the reference the
+        // new mandate was signed under, and that must be honoured.
+        $member = $this->createMemberWithBankingData();
+        $named = 'NEWREF' . substr(str_replace('-', '', $this->generateUuid()), 0, 10);
+
+        $updated = $this->membersRepository->updateById($member['id'], [
+            'iban' => 'DE02120300000000202051',
+            'mandate_reference' => $named,
+        ]);
+
+        $this->assertSame($named, $updated['mandate_reference']);
+    }
+
+    public function test_a_reference_another_mandate_holds_is_refused_without_stranding_the_member(): void
+    {
+        // A reference that is genuinely taken is the caller's mistake, not an
+        // internal fault, so it must come back as a 422 rather than a raw
+        // PDOException. And because a bank change ends the old mandate before
+        // opening the new one, a refusal in between would otherwise leave the
+        // member with no active mandate at all — silently uncollectable, from a
+        // save that reported an error.
+        $other = $this->createMemberWithBankingData();
+        $member = $this->createMemberWithBankingData();
+        $originalReference = $member['mandate_reference'];
+
+        try {
+            $this->membersRepository->updateById($member['id'], [
+                'iban' => 'DE02120300000000202051',
+                'mandate_reference' => $other['mandate_reference'],
+            ]);
+            $this->fail('expected the taken reference to be refused');
+        } catch (DuplicateResourceException $e) {
+            $this->assertStringContainsString($other['mandate_reference'], $e->getMessage());
+        }
+
+        $unchanged = $this->membersRepository->findById($member['id']);
+        $this->assertSame($originalReference, $unchanged['mandate_reference'], 'the mandate in hand must survive a refused change');
+        $this->assertSame('3000', $unchanged['iban_last4']);
+        $this->assertSame(1, $this->countMandates($member['id']));
+    }
+
+    public function test_creating_a_member_on_a_taken_reference_leaves_no_half_created_member(): void
+    {
+        // The member row lands before openMandate runs, so a refused mandate
+        // used to leave behind a member the admin was never told about:
+        // created, bankless, and reported as an error. Creation is one unit.
+        $other = $this->createMemberWithBankingData();
+
+        $id = $this->generateUuid();
+        $this->testMemberIds[] = $id;
+
+        try {
+            $this->membersRepository->create([
+                'id' => $id,
+                'first_name' => 'Colliding',
+                'last_name' => 'Member',
+                'email' => "colliding-{$id}@example.com",
+                'iban' => 'DE02120300000000202051',
+                'mandate_reference' => $other['mandate_reference'],
+                'mandate_signed_at' => '2025-01-01',
+            ]);
+            $this->fail('expected the taken reference to be refused');
+        } catch (DuplicateResourceException $e) {
+            $this->assertStringContainsString($other['mandate_reference'], $e->getMessage());
+        }
+
+        $this->assertNull($this->membersRepository->findById($id), 'the member row must not survive a refused mandate');
+        $this->assertSame(0, $this->countMandates($id));
     }
 
     public function test_clearing_the_iban_revokes_the_mandate(): void
