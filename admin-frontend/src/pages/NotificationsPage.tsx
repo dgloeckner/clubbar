@@ -426,6 +426,7 @@ const KINDS = [
   'terminal_token_expiry_warning',
   'terminal_anomaly_warning',
   'admin_email_changed',
+  'deckel_statement',
 ]
 
 const STATUSES = ['pending', 'sent', 'failed', 'superseded']

@@ -59,6 +59,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type { MailConfigCronInterval } from './mailConfigCronInterval';
 import type { MailConfigHeaderStyle } from './mailConfigHeaderStyle';
+import type { MailConfigStatementCadence } from './mailConfigStatementCadence';
 import type { MailConfigTransport } from './mailConfigTransport';
 
 /**
@@ -125,6 +126,22 @@ the transport is serial either way.
    * @maximum 1000
    */
   drain_batch_size?: number;
+  /** How often every member receives a Deckelauszug — a periodic
+statement of their tab, itemised, announcing nothing and collecting
+nothing (ADR-0039). Club-wide: there is deliberately no per-member
+opt-out, because this system has no member login and an opt-out
+would mean a public endpoint, a token and a preference record.
+
+`weekly` is absent by design. Nothing breaks at that cadence; it
+simply stops being predictable and starts being relentless, and a
+tab that settles monthly does not move fast enough to report on
+weekly.
+
+Migration 039 leaves every installation on `off`, so switching the
+statements on is always somebody's decision rather than a side
+effect of an upgrade.
+ */
+  statement_cadence?: MailConfigStatementCadence;
   /** Whether the URL trigger (`/api/cron/drain`) has a secret to check —
 one rotated from this panel, or `config.php`'s `cron.secret`
 (#473). Never the secret itself: use

@@ -7,9 +7,15 @@
  * Usage (from the panel's cron, every 5–15 minutes):
  *   /usr/bin/php /path/to/htdocs/backend/bin/cron.php
  *
- *   php bin/cron.php --batch 50      # claim 50 messages per round
- *   php bin/cron.php --budget 120    # run for up to 2 minutes
- *   php bin/cron.php --quiet         # say nothing unless something failed
+ *   php bin/cron.php --batch 50        # claim 50 messages per round
+ *   php bin/cron.php --budget 120      # run for up to 2 minutes
+ *   php bin/cron.php --period 2026-08  # name the statement period explicitly
+ *   php bin/cron.php --quiet           # say nothing unless something failed
+ *
+ * A run does two things in this order: it queues whatever periodic mail has
+ * become due (ADR-0039), then it drains. One entrypoint rather than two, because
+ * the install gate (#405) and the heartbeat verify exactly one scheduled command
+ * and a second one would be a job nothing watches.
  *
  * Exits 0 unless the run could not start at all. A cron that exits non-zero
  * makes most panels mail the account owner, and "one recipient's mailbox is
@@ -94,6 +100,7 @@ if (is_file($envFile)) {
 // --- Arguments -------------------------------------------------------------
 $batchSize = null;
 $budgetSeconds = null;
+$period = null;
 $quiet = false;
 
 for ($i = 1; $i < $argc; $i++) {
@@ -103,14 +110,20 @@ for ($i = 1; $i < $argc; $i++) {
         $batchSize = max(1, (int) $argv[++$i]);
     } elseif (($arg === '--budget' || $arg === '-t') && isset($argv[$i + 1])) {
         $budgetSeconds = max(1, (int) $argv[++$i]);
+    } elseif ($arg === '--period' && isset($argv[$i + 1])) {
+        $period = (string) $argv[++$i];
     } elseif ($arg === '--quiet' || $arg === '-q') {
         $quiet = true;
     } elseif ($arg === '--help' || $arg === '-h') {
-        echo "Usage: php bin/cron.php [--batch <n>] [--budget <seconds>] [--quiet]\n\n";
+        echo "Usage: php bin/cron.php [--batch <n>] [--budget <seconds>] [--period <key>] [--quiet]\n\n";
         echo "  --batch <n>         Messages claimed per round (default "
             . DrainService::DEFAULT_BATCH_SIZE . ")\n";
         echo "  --budget <seconds>  Wall-clock budget for the run (default "
             . DrainService::DEFAULT_BUDGET_SECONDS . ")\n";
+        echo "  --period <key>      Name the statement period explicitly (2026-08, 2026-Q3)\n";
+        echo "                      instead of deriving it from today. Safe to repeat: a\n";
+        echo "                      period already queued is a no-op, and a period that has\n";
+        echo "                      passed is refused rather than sent late.\n";
         echo "  --quiet             Print nothing unless something failed\n";
         exit(0);
     } else {
@@ -179,6 +192,24 @@ try {
         }
     } catch (\Throwable $e) {
         fwrite(STDERR, "Warning: terminal anomaly scan failed: {$e->getMessage()}\n");
+    }
+
+    // ADR-0039 decision 1, and before the drain for the same reason as the scan
+    // above: a statement queued by this tick should leave on this tick.
+    //
+    // This is where "the cron is the one entrypoint" is cashed in. A separate
+    // scheduled job for periodic mail was considered and rejected — it would be
+    // a second thing to install, a second thing to verify and a second thing to
+    // notice has stopped, and the install gate (#405) and the heartbeat exist
+    // exactly once. Nearly every tick this call finds nothing due and returns.
+    //
+    // Caught like the scan, and for the identical reason: whatever is wrong
+    // with the statement scan, the club's announcements still have to go out.
+    try {
+        $enqueued = $factory->getPeriodicEnqueueService()->run(new \DateTimeImmutable('now'), $period);
+        $say('Deckel statements: ' . $enqueued->summary());
+    } catch (\Throwable $e) {
+        fwrite(STDERR, "Warning: statement enqueue failed: {$e->getMessage()}\n");
     }
 
     $result = $factory->getDrainService()->run(DrainSource::CLI, $batchSize, $budgetSeconds);

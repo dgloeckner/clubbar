@@ -40,6 +40,7 @@ test.describe.serial('Mail Settings API', () => {
         logo_url: original.logo_url,
         cron_interval: original.cron_interval,
         drain_batch_size: original.drain_batch_size,
+        statement_cadence: original.statement_cadence,
       },
     })
   })
@@ -153,6 +154,37 @@ test.describe.serial('Mail Settings API', () => {
     // (ADR-0039 decision 5).
     const body = await response.json()
     expect(body.messages.cron_interval).toContain('§ 7 Abs. 3')
+  })
+
+  test('PATCH stores the Deckelauszug cadence', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.patch(URL, {
+      data: { statement_cadence: 'quarterly' },
+    })
+
+    expect(response.status()).toBe(200)
+    expect((await response.json()).statement_cadence).toBe('quarterly')
+
+    // Read back through a fresh request: the response could be echoing the
+    // payload rather than the row.
+    const reread = await (await authenticatedRequest.get(URL)).json()
+    expect(reread.statement_cadence).toBe('quarterly')
+
+    // And `off` is a real value rather than a way of clearing the field —
+    // it is the club's only control over this feature (ADR-0039 decision 3).
+    const off = await authenticatedRequest.patch(URL, { data: { statement_cadence: 'off' } })
+    expect((await off.json()).statement_cadence).toBe('off')
+  })
+
+  test('PATCH refuses a weekly statement cadence', async ({ authenticatedRequest }) => {
+    // Refused for a gentler reason than a weekly *scheduler* is: nothing breaks,
+    // it simply stops being predictable and starts being relentless. So a plain
+    // enum rejection is the right answer here, unlike for `cron_interval`.
+    const response = await authenticatedRequest.patch(URL, {
+      data: { statement_cadence: 'weekly' },
+    })
+
+    expect(response.status()).toBe(422)
+    expect(await response.json()).toHaveProperty('messages.statement_cadence')
   })
 
   test('requires an authenticated session', async ({ request }) => {

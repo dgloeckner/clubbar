@@ -46,7 +46,61 @@ class CronScriptTest extends DatabaseTestCase
             'UPDATE cron_heartbeat SET last_run_at = NOW(), source = ?, sent = 0, failed = 0 WHERE id = 1'
         )->execute([DrainSource::CLI->value]);
 
+        // So is `mail_config`. A run with the cadence switched on scans every
+        // member, so both the switch and the rows it produced have to go back.
+        $this->db->exec("DELETE FROM mail_outbox WHERE kind = 'deckel_statement'");
+
+        if ($this->originalCadence !== null) {
+            $this->db->prepare('UPDATE mail_config SET statement_cadence = ? WHERE id = 1')
+                ->execute([$this->originalCadence]);
+            $this->originalCadence = null;
+        }
+
+        foreach ($this->createdMembers as $memberId) {
+            $this->db->prepare('DELETE FROM members WHERE id = ?')->execute([$memberId]);
+        }
+        $this->createdMembers = [];
+
         parent::tearDown();
+    }
+
+    // ── statement fixtures ────────────────────────────────────────────
+
+    /** @var list<string> */
+    private array $createdMembers = [];
+
+    private ?string $originalCadence = null;
+
+    private function cadence(string $cadence): void
+    {
+        $this->originalCadence ??= (string) $this->db
+            ->query('SELECT statement_cadence FROM mail_config WHERE id = 1')
+            ->fetchColumn();
+
+        $this->db->prepare('UPDATE mail_config SET statement_cadence = ? WHERE id = 1')->execute([$cadence]);
+    }
+
+    private function createMemberForStatement(): string
+    {
+        $id = $this->generateUuid();
+        $this->createdMembers[] = $id;
+
+        $this->db->prepare(
+            'INSERT INTO members (id, first_name, last_name, email, preferred_language, is_active)
+             VALUES (?, ?, ?, ?, ?, 1)'
+        )->execute([$id, 'Cron', 'Statement', $id . '@example.com', 'de']);
+
+        return $id;
+    }
+
+    private function statementCount(string $memberId): int
+    {
+        $stmt = $this->db->prepare(
+            "SELECT COUNT(*) FROM mail_outbox WHERE kind = 'deckel_statement' AND subject_id = ?"
+        );
+        $stmt->execute([$memberId]);
+
+        return (int) $stmt->fetchColumn();
     }
 
     public function test_a_run_reports_what_it_did_and_stamps_the_heartbeat(): void
@@ -119,6 +173,84 @@ class CronScriptTest extends DatabaseTestCase
         $this->assertSame(0, $result['exit']);
         $this->assertStringContainsString('Usage: php bin/cron.php', $result['output']);
         $this->assertStringContainsString('--budget', $result['output']);
+        $this->assertStringContainsString('--period', $result['output']);
+    }
+
+    /**
+     * A tick queues what has become due, *then* drains (ADR-0039 decision 1,
+     * #462 step 11.8).
+     *
+     * The ordering is the substance. A statement enqueued by this tick has to
+     * leave on this tick rather than waiting for the next one — at a daily cron
+     * the difference between the two is a day — so the enqueue runs before the
+     * claim, exactly like the terminal anomaly scan above it. Asserting on the
+     * order the two lines are printed in is the cheapest way to pin it from the
+     * outside, and this test shells out precisely because the ordering lives in
+     * the script rather than in any service.
+     */
+    public function test_a_tick_queues_the_periodic_mail_before_it_drains(): void
+    {
+        $this->cadence('monthly');
+        $memberId = $this->createMemberForStatement();
+
+        $result = $this->runCron();
+
+        $this->assertSame(0, $result['exit'], $result['output']);
+
+        $enqueue = strpos($result['output'], 'Deckel statements:');
+        $drain = strpos($result['output'], 'source=cli');
+
+        $this->assertIsInt($enqueue, 'the run must say what it queued: ' . $result['output']);
+        $this->assertIsInt($drain);
+        $this->assertLessThan($drain, $enqueue, 'the enqueue runs before the drain, so a due statement leaves today');
+
+        $this->assertSame(1, $this->statementCount($memberId));
+    }
+
+    /**
+     * Twice in one period is once in the outbox.
+     *
+     * The acceptance criterion of #462, exercised through the command a crontab
+     * actually runs — two ticks, counted at the database, with no service
+     * cooperating in the test's idea of what should happen.
+     */
+    public function test_running_the_cron_twice_in_one_period_leaves_one_statement_per_member(): void
+    {
+        $this->cadence('monthly');
+        $memberId = $this->createMemberForStatement();
+
+        $this->assertSame(0, $this->runCron()['exit']);
+        $this->assertSame(0, $this->runCron()['exit']);
+
+        $this->assertSame(1, $this->statementCount($memberId));
+    }
+
+    public function test_a_period_the_cadence_cannot_read_is_refused_rather_than_queued(): void
+    {
+        $this->cadence('monthly');
+        $memberId = $this->createMemberForStatement();
+
+        $result = $this->runCron(['--period', '2026-Q3']);
+
+        // Exit 0: a mistyped flag on one run is not a reason to make the panel
+        // mail the account owner, and the reason is printed where whoever typed
+        // it is looking.
+        $this->assertSame(0, $result['exit'], $result['output']);
+        $this->assertStringContainsString('nothing due', $result['output']);
+        $this->assertSame(0, $this->statementCount($memberId));
+    }
+
+    /** With the switch off, the tick is exactly the drain it has always been. */
+    public function test_a_disabled_cadence_leaves_the_tick_a_plain_drain(): void
+    {
+        $this->cadence('off');
+        $memberId = $this->createMemberForStatement();
+
+        $result = $this->runCron();
+
+        $this->assertSame(0, $result['exit'], $result['output']);
+        $this->assertStringContainsString('cadence off', $result['output']);
+        $this->assertSame(0, $this->statementCount($memberId));
     }
 
     public function test_an_unknown_argument_is_refused_rather_than_ignored(): void

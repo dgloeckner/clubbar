@@ -6261,6 +6261,14 @@ components:
         address moves. It is the only kind addressed to an address the system no
         longer holds — the one it moved *from*, read from the row's `recipient`
         snapshot rather than from `admin_users`.
+
+        `deckel_statement` is the periodic Deckelauszug
+        ([ADR-0039](../../adr/0039-periodic-deckel-statement.md)): the first kind
+        whose subject is the **member** rather than a settlement, a key or a
+        terminal, and the first triggered by time passing rather than by
+        somebody doing something. Its `dedup_key` is the period (`2026-08`,
+        `2026-Q3`), which is what makes a scan that runs every hour produce one
+        statement a month.
       enum:
         - sepa_prenotification
         - cancellation_notice
@@ -6268,6 +6276,7 @@ components:
         - terminal_token_expiry_warning
         - terminal_anomaly_warning
         - admin_email_changed
+        - deckel_statement
 
     MailStatus:
       type: string
@@ -6563,6 +6572,25 @@ components:
             stricter per-connection limit; it does not make a run faster, since
             the transport is serial either way.
           example: 100
+        statement_cadence:
+          type: string
+          enum: ["off", "monthly", "quarterly"]
+          description: |
+            How often every member receives a Deckelauszug — a periodic
+            statement of their tab, itemised, announcing nothing and collecting
+            nothing (ADR-0039). Club-wide: there is deliberately no per-member
+            opt-out, because this system has no member login and an opt-out
+            would mean a public endpoint, a token and a preference record.
+
+            `weekly` is absent by design. Nothing breaks at that cadence; it
+            simply stops being predictable and starts being relentless, and a
+            tab that settles monthly does not move fast enough to report on
+            weekly.
+
+            Migration 039 leaves every installation on `off`, so switching the
+            statements on is always somebody's decision rather than a side
+            effect of an upgrade.
+          example: monthly
         cron_secret_configured:
           type: boolean
           readOnly: true
@@ -6649,6 +6677,12 @@ components:
           type: integer
           minimum: 1
           maximum: 1000
+        statement_cadence:
+          type: string
+          enum: ["off", "monthly", "quarterly"]
+          description: |
+            The club-wide Deckelauszug switch — see the same field on
+            `MailConfig`.
 
     SepaConfigUpdateRequest:
       type: object

@@ -28,6 +28,7 @@ use App\Modules\Instance\Repositories\InstanceConfigRepository;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Repositories\MailConfigRepository;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
+use App\Modules\Notifications\Repositories\StatementRecipientsRepository;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Repositories\SessionRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
@@ -68,6 +69,7 @@ use App\Modules\Notifications\Services\MailDeliveryCheck;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\PeriodicEnqueueService;
 use App\Modules\Notifications\Services\TestMailService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
@@ -547,6 +549,31 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalAnomaliesRepository(),
             $this->getAdminUsersRepository(),
             $this->getMailConfigService(),
+        ));
+    }
+
+    public function getStatementRecipientsRepository(): StatementRecipientsRepository
+    {
+        return $this->resolve(
+            StatementRecipientsRepository::class,
+            fn() => new StatementRecipientsRepository($this->pdo),
+        );
+    }
+
+    /**
+     * The Deckelauszug's scheduled enqueue (ADR-0039 decision 1).
+     *
+     * Called by `bin/cron.php` *before* the drain, so a statement queued by a
+     * tick leaves on that same tick rather than waiting for the next one — the
+     * same ordering, and the same reason, as the terminal anomaly scan.
+     */
+    public function getPeriodicEnqueueService(): PeriodicEnqueueService
+    {
+        return $this->resolve(PeriodicEnqueueService::class, fn() => new PeriodicEnqueueService(
+            $this->getMailConfigService(),
+            $this->getStatementRecipientsRepository(),
+            $this->getMailOutboxRepository(),
+            $this->getLogger(),
         ));
     }
 

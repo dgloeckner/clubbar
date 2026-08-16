@@ -115,10 +115,7 @@ test.describe('Instance Branding', () => {
       // If it didn't (e.g. that test failed), asserting against `undefined`
       // fails this test too — a real signal, not something to skip past.
       await loginPage.navigate()
-      await loginPage.waitForBrandName()
-
-      const brandName = await loginPage.getBrandNameText()
-      expect(brandName).toBe(savedInstanceName)
+      await loginPage.expectBrandName(savedInstanceName)
     })
   })
 })

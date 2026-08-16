@@ -258,15 +258,27 @@ export class AuditLogPage extends BasePage {
    * auto-wait: it reads the DOM as it stands and returns `[]` if the list has
    * not rendered yet. Called straight after navigation that is a race, and it
    * lost one on CI — `expect(timestamps.length).toBeGreaterThan(1)` received 0
-   * while the first fetch was still in flight. The `expect` below retries until
-   * a row exists, which is what Pattern 008 is for; every caller of this method
-   * is asserting on an order, so none of them wants an empty list.
+   * while the first fetch was still in flight.
+   *
+   * Waiting for the first row and *then* reading closed most of that window
+   * and not all of it: the two calls are separate, and `useListQuery` empties
+   * the tbody again while a superseding request is in flight, so a row can be
+   * visible at the check and gone at the read. It lost that narrower race too.
+   *
+   * `expect.poll` closes it properly by retrying the **read**, not a separate
+   * precondition — the array returned is the one the assertion passed on, so
+   * a transient blank cannot be what the caller receives. Every caller is
+   * asserting on an order, so none of them wants an empty list.
    */
   async getTimestamps(): Promise<string[]> {
     const timestamps = this.page.locator('[data-testid^="audit-log-timestamp-"]')
-    await expect(timestamps.first()).toBeVisible()
+    let rendered: string[] = []
 
-    return await timestamps.allTextContents()
+    await expect
+      .poll(async () => (rendered = await timestamps.allTextContents()).length)
+      .toBeGreaterThan(0)
+
+    return rendered
   }
 
   /**

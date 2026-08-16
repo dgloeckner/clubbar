@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\DTOs;
 
 use App\Modules\Notifications\Enums\CronInterval;
+use App\Modules\Notifications\Enums\StatementCadence;
 use App\Shared\Mail\MailBranding;
 use App\Shared\Mail\MailLayout;
 use App\Shared\Mail\MailSender;
@@ -38,6 +39,12 @@ final readonly class MailConfigDto
         public CronInterval $cronInterval = CronInterval::DEFAULT,
         public int $drainBatchSize = self::DEFAULT_DRAIN_BATCH_SIZE,
         /**
+         * How often a Deckelauszug goes out (ADR-0039 decision 3). Defaults to
+         * `off` rather than to {@see StatementCadence::DEFAULT}: a value this
+         * build could not read is not a reason to mail an entire membership.
+         */
+        public StatementCadence $statementCadence = StatementCadence::OFF,
+        /**
          * SHA-256 hex, never a plaintext secret. `null` means no rotation from
          * the admin panel has ever happened — `config.php`'s `cron.secret` is
          * still the fallback (#473). Not part of {@see toArray()}: a hash has
@@ -61,6 +68,7 @@ final readonly class MailConfigDto
             logoUrl: self::nullIfBlank($row['logo_url'] ?? null),
             cronInterval: CronInterval::fromDeclared($row['cron_interval'] ?? null),
             drainBatchSize: self::batchSize($row['drain_batch_size'] ?? null),
+            statementCadence: StatementCadence::fromDeclared($row['statement_cadence'] ?? null),
             cronSecretHash: self::nullIfBlank($row['cron_secret_hash'] ?? null),
             cronSecretRotatedAt: self::nullIfBlank($row['cron_secret_rotated_at'] ?? null),
         );
@@ -117,6 +125,7 @@ final readonly class MailConfigDto
             'logo_url' => $this->logoUrl,
             'cron_interval' => $this->cronInterval->value,
             'drain_batch_size' => $this->drainBatchSize,
+            'statement_cadence' => $this->statementCadence->value,
             // Never the hash — only whether one exists and when it was made,
             // which is what the admin panel needs to show a rotate button
             // and a "last rotated" line without any secret value at all.
