@@ -500,6 +500,11 @@ error directly:
 php backend/bin/cron.php          # add --quiet for the cron entry itself
 ```
 
+It prints one summary line per run. A run that stopped on an unexpected error
+prints `ABORTED` and its reason instead of the counters, on stderr as well —
+its counters would otherwise read `sent=0`, which is what an idle tick prints,
+and the two mean very different things about the queue.
+
 ### Trying it locally
 
 The dev stack runs [Mailpit](https://mailpit.axllent.org) as the `mailpit`
@@ -519,7 +524,36 @@ exactly as a member would receive it, both parts.
 The `mail-chain` E2E project (`cd e2etests && npx playwright test
 --project=mail-chain`) drives the same path and asserts on what arrives —
 creditor id, mandate reference, amount, masked account, itemised statement, the
-seven-day distance, and that a second run delivers nothing a second time.
+seven-day distance, and that a second run delivers nothing a second time. The
+`mail-statement` project does the same for the Deckelauszug below.
+
+### The Deckelauszug (periodic tab statement)
+
+A second kind of mail rides the same queue and the same cron: a **Deckelauszug**
+— a member's tab as it stood on the first day of the period, itemised, sent
+whatever it says. It announces nothing and collects nothing, and it is not a
+Vorabankündigung; the two must not be confused (see `CONTEXT.md`). Its job is
+concrete: the terminal refuses a checkout past the €100 credit limit, offline
+and in front of the queue, and without a statement the first a member hears of
+it is being turned away.
+
+**Turning it on.** Settings → Mail → *Deckelauszug*: `off | monthly |
+quarterly`. Upgrades land on `off` — a migration must not start mailing a live
+membership before anyone has read a release note — so this is a decision
+somebody has to make. There is deliberately **no per-member opt-out**: this
+system has no member login, so the club-wide switch is the only off-ramp
+(ADR-0039 decision 3).
+
+**Who gets one.** Every member with an address, whatever they owe — including a
+zero balance and a credit. An inactive member who still owes gets one too;
+deactivating somebody does not cancel their tab. A member with no address is
+skipped silently (in practice an anonymised one).
+
+**Nothing extra to schedule.** `bin/cron.php` queues whatever period has become
+due before it drains, so the statements go out on the tick that queued them.
+Almost every tick finds nothing due, which is the intended shape. `--period
+2026-08` names a period explicitly rather than deriving it from today; a period
+that is no longer the current one is refused rather than mailed late.
 
 ### Deliverability
 

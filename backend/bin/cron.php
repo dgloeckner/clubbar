@@ -216,6 +216,14 @@ try {
 
     $say($result->summary());
 
+    if ($result->wasAborted()) {
+        // The run threw and `DrainService::run()` swallowed it, because a
+        // crontab is no place to propagate an exception. It must not also be
+        // silent: whoever is running this by hand — which the deployment guide
+        // tells them to do — would otherwise read an aborted run as an idle one.
+        fwrite(STDERR, "Error: the drain run aborted: {$result->abortedReason}\n");
+    }
+
     if ($result->failed > 0 || $result->skipped > 0) {
         // Not an error exit: these are recorded per message and visible to the
         // Kassenwart. Printed to STDERR so a panel that mails only stderr says

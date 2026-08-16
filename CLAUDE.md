@@ -875,6 +875,7 @@ scripts/dev-setup.sh --with-frontend  # also builds and serves the admin UI on :
 cd e2etests && npx playwright test --project=api-tests     # chromium
 cd e2etests && npx playwright test --project=admin-mobile  # webkit, needs --with-frontend
 cd e2etests && npx playwright test --project=mail-chain --no-deps  # finalize → cron.php → Mailpit
+cd e2etests && npx playwright test --project=mail-statement --no-deps  # cadence → cron.php → Mailpit
 ```
 
 It covers, in order: the Docker daemon → `composer install` → making `backend/logs` and `backend/storage` writable → `dev-stack.sh up` + `wait` → migrate + seed → `npm install` and the Playwright browsers → optionally the admin frontend → a verification pass that reports what is missing.
@@ -888,7 +889,7 @@ Five of those steps exist because a fresh clone fails without them, and none is 
 | `npx playwright install chromium` | The image ships a pre-built Chromium, but `@playwright/test` resolves through its caret range to a newer Playwright that wants a newer browser build. Without this, `api-tests` and `admin-chromium` cannot start |
 | `npx playwright install webkit` **+ `install-deps`** | `admin-mobile` uses `devices['iPhone 14']` and `terminal-touch` uses `devices['iPad Pro 11']` — both default to **WebKit, not Chromium**. Installing only Chromium leaves every test in those projects failing at launch with `Executable doesn't exist at .../webkit-XXXX/pw_run.sh`. The deps matter separately: WebKit links against libwoff, libopus, libharfbuzz-icu, libenchant, libsecret, libmanette and friends, and without them the binary is on disk and still refuses to start |
 | Playwright browsers + admin frontend | The `admin-chromium` and `admin-mobile` projects drive `http://localhost:5173`; nothing serves it by default |
-| `mailpit` up, with chaos enabled | The `mail-chain` project (#409) reads what a drain actually delivered from Mailpit's API on `:8025`, and produces a permanent delivery failure by asking that server to answer 550 — which needs `MP_ENABLE_CHAOS`. A container started from an older compose file is healthy, reachable and still refuses the chaos call, so the verify pass asks for both |
+| `mailpit` up, with chaos enabled | The `mail-chain` project (#409) and the `mail-statement` project (#463) read what a drain actually delivered from Mailpit's API on `:8025`, and the first produces a permanent delivery failure by asking that server to answer 550 — which needs `MP_ENABLE_CHAOS`. A container started from an older compose file is healthy, reachable and still refuses the chaos call, so the verify pass asks for both |
 
 **The stack's `MAIL_DSN` is empty on purpose, Mailpit or not.** A drain claims the *whole* queue, so a transport wired into the long-running backend would let the URL-trigger spec's drains sweep announcements the admin suite is asserting on. The chain suite hands the DSN to the run it triggers instead (`docker compose exec -e MAIL_DSN=… backend php /app/bin/cron.php`), so exactly one drain in a run delivers, and it is the one making the assertions. To watch real mail arrive while developing, start the stack with `MAIL_DSN=smtp://mailpit:1025 docker compose up -d` and open <http://localhost:8025>.
 

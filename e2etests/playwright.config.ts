@@ -207,6 +207,32 @@ export default defineConfig({
       dependencies: ['api-tests', 'admin-chromium'],
     },
 
+    // The Deckelauszug chain (#463): cadence on → bin/cron.php → Mailpit.
+    //
+    // Its own project rather than a second file in `mail-chain`, and the reason
+    // is the one thing `fullyParallel: false` does **not** buy: it serialises
+    // the tests inside a file, but Playwright still runs two files of the same
+    // project on two workers. That is fine for announcements, which only ever
+    // reach the member a spec finalized against. It is not fine here.
+    //
+    // A Deckelauszug goes to **every member in scope**, which is every member
+    // in the database with an address — including the ones
+    // `prenotification-chain.spec.ts` has just created and is waiting on. While
+    // `statement_cadence` is `monthly`, any drain enqueues a statement for
+    // those members too, and that spec's `waitForMessages(address, 1)` would
+    // find two messages and fail, for a reason invisible in its own file.
+    //
+    // `dependencies: ['mail-chain']` removes the overlap by construction: the
+    // cadence is only ever switched on after the announcement chain has
+    // finished asserting. It is switched back to `off` in this project's
+    // `afterAll`, so the window is this project and nothing else.
+    {
+      name: 'mail-statement',
+      testDir: './tests/mail-statement',
+      fullyParallel: false,
+      dependencies: ['mail-chain'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',

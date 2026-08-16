@@ -799,6 +799,13 @@
       "cronIntervalHint": "Wie oft der Cron dieser Installation tatsächlich läuft. Wiederholversuche und die Stau-Warnung rechnen in diesem Takt. Wöchentlich wird abgelehnt — die Sieben-Tage-Zusage aus § 7 Abs. 3 wäre dann nicht mehr einzuhalten.",
       "batchSize": "Nachrichten pro Lauf",
       "batchSizeHint": "Herabsetzen, wenn der Mailserver pro Verbindung strenger begrenzt. Schneller wird ein Lauf dadurch nicht — versendet wird ohnehin nacheinander.",
+      "statementCadence": "Deckelauszug",
+      "statementCadences": {
+        "off": "Aus",
+        "monthly": "Monatlich",
+        "quarterly": "Vierteljährlich"
+      },
+      "statementCadenceHint": "Ein periodischer Auszug über den Deckel — an jedes aktive Mitglied, unabhängig davon, was offen ist, angekündigt wird damit nichts und eingezogen auch nicht. „Aus\" ist die einzige Abschaltmöglichkeit: ein Abbestellen durch einzelne Mitglieder gibt es nicht. Der Auszug geht am ersten Tag der Periode heraus und nennt den Stand von genau diesem Tag.",
       "saved": "Mail-Einstellungen gespeichert.",
       "cronSecretTitle": "URL-Trigger-Geheimnis",
       "cronSecretConfigured": "Konfiguriert",

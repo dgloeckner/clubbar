@@ -47,6 +47,18 @@ import { SecretDisplayModal } from '../modals/SecretDisplayModal'
 const HEADER_STYLES = ['red', 'petrol', 'paper'] as const
 const CRON_INTERVALS = ['hourly', 'daily'] as const
 
+/**
+ * The Deckelauszug's cadence (ADR-0039 decision 3).
+ *
+ * `off` is a real value rather than a way of clearing the field: it is the
+ * club's only control over this feature, because a system with no member login
+ * has nowhere to put a per-member opt-out. `weekly` is deliberately not an
+ * option — the enum has no such case, for a gentler reason than the scheduler's
+ * refusal of the same word: nothing breaks, a statement every week simply stops
+ * being predictable and starts being relentless.
+ */
+const STATEMENT_CADENCES = ['off', 'monthly', 'quarterly'] as const
+
 type FormState = {
   sender_name: string
   sender_address: string
@@ -58,6 +70,7 @@ type FormState = {
   logo_url: string
   cron_interval: string
   drain_batch_size: string
+  statement_cadence: string
 }
 
 function toForm(config: MailConfig): FormState {
@@ -72,6 +85,7 @@ function toForm(config: MailConfig): FormState {
     logo_url: config.logo_url ?? '',
     cron_interval: config.cron_interval ?? 'hourly',
     drain_batch_size: String(config.drain_batch_size ?? 100),
+    statement_cadence: config.statement_cadence ?? 'off',
   }
 }
 
@@ -144,6 +158,7 @@ export function MailSettingsTab({ callerTotpEnabled }: MailSettingsTabProps) {
       logo_url: form.logo_url || null,
       cron_interval: form.cron_interval as MailConfigUpdateRequest['cron_interval'],
       drain_batch_size: Number(form.drain_batch_size),
+      statement_cadence: form.statement_cadence as MailConfigUpdateRequest['statement_cadence'],
     }
 
     try {
@@ -401,6 +416,39 @@ export function MailSettingsTab({ callerTotpEnabled }: MailSettingsTabProps) {
           type: 'number',
           hint: t('settings.mail.batchSizeHint'),
         })}
+
+        {/* Not a scheduler dial: this one decides whether the whole membership
+            receives mail it did not ask for, so it sits below them with its own
+            explanation rather than beside the batch size. */}
+        <div style={fieldWrapperStyle}>
+          <label style={labelStyle} htmlFor="settings-mail-statement_cadence">
+            {t('settings.mail.statementCadence')}
+          </label>
+          <select
+            id="settings-mail-statement_cadence"
+            data-testid="settings-mail-statement_cadence"
+            value={form.statement_cadence}
+            onChange={(e) => setForm({ ...form, statement_cadence: e.target.value })}
+            style={{
+              ...inputStyle,
+              borderColor: fieldErrors.statement_cadence
+                ? theme.colors.semantic.danger
+                : theme.colors.border.light,
+            }}
+          >
+            {STATEMENT_CADENCES.map((cadence) => (
+              <option key={cadence} value={cadence}>
+                {t(`settings.mail.statementCadences.${cadence}`)}
+              </option>
+            ))}
+          </select>
+          <div style={hintStyle}>{t('settings.mail.statementCadenceHint')}</div>
+          {fieldErrors.statement_cadence && (
+            <div data-testid="settings-mail-error-statement_cadence" style={fieldErrorStyle}>
+              {fieldErrors.statement_cadence}
+            </div>
+          )}
+        </div>
 
         <div style={{ display: 'flex', gap: theme.spacing.md, marginTop: theme.spacing.lg }}>
           <button type="submit" data-testid="settings-mail-save" disabled={saving} style={primaryButtonStyle}>
