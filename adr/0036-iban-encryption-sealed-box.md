@@ -187,6 +187,8 @@ tier per admin:
 | Trigger | The existing scheduler tick — **not** an authenticated request. A request-time trigger cannot satisfy "an admin who does not open the panel is told"; it is the same contradiction in different words |
 | Scope | The ACTIVE encryption key, and active terminals with no rotation already in flight |
 | Idempotency | The tier goes in `dedup_key`; the unique index decides. No scan state, no cursor, no lookup |
+| Bound | **At most three messages per credential per admin, per credential lifetime.** Every tier window (60/23/8 days) is shorter than the 90-day retention on delivered rows, so the dedup guard always outlives the window it guards |
+| Credential generations | A rotated encryption key is a new row and so a new `subject_id`. A rotated *terminal token* is not — the terminal keeps its id — so the token's `token_issued_at` is carried in `dedup_key` as well. Without it, whether the successor token is warned about would depend on whether retention had pruned the predecessor's row: comfortable at the 365-day default, a coin flip at `API_TOKEN_TTL_DAYS=90` |
 | Tiers | 90/30/7, from the same `CredentialLifecycle` the banners use, so mail and dashboard cannot disagree |
 | Past expiry | Silent. These are *advance* warnings, and expiry is already an error in the UI and a hard stop in the code |
 | Content | Which credential, which tier, the deadline, and the remedy named as the admin panel labels it. **No key material, no token, no fingerprint** |

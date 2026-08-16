@@ -55,6 +55,11 @@ use DateTimeImmutable;
  * *entered* rather than the days remaining: a value that changed on every scan
  * would queue a fresh warning every fifteen minutes for ninety days.
  *
+ * The dedup key names the credential's **generation** as well as its tier, for
+ * terminal tokens where rotation reuses the subject id. See
+ * {@see self::occasion()} for why that segment is carried rather than inferred
+ * from how long a delivered row happens to survive.
+ *
  * ## Staying optional
  *
  * The scan does nothing on an installation with no mail configured. That is the
@@ -111,7 +116,7 @@ class CredentialExpiryNotifier
                 $result = $this->notificationsService->warnAdmins(
                     $credential['kind'],
                     $credential['subject_id'],
-                    self::occasion($tier),
+                    self::occasion($tier, $credential['generation']),
                 );
 
                 $queued += $result->queued;
@@ -127,6 +132,10 @@ class CredentialExpiryNotifier
                         'kind' => $credential['kind']->value,
                         'subject_id' => $credential['subject_id'],
                         'tier_days' => $tier,
+                        // The generation too: a *missing* warning is diagnosed
+                        // by comparing this against the dedup keys already in
+                        // the outbox, and the tier alone does not identify one.
+                        'generation' => $credential['generation'],
                         'expires_at' => $credential['expires_at'],
                         'queued' => $result->queued,
                     ]);
@@ -148,18 +157,70 @@ class CredentialExpiryNotifier
     }
 
     /**
-     * The tier as it appears in the `dedup_key`.
+     * The tier as it appears in the `dedup_key`, optionally scoped to one
+     * generation of the credential.
      *
      * `90d` rather than `90`, so a key read out of the outbox in the admin panel
-     * is self-describing rather than a bare number next to a UUID. Length is not
-     * incidental here: `warnAdmins()` builds the key as `occasion:adminUserId`
-     * into a VARCHAR(64), an admin id is 36 characters, and this leaves room to
-     * spare — see the same arithmetic in
-     * {@see \App\Modules\Terminals\Services\TerminalAnomalyDetector::mail()}.
+     * is self-describing rather than a bare number next to a UUID.
+     *
+     * ### Why the generation segment exists
+     *
+     * An encryption key does not need one: rotating produces a **new row**, so
+     * `subject_id` already changes and the successor gets its own three tiers.
+     *
+     * A terminal token does. Rotating one leaves the terminal — and therefore
+     * `subject_id` — exactly as it was, so without a discriminator the second
+     * token's warnings share a dedup key with the first token's. Whether the
+     * successor is warned about at all then depends on whether
+     * {@see MailRetention} has pruned the predecessor's row yet, which is not a
+     * property anybody should have to reason about to know if they will be told
+     * their till is about to stop working.
+     *
+     * At the default 365-day TTL the margin is comfortable — the next cycle's
+     * 90-day tier lands roughly 190 days after the previous cycle's rows are
+     * pruned. At `API_TOKEN_TTL_DAYS=90`, which is what this setting used to
+     * default to, the two coincide almost exactly and the outcome is a coin
+     * flip. So the generation is carried rather than the margin trusted.
+     *
+     * ### Length
+     *
+     * Not incidental: `warnAdmins()` builds the key as `occasion:adminUserId`
+     * into a VARCHAR(64) and an admin id is 36 characters, so the occasion has
+     * 27 to work with. `90d` + `:` + 14 digits = 18, leaving nine spare — see
+     * the same arithmetic in
+     * {@see \App\Modules\Terminals\Services\TerminalAnomalyDetector::mail()},
+     * where it was tight enough to constrain the design.
      */
-    public static function occasion(int $tierDays): string
+    public static function occasion(int $tierDays, ?string $generation = null): string
     {
-        return $tierDays . 'd';
+        $occasion = $tierDays . 'd';
+
+        return $generation === null ? $occasion : $occasion . ':' . $generation;
+    }
+
+    /**
+     * A terminal token's generation, as a sortable stamp.
+     *
+     * `token_issued_at` to the second. A rotation is something a person does in
+     * the admin panel, so two for the same terminal inside one second is not a
+     * case worth widening the column for — and the failure if it ever happened
+     * is one suppressed warning, not a wrong one.
+     *
+     * A terminal with no issuance timestamp answers `0` rather than being
+     * skipped: migration 011 backfilled the column, so this is the shape of a
+     * row edited by hand, and one dedup namespace for it is the same guarantee
+     * the feature had before this segment existed.
+     */
+    public static function tokenGeneration(?string $issuedAt): string
+    {
+        $issuedAt = trim((string) $issuedAt);
+        if ($issuedAt === '') {
+            return '0';
+        }
+
+        $timestamp = strtotime($issuedAt);
+
+        return $timestamp === false ? '0' : date('YmdHis', $timestamp);
     }
 
     /** The tier a `dedup_key` was queued for, or null if it does not name one. */
@@ -197,7 +258,7 @@ class CredentialExpiryNotifier
      * dashboard says in plain language, and it is a better thing to be told than
      * a token date.
      *
-     * @return list<array{kind: MailKind, subject_id: string, expires_at: ?string}>
+     * @return list<array{kind: MailKind, subject_id: string, expires_at: ?string, generation: ?string}>
      */
     private function credentials(): array
     {
@@ -209,6 +270,9 @@ class CredentialExpiryNotifier
                 'kind' => MailKind::KEY_EXPIRY_WARNING,
                 'subject_id' => (string) $activeKey['id'],
                 'expires_at' => $activeKey['expires_at'] ?? null,
+                // No generation segment: a rotated key is a new row with a new
+                // id, so `subject_id` already separates the cycles.
+                'generation' => null,
             ];
         }
 
@@ -224,6 +288,9 @@ class CredentialExpiryNotifier
                 'kind' => MailKind::TERMINAL_TOKEN_EXPIRY_WARNING,
                 'subject_id' => (string) $terminal['id'],
                 'expires_at' => $terminal['token_expires_at'] ?? null,
+                // A rotation keeps the terminal and its id, so the token's own
+                // issuance is what separates one cycle from the next.
+                'generation' => self::tokenGeneration($terminal['token_issued_at'] ?? null),
             ];
         }
 
