@@ -61,17 +61,17 @@ of an input, and put the actions that change it underneath — so
 
 ### M4 — E2E
 
-- [ ] Page object: `beginIbanChange`, `cancelIbanChange`, `fillIban`, `expectIbanInput{Visible,Hidden}`, `undoRemoveStoredIban`, `expectIbanRemovalPending{Visible,Hidden}`, `expectSepaStatusContains`, and the mandate-reference equivalents. `fillMemberForm`/`fillMandateReference` reveal the input themselves, so callers keep expressing intent
-- [ ] Two existing assertions of a blank input in edit mode replaced by `expectIbanInputHidden()` (`members.spec.ts`, `members-bank-name.spec.ts`)
-- [ ] Four new flow specs: change-then-cancel keeps the account through a save; change-then-save replaces it; remove-then-undo is a no-op and remove-then-save revokes; mandate reference assigned by default and shown as a value once minted
-- Verify: `npx playwright test tests/admin/members.spec.ts tests/admin/members-bank-name.spec.ts --workers=4`, then the full `admin-chromium` and `admin-mobile` projects
+- [x] Page object: `beginIbanChange`, `cancelIbanChange`, `fillIban`, `expectIbanInput{Visible,Hidden}`, `undoRemoveStoredIban`, `expectIbanRemovalPending{Visible,Hidden}`, `expectSepaStatusContains`, and the mandate-reference equivalents. `fillMemberForm`/`fillMandateReference` reveal the input themselves, so callers keep expressing intent
+- [x] Two existing assertions of a blank input in edit mode replaced by `expectIbanInputHidden()` (`members.spec.ts`, `members-bank-name.spec.ts`)
+- [x] Four new flow specs: change-then-cancel keeps the account through a save; change-then-save replaces it; remove-then-undo is a no-op and remove-then-save revokes; mandate reference assigned by default and shown as a value once minted
+- Verify: **passed** — `admin-chromium` 308/308 against a rebuilt bundle, including the four new flows. One unrelated failure appeared in a 4-worker run (`ui-features.spec.ts` "should perform logout and redirect to login") and passed 8/8 when its file was run alone: a session-state race under parallelism, in a spec this diff does not touch. `admin-mobile` was **not run** — WebKit could not be downloaded in this sandbox (`dev-setup.sh` reports it as a warning); CI covers that project
 
 ### M5 — Docs
 
 - [x] `use-cases/admin/UC-A12-edit-member.md` — new *Banking Fields* section with both state tables; the two statements that clearing the IBAN field revokes SEPA corrected; SEPA status table gains the two preview rows; test derivation rewritten
 - [x] `use-cases/sepa/uc-sepa-03-member-iban.md` — main flow gains the *Change* step and is renumbered; AF3 rewritten from "clears IBAN field" to *Remove bank details*; T08 split into remove / leave-alone / cancel
 - [x] `admin-frontend/patterns/components.md` — `StoredFieldBox` / `StoredFieldAction` entry under Form Components
-- [ ] `plans/INDEX.md` row
+- [x] `plans/INDEX.md` row
 
 No ADR change: ADR-0036 §"API surface" already specifies this semantics — the UI
 now follows it visibly instead of describing it.
