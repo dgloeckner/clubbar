@@ -498,6 +498,25 @@ const labelStyle: CSSProperties = {
 
 const selectStyle: CSSProperties = {
   width: '100%',
+  padding: `${theme.spacing.sm} 28px ${theme.spacing.sm} ${theme.spacing.md}`,
+  background: theme.colors.bg.input,
+  border: `1px solid ${theme.colors.border.light}`,
+  borderRadius: theme.borderRadius.md,
+  color: theme.colors.text.primary,
+  fontSize: theme.typography.fontSize.sm,
+  cursor: 'pointer',
+  outline: 'none',
+  appearance: 'none',
+  WebkitAppearance: 'none',
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 8px center',
+  backgroundSize: '12px',
+  boxSizing: 'border-box',
+}
+
+const inputStyle: CSSProperties = {
+  width: '100%',
   padding: `${theme.spacing.sm} ${theme.spacing.md}`,
   background: theme.colors.bg.input,
   border: `1px solid ${theme.colors.border.light}`,
@@ -506,5 +525,3 @@ const selectStyle: CSSProperties = {
   fontSize: theme.typography.fontSize.sm,
   boxSizing: 'border-box',
 }
-
-const inputStyle: CSSProperties = { ...selectStyle, cursor: 'text' }
