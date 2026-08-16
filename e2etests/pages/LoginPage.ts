@@ -5,7 +5,7 @@
  * Implements E2E Testing Pattern 005: Page Object Model
  */
 
-import { Page } from '@playwright/test'
+import { expect, Page } from '@playwright/test'
 import { BasePage } from './BasePage'
 import { generateTotp } from '../utils/totp'
 
@@ -67,18 +67,19 @@ export class LoginPage extends BasePage {
   }
 
   /**
-   * The configured instance name shown on the login screen (ADR-0034 / UC-A64).
+   * Assert the login screen shows this instance name (ADR-0034 / UC-A64).
+   *
+   * A retrying assertion rather than a one-shot read, and that is the whole
+   * point of the method. `InstanceConfigContext` renders its
+   * `DEFAULT_INSTANCE_NAME` fallback immediately and replaces it when the
+   * public config request resolves, so the heading is **visible with the wrong
+   * text** for as long as that request takes. Waiting for visibility and then
+   * sampling `textContent()` once is a race that loses under load, and it loses
+   * by reporting the default — which reads as "the save did not persist"
+   * rather than as "the fetch had not landed yet" (Pattern 008).
    */
-  async getBrandNameText(): Promise<string> {
-    return ((await this.heading().textContent()) ?? '').trim()
-  }
-
-  /**
-   * Wait for the instance name to finish loading (it fetches on mount, before
-   * any session exists) and be visible.
-   */
-  async waitForBrandName() {
-    await this.heading().waitFor({ state: 'visible' })
+  async expectBrandName(expected: string) {
+    await expect(this.heading()).toHaveText(expected)
   }
 
   /**
