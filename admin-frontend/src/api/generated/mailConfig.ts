@@ -111,6 +111,10 @@ in ticks of this interval, not in wall-clock minutes — the drain
 cannot act between ticks, so a backoff finer than the schedule
 describes a machine that does not exist.
 
+`fifteen_minutes` is what `bin/cron.php` recommends and what an
+external HTTP scheduler can actually deliver; a hosting panel's cron
+wizard usually cannot, which is why the coarser values exist.
+
 `weekly` is refused with 422: an announcement queued shortly after a
 weekly run leaves up to seven days later and would land on the
 collection date, taking the Nutzungsordnung § 7 Abs. 3 distance to
@@ -126,6 +130,22 @@ the transport is serial either way.
    * @maximum 1000
    */
   drain_batch_size?: number;
+  /**
+   * Wall-clock budget for one drain run. It must stay under the timeout
+of whatever triggers the run — a hosting panel's cron cap (IONOS:
+60s) or an external HTTP scheduler's request timeout (commonly 30s),
+neither of which is visible to this application.
+
+Overshooting is the expensive direction: a run killed mid-send
+leaves its rows claimed, and the stale window hands them to the next
+run, so a message that was already delivered goes out twice.
+Undershooting only means the next tick finishes the queue. The
+default is 25 for that reason.
+
+   * @minimum 10
+   * @maximum 55
+   */
+  drain_budget_seconds?: number;
   /** How often every member receives a Deckelauszug — a periodic
 statement of their tab, itemised, announcing nothing and collecting
 nothing (ADR-0039). Club-wide: there is deliberately no per-member

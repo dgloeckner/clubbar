@@ -20,18 +20,25 @@ use App\Modules\Notifications\Enums\CronInterval;
  * So the ladder counts in **ticks**, and the multipliers are the ordinary
  * exponential ones:
  *
- * | Attempt | Multiplier | Hourly | Daily |
- * |---|---|---|---|
- * | 1 → 2 | 1× | 1 h | 1 d |
- * | 2 → 3 | 2× | 2 h | 2 d |
- * | 3 → 4 | 4× | 4 h | 4 d |
- * | 4 | — | `failed` | `failed` |
+ * | Attempt | Multiplier | 15 min | Hourly | Daily |
+ * |---|---|---|---|---|
+ * | 1 → 2 | 1× | 15 min | 1 h | 1 d |
+ * | 2 → 3 | 2× | 30 min | 2 h | 2 d |
+ * | 3 → 4 | 4× | 60 min | 4 h | 4 d |
+ * | 4 | — | `failed` | `failed` | `failed` |
  *
  * Hourly gives roughly seven hours of trying before the fourth attempt and
  * fifteen if the last wait is counted — far more than greylisting needs, and
  * nothing at all against a seven-day announcement window. Daily degrades to a
  * ladder the cron is actually awake for instead of four attempts crammed into
  * a schedule that fires once.
+ *
+ * The fifteen-minute case (#473) is the one where the tick-relative ladder and
+ * the flat constant it replaced finally agree: the first rung *is* the fifteen
+ * minutes greylisting expects, and it is that only because the cron is awake to
+ * act on it. An hour and three quarters of trying is short, but it is a full
+ * ladder on a host that has one, and nothing about the seven-day announcement
+ * window notices the difference.
  *
  * Applies to **every** {@see \App\Modules\Notifications\Enums\MailKind}, the
  * Vorabankündigung included. ADR-0039 records this as a deliberate change to

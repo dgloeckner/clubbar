@@ -91,6 +91,80 @@ class MailConfigDtoTest extends TestCase
         $this->assertArrayNotHasKey('dsn', $payload);
     }
 
+    /* ──────────────────── The two operational dials ──────────────────── */
+
+    public function test_the_dials_read_back_what_the_row_declared(): void
+    {
+        $dto = MailConfigDto::fromRow([
+            'sender_address' => 'bar@example.org',
+            'drain_batch_size' => 40,
+            'drain_budget_seconds' => 20,
+        ]);
+
+        $this->assertSame(40, $dto->drainBatchSize);
+        $this->assertSame(20, $dto->drainBudgetSeconds);
+        $this->assertSame(20, $dto->toArray()['drain_budget_seconds']);
+    }
+
+    /**
+     * A row written before migration 040 has no budget column at all, and one
+     * from a partial restore can read as 0. Both are the same situation: nothing
+     * was declared. A zero-second budget would stop a run before it claimed
+     * anything while looking perfectly configured — the one failure mode a
+     * wall-clock dial must not have, exactly as for the batch size beside it.
+     */
+    public function test_a_missing_or_zero_budget_falls_back_rather_than_stopping_every_run(): void
+    {
+        foreach ([null, 0, '', '0'] as $value) {
+            $dto = MailConfigDto::fromRow([
+                'sender_address' => 'bar@example.org',
+                'drain_budget_seconds' => $value,
+            ]);
+
+            $this->assertSame(
+                MailConfigDto::DEFAULT_DRAIN_BUDGET_SECONDS,
+                $dto->drainBudgetSeconds,
+                'an undeclared budget must fall back, not be honoured as zero'
+            );
+        }
+
+        $this->assertSame(
+            MailConfigDto::DEFAULT_DRAIN_BUDGET_SECONDS,
+            MailConfigDto::fromRow(['sender_address' => 'bar@example.org'])->drainBudgetSeconds
+        );
+    }
+
+    /**
+     * A budget above the ceiling is a run that gets *killed* rather than one
+     * that stops — and a killed run leaves rows claimed for the stale window to
+     * hand back, which is how one announcement is delivered twice. So a value
+     * past the bound is brought back down rather than trusted (#473).
+     */
+    public function test_a_budget_past_the_ceiling_is_clamped_and_not_honoured(): void
+    {
+        $dto = MailConfigDto::fromRow([
+            'sender_address' => 'bar@example.org',
+            'drain_budget_seconds' => 3600,
+        ]);
+
+        $this->assertSame(MailConfigDto::MAX_DRAIN_BUDGET_SECONDS, $dto->drainBudgetSeconds);
+    }
+
+    /**
+     * The default has to be reachable inside the tightest trigger timeout this
+     * project knows of — an external HTTP scheduler's 30 seconds — and the
+     * ceiling inside the most generous, IONOS's 60-second cron cap.
+     */
+    public function test_the_shipped_budget_bounds_fit_the_triggers_that_fire_the_drain(): void
+    {
+        $this->assertLessThan(30, MailConfigDto::DEFAULT_DRAIN_BUDGET_SECONDS);
+        $this->assertLessThan(60, MailConfigDto::MAX_DRAIN_BUDGET_SECONDS);
+        $this->assertGreaterThanOrEqual(
+            MailConfigDto::MIN_DRAIN_BUDGET_SECONDS,
+            MailConfigDto::DEFAULT_DRAIN_BUDGET_SECONDS
+        );
+    }
+
     /**
      * A fresh row (or one that predates migration 034) has no rotation on
      * record — the file fallback in config.php is what CronController falls

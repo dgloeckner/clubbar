@@ -98,6 +98,14 @@ export interface MailConfigUpdateRequest {
    * @maximum 1000
    */
   drain_batch_size?: number;
+  /**
+   * Must stay under the trigger's own timeout — see the same field on
+`MailConfig`.
+
+   * @minimum 10
+   * @maximum 55
+   */
+  drain_budget_seconds?: number;
   /** The club-wide Deckelauszug switch — see the same field on
 `MailConfig`.
  */

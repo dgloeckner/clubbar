@@ -51,7 +51,8 @@ class MailConfigHttpTest extends HttpTestCase
             $this->db->prepare(
                 'UPDATE mail_config SET sender_name = ?, sender_address = ?, reply_to_address = ?, header_style = ?,
                         footer_org_name = ?, footer_address_line = ?, website_url = ?, logo_url = ?,
-                        cron_interval = ?, drain_batch_size = ?, cron_secret_hash = ?, cron_secret_rotated_at = ?,
+                        cron_interval = ?, drain_batch_size = ?, drain_budget_seconds = ?,
+                        cron_secret_hash = ?, cron_secret_rotated_at = ?,
                         updated_by_admin_id = NULL
                  WHERE id = 1'
             )->execute([
@@ -65,6 +66,7 @@ class MailConfigHttpTest extends HttpTestCase
                 $this->originalConfig['logo_url'],
                 $this->originalConfig['cron_interval'],
                 $this->originalConfig['drain_batch_size'],
+                $this->originalConfig['drain_budget_seconds'],
                 $this->originalConfig['cron_secret_hash'],
                 $this->originalConfig['cron_secret_rotated_at'],
             ]);
@@ -259,6 +261,59 @@ class MailConfigHttpTest extends HttpTestCase
         ], headers: ['X-CSRF-Token' => $this->csrfToken]);
 
         $this->assertSame(422, $response->getStatusCode());
+    }
+
+    /**
+     * The cadence `bin/cron.php` has recommended since #403, declarable at last
+     * (#473). Until now such an installation had to say `hourly` — safe, since
+     * every threshold only became conservative, but a declaration four times
+     * slower than the machine it describes.
+     */
+    public function test_patch_accepts_the_fifteen_minute_cadence(): void
+    {
+        $response = $this->request('PATCH', '/api/admin/mail-config', [
+            'cron_interval' => 'fifteen_minutes',
+        ], headers: ['X-CSRF-Token' => $this->csrfToken]);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('fifteen_minutes', $this->decode($response)['cron_interval']);
+
+        $this->assertSame(
+            'fifteen_minutes',
+            $this->db->query('SELECT cron_interval FROM mail_config WHERE id = 1')->fetchColumn()
+        );
+    }
+
+    public function test_patch_stores_the_run_budget(): void
+    {
+        $response = $this->request('PATCH', '/api/admin/mail-config', [
+            'drain_budget_seconds' => 20,
+        ], headers: ['X-CSRF-Token' => $this->csrfToken]);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(20, $this->decode($response)['drain_budget_seconds']);
+        $this->assertSame(
+            20,
+            (int) $this->db->query('SELECT drain_budget_seconds FROM mail_config WHERE id = 1')->fetchColumn()
+        );
+    }
+
+    /**
+     * Bounded exactly the way the batch size beside it is, and for a sharper
+     * reason: a budget above the trigger's own timeout is a run that gets
+     * *killed* rather than one that stops, and a killed run's rows come back
+     * after the stale window to be sent a second time.
+     */
+    public function test_patch_rejects_a_run_budget_outside_its_bounds(): void
+    {
+        foreach ([0, 5, 600, '600'] as $seconds) {
+            $response = $this->request('PATCH', '/api/admin/mail-config', [
+                'drain_budget_seconds' => $seconds,
+            ], headers: ['X-CSRF-Token' => $this->csrfToken]);
+
+            $this->assertSame(422, $response->getStatusCode(), "budget {$seconds} should have been refused");
+            $this->assertArrayHasKey('drain_budget_seconds', $this->decode($response)['messages']);
+        }
     }
 
     public function test_requires_a_session(): void

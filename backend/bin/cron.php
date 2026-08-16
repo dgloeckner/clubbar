@@ -116,10 +116,14 @@ for ($i = 1; $i < $argc; $i++) {
         $quiet = true;
     } elseif ($arg === '--help' || $arg === '-h') {
         echo "Usage: php bin/cron.php [--batch <n>] [--budget <seconds>] [--period <key>] [--quiet]\n\n";
-        echo "  --batch <n>         Messages claimed per round (default "
-            . DrainService::DEFAULT_BATCH_SIZE . ")\n";
-        echo "  --budget <seconds>  Wall-clock budget for the run (default "
-            . DrainService::DEFAULT_BUDGET_SECONDS . ")\n";
+        // Both defaults are stated as "Settings → Mail" rather than as a
+        // number: their normal home is `mail_config`, so printing the
+        // compiled-in floor here would name a value this installation is
+        // probably not using.
+        echo "  --batch <n>         Messages claimed per round (default: Settings -> Mail,\n";
+        echo "                      falling back to " . DrainService::DEFAULT_BATCH_SIZE . ")\n";
+        echo "  --budget <seconds>  Wall-clock budget for the run (default: Settings -> Mail,\n";
+        echo "                      falling back to " . DrainService::DEFAULT_BUDGET_SECONDS . ")\n";
         echo "  --period <key>      Name the statement period explicitly (2026-08, 2026-Q3)\n";
         echo "                      instead of deriving it from today. Safe to repeat: a\n";
         echo "                      period already queued is a no-op, and a period that has\n";

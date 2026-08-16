@@ -65,6 +65,10 @@ in ticks of this interval, not in wall-clock minutes — the drain
 cannot act between ticks, so a backoff finer than the schedule
 describes a machine that does not exist.
 
+`fifteen_minutes` is what `bin/cron.php` recommends and what an
+external HTTP scheduler can actually deliver; a hosting panel's cron
+wizard usually cannot, which is why the coarser values exist.
+
 `weekly` is refused with 422: an announcement queued shortly after a
 weekly run leaves up to seven days later and would land on the
 collection date, taking the Nutzungsordnung § 7 Abs. 3 distance to
@@ -75,6 +79,7 @@ export type MailConfigCronInterval = typeof MailConfigCronInterval[keyof typeof 
 
 
 export const MailConfigCronInterval = {
+  fifteen_minutes: 'fifteen_minutes',
   hourly: 'hourly',
   daily: 'daily',
 } as const;

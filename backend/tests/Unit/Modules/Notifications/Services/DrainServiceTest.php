@@ -279,6 +279,57 @@ class DrainServiceTest extends TestCase
         $this->assertSame(['b', 'c'], $released);
     }
 
+    /**
+     * The budget's normal home is `mail_config` (#473), the same three layers as
+     * the batch size beside it: the caller's flag, then the environment pin,
+     * then the club-editable setting.
+     *
+     * The club-editable one is what matters most here, because the person who
+     * has to lower it — their scheduler times out at thirty seconds — is
+     * exactly the person whose hosting panel offers a URL field and no file
+     * editor.
+     */
+    public function test_the_budget_comes_from_the_configuration_when_nothing_overrides_it(): void
+    {
+        $this->claims([$this->row('a'), $this->row('b')], []);
+        $this->slowTransport();
+
+        $released = [];
+        $this->notifications->method('releaseClaim')
+            ->willReturnCallback(function (string $id) use (&$released): void {
+                $released[] = $id;
+            });
+
+        $result = $this->service(mailConfig: $this->configWithBudget(1))->run(DrainSource::CLI);
+
+        $this->assertTrue($result->budgetExhausted);
+        $this->assertSame(1, $result->sent);
+        $this->assertSame(['b'], $released);
+    }
+
+    /**
+     * A host that has to pin the value outside the database still can — and a
+     * caller's own flag still beats that, which is what `--budget` on the
+     * command line is.
+     */
+    public function test_an_environment_pin_beats_the_configuration_and_a_run_flag_beats_both(): void
+    {
+        $this->claims([$this->row('a'), $this->row('b')], [$this->row('c')], []);
+        $this->slowTransport();
+        $this->notifications->method('releaseClaim');
+
+        // Config says 55, the environment pins 1: the run stops after one.
+        $pinned = $this->service(mailConfig: $this->configWithBudget(55), envBudgetSeconds: 1);
+        $this->assertTrue($pinned->run(DrainSource::CLI)->budgetExhausted);
+
+        // Same environment pin, but this run was asked for a longer one.
+        $flagged = $this->service(mailConfig: $this->configWithBudget(1), envBudgetSeconds: 1)
+            ->run(DrainSource::CLI, budgetSeconds: 55);
+
+        $this->assertFalse($flagged->budgetExhausted);
+        $this->assertSame(1, $flagged->sent);
+    }
+
     // -------------------------------------------------------------------
     // The heartbeat
     // -------------------------------------------------------------------
@@ -522,6 +573,7 @@ class DrainServiceTest extends TestCase
     private function config(
         string $senderAddress = 'kasse@example.org',
         int $drainBatchSize = MailConfigDto::DEFAULT_DRAIN_BATCH_SIZE,
+        int $drainBudgetSeconds = MailConfigDto::DEFAULT_DRAIN_BUDGET_SECONDS,
     ): MailConfigDto {
         return new MailConfigDto(
             senderName: 'Beispielverein',
@@ -534,13 +586,16 @@ class DrainServiceTest extends TestCase
             logoUrl: null,
             cronInterval: CronInterval::HOURLY,
             drainBatchSize: $drainBatchSize,
+            drainBudgetSeconds: $drainBudgetSeconds,
         );
     }
 
+    /** @param int|null $envBudgetSeconds The environment-level pin, as ServiceFactory passes it */
     private function service(
         ?MailTransportFactory $transportFactory = null,
         ?MailConfigService $mailConfig = null,
         ?HeartbeatPinger $pinger = null,
+        ?int $envBudgetSeconds = null,
     ): DrainService {
         return new DrainService(
             $this->notifications,
@@ -550,7 +605,31 @@ class DrainServiceTest extends TestCase
             $this->heartbeat,
             $pinger ?? $this->pinger,
             $this->createMock(Logger::class),
+            null,
+            $envBudgetSeconds,
         );
+    }
+
+    /** A config whose only interesting property is its run budget. */
+    private function configWithBudget(int $seconds): MailConfigService&MockObject
+    {
+        $mailConfig = $this->createMock(MailConfigService::class);
+        $mailConfig->method('getConfig')->willReturn($this->config(drainBudgetSeconds: $seconds));
+
+        return $mailConfig;
+    }
+
+    /**
+     * A transport slower than the shortest budget the API allows, so a run that
+     * respects a one-second budget stops after exactly one message.
+     */
+    private function slowTransport(): void
+    {
+        $this->transport->method('send')->willReturnCallback(function (): MailSendResult {
+            usleep(1_050_000);
+            return MailSendResult::sent();
+        });
+        $this->notifications->method('recordResult')->willReturn(MailStatus::SENT);
     }
 
     /**

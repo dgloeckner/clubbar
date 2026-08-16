@@ -57,9 +57,11 @@ class MailConfigController
         // Only a string of digits is normalised: casting anything looser here
         // would turn "2.5" into 2 and walk straight past the `integer` rule
         // that exists to reject it (#117).
-        if (isset($body['drain_batch_size']) && is_string($body['drain_batch_size'])
-            && preg_match('/^\d+$/', trim($body['drain_batch_size'])) === 1) {
-            $body['drain_batch_size'] = (int) trim($body['drain_batch_size']);
+        foreach (['drain_batch_size', 'drain_budget_seconds'] as $numeric) {
+            if (isset($body[$numeric]) && is_string($body[$numeric])
+                && preg_match('/^\d+$/', trim($body[$numeric])) === 1) {
+                $body[$numeric] = (int) trim($body[$numeric]);
+            }
         }
 
         $rules = [
@@ -73,6 +75,11 @@ class MailConfigController
             'logo_url' => ['nullable', 'string', 'max:255'],
             'cron_interval' => ['in:' . implode(',', array_column(CronInterval::cases(), 'value'))],
             'drain_batch_size' => ['integer', 'min:1', 'max:' . MailConfigDto::MAX_DRAIN_BATCH_SIZE],
+            'drain_budget_seconds' => [
+                'integer',
+                'min:' . MailConfigDto::MIN_DRAIN_BUDGET_SECONDS,
+                'max:' . MailConfigDto::MAX_DRAIN_BUDGET_SECONDS,
+            ],
             'statement_cadence' => ['in:' . implode(',', array_column(StatementCadence::cases(), 'value'))],
         ];
 
