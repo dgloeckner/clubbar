@@ -65,6 +65,8 @@ Each ADR follows this structure:
 | [0038](./0038-transactional-mail-outbox-on-shared-hosting.md) | Transactional Mail Outbox on Shared Hosting | Accepted (amended by 0039: time-triggered enqueue, rule 5's justification, the stall threshold, per-kind retention) | 2026-08-14 |
 | [0039](./0039-periodic-deckel-statement.md) | The Periodic Deckelauszug | Accepted | 2026-08-15 |
 | [0040](./0040-remove-mandate-scan-extraction.md) | Remove Mandate Scan Extraction | Accepted | 2026-08-15 |
+| [0041](./0041-terminal-credential-anomaly-detection.md) | Terminal Credential Anomaly Detection | Accepted | 2026-08-15 |
+| [0042](./0042-colour-semantics-for-monetary-values.md) | Colour Semantics for Monetary Values | Accepted | 2026-08-16 |
 
 ## Creating a New ADR
 

@@ -715,6 +715,31 @@ all-or-nothing gate that would fail on every not-yet-migrated page. If a color
 you need doesn't have a token yet, add it to `theme.colors` (or `tableColors`
 for table-specific colors) instead of typing the hex literal in the page.
 
+### Colouring a monetary value (ADR-0042)
+
+Never pick a colour for an amount at the call site. `src/utils/transactions.ts`
+encodes the rule once, and it is the same rule the terminal implements in
+`design_tokens.dart` — the two apps drifted apart three times (#28, #93, #376)
+precisely because pages decided this for themselves:
+
+| You are rendering | Use | Result |
+|---|---|---|
+| a member's balance (Deckel) | `getBalanceColor(cents)` | credit green, settled/small tab neutral, tab above `MONEY_WARN_ABOVE_CENTS` amber |
+| a single transaction amount | `getTransactionAmountColor(cents)` | credit green, charge neutral |
+
+**A charge is never red.** An everyday booking is not an error, and
+`theme.colors.semantic.danger` has to keep meaning "something is wrong" for the
+alerts sitting on the same screen. The minus sign — which `formatPrice` renders
+via `Intl.NumberFormat`, never prepended by hand — is what carries the meaning;
+colour only reinforces it, so nothing may be legible by colour alone.
+
+A page may render an amount *more* muted than the helper returns when a list
+needs settled rows to recede (`MembersPage` greys a zero balance for that
+reason). That local refinement belongs at the call site. Anything that colours
+by a *state* rather than by the sign — past the credit limit, held vs.
+no-mandate balances, transaction-type badges — is outside the rule and keeps
+its own colours; see ADR-0042's scope section.
+
 ### `rgba()` tints, borders, and overlays are the same problem (#289)
 
 The hex rule above doesn't match `rgba(...)` literals, so those drifted the

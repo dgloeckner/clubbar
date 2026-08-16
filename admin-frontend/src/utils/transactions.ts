@@ -25,8 +25,41 @@ export function getTransactionTypeColor(
   return colors[type] ?? { bg: 'rgba(107, 114, 128, 0.1)', text: theme.colors.text.muted }
 }
 
-export function getAmountColor(amountCents: number): string {
-  if (amountCents > 0) return theme.colors.semantic.danger
-  if (amountCents < 0) return theme.colors.semantic.success
-  return theme.colors.text.secondary
+/**
+ * Open tabs above this amount are shown in the warning colour.
+ *
+ * Mirrors `AppMoney.warnAboveCents` in
+ * `terminal-frontend/lib/utils/design_tokens.dart`. Deliberately *not* the
+ * credit limit: this is a reading cue ("that tab is getting substantial"),
+ * while the credit limit decides what a member may still buy and is surfaced
+ * by the dashboard's near-limit widget.
+ */
+export const MONEY_WARN_ABOVE_CENTS = 2000 // €20.00
+
+/**
+ * Colour for a *balance* (the Deckel) — members table and member cards.
+ *
+ * Mirrors `balanceColor()` in the terminal's `design_tokens.dart`. See
+ * ADR-0042 for the cross-app rule and the sign convention it rests on.
+ *
+ * Note for git archaeology: a `getBalanceColor` existed here before and was
+ * deleted in 26b4ea3 (#455) because it mapped the sign to a colour exactly
+ * backwards. The name is the right one; this is the corrected polarity.
+ */
+export function getBalanceColor(balanceCents: number): string {
+  if (balanceCents < 0) return theme.colors.semantic.success // credit
+  if (balanceCents > MONEY_WARN_ABOVE_CENTS) return theme.colors.semantic.warning
+  return theme.colors.text.primary // settled account or small open tab
+}
+
+/**
+ * Colour for a single *transaction amount* in a booking list — the dashboard's
+ * recent bookings and the journal.
+ *
+ * Mirrors `transactionAmountColor()` in the terminal's `design_tokens.dart`:
+ * only money in the member's favour is green. A charge is neutral — it is not
+ * an error, so it is neither red nor amber. See ADR-0042.
+ */
+export function getTransactionAmountColor(amountCents: number): string {
+  return amountCents < 0 ? theme.colors.semantic.success : theme.colors.text.primary
 }

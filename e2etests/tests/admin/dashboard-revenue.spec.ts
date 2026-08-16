@@ -66,9 +66,10 @@ test.describe('Dashboard revenue and terminal name', () => {
     expect(mtdAfter).toBeGreaterThanOrEqual(mtdBefore + amountCents)
   })
 
-  test('shows the terminal name on a recent transaction row', async ({ page }) => {
+  test('shows the terminal name on a recent transaction row, and colours amounts per ADR-0042', async ({ page }) => {
     const mockTerminalName = 'Mock Bar Terminal'
     const mockTxId = '11111111-1111-4111-8111-111111111111'
+    const mockStornoId = '33333333-3333-4333-8333-333333333333'
 
     await page.route('**/api/admin/dashboard', async (route) => {
       await route.fulfill({
@@ -98,6 +99,16 @@ test.describe('Dashboard revenue and terminal name', () => {
               product_name: 'Mock Product',
               timestamp: new Date().toISOString(),
             },
+            {
+              id: mockStornoId,
+              member_id: '22222222-2222-4222-8222-222222222222',
+              member_name: 'Mock Member',
+              terminal_name: mockTerminalName,
+              type: 'storno',
+              amount_cents: -500,
+              product_name: 'Mock Product',
+              timestamp: new Date().toISOString(),
+            },
           ],
           terminal_status: [],
           system_status: {
@@ -120,5 +131,13 @@ test.describe('Dashboard revenue and terminal name', () => {
     const row = page.getByTestId(`dashboard-transaction-${mockTxId}`)
     await expect(row).toBeVisible()
     await expect(row).toContainText(mockTerminalName)
+
+    // ADR-0042: an everyday purchase is not an error, so it is not red — it
+    // stays in the primary text colour, and only money in the member's favour
+    // is green. Pinned here and not just in the unit test because this is the
+    // rule that has drifted three times (#28, #93, #376) and what the reader
+    // actually sees is the rendered colour.
+    await dashboardPage.expectTransactionAmountNeutral(mockTxId)
+    await dashboardPage.expectTransactionAmountCredit(mockStornoId)
   })
 })

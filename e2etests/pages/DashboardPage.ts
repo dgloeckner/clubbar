@@ -13,6 +13,8 @@ export class DashboardPage extends BasePage {
   private readonly noMembersNearLimit = () => this.page.getByTestId('dashboard-no-members-near-limit')
   private readonly memberNearLimit = (memberId: string) =>
     this.page.getByTestId(`dashboard-member-near-limit-${memberId}`)
+  private readonly transactionAmount = (transactionId: string) =>
+    this.page.getByTestId(`dashboard-transaction-amount-${transactionId}`)
   private readonly loadingIndicator = () => this.page.getByTestId('dashboard-loading')
   private readonly staleWarning = () => this.page.getByTestId('dashboard-stale-warning')
 
@@ -110,8 +112,29 @@ export class DashboardPage extends BasePage {
     ).trim()
   }
 
+  /**
+   * ADR-0042: an everyday charge is not an error, so it is never red — it stays
+   * in the primary text colour `theme.colors.text.primary` (#f1f5f9).
+   */
+  async expectTransactionAmountNeutral(transactionId: string) {
+    await expect(this.transactionAmount(transactionId)).toHaveCSS('color', 'rgb(241, 245, 249)')
+  }
+
+  /**
+   * ADR-0042: green is reserved for money in the member's favour — a storno or
+   * a refund — `theme.colors.semantic.success` (#22c55e).
+   */
+  async expectTransactionAmountCredit(transactionId: string) {
+    await expect(this.transactionAmount(transactionId)).toHaveCSS('color', 'rgb(34, 197, 94)')
+  }
+
   async getTransactionCount(): Promise<number> {
-    return this.page.locator('[data-testid^="dashboard-transaction-"]').count()
+    // The rows are counted by prefix, and elements *inside* a row share that
+    // prefix (`dashboard-transaction-amount-{id}`), so they have to be excluded
+    // or every row counts twice — the same trap the stat-card count avoids.
+    return this.page
+      .locator('[data-testid^="dashboard-transaction-"]:not([data-testid^="dashboard-transaction-amount-"])')
+      .count()
   }
 
   async getTerminalCount(): Promise<number> {
