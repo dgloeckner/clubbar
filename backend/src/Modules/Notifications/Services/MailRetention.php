@@ -86,6 +86,13 @@ final class MailRetention
             MailKind::KEY_EXPIRY_WARNING,
             MailKind::TERMINAL_TOKEN_EXPIRY_WARNING,
             MailKind::TERMINAL_ANOMALY_WARNING,
+            // The issuance notice (ADR-0043) keeps the default for the same
+            // reason: what the row holds past delivery is an address, and the
+            // durable record of the minting it announces is the
+            // `terminal_token_created` / `_rotated` audit entry, which this
+            // never touches. Ninety days outlasts any window in which an admin
+            // is still asking whether they were told about a credential.
+            MailKind::TERMINAL_TOKEN_ISSUED,
             // The security notice to a former address (#469) keeps the default
             // for the same reason the operational warnings do: what it holds is
             // an address, and the durable record of the change it announces is

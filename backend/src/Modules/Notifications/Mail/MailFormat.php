@@ -63,6 +63,32 @@ final class MailFormat
     }
 
     /**
+     * The same, to the minute: `21.08.2026, 14:05` / `21 August 2026, 14:05`.
+     *
+     * A date alone is enough for a deadline — nobody schedules a key rotation
+     * to the minute — and not enough for something that *happened*. ADR-0043's
+     * issuance notice is read as "was that me?", and "21.08.2026" cannot be
+     * matched against a memory of pressing a button after lunch while
+     * "21.08.2026, 14:05" can.
+     *
+     * The clock is the server's, like every other timestamp the club sees.
+     */
+    public static function dateTime(?string $moment, MailLanguage $language): string
+    {
+        $formatted = self::date($moment, $language);
+        if ($formatted === '') {
+            return '';
+        }
+
+        $timestamp = strtotime((string) $moment);
+        if ($timestamp === false) {
+            return $formatted;
+        }
+
+        return $formatted . ', ' . date('H:i', $timestamp);
+    }
+
+    /**
      * The member's account as the announcement may name it: the last four
      * characters and nothing else.
      *

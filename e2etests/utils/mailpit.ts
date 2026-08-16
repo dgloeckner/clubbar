@@ -131,6 +131,52 @@ export class MailpitClient {
   }
 
   /**
+   * The same wait, narrowed to the messages whose subject contains `fragment`.
+   *
+   * Needed because an admin mailbox holds more than one *class* of message.
+   * Since ADR-0043 every terminal enrolment and rotation queues a notice to
+   * every active admin, so a file asserting on expiry warnings can no longer
+   * claim the whole mailbox — and the terminal it stands up to produce an
+   * expiry warning is itself an issuance.
+   *
+   * The counting rule survives the narrowing: `toBe` within the matched set, so
+   * a duplicate of the class under test still fails the wait rather than
+   * satisfying it early. What it gives up is duplicates of *other* classes,
+   * which is the correct trade — those belong to the file that asserts them.
+   *
+   * Filtered on the summaries rather than through Mailpit's `subject:` search,
+   * because the subjects worth matching contain typographic quotes and umlauts
+   * and the search syntax is one more thing that would have to be escaped
+   * correctly for a test to be honest.
+   */
+  async waitForMessagesAbout(
+    recipient: string,
+    fragment: string,
+    count: number
+  ): Promise<MailpitMessage[]> {
+    const matching = async () =>
+      (await this.messagesTo(recipient)).filter((message) => message.Subject.includes(fragment))
+
+    await expect
+      .poll(async () => (await matching()).length, {
+        timeout: DELIVERY_TIMEOUT_MS,
+        message: `Mailpit should hold exactly ${count} message(s) for ${recipient} about "${fragment}"`,
+      })
+      .toBe(count)
+
+    const oldestFirst = [...(await matching())].reverse()
+
+    return Promise.all(oldestFirst.map((summary) => this.message(summary.ID)))
+  }
+
+  /** Wait for the one message of this class the recipient is expected to have. */
+  async waitForMessageAbout(recipient: string, fragment: string): Promise<MailpitMessage> {
+    const [message] = await this.waitForMessagesAbout(recipient, fragment, 1)
+
+    return message
+  }
+
+  /**
    * Make this server refuse every recipient with `code`, run `body`, and put
    * it back however that goes.
    *

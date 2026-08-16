@@ -8,7 +8,7 @@ use App\Modules\Notifications\DTOs\EnqueueResultDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Services\CredentialExpiryNotifier;
 use App\Modules\Notifications\Services\MailConfigService;
-use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Shared\Logging\Logger;
@@ -28,7 +28,7 @@ class CredentialExpiryNotifierTest extends TestCase
     private \DateTimeImmutable $now;
     private EncryptionKeysRepository $keys;
     private TerminalsRepository $terminals;
-    private NotificationsService $notifications;
+    private AdminNotifier $notifications;
     private MailConfigService $mailConfig;
 
     /** @var list<array{kind: MailKind, subject_id: string, occasion: string}> */
@@ -44,7 +44,7 @@ class CredentialExpiryNotifierTest extends TestCase
         $this->terminals = $this->createMock(TerminalsRepository::class);
         $this->terminals->method('findAll')->willReturn([]);
 
-        $this->notifications = $this->createMock(NotificationsService::class);
+        $this->notifications = $this->createMock(AdminNotifier::class);
 
         $this->mailConfig = $this->createMock(MailConfigService::class);
         $this->mailConfig->method('canSend')->willReturn(true);

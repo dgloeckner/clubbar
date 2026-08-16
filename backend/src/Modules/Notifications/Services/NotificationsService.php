@@ -554,90 +554,22 @@ class NotificationsService
 
     /* ──────────────── Operational mail, addressed to an admin ──────────────── */
 
-    /**
-     * Warn whoever runs the club about something, at most once per occasion
-     * (#438).
+    /*
+     * `warnAdmins()` used to live here and now lives in {@see AdminNotifier}.
      *
-     * The occasion is the point. An expiry warning is computed from a tier the
-     * dashboard already recalculates on every request, so "is the key inside
-     * the 30-day window?" is true for thirty days running — and a queue that
-     * took that at face value would send thirty emails. Passing the tier as the
-     * occasion makes `UNIQUE (kind, subject_id, dedup_key)` answer "has this
-     * already been said?" for us, which is the idempotent-notification storage
-     * #438 says it needs, and a stronger answer than the `logOnceSince` dedup
-     * it names as the nearest precedent: that one is a time window, this one is
-     * a constraint.
+     * The split is about dependencies rather than size. This service needs
+     * `MembersRepository` for the money mail, which reaches the IBAN sealed box
+     * and its required key — so a caller that only wanted to tell the admins
+     * something had to satisfy the bank-details configuration first. ADR-0043's
+     * issuance notice is the first such caller, and it surfaced as a terminal
+     * service that could not be constructed in a run with no bank details
+     * anywhere near it.
      *
-     * Every active admin is written to, and each is deduplicated separately —
-     * one admin having already been warned must not silence the others.
-     *
-     * The caller supplies the tier and nothing else about timing. This service
-     * queues; it does not decide when anything is due, and it never sends
-     * (ADR-0038 rule 3: the scheduler is the only sender).
-     *
-     * @param string $occasion What makes this warning distinct from the next one
-     *                         about the same subject — a tier such as `30d`.
+     * Deliberately not left behind as a forwarding method. A shim that only
+     * exists so old call sites keep compiling is how "NotificationsService warns
+     * admins" stays true in everyone's head long after it stopped being where
+     * the behaviour lives.
      */
-    public function warnAdmins(
-        MailKind $kind,
-        string $subjectId,
-        string $occasion,
-        ?string $actorAdminUserId = null,
-    ): EnqueueResultDto {
-        if ($kind->addressesMember()) {
-            // A member has no way to act on an expiring credential, and telling
-            // them one is expiring leaks the state of the club's own security.
-            throw new \InvalidArgumentException(
-                sprintf('%s is addressed to a member and cannot be sent to admins', $kind->value)
-            );
-        }
-
-        $queued = 0;
-        $alreadyQueued = 0;
-        $withoutEmail = [];
-
-        foreach ($this->adminUsersRepository->findActiveRecipients() as $admin) {
-            $email = trim((string) ($admin['email'] ?? ''));
-            if ($email === '') {
-                $withoutEmail[] = (string) $admin['id'];
-                continue;
-            }
-
-            if ($this->mailOutboxRepository->enqueue(MailRequestDto::forAdmin(
-                kind: $kind,
-                subjectId: $subjectId,
-                adminUserId: (string) $admin['id'],
-                recipient: $email,
-                language: MailLanguage::fromPreferred($admin['locale'] ?? null),
-                occasion: $occasion,
-            ))) {
-                $queued++;
-            } else {
-                // The unique index refused it: this admin has already been told
-                // about this occasion. Counted rather than ignored, because a
-                // repeating caller (#438) needs "already said" and "nothing to
-                // say" to be distinguishable — both are zero queued.
-                $alreadyQueued++;
-            }
-        }
-
-        $result = new EnqueueResultDto($queued, $withoutEmail, alreadyQueued: $alreadyQueued);
-
-        // Audited only when something was actually queued: this runs off a
-        // request-time check that fires on every admin page load, and an audit
-        // entry per page load would bury the one that matters.
-        if ($queued > 0) {
-            $this->auditService->log(
-                action: AuditAction::MAIL_ENQUEUED,
-                entityType: $kind->subjectType()->auditEntityType(),
-                entityId: $subjectId,
-                newValues: ['kind' => $kind->value, 'occasion' => $occasion] + $result->toArray(),
-                adminUserId: $actorAdminUserId,
-            );
-        }
-
-        return $result;
-    }
 
     /**
      * Tell an address that it is no longer the login for the account it used

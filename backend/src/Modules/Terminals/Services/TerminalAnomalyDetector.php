@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Terminals\Services;
 
 use App\Modules\Notifications\Enums\MailKind;
-use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Terminals\DTOs\AnomalyScanResultDto;
 use App\Modules\Terminals\Enums\TerminalAnomalyKind;
 use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
@@ -60,7 +60,7 @@ class TerminalAnomalyDetector
         private TerminalIpSightingsRepository $sightings,
         private TerminalSyncCursorsRepository $cursors,
         private TerminalAnomaliesRepository $anomalies,
-        private NotificationsService $notificationsService,
+        private AdminNotifier $adminNotifier,
         private AuditService $auditService,
         private Logger $logger,
         private int $lookbackMinutes = self::DEFAULT_LOOKBACK_MINUTES,
@@ -279,7 +279,7 @@ class TerminalAnomalyDetector
     private function mail(string $terminalId, TerminalAnomalyKind $kind, string $anomalyId): int
     {
         try {
-            $result = $this->notificationsService->warnAdmins(
+            $result = $this->adminNotifier->warnAdmins(
                 MailKind::TERMINAL_ANOMALY_WARNING,
                 $terminalId,
                 $kind->value . ':' . substr($anomalyId, 0, 8),

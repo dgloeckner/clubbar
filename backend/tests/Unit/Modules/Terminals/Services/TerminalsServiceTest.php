@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Terminals\Services;
 
+use App\Modules\Notifications\DTOs\EnqueueResultDto;
+use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Terminals\Services\TerminalsService;
@@ -12,6 +15,7 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\DuplicateResourceException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
@@ -28,6 +32,7 @@ class TerminalsServiceTest extends TestCase
     private TerminalsRepository $terminalsRepository;
     private AuditService $auditService;
     private TerminalAnomaliesRepository $anomaliesRepository;
+    private AdminNotifier $adminNotifier;
     private TerminalsService $terminalsService;
 
     protected function setUp(): void
@@ -37,11 +42,15 @@ class TerminalsServiceTest extends TestCase
         $this->terminalsRepository = $this->createMock(TerminalsRepository::class);
         $this->auditService = $this->createMock(AuditService::class);
         $this->anomaliesRepository = $this->createMock(TerminalAnomaliesRepository::class);
+        $this->adminNotifier = $this->createMock(AdminNotifier::class);
+        $this->adminNotifier->method('warnAdmins')->willReturn(new EnqueueResultDto(1, []));
         $this->terminalsService = new TerminalsService(
             $this->terminalsRepository,
             $this->auditService,
             new AppConfig(),
             $this->anomaliesRepository,
+            $this->adminNotifier,
+            $this->createMock(Logger::class),
         );
     }
 
@@ -183,6 +192,93 @@ class TerminalsServiceTest extends TestCase
      * Revoking clears the lifetime along with the hash: nothing is left for a
      * later NOW() to compare against, so the row cannot come back to life.
      */
+    /**
+     * ADR-0043: minting announces itself.
+     *
+     * The subject is the terminal and the occasion names the event and the
+     * generation — `enrolled:<token_issued_at>` — which is what makes a later
+     * rotation of the same terminal a second message rather than one the
+     * outbox's unique index swallows.
+     */
+    public function test_createTerminal_announces_the_issuance_to_every_active_admin(): void
+    {
+        $this->terminalsRepository->method('findByDeviceId')->willReturn(null);
+        $this->terminalsRepository->method('create')->willReturn($this->terminalRow());
+
+        $this->adminNotifier->expects($this->once())
+            ->method('warnAdmins')
+            ->with(
+                MailKind::TERMINAL_TOKEN_ISSUED,
+                'terminal-uuid',
+                'enrolled:20260809090000',
+                'admin-7',
+            )
+            ->willReturn(new EnqueueResultDto(2, []));
+
+        $this->terminalsService->createTerminal('Bar Terminal', 'BAR-MAIN-001', 'admin-7');
+    }
+
+    /**
+     * A rotation announces the *pending* generation, not the one still in the
+     * field: the message is about the credential that was just created, and the
+     * old one keeps working until the terminal presents its replacement (#395).
+     */
+    public function test_rotateToken_announces_the_generation_it_staged(): void
+    {
+        $this->terminalsRepository->method('issuePendingToken')->willReturn($this->terminalRow([
+            'pending_token_issued_at' => '2026-08-16 14:23:17',
+            'pending_token_expires_at' => '2027-08-16 14:23:17',
+        ]));
+
+        $this->adminNotifier->expects($this->once())
+            ->method('warnAdmins')
+            ->with(
+                MailKind::TERMINAL_TOKEN_ISSUED,
+                'terminal-uuid',
+                'rotated:20260816142317',
+                'admin-7',
+            )
+            ->willReturn(new EnqueueResultDto(2, []));
+
+        $this->terminalsService->rotateToken('terminal-uuid', 'admin-7');
+    }
+
+    /**
+     * Never a gate (ADR-0043). Rotation is the fix for a till that cannot sell,
+     * so a queue that is unavailable must not turn the recovery path into a
+     * second outage. The credential is already minted and already audited by the
+     * time this runs; losing the announcement is strictly better than losing the
+     * terminal.
+     */
+    public function test_a_queue_failure_does_not_cost_the_caller_its_token(): void
+    {
+        $this->terminalsRepository->method('issuePendingToken')->willReturn($this->terminalRow([
+            'pending_token_issued_at' => '2026-08-16 14:23:17',
+        ]));
+
+        $this->adminNotifier->method('warnAdmins')
+            ->willThrowException(new \RuntimeException('outbox unavailable'));
+
+        $result = $this->terminalsService->rotateToken('terminal-uuid', 'admin-7');
+
+        $this->assertSame(64, strlen($result['plaintext_token']));
+    }
+
+    /**
+     * An unknown terminal never reaches the announcement: `rotateToken()` throws
+     * on the missing row, so there is no terminal to be announced about and no
+     * message queued against an id that points at nothing.
+     */
+    public function test_a_rotation_that_finds_no_terminal_announces_nothing(): void
+    {
+        $this->terminalsRepository->method('issuePendingToken')->willReturn(null);
+        $this->adminNotifier->expects($this->never())->method('warnAdmins');
+
+        $this->expectException(NotFoundException::class);
+
+        $this->terminalsService->rotateToken('missing-uuid', 'admin-7');
+    }
+
     public function test_revokeAccess_clears_the_token_lifetime_with_the_hash(): void
     {
         $this->terminalsRepository->expects($this->once())

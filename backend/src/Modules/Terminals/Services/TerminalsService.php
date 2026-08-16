@@ -9,8 +9,12 @@ use App\Modules\Terminals\DTOs\TerminalWithTokenDto;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Services\AdminNotifier;
+use App\Modules\Notifications\Services\TerminalTokenIssuedMailBuilder;
 use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
+use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\DuplicateResourceException;
@@ -24,6 +28,8 @@ class TerminalsService
         private AuditService $auditService,
         private AppConfig $config,
         private TerminalAnomaliesRepository $anomaliesRepository,
+        private AdminNotifier $adminNotifier,
+        private Logger $logger,
     ) {}
 
     public function listTerminals(int $limit, int $offset, ?bool $isActive = null): PaginatedResultDto
@@ -96,6 +102,13 @@ class TerminalsService
                 'token_expires_at' => $terminal['token_expires_at'],
             ],
             adminUserId: $adminUserId,
+        );
+
+        $this->announceIssuance(
+            $terminal,
+            TerminalTokenIssuedMailBuilder::EVENT_ENROLLED,
+            $terminal['token_issued_at'] ?? null,
+            $adminUserId,
         );
 
         return [
@@ -176,10 +189,68 @@ class TerminalsService
             adminUserId: $adminUserId,
         );
 
+        $this->announceIssuance(
+            $terminal,
+            TerminalTokenIssuedMailBuilder::EVENT_ROTATED,
+            $terminal['pending_token_issued_at'] ?? null,
+            $adminUserId,
+        );
+
         return [
             'terminal' => TerminalWithTokenDto::fromRowWithToken($terminal, $plainToken),
             'plaintext_token' => $plainToken,
         ];
+    }
+
+    /**
+     * Tell every active admin that a credential was just minted (ADR-0043).
+     *
+     * The mint path is the hardest-gated write in the admin API — own password,
+     * own fresh TOTP, rate limited — and until this it was also the only
+     * credential event that created a secret and told nobody. The audit entry
+     * above is *pull*: somebody has to decide to go and look.
+     *
+     * Written to every active admin including the actor, because the property
+     * this buys is being **out of band** with respect to the credential that
+     * would have been compromised. Whoever holds one admin's session, password
+     * and TOTP code clears the step-up and mints a token; they do not reach the
+     * other admins' inboxes. The actor's own copy is a receipt they can ignore —
+     * and the reason they will recognise the one that matters.
+     *
+     * **Never a gate.** ADR-0043 makes this best effort on purpose: rotation is
+     * the fix for a till that cannot sell, so a mint that failed because the
+     * queue was unavailable would put an outage on the recovery path. Anything
+     * thrown here is swallowed after the credential already exists — the
+     * issuance is committed and audited, and losing the announcement is strictly
+     * better than losing the terminal.
+     *
+     * @param array<string,mixed> $terminal
+     * @param string|null $issuedAt The stamp of *this* generation: `token_issued_at`
+     *                              for an enrolment, `pending_token_issued_at` for a
+     *                              rotation. It is what makes a second rotation of one
+     *                              terminal a second message rather than one the
+     *                              outbox's unique index swallows.
+     */
+    private function announceIssuance(
+        array $terminal,
+        string $event,
+        ?string $issuedAt,
+        ?string $adminUserId,
+    ): void {
+        try {
+            $this->adminNotifier->warnAdmins(
+                kind: MailKind::TERMINAL_TOKEN_ISSUED,
+                subjectId: (string) $terminal['id'],
+                occasion: TerminalTokenIssuedMailBuilder::occasion($event, $issuedAt),
+                actorAdminUserId: $adminUserId,
+            );
+        } catch (\Throwable $e) {
+            $this->logger->error('Could not queue the terminal credential issuance notice', [
+                'terminal_id' => (string) $terminal['id'],
+                'event' => $event,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function revokeAccess(string $terminalId, ?string $adminUserId = null): void

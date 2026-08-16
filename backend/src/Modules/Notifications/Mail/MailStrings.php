@@ -237,6 +237,44 @@ final class MailStrings
             'credential_expiry.no_secret' => 'Diese Nachricht enthält bewusst keinerlei Schlüssel- oder '
                                            . 'Zugangsdaten — nur, worum es geht und bis wann.',
 
+            // ── Terminal-Zugang ausgestellt (ADR-0043) ──────────────────────
+            'terminal_token_issued.subject.enrolled' => 'Neues Terminal „{name}“ eingerichtet',
+            'terminal_token_issued.subject.rotated'  => 'Neuer Zugang für Terminal „{name}“ ausgestellt',
+            'terminal_token_issued.preheader' => '{name} · {moment} — falls das nicht wir waren, bitte sperren.',
+            'terminal_token_issued.eyebrow'   => 'Sicherheitshinweis',
+            'terminal_token_issued.title'     => 'Ein Terminal-Zugang wurde ausgestellt',
+            'terminal_token_issued.lede.enrolled' => 'am {moment} wurde das Terminal <strong>{name}</strong> '
+                                           . 'eingerichtet und hat einen eigenen Zugang bekommen. Damit kann es '
+                                           . 'die Mitgliederliste abrufen und Buchungen anlegen.',
+            'terminal_token_issued.lede_text.enrolled' => 'am {moment} wurde das Terminal {name} eingerichtet und '
+                                           . 'hat einen eigenen Zugang bekommen. Damit kann es die Mitgliederliste '
+                                           . 'abrufen und Buchungen anlegen.',
+            'terminal_token_issued.lede.rotated' => 'am {moment} wurde für das Terminal <strong>{name}</strong> ein '
+                                           . 'neuer Zugang ausgestellt. Der bisherige funktioniert weiter, bis der '
+                                           . 'neue am Terminal zum ersten Mal verwendet wird.',
+            'terminal_token_issued.lede_text.rotated' => 'am {moment} wurde für das Terminal {name} ein neuer Zugang '
+                                           . 'ausgestellt. Der bisherige funktioniert weiter, bis der neue am '
+                                           . 'Terminal zum ersten Mal verwendet wird.',
+            'terminal_token_issued.label_terminal' => 'Terminal',
+            'terminal_token_issued.label_device'   => 'Geräte-Kennung',
+            'terminal_token_issued.label_event'    => 'Vorgang',
+            'terminal_token_issued.label_issued'   => 'Ausgestellt am',
+            'terminal_token_issued.label_expires'  => 'Gültig bis',
+            'terminal_token_issued.event.enrolled' => 'Terminal eingerichtet',
+            'terminal_token_issued.event.rotated'  => 'Token rotiert',
+            'terminal_token_issued.action_heading' => 'War das nicht der Verein?',
+            'terminal_token_issued.action' => 'Dann sperre den Zugang sofort: Einstellungen → Terminals → '
+                                           . '„Zugang sperren“. Das Terminal ist danach abgemeldet, und wer das '
+                                           . 'Token hat, kann nichts mehr damit anfangen. Wer den Zugang '
+                                           . 'ausgestellt hat, steht im Protokoll unter Einstellungen → Protokoll.',
+            'terminal_token_issued.why_everyone' => 'Diese Nachricht geht an alle aktiven Administratorinnen und '
+                                           . 'Administratoren — auch an die Person, die den Zugang ausgestellt '
+                                           . 'hat. Genau das ist der Zweck: Wer ein Konto übernommen hat, erreicht '
+                                           . 'die Postfächer der anderen nicht.',
+            'terminal_token_issued.no_secret' => 'Diese Nachricht enthält bewusst keinerlei Zugangsdaten — das '
+                                           . 'Token selbst wird nur einmal im Adminbereich angezeigt und nirgends '
+                                           . 'gespeichert.',
+
             // ── Admin email change ──────────────────────────────────────────
             'email_changed.subject'   => 'Die Anmelde-E-Mail-Adresse Deines Admin-Kontos wurde geändert',
             'email_changed.preheader' => 'Diese Adresse ist nicht mehr die Anmeldeadresse des Kontos.',
@@ -404,6 +442,40 @@ final class MailStrings
                                            . 'first time, so the bar stays online while you walk over.',
             'credential_expiry.no_secret' => 'This message deliberately carries no key or token material — only '
                                            . 'what is expiring and by when.',
+
+            'terminal_token_issued.subject.enrolled' => 'New terminal “{name}” set up',
+            'terminal_token_issued.subject.rotated'  => 'New credential issued for terminal “{name}”',
+            'terminal_token_issued.preheader' => '{name} · {moment} — if this was not us, revoke it.',
+            'terminal_token_issued.eyebrow'   => 'Security notice',
+            'terminal_token_issued.title'     => 'A terminal credential was issued',
+            'terminal_token_issued.lede.enrolled' => 'on {moment} the terminal <strong>{name}</strong> was set up '
+                                           . 'and given its own credential. It can now read the membership list '
+                                           . 'and record sales.',
+            'terminal_token_issued.lede_text.enrolled' => 'on {moment} the terminal {name} was set up and given its '
+                                           . 'own credential. It can now read the membership list and record sales.',
+            'terminal_token_issued.lede.rotated' => 'on {moment} a new credential was issued for terminal '
+                                           . '<strong>{name}</strong>. The current one keeps working until the new '
+                                           . 'one is used at the terminal for the first time.',
+            'terminal_token_issued.lede_text.rotated' => 'on {moment} a new credential was issued for terminal '
+                                           . '{name}. The current one keeps working until the new one is used at '
+                                           . 'the terminal for the first time.',
+            'terminal_token_issued.label_terminal' => 'Terminal',
+            'terminal_token_issued.label_device'   => 'Device ID',
+            'terminal_token_issued.label_event'    => 'Event',
+            'terminal_token_issued.label_issued'   => 'Issued on',
+            'terminal_token_issued.label_expires'  => 'Valid until',
+            'terminal_token_issued.event.enrolled' => 'Terminal set up',
+            'terminal_token_issued.event.rotated'  => 'Token rotated',
+            'terminal_token_issued.action_heading' => 'Was this not the club?',
+            'terminal_token_issued.action' => 'Then revoke it now: Settings → Terminals → “Revoke Access”. The '
+                                           . 'terminal is signed out immediately and whoever holds the token can '
+                                           . 'do nothing with it. Who issued it is recorded under '
+                                           . 'Settings → Audit Log.',
+            'terminal_token_issued.why_everyone' => 'This message goes to every active administrator, including '
+                                           . 'whoever issued the credential. That is the point: somebody who has '
+                                           . 'taken over one account cannot reach the other mailboxes.',
+            'terminal_token_issued.no_secret' => 'This message deliberately carries no credentials — the token '
+                                           . 'itself is shown once in the admin panel and stored nowhere.',
 
             'email_changed.subject'   => 'The sign-in email address for your admin account was changed',
             'email_changed.preheader' => 'This address is no longer the account’s sign-in address.',

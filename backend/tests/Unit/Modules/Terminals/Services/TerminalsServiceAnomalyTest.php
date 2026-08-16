@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Terminals\Services;
 
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Terminals\Services\TerminalsService;
 use App\Shared\Config\AppConfig;
 use App\Shared\Enums\AuditAction;
+use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
@@ -37,6 +39,10 @@ class TerminalsServiceAnomalyTest extends TestCase
             $this->auditService,
             new AppConfig(),
             $this->anomalies,
+            // Nothing in this file mints a credential, so the announcement path
+            // (ADR-0043) is never reached — a bare mock is enough to construct.
+            $this->createMock(AdminNotifier::class),
+            $this->createMock(Logger::class),
         );
     }
 
