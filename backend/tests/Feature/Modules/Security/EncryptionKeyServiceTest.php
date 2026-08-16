@@ -10,7 +10,7 @@ use App\Modules\Security\Repositories\SealedIbanRepository;
 use App\Modules\Security\Services\EncryptionKeyExpiredException;
 use App\Modules\Security\Services\EncryptionKeyService;
 use App\Modules\Security\Services\EncryptionNotConfiguredException;
-use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Security\Services\PrivateKeyMismatchException;
 use App\Shared\Security\IbanSealedBox;
 use App\Shared\Services\AuditService;
@@ -33,7 +33,7 @@ class EncryptionKeyServiceTest extends DatabaseTestCase
             new SealedIbanRepository($this->db),
             new IbanSealedBox(str_repeat('aa', 32), 'test'),
             $this->createMock(AuditService::class),
-            $this->createMock(NotificationsService::class),
+            $this->createMock(AdminNotifier::class),
             $this->logger,
         );
 
