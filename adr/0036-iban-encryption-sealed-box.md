@@ -20,7 +20,7 @@ Three code paths genuinely need the plaintext IBAN: SEPA pain.008 XML generation
 
 ## Decision
 
-**IBANs are encrypted at application level with libsodium sealed boxes (`sodium_crypto_box_seal`). The server stores only the public key and can therefore encrypt but never decrypt. The private key is generated offline, archived by the club outside the hosting environment, and supplied temporarily — behind fresh TOTP step-up re-authentication — only for SEPA export, exceptional full-IBAN display, and key rotation.**
+**IBANs are encrypted at application level with libsodium sealed boxes (`sodium_crypto_box_seal`). The server stores only the public key and can therefore encrypt but never decrypt. The private key is generated offline, archived by the club outside the hosting environment, and supplied temporarily — behind fresh TOTP step-up re-authentication — only for key activation (as proof of possession, see below), SEPA export, exceptional full-IBAN display, and key rotation.**
 
 ### Threat model
 
@@ -75,6 +75,7 @@ States: `PENDING → ACTIVE → RETIRING → RETIRED`, plus `REVOKED` and `COMPR
 | Warnings | ≤ 90 d INFO, ≤ 30 d WARNING, ≤ 7 d CRITICAL — computed at request time (shared hosting has no cron), shown on the dashboard and the Security & Credentials page |
 | Expiry enforcement | Server-side hard block of SEPA export **and** of encrypting new/changed IBANs; key management and rotation remain available |
 | Generation | On a trusted admin machine with the shipped offline generator (`tools/keypair-generator.html`, vendored libsodium.js); the private key never needs to reach the server to register a public key |
+| Activation | Requires the private half of the key being activated, validated by deriving its public key — never by trial decryption — and wiped as soon as it has been compared. A key whose counterpart nobody holds can be registered, but can never become ACTIVE, and therefore never seals an IBAN. See the correction below |
 | Metadata | `encryption_keys` table: identifier, algorithm `SODIUM_CRYPTO_BOX_SEAL`, raw 32-byte public key, SHA-256 fingerprint, status, lifecycle timestamps, creator. The DB never contains a private key |
 | Compromise | Immediate revocation + replacement regardless of remaining lifetime; re-encrypt as soon as practical (stolen ciphertext + stolen old key is not retroactively fixable) |
 
@@ -194,6 +195,68 @@ tier per admin:
 | Content | Which credential, which tier, the deadline, and the remedy named as the admin panel labels it. **No key material, no token, no fingerprint** |
 | Not configured | An installation with no `mail_config` sender does nothing at all — same behaviour as before the feature existed |
 
+#### Correction: registering a public key proved nothing about it
+
+The key lifecycle above described generation as an offline procedure and then
+trusted its result. Registration checked that the submitted value was 32
+base64-encoded bytes, that it was not one of the keypairs published in this
+repository, and that its fingerprint was new. Nothing established that the bytes
+were a public key **at all**, let alone one whose private half the club holds.
+
+That gap is not primarily an attack surface — an attacker who reaches key
+management generates a real keypair and proves possession of it trivially. It is
+a *correctness* gap, and its likely form is a typo. A truncated or mistyped
+public key activated exactly like a generated one, every IBAN written afterwards
+was sealed under something no archived key could open, and nothing said so until
+the next SEPA export refused the treasurer's key — a settlement cycle later,
+against rows that cannot be recovered.
+
+So **activation now demands the private half of the key being activated**, and
+the sequence is register → prove → activate. The proof reuses the check the
+export and rotation already perform: derive the public key from the supplied
+secret and compare fingerprints, never attempt a decryption. The secret is wiped
+once compared; it is a proof, not a decryption capability.
+
+An earlier draft kept the private key off the server entirely by sealing a nonce
+under the submitted public key and asking the admin to return it opened. It was
+dropped for two reasons. Key management is **already** a place private keys are
+supplied — rotation posts the old private key with every batch — so the property
+being defended did not exist. And verifying a sealed box offline would mean
+vendoring a BLAKE2b implementation beside TweetNaCl in `tools/`, since
+`crypto_box_seal` derives its nonce from a hash TweetNaCl does not ship. One
+exposure per key activation, against a monthly one at export through the same
+wipe-in-`finally` path, did not justify a second cryptographic dependency in the
+offline tool.
+
+**This does not prevent a deliberate key swap**, and should not be read as doing
+so. What would is a second admin approving activation; that contradicts the flat
+model this ADR reaffirms under *Deviations*, and remains open.
+
+#### Correction: key lifecycle changes leave by mail
+
+The API surface above governs what leaves the system. It did not consider what
+leaves it about the *keys themselves*, and the answer was nothing. Registering,
+activating and revoking a key are audited — and the audit log is read by whoever
+already suspects something. The dashboard alert speaks only for a key that is
+missing, expiring or expired, so a key activated today with a full cryptoperiod
+ahead of it is silent by construction; and where that banner does speak, it names
+the key by `key_identifier`, which is free text supplied by whoever registered
+it. An administrator who did not perform the action had no way to learn that the
+key sealing every member's bank details had changed.
+
+Mail is the one channel somebody holding an admin session cannot suppress — the
+argument [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md)'s
+former-address notice already makes about a stolen session moving a login
+address. Each of the three transitions queues one message per administrator on
+the existing outbox.
+
+| | |
+|---|---|
+| Content | Which transition, the key identifier, the **full** SHA-256 fingerprint, and when. The fingerprint is the public digest of a public key — safe in a mailbox, and the only value that distinguishes the club's own key from someone else's, which the identifier cannot |
+| Never carried | Key material of either half, ciphertext, IBANs, and any action link — the remedy is to open Settings → Security & Credentials, and a control reachable from an email would route around the step-up that guards key management |
+| The actor | Deliberately absent. The fan-out queues one copy per administrator, so the recipient is the only admin a queued row names; the actor belongs to the audit entry, and this message's job is to send somebody to look |
+| Failure | Best effort and never a gate. It queues rather than sends, and a failure is logged rather than rolling back a key operation that already succeeded |
+
 ## Consequences
 
 ### Positive
@@ -209,6 +272,7 @@ tier per admin:
 - ❌ SEPA export gains a step: the treasurer must supply the private key (step-up + file/paste) on each export.
 - ❌ The treasurer's workstation becomes security-relevant during key operations — documented residual risk.
 - ❌ Rolling back to a pre-encryption release is unsafe: old code would look for a plaintext column that no longer exists, and the values cannot be recovered from the ciphertext without the private key. A DB backup taken before the upgrade, or a SEPA export taken with the key, is the only path back.
+- ❌ Activating a key needs the private half to hand, so the archive has to be reachable at the moment a key is put in force — not only at export. That is the intended cost: it is the same moment at which an unopenable key would otherwise become the one sealing everything.
 - ❌ A fresh install cannot store an IBAN until an admin registers and activates a key. That is inherent — the server never holds a private key, so nothing it generated for itself would be safe to seal with — but it is a real step between installing and entering the first member's bank details, and the installer cannot do it for the club.
 - ❌ Bank-name display depends on write-time resolution; names change only when the mandate is next touched.
 
