@@ -214,12 +214,10 @@ final class RuntimeHardening
      */
     public static function applySecurityHeaders(): void
     {
-        if (headers_sent()) {
-            return;
+        if (!headers_sent()) {
+            header(self::CSP_HEADER);
+            header(self::HSTS_HEADER);
         }
-
-        header(self::CSP_HEADER);
-        header(self::HSTS_HEADER);
     }
 
     /**
