@@ -38,6 +38,19 @@ enum MailSubject: string
     case ADMIN_USER = 'admin_user';
 
     /**
+     * The member themselves (ADR-0039).
+     *
+     * Like {@see ADMIN_USER} above, and unlike the three before it, this names
+     * the person rather than a thing that happened to them: a Deckelauszug is
+     * about the member and nothing else — no settlement, no run, no entity to
+     * point at, and ADR-0039 rejected inventing one. So `subject_id` is the
+     * member id, and unlike the polymorphic cases this one does have a real
+     * column beside it: the row's `member_id` carries the same value, because
+     * that is the column erasure and the delete cascade key on.
+     */
+    case MEMBER = 'member';
+
+    /**
      * What the audit entry for this message hangs off (ADR-0013).
      *
      * An announcement is an event in a settlement's life; a key expiry warning
@@ -52,6 +65,7 @@ enum MailSubject: string
             self::ENCRYPTION_KEY => EntityType::ENCRYPTION_KEY,
             self::TERMINAL => EntityType::TERMINAL,
             self::ADMIN_USER => EntityType::ADMIN_USER,
+            self::MEMBER => EntityType::MEMBER,
         };
     }
 }

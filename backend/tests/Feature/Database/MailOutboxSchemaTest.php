@@ -189,6 +189,61 @@ class MailOutboxSchemaTest extends SchemaTestCase
         );
     }
 
+    /**
+     * The Deckelauszug's whole idempotency story, at the seam that provides it
+     * (ADR-0039 decision 1, #462 step 11.4).
+     *
+     * A statement is the first kind whose `subject_id` is a member and whose
+     * `dedup_key` is a *period*, and that pairing is the only reason a
+     * time-triggered enqueue is safe: the scan does not ask whether it has
+     * already queued August, it inserts and lets the index answer. So the
+     * property worth testing is not that the service checked — it is that the
+     * database refuses, which is what survives two cron ticks racing.
+     */
+    public function test_a_member_gets_one_statement_per_period_and_no_more(): void
+    {
+        $memberId = $this->createMember();
+
+        $august = ['kind' => 'deckel_statement', 'dedup_key' => '2026-08'];
+        $september = ['kind' => 'deckel_statement', 'dedup_key' => '2026-09'];
+
+        $this->insertOutbox($memberId, $memberId, $august);
+        $this->insertOutbox($memberId, $memberId, $september);
+
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE subject_id = ?');
+        $stmt->execute([$memberId]);
+        $this->assertSame(2, (int) $stmt->fetchColumn(), 'two months are two statements');
+
+        $this->assertDatabaseRefuses(
+            fn () => $this->insertOutbox($memberId, $memberId, $august),
+            'a second August statement for the same member is what the unique index exists to refuse — '
+            . 'the scheduled scan reruns every tick and relies on exactly this'
+        );
+    }
+
+    /**
+     * A settlement and a statement can name the same id without colliding.
+     *
+     * `subject_id` is polymorphic and carries no foreign key, so nothing but
+     * `kind` distinguishes "the settlement with this id" from "the member with
+     * this id". They are different uuids in practice; the index has to be right
+     * regardless, because the alternative failure is a member's statement
+     * displacing somebody's announcement.
+     */
+    public function test_the_kind_keeps_a_statement_and_an_announcement_apart(): void
+    {
+        $adminId = $this->createAdminUser();
+        $memberId = $this->createMember();
+        $settlementId = $this->insertSettlement($adminId);
+
+        $this->insertOutbox($settlementId, $memberId);
+        $this->insertOutbox($memberId, $memberId, ['kind' => 'deckel_statement', 'dedup_key' => '2026-08']);
+
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mail_outbox WHERE member_id = ?');
+        $stmt->execute([$memberId]);
+        $this->assertSame(2, (int) $stmt->fetchColumn());
+    }
+
     /** @param array<string, mixed> $overrides */
     private function insertOutbox(string $subjectId, ?string $memberId, array $overrides = []): string
     {

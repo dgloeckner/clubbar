@@ -7,6 +7,7 @@ namespace App\Modules\Notifications\Controllers;
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\CronInterval;
+use App\Modules\Notifications\Enums\StatementCadence;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\TestMailService;
 use App\Shared\Http\JsonResponder;
@@ -72,6 +73,7 @@ class MailConfigController
             'logo_url' => ['nullable', 'string', 'max:255'],
             'cron_interval' => ['in:' . implode(',', array_column(CronInterval::cases(), 'value'))],
             'drain_batch_size' => ['integer', 'min:1', 'max:' . MailConfigDto::MAX_DRAIN_BATCH_SIZE],
+            'statement_cadence' => ['in:' . implode(',', array_column(StatementCadence::cases(), 'value'))],
         ];
 
         if (!$this->validator->validate($body, $rules)) {

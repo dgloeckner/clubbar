@@ -57,49 +57,29 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { MailConfigUpdateRequestCronInterval } from './mailConfigUpdateRequestCronInterval';
-import type { MailConfigUpdateRequestHeaderStyle } from './mailConfigUpdateRequestHeaderStyle';
-import type { MailConfigUpdateRequestStatementCadence } from './mailConfigUpdateRequestStatementCadence';
 
-export interface MailConfigUpdateRequest {
-  /** @maxLength 120 */
-  sender_name?: string;
-  /** @maxLength 255 */
-  sender_address?: string;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  reply_to_address?: string | null;
-  header_style?: MailConfigUpdateRequestHeaderStyle;
-  /** @maxLength 200 */
-  footer_org_name?: string;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  footer_address_line?: string | null;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  website_url?: string | null;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  logo_url?: string | null;
-  /** `weekly` is rejected with 422 and a message naming Nutzungsordnung
-§ 7 Abs. 3 — see the same field on `MailConfig`.
+/**
+ * How often every member receives a Deckelauszug — a periodic
+statement of their tab, itemised, announcing nothing and collecting
+nothing (ADR-0039). Club-wide: there is deliberately no per-member
+opt-out, because this system has no member login and an opt-out
+would mean a public endpoint, a token and a preference record.
+
+`weekly` is absent by design. Nothing breaks at that cadence; it
+simply stops being predictable and starts being relentless, and a
+tab that settles monthly does not move fast enough to report on
+weekly.
+
+Migration 039 leaves every installation on `off`, so switching the
+statements on is always somebody's decision rather than a side
+effect of an upgrade.
+
  */
-  cron_interval?: MailConfigUpdateRequestCronInterval;
-  /**
-   * @minimum 1
-   * @maximum 1000
-   */
-  drain_batch_size?: number;
-  /** The club-wide Deckelauszug switch — see the same field on
-`MailConfig`.
- */
-  statement_cadence?: MailConfigUpdateRequestStatementCadence;
-}
+export type MailConfigStatementCadence = typeof MailConfigStatementCadence[keyof typeof MailConfigStatementCadence];
+
+
+export const MailConfigStatementCadence = {
+  off: 'off',
+  monthly: 'monthly',
+  quarterly: 'quarterly',
+} as const;

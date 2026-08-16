@@ -68,7 +68,7 @@ The two expiry warnings
 the storage accepts them, and nothing enqueues them yet. There is no
 `payment_request` — it was reserved for
 [#410](https://github.com/dgloeckner/clubbar/issues/410) and removed with
-migration `034` when that issue was closed unbuilt, because a
+migration `036` when that issue was closed unbuilt, because a
 `bank_transfer` settlement records money that already arrived and a mail
 asking for it would ask twice.
 
@@ -81,6 +81,14 @@ address moves. It is the only kind addressed to an address the system no
 longer holds — the one it moved *from*, read from the row's `recipient`
 snapshot rather than from `admin_users`.
 
+`deckel_statement` is the periodic Deckelauszug
+([ADR-0039](../../adr/0039-periodic-deckel-statement.md)): the first kind
+whose subject is the **member** rather than a settlement, a key or a
+terminal, and the first triggered by time passing rather than by
+somebody doing something. Its `dedup_key` is the period (`2026-08`,
+`2026-Q3`), which is what makes a scan that runs every hour produce one
+statement a month.
+
  */
 export type MailKind = typeof MailKind[keyof typeof MailKind];
 
@@ -92,4 +100,5 @@ export const MailKind = {
   terminal_token_expiry_warning: 'terminal_token_expiry_warning',
   terminal_anomaly_warning: 'terminal_anomaly_warning',
   admin_email_changed: 'admin_email_changed',
+  deckel_statement: 'deckel_statement',
 } as const;

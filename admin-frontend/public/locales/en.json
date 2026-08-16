@@ -1210,7 +1210,8 @@
       "key_expiry_warning": "Key expiring",
       "terminal_token_expiry_warning": "Terminal token expiring",
       "terminal_anomaly_warning": "Terminal anomaly",
-      "admin_email_changed": "Sign-in address changed"
+      "admin_email_changed": "Sign-in address changed",
+      "deckel_statement": "Tab statement"
     },
     "statuses": {
       "pending": "Queued",

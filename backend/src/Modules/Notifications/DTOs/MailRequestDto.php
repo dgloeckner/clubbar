@@ -84,6 +84,36 @@ final readonly class MailRequestDto
     }
 
     /**
+     * A periodic statement to a member about their own tab (ADR-0039).
+     *
+     * The first message whose subject is the recipient. `subjectId` and
+     * `memberId` therefore carry the same value and are both set anyway: the
+     * first is what {@see MailKind::subjectType()} says the row is about, the
+     * second is the column erasure and the delete cascade key on, and collapsing
+     * them would break one of those two jobs.
+     *
+     * `$period` is the dedup key, and it is the entire idempotency of a
+     * time-triggered enqueue: one statement per member per period, enforced by
+     * `UNIQUE (kind, subject_id, dedup_key)` rather than by a scan that
+     * remembers what it already did.
+     */
+    public static function forStatement(
+        string $memberId,
+        string $recipient,
+        MailLanguage $language,
+        string $period,
+    ): self {
+        return new self(
+            kind: MailKind::DECKEL_STATEMENT,
+            subjectId: $memberId,
+            recipient: $recipient,
+            language: $language,
+            dedupKey: $period,
+            memberId: $memberId,
+        );
+    }
+
+    /**
      * A message to an admin about a credential (#438).
      *
      * `$occasion` is what stops one warning from being every warning — the tier

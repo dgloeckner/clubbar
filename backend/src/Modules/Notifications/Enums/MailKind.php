@@ -70,6 +70,19 @@ enum MailKind: string
      */
     case ADMIN_EMAIL_CHANGED = 'admin_email_changed';
 
+    /**
+     * ADR-0039: the periodic Deckelauszug — a member's tab as it stood at a
+     * calendar boundary, sent whatever it says, collecting nothing.
+     *
+     * The first kind whose subject is the **member** rather than a thing that
+     * happened to them, and the first that is triggered by time passing rather
+     * than by somebody doing something. Neither needed anything new from the
+     * queue: the period goes in `dedup_key`, and the unique index then makes a
+     * scan that runs every hour produce one statement a month without ever
+     * asking whether it already had.
+     */
+    case DECKEL_STATEMENT = 'deckel_statement';
+
     /** What `subject_id` refers to for this kind. */
     public function subjectType(): MailSubject
     {
@@ -80,6 +93,7 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING => MailSubject::TERMINAL,
             self::ADMIN_EMAIL_CHANGED => MailSubject::ADMIN_USER,
+            self::DECKEL_STATEMENT => MailSubject::MEMBER,
         };
     }
 
@@ -90,9 +104,25 @@ enum MailKind: string
      * warnings are addressed to an admin — a member has no way to act on an
      * expiring encryption key, and telling them about one would leak that the
      * club's credentials are in a state worth mentioning.
+     *
+     * This used to read `subjectType() === MailSubject::SETTLEMENT`, which was
+     * true of every kind that existed and false of the first one that did not:
+     * a Deckelauszug is addressed to a member and is about that member. It is
+     * an explicit `match` rather than an added `||` so the next kind has to
+     * answer the question instead of inheriting whichever answer the shape of
+     * the existing ones happens to give it — the failure being guarded against
+     * is silent, and it is a message sent to the wrong sort of person.
      */
     public function addressesMember(): bool
     {
-        return $this->subjectType() === MailSubject::SETTLEMENT;
+        return match ($this) {
+            self::SEPA_PRENOTIFICATION,
+            self::CANCELLATION_NOTICE,
+            self::DECKEL_STATEMENT => true,
+            self::KEY_EXPIRY_WARNING,
+            self::TERMINAL_TOKEN_EXPIRY_WARNING,
+            self::TERMINAL_ANOMALY_WARNING,
+            self::ADMIN_EMAIL_CHANGED => false,
+        };
     }
 }

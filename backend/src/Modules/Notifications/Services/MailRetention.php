@@ -23,14 +23,16 @@ use App\Modules\Notifications\Enums\MailKind;
  *    was not reached, and ADR-0038 rule 6 makes that the club's to see. A queue
  *    that quietly emptied its own failures would be worse than one that never
  *    reported them.
- * 2. **The window is keyed on the kind.** Today every kind answers the same
+ * 2. **The window is keyed on the kind.** Every kind still answers the same
  *    number, and that is a fact about the kinds that exist rather than a
  *    simplification: each of them either leaves a durable settlement-side
  *    record behind (the money mail) or is an operational warning addressed to
  *    an admin, and neither has a reason to hold an address longer than the
- *    other. #462's `deckel_statement` is the first kind that will disagree —
- *    twelve rows per member per year proving nothing anyone will ever need —
- *    and it lands as one arm of the match below rather than as a second policy.
+ *    other. `deckel_statement` (ADR-0039 decision 6, #462) is the first kind
+ *    that holds its address for a *different* reason — twelve rows per member
+ *    per year proving nothing anyone will ever need — so it names its own
+ *    constant and takes its own arm of the match below, free to move without
+ *    dragging the announcements with it.
  *
  * Pure and clock-free, like {@see RetrySchedule}: the caller supplies the date
  * arithmetic, so the tests can state the whole table without a `sleep`.
@@ -48,6 +50,20 @@ final class MailRetention
      * dispute the announcement, with a month to spare.
      */
     public const DEFAULT_SENT_DAYS = 90;
+
+    /**
+     * Days a delivered Deckelauszug is kept (ADR-0039 decision 6).
+     *
+     * The same number as {@see DEFAULT_SENT_DAYS} today, and a separate constant
+     * anyway, because it is held for an entirely different reason and the two
+     * are free to move apart. An announcement is kept because somebody may ask
+     * which address it went to while the § 7 Abs. 3 complaint window is open. A
+     * statement has no such window, no promise behind it and no durable
+     * settlement-side record beside it: twelve rows per member per year, each
+     * carrying a snapshot address, proving nothing anyone will ever need. If
+     * either number is ever revisited it will be this one, downwards.
+     */
+    public const STATEMENT_SENT_DAYS = 90;
 
     /**
      * The most rows one prune pass may delete.
@@ -77,6 +93,7 @@ final class MailRetention
             // is not touched here. Ninety days is well past the point at which
             // an admin would still be asking whether they were told.
             MailKind::ADMIN_EMAIL_CHANGED => self::DEFAULT_SENT_DAYS,
+            MailKind::DECKEL_STATEMENT => self::STATEMENT_SENT_DAYS,
         };
     }
 

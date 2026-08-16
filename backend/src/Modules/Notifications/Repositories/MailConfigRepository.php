@@ -30,6 +30,12 @@ class MailConfigRepository
         // (ADR-0039 decision 5).
         'cron_interval',
         'drain_batch_size',
+        // The club-wide Deckelauszug switch (ADR-0039 decision 3). It is here
+        // rather than behind a dedicated endpoint because it is a preference
+        // with no secret in it, and because the generic path's old/new diff into
+        // the audit log is exactly what this column wants: "who turned the
+        // statements on, and when" is a question somebody will ask.
+        'statement_cadence',
     ];
 
     public function __construct(
