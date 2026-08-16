@@ -637,8 +637,10 @@ final class SecuritySelfCheck
                 'the header is not sent',
                 'Without a Content-Security-Policy, a script that ends up running in the admin panel — through a '
                 . 'compromised dependency or a stored XSS — can read the member list, trigger a settlement or send '
-                . "the session cookie to another origin, exactly as the logged-in admin. The .htaccess Club Bar "
-                . 'ships sets this header; a host that ignores .htaccess drops it.'
+                . 'the session cookie to another origin, exactly as the logged-in admin. Club Bar sets this header '
+                . 'from application code on every response (ADR-0031 decision 1), not only from .htaccess, so this '
+                . 'means something between PHP and the browser — a reverse proxy, a CDN, or a cache — is stripping '
+                . 'it.'
             );
         }
 
@@ -793,8 +795,9 @@ final class SecuritySelfCheck
         return SecurityFinding::warn('hsts', self::CATEGORY_TRANSPORT, $label,
             $header === '' ? 'the header is not sent' : "Strict-Transport-Security: {$header}",
             'Without it a browser that has only ever been told about this site over HTTPS will still follow a '
-            . 'plain-HTTP link, and the first request of that visit can be intercepted. The .htaccess Club Bar '
-            . 'ships sets the header; a host that ignores .htaccess drops it.');
+            . 'plain-HTTP link, and the first request of that visit can be intercepted. Club Bar sets this header '
+            . 'from application code on every response (ADR-0031 decision 1), not only from .htaccess, so this '
+            . 'means something between PHP and the browser — a reverse proxy, a CDN, or a cache — is stripping it.');
     }
 
     // ------------------------------------------------------------------

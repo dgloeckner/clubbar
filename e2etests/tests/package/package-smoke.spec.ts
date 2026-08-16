@@ -372,8 +372,8 @@ test.describe('Package: Security self-check', () => {
    * Everything here is either set by application code (ADR-0031 decision 1) or
    * enforced by a file the package ships and the container honours. The rows
    * left out are the ones that legitimately depend on the deployment — HTTPS,
-   * HSTS, and the data directory's placement, which needs a writable parent the
-   * container does not have.
+   * HSTS (a browser-side no-op without it), and the data directory's
+   * placement, which needs a writable parent the container does not have.
    */
   const MUST_PASS = [
     'display_errors',
@@ -388,6 +388,10 @@ test.describe('Package: Security self-check', () => {
     // webserver: a scanned SEPA mandate and the application log must be refused.
     'mandate_not_served',
     'logs_not_served',
+    // Set by RuntimeHardening::applySecurityHeaders() (#383, ADR-0031 — CSP and
+    // HSTS moved to L0), measured regardless of transport, so unlike HSTS this
+    // belongs here rather than in the excluded set above.
+    'csp_header',
     // Written by the installer with 0600 — the database password and the key
     // that encrypts every admin's second factor are in it.
     'config_file_mode',

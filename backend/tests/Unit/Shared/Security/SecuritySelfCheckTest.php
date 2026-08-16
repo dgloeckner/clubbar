@@ -487,6 +487,31 @@ class SecuritySelfCheckTest extends TestCase
         $this->assertSame(SecurityFinding::UNKNOWN, $this->find('hsts', $findings)?->status);
     }
 
+    /**
+     * #383: the row that goes from UNKNOWN to an actual verdict once a base
+     * URL resolves — the case neither test above reaches, since one has no
+     * transport and the other has no reachable server.
+     */
+    public function test_the_hsts_header_warns_when_the_response_carries_none(): void
+    {
+        $this->withHstsServer(null, function (string $baseUrl): void {
+            $findings = SecuritySelfCheck::run($this->context(https: true, baseUrlCandidates: [$baseUrl]));
+
+            $finding = $this->find('hsts', $findings);
+            $this->assertSame(SecurityFinding::WARN, $finding?->status);
+            $this->assertNotNull($finding?->remedy);
+        });
+    }
+
+    public function test_the_hsts_header_passes_when_the_response_carries_a_positive_max_age(): void
+    {
+        $this->withHstsServer('max-age=31536000; includeSubDomains', function (string $baseUrl): void {
+            $findings = SecuritySelfCheck::run($this->context(https: true, baseUrlCandidates: [$baseUrl]));
+
+            $this->assertSame(SecurityFinding::PASS, $this->find('hsts', $findings)?->status);
+        });
+    }
+
     // ------------------------------------------------------------------
     // The report as a whole
     // ------------------------------------------------------------------
@@ -605,6 +630,75 @@ class SecuritySelfCheckTest extends TestCase
         // its static-file handler: that path serves the file straight off
         // disk and drops whatever headers the router already sent. The router
         // has to answer every request itself to keep the CSP header on it.
+        file_put_contents($documentRoot . '/router.php', <<<PHP
+            <?php
+            {$headerStatement}
+            \$path = __DIR__ . parse_url(\$_SERVER['REQUEST_URI'], PHP_URL_PATH);
+            if (is_file(\$path)) {
+                readfile(\$path);
+            } else {
+                http_response_code(404);
+            }
+            PHP);
+
+        $server = null;
+        $baseUrl = null;
+        for ($attempt = 0; $attempt < 10 && $server === null; $attempt++) {
+            $port = random_int(20000, 60000);
+            $command = sprintf(
+                '%s -S 127.0.0.1:%d -t %s %s',
+                escapeshellarg(PHP_BINARY),
+                $port,
+                escapeshellarg($documentRoot),
+                escapeshellarg($documentRoot . '/router.php'),
+            );
+
+            $candidate = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+            if (!is_resource($candidate)) {
+                continue;
+            }
+
+            if ($this->waitForPort($port)) {
+                $server = $candidate;
+                $baseUrl = "http://127.0.0.1:{$port}";
+            } else {
+                proc_terminate($candidate);
+                proc_close($candidate);
+            }
+        }
+
+        if ($server === null || $baseUrl === null) {
+            $this->removeTree($documentRoot);
+            $this->markTestSkipped('Could not start a local webserver to probe');
+
+            return;
+        }
+
+        try {
+            $test($baseUrl);
+        } finally {
+            proc_terminate($server);
+            proc_close($server);
+            $this->removeTree($documentRoot);
+        }
+    }
+
+    /**
+     * Same shape as {@see withCspServer}, for the HSTS row: a real webserver
+     * answering `/api/health` and `/README.txt` — the control paths the
+     * authenticated endpoint's context uses — with $hstsHeaderValue on
+     * Strict-Transport-Security, or no such header when null.
+     */
+    private function withHstsServer(?string $hstsHeaderValue, callable $test): void
+    {
+        $documentRoot = sys_get_temp_dir() . '/clubbar-hsts-' . bin2hex(random_bytes(6));
+        mkdir($documentRoot, 0700, true);
+        file_put_contents($documentRoot . '/README.txt', "clubbar security self-check\n");
+
+        $headerStatement = $hstsHeaderValue === null
+            ? ''
+            : sprintf("header('Strict-Transport-Security: %s');\n", addslashes($hstsHeaderValue));
+
         file_put_contents($documentRoot . '/router.php', <<<PHP
             <?php
             {$headerStatement}

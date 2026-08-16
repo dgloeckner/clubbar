@@ -12,6 +12,11 @@ require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
 // reads the same file with no front controller in front of it, and two copies
 // of the mapping would drift on the first key somebody adds (ADR-0038, #403).
 require_once __DIR__ . '/backend/src/Shared/Config/ConfigFile.php';
+// CSP/HSTS from code (#250, #383, ADR-0031 decision 1): applied unconditionally,
+// before routing, so the SPA branch below — which never reaches
+// backend/bootstrap.php — carries both headers the same as the API branch does.
+require_once __DIR__ . '/backend/src/Shared/Security/RuntimeHardening.php';
+\App\Shared\Security\RuntimeHardening::applySecurityHeaders();
 
 $dataDir    = \App\Shared\Config\DataDirectory::resolve(__DIR__);
 $configFile = \App\Shared\Config\DataDirectory::configPath(__DIR__);
