@@ -203,16 +203,13 @@ class ShoppingCartScreen extends StatelessWidget {
                           // Quantity controls
                           Row(
                             children: [
-                              // Minus button
+                              // Minus button — matches the product tile's '−'
+                              // (decreaseItem removes the line at quantity 1
+                              // instead of no-op'ing; issue #36). The trash
+                              // button remains the explicit remove-all.
                               GestureDetector(
-                                onTap: () {
-                                  if (item.quantity > 1) {
-                                    cartProvider.updateQuantity(
-                                      item.productId,
-                                      item.quantity - 1,
-                                    );
-                                  }
-                                },
+                                onTap: () =>
+                                    cartProvider.decreaseItem(item.productId),
                                 child: Container(
                                   width: 44,
                                   height: 44,
