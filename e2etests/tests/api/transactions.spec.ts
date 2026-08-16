@@ -1851,4 +1851,114 @@ test.describe('Terminal sync field authority (#79)', () => {
     const stored = await storedTransaction(authenticatedRequest, member.id, transaction.id);
     expect(stored.created_at).toContain('2036-05-06T07:08:09');
   });
+
+  // ------------------------------------------------------------------
+  // amount_cents (#204) — the last item of ruling #144 §3's field table.
+  //
+  // The amount is terminal-owned and stays exactly as sent: it is the price the
+  // member saw and accepted, possibly weeks earlier while offline, and a deleted
+  // product leaves nothing to recompute from. The server records the
+  // disagreement in the audit log and bills the claim.
+  // ------------------------------------------------------------------
+
+  /** Price-divergence entries filed under one transaction, newest first. */
+  async function divergenceEntriesFor(authenticatedRequest, transactionId: string) {
+    const response = await authenticatedRequest.get(
+      `/api/admin/audit-log?action=transaction_price_divergence&entity_id=${transactionId}`,
+    );
+    expect(response.ok()).toBeTruthy();
+    return (await response.json()).data;
+  }
+
+  test('a divergent amount is billed as claimed and recorded in the audit log', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest); // price_cents: 350
+    const transaction = createValidTransaction(member.id, product.id, { amount_cents: 500 });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+
+    // Recorded, never rejected. This assertion is the point of the test: the
+    // whole risk of the flag is it quietly becoming a refusal.
+    expect(body.accepted_ids).toContain(transaction.id);
+    expect(body.rejected.count).toBe(0);
+
+    // Billed as claimed, not as the catalogue would have it.
+    expect(body.member_balances[member.id]).toBe(500);
+    const stored = await storedTransaction(authenticatedRequest, member.id, transaction.id);
+    expect(stored.amount_cents).toBe(500);
+
+    const entries = await divergenceEntriesFor(authenticatedRequest, transaction.id);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].entity_type).toBe('transaction');
+    // A terminal synced this; no admin acted.
+    expect(entries[0].admin_user_id).toBeNull();
+    expect(entries[0].new_values).toMatchObject({
+      member_id: member.id,
+      product_id: product.id,
+      amount_cents: 500,
+      current_price_cents: 350,
+    });
+  });
+
+  test('an amount matching the current price records nothing', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, { amount_cents: 350 });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.status()).toBe(201);
+    expect((await response.json()).accepted_ids).toContain(transaction.id);
+
+    expect(await divergenceEntriesFor(authenticatedRequest, transaction.id)).toHaveLength(0);
+  });
+
+  test('a sale for a deleted product is accepted and records nothing', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+
+    const deletion = await authenticatedRequest.delete(`/api/admin/products/${product.id}`);
+    expect(deletion.ok()).toBeTruthy();
+
+    // The terminal was still selling it from its cache. There is no current
+    // price to compare against, so there is no divergence — and the sale
+    // happened, so it is not a rejection either (ruling #143).
+    const transaction = createValidTransaction(member.id, product.id, { amount_cents: 500 });
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+    expect(body.accepted_ids).toContain(transaction.id);
+    expect(body.rejected.count).toBe(0);
+    expect(body.member_balances[member.id]).toBe(500);
+
+    expect(await divergenceEntriesFor(authenticatedRequest, transaction.id)).toHaveLength(0);
+  });
+
+  test('a replayed batch records the divergence once', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, { amount_cents: 500 });
+
+    for (const attempt of [1, 2]) {
+      const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+        data: { transactions: [transaction] },
+      });
+      expect(response.status(), `attempt ${attempt}`).toBe(201);
+      expect((await response.json()).accepted_ids).toContain(transaction.id);
+    }
+
+    // A terminal that loses the response resends the batch. The event happened
+    // once and the trail should say so once.
+    expect(await divergenceEntriesFor(authenticatedRequest, transaction.id)).toHaveLength(1);
+  });
 });

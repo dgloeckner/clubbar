@@ -83,6 +83,19 @@ export function getAuditLogSummary(entry: AuditLogEntry, t: TFn, language: strin
       return t('auditLog.summary.export', { actor })
     case 'transaction_storno':
       return t('auditLog.summary.transactionStorno', { actor })
+    case 'transaction_price_divergence': {
+      // Deliberately no {{actor}}: a terminal synced this and no admin acted,
+      // so `actorLabel` would print "An admin" over something no admin did.
+      const amountCents = asNumber(newValues?.['amount_cents'])
+      const priceCents = asNumber(newValues?.['current_price_cents'])
+      if (amountCents !== undefined && priceCents !== undefined) {
+        return t('auditLog.summary.transactionPriceDivergence', {
+          amount: formatPrice(amountCents),
+          price: formatPrice(priceCents),
+        })
+      }
+      return t('auditLog.summary.transactionPriceDivergenceGeneric')
+    }
     case 'settlement_create': {
       const memberCount = asNumber(newValues?.['member_count'])
       const amountCents = asNumber(newValues?.['total_amount_cents'])

@@ -19,6 +19,19 @@ enum AuditAction: string
     case EXPORT = 'export';
     /** A booking reversed in full (#169). The only admin-initiated transaction. */
     case TRANSACTION_STORNO = 'transaction_storno';
+
+    /**
+     * A synced sale whose `amount_cents` disagreed with the product's current
+     * `price_cents` (#204, ruling #144 §3).
+     *
+     * The claimed amount stands — the terminal charged a price the member saw
+     * and accepted, possibly weeks earlier while offline (ADR-0012). This
+     * records the disagreement; it never corrects it, and it never rejects the
+     * row. The likeliest cause is not a lying terminal but a stale product
+     * cache still charging yesterday's price, and this entry is how that gets
+     * noticed instead of quietly reaching the member's settlement.
+     */
+    case TRANSACTION_PRICE_DIVERGENCE = 'transaction_price_divergence';
     case SETTLEMENT_CREATE = 'settlement_create';
     case SETTLEMENT_CANCEL = 'settlement_cancel';
     case SETTLEMENT_EXPORT = 'settlement_export';

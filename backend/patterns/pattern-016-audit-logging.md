@@ -584,7 +584,7 @@ class ProductsService
 ## When NOT to Use
 
 - **Read-only operations**: GET requests (no change, nothing to log)
-- **Transactions**: Already immutable and self-auditing (ADR-0004)
+- **Transactions**: Already immutable and self-auditing (ADR-0004). Two exceptions, both recording what the ledger cannot say about itself: `transaction_storno` (who reversed a booking, and why) and `transaction_price_divergence` (a synced amount disagreed with the catalogue at the moment it was stored). An ordinary purchase still gets no entry
 - **Transient data**: Session data, temporary cache (not master data)
 
 ---

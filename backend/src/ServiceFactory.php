@@ -799,7 +799,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getTransactionsService(): TransactionsService
     {
-        return $this->resolve(TransactionsService::class, fn() => new TransactionsService($this->getTransactionsRepository(), $this->getMembersRepository(), $this->getAuditService(), $this->logger));
+        return $this->resolve(TransactionsService::class, fn() => new TransactionsService($this->getTransactionsRepository(), $this->getMembersRepository(), $this->getProductsRepository(), $this->getAuditService(), $this->logger));
     }
 
     public function getBankCodeService(): BankCodeService

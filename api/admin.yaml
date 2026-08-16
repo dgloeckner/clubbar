@@ -3244,7 +3244,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [create, update, delete, activate, deactivate, anonymize, login, logout, login_failed, export, transaction_storno, settlement_create, settlement_cancel, settlement_export, settlement_submit, settlement_reverse, collection_hold_placed, collection_hold_cleared, totp_enrolled, totp_reset, mandate_document_upload, mandate_document_delete]
+            enum: [create, update, delete, activate, deactivate, anonymize, login, logout, login_failed, export, transaction_storno, transaction_price_divergence, settlement_create, settlement_cancel, settlement_export, settlement_submit, settlement_reverse, collection_hold_placed, collection_hold_cleared, totp_enrolled, totp_reset, mandate_document_upload, mandate_document_delete]
         - name: entity_type
           in: query
           schema:
@@ -6944,7 +6944,7 @@ components:
           nullable: true
         action:
           type: string
-          enum: [create, update, delete, activate, deactivate, anonymize, login, logout, login_failed, export, transaction_storno, settlement_create, settlement_cancel, settlement_export, settlement_submit, settlement_reverse, collection_hold_placed, collection_hold_cleared, totp_enrolled, totp_reset, mandate_document_upload, mandate_document_delete]
+          enum: [create, update, delete, activate, deactivate, anonymize, login, logout, login_failed, export, transaction_storno, transaction_price_divergence, settlement_create, settlement_cancel, settlement_export, settlement_submit, settlement_reverse, collection_hold_placed, collection_hold_cleared, totp_enrolled, totp_reset, mandate_document_upload, mandate_document_delete]
         entity_type:
           type: string
         entity_id:
