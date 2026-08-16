@@ -72,6 +72,11 @@ the storage accepts them, and nothing enqueues them yet.
 ([ADR-0041](../../adr/0041-terminal-credential-anomaly-detection.md)) and
 addressed to an admin rather than a member.
 
+`admin_email_changed` is the security notice sent when an admin's login
+address moves. It is the only kind addressed to an address the system no
+longer holds — the one it moved *from*, read from the row's `recipient`
+snapshot rather than from `admin_users`.
+
  */
 export type MailKind = typeof MailKind[keyof typeof MailKind];
 
@@ -83,4 +88,5 @@ export const MailKind = {
   key_expiry_warning: 'key_expiry_warning',
   terminal_token_expiry_warning: 'terminal_token_expiry_warning',
   terminal_anomaly_warning: 'terminal_anomaly_warning',
+  admin_email_changed: 'admin_email_changed',
 } as const;

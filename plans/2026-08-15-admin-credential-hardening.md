@@ -152,23 +152,55 @@ The number only exists in CI.
   backend container when the full PHPUnit suite runs locally; unrelated to this
   change
 
+## Rebase onto #361's P6–P9
+
+Main landed P6, P7, P8 and P9 of #361 while this was open, which turned most of
+the hand-off below from notes into integration work. What the rebase had to
+resolve, and why each answer is the one it is:
+
+| Collision | Resolution |
+|---|---|
+| Main took migrations **029, 030, 031** | Renumbered to **036, 037, 038** |
+| Both ENUM migrations restate the whole list | Rewritten against main's *final* lists (`035` for `audit_log.action`, `030` for `mail_outbox.kind`). `MODIFY COLUMN … ENUM(...)` replaces rather than adds, so my original lists would have silently dropped `mail_retried`, `mail_test_sent`, the two terminal-anomaly actions, `cron_secret_rotated` and `terminal_anomaly_warning` — invalidating every row already written with one |
+| `MailRetention::sentDaysFor()` is an **exhaustive `match`** and `pruneDelivered()` iterates `MailKind::cases()` | `ADMIN_EMAIL_CHANGED` gets an arm. Without it the drain's prune pass throws `UnhandledMatchError` on **every tick** — a merge that compiles and breaks the scheduler |
+| P7's Notifications page enumerates kinds in three places | Added to the OpenAPI enum, `NotificationsPage`'s `KINDS`, and both locale files. Main's own P7 notes call this out: "a kind the server can queue and the queue page cannot name would render its own slug at somebody". The server's `filters.kinds` derives from `MailKind::cases()`, so it needs nothing |
+| `MailKind`, `MailStrings`, `ServiceFactory`, `NotificationsServiceTest` | Both sides added beside each other; kept both. The registry now takes `TerminalAnomalyMailBuilder` **and** `AdminSecurityMailBuilder` |
+
+**P8 got the admin-addressed case right without being asked.** Its erasure keys
+on the member (`supersedePendingForMember`, `eraseMemberRecipients`), so an
+admin's former address is untouched by a member's Art. 17 request — which was
+the risk worth checking, and it is now recorded in #361's plan rather than left
+to be rediscovered.
+
 ## Hand-off to [#361](https://github.com/dgloeckner/clubbar/issues/361)
 
-The `admin_email_changed` kind lands in an outbox that #361 is still building
-out (P6–P10 open). Three checklist notes were added to
-`plans/2026-08-13-sepa-prenotification-emails.md` rather than left implicit:
+The `admin_email_changed` kind lands in an outbox #361 is building out. P6–P9
+have now shipped, so most of what were notes became integration work:
 
-- **P8 (#408)** — `mail_outbox.recipient` is no longer always a member's
-  address. The erasure sweep must key on `member_id` (an admin address is not in
-  scope for a member's Art. 17 request), and a prune phrased "delete sent rows
-  older than N" will also drop these security notices. That is acceptable — the
-  durable record is the `audit_log` `email_changed` entry — but it should be a
-  decision, not a side effect.
-- **P9 (#409)** — once Mailpit lands, assert the notice reaches the *former*
-  address and omits the new one. That is the first chance to check the delivered
-  article rather than the rendered one.
-- **P7 (#407)** — a failed admin notice has no settlement, so the settlement
-  detail is not a complete view of the outbox's failures.
+- **P8 (#408) — shipped, and right for this kind without being asked.** Its
+  erasure keys on the member (`supersedePendingForMember`,
+  `eraseMemberRecipients`), so an admin's former address survives a member's
+  Art. 17 request. Its pruning is keyed on the kind, which is what forced this
+  one to name its own window rather than inherit a default: it takes
+  `DEFAULT_SENT_DAYS`, because what it holds is an address and the durable
+  record of the change is the `email_changed` audit entry. The reasoning is
+  recorded in #361's plan so it is not rediscovered.
+- **P7 (#407) — shipped, and it answers the concern generally.** The worry was
+  that a failed admin notice has no settlement and so no detail view. P7 built a
+  `/notifications` page over the whole outbox precisely "because the
+  Deckelauszug has no settlement to appear under", so the surface exists; the
+  kind only had to be named in it (OpenAPI enum, `KINDS`, both locales).
+- **P9 (#409) — shipped**, which turns the remaining gap into something now
+  buildable. See below.
+
+**Open follow-up.** With P9's `utils/mailpit.ts` and
+`pattern-010-mail-assertions.md` in place, the notice deserves a `mail-chain`
+spec asserting the *delivered* article: that it reaches the **former** address
+and does not name the new one. Rendering is covered by
+`AdminEmailChangedMailTest` and the queue row by the API spec, but nothing yet
+asserts what a mail server received. Left out of this PR deliberately —
+`mail-chain` is its own ordered Playwright project and adding to it is a change
+to #361's suite rather than to this feature.
 
 **P6 (#406) needs nothing.** `NullTransport::send` returns a *permanent* failure
 and `recordResult` maps that to `failed`, so an admin email change on an

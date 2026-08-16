@@ -1210,7 +1210,8 @@
       "payment_request": "Zahlungsaufforderung",
       "key_expiry_warning": "Schlüssel läuft ab",
       "terminal_token_expiry_warning": "Terminal-Token läuft ab",
-      "terminal_anomaly_warning": "Terminal-Auffälligkeit"
+      "terminal_anomaly_warning": "Terminal-Auffälligkeit",
+      "admin_email_changed": "Anmeldeadresse geändert"
     },
     "statuses": {
       "pending": "Eingereiht",

@@ -1210,7 +1210,8 @@
       "payment_request": "Payment request",
       "key_expiry_warning": "Key expiring",
       "terminal_token_expiry_warning": "Terminal token expiring",
-      "terminal_anomaly_warning": "Terminal anomaly"
+      "terminal_anomaly_warning": "Terminal anomaly",
+      "admin_email_changed": "Sign-in address changed"
     },
     "statuses": {
       "pending": "Queued",
