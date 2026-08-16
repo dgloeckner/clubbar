@@ -34,11 +34,13 @@ use Slim\Psr7\Response;
 class AuthControllerProfileTest extends TestCase
 {
     private AdminUsersService $adminUsersService;
+    private StepUpAuthService $stepUpAuthService;
     private AuthController $controller;
 
     protected function setUp(): void
     {
         $this->adminUsersService = $this->createMock(AdminUsersService::class);
+        $this->stepUpAuthService = $this->createMock(StepUpAuthService::class);
 
         $this->controller = new AuthController(
             $this->createMock(AuthService::class),
@@ -49,17 +51,25 @@ class AuthControllerProfileTest extends TestCase
             new Validator($this->createMock(PDO::class)),
             $this->createMock(LoginAttemptsRepository::class),
             new AppConfig(),
-            $this->createMock(StepUpAuthService::class),
+            $this->stepUpAuthService,
         );
     }
 
     /** @param array<string, mixed> $body */
-    private function patch(array $body): ServerRequestInterface
+    /**
+     * Both attributes, because `AdminSessionAuth` attaches both — and the
+     * `admin_user` row is what decides whether the email is actually moving,
+     * and therefore whether a step-up is demanded. A request carrying only the
+     * id would make every address look like a change away from the empty
+     * string.
+     */
+    private function patch(array $body, string $currentEmail = 'mine@example.org'): ServerRequestInterface
     {
         return (new ServerRequestFactory())
             ->createServerRequest('PATCH', '/api/auth/profile')
             ->withParsedBody($body)
-            ->withAttribute('admin_user_id', 'admin-1');
+            ->withAttribute('admin_user_id', 'admin-1')
+            ->withAttribute('admin_user', ['id' => 'admin-1', 'email' => $currentEmail, 'totp_enabled' => 0]);
     }
 
     /** @return array<string, mixed> */
@@ -133,5 +143,94 @@ class AuthControllerProfileTest extends TestCase
             'created_at' => '2026-01-01 00:00:00',
             'updated_at' => '2026-01-01 00:00:00',
         ]);
+    }
+
+    /* ─────────────── Step-up on the email, and only on the email ─────────────── */
+
+    /**
+     * The email is the login identifier, so moving it changes who can sign in —
+     * a quieter takeover than the peer resets that were already gated.
+     */
+    public function test_moving_the_email_without_a_credential_is_refused(): void
+    {
+        $this->stepUpAuthService->method('verify')->willReturn(false);
+        $this->adminUsersService->method('emailTakenByAnother')->willReturn(false);
+        $this->adminUsersService->expects($this->never())->method('updateAdminUser');
+
+        $response = $this->controller->updateProfile(
+            $this->patch(['email' => 'moved@example.org']),
+            new Response(),
+        );
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('invalid_credentials', $this->decode($response)['error']);
+    }
+
+    public function test_moving_the_email_with_a_full_step_up_saves(): void
+    {
+        $this->stepUpAuthService->method('verify')->willReturn(true);
+        $this->adminUsersService->method('emailTakenByAnother')->willReturn(false);
+        $this->adminUsersService->expects($this->once())
+            ->method('updateAdminUser')
+            ->willReturn($this->admin());
+
+        $response = $this->controller->updateProfile(
+            $this->patch([
+                'email' => 'moved@example.org',
+                'current_password' => 'correct-horse',
+                'totp_code' => '123456',
+            ]),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * The conditionality this design rests on. `ProfilePage` PATCHes this
+     * endpoint on every language toggle, so a step-up that fired on any profile
+     * write would demand a password to change locale.
+     */
+    public function test_a_locale_change_never_reaches_the_verifier(): void
+    {
+        $this->stepUpAuthService->expects($this->never())->method('verify');
+        $this->adminUsersService->method('updateAdminUser')->willReturn($this->admin());
+
+        $response = $this->controller->updateProfile($this->patch(['locale' => 'en']), new Response());
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /** Re-submitting the address the account already has is not a change. */
+    public function test_resubmitting_the_current_address_never_reaches_the_verifier(): void
+    {
+        $this->stepUpAuthService->expects($this->never())->method('verify');
+        $this->adminUsersService->method('emailTakenByAnother')->willReturn(false);
+        $this->adminUsersService->method('updateAdminUser')->willReturn($this->admin());
+
+        $response = $this->controller->updateProfile(
+            $this->patch(['email' => 'mine@example.org', 'display_name' => 'Saved The Whole Form']),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * `admin_users.email` is UNIQUE under a case-insensitive collation, so the
+     * database would not record a case-only difference as a change either.
+     */
+    public function test_a_case_only_difference_never_reaches_the_verifier(): void
+    {
+        $this->stepUpAuthService->expects($this->never())->method('verify');
+        $this->adminUsersService->method('emailTakenByAnother')->willReturn(false);
+        $this->adminUsersService->method('updateAdminUser')->willReturn($this->admin());
+
+        $response = $this->controller->updateProfile(
+            $this->patch(['email' => 'MINE@EXAMPLE.ORG']),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
     }
 }

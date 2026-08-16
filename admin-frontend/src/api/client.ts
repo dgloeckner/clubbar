@@ -80,6 +80,27 @@ axiosInstance.interceptors.request.use(
   }
 )
 
+/**
+ * A 401 means one of two unrelated things, and only one of them is about the
+ * session.
+ *
+ * `invalid_credentials` is a *rejected credential* on a perfectly live session:
+ * a wrong password or TOTP code in a step-up re-authentication (#337) — the
+ * email change, the password change, the cross-account resets, the encryption
+ * key mutations. Signing the admin out on those is wrong twice over: it
+ * discards a valid session because someone mistyped, and it destroys the very
+ * dialog `StepUpConfirmDialog` keeps open so the credential can be retried.
+ *
+ * Every other 401 (`admin_not_authenticated`, `session_expired`,
+ * `mfa_session_expired`) means the session really is gone. This is an
+ * exclusion rather than an allowlist so an unrecognised code still ends the
+ * session — the safe direction to fail in.
+ */
+function isRejectedCredential(error: unknown): boolean {
+  const response = (error as { response?: { data?: { error?: string } } })?.response
+  return response?.data?.error === 'invalid_credentials'
+}
+
 axiosInstance.interceptors.response.use(
   (response) => {
     decrementPending()
@@ -87,7 +108,7 @@ axiosInstance.interceptors.response.use(
   },
   (error) => {
     decrementPending()
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isRejectedCredential(error)) {
       localStorage.removeItem('admin_id')
       localStorage.removeItem('email')
       localStorage.removeItem('display_name')

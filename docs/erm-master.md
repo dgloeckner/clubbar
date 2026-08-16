@@ -188,6 +188,7 @@ erDiagram
         varchar_10 locale "UI language preference"
         boolean is_active "Account enabled"
         datetime last_login_at "Last successful login"
+        datetime credentials_changed_at "Ends sessions older than itself"
         datetime created_at "Record creation"
         datetime updated_at "Last modification"
     }
@@ -690,6 +691,7 @@ Administrator accounts for the admin panel.
 | locale | VARCHAR(10) | NOT NULL, DEFAULT 'de' | UI language preference (ISO 639-1) |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Account enabled |
 | last_login_at | DATETIME | NULL | Last successful login |
+| credentials_changed_at | TIMESTAMP | NULL | When this account's password, email or 2FA last changed. A session whose `authenticated_at` is at or before this is refused with `credentials_changed`, which is how a credential change ends the account's other sessions without a session store ([ADR-0026 amendment](../adr/0026-mandatory-totp-two-factor-authentication.md#amendment-2026-08-15--a-reset-now-ends-the-targets-sessions)). NULL until the first such change — every pre-existing row, so deploying the column signs nobody out |
 | totp_secret | VARCHAR(255) | NULL | AES-256-CBC encrypted TOTP secret (`base64(iv):base64(ciphertext)`) |
 | totp_enabled | BOOLEAN | NOT NULL, DEFAULT FALSE | `0` = not enrolled, `1` = TOTP active |
 | totp_last_timestep | BIGINT | NULL | Time-step of the last TOTP code MFA accepted; a code at or below it is refused as a replay ([#338](https://github.com/dgloeckner/ruderbar/issues/338)). Cleared alongside `totp_secret` on 2FA reset |
@@ -776,6 +778,8 @@ Centralized audit trail for all master data changes.
 - `collection_hold_placed` — A bank return stopped the next run re-debiting a member
 - `collection_hold_cleared` — An admin released that member back into the next run
 - `totp_enrolled` / `totp_reset` — Second factor enrolled or reset
+- `password_changed` — An admin password changed, whether by its owner or by another admin's reset. Distinct from the plain `update` a display-name edit produces, so "when did this account's password change" is one filter rather than a scan of every admin-user payload
+- `email_changed` — An admin's login email moved. Carries the old and new addresses; the email is the login identifier, so this records a change to who can sign in
 - `mandate_document_upload` / `mandate_document_delete` — Mandate scan stored or removed; historical only since [ADR-0037](../adr/0037-mandate-documents-not-retained.md) (migration `023`) removed the code path that wrote them — kept in the enum so pre-existing audit rows stay valid
 - `activate` / `deactivate` / `reorder` — Status and ordering changes
 - `terminal_repair` — A terminal resumed sync after staff confirmed a pairing (instance_id) mismatch was safe to trust ([ADR-0035](../adr/0035-terminal-backend-instance-pairing.md), [#380](https://github.com/dgloeckner/clubbar/issues/380))

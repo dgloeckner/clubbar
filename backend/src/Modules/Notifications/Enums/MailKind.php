@@ -57,6 +57,19 @@ enum MailKind: string
      */
     case TERMINAL_ANOMALY_WARNING = 'terminal_anomaly_warning';
 
+    /**
+     * "Your login address was changed", sent to the address it was changed
+     * *from* — the one place the change is visible to someone who did not make
+     * it. An attacker holding a session can move the address; this is what
+     * reaches the real owner, at the only address they still control.
+     *
+     * The recipient is therefore not derived from `admin_users` at send time,
+     * as every other kind's is: by then the row holds the new address. It comes
+     * from the outbox row's `recipient` snapshot, which is exactly the guarantee
+     * that column exists to give.
+     */
+    case ADMIN_EMAIL_CHANGED = 'admin_email_changed';
+
     /** What `subject_id` refers to for this kind. */
     public function subjectType(): MailSubject
     {
@@ -66,6 +79,7 @@ enum MailKind: string
             self::KEY_EXPIRY_WARNING => MailSubject::ENCRYPTION_KEY,
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING => MailSubject::TERMINAL,
+            self::ADMIN_EMAIL_CHANGED => MailSubject::ADMIN_USER,
         };
     }
 

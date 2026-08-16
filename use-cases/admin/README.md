@@ -27,7 +27,8 @@ The admin panel provides management and accounting functions for the bar system:
 |----|------|-------------|
 | [UC-A01](./UC-A01-login.md) | Login | Authenticate and start session |
 | [UC-A02](./UC-A02-logout.md) | Logout | End session |
-| [UC-A03](./UC-A03-change-password.md) | Change Password | Update own password |
+| [UC-A03](./UC-A03-change-password.md) | Change Password | Update own password (step-up re-auth) |
+| [UC-A04](./UC-A04-change-email.md) | Change Email | Update own login address (step-up re-auth) |
 
 ### Member Management
 

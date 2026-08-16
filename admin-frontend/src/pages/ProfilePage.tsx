@@ -3,6 +3,13 @@
  * Personal settings for the logged-in admin user
  * - View/edit profile information (email, display name, language)
  * - Change password
+ *
+ * Both credential changes on this page carry a step-up: the email address is
+ * the login identifier, and the password is what a hijacked session would
+ * rotate first. The email gate is deliberately conditional on the address
+ * actually moving — Save PATCHes the whole form and `handleLanguageChange`
+ * PATCHes on every toggle, so gating any profile write would demand a password
+ * to switch language.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -13,6 +20,7 @@ import { getAuthentication } from '../api/generated/authentication/authenticatio
 import { getProfile, updateProfileWithSession } from '../auth/session'
 import type { AdminProfile } from '../api/generated'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
+import { StepUpConfirmDialog, type StepUpCredentials } from '../components/modals/StepUpConfirmDialog'
 import { changeLanguage } from '../i18n/config'
 import { useFormatters } from '../hooks/useFormatters'
 
@@ -34,9 +42,14 @@ export function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordTotpCode, setPasswordTotpCode] = useState('')
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null)
   const [changingPassword, setChangingPassword] = useState(false)
+
+  // Step-up prompt for an email change, which moves the login identifier.
+  const [emailStepUpOpen, setEmailStepUpOpen] = useState(false)
+  const [emailStepUpError, setEmailStepUpError] = useState<string | null>(null)
 
   // Guards state updates below against firing after unmount — `getProfile`
   // has no cancellation of its own, so a page navigated away from before it
@@ -87,7 +100,23 @@ export function ProfilePage() {
     }
   }
 
-  const handleSaveProfile = async () => {
+  /**
+   * Is the form about to move the login identifier? Compared case-insensitively
+   * to match the backend, which treats a case-only difference as no change
+   * because `admin_users.email` is UNIQUE under a case-insensitive collation.
+   */
+  const emailIsChanging = email.trim().toLowerCase() !== (profile?.email ?? '').toLowerCase()
+
+  const handleSaveProfile = () => {
+    if (emailIsChanging) {
+      setEmailStepUpError(null)
+      setEmailStepUpOpen(true)
+      return
+    }
+    void saveProfile()
+  }
+
+  const saveProfile = async (credentials?: StepUpCredentials) => {
     try {
       setSaving(true)
       setError(null)
@@ -97,9 +126,11 @@ export function ProfilePage() {
         email,
         display_name: displayName,
         locale,
+        ...credentials,
       })
 
       setProfile(updated)
+      setEmailStepUpOpen(false)
       setSuccess(t('profile.profileUpdated'))
 
       // Clear success after 3 seconds. Cancel a still-pending timer from an
@@ -107,10 +138,20 @@ export function ProfilePage() {
       if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current)
       successTimeoutRef.current = setTimeout(() => setSuccess(null), 3000)
     } catch (err: unknown) {
-      const message = err instanceof Error && 'response' in err
-        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? t('profile.saveFailed')
-        : t('profile.saveFailed')
-      setError(message)
+      const response = err instanceof Error && 'response' in err
+        ? (err as { response?: { status?: number; data?: { message?: string } } }).response
+        : undefined
+      const message = response?.data?.message ?? t('profile.saveFailed')
+
+      // A rejected credential keeps the dialog open so the admin can retry
+      // without losing the address they typed; anything else is a page-level
+      // failure and the dialog has nothing more to offer.
+      if (credentials && response?.status === 401) {
+        setEmailStepUpError(message)
+      } else {
+        setEmailStepUpOpen(false)
+        setError(message)
+      }
     } finally {
       setSaving(false)
     }
@@ -141,19 +182,25 @@ export function ProfilePage() {
       setPasswordError(t('validation.passwordMismatch'))
       return
     }
+    if (profile?.totp_enabled && !/^\d{6}$/.test(passwordTotpCode)) {
+      setPasswordError(t('validation.totpCodeRequired'))
+      return
+    }
 
     try {
       setChangingPassword(true)
       await getAuthentication().changePassword({
         current_password: currentPassword,
         new_password: newPassword,
-        confirm_password: confirmPassword,
+        new_password_confirmation: confirmPassword,
+        ...(profile?.totp_enabled ? { totp_code: passwordTotpCode } : {}),
       })
 
       setPasswordSuccess(t('profile.passwordChanged'))
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
+      setPasswordTotpCode('')
 
       // Clear success after 3 seconds. Cancel a still-pending timer from an
       // earlier change first, so it cannot clear this newer message.
@@ -365,6 +412,35 @@ export function ProfilePage() {
           />
         </div>
 
+        {/* The second factor is asked for here rather than in a dialog: this
+            form already collects the current password, so the step-up needs
+            only the one missing field. */}
+        {profile?.totp_enabled && (
+          <div style={{ marginBottom: theme.spacing.lg }}>
+            <label style={labelStyle}>{t('settings.stepUpTotpLabel')}</label>
+            <input
+              data-testid="password-totp-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={passwordTotpCode}
+              onChange={(e) => setPasswordTotpCode(e.target.value.replace(/\D/g, ''))}
+              style={inputStyle}
+              placeholder="123456"
+            />
+            <p
+              style={{
+                margin: `${theme.spacing.xs} 0 0 0`,
+                fontSize: theme.typography.fontSize.sm,
+                color: theme.colors.text.muted,
+              }}
+            >
+              {t('settings.stepUpTotpHint')}
+            </p>
+          </div>
+        )}
+
         <button
           data-testid="password-change-button"
           onClick={handleChangePassword}
@@ -389,6 +465,18 @@ export function ProfilePage() {
           {t('profile.lastLogin')}: {new Date(profile.last_login_at).toLocaleString(intlLocale)}
         </div>
       )}
+
+      <StepUpConfirmDialog
+        isOpen={emailStepUpOpen}
+        title={t('profile.emailChangeTitle')}
+        message={t('profile.emailChangeMessage', { email })}
+        confirmLabel={t('common.save')}
+        requiresTotp={profile?.totp_enabled ?? false}
+        error={emailStepUpError}
+        confirmDisabled={saving}
+        onConfirm={(credentials) => void saveProfile(credentials)}
+        onCancel={() => setEmailStepUpOpen(false)}
+      />
     </div>
   )
 }

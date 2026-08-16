@@ -476,7 +476,8 @@ class NotificationsService
     }
 
     /**
-     * Every queued message about one settlement, key or terminal, as raw rows.
+     * Every queued message about one settlement, key, terminal or admin
+     * account, as raw rows.
      *
      * @return list<array<string,mixed>>
      */
@@ -585,5 +586,61 @@ class NotificationsService
         }
 
         return $result;
+    }
+
+    /**
+     * Tell an address that it is no longer the login for the account it used
+     * to be — sent *to the former address*, which is what makes it useful.
+     *
+     * Every other admin-addressed kind resolves its recipient from
+     * `admin_users` at send time. This one cannot: the row already holds the
+     * new address by the time this is called, and the new address is precisely
+     * the one that does not need telling. The former address is passed in and
+     * frozen into `mail_outbox.recipient`.
+     *
+     * `$occasion` is the moment of the change rather than a tier, because two
+     * changes of the same account's address are two separate things to be told
+     * about — including a change back to an address used before. That trades a
+     * little idempotency for delivery, and the trade is the right way round:
+     * this announces a change that is already committed, not one that a retry
+     * could duplicate.
+     *
+     * Best effort, and never a gate. It queues; it does not send (ADR-0038
+     * rule 3), an install with no `mail.dsn` discards it at the transport, and
+     * the credential change it describes has already happened.
+     */
+    public function notifyFormerAddress(
+        string $adminUserId,
+        string $formerEmail,
+        string $occasion,
+        ?string $actorAdminUserId = null,
+    ): bool {
+        $formerEmail = trim($formerEmail);
+        if ($formerEmail === '') {
+            return false;
+        }
+
+        $admin = $this->adminUsersRepository->findById($adminUserId);
+
+        $queued = $this->mailOutboxRepository->enqueue(MailRequestDto::forAdmin(
+            kind: MailKind::ADMIN_EMAIL_CHANGED,
+            subjectId: $adminUserId,
+            adminUserId: $adminUserId,
+            recipient: $formerEmail,
+            language: MailLanguage::fromPreferred($admin['locale'] ?? null),
+            occasion: $occasion,
+        ));
+
+        if ($queued) {
+            $this->auditService->log(
+                action: AuditAction::MAIL_ENQUEUED,
+                entityType: MailKind::ADMIN_EMAIL_CHANGED->subjectType()->auditEntityType(),
+                entityId: $adminUserId,
+                newValues: ['kind' => MailKind::ADMIN_EMAIL_CHANGED->value, 'occasion' => $occasion],
+                adminUserId: $actorAdminUserId,
+            );
+        }
+
+        return $queued;
     }
 }

@@ -1,9 +1,11 @@
 # ADR-0015: Authentication and Authorization Strategy
 
-**Status**: Accepted (amended 2026-08-09 — see [Amendment](#amendment-2026-08-09--how-a-terminal-token-is-hashed-and-how-long-it-lives))
+**Status**: Accepted (amended 2026-08-09 and 2026-08-15)
 **Date**: 2025-01-23
 
 > **Amended 2026-08-09.** Two facts about terminal tokens stated here were wrong or have since changed; the *decision* — device-level Bearer authentication, one token per terminal, revocable — is unaffected. Amended text is marked inline; the reasoning is in the [Amendment](#amendment-2026-08-09--how-a-terminal-token-is-hashed-and-how-long-it-lives) section.
+>
+> **Amended 2026-08-15.** Self-service credential changes now carry a step-up credential, and any credential change ends the account's other sessions. Both are additions to the admin-panel section below; see also the [ADR-0026 amendment](./0026-mandatory-totp-two-factor-authentication.md#amendment-2026-08-15--a-reset-now-ends-the-targets-sessions) for why the session behaviour changed.
 
 ## Context
 
@@ -80,8 +82,35 @@ Session-based authentication with secure cookies and mandatory TOTP second facto
 | Cookie Attributes | `HttpOnly`, `Secure`, `SameSite=Lax` |
 | Session Lifetime | 2 hours idle timeout; 24 hours absolute |
 | Multi-device | Allowed; sessions tracked per device |
+| Credential change | **Added 2026-08-15**: ends every other session on the account, via `admin_users.credentials_changed_at` compared against the session's own `authenticated_at` |
 
 See [ADR-0026](./0026-mandatory-totp-two-factor-authentication.md) for the TOTP implementation decision.
+
+### Self-service credential changes
+
+**Added 2026-08-15.** An admin changing their own password, or their own email
+address, re-proves who they are at the moment of the change: their own password
+plus their own fresh TOTP code — the same step-up credential ADR-0036 requires
+for cross-account actions.
+
+| Aspect | Decision |
+|--------|----------|
+| Password change | Always step-up |
+| Email change | Step-up, but only when the address actually moves (compared case-insensitively, as `admin_users.email` is UNIQUE under a `_ci` collation) |
+| Display name, locale | No credential — these are not identity |
+| Effect on other sessions | Ended (see [ADR-0026](./0026-mandatory-totp-two-factor-authentication.md) amendment); the acting session survives |
+| Old address | Notified best-effort via the outbox (ADR-0038); never a gate |
+
+The email is the login identifier, so moving it is a change to who can sign in —
+a quieter account takeover than the peer resets that were already gated. The
+conditionality on the email actually changing is load-bearing rather than a
+nicety: the same endpoint carries the language switch, and gating every profile
+write would demand a password to change locale.
+
+Deliberately **not** an email-verification link. The outbox is drained by a
+scheduler rather than sent inline, and an installation with no `mail.dsn`
+discards mail at the transport — so a link-based hard gate would make the email
+unchangeable on exactly the installations least able to notice why.
 
 ### Admin Authorization
 

@@ -18,6 +18,7 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A01 | Login | Implemented | [UC-A01](./admin/UC-A01-login.md) |
 | UC-A02 | Logout | Implemented | [UC-A02](./admin/UC-A02-logout.md) |
 | UC-A03 | Change Password | Implemented | [UC-A03](./admin/UC-A03-change-password.md) |
+| UC-A04 | Change Email | Implemented | [UC-A04](./admin/UC-A04-change-email.md) |
 
 ### Member Management
 

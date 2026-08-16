@@ -137,7 +137,7 @@ const changePassword = (
     changePasswordRequest: ChangePasswordRequest,
  options?: SecondParameter<typeof customInstance<ChangePassword200>>,) => {
       return customInstance<ChangePassword200>(
-      {url: `/auth/change-password`, method: 'POST',
+      {url: `/auth/change-password`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: changePasswordRequest
     },
@@ -160,6 +160,10 @@ const getProfile = (
     }
   /**
  * Update email, display name, or locale for the currently authenticated admin user.
+
+Changing `email` moves the login identifier and requires a step-up
+credential; changing only the display name or locale does not. See
+`UpdateProfileRequest`.
 
 **Use Case**: UC-A03
 

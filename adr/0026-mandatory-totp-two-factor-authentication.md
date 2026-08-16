@@ -1,7 +1,14 @@
 # ADR-0026: Mandatory TOTP Two-Factor Authentication for Admin Panel
 
-**Status**: Accepted
+**Status**: Accepted (amended 2026-08-15 — see [Amendment](#amendment-2026-08-15--a-reset-now-ends-the-targets-sessions))
 **Date**: 2026-03-22
+
+> **Amended 2026-08-15.** The "Recovery after admin reset" section below said an
+> affected user's session stays valid until natural expiry, and justified it by
+> the cost of session enumeration. That reasoning did not hold and the behaviour
+> has changed; the *decision* — mandatory TOTP, no self-disable, admin-to-admin
+> reset — is unaffected. Amended text is marked inline; the reasoning is in the
+> [Amendment](#amendment-2026-08-15--a-reset-now-ends-the-targets-sessions).
 
 ---
 
@@ -52,10 +59,10 @@ This is distinct from the MFA verification step for enrolled users (`totp_enable
 
 When an admin resets another user's 2FA:
 - `totp_enabled = 0` and `totp_secret = NULL` are written to the DB
-- The affected user's active session (if any) remains valid until natural expiry
+- **AMENDED 2026-08-15**: the affected user's active sessions are ended immediately, via the credentials epoch — see the [Amendment](#amendment-2026-08-15--a-reset-now-ends-the-targets-sessions)
 - On next login, the affected user goes through the mandatory enrollment gate
 
-This is a deliberate trade-off: immediate session invalidation would require server-side session enumeration. Given that the admin who performs the reset is trusted, the window between reset and re-enrollment is acceptable.
+~~This is a deliberate trade-off: immediate session invalidation would require server-side session enumeration. Given that the admin who performs the reset is trusted, the window between reset and re-enrollment is acceptable.~~ (superseded 2026-08-15)
 
 ---
 
@@ -101,6 +108,56 @@ This is a deliberate trade-off: immediate session invalidation would require ser
 **Deferred to v1+**: Admin reset covers the same recovery scenario without storing additional secrets. If admin-to-admin recovery proves operationally difficult, recovery codes can be added.
 
 ---
+
+## Amendment 2026-08-15 — a reset now ends the target's sessions
+
+Two things this ADR recorded have changed. The decision it exists to record has
+not.
+
+### 1. The enumeration argument was wrong
+
+"Immediate session invalidation would require server-side session enumeration"
+was the stated reason for leaving a reset user's sessions alive. There is a
+`sessions` table with an `admin_user_id`, and a `SessionRepository` with a
+`deleteByAdminUser()` on it, so the claim looked defensible — but that repository
+is registered in the container and injected nowhere, no session save handler is
+installed, and the table is never written to. Enumeration was not a cost that had
+been weighed; it was not available at all.
+
+It is also not what the problem needs. The question a request has to answer is
+"was this session authenticated before this account's credentials moved?", and
+that is one timestamp per account, not a list of sessions:
+`admin_users.credentials_changed_at`, compared against the `authenticated_at`
+stamp every session already carries for the ADR-0015 idle and absolute limits. No
+store, no enumeration, one column.
+
+A tie counts as stale — the column is second-granular, and allowing equality
+would leave a one-second window in which a session authenticated in the same
+second as the change survived it. The request performing the change stamps itself
+one second past its own write, which is the only reason it is not refused by it.
+
+### 2. What the epoch applies to
+
+Not only 2FA resets. Every credential change advances it: a self-service password
+change, a self-service email change, a cross-account password reset, and a
+cross-account 2FA reset. A refused session gets `401 credentials_changed` rather
+than the generic `session_expired`, because "your credentials moved" and "you
+were idle too long" call for different things from the person reading them.
+
+This also settles a contradiction between two specs. UC-A63 has always said a
+password reset invalidates the target's sessions, while this ADR said a 2FA reset
+deliberately does not. Both are now true in the same direction.
+
+### What has not changed
+
+The **recovery mechanism** is still admin-to-admin reset, and there are still no
+recovery codes. The device-loss consequence in the Negative section stands, and
+so does its real hole: a sole admin who loses their authenticator has no path
+back in through the application. That is now written down as a procedure rather
+than left implicit — see the [Admin Lockout Runbook](../docs/runbook-admin-lockout.md)
+— but a runbook is documentation, not a fix. Recovery codes remain deferred, and
+the honest reason to revisit them is a single-admin installation, not the
+support burden this ADR originally named.
 
 ## Related Decisions
 

@@ -126,6 +126,29 @@ class AdminUsersRepository
     }
 
     /**
+     * Stamp the credentials epoch: every session on this account authenticated
+     * before now is refused by `AdminSessionAuth` from the next request on.
+     *
+     * Deliberately not part of `updateById`'s allowed-column list — this is not
+     * a field a caller sets, it is a consequence of having changed a credential,
+     * and it is written by the three services that do so.
+     *
+     * @return string The timestamp written, so the caller can keep the acting
+     *  session alive by re-stamping it to at least this moment.
+     */
+    public function touchCredentialsEpoch(string $id): string
+    {
+        $now = date('Y-m-d H:i:s');
+        $stmt = $this->db->prepare(
+            'UPDATE admin_users SET credentials_changed_at = ?, updated_at = ? WHERE id = ?'
+        );
+        $stmt->execute([$now, $now, $id]);
+        $this->logger->info('Admin credentials epoch advanced', ['id' => $id]);
+
+        return $now;
+    }
+
+    /**
      * Record the time-step of the most recently accepted TOTP code for this
      * admin. AuthController::mfa refuses any future code at or below it (#338).
      */

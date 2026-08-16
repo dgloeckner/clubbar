@@ -6,7 +6,9 @@ namespace Tests\Unit\Modules\AdminUsers\Services;
 
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
+use App\Modules\Notifications\Services\NotificationsService;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
@@ -21,12 +23,18 @@ use PHPUnit\Framework\TestCase;
 class AdminUsersServiceUpdateTest extends TestCase
 {
     private AdminUsersRepository $repository;
+    private NotificationsService $notifications;
     private AdminUsersService $service;
 
     protected function setUp(): void
     {
         $this->repository = $this->createMock(AdminUsersRepository::class);
-        $this->service = new AdminUsersService($this->repository, $this->createMock(AuditService::class));
+        $this->notifications = $this->createMock(NotificationsService::class);
+        $this->service = new AdminUsersService(
+            $this->repository,
+            $this->createMock(AuditService::class),
+            $this->notifications,
+        );
     }
 
     /** @param array<string, mixed> $overrides */
@@ -115,6 +123,77 @@ class AdminUsersServiceUpdateTest extends TestCase
         $this->assertSame('Renamed', $admin->displayName);
     }
 
+    /**
+     * Moving the login identifier has three consequences beyond the write, and
+     * all three are the point of the change: the previous owner is told at the
+     * address they still control, the account's other sessions stop working,
+     * and the event is findable in the audit log under its own name.
+     */
+    public function test_moving_the_email_notifies_the_former_address_and_ends_other_sessions(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row(['email' => 'before@example.org']));
+        $this->repository->method('updateById')->willReturn(self::row(['email' => 'after@example.org']));
+
+        $this->notifications->expects($this->once())
+            ->method('notifyFormerAddress')
+            ->with('admin-2', 'before@example.org', $this->stringStartsWith('changed:'), 'admin-1');
+
+        $this->repository->expects($this->once())
+            ->method('touchCredentialsEpoch')
+            ->with('admin-2');
+
+        $this->service->updateAdminUser('admin-2', ['email' => 'after@example.org'], 'admin-1');
+    }
+
+    /**
+     * The conditionality the whole design rests on. A display-name edit is not
+     * a credential change: nobody is written to, and no session is ended.
+     */
+    public function test_a_non_email_update_notifies_nobody_and_ends_no_session(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row());
+        $this->repository->method('updateById')->willReturn(self::row(['display_name' => 'Renamed']));
+
+        $this->notifications->expects($this->never())->method('notifyFormerAddress');
+        $this->repository->expects($this->never())->method('touchCredentialsEpoch');
+
+        $this->service->updateAdminUser('admin-2', ['display_name' => 'Renamed'], 'admin-1');
+    }
+
+    /**
+     * `admin_users.email` is UNIQUE under a case-insensitive collation, so
+     * re-submitting the same address in different case changes nothing — and
+     * must not sign the account out of its own sessions.
+     */
+    public function test_a_case_only_email_difference_is_not_a_credential_change(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row(['email' => 'someone@example.org']));
+        $this->repository->method('updateById')->willReturn(self::row());
+
+        $this->notifications->expects($this->never())->method('notifyFormerAddress');
+        $this->repository->expects($this->never())->method('touchCredentialsEpoch');
+
+        $this->service->updateAdminUser('admin-2', ['email' => 'SOMEONE@EXAMPLE.ORG'], 'admin-1');
+    }
+
+    /**
+     * The notification is best effort by construction: the change is already
+     * committed when it runs, so a queue that will not take the notice must not
+     * turn a successful change into a failure.
+     */
+    public function test_a_failed_notification_does_not_fail_the_change(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row(['email' => 'before@example.org']));
+        $this->repository->method('updateById')->willReturn(self::row(['email' => 'after@example.org']));
+
+        $this->notifications->method('notifyFormerAddress')
+            ->willThrowException(new \RuntimeException('outbox unavailable'));
+
+        $admin = $this->service->updateAdminUser('admin-2', ['email' => 'after@example.org'], 'admin-1');
+
+        $this->assertSame('after@example.org', $admin->email);
+    }
+
     public function test_a_body_carrying_only_is_active_still_toggles(): void
     {
         $this->repository->expects($this->once())
@@ -154,5 +233,81 @@ class AdminUsersServiceUpdateTest extends TestCase
         $this->repository->method('findByEmail')->willReturn(null);
 
         $this->assertFalse($this->service->emailTakenByAnother('nobody@example.org', 'admin-2'));
+    }
+
+    /* ─────────────── Password changes (PR #469) ─────────────── */
+
+    /**
+     * The self-service path. Neither of these two methods had a unit test
+     * before; both hash with bcrypt, audit under the credential-specific action
+     * rather than a plain `update`, and end the account's other sessions.
+     */
+    public function test_changing_your_own_password_hashes_audits_and_ends_other_sessions(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row());
+
+        $stored = null;
+        $this->repository->expects($this->once())
+            ->method('updateById')
+            ->willReturnCallback(function (string $id, array $data) use (&$stored) {
+                $stored = $data['password'] ?? null;
+                return self::row();
+            });
+
+        $this->repository->expects($this->once())
+            ->method('touchCredentialsEpoch')
+            ->with('admin-2');
+
+        $this->service->changeOwnPassword('admin-2', 'BrandNewPass1');
+
+        $this->assertNotSame('BrandNewPass1', $stored, 'never stored in the clear');
+        $this->assertTrue(password_verify('BrandNewPass1', $stored));
+    }
+
+    public function test_changing_a_password_for_an_unknown_admin_throws(): void
+    {
+        $this->repository->method('findById')->willReturn(null);
+        $this->repository->expects($this->never())->method('updateById');
+
+        $this->expectException(NotFoundException::class);
+
+        $this->service->changeOwnPassword('nobody', 'BrandNewPass1');
+    }
+
+    /**
+     * The cross-account reset. UC-A63 has said "target user's sessions
+     * invalidated" since before anything enforced it; the epoch is what makes
+     * that true.
+     */
+    public function test_resetting_a_peers_password_returns_it_once_and_ends_their_sessions(): void
+    {
+        $stored = null;
+        $this->repository->method('updateById')
+            ->willReturnCallback(function (string $id, array $data) use (&$stored) {
+                $stored = $data['password'] ?? null;
+                return self::row();
+            });
+
+        $this->repository->expects($this->once())
+            ->method('touchCredentialsEpoch')
+            ->with('admin-2');
+
+        $result = $this->service->resetAdminPassword('admin-2', 'admin-1');
+
+        $this->assertNotSame('', $result['password'], 'shown once to the resetter');
+        $this->assertTrue(
+            password_verify($result['password'], $stored),
+            'the hash stored is of the password handed back',
+        );
+    }
+
+    public function test_resetting_the_password_of_an_unknown_admin_throws(): void
+    {
+        $this->repository->method('updateById')->willReturn(null);
+        $this->repository->expects($this->never())->method('touchCredentialsEpoch');
+
+        $this->expectException(NotFoundException::class);
+
+        $this->service->resetAdminPassword('nobody', 'admin-1');
     }
 }

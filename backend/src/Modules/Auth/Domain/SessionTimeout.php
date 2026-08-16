@@ -113,4 +113,61 @@ final class SessionTimeout
 
         return is_int($lastActivityAt) && ($now - $lastActivityAt) >= self::IDLE_SECONDS;
     }
+
+    /**
+     * Whether this session was authenticated before the account's credentials
+     * last changed, and must therefore be refused.
+     *
+     * Both "no epoch recorded" and "no stamp on the session" answer false: the
+     * first is every account until someone changes a credential, the second is
+     * a session adopted by {@see touch()} before these stamps existed. Refusing
+     * either would sign people out for the mere presence of the feature.
+     *
+     * The comparison includes equality, so a session authenticated *in the same
+     * second* as the change is refused too. The column is second-granular, so
+     * treating a tie as "not older" would leave a one-second window in which an
+     * attacker's session survived the victim's password change — small, but
+     * real, and free to close.
+     *
+     * That is why the acting session is re-stamped one second ahead
+     * ({@see beginAfterCredentialChange()}) rather than at `now`: it has to land
+     * strictly after an epoch written in the same second, or the request that
+     * changed the credential would be refused by its own change.
+     *
+     * @param array<string, mixed> $session
+     * @param string|null $credentialsChangedAt `admin_users.credentials_changed_at`
+     */
+    public static function predatesCredentialChange(array $session, ?string $credentialsChangedAt): bool
+    {
+        if ($credentialsChangedAt === null || $credentialsChangedAt === '') {
+            return false;
+        }
+
+        $authenticatedAt = $session[self::AUTHENTICATED_AT] ?? null;
+        if (!is_int($authenticatedAt)) {
+            return false;
+        }
+
+        $changedAt = strtotime($credentialsChangedAt);
+        if ($changedAt === false) {
+            return false;
+        }
+
+        return $authenticatedAt <= $changedAt;
+    }
+
+    /**
+     * Stamp the session that just changed its own account's credential.
+     *
+     * One second ahead of now, because the epoch it must outlive was written in
+     * this same second and {@see predatesCredentialChange()} refuses a tie. The
+     * cost is that this session's 24h absolute limit expires a second late,
+     * which is not a limit anybody measures to the second.
+     *
+     * @param array<string, mixed> $session
+     */
+    public static function beginAfterCredentialChange(array &$session, ?int $now = null): void
+    {
+        self::begin($session, ($now ?? time()) + 1);
+    }
 }

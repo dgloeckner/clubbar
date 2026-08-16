@@ -121,7 +121,8 @@
     "passwordMismatch": "Passwörter stimmen nicht überein",
     "invalidIban": "Ungültige IBAN",
     "invalidPrice": "Ungültiger Preis",
-    "atLeastOneLanguage": "Mindestens eine Sprache erforderlich"
+    "atLeastOneLanguage": "Mindestens eine Sprache erforderlich",
+    "totpCodeRequired": "Bitte geben Sie einen aktuellen 6-stelligen Code aus Ihrer Authenticator-App ein."
   },
   "errors": {
     "generic": "Ein Fehler ist aufgetreten",
@@ -930,7 +931,9 @@
     "passwordChanged": "Passwort erfolgreich geändert",
     "profileUpdated": "Profil erfolgreich aktualisiert",
     "saveFailed": "Speichern fehlgeschlagen",
-    "lastLogin": "Letzter Login"
+    "lastLogin": "Letzter Login",
+    "emailChangeTitle": "E-Mail-Adresse ändern",
+    "emailChangeMessage": "Ihre E-Mail-Adresse ist Ihr Anmeldename. Nach der Änderung melden Sie sich mit {{email}} an."
   },
   "languages": {
     "de": "Deutsch",
@@ -1206,7 +1209,8 @@
       "cancellation_notice": "Absage",
       "key_expiry_warning": "Schlüssel läuft ab",
       "terminal_token_expiry_warning": "Terminal-Token läuft ab",
-      "terminal_anomaly_warning": "Terminal-Auffälligkeit"
+      "terminal_anomaly_warning": "Terminal-Auffälligkeit",
+      "admin_email_changed": "Anmeldeadresse geändert"
     },
     "statuses": {
       "pending": "Eingereiht",

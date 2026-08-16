@@ -251,9 +251,22 @@ export class AuditLogPage extends BasePage {
     await responsePromise
   }
 
-  /** The timestamps of the visible rows, top to bottom, as rendered. */
+  /**
+   * The timestamps of the visible rows, top to bottom, as rendered.
+   *
+   * `allTextContents()` is one of the few Playwright calls that does **not**
+   * auto-wait: it reads the DOM as it stands and returns `[]` if the list has
+   * not rendered yet. Called straight after navigation that is a race, and it
+   * lost one on CI — `expect(timestamps.length).toBeGreaterThan(1)` received 0
+   * while the first fetch was still in flight. The `expect` below retries until
+   * a row exists, which is what Pattern 008 is for; every caller of this method
+   * is asserting on an order, so none of them wants an empty list.
+   */
   async getTimestamps(): Promise<string[]> {
-    return await this.page.locator('[data-testid^="audit-log-timestamp-"]').allTextContents()
+    const timestamps = this.page.locator('[data-testid^="audit-log-timestamp-"]')
+    await expect(timestamps.first()).toBeVisible()
+
+    return await timestamps.allTextContents()
   }
 
   /**

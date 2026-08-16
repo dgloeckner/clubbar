@@ -147,4 +147,68 @@ class AuthControllerReset2faTest extends TestCase
 
         $this->assertSame(404, $response->getStatusCode());
     }
+
+    /* ─────────── The credentials epoch (PR #469, ADR-0026 amendment) ─────────── */
+
+    /**
+     * ADR-0026 left the target's sessions alive here and justified it by the
+     * cost of session enumeration. Stripping 2FA off an account whose active
+     * session keeps working protects nobody, and the epoch ends them with one
+     * write.
+     */
+    public function test_a_reset_ends_the_targets_sessions(): void
+    {
+        $this->stepUpAuthService->method('verify')->willReturn(true);
+        $this->adminUsersRepository->method('findById')->willReturn(['id' => 'target-1', 'email' => 't@example.com']);
+
+        $this->adminUsersRepository->expects($this->once())->method('clearTotp')->with('target-1');
+        $this->adminUsersRepository->expects($this->once())
+            ->method('touchCredentialsEpoch')
+            ->with('target-1');
+
+        $response = $this->controller->reset2fa(
+            $this->post(['userId' => 'target-1', 'current_password' => 'correct-horse']),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * Resetting your own 2FA is allowed, and the epoch would otherwise end the
+     * very session performing the reset before it could enroll again.
+     */
+    public function test_resetting_your_own_2fa_advances_your_own_epoch(): void
+    {
+        $this->stepUpAuthService->method('verify')->willReturn(true);
+        $this->adminUsersRepository->method('findById')->willReturn(['id' => 'caller-1', 'email' => 'caller@example.com']);
+
+        $this->adminUsersRepository->expects($this->once())
+            ->method('touchCredentialsEpoch')
+            ->with('caller-1');
+
+        $response = $this->controller->reset2fa(
+            $this->post(['userId' => 'caller-1', 'current_password' => 'correct-horse']),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /** A target that does not exist is a 404, and nothing is stamped. */
+    public function test_an_unknown_target_stamps_nothing(): void
+    {
+        $this->stepUpAuthService->method('verify')->willReturn(true);
+        $this->adminUsersRepository->method('findById')->willReturn(null);
+
+        $this->adminUsersRepository->expects($this->never())->method('clearTotp');
+        $this->adminUsersRepository->expects($this->never())->method('touchCredentialsEpoch');
+
+        $response = $this->controller->reset2fa(
+            $this->post(['userId' => 'nobody', 'current_password' => 'correct-horse']),
+            new Response(),
+        );
+
+        $this->assertSame(404, $response->getStatusCode());
+    }
 }
