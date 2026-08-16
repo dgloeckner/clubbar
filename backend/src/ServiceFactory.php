@@ -64,6 +64,8 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
+use App\Modules\Notifications\Services\CredentialExpiryMailBuilder;
+use App\Modules\Notifications\Services\CredentialExpiryNotifier;
 use App\Modules\Notifications\Services\DeckelStatementMailBuilder;
 use App\Modules\Notifications\Services\DeckelStatementService;
 use App\Modules\Notifications\Services\DrainService;
@@ -538,6 +540,38 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalAnomalyMailBuilder(),
             $this->getAdminSecurityMailBuilder(),
             $this->getDeckelStatementMailBuilder(),
+            $this->getCredentialExpiryMailBuilder(),
+        ));
+    }
+
+    /**
+     * #438. Claims both expiry kinds — they are one message about two subjects.
+     */
+    public function getCredentialExpiryMailBuilder(): CredentialExpiryMailBuilder
+    {
+        return $this->resolve(CredentialExpiryMailBuilder::class, fn() => new CredentialExpiryMailBuilder(
+            $this->getEncryptionKeysRepository(),
+            $this->getTerminalsRepository(),
+            $this->getAdminUsersRepository(),
+            $this->getMailConfigService(),
+        ));
+    }
+
+    /**
+     * The credential expiry scan (#438, ADR-0036).
+     *
+     * Called by `bin/cron.php` before the drain, for the same reason the anomaly
+     * scan and the statement enqueue are: a warning raised by a tick should leave
+     * on that tick rather than waiting for the next one.
+     */
+    public function getCredentialExpiryNotifier(): CredentialExpiryNotifier
+    {
+        return $this->resolve(CredentialExpiryNotifier::class, fn() => new CredentialExpiryNotifier(
+            $this->getEncryptionKeysRepository(),
+            $this->getTerminalsRepository(),
+            $this->getNotificationsService(),
+            $this->getMailConfigService(),
+            $this->getLogger(),
         ));
     }
 

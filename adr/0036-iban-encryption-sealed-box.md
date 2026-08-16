@@ -161,7 +161,36 @@ Full IBANs leave the system in exactly one place: the SEPA XML handed to the ban
 |---|---|---|
 | Granular permissions (KEY_MANAGEMENT, SEPA_EXPORT, …) | Flat admin model (ADR-0015) + fresh TOTP step-up per sensitive operation | A role system is a large separate build; step-up gives the "fresh authorization" property with the existing `StepUpAuthService` |
 | Scheduled daily expiry evaluation | Request-time computation, warnings on every dashboard load | Shared hosting guarantees no cron (ADR-0031); enforcement is request-time anyway |
-| Optional email notifications | Deferred to a follow-up issue | Needs idempotent-notification storage; warnings are already unmissable in the UI |
+| Optional email notifications | Implemented in [#438](https://github.com/dgloeckner/clubbar/issues/438), on the scheduler | Deferred at the time for want of idempotent-notification storage and a trigger. [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md) later supplied both: `UNIQUE (kind, subject_id, dedup_key)` makes a tier fire once rather than once per request that notices it, and the mail outbox made a scheduler **mandatory** rather than optional. See the correction below |
+
+#### Correction: expiry warnings also leave by email (#438)
+
+The row above this one — *"scheduled daily expiry evaluation → request-time
+computation"* — stands as written, and nothing about enforcement changes: every
+protected operation still checks validity when it runs, and the 90/30/7 banners
+are still computed on the request that shows them. Shared hosting still
+guarantees no cron for *enforcement* to lean on.
+
+What the reasoning missed is that **notification is not enforcement**. A warning
+computed at request time is only ever seen by somebody who made a request, which
+is precisely the admin who did not need warning. A club whose treasurer does not
+open the panel for a few weeks gets no signal at all until the key lapses and
+the SEPA export stops, or a terminal token lapses and a till is locked out mid-
+evening.
+
+So a scan runs on the scheduler tick that ADR-0038 already requires
+(`bin/cron.php`, before the drain), and queues one message per credential per
+tier per admin:
+
+| | |
+|---|---|
+| Trigger | The existing scheduler tick — **not** an authenticated request. A request-time trigger cannot satisfy "an admin who does not open the panel is told"; it is the same contradiction in different words |
+| Scope | The ACTIVE encryption key, and active terminals with no rotation already in flight |
+| Idempotency | The tier goes in `dedup_key`; the unique index decides. No scan state, no cursor, no lookup |
+| Tiers | 90/30/7, from the same `CredentialLifecycle` the banners use, so mail and dashboard cannot disagree |
+| Past expiry | Silent. These are *advance* warnings, and expiry is already an error in the UI and a hard stop in the code |
+| Content | Which credential, which tier, the deadline, and the remedy named as the admin panel labels it. **No key material, no token, no fingerprint** |
+| Not configured | An installation with no `mail_config` sender does nothing at all — same behaviour as before the feature existed |
 
 ## Consequences
 

@@ -233,6 +233,26 @@ export default defineConfig({
       dependencies: ['mail-chain'],
     },
 
+    // The credential expiry chain (#438): a token near expiry → bin/cron.php →
+    // an admin's mailbox.
+    //
+    // Last of the three, and its own project for the same reason `mail-statement`
+    // is: the messages it asserts on are addressed to **every active admin**, so
+    // while its fixtures exist any drain in any other file queues warnings for
+    // them too. Running after the two member-facing chains keeps that window
+    // inside this project — and its own `afterAll` deactivates the terminal, so
+    // the window closes rather than merely narrowing.
+    //
+    // It is also the only project that writes SQL (`utils/sql.ts`): a terminal
+    // token's lifetime is not settable through the API, so there is no other way
+    // to stand a credential seven days from expiry.
+    {
+      name: 'mail-credentials',
+      testDir: './tests/mail-credentials',
+      fullyParallel: false,
+      dependencies: ['mail-statement'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',

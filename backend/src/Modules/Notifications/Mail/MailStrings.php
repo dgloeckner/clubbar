@@ -176,6 +176,67 @@ final class MailStrings
             'terminal_anomaly.no_action_taken' => 'Es wurde nichts gesperrt und nichts geändert — der Betrieb an der '
                                           . 'Theke läuft unverändert weiter.',
 
+            // ── Ablaufende Zugangsdaten (#438, ADR-0036) ────────────────────
+            // Der Ton steigt mit der Stufe, der Inhalt nicht: dieselben vier
+            // Angaben bei 90, 30 und 7 Tagen. Was sich ändert, ist die
+            // Dringlichkeit — und die Folge, die im Betreff schon bei 7 Tagen
+            // steht, weil dann niemand mehr eine Mail aufklappt, um sie zu
+            // finden.
+            'credential_expiry.subject.90' => '{name}: läuft in {days} Tagen ab',
+            'credential_expiry.subject.30' => '{name}: läuft in {days} Tagen ab — bitte einplanen',
+            'credential_expiry.subject.7'  => 'Dringend: {name} läuft in {days} Tagen ab',
+            'credential_expiry.preheader'  => 'Gültig bis {date} · danach {consequence}',
+            'credential_expiry.eyebrow'    => 'Zugangsdaten',
+            'credential_expiry.title'      => 'Ein Zugang läuft ab',
+
+            'credential_expiry.lede.key'  => 'der Schlüssel, mit dem die Bankverbindungen der Mitglieder '
+                                           . 'verschlüsselt werden, läuft am <strong>{date}</strong> ab — '
+                                           . 'in <strong>{days} Tagen</strong>.',
+            'credential_expiry.lede_text.key' => 'der Schlüssel, mit dem die Bankverbindungen der Mitglieder '
+                                           . 'verschlüsselt werden, läuft am {date} ab — in {days} Tagen.',
+            'credential_expiry.lede.terminal' => 'der Zugang des Terminals <strong>{name}</strong> läuft am '
+                                           . '<strong>{date}</strong> ab — in <strong>{days} Tagen</strong>.',
+            'credential_expiry.lede_text.terminal' => 'der Zugang des Terminals {name} läuft am {date} ab — '
+                                           . 'in {days} Tagen.',
+
+            // „Art", not „Zugang": the value in this row is already the word
+            // Zugang, and a table line reading „Zugang: Terminal-Zugang" says
+            // nothing twice.
+            'credential_expiry.label_credential' => 'Art',
+            'credential_expiry.label_name'       => 'Bezeichnung',
+            'credential_expiry.label_expires'    => 'Gültig bis',
+            'credential_expiry.label_days'       => 'Verbleibend',
+            'credential_expiry.days'             => '{days} Tage',
+            'credential_expiry.credential.key'      => 'Schlüssel für Bankverbindungen',
+            'credential_expiry.credential.terminal' => 'Terminal-Zugang',
+            'credential_expiry.subject_name.key'      => 'Schlüssel für Bankverbindungen',
+            'credential_expiry.subject_name.terminal' => 'Terminal-Zugang „{name}“',
+
+            'credential_expiry.consequence.key' => 'Läuft er ab, können keine Bankverbindungen mehr gespeichert '
+                                           . 'und keine SEPA-Dateien mehr erzeugt werden. Bestehende Daten '
+                                           . 'bleiben unverändert erhalten.',
+            'credential_expiry.consequence.terminal' => 'Läuft er ab, kann sich das Terminal nicht mehr anmelden '
+                                           . 'und an der Theke nichts mehr gebucht werden. Bereits erfasste '
+                                           . 'Buchungen bleiben auf dem Gerät erhalten.',
+            'credential_expiry.consequence_short.key'      => 'keine SEPA-Dateien mehr',
+            'credential_expiry.consequence_short.terminal' => 'keine Buchungen mehr an diesem Terminal',
+
+            // Beide Texte benennen den Weg so, wie die Oberfläche ihn
+            // beschriftet — Reiter „Schlüssel“, Knopf „Token rotieren“. Eine
+            // Mail, die zu einem Menüpunkt schickt, den es nicht gibt, kostet
+            // mehr Zeit als sie spart.
+            'credential_expiry.next.key' => 'Unter Einstellungen → Schlüssel registrierst und aktivierst Du den '
+                                           . 'Nachfolger; das geht ohne den privaten Schlüssel. Zum Umschlüsseln '
+                                           . 'der bereits gespeicherten Bankverbindungen wird anschließend die '
+                                           . 'private Hälfte des bisherigen Schlüssels gebraucht — die liegt '
+                                           . 'beim Verein.',
+            'credential_expiry.next.terminal' => 'Unter Einstellungen → Terminals genügt „Token rotieren“. Das '
+                                           . 'bisherige Token funktioniert weiter, bis das neue am Terminal zum '
+                                           . 'ersten Mal verwendet wird — die Theke bleibt in der Zwischenzeit '
+                                           . 'online.',
+            'credential_expiry.no_secret' => 'Diese Nachricht enthält bewusst keinerlei Schlüssel- oder '
+                                           . 'Zugangsdaten — nur, worum es geht und bis wann.',
+
             // ── Admin email change ──────────────────────────────────────────
             'email_changed.subject'   => 'Die Anmelde-E-Mail-Adresse Deines Admin-Kontos wurde geändert',
             'email_changed.preheader' => 'Diese Adresse ist nicht mehr die Anmeldeadresse des Kontos.',
@@ -299,6 +360,50 @@ final class MailStrings
                                           . 'rotate or revoke the credential in the admin panel.',
             'terminal_anomaly.no_action_taken' => 'Nothing has been blocked and nothing has been changed — the bar '
                                           . 'carries on exactly as before.',
+
+            'credential_expiry.subject.90' => '{name}: expires in {days} days',
+            'credential_expiry.subject.30' => '{name}: expires in {days} days — worth scheduling',
+            'credential_expiry.subject.7'  => 'Urgent: {name} expires in {days} days',
+            'credential_expiry.preheader'  => 'Valid until {date} · after that, {consequence}',
+            'credential_expiry.eyebrow'    => 'Credentials',
+            'credential_expiry.title'      => 'A credential is running out',
+
+            'credential_expiry.lede.key'  => 'the key that encrypts members’ bank details expires on '
+                                           . '<strong>{date}</strong> — in <strong>{days} days</strong>.',
+            'credential_expiry.lede_text.key' => 'the key that encrypts members’ bank details expires on {date} — '
+                                           . 'in {days} days.',
+            'credential_expiry.lede.terminal' => 'the credential for terminal <strong>{name}</strong> expires on '
+                                           . '<strong>{date}</strong> — in <strong>{days} days</strong>.',
+            'credential_expiry.lede_text.terminal' => 'the credential for terminal {name} expires on {date} — '
+                                           . 'in {days} days.',
+
+            'credential_expiry.label_credential' => 'Type',
+            'credential_expiry.label_name'       => 'Name',
+            'credential_expiry.label_expires'    => 'Valid until',
+            'credential_expiry.label_days'       => 'Remaining',
+            'credential_expiry.days'             => '{days} days',
+            'credential_expiry.credential.key'      => 'Bank-details encryption key',
+            'credential_expiry.credential.terminal' => 'Terminal credential',
+            'credential_expiry.subject_name.key'      => 'Bank-details encryption key',
+            'credential_expiry.subject_name.terminal' => 'Terminal credential “{name}”',
+
+            'credential_expiry.consequence.key' => 'Once it expires, no bank details can be stored and no SEPA '
+                                           . 'files can be produced. Data already stored is unaffected.',
+            'credential_expiry.consequence.terminal' => 'Once it expires, the terminal can no longer sign in and '
+                                           . 'nothing can be rung up on it. Transactions already recorded stay '
+                                           . 'on the device.',
+            'credential_expiry.consequence_short.key'      => 'no more SEPA files',
+            'credential_expiry.consequence_short.terminal' => 'nothing can be rung up on this terminal',
+
+            'credential_expiry.next.key' => 'Settings → Credentials is where you register and activate the '
+                                           . 'successor, and that part needs no private key. Re-encrypting the '
+                                           . 'bank details already stored does need the private half of the old '
+                                           . 'key afterwards — the one the club keeps offline.',
+            'credential_expiry.next.terminal' => 'Settings → Terminals, then “Rotate Token”. The current token '
+                                           . 'keeps working until the new one is used at the terminal for the '
+                                           . 'first time, so the bar stays online while you walk over.',
+            'credential_expiry.no_secret' => 'This message deliberately carries no key or token material — only '
+                                           . 'what is expiring and by when.',
 
             'email_changed.subject'   => 'The sign-in email address for your admin account was changed',
             'email_changed.preheader' => 'This address is no longer the account’s sign-in address.',

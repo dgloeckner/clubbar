@@ -16,6 +16,11 @@ namespace App\Modules\Notifications\DTOs;
  * from and cannot be told, which is the pre-finalize warning bucket #405 shows
  * and #362 is closing at the source. It never blocks: a member the club cannot
  * announce to still owes the money.
+ *
+ * `alreadyQueued` matters only to the repeating callers (#438): a scheduled scan
+ * that finds the same credential in the same tier on every tick needs to be able
+ * to say *"already done"* rather than *"nothing to do"* — the two look identical
+ * in a count of zero and mean opposite things when a warning has not arrived.
  */
 final readonly class EnqueueResultDto
 {
@@ -27,6 +32,8 @@ final readonly class EnqueueResultDto
         public int $queued,
         public array $withoutEmail = [],
         public array $withoutBalance = [],
+        /** Recipients the unique index refused because this exact message already exists. */
+        public int $alreadyQueued = 0,
     ) {}
 
     public static function empty(): self
@@ -40,6 +47,7 @@ final readonly class EnqueueResultDto
             'queued' => $this->queued,
             'without_email' => $this->withoutEmail,
             'without_balance' => $this->withoutBalance,
+            'already_queued' => $this->alreadyQueued,
         ];
     }
 }
