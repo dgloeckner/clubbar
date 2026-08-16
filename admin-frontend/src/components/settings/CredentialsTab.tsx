@@ -30,6 +30,7 @@ import { Alert } from '../common/Alert'
 import { Badge } from '../common/Badge'
 import { StepUpConfirmDialog, type StepUpCredentials } from '../modals/StepUpConfirmDialog'
 import { KeyRotationDialog, type KeyRotationProgress } from '../modals/KeyRotationDialog'
+import { PrivateKeyInput } from '../modals/PrivateKeyInput'
 import { TerminalCredentials } from './TerminalCredentials'
 import { modalInputStyle, modalLabelStyle } from '../modals/ModalError'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
@@ -85,6 +86,7 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
   const [newIdentifier, setNewIdentifier] = useState('')
   const [newPublicKey, setNewPublicKey] = useState('')
   const [activateId, setActivateId] = useState<string | null>(null)
+  const [activatePrivateKey, setActivatePrivateKey] = useState('')
   const [revokeIntent, setRevokeIntent] = useState<RevokeIntent | null>(null)
   const [rotateKey, setRotateKey] = useState<EncryptionKey | null>(null)
   const [rotationProgress, setRotationProgress] = useState<KeyRotationProgress | null>(null)
@@ -117,6 +119,9 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
   const closeDialogs = () => {
     setRegisterOpen(false)
     setActivateId(null)
+    // Never leave key material sitting in component state behind a closed
+    // dialog — cancelling is as much a reason to drop it as confirming.
+    setActivatePrivateKey('')
     setRevokeIntent(null)
     setRotateKey(null)
     setRotationProgress(null)
@@ -152,7 +157,10 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
     if (!activateId) return
     setBusy(true)
     try {
-      await getSecurity().activateEncryptionKey(activateId, credentials)
+      await getSecurity().activateEncryptionKey(activateId, {
+        private_key: activatePrivateKey.trim(),
+        ...credentials,
+      })
       await afterMutation('settings.credentials.activated')
     } catch (err: unknown) {
       setDialogError(getApiErrorMessage(err, t('settings.credentials.errors.activate')))
@@ -365,7 +373,10 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
         confirmLabel={t('settings.credentials.activate')}
         requiresTotp={callerTotpEnabled}
         error={dialogError}
-        confirmDisabled={busy}
+        confirmDisabled={busy || activatePrivateKey.trim() === ''}
+        extraFields={
+          <PrivateKeyInput value={activatePrivateKey} onChange={setActivatePrivateKey} />
+        }
         onConfirm={handleActivate}
         onCancel={closeDialogs}
       />

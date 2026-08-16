@@ -3970,6 +3970,14 @@ paths:
         the start of a rotation: new IBANs are sealed under the new key
         immediately, while the existing rows still need re-encrypting.
 
+        **The body carries the private half of the key being activated**, as
+        proof the club holds it. Registration cannot show that a public key has
+        a counterpart at all — 32 bytes out of a mistyped clipboard register
+        exactly like a generated key — and activation is the moment that stops
+        being harmless, because everything sealed from here needs that private
+        half to ever be read again. The proof is a public-key derivation, never
+        a trial decryption, and the secret is wiped once compared.
+
         Requires a fresh step-up credential.
       tags:
         - Security
@@ -3980,7 +3988,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/StepUpCredentials'
+              allOf:
+                - $ref: '#/components/schemas/StepUpCredentials'
+                - type: object
+                  required: [private_key]
+                  properties:
+                    private_key:
+                      type: string
+                      description: |
+                        The 32-byte private key of the key being activated,
+                        base64-encoded. Never persisted server-side.
       responses:
         '200':
           description: The activated key
@@ -3997,6 +4014,11 @@ paths:
           description: Unknown key
         '409':
           description: The key is not pending; only a pending key can be activated
+        '422':
+          description: |
+            `private_key_mismatch` — the supplied key belongs to a different
+            keypair, or is not 32 base64-encoded bytes. The key stays pending
+            and seals nothing.
 
   /admin/encryption-keys/{id}/revoke:
     parameters:
