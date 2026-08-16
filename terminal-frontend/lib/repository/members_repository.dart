@@ -59,25 +59,55 @@ class MembersRepository {
   /// a row that keeps a released card would block the member it gets reassigned
   /// to; and a card with no member to resolve to is exactly what a scan should
   /// treat as unknown.
+  ///
+  /// That same UNIQUE index is why a chip handed on to another member has to
+  /// release its previous holder here (issue #370). The upsert conflicts on the
+  /// primary key only, so a delta that named the *new* holder before the old
+  /// one's release raised `UNIQUE constraint failed: members_cache.card_uid`
+  /// out of the first step of the sync cycle — and since the cursor only
+  /// advances on success, every later cycle re-fetched the same delta and
+  /// failed the same way. A terminal in that state quietly stops learning about
+  /// anything: no new members, no product changes, and no newly registered chip
+  /// for as long as it runs. The backend guarantees a UID sits at one member at
+  /// a time, so mirroring that here — last writer takes the card — cannot lose
+  /// state the next delta will not bring back.
+  ///
+  /// The batch is one transaction: half an applied delta with the cursor
+  /// already advanced is not a state the terminal can tell from a complete one.
   Future<void> upsertMembers(List<Member> members) async {
-    for (final dto in members) {
-      final isDeleted = dto.deletedAt != null;
-      await _db.into(_db.membersCache).insertOnConflictUpdate(
-        MembersCacheCompanion(
-          id: Value(dto.id),
-          cardUid: isDeleted
-              ? const Value(null)
-              : Value(normalizeCardUidOrNull(dto.cardUid)),
-          firstName: Value(dto.firstName),
-          lastName: Value(dto.lastName),
-          preferredLanguage: Value(dto.preferredLanguage),
-          isActive: Value(dto.isActive ? 1 : 0),
-          isSepaValid: Value(dto.isSepaValid ? 1 : 0),
-          updatedAt: Value(dto.updatedAt.toIso8601String()),
-          deletedAt: Value(dto.deletedAt?.toIso8601String()),
-        ),
-      );
-    }
+    await _db.transaction(() async {
+      for (final dto in members) {
+        final isDeleted = dto.deletedAt != null;
+        final cardUid =
+            isDeleted ? null : normalizeCardUidOrNull(dto.cardUid);
+
+        if (cardUid != null) await _releaseCardFromOtherMembers(cardUid, dto.id);
+
+        await _db.into(_db.membersCache).insertOnConflictUpdate(
+          MembersCacheCompanion(
+            id: Value(dto.id),
+            cardUid: Value(cardUid),
+            firstName: Value(dto.firstName),
+            lastName: Value(dto.lastName),
+            preferredLanguage: Value(dto.preferredLanguage),
+            isActive: Value(dto.isActive ? 1 : 0),
+            isSepaValid: Value(dto.isSepaValid ? 1 : 0),
+            updatedAt: Value(dto.updatedAt.toIso8601String()),
+            deletedAt: Value(dto.deletedAt?.toIso8601String()),
+          ),
+        );
+      }
+    });
+  }
+
+  /// Take [cardUid] away from whoever else holds it locally, so [keepMemberId]
+  /// can be given it. A no-op in the overwhelmingly common case where nobody
+  /// else does.
+  Future<void> _releaseCardFromOtherMembers(
+      String cardUid, String keepMemberId) async {
+    await (_db.update(_db.membersCache)
+          ..where((m) => m.cardUid.equals(cardUid) & m.id.equals(keepMemberId).not()))
+        .write(const MembersCacheCompanion(cardUid: Value(null)));
   }
 
   /// Get all active members (for testing/debugging)

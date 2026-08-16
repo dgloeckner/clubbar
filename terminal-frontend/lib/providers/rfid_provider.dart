@@ -11,6 +11,7 @@ import 'package:clubbar_terminal/services/mock_rfid_service.dart';
 import 'package:clubbar_terminal/services/real_rfid_service.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/services/scan_log.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/card_uid.dart';
 
@@ -100,9 +101,16 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
   /// every scan converges, so no future caller can reintroduce the case
   /// mismatch that rejected valid cards as "Unknown token" (issue #18).
   Future<void> handleCardScan(String rawCardUid) async {
-    if (_isScanning) return;
-
     final cardUid = normalizeCardUid(rawCardUid);
+
+    // A tap dropped here is the one refusal that says nothing at all — no
+    // sound, no banner — so it is at least written down (issue #370). The
+    // window is a whole lookup wide, and a lookup waits on the backend for the
+    // member's balance.
+    if (_isScanning) {
+      ScanLog.instance.record(ScanEventKind.droppedBusy, uid: cardUid);
+      return;
+    }
 
     // ADR-0027 rule 7: while billing runs, every scan is refused and none is
     // queued. Checked before the lookup so a refused tap cannot touch the
@@ -125,6 +133,8 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
         // Error: card not found, inactive, or SEPA missing. On the confirmation
         // screen this deliberately leaves the receipt on screen (rule 9).
         final key = errorKey ?? TerminalErrorKey.memberLookupFailed;
+        ScanLog.instance
+            .record(ScanEventKind.rejected, uid: cardUid, detail: key.name);
         _detectedMember = null;
         emitError(key);
         _membersProvider.setError(key);
@@ -134,11 +144,15 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
 
       if (!await _startSessionForScannedCard(member)) return;
 
+      ScanLog.instance.record(ScanEventKind.accepted, uid: cardUid);
+
       // Navigate to product selection (only if context is available and mounted)
       if (_context != null && _context!.mounted) {
         _context!.go('/products');
       }
     } catch (e, stackTrace) {
+      ScanLog.instance.record(ScanEventKind.rejected,
+          uid: cardUid, detail: 'lookup threw: $e');
       _detectedMember = null;
       emitError(TerminalErrorKey.memberLookupFailed,
           cause: e, stackTrace: stackTrace);
@@ -190,7 +204,11 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
 
   /// Record a scan hint occurrence without notifying — for callers that are
   /// about to notify anyway (mirrors [ErrorSignal.emitError]).
+  ///
+  /// Every refusal goes to the scan log too, so the log tells the whole story
+  /// of a tap: what the reader typed, and what the policy did with it.
   void _setHint(ScanHintKey key) {
+    ScanLog.instance.record(ScanEventKind.refused, detail: key.name);
     _hint = ScanHint(key: key, sequence: ++_hintSequence);
   }
 

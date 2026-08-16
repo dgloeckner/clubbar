@@ -365,6 +365,14 @@
   "@cardReaderLastSeen": {
     "description": "Timestamp label for when the card reader was last detected"
   },
+  "recentScans": "Letzte Chip-Erkennungen",
+  "@recentScans": {
+    "description": "Status modal section listing what the terminal made of the last card taps"
+  },
+  "recentScansEmpty": "Noch kein Chip erkannt",
+  "@recentScansEmpty": {
+    "description": "Shown in the recent scans section when the terminal has seen no card activity yet"
+  },
   "dispenser": "Ausgabegerät",
   "@dispenser": {
     "description": "Token dispenser hardware label"

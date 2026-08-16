@@ -9,6 +9,7 @@ import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
+import 'package:clubbar_terminal/services/scan_log.dart';
 import 'package:clubbar_terminal/widgets/status_info_modal.dart';
 import '../test_helpers.dart';
 
@@ -394,6 +395,72 @@ void main() {
         expect(rendered, isNot(contains('qty:')));
 
         await closeModal(tester);
+      });
+    });
+
+    // Issue #370: "the chip was not recognised" is the only report a member
+    // can make. This section is what turns it into an answer.
+    group('recent card scans (#370)', () {
+      setUp(() {
+        ScanLog.instance.clear();
+        when(() => mockSyncProvider.connectionStatus)
+            .thenReturn(ConnectionStatus.online);
+        when(() => mockSyncProvider.lastSyncTime).thenReturn(null);
+        when(() => mockSyncProvider.lastSuccessfulTransactionSync)
+            .thenReturn(null);
+        when(() => mockSyncProvider.retryCount).thenReturn(0);
+        when(() => mockSyncProvider.lastError).thenReturn(null);
+      });
+
+      Future<void> openModal(WidgetTester tester) async {
+        await tester.pumpWidget(buildTestApp(
+          child: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showStatusInfoModal(context),
+              child: const Text('Open'),
+            ),
+          ),
+        ));
+        await tester.tap(find.text('Open'));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('lists what the terminal made of the last taps',
+          (tester) async {
+        ScanLog.instance.record(ScanEventKind.partialDiscarded,
+            detail: '6 chars, no terminator');
+        ScanLog.instance.record(ScanEventKind.rejected,
+            uid: 'ABCD1234', detail: 'unknownCard');
+
+        await openModal(tester);
+
+        expect(find.text('Letzte Chip-Erkennungen'), findsOneWidget);
+        expect(
+          find.textContaining('rejected ABCD1234 unknownCard'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('partialDiscarded 6 chars, no terminator'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('says so when the reader has produced nothing at all',
+          (tester) async {
+        await openModal(tester);
+
+        expect(find.text('Noch kein Chip erkannt'), findsOneWidget);
+      });
+
+      testWidgets('a scan arriving while the modal is open shows up in it',
+          (tester) async {
+        await openModal(tester);
+        expect(find.text('Noch kein Chip erkannt'), findsOneWidget);
+
+        ScanLog.instance.record(ScanEventKind.uidCaptured, uid: 'ABCD1234');
+        await tester.pump();
+
+        expect(find.textContaining('uidCaptured ABCD1234'), findsOneWidget);
       });
     });
 

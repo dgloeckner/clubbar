@@ -11,6 +11,7 @@ import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
+import 'package:clubbar_terminal/services/scan_log.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/error_modal.dart';
 
@@ -116,6 +117,11 @@ class _StatusInfoDialog extends StatefulWidget {
 }
 
 class _StatusInfoDialogState extends State<_StatusInfoDialog> {
+  /// How many scan-log entries the section shows: enough to cover a member
+  /// trying again before fetching staff, short enough to stay readable on a 7"
+  /// panel.
+  static const int _recentScansShown = 6;
+
   StatusModalTab _currentTab = StatusModalTab.overview;
   List<DispenserOperation> _pendingOps = [];
   StreamSubscription<List<DispenserOperation>>? _opsSub;
@@ -442,6 +448,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             const SizedBox(height: 20),
           ],
 
+          // What the reader has actually been doing (#370)
+          _buildRecentScansSection(l10n),
+          const SizedBox(height: 20),
+
           // Dispenser section - simplified (if available)
           if (health != null) ...[
             _buildSection(
@@ -601,6 +611,58 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
       ],
     );
   }
+
+  /// The last few card taps and what the terminal made of each (issue #370).
+  ///
+  /// "The chip was not recognised" is all a member can report, and the failure
+  /// modes behind it are indistinguishable from the bar: a UID that never
+  /// finished arriving, a key the reader typed that carries no character, a
+  /// card the cache does not know. Staff open this, read the lines out, and the
+  /// difference is obvious. The lines are deliberately technical and
+  /// untranslated — they exist to be reported verbatim, and the kind is the
+  /// term to search the source for.
+  Widget _buildRecentScansSection(AppLocalizations l10n) {
+    return AnimatedBuilder(
+      animation: ScanLog.instance,
+      builder: (context, _) {
+        final events = ScanLog.instance.events.take(_recentScansShown).toList();
+
+        return _buildSection(
+          title: l10n.recentScans,
+          children: [
+            if (events.isEmpty)
+              Text(
+                l10n.recentScansEmpty,
+                style: TextStyle(
+                  fontSize: AppFontSizes.sm,
+                  color: AppColors.textSecondary,
+                ),
+              )
+            else
+              for (final event in events)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    '${_formatClockTime(event.at)}  ${event.summary}',
+                    style: TextStyle(
+                      fontSize: AppFontSizes.xs,
+                      fontFamily: 'monospace',
+                      color: event.kind.isSilentLoss
+                          ? AppColors.semanticDanger
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _two(int value) => value.toString().padLeft(2, '0');
+
+  static String _formatClockTime(DateTime at) =>
+      '${_two(at.hour)}:${_two(at.minute)}:${_two(at.second)}';
 
   Widget _buildDispenserTab(AppLocalizations l10n, DispenserHealth? health) {
     if (health == null) {
