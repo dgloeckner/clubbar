@@ -38,6 +38,19 @@ final class RuntimeHardening
     private const FATAL_ERROR_TYPES = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
 
     /**
+     * Mirrors the Content-Security-Policy line in `package/.htaccess` — the
+     * two are kept in sync by hand; see that file's comment for what each
+     * directive is for and why (#250, ADR-0031 decision 1).
+     */
+    private const CSP_HEADER = "Content-Security-Policy: default-src 'self'; script-src 'self'; "
+        . "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+        . "worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; "
+        . "frame-ancestors 'none'";
+
+    /** Mirrors the Strict-Transport-Security line in `package/.htaccess` and `backend/public/.htaccess`. */
+    private const HSTS_HEADER = 'Strict-Transport-Security: max-age=31536000; includeSubDomains';
+
+    /**
      * Apply every directive, and report what the host would not allow.
      *
      * Returns human-readable warnings rather than throwing or logging: this
@@ -56,6 +69,7 @@ final class RuntimeHardening
         self::applyErrorReporting($config->debug);
         $warnings = self::applySessionDirectives($config);
         self::removeVersionHeader();
+        self::applySecurityHeaders();
 
         if ($registerFatalHandler ?? (PHP_SAPI !== 'cli')) {
             self::registerFatalErrorResponder($config->debug);
@@ -174,6 +188,38 @@ final class RuntimeHardening
         if (!headers_sent()) {
             header_remove('X-Powered-By');
         }
+    }
+
+    /**
+     * Content-Security-Policy for the admin SPA, and Strict-Transport-Security
+     * for the connection carrying it — set from code, not only from
+     * `.htaccess` (#250, #383; ADR-0031 decision 1, promoting these two rows
+     * from L2 to L0).
+     *
+     * `.htaccess` is honoured at the host's discretion: a tariff or webserver
+     * change can silently drop the whole `<IfModule mod_headers.c>` block,
+     * which is exactly what the security self-check found on a live
+     * installation (#383) — both headers simply absent, with no application
+     * error to notice it by. Setting them from PHP means a host that stops
+     * honouring `.htaccess` loses nothing here. `.htaccess` keeps shipping the
+     * same two lines as a redundant second source: `Header set` overwrites
+     * rather than duplicates a header PHP already sent, so there is no
+     * double-header to clean up.
+     *
+     * Called both from {@see apply()} — every request through `bootstrap.php`,
+     * including the `/api/health` probe the security self-check reads these
+     * headers from — and directly by `package/index.php`'s SPA fallback,
+     * which serves the admin panel's HTML without ever reaching
+     * `bootstrap.php`.
+     */
+    public static function applySecurityHeaders(): void
+    {
+        if (headers_sent()) {
+            return;
+        }
+
+        header(self::CSP_HEADER);
+        header(self::HSTS_HEADER);
     }
 
     /**

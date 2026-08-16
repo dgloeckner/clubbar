@@ -1,6 +1,6 @@
 # ADR-0031: Production Hardening on Shared Hosting
 
-**Status**: Accepted (amended by [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md): mail delivery adds the first accepted *hard* dependency on a host feature — see "Mail and the scheduler"; by [ADR-0039](./0039-periodic-deckel-statement.md): the scheduler's *interval* joins its existence as a declared and verified host fact, and a weekly-only host is refused)
+**Status**: Accepted (amended by [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md): mail delivery adds the first accepted *hard* dependency on a host feature — see "Mail and the scheduler"; by [ADR-0039](./0039-periodic-deckel-statement.md): the scheduler's *interval* joins its existence as a declared and verified host fact, and a weekly-only host is refused; by [#383](https://github.com/dgloeckner/clubbar/issues/383): the Content-Security-Policy and Strict-Transport-Security headers move from L2 to L0 — see "CSP and HSTS move to L0")
 **Date**: 2026-08-09
 
 ## Context
@@ -90,11 +90,46 @@ On the reference target this is an outage, not a degradation. Any such directive
 
 | Layer | Mechanism | What belongs here | If the host ignores it |
 |---|---|---|---|
-| L0 | Application code at startup | All `PHP_INI_ALL` directives; header removal | Cannot be ignored |
+| L0 | Application code at startup | All `PHP_INI_ALL` directives; header removal; Content-Security-Policy and Strict-Transport-Security (`RuntimeHardening::applySecurityHeaders()`, #383) | Cannot be ignored |
 | L1 | `.user.ini` | `PHP_INI_PERDIR` directives; duplicates of L0 | Degraded, reported by L4 |
-| L2 | `.htaccess` | Access denials, security headers, HTTPS redirect | Degraded, reported by L4 — and the reason for decision 2 |
+| L2 | `.htaccess` | Access denials, HTTPS redirect; CSP and HSTS as a redundant second source of L0's values | Degraded, reported by L4 — and the reason for decision 2 |
 | L3 | Hosting control panel | PHP version, TLS, directory listing | Documented checklist; nothing else is possible |
 | L4 | Self-check | Measures L0–L3 and reports drift | The layer that makes the others honest |
+
+### CSP and HSTS move to L0
+
+> **Amended 2026-08-16** by [#383](https://github.com/dgloeckner/clubbar/issues/383).
+
+The layer table above originally put the Content-Security-Policy and
+Strict-Transport-Security response headers at L2 — `.htaccess` only — with
+their absence an accepted, self-check-reported degradation, the same as any
+other `.htaccess` rule. #383 is that degradation actually happening on a live
+installation: both headers silently absent, with the treasurer's own host
+having stopped honouring `.htaccess` at some point after a green install, and
+nothing but the self-check to notice.
+
+Rule 1's test — *if this file were deleted on the host, would the deployment
+still be hardened?* — was already failing for these two rows; the original
+table just left them at L2 anyway. Nothing about that was a hard technical
+limit: `package/index.php` routes every request through PHP before any HTML
+or JSON reaches the browser — the SPA shell is shipped as `spa.html`, not
+`index.html`, specifically so Apache's "serve the file directly if it exists"
+rule cannot intercept it ahead of the front controller. There was no request
+these two headers needed to reach that PHP could not also reach.
+
+Both headers are now set by `RuntimeHardening::applySecurityHeaders()`
+(`header()`, guarded by `headers_sent()`), called from `RuntimeHardening::apply()`
+— every request through `bootstrap.php`, including the `/api/health` probe the
+self-check reads them from — and directly by `package/index.php`'s SPA
+fallback, which never reaches `bootstrap.php`. `.htaccess` keeps shipping the
+same two lines: `Header set` overwrites rather than duplicates a header PHP
+already sent, so the redundancy is free and the installation stays hardened
+even where `mod_headers` genuinely is available.
+
+The self-check's `csp_header` and `hsts` rows still exist and can still warn —
+now that would mean something between PHP and the browser (a reverse proxy, a
+CDN, a cache) is stripping a header the application did send, which is a
+different and rarer failure than "the host dropped `.htaccess`."
 
 ### Mail and the scheduler
 
@@ -147,8 +182,9 @@ Two smaller points belong in this ADR's own terms:
 | [#247](https://github.com/dgloeckner/clubbar/issues/247) | 3 — the security self-check (L4) |
 | [#248](https://github.com/dgloeckner/clubbar/issues/248) | 4 — least privilege on files |
 | [#249](https://github.com/dgloeckner/clubbar/issues/249) | 5 and layers L1/L2 — `.user.ini` and `.htaccess` |
-| [#250](https://github.com/dgloeckner/clubbar/issues/250) | L2 — Content-Security-Policy for the admin SPA |
+| [#250](https://github.com/dgloeckner/clubbar/issues/250) | Originally L2 — Content-Security-Policy for the admin SPA; moved to L0 by #383 |
 | [#251](https://github.com/dgloeckner/clubbar/issues/251) | 1 — `__Host-` cookie prefix, following #105 |
+| [#383](https://github.com/dgloeckner/clubbar/issues/383) | CSP and HSTS move to L0 — see "CSP and HSTS move to L0" |
 
 ## References
 

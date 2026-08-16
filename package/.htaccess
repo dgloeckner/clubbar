@@ -73,6 +73,10 @@ RewriteRule ^ index.php [L,QSA]
 
 # Security headers
 <IfModule mod_headers.c>
+    # Strict-Transport-Security: belt for RuntimeHardening::applySecurityHeaders()
+    # (#383, ADR-0031 — CSP and HSTS moved to L0). `Header set` overwrites rather
+    # than duplicates a header PHP already sent, so this line is redundant on a
+    # host that honours .htaccess and the only source on one that does not.
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "DENY"
@@ -83,7 +87,10 @@ RewriteRule ^ index.php [L,QSA]
     # from code (#246), this is the belt for a request that never reaches it.
     Header always unset X-Powered-By
 
-    # Content-Security-Policy (#250, ADR-0031 layer L2).
+    # Content-Security-Policy (#250; #383, ADR-0031 — CSP and HSTS moved to L0).
+    # Belt for RuntimeHardening::applySecurityHeaders(): redundant on a host
+    # that honours .htaccess, the only source on one that does not. Keep this
+    # value identical to RuntimeHardening's CSP_HEADER constant by hand.
     #
     # The Vite build ships no third-party origins and no inline <script>, so
     # script-src is 'self' with neither unsafe-inline nor unsafe-eval.

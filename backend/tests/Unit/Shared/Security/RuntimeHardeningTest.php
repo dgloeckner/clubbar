@@ -7,6 +7,7 @@ namespace Tests\Unit\Shared\Security;
 use App\Shared\Config\AppConfig;
 use App\Shared\Config\Env;
 use App\Shared\Middleware\ErrorHandler;
+use App\Shared\Security\HttpProbe;
 use App\Shared\Security\RuntimeHardening;
 use App\Shared\Security\SecuritySelfCheck;
 use PHPUnit\Framework\TestCase;
@@ -267,6 +268,109 @@ class RuntimeHardeningTest extends TestCase
 
             $this->assertSame($expected, $isOn, "RuntimeHardening leaves {$directive} at '{$actual}'");
         }
+    }
+
+    /**
+     * #383, ADR-0031 — CSP and HSTS moved from L2 (`.htaccess` only) to L0
+     * after the security self-check found both silently absent on a live
+     * installation whose host had stopped honouring `.htaccess`'s
+     * `mod_headers` block. Run against a real webserver, mirroring
+     * {@see HttpProbeTest} and {@see SecuritySelfCheckTest::withCspServer()}:
+     * PHP's CLI SAPI never populates `headers_list()` from a `header()` call
+     * — there is no HTTP response to queue it onto — so asserting in-process
+     * would prove nothing about what a browser actually receives.
+     */
+    public function test_content_security_policy_and_hsts_are_set_from_code(): void
+    {
+        $documentRoot = sys_get_temp_dir() . '/clubbar-security-headers-' . bin2hex(random_bytes(6));
+        mkdir($documentRoot, 0700, true);
+
+        $runtimeHardeningPath = dirname(__DIR__, 4) . '/src/Shared/Security/RuntimeHardening.php';
+        file_put_contents($documentRoot . '/router.php', <<<PHP
+            <?php
+            require {$this->exportPath($runtimeHardeningPath)};
+            App\Shared\Security\RuntimeHardening::applySecurityHeaders();
+            echo 'ok';
+            PHP);
+
+        $server = null;
+        $baseUrl = null;
+        for ($attempt = 0; $attempt < 10 && $server === null; $attempt++) {
+            $port = random_int(20000, 60000);
+            $command = sprintf(
+                '%s -S 127.0.0.1:%d %s',
+                escapeshellarg(PHP_BINARY),
+                $port,
+                escapeshellarg($documentRoot . '/router.php'),
+            );
+
+            $candidate = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+            if (!is_resource($candidate)) {
+                continue;
+            }
+
+            if ($this->waitForPort($port)) {
+                $server = $candidate;
+                $baseUrl = "http://127.0.0.1:{$port}";
+            } else {
+                proc_terminate($candidate);
+                proc_close($candidate);
+            }
+        }
+
+        if ($server === null || $baseUrl === null) {
+            $this->removeTree($documentRoot);
+            $this->markTestSkipped('Could not start a local webserver to probe');
+
+            return;
+        }
+
+        try {
+            $response = HttpProbe::fetch($baseUrl . '/');
+            $this->assertSame(200, $response['status']);
+
+            $csp  = $response['headers']['content-security-policy'] ?? null;
+            $hsts = $response['headers']['strict-transport-security'] ?? null;
+
+            $this->assertNotNull($csp, 'Content-Security-Policy was not sent');
+            $this->assertStringContainsString("default-src 'self'", $csp);
+            $this->assertStringNotContainsString('unsafe-eval', $csp);
+
+            $this->assertNotNull($hsts, 'Strict-Transport-Security was not sent');
+            $this->assertMatchesRegularExpression('/max-age\s*=\s*\d+/', $hsts);
+        } finally {
+            proc_terminate($server);
+            proc_close($server);
+            $this->removeTree($documentRoot);
+        }
+    }
+
+    private function exportPath(string $path): string
+    {
+        return var_export($path, true);
+    }
+
+    private function waitForPort(int $port): bool
+    {
+        for ($attempt = 0; $attempt < 50; $attempt++) {
+            $socket = @fsockopen('127.0.0.1', $port, $errno, $error, 0.2);
+            if (is_resource($socket)) {
+                fclose($socket);
+
+                return true;
+            }
+            usleep(100_000);
+        }
+
+        return false;
+    }
+
+    private function removeTree(string $directory): void
+    {
+        foreach (glob($directory . '/*') ?: [] as $file) {
+            unlink($file);
+        }
+        rmdir($directory);
     }
 
     public function test_a_warning_or_notice_is_not_answered_as_a_fatal(): void
