@@ -2,7 +2,7 @@
 
 **Issue**: [#438](https://github.com/dgloeckner/clubbar/issues/438) — follow-up from [#397](https://github.com/dgloeckner/clubbar/issues/397), epic [#388](https://github.com/dgloeckner/clubbar/issues/388)
 **ADRs**: [ADR-0036](../adr/0036-iban-encryption-sealed-box.md) (the deferred deviation, now corrected), [ADR-0038](../adr/0038-transactional-mail-outbox-on-shared-hosting.md) (the outbox and the mandatory scheduler)
-**Status**: Implemented (M1–M5 done; 1866 backend unit + 574 feature tests green, 3 `mail-credentials` E2E green)
+**Status**: Implemented (M1–M5 merged in [PR #485](https://github.com/dgloeckner/clubbar/pull/485); M6 follows as its own change)
 
 ---
 
@@ -119,6 +119,44 @@ manual run prints `Credential expiry scan: …`.
 three consecutive runs.
 
 ---
+
+### M6 — The volume bound, made independent of retention [x]
+
+Follow-up to the review question *"how are we guaranteeing the admin does not
+get spammed?"*. Tracing the answer surfaced that the bound leaned on something
+it should not have.
+
+The chain is: the scan offers a message every tick and never asks whether it
+already sent one; `enqueue()` is `INSERT … ON DUPLICATE KEY UPDATE id = id`
+against `UNIQUE (kind, subject_id, dedup_key)`, so the database refuses the
+second one atomically; the dedup key is `(credential, tier, admin)`; and the
+tier is stable for the whole window. That bounds it at **three messages per
+credential per admin, per credential lifetime**.
+
+What that argument quietly depends on is `MailRetention` pruning delivered rows
+at 90 days — the guard has to outlive its own window, and it does: the windows
+are 60, 23 and 8 days, and a shorter configured TTL truncates them rather than
+lengthening them. That half holds.
+
+The half that did not: `subject_id` is the **terminal**, not the token, so a
+rotation reuses the dedup key. Whether the successor token got warned about
+came down to whether the predecessor's row had been pruned yet — ~190 days of
+slack at the 365-day default, and a coin flip at `API_TOKEN_TTL_DAYS=90`, which
+is what that setting used to default to. The failure is a *suppressed* warning,
+not a duplicate, and it would have been invisible.
+
+- [x] `occasion()` takes an optional generation segment; `tokenGeneration()`
+      renders `token_issued_at` as a sortable `YmdHis` stamp
+- [x] Terminal warnings carry it; encryption keys do not need it and do not get
+      it — a rotated key already has a new `subject_id`
+- [x] The VARCHAR(64) budget is pinned by a test against the **longest** key the
+      class can produce (`90d:14 digits:36-char id` = 55), not the shortest
+- [x] The generation is in the log line, because a *missing* warning is
+      diagnosed by comparing it against the dedup keys already in the outbox
+
+**Verified**: 3 new cases — a rotated token warning again at the same tier, a
+terminal with no issuance stamp still warning exactly once, and the stamp's own
+edges — plus the builder reading the tier past the new segment.
 
 ## Deliberately not done
 

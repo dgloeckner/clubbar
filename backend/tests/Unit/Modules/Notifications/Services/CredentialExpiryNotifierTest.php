@@ -74,9 +74,13 @@ class CredentialExpiryNotifierTest extends TestCase
             'name' => 'Theke',
             'is_active' => 1,
             'pending_token_hash' => null,
+            'token_issued_at' => '2026-01-02 03:04:05',
             'token_expires_at' => $expiresInDays === null ? null : $this->expiresIn($expiresInDays),
         ];
     }
+
+    /** The generation segment the fixture above produces. */
+    private const GENERATION = '20260102030405';
 
     /**
      * Records what was asked for and answers as the outbox would, so a second
@@ -216,11 +220,71 @@ class CredentialExpiryNotifierTest extends TestCase
 
         $this->assertSame(
             [
+                // The key carries no generation: rotating it produces a new row
+                // with a new id, so `subject_id` already separates the cycles.
                 ['kind' => MailKind::KEY_EXPIRY_WARNING, 'subject_id' => 'key-1', 'occasion' => '7d'],
-                ['kind' => MailKind::TERMINAL_TOKEN_EXPIRY_WARNING, 'subject_id' => 'terminal-1', 'occasion' => '30d'],
+                [
+                    'kind' => MailKind::TERMINAL_TOKEN_EXPIRY_WARNING,
+                    'subject_id' => 'terminal-1',
+                    'occasion' => '30d:' . self::GENERATION,
+                ],
             ],
             $this->warned,
         );
+    }
+
+    /**
+     * The reason the generation segment exists (#438 follow-up).
+     *
+     * A rotation leaves the terminal, and therefore `subject_id`, exactly as it
+     * was. Without a discriminator the successor token's warnings share a dedup
+     * key with the predecessor's, and whether the admin is warned at all comes
+     * down to whether `MailRetention` has pruned the old row yet — comfortable
+     * at the default 365-day TTL, a coin flip at `API_TOKEN_TTL_DAYS=90`, which
+     * is what that setting used to default to.
+     */
+    public function test_a_rotated_token_is_its_own_warning_at_the_same_tier(): void
+    {
+        $this->terminals = $this->createMock(TerminalsRepository::class);
+        $this->terminals->method('findAll')->willReturnOnConsecutiveCalls(
+            [$this->terminal(5)],
+            // Same terminal, same id, same tier — a token issued later.
+            [$this->terminal(5, ['token_issued_at' => '2026-06-07 08:09:10'])],
+        );
+
+        $this->captureWarnings();
+
+        $notifier = $this->notifier();
+        $first = $notifier->run($this->now);
+        $second = $notifier->run($this->now);
+
+        $this->assertSame(1, $first->queued);
+        $this->assertSame(1, $second->queued, 'the replacement token got no warning of its own');
+        $this->assertSame(0, $second->alreadyQueued);
+
+        $this->assertSame(
+            ['7d:' . self::GENERATION, '7d:20260607080910'],
+            array_column($this->warned, 'occasion'),
+        );
+    }
+
+    /**
+     * A row edited by hand — migration 011 backfilled `token_issued_at`, so an
+     * empty one is not a shape the application produces. One namespace for it is
+     * exactly the guarantee this feature had before the segment existed.
+     */
+    public function test_a_terminal_without_an_issuance_stamp_still_warns_once(): void
+    {
+        $this->terminals = $this->createMock(TerminalsRepository::class);
+        $this->terminals->method('findAll')->willReturn([$this->terminal(5, ['token_issued_at' => null])]);
+
+        $this->captureWarnings();
+
+        $notifier = $this->notifier();
+        $this->assertSame(1, $notifier->run($this->now)->queued);
+        $this->assertSame(0, $notifier->run($this->now)->queued);
+
+        $this->assertSame(['7d:0', '7d:0'], array_column($this->warned, 'occasion'));
     }
 
     /**
@@ -275,16 +339,43 @@ class CredentialExpiryNotifierTest extends TestCase
         $this->assertSame(0, $result->queued);
     }
 
-    public function test_the_occasion_round_trips_through_a_dedup_key(): void
+    /**
+     * `warnAdmins()` writes `occasion:adminUserId` into a VARCHAR(64) and an
+     * admin id is 36 characters. The longest occasion this class can produce is
+     * the one carrying a generation, so that is the one the budget is pinned
+     * against — silently overflowing the column would collapse two credential
+     * generations into one message, which is the failure the segment was added
+     * to prevent.
+     */
+    public function test_the_occasion_round_trips_and_fits_the_column(): void
     {
-        foreach ([90, 30, 7] as $tier) {
-            $dedupKey = CredentialExpiryNotifier::occasion($tier) . ':' . '11111111-2222-3333-4444-555555555555';
+        $adminId = '11111111-2222-3333-4444-555555555555';
+        $this->assertSame(36, strlen($adminId));
 
-            // `warnAdmins()` writes `occasion:adminUserId` into a VARCHAR(64);
-            // an admin id is 36 of those, so the occasion has room to spare.
-            $this->assertLessThanOrEqual(64, strlen($dedupKey));
-            $this->assertSame($tier, CredentialExpiryNotifier::tierFromDedupKey($dedupKey));
+        foreach ([90, 30, 7] as $tier) {
+            foreach ([null, CredentialExpiryNotifier::tokenGeneration('2026-01-02 03:04:05')] as $generation) {
+                $dedupKey = CredentialExpiryNotifier::occasion($tier, $generation) . ':' . $adminId;
+
+                $this->assertLessThanOrEqual(64, strlen($dedupKey), $dedupKey);
+                $this->assertSame($tier, CredentialExpiryNotifier::tierFromDedupKey($dedupKey));
+            }
         }
+    }
+
+    public function test_the_token_generation_is_a_sortable_stamp(): void
+    {
+        $this->assertSame('20260102030405', CredentialExpiryNotifier::tokenGeneration('2026-01-02 03:04:05'));
+
+        // Two rotations, in order — the point of a sortable stamp is that an
+        // outbox read by dedup key sorts a terminal's cycles chronologically.
+        $this->assertLessThan(
+            CredentialExpiryNotifier::tokenGeneration('2026-06-07 08:09:10'),
+            CredentialExpiryNotifier::tokenGeneration('2026-01-02 03:04:05'),
+        );
+
+        $this->assertSame('0', CredentialExpiryNotifier::tokenGeneration(null));
+        $this->assertSame('0', CredentialExpiryNotifier::tokenGeneration(''));
+        $this->assertSame('0', CredentialExpiryNotifier::tokenGeneration('not a date'));
     }
 
     public function test_a_dedup_key_that_names_no_tier_reads_as_null(): void

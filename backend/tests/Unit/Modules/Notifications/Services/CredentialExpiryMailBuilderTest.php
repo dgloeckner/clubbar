@@ -172,6 +172,30 @@ class CredentialExpiryMailBuilderTest extends TestCase
         $this->builder->build(self::row());
     }
 
+    /**
+     * A terminal row's key carries a generation segment between the tier and
+     * the admin id, so the tier must be read as the *first* segment rather than
+     * as "everything before the last colon".
+     */
+    public function test_the_tier_is_read_past_a_generation_segment(): void
+    {
+        $this->terminals->method('findById')->willReturn([
+            'id' => 'terminal-1',
+            'name' => 'Theke',
+            'token_expires_at' => self::inDays(4),
+        ])
+        ;
+
+        $message = $this->builder->build(self::row([
+            'kind' => MailKind::TERMINAL_TOKEN_EXPIRY_WARNING->value,
+            'subject_id' => 'terminal-1',
+            'dedup_key' => '7d:20260102030405:admin-1',
+        ]));
+
+        $this->assertStringStartsWith('Dringend:', $message->subject);
+        $this->assertStringContainsString('Theke', $message->subject);
+    }
+
     public function test_a_row_naming_no_known_tier_is_refused(): void
     {
         $this->expectException(\RuntimeException::class);
