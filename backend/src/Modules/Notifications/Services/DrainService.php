@@ -159,7 +159,17 @@ class DrainService
             ]);
             $this->heartbeatPinger->fail(HeartbeatPinger::REASON_RUN_ABORTED);
 
-            return DrainResultDto::idle($source, microtime(true) - $startedAt);
+            // Not `idle()`. An aborted run and an idle one print the same
+            // counters — all zero — and the difference between them is the
+            // difference between "nothing was due" and "the queue has stopped
+            // and some of it may already have been claimed and left claimed".
+            // The caller has to be able to tell, because on the command line
+            // it is the only thing there is to read.
+            return DrainResultDto::aborted(
+                $source,
+                get_class($e) . ': ' . $e->getMessage(),
+                microtime(true) - $startedAt,
+            );
         }
     }
 

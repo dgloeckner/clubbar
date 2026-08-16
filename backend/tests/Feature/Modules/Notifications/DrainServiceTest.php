@@ -418,6 +418,80 @@ class DrainServiceTest extends DatabaseTestCase
     }
 
     /**
+     * A Deckelauszug is delivered, and leaves **no** settlement record — which
+     * is the whole of the regression, because getting this wrong did not
+     * produce a wrong row, it stopped the queue (#463, ADR-0039).
+     *
+     * `settlement_announcements` is the durable proof that a member was
+     * announced to about a *settlement*. A statement's `subject_id` is the
+     * member, so writing one there put a member id in `settlement_id` under a
+     * `kind` the enum does not have — and MariaDB's truncation warning came
+     * back as a `PDOException` that `DrainService::run()` caught as an aborted
+     * run. The message had already gone out; the other 199 rows in the batch
+     * stayed claimed and unprocessed, and the run reported `claimed=0 sent=0`.
+     * From the outside that is indistinguishable from an idle tick.
+     *
+     * So the assertions are in that order deliberately: the mail leaves, the
+     * run reports what it did, and the record is absent. A test that only
+     * checked the absent record would have passed against a drain that aborted.
+     */
+    public function test_a_delivered_statement_leaves_no_settlement_record_and_does_not_abort_the_run(): void
+    {
+        $memberId = $this->member();
+        $this->outbox->enqueue(MailRequestDto::forStatement(
+            memberId: $memberId,
+            recipient: $memberId . '@example.com',
+            language: MailLanguage::German,
+            period: '2026-08',
+        ));
+
+        // Strict, and it is what makes this a regression test rather than a
+        // description: not writing the record and *failing* to write it leave
+        // an identical database, so the absence of the error is the assertion.
+        $logger = $this->createMock(Logger::class);
+        $logger->expects($this->never())->method('error');
+
+        $transport = new CountingTransport();
+        $result = $this->service($transport, DrainService::DEFAULT_BATCH_SIZE, $logger)->run(DrainSource::CLI);
+
+        $this->assertSame(1, $transport->sends, 'the statement is delivered like any other message');
+        $this->assertSame(1, $result->sent, 'an aborted run reports zero, and that is what this guards');
+        $this->assertSame(MailStatus::SENT->value, $this->rowFor($memberId, $memberId)['status']);
+
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM settlement_announcements WHERE settlement_id = ?');
+        $stmt->execute([$memberId]);
+        $this->assertSame(0, (int) $stmt->fetchColumn(), 'a statement announces nothing and proves nothing');
+    }
+
+    /**
+     * The batch survives one message's bookkeeping going wrong.
+     *
+     * The promise `recordAnnouncement()` already made for a missing `sent_at` —
+     * *"failing the drain over a lost bookkeeping row would turn one missing
+     * record into a batch that never went out"* — now covers the write itself.
+     * Simulated the only way it can be from here: the announcements table is
+     * dropped for the length of the run, so the INSERT fails for real.
+     */
+    public function test_a_refused_announcement_record_does_not_stop_the_batch(): void
+    {
+        [$settlementId, $memberIds] = $this->queue(3);
+
+        $this->db->exec('RENAME TABLE settlement_announcements TO settlement_announcements_hidden');
+
+        try {
+            $transport = new CountingTransport();
+            $result = $this->service($transport)->run(DrainSource::CLI);
+        } finally {
+            $this->db->exec('RENAME TABLE settlement_announcements_hidden TO settlement_announcements');
+        }
+
+        $this->assertSame(3, $transport->sends, 'every message in the batch still went out');
+        $this->assertSame(3, $result->sent);
+        $this->assertSame(3, $this->countWithStatus($settlementId, MailStatus::SENT));
+        $this->assertCount(3, $memberIds);
+    }
+
+    /**
      * Retention does not wait for the mail server.
      *
      * Pruning deletes what has already been delivered, so a run that cannot
@@ -446,17 +520,24 @@ class DrainServiceTest extends DatabaseTestCase
     private function service(
         MailTransport $transport,
         int $batchSize = DrainService::DEFAULT_BATCH_SIZE,
+        ?Logger $bookkeepingLogger = null,
     ): DrainService {
+        // The queue's own logger is normally the suite's silent mock. One test
+        // hands in a strict one instead: "the drain recorded nothing" and "the
+        // drain tried, failed, and swallowed it" leave the same database, and
+        // the log line is the only thing that tells them apart.
+        $queueLogger = $bookkeepingLogger ?? $this->logger;
+
         $notifications = new NotificationsService(
-            new MailOutboxRepository($this->db, $this->logger),
+            new MailOutboxRepository($this->db, $queueLogger),
             // Only the enqueue path reads members and admins; a drain never does.
             $this->createMock(MembersRepository::class),
             $this->createMock(AuditService::class),
             $this->createMock(AdminUsersRepository::class),
             // A delivered announcement leaves a durable settlement-side record
             // (#408); this suite drains real rows, so it gets the real one.
-            new SettlementAnnouncementsRepository($this->db, $this->logger),
-            $this->logger,
+            new SettlementAnnouncementsRepository($this->db, $queueLogger),
+            $queueLogger,
         );
 
         // A real registry with a stub builder: the registry is final, and the

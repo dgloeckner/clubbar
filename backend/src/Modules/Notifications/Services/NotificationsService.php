@@ -13,6 +13,7 @@ use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailStatus;
+use App\Modules\Notifications\Enums\MailSubject;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Modules\Settlements\Repositories\SettlementAnnouncementsRepository;
 use App\Shared\Enums\AuditAction;
@@ -278,15 +279,37 @@ class NotificationsService
     /**
      * Leave the durable trace of a delivered announcement (#408, ADR-0029).
      *
-     * Only for mail addressed to a member about a settlement. An expiry warning
-     * is about a credential and goes to an admin — there is no settlement for it
-     * to be evidence against, and no promise it discharges.
+     * Only for mail addressed to a member **about a settlement**. An expiry
+     * warning is about a credential and goes to an admin — there is no
+     * settlement for it to be evidence against, and no promise it discharges.
+     *
+     * ### Both halves of that sentence are conditions, and for a while only one
+     * of them was checked
+     *
+     * `addressesMember()` alone was sufficient while every member-addressed
+     * kind happened to be about a settlement. `MailKind::DECKEL_STATEMENT`
+     * (ADR-0039) is the first that is not: its `subject_id` is the member. A
+     * delivered Deckelauszug therefore tried to write a member id into
+     * `settlement_announcements.settlement_id` under a `kind` the column's enum
+     * does not have — and MariaDB's truncation warning surfaced as a
+     * `PDOException` that aborted the **whole drain run**, after the message
+     * had already gone out. One statement left per tick and the rest of the
+     * queue stayed claimed, which looks from the outside like a queue that
+     * simply is not moving.
+     *
+     * That is the same trap `MailKind::addressesMember()` documents one level
+     * up, sprung in the place that consumed it. The condition now asks what
+     * this record actually is: proof that a member was announced to about a
+     * settlement. A statement announces nothing and proves nothing anyone will
+     * need — ADR-0039 decision 6 prunes its queue row at ninety days for that
+     * exact reason.
      *
      * A missing `sent_at` means the queue row vanished between the mark and the
      * read, which on a live installation means somebody deleted it by hand. It
      * is logged rather than thrown: the message *was* sent, and failing the
      * drain over a lost bookkeeping row would turn one missing record into a
-     * batch that never went out.
+     * batch that never went out. The write itself is now held to that same
+     * promise — see below.
      *
      * @param array<string,mixed> $row
      */
@@ -300,6 +323,11 @@ class NotificationsService
             return;
         }
 
+        // The second half of "addressed to a member about a settlement".
+        if ($kind->subjectType() !== MailSubject::SETTLEMENT) {
+            return;
+        }
+
         if ($sentAt === null) {
             $this->logger->warning('Sent mail left no announcement record', [
                 'outbox_id' => $row['id'] ?? null,
@@ -310,7 +338,23 @@ class NotificationsService
             return;
         }
 
-        $this->settlementAnnouncementsRepository->record($subjectId, $memberId, $kind, $sentAt);
+        try {
+            $this->settlementAnnouncementsRepository->record($subjectId, $memberId, $kind, $sentAt);
+        } catch (\Throwable $e) {
+            // The message is already delivered and already marked `sent`. The
+            // docblock above promises that a lost bookkeeping row does not take
+            // the batch with it; without this, only the *missing sent_at* case
+            // kept that promise and a refused INSERT broke it — which is
+            // precisely how the bug described above escalated from "one wrong
+            // row" to "the queue stopped".
+            $this->logger->error('Delivered mail left no announcement record', [
+                'outbox_id' => $row['id'] ?? null,
+                'kind' => $kind->value,
+                'subject_id' => $subjectId,
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     /* ─────────────────────── Erasure and retention (#408) ─────────────────────── */

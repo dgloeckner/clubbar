@@ -500,6 +500,11 @@ error directly:
 php backend/bin/cron.php          # add --quiet for the cron entry itself
 ```
 
+It prints one summary line per run. A run that stopped on an unexpected error
+prints `ABORTED` and its reason instead of the counters, on stderr as well —
+its counters would otherwise read `sent=0`, which is what an idle tick prints,
+and the two mean very different things about the queue.
+
 ### Trying it locally
 
 The dev stack runs [Mailpit](https://mailpit.axllent.org) as the `mailpit`
