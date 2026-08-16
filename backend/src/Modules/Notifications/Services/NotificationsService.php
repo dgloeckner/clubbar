@@ -593,6 +593,7 @@ class NotificationsService
         }
 
         $queued = 0;
+        $alreadyQueued = 0;
         $withoutEmail = [];
 
         foreach ($this->adminUsersRepository->findActiveRecipients() as $admin) {
@@ -611,10 +612,16 @@ class NotificationsService
                 occasion: $occasion,
             ))) {
                 $queued++;
+            } else {
+                // The unique index refused it: this admin has already been told
+                // about this occasion. Counted rather than ignored, because a
+                // repeating caller (#438) needs "already said" and "nothing to
+                // say" to be distinguishable — both are zero queued.
+                $alreadyQueued++;
             }
         }
 
-        $result = new EnqueueResultDto($queued, $withoutEmail);
+        $result = new EnqueueResultDto($queued, $withoutEmail, alreadyQueued: $alreadyQueued);
 
         // Audited only when something was actually queued: this runs off a
         // request-time check that fires on every admin page load, and an audit

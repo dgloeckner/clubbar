@@ -13,9 +13,10 @@
  *   php bin/cron.php --quiet           # say nothing unless something failed
  *
  * A run does two things in this order: it queues whatever periodic mail has
- * become due (ADR-0039), then it drains. One entrypoint rather than two, because
- * the install gate (#405) and the heartbeat verify exactly one scheduled command
- * and a second one would be a job nothing watches.
+ * become due — the Deckelauszug (ADR-0039) and the credential expiry warnings
+ * (#438) — then it drains. One entrypoint rather than two, because the install
+ * gate (#405) and the heartbeat verify exactly one scheduled command and a
+ * second one would be a job nothing watches.
  *
  * Exits 0 unless the run could not start at all. A cron that exits non-zero
  * makes most panels mail the account owner, and "one recipient's mailbox is
@@ -214,6 +215,30 @@ try {
         $say('Deckel statements: ' . $enqueued->summary());
     } catch (\Throwable $e) {
         fwrite(STDERR, "Warning: statement enqueue failed: {$e->getMessage()}\n");
+    }
+
+    // ADR-0036 / #438, and before the drain for the third time for the same
+    // reason: a warning raised by this tick should leave on this tick.
+    //
+    // This is the scan that answers the question ADR-0036 deferred — an admin
+    // who never opens the panel is told their encryption key or a terminal token
+    // is running out. It could not be built when ADR-0036 was written, because
+    // the trigger it would have needed was a scheduler nobody was promised; it
+    // can be built now because ADR-0038 made one mandatory. On an installation
+    // with no mail configured it does nothing at all.
+    //
+    // `run()` never throws, and is caught anyway: the drain running is the
+    // property that matters here, and it should not depend on a promise made in
+    // another file.
+    try {
+        $expiry = $factory->getCredentialExpiryNotifier()->run(new \DateTimeImmutable('now'));
+        $say('Credential expiry scan: ' . $expiry->summary());
+
+        if ($expiry->queued > 0) {
+            fwrite(STDERR, "Credential expiry warnings queued: {$expiry->summary()}\n");
+        }
+    } catch (\Throwable $e) {
+        fwrite(STDERR, "Warning: credential expiry scan failed: {$e->getMessage()}\n");
     }
 
     $result = $factory->getDrainService()->run(DrainSource::CLI, $batchSize, $budgetSeconds);

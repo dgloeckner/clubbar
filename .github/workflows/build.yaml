@@ -505,13 +505,14 @@ jobs:
         working-directory: e2etests
 
       - name: Run E2E tests
-        # `api-ordered`, `api-rotation`, `mail-chain` and `mail-statement` carry
+        # `api-ordered`, `api-rotation`, `mail-chain`, `mail-statement` and
+        # `mail-credentials` carry
         # the specs that cannot run alongside anything else — see the projects in
         # playwright.config.ts. Each depends on the suites it must follow, so
         # they run after them rather than beside them. Listing them explicitly
         # matters: those specs live in their own testDir or are excluded from
         # `api-tests`, so leaving one out drops it from CI silently.
-        run: npx playwright test --project=api-tests --project=api-ordered --project=api-rotation --project=admin-chromium --project=admin-mobile --project=mail-chain --project=mail-statement --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        run: npx playwright test --project=api-tests --project=api-ordered --project=api-rotation --project=admin-chromium --project=admin-mobile --project=mail-chain --project=mail-statement --project=mail-credentials --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
         working-directory: e2etests
         env:
           CI: true
