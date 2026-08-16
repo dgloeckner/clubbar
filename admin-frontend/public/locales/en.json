@@ -1078,8 +1078,8 @@
       "title": "Excluded — no active SEPA mandate",
       "note": "These members owe money but cannot be collected by direct debit. Chase their bank details, or settle them manually.",
       "issue": {
-        "iban": "Missing mandate",
-        "mandate": "Missing IBAN",
+        "iban": "Missing IBAN",
+        "mandate": "Missing mandate",
         "both": "Missing IBAN and mandate"
       }
     },

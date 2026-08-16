@@ -1078,8 +1078,8 @@
       "title": "Ausgeschlossen — kein aktives SEPA-Mandat",
       "note": "Diese Mitglieder schulden Geld, können aber nicht per Lastschrift eingezogen werden. Bankdaten nachfordern oder manuell abrechnen.",
       "issue": {
-        "iban": "Mandat fehlt",
-        "mandate": "IBAN fehlt",
+        "iban": "IBAN fehlt",
+        "mandate": "Mandat fehlt",
         "both": "IBAN und Mandat fehlen"
       }
     },
