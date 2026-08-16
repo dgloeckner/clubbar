@@ -41,6 +41,7 @@ test.describe.serial('Mail settings', () => {
         logo_url: original.logo_url,
         cron_interval: original.cron_interval,
         drain_batch_size: original.drain_batch_size,
+        drain_budget_seconds: original.drain_budget_seconds,
         statement_cadence: original.statement_cadence,
       },
     })
@@ -136,9 +137,68 @@ test.describe.serial('Mail settings', () => {
     // the first place — an admin should not be able to pick a granularity at
     // which the announcement promise stops holding.
     const options = await page.getByTestId('settings-mail-cron_interval').locator('option').allTextContents()
-    expect(options).toHaveLength(2)
+    expect(options).toHaveLength(3)
     expect(options.join(' ').toLowerCase()).not.toContain('woch')
     expect(options.join(' ').toLowerCase()).not.toContain('week')
+  })
+
+  /**
+   * The two dials #473 makes describable (task 1 and task 2).
+   *
+   * They belong in one test because they answer one question — *what is this
+   * installation's scheduler actually like?* — and because both were, until
+   * now, values an admin could not state: a 15-minute cron had to be declared
+   * as `hourly`, and a scheduler with a 30-second request timeout had no way to
+   * lower a 50-second run budget short of editing `config.php`, which the
+   * "relocated data directory" layout may not expose to anything web-reachable.
+   *
+   * Read back from the row rather than from the form, for the reason the first
+   * test in this file gives: a page asserted against its own state proves
+   * nothing.
+   */
+  test('the 15-minute cadence and the run budget are set from the form and read back from the row', async ({
+    page,
+    authenticatedRequest,
+  }) => {
+    await openMailTab(page)
+
+    const interval = page.getByTestId('settings-mail-cron_interval')
+    const budget = page.getByTestId('settings-mail-drain_budget_seconds')
+    await expect(budget).toBeVisible()
+
+    await interval.selectOption('fifteen_minutes')
+    await budget.fill('20')
+
+    const saved = page.waitForResponse(
+      (r) => r.url().includes(API) && r.request().method() === 'PATCH' && r.status() === 200
+    )
+    await page.getByTestId('settings-mail-save').click()
+    await saved
+    await expect(page.getByTestId('settings-mail-success')).toBeVisible()
+
+    const stored = await (await authenticatedRequest.get(API)).json()
+    expect(stored.cron_interval).toBe('fifteen_minutes')
+    expect(stored.drain_budget_seconds).toBe(20)
+
+    await openMailTab(page)
+    await expect(interval).toHaveValue('fifteen_minutes')
+    await expect(budget).toHaveValue('20')
+  })
+
+  /**
+   * A budget above the ceiling is refused next to the field, not swallowed.
+   *
+   * It is the direction that costs something real: a run killed by the
+   * trigger's own timeout leaves its rows claimed, the stale window hands them
+   * to the next run, and a member receives the same announcement twice.
+   */
+  test('the API refuses a run budget longer than any trigger would allow', async ({
+    authenticatedRequest,
+  }) => {
+    const response = await authenticatedRequest.patch(API, { data: { drain_budget_seconds: 600 } })
+
+    expect(response.status()).toBe(422)
+    expect((await response.json()).messages).toHaveProperty('drain_budget_seconds')
   })
 
   test('the API refuses weekly by naming the promise it would break', async ({

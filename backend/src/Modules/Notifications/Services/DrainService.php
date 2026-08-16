@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\Services;
 
 use App\Modules\Notifications\DTOs\DrainResultDto;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Enums\DrainSource;
 use App\Modules\Notifications\Enums\MailStatus;
@@ -85,14 +86,25 @@ class DrainService
     public const DEFAULT_BATCH_SIZE = 25;
 
     /**
-     * Wall-clock budget for one run, in seconds.
+     * Wall-clock budget for one run, in seconds, when nothing else says.
      *
-     * Fifty, because the number that actually matters is the host's gateway
-     * read timeout on the URL trigger, it is commonly sixty, and it is not
-     * visible from here. Stopping ten seconds early with the queue intact beats
-     * being killed mid-send.
+     * The number that actually matters is the timeout of whatever is triggering
+     * the run — a gateway read timeout on the URL fallback, the panel's cron
+     * cap on the CLI one — and it is not visible from here. Stopping early with
+     * the queue intact beats being killed mid-send, because a killed run leaves
+     * its rows claimed and the stale window hands them back to the *next* run:
+     * a message that was already delivered is offered to the transport a second
+     * time.
+     *
+     * That asymmetry is why this dropped from fifty to twenty-five in #473. The
+     * normal source is now `mail_config.drain_budget_seconds`, which a club
+     * whose scheduler times out sooner can lower without editing a file; this
+     * constant is the floor under a configuration that is missing or
+     * unreadable, so it is sized against the *tightest* trigger this project
+     * knows of (an external scheduler's 30 seconds) rather than the most
+     * generous (IONOS's 60).
      */
-    public const DEFAULT_BUDGET_SECONDS = 50;
+    public const DEFAULT_BUDGET_SECONDS = MailConfigDto::DEFAULT_DRAIN_BUDGET_SECONDS;
 
     /**
      * The `flock` file, in the data directory's `storage/`.
@@ -110,8 +122,9 @@ class DrainService
     }
 
     /**
-     * @param int|null $batchSize `null` means "take it from mail_config"; a
-     *                            number is an environment-level override
+     * @param int|null $batchSize     `null` means "take it from mail_config"; a
+     *                                number is an environment-level override
+     * @param int|null $budgetSeconds Same layering, same reason (#473)
      */
     public function __construct(
         private NotificationsService $notificationsService,
@@ -122,7 +135,7 @@ class DrainService
         private HeartbeatPinger $heartbeatPinger,
         private Logger $logger,
         private ?int $batchSize = null,
-        private int $budgetSeconds = self::DEFAULT_BUDGET_SECONDS,
+        private ?int $budgetSeconds = null,
     ) {}
 
     /**
@@ -185,7 +198,11 @@ class DrainService
         // somebody debugging by hand, a host that has to pin the value outside
         // the database, and the treasurer whose relay is stricter than average.
         $batchSize = max(1, $batchSize ?? $this->batchSize ?? $config->drainBatchSize);
-        $budgetSeconds = max(1, $budgetSeconds ?? $this->budgetSeconds);
+        // Same three layers for the budget (#473). Its floor is one second
+        // rather than the column's ten: a caller passing `--budget 1` on the
+        // command line is asking for a single round, and refusing them would
+        // only mean re-deriving the same bound in `bin/cron.php`.
+        $budgetSeconds = max(1, $budgetSeconds ?? $this->budgetSeconds ?? $config->drainBudgetSeconds);
         $interval = $config->cronInterval;
 
         $transport = $this->resolveTransport();

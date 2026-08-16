@@ -67,6 +67,7 @@ export type MailConfigUpdateRequestCronInterval = typeof MailConfigUpdateRequest
 
 
 export const MailConfigUpdateRequestCronInterval = {
+  fifteen_minutes: 'fifteen_minutes',
   hourly: 'hourly',
   daily: 'daily',
 } as const;

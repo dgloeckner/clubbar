@@ -7,7 +7,7 @@
  * | Editable | Where it lives |
  * |---|---|
  * | Sender, reply-to, header variant, footer | This form; club data |
- * | Scheduler interval, drain batch size | This form; operational dials, no secret in either |
+ * | Scheduler interval, drain batch size, run budget | This form; operational dials, no secret in any of them |
  * | **The URL-trigger secret** (`/api/cron/drain`) | Its own rotate action below (#473) — a credential, not a form field |
  * | **The SMTP DSN** | `config.php`, next to the database password (ADR-0031 decision 2) |
  *
@@ -45,7 +45,15 @@ import { StepUpConfirmDialog, type StepUpCredentials } from '../modals/StepUpCon
 import { SecretDisplayModal } from '../modals/SecretDisplayModal'
 
 const HEADER_STYLES = ['red', 'petrol', 'paper'] as const
-const CRON_INTERVALS = ['hourly', 'daily'] as const
+/**
+ * Fastest first, and `fifteen_minutes` is the one to pick if the host allows it
+ * (#473): it is what `bin/cron.php` recommends, and until it existed such an
+ * installation had to declare `hourly` — safe, but describing a machine four
+ * times slower than the real one. `weekly` is absent because it is refused; the
+ * API answers a submitted one with a paragraph of reasoning rather than "must
+ * be one of".
+ */
+const CRON_INTERVALS = ['fifteen_minutes', 'hourly', 'daily'] as const
 
 /**
  * The Deckelauszug's cadence (ADR-0039 decision 3).
@@ -70,6 +78,7 @@ type FormState = {
   logo_url: string
   cron_interval: string
   drain_batch_size: string
+  drain_budget_seconds: string
   statement_cadence: string
 }
 
@@ -85,6 +94,7 @@ function toForm(config: MailConfig): FormState {
     logo_url: config.logo_url ?? '',
     cron_interval: config.cron_interval ?? 'hourly',
     drain_batch_size: String(config.drain_batch_size ?? 100),
+    drain_budget_seconds: String(config.drain_budget_seconds ?? 25),
     statement_cadence: config.statement_cadence ?? 'off',
   }
 }
@@ -158,6 +168,7 @@ export function MailSettingsTab({ callerTotpEnabled }: MailSettingsTabProps) {
       logo_url: form.logo_url || null,
       cron_interval: form.cron_interval as MailConfigUpdateRequest['cron_interval'],
       drain_batch_size: Number(form.drain_batch_size),
+      drain_budget_seconds: Number(form.drain_budget_seconds),
       statement_cadence: form.statement_cadence as MailConfigUpdateRequest['statement_cadence'],
     }
 
@@ -415,6 +426,11 @@ export function MailSettingsTab({ callerTotpEnabled }: MailSettingsTabProps) {
         {field('drain_batch_size', t('settings.mail.batchSize'), {
           type: 'number',
           hint: t('settings.mail.batchSizeHint'),
+        })}
+
+        {field('drain_budget_seconds', t('settings.mail.budgetSeconds'), {
+          type: 'number',
+          hint: t('settings.mail.budgetSecondsHint'),
         })}
 
         {/* Not a scheduler dial: this one decides whether the whole membership

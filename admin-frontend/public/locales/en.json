@@ -809,12 +809,15 @@
       "logoUrlHint": "PNG only — Gmail and Outlook do not render SVG in mail.",
       "cronInterval": "Scheduler interval",
       "cronIntervals": {
+        "fifteen_minutes": "Every 15 minutes",
         "hourly": "Hourly",
         "daily": "Daily"
       },
-      "cronIntervalHint": "How often this installation's cron actually runs. Retries and the stall alarm are measured in these ticks. Weekly is refused — the seven-day promise of § 7 Abs. 3 could not be kept.",
+      "cronIntervalHint": "How often this installation's cron actually runs. Retries and the stall alarm are measured in these ticks, so declare what the host really does — every 15 minutes is the recommendation, and a hosting panel that only offers daily is why the slower values exist. Weekly is refused — the seven-day promise of § 7 Abs. 3 could not be kept.",
       "batchSize": "Messages per run",
       "batchSizeHint": "Lower it if the mail server limits each connection more strictly. It does not make a run faster — sending is serial either way.",
+      "budgetSeconds": "Seconds per run",
+      "budgetSecondsHint": "How long one run may spend sending before it stops and leaves the rest for the next one. It must stay below the timeout of whatever triggers it — 60 seconds for a hosting panel's cron, often only 30 for an external scheduler. Too high is the costly direction: a run cut off mid-send has its messages offered again later, and a member receives the same mail twice.",
       "statementCadence": "Tab statement",
       "statementCadences": {
         "off": "Off",

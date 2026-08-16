@@ -1,0 +1,71 @@
+-- =============================================================================
+-- 040_cron_interval_fifteen_minutes_and_drain_budget.sql — the two scheduler
+-- dials catch up with the schedulers people actually use (#473)
+-- =============================================================================
+-- Both columns here were sized against one host. ADR-0031 names IONOS as the
+-- reference, migration 029 declared the interval as a fact and `DrainService`
+-- picked a 50-second run budget under IONOS's own 60-second cron timeout. The
+-- compatibility investigation behind #473 then established what that panel
+-- actually offers — a webcron with a monthly/weekly/daily wizard and no field
+-- for a custom header — and therefore that a real installation is quite likely
+-- to be driven by an *external* HTTP scheduler instead. Those have the opposite
+-- shape: minute-level cadence and a genuine header field, but a request timeout
+-- of their own, commonly 30 seconds.
+--
+-- Neither column could describe that host.
+--
+-- ## cron_interval gains fifteen_minutes
+--
+-- `bin/cron.php` has recommended every 15 minutes since #403, and until now
+-- that cadence had to be *declared* as `hourly`. That was safe — every
+-- threshold in the feature is `interval × ticks`, so a declaration slower than
+-- reality only ever makes the retry ladder patient and the stall alarm late,
+-- and `QueueHealth::intervalDisagrees()` deliberately never flags a cron faster
+-- than declared — but it described a machine four times slower than the real
+-- one, and the whole point of 029 was that this value stops being an
+-- assumption.
+--
+-- With it declared honestly the ladder is 15/30/60 minutes, liveness alarms
+-- after 30 minutes of silence and throughput after 45 — the same three-rung
+-- shape as every other case, at the granularity the host really has.
+--
+-- `weekly` remains refused, for the reason 029 spells out at length: at that
+-- granularity the Nutzungsordnung § 7 Abs. 3 announcement distance collapses.
+-- Adding a *faster* case does not touch that argument.
+--
+-- ## drain_budget_seconds
+--
+-- The wall-clock budget stops being a constant with an environment override and
+-- becomes an admin-editable dial, exactly like `drain_batch_size` in 029: no
+-- secret in it, and the operator who needs to change it is the one least likely
+-- to be able to edit a file. `config.php`'s `mail.drain_budget_seconds` still
+-- overrides it for a host that has to pin the value outside the database.
+--
+-- **The default drops from 50 to 25, and that is a deliberate behaviour change
+-- for every existing installation.** The asymmetry decides it: a budget the
+-- trigger's own timeout undercuts means a run killed *mid-send*, whose claimed
+-- rows come back after the five-minute stale window and are offered to the
+-- transport a second time — a member receiving one announcement twice. A budget
+-- that is too low costs nothing but throughput: the run stops cleanly, releases
+-- what it did not reach, and the next tick takes it, which is what a queue is
+-- for. So the shipped default is safe under the *tightest* trigger timeout we
+-- know of (30s) rather than under the most generous, and a host with a roomier
+-- one raises it here — the 55-second ceiling keeps it under IONOS's 60.
+--
+-- On an hourly cron with the default batch of 100, 25 seconds is still a
+-- settlement for a club of this size in one or two ticks.
+--
+-- Rollback: db/rollback/040_cron_interval_fifteen_minutes_and_drain_budget.down.sql
+-- =============================================================================
+
+ALTER TABLE mail_config
+    -- Fastest first; the DEFAULT stays `hourly`, which is what an installation
+    -- that has never declared anything is treated as. Guessing faster than
+    -- reality would set the liveness alarm to half an hour on a host that
+    -- genuinely runs hourly, and an alarm that fires every hour on a healthy
+    -- installation is one somebody switches off.
+    MODIFY COLUMN cron_interval ENUM('fifteen_minutes', 'hourly', 'daily') NOT NULL DEFAULT 'hourly'
+        COMMENT 'Declared scheduler granularity; retry ladder and stall thresholds scale with it',
+    ADD COLUMN drain_budget_seconds TINYINT UNSIGNED NOT NULL DEFAULT 25
+        COMMENT 'Wall-clock budget for one drain run; must stay under the trigger timeout that fires it'
+        AFTER drain_batch_size;

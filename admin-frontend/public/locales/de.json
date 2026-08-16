@@ -809,12 +809,15 @@
       "logoUrlHint": "Nur PNG — Gmail und Outlook stellen SVG in E-Mails nicht dar.",
       "cronInterval": "Scheduler-Intervall",
       "cronIntervals": {
+        "fifteen_minutes": "Alle 15 Minuten",
         "hourly": "Stündlich",
         "daily": "Täglich"
       },
-      "cronIntervalHint": "Wie oft der Cron dieser Installation tatsächlich läuft. Wiederholversuche und die Stau-Warnung rechnen in diesem Takt. Wöchentlich wird abgelehnt — die Sieben-Tage-Zusage aus § 7 Abs. 3 wäre dann nicht mehr einzuhalten.",
+      "cronIntervalHint": "Wie oft der Cron dieser Installation tatsächlich läuft. Wiederholversuche und die Stau-Warnung rechnen in diesem Takt — also eintragen, was der Host wirklich tut. Empfohlen sind alle 15 Minuten; die gröberen Werte gibt es für Hosting-Panels, die nur täglich anbieten. Wöchentlich wird abgelehnt — die Sieben-Tage-Zusage aus § 7 Abs. 3 wäre dann nicht mehr einzuhalten.",
       "batchSize": "Nachrichten pro Lauf",
       "batchSizeHint": "Herabsetzen, wenn der Mailserver pro Verbindung strenger begrenzt. Schneller wird ein Lauf dadurch nicht — versendet wird ohnehin nacheinander.",
+      "budgetSeconds": "Sekunden pro Lauf",
+      "budgetSecondsHint": "Wie lange ein Lauf höchstens versendet, bevor er aufhört und den Rest dem nächsten Lauf überlässt. Der Wert muss unter dem Zeitlimit dessen bleiben, was den Lauf auslöst — 60 Sekunden beim Cron eines Hosting-Panels, bei einem externen Scheduler oft nur 30. Zu hoch ist die teure Richtung: Ein mitten im Versand abgebrochener Lauf gibt seine Nachrichten später erneut aus, und ein Mitglied bekommt dieselbe Mail zweimal.",
       "statementCadence": "Deckelauszug",
       "statementCadences": {
         "off": "Aus",

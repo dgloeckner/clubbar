@@ -619,12 +619,12 @@ class ServiceFactory implements ContainerInterface
      * piece that has to stay boring, and #410 and #438 add a notification type
      * by registering a builder above rather than by editing it.
      *
-     * The wall-clock budget is read from the environment so a host with a
-     * tighter gateway timeout can lower it without a code change. The batch
-     * size is passed as `null` unless the environment pins it, because its
-     * normal home is now `mail_config.drain_batch_size` — an operational dial
-     * with no secret in it, which a treasurer on a stricter relay should be
-     * able to turn without editing a file (ADR-0039 decision 5).
+     * Both dials are passed as `null` unless the environment pins them, because
+     * their normal home is `mail_config` — operational dials with no secret in
+     * either, which a treasurer on a stricter relay or a host whose scheduler
+     * times out sooner should be able to turn without editing a file (ADR-0039
+     * decision 5, extended to the run budget by #473). `config.php` still
+     * overrides both, for a host that has to pin them outside the database.
      */
     public function getDrainService(): DrainService
     {
@@ -637,7 +637,7 @@ class ServiceFactory implements ContainerInterface
             $this->getHeartbeatPinger(),
             $this->getLogger(),
             self::positiveEnvOrNull('MAIL_DRAIN_BATCH_SIZE'),
-            self::positiveEnv('MAIL_DRAIN_BUDGET_SECONDS', DrainService::DEFAULT_BUDGET_SECONDS),
+            self::positiveEnvOrNull('MAIL_DRAIN_BUDGET_SECONDS'),
         ));
     }
 

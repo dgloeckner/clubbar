@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Database;
 
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use PDO;
 
 /**
@@ -86,8 +87,45 @@ class MailConfigSchemaTest extends SchemaTestCase
     /** The dials 029 added are still here, and still bounded. */
     public function test_the_scheduler_dials_survive_beside_the_cadence(): void
     {
-        $this->assertSame("enum('hourly','daily')", $this->columnType('cron_interval'));
+        $this->assertSame(
+            "enum('fifteen_minutes','hourly','daily')",
+            $this->columnType('cron_interval'),
+            'migration 040 adds the cadence bin/cron.php has recommended since #403'
+        );
         $this->assertNotNull($this->column('drain_batch_size'));
+    }
+
+    /**
+     * `weekly` is refused by the column, not only by a rule list — and adding a
+     * *faster* case in 040 does not soften that. The argument against it is
+     * about the § 7 Abs. 3 announcement distance collapsing, which a
+     * fifteen-minute case has nothing to do with.
+     */
+    public function test_weekly_is_still_not_a_storable_interval(): void
+    {
+        $this->assertDatabaseRefuses(
+            fn () => $this->db->prepare('UPDATE mail_config SET cron_interval = ? WHERE id = 1')
+                ->execute(['weekly']),
+            'a weekly scheduler must not be storable — 029 refuses it and 040 does not reopen it'
+        );
+    }
+
+    /**
+     * The run budget becomes a club-editable dial in 040, and it ships at 25
+     * seconds rather than the 50 the constant used to be.
+     *
+     * The default is the assertion that matters: it has to be reachable inside
+     * the tightest timeout that can trigger a drain — an external HTTP
+     * scheduler's 30 seconds — because overshooting means a run killed mid-send,
+     * whose claimed rows come back after the stale window and are offered to the
+     * transport a second time.
+     */
+    public function test_the_run_budget_defaults_below_the_tightest_trigger_timeout(): void
+    {
+        $default = (int) $this->column('drain_budget_seconds')['Default'];
+
+        $this->assertSame(MailConfigDto::DEFAULT_DRAIN_BUDGET_SECONDS, $default);
+        $this->assertLessThan(30, $default);
     }
 
     // ── helpers ───────────────────────────────────────────────────────

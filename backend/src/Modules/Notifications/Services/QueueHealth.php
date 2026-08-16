@@ -27,9 +27,13 @@ use DateTimeImmutable;
  * alarm however long its ladder runs. **Being due and ignored** replaces
  * **being old** as the definition of a stall.
  *
- * Both scale with the declared interval, so an hourly installation alarms in
- * about three hours and a daily one in about three days — right in each case
- * rather than a compromise between them.
+ * Both scale with the declared interval, so a fifteen-minute installation
+ * alarms in about forty-five minutes, an hourly one in about three hours and a
+ * daily one in about three days — right in each case rather than a compromise
+ * between them. The fastest case (#473) is the one where these windows stop
+ * being generous: thirty minutes of silence is a stopped scheduler, and that is
+ * only tolerable *because* it was declared. It is also why nothing guesses this
+ * value — see {@see CronInterval::fromDeclared()}.
  *
  * Every predicate takes `now` as a parameter. There is no clock abstraction in
  * this codebase (`Shared\Time\Utc` pins the timezone and nothing more), so it

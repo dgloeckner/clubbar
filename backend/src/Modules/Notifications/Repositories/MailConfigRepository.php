@@ -30,6 +30,11 @@ class MailConfigRepository
         // (ADR-0039 decision 5).
         'cron_interval',
         'drain_batch_size',
+        // The run budget joins them for the same reason (#473): the operator
+        // who has to lower it is the one whose scheduler times out at 30
+        // seconds, and that is exactly the host whose panel offers a URL field
+        // and no file editor.
+        'drain_budget_seconds',
         // The club-wide Deckelauszug switch (ADR-0039 decision 3). It is here
         // rather than behind a dedicated endpoint because it is a preference
         // with no secret in it, and because the generic path's old/new diff into

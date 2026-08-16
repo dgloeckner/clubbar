@@ -79,6 +79,33 @@ class QueueHealthTest extends TestCase
         $this->assertFalse(QueueHealth::schedulerStopped($threeHoursAgo, $this->now(), CronInterval::DAILY));
     }
 
+    /**
+     * The fastest case (#473), where the same two-tick rule stops being
+     * generous: half an hour of silence is a stopped scheduler. That is only
+     * tolerable because it was declared — an installation that guessed this
+     * value would alarm on a healthy hourly host every hour.
+     */
+    public function test_the_fifteen_minute_case_alarms_after_half_an_hour(): void
+    {
+        $this->assertFalse(QueueHealth::schedulerStopped(
+            $this->agoSeconds(1500),
+            $this->now(),
+            CronInterval::FIFTEEN_MINUTES
+        ));
+        $this->assertTrue(QueueHealth::schedulerStopped(
+            $this->agoSeconds(CronInterval::FIFTEEN_MINUTES->ticks(2) + 60),
+            $this->now(),
+            CronInterval::FIFTEEN_MINUTES
+        ));
+        // The same gap on the next case up is an ordinary quarter of an hour
+        // between ticks.
+        $this->assertFalse(QueueHealth::schedulerStopped(
+            $this->agoSeconds(CronInterval::FIFTEEN_MINUTES->ticks(2) + 60),
+            $this->now(),
+            CronInterval::HOURLY
+        ));
+    }
+
     public function test_an_installation_that_never_ran_is_not_reported_as_stopped(): void
     {
         // It has an owner already: the install gate refuses to finalize (#405),
@@ -110,6 +137,21 @@ class QueueHealthTest extends TestCase
             $this->agoSeconds(CronInterval::HOURLY->ticks(3)),
             $this->now(),
             CronInterval::HOURLY
+        ));
+    }
+
+    /** Forty-five minutes overdue on a fifteen-minute cron, and not a minute before. */
+    public function test_the_throughput_window_scales_down_to_the_fifteen_minute_case(): void
+    {
+        $this->assertFalse(QueueHealth::queueStalled(
+            $this->agoSeconds(CronInterval::FIFTEEN_MINUTES->ticks(3) - 60),
+            $this->now(),
+            CronInterval::FIFTEEN_MINUTES
+        ));
+        $this->assertTrue(QueueHealth::queueStalled(
+            $this->agoSeconds(CronInterval::FIFTEEN_MINUTES->ticks(3)),
+            $this->now(),
+            CronInterval::FIFTEEN_MINUTES
         ));
     }
 
@@ -149,6 +191,41 @@ class QueueHealthTest extends TestCase
         $this->assertSame(
             CronInterval::DAILY,
             QueueHealth::observedInterval($this->agoSeconds(2 * 86400), $this->agoSeconds(86400))
+        );
+    }
+
+    public function test_two_runs_a_quarter_hour_apart_are_observed_as_fifteen_minutes(): void
+    {
+        $this->assertSame(
+            CronInterval::FIFTEEN_MINUTES,
+            QueueHealth::observedInterval($this->agoSeconds(1800), $this->agoSeconds(900))
+        );
+    }
+
+    /**
+     * The window in which a gap says nothing narrows from an hour to about
+     * eleven minutes when the fastest case exists (#473) — which costs nothing,
+     * because the only consumer reports a cadence *slower* than declared.
+     */
+    public function test_a_hand_run_drain_twelve_minutes_after_a_tick_disagrees_with_nothing(): void
+    {
+        $observed = QueueHealth::observedInterval($this->agoSeconds(720), $this->now());
+
+        $this->assertSame(CronInterval::FIFTEEN_MINUTES, $observed);
+        $this->assertFalse(QueueHealth::intervalDisagrees(CronInterval::HOURLY, $observed));
+        $this->assertFalse(QueueHealth::intervalDisagrees(CronInterval::FIFTEEN_MINUTES, $observed));
+    }
+
+    /**
+     * The disagreement #473 makes reportable for the first time: an
+     * installation that declares the fastest cadence and is in fact driven
+     * hourly has a retry ladder and two stall windows describing a machine four
+     * times quicker than the one it has.
+     */
+    public function test_declared_fifteen_minutes_while_runs_arrive_hourly_is_a_disagreement(): void
+    {
+        $this->assertTrue(
+            QueueHealth::intervalDisagrees(CronInterval::FIFTEEN_MINUTES, CronInterval::HOURLY)
         );
     }
 

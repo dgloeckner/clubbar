@@ -20,6 +20,41 @@ use PHPUnit\Framework\TestCase;
  */
 class RetryScheduleTest extends TestCase
 {
+    /**
+     * The cadence the setup instructions have recommended since #403, and the
+     * one where the tick-relative ladder and the flat fifteen-minute constant it
+     * replaced finally agree — the first rung *is* greylisting's fifteen
+     * minutes, and it is that only because the cron is awake to act on it
+     * (#473).
+     */
+    public function test_fifteen_minute_ladder_is_fifteen_thirty_and_sixty_minutes(): void
+    {
+        $this->assertSame(900, RetrySchedule::backoffSeconds(CronInterval::FIFTEEN_MINUTES, 1));
+        $this->assertSame(1800, RetrySchedule::backoffSeconds(CronInterval::FIFTEEN_MINUTES, 2));
+        $this->assertSame(3600, RetrySchedule::backoffSeconds(CronInterval::FIFTEEN_MINUTES, 3));
+    }
+
+    /**
+     * The whole ladder fits inside the coarser case's *first* rung, which is
+     * the point of declaring the faster cadence at all: an installation that
+     * had to say `hourly` spent an hour reaching an attempt this one has
+     * already made four times.
+     */
+    public function test_the_fastest_ladder_is_shorter_than_one_hourly_rung(): void
+    {
+        $ladder = 0;
+        for ($attempt = 1; $attempt < RetrySchedule::MAX_ATTEMPTS; $attempt++) {
+            $ladder += RetrySchedule::backoffSeconds(CronInterval::FIFTEEN_MINUTES, $attempt);
+        }
+
+        $this->assertSame(6300, $ladder);
+        $this->assertLessThan(
+            RetrySchedule::backoffSeconds(CronInterval::HOURLY, 3),
+            $ladder,
+            'the fifteen-minute ladder should finish well inside a single hourly backoff'
+        );
+    }
+
     public function test_hourly_ladder_is_one_two_and_four_hours(): void
     {
         $this->assertSame(3600, RetrySchedule::backoffSeconds(CronInterval::HOURLY, 1));

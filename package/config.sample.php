@@ -73,19 +73,23 @@ return [
         // command for this installation and verifies it has run.
         'dsn' => '',
 
-        // How much one drain run does before it stops. The defaults suit a
-        // club-sized settlement and a typical shared host; both are here for
-        // the tariff that differs.
+        // How much one drain run does before it stops.
         //
-        //   drain_batch_size      messages claimed per round (default 25)
-        //   drain_budget_seconds  wall-clock budget for one run (default 50)
+        // **Both now live in the admin panel** — Settings → Mail — because
+        // neither has a secret in it and the operator who needs to change one
+        // is the least likely to be able to edit this file (#473). Set them
+        // here only for a host that has to pin the value outside the database;
+        // an entry here overrides the panel.
+        //
+        //   drain_batch_size      messages claimed per round (panel default 100)
+        //   drain_budget_seconds  wall-clock budget for one run (panel default 25, max 55)
         //
         // Lower the budget if the panel's URL cron is cut off mid-run: the
         // limit that kills it is the host's gateway *read* timeout, which is
         // not max_execution_time and cannot be raised from PHP. Whatever a run
         // does not finish stays queued for the next tick.
         // 'drain_batch_size' => 25,
-        // 'drain_budget_seconds' => 50,
+        // 'drain_budget_seconds' => 25,
     ],
     'cron' => [
         // Only needed on hosting with no CLI cron (ADR-0038 rule 3).

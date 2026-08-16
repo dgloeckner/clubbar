@@ -412,9 +412,21 @@ it into the hosting panel's cron form.
 
 **Interval.** Every 15 minutes is the recommendation; the practical minimum is
 tariff-dependent and hourly is common. Declare what the host actually offers
-under Settings → Mail (`cron_interval`) — the retry ladder and the stall
-thresholds are measured in ticks of it, and the self-check reports when the
-declaration and the observed gap between runs disagree.
+under Settings → Mail (`cron_interval`: **every 15 minutes**, hourly or daily) —
+the retry ladder and the stall thresholds are measured in ticks of it, and the
+self-check reports when the declaration and the observed gap between runs
+disagree. Declare the truth rather than the flattering value: at 15 minutes the
+alarm calls half an hour of silence a stopped scheduler, which is right for a
+host that runs four times an hour and wrong for one that does not.
+
+**Run budget.** `drain_budget_seconds` on the same page is how long one run may
+spend sending before it stops and leaves the rest to the next tick, and it must
+stay **under the timeout of whatever triggers the run** — 60 seconds for a
+hosting panel's cron, often only 30 for an external scheduler. It defaults to
+25 for that reason. Overshooting is the direction that costs something: a run
+killed mid-send leaves its rows claimed, the five-minute stale window hands them
+to the next run, and a member receives the same announcement twice.
+Undershooting only means the next tick finishes the queue.
 
 **Weekly is refused.** An announcement queued shortly after a weekly tick can
 leave six days later and land on the collection date itself, taking the § 7
@@ -449,13 +461,15 @@ IONOS is this project's reference host ([ADR-0031](../adr/0031-production-harden
 Two more points where the wizard doesn't line up with the rest of this section, both already accounted for on our side:
 
 - **Interval.** The wizard's top-level choice is monthly/weekly/daily — there is no hourly or every-N-minutes option. Declare **daily** under Settings → Mail. Never weekly: the wizard offers it, this application refuses it (see above), and it would erode the 7-day announcement distance.
-- **Execution time limit.** IONOS aborts a cron call after 60 seconds. `DrainService`'s default run budget is 50 seconds for exactly this reason — a killed run just leaves its remaining rows for the next tick — so there is nothing to configure.
+- **Execution time limit.** IONOS aborts a cron call after 60 seconds. The default run budget of 25 seconds sits well inside that, so there is nothing to configure — though this is the one host where raising `drain_budget_seconds` (Settings → Mail, ceiling 55) buys a longer run rather than a killed one.
 
 The URL field is a bare URL with no documented way to attach a custom header, so the `X-Cron-Secret` header form above is likely unreachable from the wizard. Use the degraded query-string form instead — `https://your-domain.com/api/cron/drain?secret=<secret>` — and expect the access-log exposure noted above. Confirm against your own contract's form before relying on this: verify whether a header option exists, and rotate `cron.secret` if you conclude it does not.
 
 **An external HTTP scheduler avoids both limits at once.** This is the third option ADR-0038 names precisely so the supported hosting set does not narrow to whatever a given panel's wizard offers. cron-job.org (there are others — Cronitor, EasyCron) supports per-minute intervals and a genuine custom-header field: point it at `/api/cron/drain` every 15 minutes with `X-Cron-Secret: <secret>` as a custom header, and neither IONOS limitation above applies — no daily-only interval, no secret in the URL. Use HTTP Basic Auth only if you also change `CronController` to accept it; today it checks the `X-Cron-Secret` header (or the query-string fallback) and nothing else, so a request authenticated only via `Authorization: Basic …` gets a 401.
 
-Two things worth knowing before relying on this: cron-job.org's own default request timeout (30s at the time of writing) is shorter than `DrainService`'s 50s run budget, so its job history may show occasional "timeouts" even on runs that complete normally server-side — the queue's claim staleness and retry ladder already tolerate a killed run, so this is cosmetic, not a correctness problem. And it is not a substitute for the `cron.heartbeat_url` monitor below: cron-job.org can only tell you the HTTP call didn't respond, not that the mail queue is stalled or SMTP is broken, which is what ADR-0038 rule 6 actually asks for. Declare `hourly`, not `daily`, under Settings → Mail once the actual cadence is 15 minutes — `CronInterval` has no 15-minute value, and the self-check only flags a cadence *slower* than declared, never faster, so declaring the coarser bucket is safe.
+Two things worth knowing before relying on this. **Its request timeout is the tighter of the two**, 30 seconds at the time of writing, and it is what the shipped 25-second run budget is sized against — check the value on your own job and lower `drain_budget_seconds` (Settings → Mail) if it is shorter still, because a run cut off mid-send has its claimed rows handed back by the stale window and offered to the transport again. And it is **not** a substitute for the `cron.heartbeat_url` monitor below: cron-job.org can only tell you the HTTP call didn't respond, not that the mail queue is stalled or SMTP is broken, which is what ADR-0038 rule 6 actually asks for.
+
+Declare **every 15 minutes** under Settings → Mail to match the schedule you set here. Until #473 that value did not exist and the advice was to declare `hourly` — safe, because the self-check only flags a cadence *slower* than declared, never faster, but it left every threshold in the feature describing a machine four times slower than the real one.
 
 ### The heartbeat check
 

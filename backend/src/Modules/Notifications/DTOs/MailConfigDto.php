@@ -27,6 +27,40 @@ final readonly class MailConfigDto
      */
     public const MAX_DRAIN_BATCH_SIZE = 1000;
 
+    /**
+     * Wall-clock seconds one drain run may spend when the column says nothing.
+     *
+     * Twenty-five rather than the fifty this was before #473, because the
+     * number that decides it is a timeout we cannot see: the trigger's. An
+     * external HTTP scheduler commonly gives a request 30 seconds, IONOS's own
+     * cron 60. Overshooting means a run killed *mid-send*, whose claimed rows
+     * come back after the stale window and are offered to the transport again —
+     * one announcement delivered twice. Undershooting only means the next tick
+     * finishes the queue. The default is therefore safe under the tightest
+     * known trigger, and a host with a roomier one raises it.
+     */
+    public const DEFAULT_DRAIN_BUDGET_SECONDS = 25;
+
+    /**
+     * The floor the API enforces.
+     *
+     * Ten seconds is enough for a handful of messages on a slow relay; below it
+     * a run would spend more of itself starting up than sending, and a queue
+     * that only ever clears one message per tick is indistinguishable from a
+     * stalled one.
+     */
+    public const MIN_DRAIN_BUDGET_SECONDS = 10;
+
+    /**
+     * The ceiling the API enforces and this DTO clamps to.
+     *
+     * Fifty-five keeps the value under the most generous trigger timeout this
+     * project supports (IONOS's 60-second cron cap, ADR-0031). A budget above
+     * whatever is triggering the run does not buy a longer run; it buys a run
+     * that is killed rather than one that stops.
+     */
+    public const MAX_DRAIN_BUDGET_SECONDS = 55;
+
     public function __construct(
         public string $senderName,
         public string $senderAddress,
@@ -38,6 +72,7 @@ final readonly class MailConfigDto
         public ?string $logoUrl,
         public CronInterval $cronInterval = CronInterval::DEFAULT,
         public int $drainBatchSize = self::DEFAULT_DRAIN_BATCH_SIZE,
+        public int $drainBudgetSeconds = self::DEFAULT_DRAIN_BUDGET_SECONDS,
         /**
          * How often a Deckelauszug goes out (ADR-0039 decision 3). Defaults to
          * `off` rather than to {@see StatementCadence::DEFAULT}: a value this
@@ -68,6 +103,7 @@ final readonly class MailConfigDto
             logoUrl: self::nullIfBlank($row['logo_url'] ?? null),
             cronInterval: CronInterval::fromDeclared($row['cron_interval'] ?? null),
             drainBatchSize: self::batchSize($row['drain_batch_size'] ?? null),
+            drainBudgetSeconds: self::budgetSeconds($row['drain_budget_seconds'] ?? null),
             statementCadence: StatementCadence::fromDeclared($row['statement_cadence'] ?? null),
             cronSecretHash: self::nullIfBlank($row['cron_secret_hash'] ?? null),
             cronSecretRotatedAt: self::nullIfBlank($row['cron_secret_rotated_at'] ?? null),
@@ -125,6 +161,7 @@ final readonly class MailConfigDto
             'logo_url' => $this->logoUrl,
             'cron_interval' => $this->cronInterval->value,
             'drain_batch_size' => $this->drainBatchSize,
+            'drain_budget_seconds' => $this->drainBudgetSeconds,
             'statement_cadence' => $this->statementCadence->value,
             // Never the hash — only whether one exists and when it was made,
             // which is what the admin panel needs to show a rotate button
@@ -156,5 +193,24 @@ final readonly class MailConfigDto
         }
 
         return min($size, self::MAX_DRAIN_BATCH_SIZE);
+    }
+
+    /**
+     * Same shape as {@see batchSize()}, and clamped rather than trusted for the
+     * same reason: a column written before migration 040 reads as 0, and a run
+     * with a zero-second budget stops before claiming anything while looking
+     * perfectly configured. A value above the ceiling is a run that gets killed
+     * instead of one that stops, so it is brought back down rather than
+     * honoured.
+     */
+    private static function budgetSeconds(mixed $value): int
+    {
+        $seconds = (int) $value;
+
+        if ($seconds < self::MIN_DRAIN_BUDGET_SECONDS) {
+            return self::DEFAULT_DRAIN_BUDGET_SECONDS;
+        }
+
+        return min($seconds, self::MAX_DRAIN_BUDGET_SECONDS);
     }
 }

@@ -32,6 +32,21 @@ namespace App\Modules\Notifications\Enums;
  */
 enum CronInterval: string
 {
+    /**
+     * What `bin/cron.php` has recommended since #403, and until #473 the one
+     * cadence that could not be *declared*.
+     *
+     * A host that offers it is usually not a hosting panel at all but an
+     * external HTTP scheduler driving the URL trigger (cron-job.org and
+     * friends), which is the third option ADR-0038 names so the supported
+     * hosting set does not narrow to whatever a given panel's wizard offers.
+     * Declaring `hourly` for such an installation was *safe* — every threshold
+     * here only ever became conservative, and {@see intervalDisagrees()} never
+     * flags a cadence faster than declared — but it described a machine four
+     * times slower than the real one, which is exactly the gap between
+     * declaration and reality this enum exists to close.
+     */
+    case FIFTEEN_MINUTES = 'fifteen_minutes';
     case HOURLY = 'hourly';
     case DAILY = 'daily';
 
@@ -50,6 +65,7 @@ enum CronInterval: string
     public function seconds(): int
     {
         return match ($this) {
+            self::FIFTEEN_MINUTES => 900,
             self::HOURLY => 3600,
             self::DAILY => 86400,
         };
@@ -66,9 +82,15 @@ enum CronInterval: string
      *
      * A row written before migration 029, a NULL from a partial restore and a
      * value this build does not know are the same situation: nothing reliable
-     * was declared, and the drain still has to schedule a retry. The default is
-     * the eager end of the range, so being wrong here means retrying sooner
-     * than the cron can act rather than a ladder it is never awake for.
+     * was declared, and the drain still has to schedule a retry.
+     *
+     * The default stayed `hourly` when #473 added a shorter case, and
+     * deliberately: it is no longer the eagerest value, and it must not be.
+     * Guessing *too fast* sets the liveness threshold to half an hour on an
+     * installation that genuinely runs hourly, and an alarm that fires every
+     * hour on a healthy host is the wolf-crying ADR-0038 forbids. Guessing too
+     * slow only makes the ladder patient. `hourly` is the value that is wrong
+     * in the survivable direction against both neighbours.
      */
     public static function fromDeclared(mixed $value): self
     {
@@ -84,7 +106,12 @@ enum CronInterval: string
      * that says hourly and fires *daily*, not auditing punctuality.
      *
      * Null when the gap is too short to conclude anything — a manual run
-     * minutes after a scheduled one says nothing about the schedule.
+     * minutes after a scheduled one says nothing about the schedule. With
+     * `fifteen_minutes` in the range (#473) that window narrows from an hour to
+     * about eleven minutes, which costs nothing: the only consumer is
+     * {@see intervalDisagrees()}, and it reports a gap *longer* than declared.
+     * A hand-run drain twelve minutes after a tick therefore classifies as the
+     * fastest case and disagrees with nothing.
      */
     public static function fromObservedGap(int $seconds): ?self
     {
@@ -94,6 +121,10 @@ enum CronInterval: string
 
         if ($seconds >= self::HOURLY->seconds() * 0.75) {
             return self::HOURLY;
+        }
+
+        if ($seconds >= self::FIFTEEN_MINUTES->seconds() * 0.75) {
+            return self::FIFTEEN_MINUTES;
         }
 
         return null;
