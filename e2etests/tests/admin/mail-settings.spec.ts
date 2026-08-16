@@ -41,6 +41,7 @@ test.describe.serial('Mail settings', () => {
         logo_url: original.logo_url,
         cron_interval: original.cron_interval,
         drain_batch_size: original.drain_batch_size,
+        statement_cadence: original.statement_cadence,
       },
     })
   })
@@ -76,6 +77,56 @@ test.describe.serial('Mail settings', () => {
     await openMailTab(page)
     await expect(page.getByTestId('settings-mail-reply_to_address')).toHaveValue(replyTo)
     await expect(page.getByTestId('settings-mail-cron_interval')).toHaveValue('daily')
+  })
+
+  /**
+   * The switch the Deckelauszug does not exist without (#463, ADR-0039).
+   *
+   * Worth its own test rather than a line in the one above, because what makes
+   * it different from the dials beside it is not the control: it is that
+   * turning it on mails **every** member, monthly, with no per-member way out.
+   * The value has to be read back from the row for the same reason as above —
+   * a form that echoed its own state would pass an assertion made against
+   * itself — and it is left on `off`, which is where migration 039 puts it and
+   * where an installation that has not decided yet belongs.
+   */
+  test('the Deckelauszug cadence is set from the form and read back from the row', async ({
+    page,
+    authenticatedRequest,
+  }) => {
+    await openMailTab(page)
+
+    const cadence = page.getByTestId('settings-mail-statement_cadence')
+    await expect(cadence).toBeVisible()
+
+    // No weekly, for a gentler reason than the scheduler's refusal of the same
+    // word: nothing breaks, a statement every week simply stops being
+    // predictable and starts being relentless (ADR-0039 decision 3).
+    const options = await cadence.locator('option').allTextContents()
+    expect(options).toHaveLength(3)
+    expect(options.join(' ').toLowerCase()).not.toContain('woch')
+    expect(options.join(' ').toLowerCase()).not.toContain('week')
+
+    await cadence.selectOption('quarterly')
+    const saved = page.waitForResponse(
+      (r) => r.url().includes(API) && r.request().method() === 'PATCH' && r.status() === 200
+    )
+    await page.getByTestId('settings-mail-save').click()
+    await saved
+
+    expect((await (await authenticatedRequest.get(API)).json()).statement_cadence).toBe('quarterly')
+
+    // Back off, so nothing this suite leaves behind mails a membership.
+    await openMailTab(page)
+    await expect(cadence).toHaveValue('quarterly')
+    await cadence.selectOption('off')
+    const savedOff = page.waitForResponse(
+      (r) => r.url().includes(API) && r.request().method() === 'PATCH' && r.status() === 200
+    )
+    await page.getByTestId('settings-mail-save').click()
+    await savedOff
+
+    expect((await (await authenticatedRequest.get(API)).json()).statement_cadence).toBe('off')
   })
 
   test('the interval dropdown offers no weekly option at all', async ({ page }) => {

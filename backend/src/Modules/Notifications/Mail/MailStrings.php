@@ -102,6 +102,49 @@ final class MailStrings
             'cancel.label_amount'   => 'Angekündigter Betrag',
             'cancel.label_due_date' => 'Angekündigte Fälligkeit',
 
+            // ── Deckelauszug (ADR-0039) ─────────────────────────────────────
+            // Kein Wort aus der Vorabankündigung wandert hierher: kein Einzug,
+            // keine Fälligkeit, keine Mandatsreferenz, kein „Mahnung". Der
+            // Auszug berichtet einen Stand und fordert nichts.
+            'statement.subject'      => 'Dein Deckel — Stand {date}',
+            'statement.preheader'    => 'Dein Kontostand an der Theke zum {date}',
+            'statement.eyebrow'      => 'Deckelauszug',
+            'statement.title'        => 'Dein Deckel',
+            'statement.lede'         => 'hier ist Dein Deckel mit Stand vom <strong>{date}</strong>. '
+                                      . 'Das ist eine reine Übersicht — Du musst nichts tun und es wird '
+                                      . 'nichts eingezogen.',
+            'statement.lede_text'    => 'hier ist Dein Deckel mit Stand vom {date}. Das ist eine reine '
+                                      . 'Übersicht — Du musst nichts tun und es wird nichts eingezogen.',
+            'statement.as_of_label'  => 'Stand',
+            'statement.balance_label' => 'Offener Betrag',
+            'statement.credit_label' => 'Guthaben',
+            'statement.lines_heading' => 'Deine Buchungen',
+            'statement.lines_intro'  => 'Diese Buchungen sind noch nicht abgerechnet:',
+            'statement.empty'        => 'Zum Stichtag war Dein Deckel ausgeglichen — es sind keine offenen '
+                                      . 'Buchungen vorhanden.',
+            'statement.total_label'  => 'Summe',
+            'statement.capped'       => '…und {count} weitere Buchungen. Die Summe oben ist über '
+                                      . '<strong>alle</strong> offenen Buchungen gerechnet, nicht nur über '
+                                      . 'die hier aufgeführten.',
+            'statement.capped_text'  => '…und {count} weitere Buchungen. Die Summe oben ist über ALLE offenen '
+                                      . 'Buchungen gerechnet, nicht nur über die hier aufgeführten.',
+            'statement.credit_note'  => 'Der Verein schuldet Dir derzeit {amount}. Das Guthaben wird mit '
+                                      . 'Deinen nächsten Buchungen verrechnet; eine Auszahlung erfolgt nur '
+                                      . 'auf Anfrage.',
+            'statement.zero_note'    => 'Es steht nichts offen.',
+            'statement.limit_ok'     => 'Dein Limit an der Theke liegt bei {limit}.',
+            'statement.limit_approaching' => 'Dein Limit an der Theke liegt bei {limit} — Du näherst Dich ihm. '
+                                      . 'Ist es erreicht, nimmt das Terminal keine weitere Bestellung mehr an.',
+            'statement.limit_exceeded' => 'Damit ist Dein Limit von {limit} überschritten: das Terminal nimmt '
+                                      . 'keine weitere Bestellung an, bis der Deckel abgerechnet ist.',
+            'statement.limit_heading' => 'Dein Limit',
+            'statement.questions_heading' => 'Stimmt etwas nicht?',
+            'statement.questions_text' => 'Melde Dich einfach beim Kassenwart{contact} — eine Antwort auf '
+                                      . 'diese E-Mail genügt.',
+            'statement.questions_contact' => ' unter {email}',
+            'statement.line_storno'  => 'Storno {label}',
+            'statement.line_storno_from' => '{label} (aus Abrechnung {period})',
+
             // ── Terminal-Auffälligkeit (ADR-0041) ───────────────────────────
             // Bewusst zurückhaltend formuliert: jede gemeldete Art hat eine
             // harmlose Erklärung, und eine Mail, die mit „Dein Terminal wurde
@@ -197,6 +240,41 @@ final class MailStrings
             'cancel.next'      => 'Anything still owed stays open and may be announced again with a later collection.',
             'cancel.label_amount'   => 'Announced amount',
             'cancel.label_due_date' => 'Announced due date',
+
+            'statement.subject'      => 'Your tab — as at {date}',
+            'statement.preheader'    => 'What your bar tab stood at on {date}',
+            'statement.eyebrow'      => 'Tab statement',
+            'statement.title'        => 'Your tab',
+            'statement.lede'         => 'here is your tab as it stood on <strong>{date}</strong>. This is a '
+                                      . 'statement only — there is nothing to do and nothing will be collected.',
+            'statement.lede_text'    => 'here is your tab as it stood on {date}. This is a statement only — '
+                                      . 'there is nothing to do and nothing will be collected.',
+            'statement.as_of_label'  => 'As at',
+            'statement.balance_label' => 'Outstanding',
+            'statement.credit_label' => 'In credit',
+            'statement.lines_heading' => 'Your entries',
+            'statement.lines_intro'  => 'These entries have not been settled yet:',
+            'statement.empty'        => 'Your tab was clear on that date — there are no outstanding entries.',
+            'statement.total_label'  => 'Total',
+            'statement.capped'       => '…and {count} further entries. The total above is calculated over '
+                                      . '<strong>all</strong> outstanding entries, not only the ones listed here.',
+            'statement.capped_text'  => '…and {count} further entries. The total above is calculated over ALL '
+                                      . 'outstanding entries, not only the ones listed here.',
+            'statement.credit_note'  => 'The club currently owes you {amount}. The credit is set against your '
+                                      . 'next entries; a payout happens only on request.',
+            'statement.zero_note'    => 'Nothing is outstanding.',
+            'statement.limit_ok'     => 'Your limit at the bar is {limit}.',
+            'statement.limit_approaching' => 'Your limit at the bar is {limit}, and you are approaching it. Once '
+                                      . 'it is reached the terminal will not accept another order.',
+            'statement.limit_exceeded' => 'That puts you past your limit of {limit}: the terminal will not accept '
+                                      . 'another order until the tab has been settled.',
+            'statement.limit_heading' => 'Your limit',
+            'statement.questions_heading' => 'Something wrong?',
+            'statement.questions_text' => 'Just raise it with the treasurer{contact} — replying to this email '
+                                      . 'is enough.',
+            'statement.questions_contact' => ' at {email}',
+            'statement.line_storno'  => 'Reversal of {label}',
+            'statement.line_storno_from' => '{label} (from settlement {period})',
 
             'terminal_anomaly.subject'   => 'Terminal "{terminal}": worth a look',
             'terminal_anomaly.preheader' => 'The credential for "{terminal}" may be in use on more than one device',

@@ -104,6 +104,30 @@ final readonly class StatementPeriod
         return new self($cadence, (int) $m[1], $month);
     }
 
+    /**
+     * Read a key back out of a queued row, without being told the cadence.
+     *
+     * {@see fromKey()} is the *enqueue* direction and takes the cadence,
+     * because there the cadence is the question: a monthly installation asked
+     * for `2026-Q3` has made a mistake worth reporting. The send direction is
+     * the opposite. `mail_outbox.dedup_key` was written when the row was
+     * queued, and by the time the drain renders it the club may have switched
+     * from monthly to quarterly — asking the *current* cadence to parse a key
+     * written under the previous one would return null and leave a statement
+     * that can never be rendered, permanently, for a setting change made after
+     * it was queued.
+     *
+     * So the shape decides: `2026-Q3` is quarterly, `2026-08` is monthly. Both
+     * are unambiguous, which is why the keys were given different shapes in the
+     * first place.
+     */
+    public static function fromStoredKey(string $key): ?self
+    {
+        $cadence = str_contains($key, 'Q') ? StatementCadence::QUARTERLY : StatementCadence::MONTHLY;
+
+        return self::fromKey($cadence, $key);
+    }
+
     /** The dedup key. `2026-08` monthly, `2026-Q3` quarterly. */
     public function key(): string
     {

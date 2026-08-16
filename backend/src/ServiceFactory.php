@@ -28,6 +28,7 @@ use App\Modules\Instance\Repositories\InstanceConfigRepository;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Repositories\MailConfigRepository;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
+use App\Modules\Notifications\Repositories\DeckelStatementRepository;
 use App\Modules\Notifications\Repositories\StatementRecipientsRepository;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Repositories\SessionRepository;
@@ -63,6 +64,8 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
+use App\Modules\Notifications\Services\DeckelStatementMailBuilder;
+use App\Modules\Notifications\Services\DeckelStatementService;
 use App\Modules\Notifications\Services\DrainService;
 use App\Modules\Notifications\Services\HeartbeatPinger;
 use App\Modules\Notifications\Services\MailDeliveryCheck;
@@ -534,7 +537,37 @@ class ServiceFactory implements ContainerInterface
             $this->getSettlementMailBuilder(),
             $this->getTerminalAnomalyMailBuilder(),
             $this->getAdminSecurityMailBuilder(),
+            $this->getDeckelStatementMailBuilder(),
         ));
+    }
+
+    /**
+     * ADR-0039. The first builder whose subject is the *member* rather than
+     * something that happened to them — and the reason the registry is a list
+     * of builders rather than a `match` in the drain.
+     */
+    public function getDeckelStatementMailBuilder(): DeckelStatementMailBuilder
+    {
+        return $this->resolve(DeckelStatementMailBuilder::class, fn() => new DeckelStatementMailBuilder(
+            $this->getDeckelStatementService(),
+        ));
+    }
+
+    public function getDeckelStatementService(): DeckelStatementService
+    {
+        return $this->resolve(DeckelStatementService::class, fn() => new DeckelStatementService(
+            $this->getDeckelStatementRepository(),
+            $this->getMembersRepository(),
+            $this->getMailConfigService(),
+        ));
+    }
+
+    public function getDeckelStatementRepository(): DeckelStatementRepository
+    {
+        return $this->resolve(
+            DeckelStatementRepository::class,
+            fn() => new DeckelStatementRepository($this->pdo),
+        );
     }
 
     /**

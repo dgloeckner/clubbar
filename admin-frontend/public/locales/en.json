@@ -799,6 +799,13 @@
       "cronIntervalHint": "How often this installation's cron actually runs. Retries and the stall alarm are measured in these ticks. Weekly is refused — the seven-day promise of § 7 Abs. 3 could not be kept.",
       "batchSize": "Messages per run",
       "batchSizeHint": "Lower it if the mail server limits each connection more strictly. It does not make a run faster — sending is serial either way.",
+      "statementCadence": "Tab statement",
+      "statementCadences": {
+        "off": "Off",
+        "monthly": "Monthly",
+        "quarterly": "Quarterly"
+      },
+      "statementCadenceHint": "A periodic statement of a member’s tab — sent to every active member whatever they owe, announcing nothing and collecting nothing. \"Off\" is the only way to stop it: there is no per-member opt-out. It goes out on the first day of the period and states the tab as it stood on that day.",
       "saved": "Mail settings saved.",
       "cronSecretTitle": "URL-trigger secret",
       "cronSecretConfigured": "Configured",

@@ -8,8 +8,12 @@
  *   php bin/preview-mails.php                    # writes to backend/storage/mail-preview/
  *   php bin/preview-mails.php /tmp/out           # writes somewhere else
  *
- * Produces, for each of the two kinds and each of the two languages, an
- * `.html` file and a `.txt` file — eight in total, plus an index.
+ * Produces, for each variant and each of the two languages, an `.html` file and
+ * a `.txt` file, plus an index. The Deckelauszug contributes four variants per
+ * language rather than one, because its interesting cases are the ones a single
+ * happy-path render never shows: a member past the credit limit, a member in
+ * credit, an empty tab, and a capped list whose total is larger than the lines
+ * it prints.
  *
  * No database, no configuration, no container: it renders from fixtures held in
  * this file. That is what makes it runnable on a fresh clone, and it is also
@@ -27,11 +31,14 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use App\Modules\Dashboard\Domain\CreditLimit;
 use App\Modules\Notifications\DTOs\CancellationNoticeDataDto;
+use App\Modules\Notifications\DTOs\DeckelStatementDataDto;
 use App\Modules\Notifications\DTOs\PreNotificationDataDto;
 use App\Modules\Notifications\DTOs\StatementLineDto;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Mail\CancellationNoticeMail;
+use App\Modules\Notifications\Mail\DeckelStatementMail;
 use App\Modules\Notifications\Mail\PreNotificationMail;
 use App\Shared\Mail\MailBranding;
 use App\Shared\Mail\MailLayout;
@@ -103,12 +110,101 @@ foreach (MailLanguage::cases() as $language) {
             treasurerEmail: 'kasse@beispiel-ruderverein.de',
         )
     ));
+
+    // The Deckelauszug (ADR-0039). Four variants, because the cases worth
+    // looking at are the ones a happy-path render hides: does „Du bist über
+    // Deinem Limit" read as a warning or as a demand? Does an empty tab still
+    // look like a statement? Does a capped list explain itself?
+    foreach (statementVariants($branding) as $variant => $statement) {
+        $written[] = write(
+            $outDir,
+            "deckel-statement-{$variant}-{$language->value}",
+            DeckelStatementMail::render(new DeckelStatementDataDto(...['language' => $language] + $statement))
+        );
+    }
 }
 
 file_put_contents($outDir . '/index.html', index($written));
 
 echo "Wrote " . (count($written) * 2 + 1) . " files to " . realpath($outDir) . "\n";
 echo "Open index.html to browse them.\n";
+
+/**
+ * The four Deckelauszug variants, as named argument sets.
+ *
+ * `approaching` is the one to look at hardest. It is the only mail in this
+ * system whose job is to change what somebody does next — settle up before the
+ * terminal refuses them in front of the queue — and it has to do that without
+ * sounding like a demand for money, which is a different message with its own
+ * rules (`CONTEXT.md`: Vorabankündigung vs. Deckelauszug).
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function statementVariants(MailBranding $branding): array
+{
+    $common = [
+        'recipientAddress' => 'mitglied@example.org',
+        'recipientName' => 'Erika Mustermann',
+        'salutationName' => 'Erika',
+        'branding' => $branding,
+        'boundaryDate' => '2026-08-01',
+        'creditLimitCents' => CreditLimit::LIMIT_CENTS,
+        'treasurerEmail' => 'kasse@beispiel-ruderverein.de',
+    ];
+
+    $lines = [
+        new StatementLineDto('Bier 0,5 l', '2026-07-02 20:14:00', 250),
+        new StatementLineDto('Apfelschorle', '2026-07-02 20:31:00', 180),
+        new StatementLineDto('Kaffee', '2026-07-09 18:02:00', 120),
+        new StatementLineDto('Storno Bier 0,5 l (aus Abrechnung 06/2026)', '2026-07-09 18:04:00', -250),
+        new StatementLineDto('Bier 0,5 l', '2026-07-16 21:47:00', 250),
+    ];
+
+    $many = [];
+    for ($i = 0; $i < DeckelStatementDataDto::MAX_LINES; $i++) {
+        $many[] = new StatementLineDto('Bier 0,5 l', sprintf('2026-07-%02d 20:%02d:00', ($i % 28) + 1, $i % 60), 250);
+    }
+
+    // Everything but `capped` states the sum of what it prints. That is not
+    // laziness: a preview whose column does not add up is unreadable as a
+    // preview — you spend the look wondering whether the renderer is broken
+    // instead of judging the wording.
+    $sum = static fn (array $set): int => array_sum(array_map(
+        static fn (StatementLineDto $line): int => $line->amountCents,
+        $set,
+    ));
+
+    $variants = [
+        'ok' => $lines,
+        // Into the warning band, by way of one large evening rather than by an
+        // adjusted total.
+        'approaching' => [...$lines, new StatementLineDto('Sommerfest — Runde', '2026-07-25 22:10:00', 8_100)],
+        'credit' => [new StatementLineDto('Storno Bier 0,5 l (aus Abrechnung 06/2026)', '2026-07-09 18:04:00', -750)],
+        'empty' => [],
+    ];
+
+    $out = [];
+    foreach ($variants as $name => $set) {
+        $total = $sum($set);
+        $out[$name] = $common + [
+            'totalCents' => $total,
+            'lines' => $set,
+            'creditStatus' => CreditLimit::status($total),
+        ];
+    }
+
+    // The exception, and the reason it exists: 100 printed lines, 143 counted.
+    // This is the variant that shows whether the cap explains itself.
+    $cappedTotal = $sum($many) + 43 * 250;
+    $out['capped'] = $common + [
+        'totalCents' => $cappedTotal,
+        'lines' => $many,
+        'omittedLines' => 43,
+        'creditStatus' => CreditLimit::status($cappedTotal),
+    ];
+
+    return $out;
+}
 
 /**
  * @return array{name: string, subject: string}

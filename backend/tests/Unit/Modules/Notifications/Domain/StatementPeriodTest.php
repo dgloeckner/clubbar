@@ -199,6 +199,42 @@ class StatementPeriodTest extends TestCase
         $this->assertNotContains('weekly', array_column(StatementCadence::cases(), 'value'));
     }
 
+    /**
+     * The send direction (#463): a queued row's key is read back without being
+     * told the cadence, because the club may have changed it since.
+     *
+     * This is the case that makes the method necessary rather than convenient.
+     * A statement queued as `2026-08` on a monthly installation must still
+     * render after somebody switches the club to quarterly — asking the current
+     * cadence to parse it would fail, permanently, and leave a member's
+     * statement stuck in the queue over a settings change made after it was
+     * written.
+     */
+    public function test_a_stored_key_is_read_back_without_knowing_the_cadence(): void
+    {
+        $monthly = StatementPeriod::fromStoredKey('2026-08');
+        $this->assertNotNull($monthly);
+        $this->assertSame('2026-08', $monthly->key());
+        $this->assertSame('2026-08-01', $monthly->boundary()->format('Y-m-d'));
+
+        $quarterly = StatementPeriod::fromStoredKey('2026-Q3');
+        $this->assertNotNull($quarterly);
+        $this->assertSame('2026-Q3', $quarterly->key());
+        $this->assertSame('2026-07-01', $quarterly->boundary()->format('Y-m-d'));
+    }
+
+    /**
+     * Anything else is null rather than a guess. The renderer refuses to send
+     * at that point, which is the right answer: a statement dated at an
+     * invented boundary states a number for a moment nobody asked about.
+     */
+    public function test_an_unreadable_stored_key_is_refused(): void
+    {
+        foreach (['', '2026', '2026-13', '2026-Q5', 'August', '2026-8'] as $key) {
+            $this->assertNull(StatementPeriod::fromStoredKey($key), "\"{$key}\" is not a period");
+        }
+    }
+
     // ── helpers ───────────────────────────────────────────────────────
 
     private function monthlyAt(string $instant): StatementPeriod
