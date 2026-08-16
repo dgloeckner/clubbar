@@ -128,4 +128,21 @@ test.describe('Login (UI)', () => {
     await expect(loginPage.errorMessage()).toBeVisible()
     expect(page.url()).toContain('/login')
   })
+
+  // Pins #133: the error banner used to read `error` off the AuthContext render
+  // that existed *before* `await login(...)` resolved, so the very first failed
+  // attempt always fell back to the client's generic "Login failed" — the
+  // backend's actual "Invalid credentials" only surfaced one attempt later,
+  // describing the *previous* submission. A single attempt is enough to prove
+  // the fix: the backend's message must appear immediately, not delayed.
+  test('shows the backend error message on the very first failed attempt, not a generic fallback', async ({
+    loginPage,
+  }) => {
+    await loginPage.navigate()
+    await loginPage.login('nobody@example.com', 'wrong-password')
+
+    await expect(loginPage.errorMessage()).toBeVisible()
+    await expect(loginPage.errorMessage()).toHaveText('Invalid credentials')
+    await expect(loginPage.errorMessage()).not.toHaveText('Login failed')
+  })
 })
