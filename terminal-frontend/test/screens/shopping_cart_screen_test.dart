@@ -85,6 +85,7 @@ void main() {
       when(() => mockCartProvider.lastError).thenReturn(null);
       when(() => mockCartProvider.removeItem(any())).thenReturn(null);
       when(() => mockCartProvider.updateQuantity(any(), any())).thenReturn(null);
+      when(() => mockCartProvider.decreaseItem(any())).thenReturn(null);
       when(() => mockCartProvider.checkout(any(), any(), any()))
           .thenAnswer((_) async {});
       when(() => mockCartProvider.lastTransactionId).thenReturn(null);
@@ -300,6 +301,21 @@ void main() {
       expect(find.text('2'), findsOneWidget);
     });
 
+    // Issue #36: the '−' button used to be a dead no-op at quantity 1 (guarded
+    // by `if (item.quantity > 1)` with no else branch), unlike the identical
+    // control on the product tile. It now goes through decreaseItem(), the
+    // same call the tile uses, so both remove the line at quantity 1.
+    testWidgets('minus button calls decreaseItem, not updateQuantity (#36)',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildTestWidget());
+
+      await tester.tap(find.text('−'));
+      await tester.pump();
+
+      verify(() => mockCartProvider.decreaseItem('prod-1')).called(1);
+      verifyNever(() => mockCartProvider.updateQuantity(any(), any()));
+    });
+
     testWidgets('checkout button gives press feedback via InkWell',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildTestWidget());
@@ -395,10 +411,12 @@ void main() {
         await tester.tap(find.byIcon(Icons.delete_outline),
             warnIfMissed: false);
         await tester.tap(find.text('+'), warnIfMissed: false);
+        await tester.tap(find.text('−'), warnIfMissed: false);
         await tester.pump();
 
         verifyNever(() => mockCartProvider.removeItem(any()));
         verifyNever(() => mockCartProvider.updateQuantity(any(), any()));
+        verifyNever(() => mockCartProvider.decreaseItem(any()));
       });
 
       testWidgets('the frozen list is visibly dimmed, not silently dead (#27)',
