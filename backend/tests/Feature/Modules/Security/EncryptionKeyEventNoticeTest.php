@@ -33,15 +33,37 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
 {
     private EncryptionKeyService $service;
     private EncryptionKeysRepository $keys;
+    private AdminUsersRepository $admins;
     private EncryptionKeyEventMailBuilder $builder;
     private array $createdKeyIds = [];
+    private string $adminId;
+    private string $adminEmail;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->keys = new EncryptionKeysRepository($this->db, $this->logger);
-        $admins = new AdminUsersRepository($this->db, $this->logger);
+        $admins = $this->admins = new AdminUsersRepository($this->db, $this->logger);
+
+        // This test owns a recipient of its own rather than trusting whatever
+        // the environment seeded. CI applies migrations without `seed.sql`, so
+        // `findActiveRecipients()` there returned nobody with an address and
+        // every "a notice was queued" assertion failed while the count
+        // assertion passed against an expected zero — the shape of a test that
+        // reports success for having found nothing.
+        $this->adminId = $this->generateUuid();
+        $this->adminEmail = 'key-notice-' . substr($this->adminId, 0, 8) . '@example.test';
+        $this->db->prepare(
+            'INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())'
+        )->execute([
+            $this->adminId,
+            $this->adminEmail,
+            password_hash('not-used-' . $this->adminId, PASSWORD_DEFAULT),
+            'Key Notice Recipient',
+            'de',
+        ]);
         $outbox = new MailOutboxRepository($this->db, $this->logger);
 
         $this->service = new EncryptionKeyService(
@@ -66,6 +88,7 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
             $this->db->prepare('DELETE FROM mail_outbox WHERE subject_id = ?')->execute([$id]);
         }
         $this->cleanupTestData('encryption_keys', $this->createdKeyIds);
+        $this->db->prepare('DELETE FROM admin_users WHERE id = ?')->execute([$this->adminId]);
 
         parent::tearDown();
     }
@@ -110,6 +133,12 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
             $this->assertSame(MailKind::ENCRYPTION_KEY_REGISTERED->value, $row['kind']);
             $this->assertNotEmpty($row['recipient']);
         }
+
+        $this->assertContains(
+            $this->adminEmail,
+            array_column($rows, 'recipient'),
+            'the admin this test created must be among the recipients',
+        );
     }
 
     public function test_activating_a_key_queues_a_separate_notice(): void
@@ -150,11 +179,15 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
     public function test_one_notice_per_admin_with_an_address(): void
     {
         $expected = 0;
-        foreach ((new AdminUsersRepository($this->db, $this->logger))->findActiveRecipients() as $admin) {
+        foreach ($this->admins->findActiveRecipients() as $admin) {
             if (trim((string) ($admin['email'] ?? '')) !== '') {
                 $expected++;
             }
         }
+
+        // setUp created one, so this can never be the vacuous "0 == 0" that
+        // let this assertion pass in CI while the rest of the class failed.
+        $this->assertGreaterThan(0, $expected);
 
         $key = $this->registerKey();
 
@@ -174,7 +207,16 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
     public function test_the_message_carries_the_full_fingerprint_and_no_key_material(): void
     {
         $key = $this->registerKey();
-        $row = $this->outboxRowsFor($key['id'])[0] ?? null;
+
+        // This test's own recipient, not "whichever row came back first": the
+        // set depends on how many admins the environment has.
+        $row = null;
+        foreach ($this->outboxRowsFor($key['id']) as $candidate) {
+            if ($candidate['recipient'] === $this->adminEmail) {
+                $row = $candidate;
+                break;
+            }
+        }
         $this->assertNotNull($row, 'expected a queued notice to render');
 
         $message = $this->builder->build($row);
