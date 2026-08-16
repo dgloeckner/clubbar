@@ -261,6 +261,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cardReaderLastSeen => 'Last detected';
 
   @override
+  String get recentScans => 'Recent card scans';
+
+  @override
+  String get recentScansEmpty => 'No card seen yet';
+
+  @override
   String get dispenser => 'Dispenser';
 
   @override

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -8,6 +10,7 @@ import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/services/scan_log.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 
 class MockMembersProvider extends Mock implements MembersProvider {}
@@ -293,6 +296,62 @@ void main() {
 
       expect(provider.hint?.key, ScanHintKey.transactionInProgress);
       verifyNever(() => sessionController.startSession(any()));
+    });
+  });
+
+  // Issue #370: what the terminal did with a tap has to be answerable after
+  // the fact — the member only ever reports "it didn't work".
+  group('RfidProvider scan log', () {
+    setUp(() => ScanLog.instance.clear());
+
+    test('an accepted card is recorded with its UID', () async {
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (member('member-a'), null));
+
+      await provider.handleCardScan('card-member-a');
+
+      expect(ScanLog.instance.latest!.kind, ScanEventKind.accepted);
+      expect(ScanLog.instance.latest!.uid, 'CARD-MEMBER-A');
+    });
+
+    test('a rejected card is recorded with the reason', () async {
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (null, TerminalErrorKey.unknownCard));
+      when(() => membersProvider.setError(any())).thenReturn(null);
+
+      await provider.handleCardScan('nope');
+
+      final event = ScanLog.instance.latest!;
+      expect(event.kind, ScanEventKind.rejected);
+      expect(event.uid, 'NOPE');
+      expect(event.detail, 'unknownCard');
+    });
+
+    // The one drop that makes no sound and shows nothing: a tap that lands
+    // while the previous one is still waiting on the backend for a balance.
+    test('a tap dropped while a scan is in flight is recorded', () async {
+      final gate = Completer<(MembersCacheData?, TerminalErrorKey?)>();
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) => gate.future);
+
+      final first = provider.handleCardScan('card-member-a');
+      await provider.handleCardScan('card-member-b');
+
+      expect(ScanLog.instance.latest!.kind, ScanEventKind.droppedBusy);
+      expect(ScanLog.instance.latest!.uid, 'CARD-MEMBER-B');
+
+      gate.complete((member('member-a'), null));
+      await first;
+    });
+
+    test('a refusal is recorded with the rule that refused it', () async {
+      when(() => sessionController.isCriticalOperationInFlight).thenReturn(true);
+
+      await provider.handleCardScan('card-member-a');
+
+      final event = ScanLog.instance.latest!;
+      expect(event.kind, ScanEventKind.refused);
+      expect(event.detail, ScanHintKey.transactionInProgress.name);
     });
   });
 }

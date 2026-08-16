@@ -324,6 +324,33 @@ reader status rather than one it cannot back up. The same applies on a platform
 without `/proc/bus/input/devices` (macOS, Windows): presence is reported as
 unknown and the UI is unchanged.
 
+### What the terminal saw of a card tap
+
+A chip that is held to the reader and produces *nothing* — no beep, no error,
+no spinner — has failed somewhere between the USB device and the member lookup,
+and every one of those steps used to be silent (issue #370). The terminal now
+keeps the last card taps and what it made of each, in two places:
+
+- **Status modal → Letzte Chip-Erkennungen** — the last few, newest first.
+  Taps that were lost without any feedback are red. Read these out when
+  reporting the problem.
+- **`error.log`** — the lost ones are written there as `scan: <kind> …`, so
+  they survive the session. (The kiosk starts from a `.desktop` entry, so
+  stdout goes nowhere; this file is the durable record.)
+
+What the kinds mean, and what to do:
+
+| Line | What happened | What to do |
+|------|---------------|------------|
+| `uidCaptured <uid> …` | The reader typed a full UID and the terminal took it. Any failure after this one has a message on screen. | — |
+| `rejected <uid> unknownCard` | The UID reached the lookup and the local member cache does not have it. | Check the chip is registered to a member in the admin panel, and that the terminal has synced since (status modal → *Letzte Synchronisation*) |
+| `partialDiscarded <n> chars, no terminator` | Characters arrived and the closing Enter never did. | Configure the reader to send Enter after the UID; check the cable |
+| `unprintableKey hid 0x7005c …` | The reader pressed a key that carries no character. HID usages `0x7005…` are the numeric keypad — a reader typing there with **NumLock off** sends navigation keys, not digits. | Turn NumLock on, or switch the reader to the main key block |
+| `modifierSuppressed …` | Keystrokes were ignored because Ctrl/Alt/Meta was held. A modifier the compositor believes is still down silences the reader completely. | Press and release the stuck modifier on an attached keyboard, or restart the session |
+| `droppedBusy <uid>` | A tap landed while the previous one was still being resolved. | Harmless in isolation; a run of them means lookups are slow — check the backend connection |
+| `emptyTerminator …` | An Enter arrived with nothing buffered. | Usually a stray keypress; a run of them means the reader sends its terminator twice |
+| `captureNotReady <uid>` | A card was read before the app finished starting. | Tap again |
+
 > **The `fontSizes` defaults changed in #41.** They used to be phone-sized
 > (base `14`), which is a poor fit for a 7″ panel read standing up in bar
 > lighting; every step is now roughly 12 % larger. Nothing else needs
@@ -532,4 +559,5 @@ wherever the mock is running) to test the full checkout flow.
 | RFID scanner not detected | Ensure reader is in keyboard-emulation mode (sends UID + Enter); test with `evtest` |
 | Idle screen says "Scanner nicht verbunden" with the reader plugged in | The configured `rfidReader` ids/name no longer match the device — re-read them from `cat /proc/bus/input/devices` (a replacement reader often has different ids) |
 | Reader dies unnoticed — screen keeps inviting scans | Reader monitoring is off: describe the reader under `rfidReader` in `config.json`, see [Reader health monitoring](#reader-health-monitoring) |
+| A registered chip is sometimes not recognised — no sound, nothing on screen | Open the status modal and read **Letzte Chip-Erkennungen**, see [What the terminal saw](#what-the-terminal-saw-of-a-card-tap) |
 | No sound / audio not working | See [Audio setup on Raspberry Pi](docs/audio-setup-raspberry-pi.md) for GStreamer and ALSA configuration |

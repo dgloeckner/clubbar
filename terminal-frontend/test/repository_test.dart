@@ -218,6 +218,80 @@ void main() {
       });
     });
 
+    // Issue #370: a chip handed on to another member is the one delta that can
+    // arrive with the new holder before the old one — `updated_at` is
+    // second-granular on the backend, so two writes in the same second come
+    // back in whatever order the database felt like. `members_cache.card_uid`
+    // is UNIQUE, so writing the new holder first used to raise a constraint
+    // failure out of the *first* step of the sync cycle, which then never
+    // completed and never advanced its cursor: from that point the terminal
+    // saw no new members, no product changes, and no newly registered chip.
+    group('a card UID handed to another member (#370)', () {
+      Member member(String id, {String? cardUid, DateTime? deletedAt}) => Member(
+            id: id,
+            cardUid: cardUid,
+            firstName: 'Member',
+            lastName: id,
+            preferredLanguage: 'de',
+            isActive: true,
+            isSepaValid: true,
+            createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+            updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
+            deletedAt: deletedAt,
+          );
+
+      test('the new holder gets the card and the previous one loses it',
+          () async {
+        await repo.upsertMembers([member('old', cardUid: 'ABCD1234')]);
+
+        await repo.upsertMembers([member('new', cardUid: 'abcd1234')]);
+
+        final (found, error) = await repo.findByCardUid('ABCD1234');
+        expect(found?.id, 'new');
+        expect(error, isNull);
+        final old = await repo.findById('old');
+        expect(old!.cardUid, isNull,
+            reason: 'a card is at exactly one member, here as on the backend');
+      });
+
+      test('a batch that reassigns the card within itself applies whole',
+          () async {
+        await repo.upsertMembers([member('old', cardUid: 'ABCD1234')]);
+
+        // The order the backend cannot guarantee: new holder first, the old
+        // one's release second.
+        await repo.upsertMembers([
+          member('new', cardUid: 'ABCD1234'),
+          member('old', cardUid: null),
+        ]);
+
+        expect((await repo.findById('new'))!.cardUid, 'ABCD1234');
+        expect((await repo.findById('old'))!.cardUid, isNull);
+      });
+
+      test('a tombstone releases the card for the member it moves to',
+          () async {
+        await repo.upsertMembers([member('gone', cardUid: 'ABCD1234')]);
+
+        await repo.upsertMembers([
+          member('gone',
+              cardUid: 'ABCD1234',
+              deletedAt: DateTime.parse('2025-03-01T12:00:00Z')),
+          member('fresh', cardUid: 'ABCD1234'),
+        ]);
+
+        expect((await repo.findById('gone'))!.cardUid, isNull);
+        expect((await repo.findById('fresh'))!.cardUid, 'ABCD1234');
+      });
+
+      test('re-syncing the same member keeps its own card', () async {
+        await repo.upsertMembers([member('same', cardUid: 'ABCD1234')]);
+        await repo.upsertMembers([member('same', cardUid: 'ABCD1234')]);
+
+        expect((await repo.findById('same'))!.cardUid, 'ABCD1234');
+      });
+    });
+
     test('upsertMembers inserts new members', () async {
       final dtos = [
         Member(

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/models/scan_hint.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/services/scan_log.dart';
 import 'package:clubbar_terminal/widgets/scan_capture.dart';
 import '../test_helpers.dart';
 
@@ -184,6 +185,132 @@ void main() {
       await tester.pump();
 
       expect(rfid.emittedScans, isEmpty);
+    });
+
+    // Issue #370: "send Enter" is the keypad's Enter on a good number of
+    // keyboard-wedge readers, and that is a different key. Such a reader could
+    // never finish a scan — the characters just aged out of the buffer, in
+    // silence.
+    testWidgets('the keypad Enter terminates a scan like Return does',
+        (tester) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+      await tester.sendKeyEvent(LogicalKeyboardKey.numpadEnter);
+      await tester.pump();
+
+      expect(rfid.emittedScans, ['03']);
+    });
+
+    testWidgets('a terminator delivered only as a newline character still '
+        'ends the scan', (tester) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter, character: '\n');
+      await tester.pump();
+
+      expect(rfid.emittedScans, ['03']);
+    });
+  });
+
+  // Issue #370: none of the outcomes below makes a sound, shows a banner or
+  // moves the spinner, so the scan log is the only place they can be seen.
+  group('ScanCapture diagnostics', () {
+    setUp(() => ScanLog.instance.clear());
+
+    testWidgets('records a captured UID with the burst it arrived in',
+        (tester) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      final event = ScanLog.instance.latest!;
+      expect(event.kind, ScanEventKind.uidCaptured);
+      expect(event.uid, '03');
+      expect(event.detail, contains('2 chars'));
+    });
+
+    testWidgets('records the partial scan the gap timer throws away',
+        (tester) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit9);
+      await tester.pump(const Duration(seconds: 2));
+
+      final event = ScanLog.instance.latest!;
+      expect(event.kind, ScanEventKind.partialDiscarded);
+      expect(event.detail, contains('1 chars'));
+    });
+
+    testWidgets('records a terminator that arrived with nothing buffered',
+        (tester) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      expect(ScanLog.instance.latest!.kind, ScanEventKind.emptyTerminator);
+    });
+
+    // A modifier the compositor still believes is held silences the reader
+    // completely — from the bar that looks exactly like a dead scanner.
+    testWidgets('records a keystroke suppressed by a held modifier',
+        (tester) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit7);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      final event = ScanLog.instance.latest!;
+      expect(event.kind, ScanEventKind.modifierSuppressed);
+      expect(event.detail, contains('hid'));
+    });
+
+    testWidgets('a modifier press of its own is not reported as lost input',
+        (tester) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+
+      expect(ScanLog.instance.events, isEmpty);
+    });
+
+    // What a reader typing on the numeric keypad with NumLock off looks like:
+    // every digit arrives as a navigation key with no character, and the scan
+    // produces nothing whatsoever. The HID usage in the record is what
+    // identifies it from a terminal in the field.
+    testWidgets('records a key that carries no character, with its HID usage',
+        (tester) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      await tester.sendKeyEvent(
+        LogicalKeyboardKey.arrowLeft,
+        physicalKey: PhysicalKeyboardKey.numpad4,
+      );
+      await tester.pump();
+
+      final event = ScanLog.instance.latest!;
+      expect(event.kind, ScanEventKind.unprintableKey);
+      expect(event.detail, contains('0x7005c'),
+          reason: 'USB HID usage of keypad 4');
     });
   });
 

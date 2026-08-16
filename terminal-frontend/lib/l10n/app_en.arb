@@ -77,6 +77,8 @@
   "cardReaderDisconnected": "Not connected",
   "cardReaderNotMonitored": "Not monitored",
   "cardReaderLastSeen": "Last detected",
+  "recentScans": "Recent card scans",
+  "recentScansEmpty": "No card seen yet",
   "dispenser": "Dispenser",
   "backendEndpoint": "Backend",
   "dispenserEndpoint": "Dispenser URL",

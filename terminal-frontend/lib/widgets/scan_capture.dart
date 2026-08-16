@@ -9,6 +9,7 @@ import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/models/scan_hint.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/services/scan_log.dart';
 import 'package:clubbar_terminal/utils/card_uid.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 
@@ -46,9 +47,48 @@ class _ScanCaptureState extends State<ScanCapture> {
   /// slower than a reader is dropped instead of being glued onto the next scan.
   static const _maxInterCharacterGap = Duration(milliseconds: 500);
 
+  /// Keys that end a UID.
+  ///
+  /// A keyboard-wedge reader is configured to "send Enter" — and on a good
+  /// number of them that is the *keypad's* Enter (USB HID usage 0x70058), a
+  /// different key from Return (0x70028) with its own logical key. Listening for
+  /// Return alone left such a reader unable to finish a scan at all: the
+  /// characters sat in the buffer until [_maxInterCharacterGap] threw them
+  /// away, which is silent (issue #370).
+  static final _terminatorKeys = <LogicalKeyboardKey>{
+    LogicalKeyboardKey.enter,
+    LogicalKeyboardKey.numpadEnter,
+  };
+
+  /// Keys that are never part of a UID and are not worth reporting as lost
+  /// input — a modifier's own press carries no character by definition.
+  static final _modifierKeys = <LogicalKeyboardKey>{
+    LogicalKeyboardKey.shift,
+    LogicalKeyboardKey.shiftLeft,
+    LogicalKeyboardKey.shiftRight,
+    LogicalKeyboardKey.control,
+    LogicalKeyboardKey.controlLeft,
+    LogicalKeyboardKey.controlRight,
+    LogicalKeyboardKey.alt,
+    LogicalKeyboardKey.altLeft,
+    LogicalKeyboardKey.altRight,
+    LogicalKeyboardKey.meta,
+    LogicalKeyboardKey.metaLeft,
+    LogicalKeyboardKey.metaRight,
+    LogicalKeyboardKey.capsLock,
+    LogicalKeyboardKey.numLock,
+    LogicalKeyboardKey.scrollLock,
+    LogicalKeyboardKey.fn,
+  };
+
   final StringBuffer _rfidBuffer = StringBuffer();
   Timer? _bufferResetTimer;
   RfidProvider? _rfidProvider;
+
+  /// When the buffer's first character arrived, for the burst duration in the
+  /// scan log: a reader types a UID in a few tens of milliseconds, so a burst
+  /// measured in seconds was a human at a keyboard, not a card.
+  DateTime? _burstStartedAt;
 
   @override
   void initState() {
@@ -77,35 +117,106 @@ class _ScanCaptureState extends State<ScanCapture> {
   }
 
   /// Accumulate characters from the RFID reader (USB keyboard emulation).
-  /// Emits the buffered UID when Enter is received.
+  /// Emits the buffered UID when a terminator is received.
+  ///
+  /// Every branch that ends a keystroke's life here records why in [ScanLog]:
+  /// this stage produces no sound, no banner and no spinner, so before the
+  /// scan log a tap lost in it was indistinguishable from a tap that never
+  /// happened — which is the whole of issue #370's symptom.
   bool _onKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
 
-    // A held modifier means a shortcut, never reader output.
+    // A modifier's own press is not input and not a loss; saying so would bury
+    // the buffer under Shift presses on a terminal with a keyboard attached.
+    if (_modifierKeys.contains(event.logicalKey)) return false;
+
+    // A held modifier means a shortcut, never reader output. Recorded because
+    // a modifier the compositor thinks is still held silences the reader
+    // completely, and looks from the bar exactly like a dead scanner.
     final keyboard = HardwareKeyboard.instance;
     if (keyboard.isControlPressed ||
         keyboard.isMetaPressed ||
         keyboard.isAltPressed) {
+      ScanLog.instance.record(ScanEventKind.modifierSuppressed,
+          detail: _keyLabel(event));
       return false;
     }
 
-    if (event.logicalKey == LogicalKeyboardKey.enter) {
+    if (_isTerminator(event)) {
       _bufferResetTimer?.cancel();
       // A reader that types lower-case hex must reach the same member as one
       // that types upper-case (issue #18) — see [normalizeCardUid].
       final uid = normalizeCardUid(_rfidBuffer.toString());
+      final startedAt = _burstStartedAt;
       _rfidBuffer.clear();
-      if (uid.isNotEmpty) {
-        _rfidProvider?.emitScan(uid);
+      _burstStartedAt = null;
+
+      if (uid.isEmpty) {
+        ScanLog.instance.record(ScanEventKind.emptyTerminator,
+            detail: _keyLabel(event));
+      } else if (_rfidProvider == null) {
+        // The shell subscribes in its first post-frame callback; a card held
+        // to the reader while the app is still starting lands here.
+        ScanLog.instance.record(ScanEventKind.captureNotReady, uid: uid);
+      } else {
+        ScanLog.instance.record(
+          ScanEventKind.uidCaptured,
+          uid: uid,
+          detail: '${uid.length} chars in ${_burstDuration(startedAt)}',
+        );
+        _rfidProvider!.emitScan(uid);
       }
     } else if (event.character != null && event.character!.isNotEmpty) {
+      if (_rfidBuffer.isEmpty) _burstStartedAt = DateTime.now();
       _rfidBuffer.write(event.character);
       // Anything slower than a reader is dropped, so a stale partial UID is
       // neither emitted on a later Enter nor glued onto the next scan.
       _bufferResetTimer?.cancel();
-      _bufferResetTimer = Timer(_maxInterCharacterGap, _rfidBuffer.clear);
+      _bufferResetTimer = Timer(_maxInterCharacterGap, _discardPartialScan);
+    } else {
+      // A key that carries no character can never become part of a UID. A
+      // reader typing on the numeric keypad with NumLock off arrives here for
+      // every digit and produces nothing at all — the USB HID usage in the
+      // detail is what identifies that case from the field.
+      ScanLog.instance.record(ScanEventKind.unprintableKey,
+          detail: _keyLabel(event));
     }
     return false; // don't consume — let other widgets handle events normally
+  }
+
+  /// Whether [event] ends a UID. Both Enter keys count, and so does a platform
+  /// that delivers the key only as a newline character.
+  bool _isTerminator(KeyEvent event) =>
+      _terminatorKeys.contains(event.logicalKey) ||
+      event.character == '\n' ||
+      event.character == '\r';
+
+  /// Throw away characters that arrived too slowly to be one scan.
+  void _discardPartialScan() {
+    if (_rfidBuffer.isNotEmpty) {
+      ScanLog.instance.record(
+        ScanEventKind.partialDiscarded,
+        detail: '${_rfidBuffer.length} chars, no terminator',
+      );
+    }
+    _rfidBuffer.clear();
+    _burstStartedAt = null;
+  }
+
+  String _burstDuration(DateTime? startedAt) => startedAt == null
+      ? 'unknown'
+      : '${DateTime.now().difference(startedAt).inMilliseconds}ms';
+
+  /// Identify a key in a way that survives a release build.
+  ///
+  /// [KeyboardKey.debugName] is stripped outside debug mode, so the ids go in
+  /// too: the HID usage is what tells "the reader is on the keypad" (0x58 is
+  /// keypad Enter, 0x5c keypad 4) from "the reader is on the main block".
+  String _keyLabel(KeyEvent event) {
+    final name = event.logicalKey.debugName;
+    final hid =
+        '0x${event.physicalKey.usbHidUsage.toRadixString(16).padLeft(2, '0')}';
+    return name == null ? 'hid $hid' : '$name (hid $hid)';
   }
 
   @override

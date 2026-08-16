@@ -262,6 +262,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get cardReaderLastSeen => 'Zuletzt erkannt';
 
   @override
+  String get recentScans => 'Letzte Chip-Erkennungen';
+
+  @override
+  String get recentScansEmpty => 'Noch kein Chip erkannt';
+
+  @override
   String get dispenser => 'Ausgabegerät';
 
   @override

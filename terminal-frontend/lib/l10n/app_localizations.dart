@@ -506,6 +506,18 @@ abstract class AppLocalizations {
   /// **'Zuletzt erkannt'**
   String get cardReaderLastSeen;
 
+  /// Status modal section listing what the terminal made of the last card taps
+  ///
+  /// In de, this message translates to:
+  /// **'Letzte Chip-Erkennungen'**
+  String get recentScans;
+
+  /// Shown in the recent scans section when the terminal has seen no card activity yet
+  ///
+  /// In de, this message translates to:
+  /// **'Noch kein Chip erkannt'**
+  String get recentScansEmpty;
+
   /// Token dispenser hardware label
   ///
   /// In de, this message translates to:
