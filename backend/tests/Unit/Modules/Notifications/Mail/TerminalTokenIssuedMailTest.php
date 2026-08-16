@@ -1,0 +1,163 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Unit\Modules\Notifications\Mail;
+
+use App\Modules\Notifications\DTOs\TerminalTokenIssuedDataDto;
+use App\Modules\Notifications\Enums\MailLanguage;
+use App\Modules\Notifications\Mail\TerminalTokenIssuedMail;
+use App\Modules\Notifications\Services\TerminalTokenIssuedMailBuilder;
+use App\Shared\Mail\MailBranding;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * What the issuance notice says (ADR-0043).
+ *
+ * The message has one job beyond reporting: it must let a reader decide, in the
+ * seconds they will give it, whether the thing it describes was theirs. So the
+ * assertions here are about *actionability* — the till is named, the moment is
+ * to the minute, the recovery step is named the way the panel labels it — and
+ * about the two absences that matter: no token material, and no guess at who
+ * did it.
+ */
+class TerminalTokenIssuedMailTest extends TestCase
+{
+    private static function notice(
+        string $event = TerminalTokenIssuedMailBuilder::EVENT_ENROLLED,
+        MailLanguage $language = MailLanguage::German,
+        string $expiresOn = '16.08.2027',
+        string $issuedOn = '16.08.2026, 14:23',
+    ): TerminalTokenIssuedDataDto {
+        return new TerminalTokenIssuedDataDto(
+            language: $language,
+            recipientAddress: 'kassenwart@example.org',
+            recipientName: 'Kassenwart',
+            branding: new MailBranding(orgName: 'FRGS Ruderbar'),
+            terminalName: 'Theke',
+            deviceId: 'BAR-MAIN-001',
+            event: $event,
+            issuedOn: $issuedOn,
+            expiresOn: $expiresOn,
+        );
+    }
+
+    /** Both parts, so an assertion covers the message rather than one rendering of it. */
+    private static function parts(TerminalTokenIssuedDataDto $data): array
+    {
+        $message = TerminalTokenIssuedMail::render($data);
+
+        return [$message->html, $message->text];
+    }
+
+    public function test_the_subject_distinguishes_an_enrolment_from_a_rotation(): void
+    {
+        $enrolled = TerminalTokenIssuedMail::render(self::notice());
+        $rotated = TerminalTokenIssuedMail::render(
+            self::notice(TerminalTokenIssuedMailBuilder::EVENT_ROTATED)
+        );
+
+        // Both name the till — an inbox list is where this is triaged.
+        $this->assertStringContainsString('Theke', $enrolled->subject);
+        $this->assertStringContainsString('Theke', $rotated->subject);
+
+        // And they are not the same sentence: a new device appearing is a
+        // different thing from an existing one being re-credentialled, and the
+        // reader judges them against different memories.
+        $this->assertNotSame($enrolled->subject, $rotated->subject);
+    }
+
+    /**
+     * The question the message exists to let a reader answer is *was this us?*,
+     * and the answer needs a till, a device and a time they can match against
+     * their own afternoon.
+     */
+    public function test_it_carries_what_a_reader_needs_to_recognise_their_own_action(): void
+    {
+        foreach (self::parts(self::notice()) as $part) {
+            $this->assertStringContainsString('Theke', $part);
+            $this->assertStringContainsString('BAR-MAIN-001', $part);
+            $this->assertStringContainsString('16.08.2026, 14:23', $part);
+            $this->assertStringContainsString('16.08.2027', $part);
+        }
+    }
+
+    /**
+     * And if the answer is no, the next step is named the way the admin panel
+     * labels it. A message that says *act* and leaves the reader hunting for
+     * the button gets closed instead.
+     */
+    public function test_it_names_the_recovery_step_as_the_panel_labels_it(): void
+    {
+        foreach (self::parts(self::notice()) as $part) {
+            $this->assertStringContainsString('Zugang sperren', $part);
+            $this->assertStringContainsString('Protokoll', $part);
+        }
+
+        foreach (self::parts(self::notice(language: MailLanguage::English)) as $part) {
+            $this->assertStringContainsString('Revoke Access', $part);
+            $this->assertStringContainsString('Audit Log', $part);
+        }
+    }
+
+    /**
+     * Every active admin is written to, including the one who acted, and the
+     * message says why. A recipient who reads this as "the system is confused
+     * about who did that" would learn to ignore it; one who reads it as "this
+     * is the copy the other admins also got" has understood the control.
+     */
+    public function test_it_explains_why_it_reached_everyone(): void
+    {
+        foreach (self::parts(self::notice()) as $part) {
+            $this->assertStringContainsString('alle aktiven Administratorinnen', $part);
+        }
+
+        foreach (self::parts(self::notice(language: MailLanguage::English)) as $part) {
+            $this->assertStringContainsString('every active administrator', $part);
+        }
+    }
+
+    /**
+     * The absence that matters most. This message is generated by the creation
+     * of a secret, so distributing any part of it would make the alert worse
+     * than the attack it reports.
+     */
+    public function test_it_carries_no_token_material_and_says_so(): void
+    {
+        foreach (self::parts(self::notice()) as $part) {
+            $this->assertDoesNotMatchRegularExpression('/\b[0-9a-f]{64}\b/', $part);
+            $this->assertStringContainsString('keinerlei Zugangsdaten', $part);
+        }
+    }
+
+    /**
+     * A missing date drops its whole line. A security notice with an empty
+     * "Gültig bis" reads as a system that has lost track of the credential it
+     * is warning about — worse than one that simply does not mention it.
+     */
+    public function test_a_missing_date_drops_its_line_rather_than_printing_a_blank(): void
+    {
+        foreach (self::parts(self::notice(expiresOn: '')) as $part) {
+            $this->assertStringNotContainsString('Gültig bis', $part);
+            // What is known is still there.
+            $this->assertStringContainsString('16.08.2026, 14:23', $part);
+        }
+    }
+
+    /**
+     * The actor is deliberately absent: the outbox row records who was *told*,
+     * and recovering who *acted* at send time would mean guessing at the audit
+     * log's most recent matching entry. Naming the wrong colleague in a security
+     * notice is worse than naming none, so the message points at the log.
+     */
+    public function test_it_does_not_guess_at_who_issued_the_credential(): void
+    {
+        foreach (self::parts(self::notice()) as $part) {
+            // The recipient's own name appears — it is a greeting, not a claim
+            // about who acted — but nothing in the message attributes the
+            // issuance to a person.
+            $this->assertStringNotContainsString('ausgestellt von', $part);
+            $this->assertStringContainsString('steht im Protokoll', $part);
+        }
+    }
+}

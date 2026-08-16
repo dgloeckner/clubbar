@@ -58,6 +58,30 @@ enum MailKind: string
     case TERMINAL_ANOMALY_WARNING = 'terminal_anomaly_warning';
 
     /**
+     * ADR-0043: a terminal credential was just minted — a device enrolled, or
+     * an existing terminal's token rotated.
+     *
+     * The mirror of {@see TERMINAL_TOKEN_EXPIRY_WARNING}: that one reports on a
+     * secret running out, this one reports that a secret came into existence.
+     * Issuance was the only credential event in the system that created
+     * something and told nobody, and the audit entry it left is *pull* —
+     * somebody has to decide to go and look.
+     *
+     * Sent to every active admin, including whoever performed it. Its value is
+     * that it is out of band with respect to the credential that would be
+     * compromised: an attacker holding one admin's session, password and TOTP
+     * code clears the step-up on the mint path and still cannot reach the other
+     * admins' inboxes.
+     *
+     * The **event and the token's generation** live in the `dedup_key`, as
+     * `enrolled:<stamp>` or `rotated:<stamp>` — an occasion rather than a tier,
+     * because issuance happens once instead of staying true for thirty days,
+     * and two rotations of one terminal are two things to be told about
+     * ({@see \App\Modules\Notifications\Services\TerminalTokenIssuedMailBuilder::occasion()}).
+     */
+    case TERMINAL_TOKEN_ISSUED = 'terminal_token_issued';
+
+    /**
      * "Your login address was changed", sent to the address it was changed
      * *from* — the one place the change is visible to someone who did not make
      * it. An attacker holding a session can move the address; this is what
@@ -91,7 +115,8 @@ enum MailKind: string
             self::CANCELLATION_NOTICE => MailSubject::SETTLEMENT,
             self::KEY_EXPIRY_WARNING => MailSubject::ENCRYPTION_KEY,
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
-            self::TERMINAL_ANOMALY_WARNING => MailSubject::TERMINAL,
+            self::TERMINAL_ANOMALY_WARNING,
+            self::TERMINAL_TOKEN_ISSUED => MailSubject::TERMINAL,
             self::ADMIN_EMAIL_CHANGED => MailSubject::ADMIN_USER,
             self::DECKEL_STATEMENT => MailSubject::MEMBER,
         };
@@ -122,6 +147,7 @@ enum MailKind: string
             self::KEY_EXPIRY_WARNING,
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
+            self::TERMINAL_TOKEN_ISSUED,
             self::ADMIN_EMAIL_CHANGED => false,
         };
     }

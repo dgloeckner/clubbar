@@ -253,6 +253,26 @@ export default defineConfig({
       dependencies: ['mail-statement'],
     },
 
+    // The issuance chain (ADR-0043): minting a terminal credential → bin/cron.php
+    // → every active admin's mailbox.
+    //
+    // Its own project rather than a second file under `mail-credentials`, for
+    // the reason that split those two: `fullyParallel: false` serialises the
+    // tests inside a file, but Playwright still runs two files of one project on
+    // two workers. Both files address **every active admin**, so while this
+    // file's admin exists, an enrolment here would land in the expiry file's
+    // mailbox and vice versa — each failing on a count the other caused.
+    //
+    // Last, because it is the newest of the four and its drains claim the whole
+    // queue like the rest. `dependencies` makes that ordering structural rather
+    // than alphabetical luck.
+    {
+      name: 'mail-issuance',
+      testDir: './tests/mail-issuance',
+      fullyParallel: false,
+      dependencies: ['mail-credentials'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',

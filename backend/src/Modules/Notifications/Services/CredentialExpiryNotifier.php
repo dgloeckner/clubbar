@@ -79,7 +79,7 @@ class CredentialExpiryNotifier
     public function __construct(
         private EncryptionKeysRepository $encryptionKeysRepository,
         private TerminalsRepository $terminalsRepository,
-        private NotificationsService $notificationsService,
+        private AdminNotifier $adminNotifier,
         private MailConfigService $mailConfigService,
         private Logger $logger,
     ) {}
@@ -113,7 +113,7 @@ class CredentialExpiryNotifier
 
                 $inWindow++;
 
-                $result = $this->notificationsService->warnAdmins(
+                $result = $this->adminNotifier->warnAdmins(
                     $credential['kind'],
                     $credential['subject_id'],
                     self::occasion($tier, $credential['generation']),

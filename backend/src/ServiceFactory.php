@@ -68,6 +68,7 @@ use App\Modules\Notifications\Services\CredentialExpiryMailBuilder;
 use App\Modules\Notifications\Services\CredentialExpiryNotifier;
 use App\Modules\Notifications\Services\DeckelStatementMailBuilder;
 use App\Modules\Notifications\Services\DeckelStatementService;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Notifications\Services\DrainService;
 use App\Modules\Notifications\Services\HeartbeatPinger;
 use App\Modules\Notifications\Services\MailDeliveryCheck;
@@ -79,6 +80,7 @@ use App\Modules\Notifications\Services\TestMailService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
 use App\Modules\Notifications\Services\TerminalAnomalyMailBuilder;
+use App\Modules\Notifications\Services\TerminalTokenIssuedMailBuilder;
 use App\Modules\Notifications\Services\AdminSecurityMailBuilder;
 use App\Shared\Mail\MailTransportFactory;
 use App\Modules\Settlements\Services\SepaExportService;
@@ -489,6 +491,23 @@ class ServiceFactory implements ContainerInterface
         ));
     }
 
+    /**
+     * The admin fan-out on its own (ADR-0043).
+     *
+     * Deliberately narrow: the queue, the admin list and the audit log. A
+     * caller that only wants to tell the admins something resolves this instead
+     * of the whole notifications service, which drags `MembersRepository` and
+     * with it the IBAN sealed box's required key.
+     */
+    public function getAdminNotifier(): AdminNotifier
+    {
+        return $this->resolve(AdminNotifier::class, fn() => new AdminNotifier(
+            $this->getMailOutboxRepository(),
+            $this->getAdminUsersRepository(),
+            $this->getAuditService(),
+        ));
+    }
+
     public function getNotificationsService(): NotificationsService
     {
         return $this->resolve(NotificationsService::class, fn() => new NotificationsService(
@@ -541,6 +560,20 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminSecurityMailBuilder(),
             $this->getDeckelStatementMailBuilder(),
             $this->getCredentialExpiryMailBuilder(),
+            $this->getTerminalTokenIssuedMailBuilder(),
+        ));
+    }
+
+    /**
+     * ADR-0043. The counterpart to the expiry warning: that one is sent because
+     * a secret is running out, this one because a secret was created.
+     */
+    public function getTerminalTokenIssuedMailBuilder(): TerminalTokenIssuedMailBuilder
+    {
+        return $this->resolve(TerminalTokenIssuedMailBuilder::class, fn() => new TerminalTokenIssuedMailBuilder(
+            $this->getTerminalsRepository(),
+            $this->getAdminUsersRepository(),
+            $this->getMailConfigService(),
         ));
     }
 
@@ -569,7 +602,7 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(CredentialExpiryNotifier::class, fn() => new CredentialExpiryNotifier(
             $this->getEncryptionKeysRepository(),
             $this->getTerminalsRepository(),
-            $this->getNotificationsService(),
+            $this->getAdminNotifier(),
             $this->getMailConfigService(),
             $this->getLogger(),
         ));
@@ -775,6 +808,14 @@ class ServiceFactory implements ContainerInterface
             $this->getAuditService(),
             $this->config,
             $this->getTerminalAnomaliesRepository(),
+            // ADR-0043: minting a credential announces itself to every active
+            // admin. The narrow collaborator rather than the whole notifications
+            // service, so enrolling a terminal does not require the IBAN
+            // configuration the money mail needs. The dependency points this way
+            // — terminals ask the queue to carry something — and never back, so
+            // nothing in notifications knows what a terminal is.
+            $this->getAdminNotifier(),
+            $this->logger,
         ));
     }
 
@@ -814,7 +855,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalIpSightingsRepository(),
             $this->getTerminalSyncCursorsRepository(),
             $this->getTerminalAnomaliesRepository(),
-            $this->getNotificationsService(),
+            $this->getAdminNotifier(),
             $this->getAuditService(),
             $this->getLogger(),
             self::positiveEnv('TERMINAL_ANOMALY_LOOKBACK_MINUTES', TerminalAnomalyDetector::DEFAULT_LOOKBACK_MINUTES),

@@ -6,7 +6,7 @@ namespace Tests\Unit\Modules\Terminals\Services;
 
 use App\Modules\Notifications\DTOs\EnqueueResultDto;
 use App\Modules\Notifications\Enums\MailKind;
-use App\Modules\Notifications\Services\NotificationsService;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Terminals\Enums\TerminalAnomalyKind;
 use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalIpSightingsRepository;
@@ -30,7 +30,7 @@ class TerminalAnomalyDetectorTest extends TestCase
     private TerminalIpSightingsRepository $sightings;
     private TerminalSyncCursorsRepository $cursors;
     private TerminalAnomaliesRepository $anomalies;
-    private NotificationsService $notifications;
+    private AdminNotifier $notifications;
     private AuditService $audit;
 
     protected function setUp(): void
@@ -38,7 +38,7 @@ class TerminalAnomalyDetectorTest extends TestCase
         $this->sightings = $this->createMock(TerminalIpSightingsRepository::class);
         $this->cursors = $this->createMock(TerminalSyncCursorsRepository::class);
         $this->anomalies = $this->createMock(TerminalAnomaliesRepository::class);
-        $this->notifications = $this->createMock(NotificationsService::class);
+        $this->notifications = $this->createMock(AdminNotifier::class);
         $this->audit = $this->createMock(AuditService::class);
 
         $this->cursors->method('regressionsSince')->willReturn([]);
@@ -339,7 +339,7 @@ class TerminalAnomalyDetectorTest extends TestCase
         ]]);
 
         $this->anomalies->method('findOpen')->willReturn(null);
-        $this->notifications = $this->createMock(NotificationsService::class);
+        $this->notifications = $this->createMock(AdminNotifier::class);
         $this->notifications->method('warnAdmins')->willThrowException(new \RuntimeException('no transport'));
 
         $this->anomalies->expects($this->once())->method('open');

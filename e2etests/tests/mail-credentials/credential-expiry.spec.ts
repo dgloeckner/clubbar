@@ -50,6 +50,20 @@ const MAIL_CONFIG = '/api/admin/mail-config'
 /** A sender is required before the drain will send anything at all. */
 const SENDER_ADDRESS = 'noreply@credential-chain.test.example'
 
+/**
+ * What an expiry warning's subject says at every tier, and no other kind's
+ * does (`credential_expiry.subject.*` in `MailStrings`).
+ *
+ * This file no longer owns the whole mailbox. Since ADR-0043 every terminal
+ * enrolment and rotation queues a notice to every active admin — including the
+ * enrolment in `beforeAll` that stands up the terminal this file then ages
+ * towards expiry — so an admin here holds two classes of message and only one
+ * of them is under test. Narrowing on the subject keeps the "exactly one"
+ * counting rule that catches a duplicate warning, without claiming messages
+ * another feature is responsible for.
+ */
+const EXPIRY_SUBJECT = 'läuft in'
+
 /** The whole queue may be waiting; a run needs room to reach these messages. */
 const BUDGET_SECONDS = 55
 
@@ -160,7 +174,7 @@ test.describe('Credential expiry warnings — scan, cron, delivered mail', () =>
     expect(run, run).toContain('Credential expiry scan: examined=')
     expect(run, run).not.toContain('warning_window=0')
 
-    const message = await mail.waitForMessage(adminEmail)
+    const message = await mail.waitForMessageAbout(adminEmail, EXPIRY_SUBJECT)
 
     // Which credential, and how urgent — the seven-day subject carries the
     // urgency because at that point nobody opens a mail to find out.
@@ -182,7 +196,7 @@ test.describe('Credential expiry warnings — scan, cron, delivered mail', () =>
     // mailbox rather than at the outbox, because a duplicate row is our
     // bookkeeping and a duplicate message is what the admin would live with.
     drainMailQueue({ budgetSeconds: BUDGET_SECONDS })
-    const stillOne = await mail.waitForMessages(adminEmail, 1)
+    const stillOne = await mail.waitForMessagesAbout(adminEmail, EXPIRY_SUBJECT, 1)
     expect(stillOne).toHaveLength(1)
   })
 
@@ -192,7 +206,7 @@ test.describe('Credential expiry warnings — scan, cron, delivered mail', () =>
    * template, because that is the artefact that leaves the building.
    */
   test('the delivered warning carries no token material', async () => {
-    const message = await mail.waitForMessage(adminEmail)
+    const message = await mail.waitForMessageAbout(adminEmail, EXPIRY_SUBJECT)
     const { html, text } = parts(message)
 
     for (const part of [html, text]) {
@@ -223,8 +237,8 @@ test.describe('Credential expiry warnings — scan, cron, delivered mail', () =>
       setTerminalTokenExpiry(expiredId, -3)
       drainMailQueue({ budgetSeconds: BUDGET_SECONDS })
 
-      // The first terminal's warning is still the only thing in this mailbox.
-      const messages = await mail.waitForMessages(adminEmail, 1)
+      // The first terminal's warning is still the only expiry warning here.
+      const messages = await mail.waitForMessagesAbout(adminEmail, EXPIRY_SUBJECT, 1)
       expect(messages[0].Subject).toContain(terminalName)
       expect(messages[0].Subject).not.toContain(otherName)
     } finally {
