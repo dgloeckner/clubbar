@@ -32,7 +32,7 @@ import { PageActionButton } from '../components/common/PageActionButton'
 import { PageHeader } from '../components/layout/PageHeader'
 import { useListQuery } from '../hooks/useListQuery'
 import { getTransactions } from '../api/generated/transactions/transactions'
-import { getTransactionTypeColor, getAmountColor } from '../utils/transactions'
+import { getTransactionTypeColor, getTransactionAmountColor } from '../utils/transactions'
 import { getCurrentLanguage } from '../i18n/config'
 import { getLocalizedName } from '../utils/i18n-helpers'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
@@ -479,7 +479,7 @@ export function JournalPage() {
                       ) : (
                         <span />
                       )}
-                      <div style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', color: getAmountColor(tx.amount_cents) }}>
+                      <div style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', color: getTransactionAmountColor(tx.amount_cents) }}>
                         {formatPrice(tx.amount_cents)}
                       </div>
                     </div>
@@ -857,7 +857,7 @@ export function JournalPage() {
                         data-testid={`journal-table-cell-amount-${tx.id}`}
                         style={{
                           padding: tableSpacing.cellPadding,
-                          color: getAmountColor(tx.amount_cents),
+                          color: getTransactionAmountColor(tx.amount_cents),
                           fontWeight: 700,
                           fontFamily: 'JetBrains Mono, monospace',
                           fontSize: '14px',

@@ -11,7 +11,7 @@ import type { DashboardResponse } from '../api/generated'
 import { StatCard } from '../components/common/StatCard'
 import { UsersIcon, ReceiptIcon, BookIcon } from '../components/icons'
 import { HomeIcon } from '../components/icons/HomeIcon'
-import { getAmountColor } from '../utils/transactions'
+import { getTransactionAmountColor } from '../utils/transactions'
 
 const AUTO_REFRESH_INTERVAL = 10_000 // 10 seconds
 
@@ -415,11 +415,11 @@ export function DashboardPage() {
                       {tx.product_name || t(`dashboard.${tx.type}`)}{tx.terminal_name ? ` · ${tx.terminal_name}` : ''} · {formatDateTime(tx.timestamp)}
                     </div>
                   </div>
-                  <div style={{
+                  <div data-testid={`dashboard-transaction-amount-${tx.id}`} style={{
                     fontSize: theme.typography.fontSize.sm,
                     fontWeight: theme.typography.fontWeight.semibold,
                     fontFamily: 'JetBrains Mono, monospace',
-                    color: getAmountColor(tx.amount_cents ?? 0),
+                    color: getTransactionAmountColor(tx.amount_cents ?? 0),
                     flexShrink: 0,
                     whiteSpace: 'nowrap',
                     marginLeft: theme.spacing.sm,

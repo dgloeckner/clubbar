@@ -32,7 +32,7 @@ import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { validateIban } from '../utils/iban'
 import { toIsoDate } from '../utils/dates'
 import { buildMemberSortBy, type MemberSortKey } from '../utils/memberSort'
-import { getAmountColor } from '../utils/transactions'
+import { getBalanceColor } from '../utils/transactions'
 import { useBankName } from '../hooks/useBankName'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { useListQuery } from '../hooks/useListQuery'
@@ -701,7 +701,7 @@ export function MembersPage() {
                         fontVariantNumeric: 'tabular-nums',
                         color: (member.balance_cents ?? 0) === 0
                           ? theme.colors.text.muted
-                          : getAmountColor(member.balance_cents ?? 0),
+                          : getBalanceColor(member.balance_cents ?? 0),
                       }}
                     >
                       {formatters.formatPrice(member.balance_cents ?? 0)}
@@ -1310,7 +1310,7 @@ export function MembersPage() {
                         fontVariantNumeric: 'tabular-nums',
                         color: (member.balance_cents ?? 0) === 0
                           ? theme.colors.text.muted
-                          : getAmountColor(member.balance_cents ?? 0),
+                          : getBalanceColor(member.balance_cents ?? 0),
                       }}
                     >
                       {formatters.formatPrice(member.balance_cents ?? 0)}

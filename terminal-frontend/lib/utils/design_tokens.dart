@@ -95,6 +95,12 @@ class AppColors {
 
 /// Money semantics for the terminal (see issue #28).
 ///
+/// The rule below is binding for the admin frontend too — see ADR-0042
+/// (`adr/0042-colour-semantics-for-monetary-values.md`), which records it once
+/// for both apps. `admin-frontend/src/utils/transactions.ts` mirrors these two
+/// functions, and its unit tests mirror `test/utils/money_semantics_test.dart`
+/// case for case; change one side and the other has to follow.
+///
 /// Sign convention — the same everywhere, for balances and for single
 /// transaction amounts:
 ///   * a **positive** amount means the member *owes* money (open tab / Deckel)
