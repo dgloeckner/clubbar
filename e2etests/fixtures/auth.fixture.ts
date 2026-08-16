@@ -1,5 +1,4 @@
 import { test as base, APIRequestContext } from "@playwright/test";
-import { readFileSync } from "fs";
 import path from "path";
 import { TEST_CREDENTIALS } from "../config/test-credentials";
 import {
@@ -15,8 +14,7 @@ import { MainLayoutPage } from "../pages/MainLayoutPage";
 import { ProductsPage } from "../pages/ProductsPage";
 
 const API_BASE = "http://localhost:8080/api";
-// Same paths auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
-const FRONTEND_BASE = "http://localhost:5173";
+// Same path auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
 const ADMIN_STORAGE_STATE_PATH = path.join("playwright", ".auth", "admin.json");
 
 /**
@@ -256,24 +254,31 @@ export const test = base.extend<AuthFixtures, AuthWorkerFixtures>({
     // if every worker, let alone every one of the hundreds of tests that use
     // this fixture, did its own. "api-tests" depends on "setup auth" (see
     // playwright.config.ts) precisely so this file always exists first.
-    const stored = JSON.parse(readFileSync(ADMIN_STORAGE_STATE_PATH, 'utf-8'));
-
-    const frontendOrigin = stored.origins?.find((o: any) => o.origin === FRONTEND_BASE);
-    const csrfToken = frontendOrigin?.localStorage?.find((item: any) => item.name === 'csrf_token')?.value;
-    if (!csrfToken) {
-      throw new Error(
-        `No csrf_token found in ${ADMIN_STORAGE_STATE_PATH} for origin ${FRONTEND_BASE}. ` +
-        `Did the "setup auth" project run first? It must run before "api-tests" (see playwright.config.ts dependencies).`
-      );
-    }
-
     const freshRequest = await playwright.request.newContext({
       baseURL: API_BASE,
       storageState: ADMIN_STORAGE_STATE_PATH,
     });
 
+    // The CSRF token is no longer persisted to localStorage (#109) — fetch a
+    // fresh one from the session itself, same as the frontend does on boot.
     // The session cookie travels via freshRequest's own storageState-loaded
-    // cookie jar; only the CSRF token needs to be attached manually.
+    // cookie jar.
+    const profileResponse = await freshRequest.get(`${API_BASE}/auth/profile`);
+    if (!profileResponse.ok()) {
+      throw new Error(
+        `Failed to fetch CSRF token via /auth/profile (${profileResponse.status()}) using the session in ` +
+        `${ADMIN_STORAGE_STATE_PATH}. Did the "setup auth" project run first? It must run before "api-tests" ` +
+        `(see playwright.config.ts dependencies).`
+      );
+    }
+    const csrfToken = (await profileResponse.json()).csrf_token;
+    if (!csrfToken) {
+      throw new Error(
+        `No csrf_token in /auth/profile response using the session in ${ADMIN_STORAGE_STATE_PATH}. ` +
+        `Did the "setup auth" project run first? It must run before "api-tests" (see playwright.config.ts dependencies).`
+      );
+    }
+
     const authenticatedRequest = new AuthenticatedRequestContext(freshRequest, '', csrfToken) as any;
     authenticatedRequest.cookieString = '';
 

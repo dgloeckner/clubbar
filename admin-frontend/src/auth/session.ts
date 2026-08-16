@@ -11,20 +11,51 @@ import { setCsrfToken } from '../api/client'
 import { changeLanguage } from '../i18n/config'
 import type { UpdateProfileRequest, AdminProfile } from '../api/generated'
 
-// ─── Read-only session helpers ────────────────────────────────────────────────
+// ─── Session check ─────────────────────────────────────────────────────────────
 
-export function getCurrentSession() {
-  return {
-    adminId: localStorage.getItem('admin_id'),
-    email: localStorage.getItem('email'),
-    displayName: localStorage.getItem('display_name'),
-    // 'de' (not 'de-DE') — i18n/config.ts only accepts ISO 639-1 codes
-    locale: localStorage.getItem('locale') || 'de',
+export interface SessionCheckResult {
+  admin_id: string
+  email: string
+  display_name: string
+  locale: string
+}
+
+/**
+ * Boot-time source of truth for whether the server session is alive.
+ *
+ * A localStorage flag can't distinguish a live session from one whose cookie
+ * already expired server-side, and it would leave a working-looking UI shell
+ * on screen that fails on the first real request. Asking the backend closes
+ * that gap, and doubles as the cleanup an expired session never otherwise
+ * triggers (#109): failure clears whatever PII/CSRF is left in storage.
+ */
+export async function checkSession(): Promise<SessionCheckResult | null> {
+  try {
+    const r = await getAuthentication().getProfile()
+    if (r.csrf_token) setCsrfToken(r.csrf_token)
+    localStorage.setItem('admin_id', r.admin.id)
+    localStorage.setItem('email', r.admin.email)
+    localStorage.setItem('display_name', r.admin.display_name)
+    localStorage.setItem('locale', r.admin.locale)
+    changeLanguage(r.admin.locale)
+    return {
+      admin_id: r.admin.id,
+      email: r.admin.email,
+      display_name: r.admin.display_name,
+      locale: r.admin.locale,
+    }
+  } catch {
+    clearStoredSession()
+    return null
   }
 }
 
-export function isAuthenticated(): boolean {
-  return !!localStorage.getItem('admin_id')
+export function clearStoredSession(): void {
+  localStorage.removeItem('admin_id')
+  localStorage.removeItem('email')
+  localStorage.removeItem('display_name')
+  localStorage.removeItem('locale')
+  setCsrfToken(null)
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
@@ -186,11 +217,7 @@ export async function logoutWithSession(): Promise<void> {
   } catch {
     // Swallow errors — session is cleared regardless
   } finally {
-    localStorage.removeItem('admin_id')
-    localStorage.removeItem('email')
-    localStorage.removeItem('display_name')
-    localStorage.removeItem('locale')
-    setCsrfToken(null) // also removes 'csrf_token' from localStorage
+    clearStoredSession()
   }
 }
 
@@ -210,8 +237,11 @@ export async function updateProfileWithSession(
   return admin
 }
 
-// Re-export getProfile, unwrapping the backend's response envelope.
+// Re-export getProfile, unwrapping the backend's response envelope. Also
+// refreshes the in-memory CSRF token (#109) — every profile fetch is a free
+// opportunity to keep it current without touching localStorage.
 export async function getProfile(): Promise<AdminProfile> {
-  const { admin } = await getAuthentication().getProfile()
+  const { admin, csrf_token } = await getAuthentication().getProfile()
+  if (csrf_token) setCsrfToken(csrf_token)
   return admin
 }
