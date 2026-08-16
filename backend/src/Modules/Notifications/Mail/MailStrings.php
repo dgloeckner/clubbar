@@ -291,6 +291,37 @@ final class MailStrings
                                         . 'Administratorin oder einen anderen Administrator: '
                                         . 'nur sie können das Konto zurücksetzen.',
 
+            // ── Schlüssel-Lebenszyklus (ADR-0036) ───────────────────────────
+            'key_event.subject.registered' => 'Ein neuer Schlüssel für Bankverbindungen wurde hinterlegt',
+            'key_event.subject.activated'  => 'Die Bankverbindungen werden ab sofort mit einem anderen '
+                                            . 'Schlüssel verschlüsselt',
+            'key_event.subject.revoked'    => 'Ein Schlüssel für Bankverbindungen wurde zurückgezogen',
+            'key_event.preheader'          => '{name} · Fingerabdruck {short}',
+            'key_event.eyebrow'            => 'Sicherheitshinweis',
+            'key_event.title.registered'   => 'Neuer Schlüssel hinterlegt',
+            'key_event.title.activated'    => 'Schlüssel in Kraft gesetzt',
+            'key_event.title.revoked'      => 'Schlüssel zurückgezogen',
+
+            'key_event.lede.registered' => 'ein neuer Schlüssel für die Verschlüsselung der '
+                                         . 'Bankverbindungen wurde hinterlegt. Er verschlüsselt noch '
+                                         . 'nichts — das geschieht erst beim Aktivieren.',
+            'key_event.lede.activated'  => 'ab sofort wird jede gespeicherte Bankverbindung mit diesem '
+                                         . 'Schlüssel versiegelt. Nur die private Hälfte aus dem '
+                                         . 'Vereinsarchiv kann sie wieder lesen.',
+            'key_event.lede.revoked'    => 'ein Schlüssel für die Verschlüsselung der Bankverbindungen '
+                                         . 'wurde zurückgezogen.',
+
+            'key_event.label_name'        => 'Bezeichnung',
+            'key_event.label_fingerprint' => 'Fingerabdruck (SHA-256)',
+            'key_event.label_when'        => 'Zeitpunkt',
+
+            'key_event.verify'     => 'Bitte vergleiche den Fingerabdruck mit dem, den der '
+                                    . 'Offline-Generator beim Erzeugen des Schlüsselpaars angezeigt '
+                                    . 'hat. Stimmt er überein, war es der Schlüssel des Vereins.',
+            'key_event.unexpected' => 'Wenn niemand im Verein das veranlasst hat, prüfe bitte sofort '
+                                    . 'unter Einstellungen → Sicherheit & Zugangsdaten, welcher '
+                                    . 'Schlüssel aktiv ist — und ändere vorher keine Bankverbindungen.',
+
             // ── Shared ──────────────────────────────────────────────────────
             'greeting'         => 'Hallo {name},',
             'greeting_generic' => 'Hallo,',
@@ -490,6 +521,35 @@ final class MailStrings
             'email_changed.expected'  => 'If this was you, there is nothing further to do.',
             'email_changed.unexpected' => 'If it was not, contact another administrator immediately: '
                                         . 'only they can reset the account.',
+
+            // ── Key lifecycle (ADR-0036) ────────────────────────────────────
+            'key_event.subject.registered' => 'A new key for bank details was added',
+            'key_event.subject.activated'  => 'Members’ bank details are now sealed under a different key',
+            'key_event.subject.revoked'    => 'A key for bank details was withdrawn',
+            'key_event.preheader'          => '{name} · fingerprint {short}',
+            'key_event.eyebrow'            => 'Security notice',
+            'key_event.title.registered'   => 'New key added',
+            'key_event.title.activated'    => 'Key put in force',
+            'key_event.title.revoked'      => 'Key withdrawn',
+
+            'key_event.lede.registered' => 'a new key for encrypting members’ bank details was added. '
+                                         . 'It is not encrypting anything yet — that starts when it is '
+                                         . 'activated.',
+            'key_event.lede.activated'  => 'from now on every stored bank account is sealed under this '
+                                         . 'key. Only the private half from the club’s archive can read '
+                                         . 'them back.',
+            'key_event.lede.revoked'    => 'a key for encrypting members’ bank details was withdrawn.',
+
+            'key_event.label_name'        => 'Name',
+            'key_event.label_fingerprint' => 'Fingerprint (SHA-256)',
+            'key_event.label_when'        => 'When',
+
+            'key_event.verify'     => 'Please compare the fingerprint with the one the offline '
+                                    . 'generator showed when the keypair was created. If they match, '
+                                    . 'this was the club’s own key.',
+            'key_event.unexpected' => 'If nobody at the club did this, check which key is active under '
+                                    . 'Settings → Security & Credentials straight away — and do not '
+                                    . 'change any bank details before you have.',
 
             'greeting'         => 'Hello {name},',
             'greeting_generic' => 'Hello,',

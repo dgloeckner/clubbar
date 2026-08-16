@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Modules\Security\Services;
 
+use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Security\DTOs\EncryptionKeyDto;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Security\Repositories\SealedIbanRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Logging\Logger;
 use App\Shared\Security\CredentialLifecycle;
 use App\Shared\Security\IbanSealedBox;
 use App\Shared\Services\AuditService;
@@ -29,7 +32,54 @@ class EncryptionKeyService
         private SealedIbanRepository $sealedIbans,
         private IbanSealedBox $sealedBox,
         private AuditService $auditService,
+        private AdminNotifier $adminNotifier,
+        private Logger $logger,
     ) {}
+
+    /**
+     * Tell every admin that a key moved through its lifecycle (ADR-0036).
+     *
+     * Queued beside the audit entry rather than instead of it, because the two
+     * reach different people: the audit log is read by whoever goes looking,
+     * and this is for the admin who never does. It is the only signal a key
+     * swap produces that leaves the panel — the dashboard banner speaks only
+     * for a key that is missing or expiring, so one activated today with 365
+     * days on it is silent by construction.
+     *
+     * Best effort, and never a gate. It queues; it does not send (ADR-0038
+     * rule 3), an install with no mail configured discards it at the transport,
+     * and the lifecycle change it describes has already been committed. A
+     * failure here must not roll back a key operation that succeeded, so it is
+     * caught and logged rather than thrown.
+     *
+     * The occasion is the event name: a key is registered once, activated once
+     * (only a PENDING key can be activated) and revoked once, so the kind and
+     * the key id already identify the occurrence. No tier, no generation.
+     */
+    private function announce(MailKind $kind, string $keyId, ?string $adminId): void
+    {
+        try {
+            $this->adminNotifier->warnAdmins($kind, $keyId, self::occasionFor($kind), $adminId);
+        } catch (\Throwable $e) {
+            $this->logger->error('Encryption key lifecycle notice could not be queued', [
+                'kind' => $kind->value,
+                'key_id' => $keyId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private static function occasionFor(MailKind $kind): string
+    {
+        return match ($kind) {
+            MailKind::ENCRYPTION_KEY_REGISTERED => 'registered',
+            MailKind::ENCRYPTION_KEY_ACTIVATED => 'activated',
+            MailKind::ENCRYPTION_KEY_REVOKED => 'revoked',
+            default => throw new \InvalidArgumentException(
+                sprintf('%s is not a key lifecycle event', $kind->value)
+            ),
+        };
+    }
 
     /**
      * Every key with its rotation backlog attached (#394).
@@ -80,6 +130,8 @@ class EncryptionKeyService
             newValues: ['key_identifier' => $keyIdentifier, 'fingerprint_sha256' => $fingerprint],
             adminUserId: $adminId,
         );
+
+        $this->announce(MailKind::ENCRYPTION_KEY_REGISTERED, $row['id'], $adminId);
 
         return EncryptionKeyDto::fromRow($row);
     }
@@ -138,6 +190,8 @@ class EncryptionKeyService
             );
         }
 
+        $this->announce(MailKind::ENCRYPTION_KEY_ACTIVATED, $id, $adminId);
+
         return EncryptionKeyDto::fromRow($this->repository->findById($id));
     }
 
@@ -160,6 +214,8 @@ class EncryptionKeyService
             newValues: ['status' => $status],
             adminUserId: $adminId,
         );
+
+        $this->announce(MailKind::ENCRYPTION_KEY_REVOKED, $id, $adminId);
 
         return EncryptionKeyDto::fromRow($this->repository->findById($id));
     }

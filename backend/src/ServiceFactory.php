@@ -65,6 +65,7 @@ use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
 use App\Modules\Notifications\Services\CredentialExpiryMailBuilder;
+use App\Modules\Notifications\Services\EncryptionKeyEventMailBuilder;
 use App\Modules\Notifications\Services\CredentialExpiryNotifier;
 use App\Modules\Notifications\Services\DeckelStatementMailBuilder;
 use App\Modules\Notifications\Services\DeckelStatementService;
@@ -426,6 +427,12 @@ class ServiceFactory implements ContainerInterface
             $this->getSealedIbanRepository(),
             $this->getIbanSealedBox(),
             $this->getAuditService(),
+            // AdminNotifier rather than the whole NotificationsService: that one
+            // reaches MembersRepository -> IbanSealedBox for the money mail, and
+            // a key service made to satisfy IBAN_FINGERPRINT_KEY before it can
+            // announce anything is the coupling ADR-0043 split this out to break.
+            $this->getAdminNotifier(),
+            $this->getLogger(),
         ));
     }
 
@@ -561,6 +568,7 @@ class ServiceFactory implements ContainerInterface
             $this->getDeckelStatementMailBuilder(),
             $this->getCredentialExpiryMailBuilder(),
             $this->getTerminalTokenIssuedMailBuilder(),
+            $this->getEncryptionKeyEventMailBuilder(),
         ));
     }
 
@@ -572,6 +580,20 @@ class ServiceFactory implements ContainerInterface
     {
         return $this->resolve(TerminalTokenIssuedMailBuilder::class, fn() => new TerminalTokenIssuedMailBuilder(
             $this->getTerminalsRepository(),
+            $this->getAdminUsersRepository(),
+            $this->getMailConfigService(),
+        ));
+    }
+
+    /**
+     * ADR-0036. Key lifecycle notices share `MailSubject::ENCRYPTION_KEY` with
+     * the expiry warning, but that builder claims work by naming its two kinds,
+     * so these need a builder of their own.
+     */
+    public function getEncryptionKeyEventMailBuilder(): EncryptionKeyEventMailBuilder
+    {
+        return $this->resolve(EncryptionKeyEventMailBuilder::class, fn() => new EncryptionKeyEventMailBuilder(
+            $this->getEncryptionKeysRepository(),
             $this->getAdminUsersRepository(),
             $this->getMailConfigService(),
         ));

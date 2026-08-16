@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Security;
 
+use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Security\Repositories\SealedIbanRepository;
 use App\Modules\Security\Services\EncryptionKeyService;
@@ -50,6 +51,8 @@ class KeyRotationServiceTest extends DatabaseTestCase
             $this->sealedIbans,
             $this->sealedBox,
             $this->createMock(AuditService::class),
+            $this->createMock(NotificationsService::class),
+            $this->logger,
         );
         $this->service = new KeyRotationService(
             $this->keys,
