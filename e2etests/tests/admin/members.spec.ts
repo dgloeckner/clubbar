@@ -65,9 +65,10 @@ test.describe('Admin Members Page', () => {
     expect(await authenticatedMembersPage.getFormFirstNameValue()).toBe(createData.firstName)
     expect(await authenticatedMembersPage.getFormLastNameValue()).toBe(createData.lastName)
     expect(await authenticatedMembersPage.getFormEmailValue()).toBe(createData.email)
-    // Overwrite-only (#392): the field is blank because the stored IBAN is
-    // sealed and never returned (ADR-0036). What persisted is shown beside it.
-    expect(await authenticatedMembersPage.getFormIbanValue()).toBe('')
+    // Overwrite-only (#392): there is no IBAN input at all, because the stored
+    // IBAN is sealed and never returned (ADR-0036). The stored account takes
+    // its place, and replacing it is a deliberate action.
+    await authenticatedMembersPage.expectIbanInputHidden()
     await authenticatedMembersPage.expectStoredIbanContains(`****${createData.iban.slice(-4)}`)
     expect(await authenticatedMembersPage.getFormAccountHolderNameValue()).toBe(createData.accountHolder)
     expect(await authenticatedMembersPage.getFormMandateReferenceValue()).toBe(createData.mandateRef.toUpperCase())
@@ -122,8 +123,9 @@ test.describe('Admin Members Page', () => {
     expect(await authenticatedMembersPage.getFormLastNameValue()).toBe(editData.lastName)
     expect(await authenticatedMembersPage.getFormEmailValue()).toBe(editData.email)
     // The edit did retype the IBAN, so the replacement is what is stored now —
-    // a new mandate on the new account, still shown only as its last four.
-    expect(await authenticatedMembersPage.getFormIbanValue()).toBe('')
+    // a new mandate on the new account, still shown only as its last four, and
+    // once again in place of the input rather than beside it.
+    await authenticatedMembersPage.expectIbanInputHidden()
     await authenticatedMembersPage.expectStoredIbanContains(`****${editData.iban.slice(-4)}`)
     expect(await authenticatedMembersPage.getFormMandateDateValue()).toBe(editData.mandateDate)
 
@@ -569,5 +571,165 @@ test.describe('Admin Members Page', () => {
     await reactivateReload
     expect(patchCalls).toBe(2)
     expect(await authenticatedMembersPage.getMemberStatus(member.id)).toBe('active')
+  })
+
+  /**
+   * The overwrite-only IBAN field (#392, ADR-0036).
+   *
+   * A sealed IBAN cannot be read back, so the form shows the stored account in
+   * place of the input and only reveals the input on request. These flows
+   * assert the property that makes that safe: nothing but a deliberate
+   * Change-then-save replaces the account, and nothing but Remove-then-save
+   * revokes the mandate. Each verdict is taken by reopening the form, so it is
+   * the persisted state that is checked, not the local one.
+   */
+  test('IBAN change can be abandoned: cancel keeps the stored account through a save', async ({
+    authenticatedMembersPage,
+  }) => {
+    const ts = Date.now()
+    const original = 'DE89370400440532013000'
+    const replacement = 'DE27100777770209299700'
+    const firstName = `IbanCancel${ts}`
+
+    await authenticatedMembersPage.createMember(
+      firstName, `Last${ts}`, original, '2025-01-10', `ibancancel-${ts}@test.com`, 'de',
+    )
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    await authenticatedMembersPage.reopenMemberForm(firstName)
+
+    // ── The stored account stands in for the input ───────────────────
+    await authenticatedMembersPage.expectIbanInputHidden()
+    await authenticatedMembersPage.expectStoredIbanContains(`****${original.slice(-4)}`)
+
+    // ── Change reveals an empty input, not a prefilled one ───────────
+    await authenticatedMembersPage.beginIbanChange()
+    await authenticatedMembersPage.expectIbanInputVisible()
+    expect(await authenticatedMembersPage.getFormIbanValue()).toBe('')
+    await authenticatedMembersPage.expectStoredIbanHidden()
+
+    // ── Type a replacement, then take it back ────────────────────────
+    await authenticatedMembersPage.fillIban(replacement)
+    await authenticatedMembersPage.expectIbanValidVisible()
+    await authenticatedMembersPage.cancelIbanChange()
+    await authenticatedMembersPage.expectStoredIbanContains(`****${original.slice(-4)}`)
+
+    // ── Save anyway: the abandoned IBAN must not have leaked into it ─
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    await authenticatedMembersPage.reopenMemberForm(firstName)
+    await authenticatedMembersPage.expectStoredIbanContains(`****${original.slice(-4)}`)
+    await authenticatedMembersPage.cancelForm()
+  })
+
+  test('IBAN change that is saved replaces the account and keeps SEPA valid', async ({
+    authenticatedMembersPage,
+  }) => {
+    const ts = Date.now()
+    const original = 'DE89370400440532013000'
+    const replacement = 'DE02370502990000684712'
+    const firstName = `IbanSwap${ts}`
+
+    await authenticatedMembersPage.createMember(
+      firstName, `Last${ts}`, original, '2025-01-10', `ibanswap-${ts}@test.com`, 'de',
+    )
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    await authenticatedMembersPage.reopenMemberForm(firstName)
+
+    await authenticatedMembersPage.beginIbanChange()
+    await authenticatedMembersPage.fillIban(replacement)
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    await authenticatedMembersPage.reopenMemberForm(firstName)
+    await authenticatedMembersPage.expectIbanInputHidden()
+    await authenticatedMembersPage.expectStoredIbanContains(`****${replacement.slice(-4)}`)
+    await authenticatedMembersPage.expectSepaStatusContains('SEPA')
+    await authenticatedMembersPage.cancelForm()
+  })
+
+  test('removing bank details is undoable, and only takes effect once saved', async ({
+    authenticatedMembersPage,
+  }) => {
+    const ts = Date.now()
+    const iban = 'DE75512108001245126199'
+    const firstName = `IbanDrop${ts}`
+
+    await authenticatedMembersPage.createMember(
+      firstName, `Last${ts}`, iban, '2025-01-10', `ibandrop-${ts}@test.com`, 'de',
+    )
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    await authenticatedMembersPage.reopenMemberForm(firstName)
+
+    // ── Queue the removal, then take it back ─────────────────────────
+    await authenticatedMembersPage.removeStoredIban()
+    await authenticatedMembersPage.expectIbanRemovalPendingVisible()
+    await authenticatedMembersPage.expectStoredIbanHidden()
+    await authenticatedMembersPage.undoRemoveStoredIban()
+    await authenticatedMembersPage.expectIbanRemovalPendingHidden()
+    await authenticatedMembersPage.expectStoredIbanContains(`****${iban.slice(-4)}`)
+
+    // ── Saving after the undo leaves the account alone ───────────────
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    await authenticatedMembersPage.reopenMemberForm(firstName)
+    await authenticatedMembersPage.expectStoredIbanContains(`****${iban.slice(-4)}`)
+
+    // ── Now really remove it ─────────────────────────────────────────
+    await authenticatedMembersPage.removeStoredIban()
+    await authenticatedMembersPage.expectIbanRemovalPendingVisible()
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    await authenticatedMembersPage.reopenMemberForm(firstName)
+    // No account left to stand in for the input, so the input is back.
+    await authenticatedMembersPage.expectStoredIbanHidden()
+    await authenticatedMembersPage.expectIbanInputVisible()
+    await authenticatedMembersPage.cancelForm()
+  })
+
+  /**
+   * The mandate reference is minted by the server when the mandate is opened
+   * (ADR-0006); supplying one is the migration case. The form says so by
+   * making "assigned on save" the default state and typing one an opt-in.
+   */
+  test('mandate reference: assigned by default, shown as a value once minted', async ({
+    authenticatedMembersPage,
+  }) => {
+    const ts = Date.now()
+    const firstName = `MRef${ts}`
+
+    await authenticatedMembersPage.openCreateModal()
+    await authenticatedMembersPage.expectFormModalVisible()
+
+    // ── The standard case needs no input at all ─────────────────────
+    await authenticatedMembersPage.expectMandateReferenceAutoVisible()
+    await authenticatedMembersPage.expectMandateReferenceInputHidden()
+
+    // ── Typing one is opt-in, and abandoning it returns to automatic ─
+    await authenticatedMembersPage.beginMandateReferenceEntry()
+    await authenticatedMembersPage.fillMandateReference(`TEMP${ts}`)
+    await authenticatedMembersPage.cancelMandateReferenceEntry()
+    await authenticatedMembersPage.expectMandateReferenceAutoVisible()
+
+    await authenticatedMembersPage.fillMemberForm(
+      firstName, `Last${ts}`, 'DE27100777770209299700', '2025-01-10',
+      `mref-${ts}@test.com`, 'de',
+    )
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    // ── The server assigned one; it is now shown as the value it is ──
+    await authenticatedMembersPage.reopenMemberForm(firstName)
+    await authenticatedMembersPage.expectMandateReferenceInputHidden()
+    const assigned = await authenticatedMembersPage.getFormMandateReferenceValue()
+    // A UUID without hyphens, per ADR-0006 — and emphatically not the
+    // abandoned TEMP value.
+    expect(assigned).toMatch(/^[0-9a-f]{32}$/i)
+    await authenticatedMembersPage.cancelForm()
   })
 })

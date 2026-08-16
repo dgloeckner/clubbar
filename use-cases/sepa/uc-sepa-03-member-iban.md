@@ -52,14 +52,20 @@ Admin adds or updates a member's IBAN for SEPA direct debit collections.
 
 1. Admin navigates to member detail page
 2. Admin clicks Edit
-3. Admin enters or modifies IBAN
-4. System validates IBAN in real-time
-5. System shows validation status (valid/invalid)
-6. Admin clicks Save
-7. System performs server-side validation
-8. System updates member record
-9. System creates audit log entry
-10. System displays confirmation
+3. If the member already has bank details, the form shows the masked account
+   instead of an input; the admin clicks **Change** to reveal an empty field.
+   A stored IBAN is sealed and never returned
+   ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)), so the field can
+   only overwrite it, never show it — and leaving it alone keeps the account.
+   For a member with no bank details the field is shown directly.
+4. Admin enters the IBAN
+5. System validates IBAN in real-time
+6. System shows validation status (valid/invalid)
+7. Admin clicks Save
+8. System performs server-side validation
+9. System updates member record
+10. System creates audit log entry
+11. System displays confirmation
 
 ## Audit Log Entry
 
@@ -76,20 +82,22 @@ Note: IBAN masked (first 4 + last 4 characters).
 ## Alternative Flows
 
 ### AF1: Invalid IBAN checksum
-- Step 4: System shows "Invalid IBAN: Checksum incorrect"
+- Step 6: System shows "Invalid IBAN: Checksum incorrect"
 - Save blocked until corrected
 
 ### AF2: Invalid IBAN format
-- Step 4: System shows "Invalid IBAN format"
+- Step 6: System shows "Invalid IBAN format"
 - Save blocked until corrected
 
-### AF3: IBAN removed (cleared)
-- Step 3: Admin clears IBAN field
-- Member cannot be included in SEPA settlements
+### AF3: Bank details removed
+- Step 3: Admin chooses **Remove bank details** instead of **Change**, and saves
+- The mandate is revoked and the member cannot be included in SEPA settlements
+- Emptying the input is *not* this operation: a blank field means "keep the
+  stored account" (ADR-0036)
 
 ### AF4: Member is anonymized
 - Step 2: Edit not available
-- IBAN already cleared via anonymization
+- Bank details already cleared via anonymization
 
 ## Postconditions
 
@@ -112,7 +120,9 @@ IBAN is NOT synced to terminal (backend-only data).
 | T05 | Add IBAN with special characters | Validation error |
 | T06 | IBAN with spaces | Spaces removed, validation passes |
 | T07 | IBAN lowercase | Converted to uppercase |
-| T08 | Clear existing IBAN | IBAN set to NULL |
+| T08 | Remove bank details, then save | Mandate revoked, `iban_last4` cleared |
+| T08b | Leave the IBAN field untouched and save | Stored account unchanged |
+| T08c | Change, type an IBAN, cancel, then save | Stored account unchanged |
 | T09 | Update without authentication | Access denied (401) |
 | T10 | Audit log IBAN masking | Only first 4 + last 4 visible |
 | T11 | Real-time validation feedback | Shows valid/invalid while typing |
