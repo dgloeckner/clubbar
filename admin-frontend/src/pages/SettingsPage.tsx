@@ -997,8 +997,10 @@ export function SettingsPage() {
       )}
 
       {/* Mail settings (#407, ADR-0038). Self-contained like SecurityCheckTab:
-          it owns a form, a measured transport panel and the test-mail action. */}
-      {activeTab === 'mail' && <MailSettingsTab />}
+          it owns a form, a measured transport panel and the test-mail action.
+          callerTotpEnabled is threaded through for the cron-secret rotate
+          dialog (#473), same as CredentialsTab below. */}
+      {activeTab === 'mail' && <MailSettingsTab callerTotpEnabled={callerTotpEnabled} />}
 
       {/* Modals */}
       <CreateAdminModal

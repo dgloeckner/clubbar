@@ -168,6 +168,7 @@ abstract class DatabaseTestCase extends TestCase
             ),
             new \App\Shared\Mail\MailTransportFactory(new \App\Shared\Config\AppConfig(), $this->logger),
             $this->createMock(\App\Shared\Services\AuditService::class),
+            new \App\Shared\Config\AppConfig(),
         );
     }
 

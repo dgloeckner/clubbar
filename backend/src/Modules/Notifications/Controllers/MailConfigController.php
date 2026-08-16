@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Controllers;
 
+use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Services\MailConfigService;
@@ -31,6 +32,7 @@ class MailConfigController
         private MailConfigService $mailConfigService,
         private Validator $validator,
         private TestMailService $testMailService,
+        private StepUpAuthService $stepUpAuthService,
     ) {}
 
     public function show(Request $request, Response $response): Response
@@ -104,6 +106,55 @@ class MailConfigController
             $response,
             $this->testMailService->sendTo((string) $request->getAttribute('admin_user_id'))
         );
+    }
+
+    /**
+     * Generate a new URL-trigger secret, shown exactly once (#473).
+     *
+     * Mints a credential, so it carries the same step-up as issuing a terminal
+     * token: the caller re-proves their own password (and TOTP, if they have
+     * it enabled) before this writes anything. Once written it is the only
+     * secret {@see \App\Modules\Notifications\Controllers\CronController}
+     * accepts — `config.php`'s `cron.secret`, if this installation had one,
+     * stops mattering from this point on.
+     */
+    public function rotateCronSecret(Request $request, Response $response): Response
+    {
+        $body = $request->getParsedBody() ?? [];
+        $adminId = $request->getAttribute('admin_user_id');
+
+        if (!$this->validator->validate($body, ['current_password' => ['required', 'string']])) {
+            return $this->validationFailed($response, $this->validator->errors());
+        }
+
+        if (!$this->requireStepUp($request, $response, $body, $failed)) {
+            return $failed;
+        }
+
+        $plaintext = $this->mailConfigService->rotateCronSecret($adminId);
+
+        return $this->json($response, [
+            'cron_secret' => $plaintext,
+            'message' => 'Secret rotated. It will not be shown again — copy it into your scheduler now; '
+                . 'the previous secret, panel-rotated or from config.php, no longer works.',
+        ] + $this->payload());
+    }
+
+    /** Shared step-up gate; on failure fills $failed with the 401 response. */
+    private function requireStepUp(Request $request, Response $response, array $body, ?Response &$failed): bool
+    {
+        $caller = $request->getAttribute('admin_user');
+
+        if ($caller !== null && $this->stepUpAuthService->verify($caller, $body, $request)) {
+            return true;
+        }
+
+        $failed = $this->json($response, [
+            'error' => 'invalid_credentials',
+            'message' => 'Re-enter your password (and TOTP code) to rotate the cron secret',
+        ], 401);
+
+        return false;
     }
 
     /**

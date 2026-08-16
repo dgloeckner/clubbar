@@ -799,10 +799,22 @@
       "batchSize": "Nachrichten pro Lauf",
       "batchSizeHint": "Herabsetzen, wenn der Mailserver pro Verbindung strenger begrenzt. Schneller wird ein Lauf dadurch nicht — versendet wird ohnehin nacheinander.",
       "saved": "Mail-Einstellungen gespeichert.",
+      "cronSecretTitle": "URL-Trigger-Geheimnis",
+      "cronSecretConfigured": "Konfiguriert",
+      "cronSecretNotConfigured": "Nicht konfiguriert — /api/cron/drain ist deaktiviert, sofern nicht cron.secret in der config.php gesetzt ist.",
+      "cronSecretRotatedAt": "Zuletzt erneuert am {{date}}.",
+      "cronSecretNeverRotated": "Noch nie über dieses Panel erneuert — der URL-Trigger prüft weiterhin cron.secret aus der config.php, sofern gesetzt.",
+      "cronSecretHint": "Berechtigt den URL-Fallback des Mail-Schedulers, wenn ein Hosting-Panel nur eine URL abrufen kann. Ein neues Geheimnis ersetzt alle bisherigen sofort — auch ein etwaiges cron.secret aus der config.php funktioniert danach nicht mehr.",
+      "generateCronSecret": "Geheimnis erzeugen",
+      "rotateCronSecret": "Geheimnis erneuern",
+      "rotateCronSecretConfirm": "Neues URL-Trigger-Geheimnis erzeugen? Das bisherige — auch ein etwaiges aus der config.php — funktioniert danach sofort nicht mehr.",
+      "cronSecretGenerated": "Geheimnis erzeugt",
+      "cronSecretWarning": "Dieses Geheimnis wird nur dieses eine Mal angezeigt. Jetzt in den Scheduler kopieren — der Server speichert nur einen Hash und kann es nicht erneut anzeigen.",
       "errors": {
         "load": "Mail-Einstellungen konnten nicht geladen werden.",
         "save": "Mail-Einstellungen konnten nicht gespeichert werden.",
-        "test": "Die Testmail konnte nicht versendet werden."
+        "test": "Die Testmail konnte nicht versendet werden.",
+        "rotateCronSecret": "Das Geheimnis konnte nicht erneuert werden."
       }
     }
   },

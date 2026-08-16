@@ -7,6 +7,7 @@ namespace Tests\Feature\Modules\Notifications;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Enums\DrainSource;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
+use App\Modules\Notifications\Services\CronSecret;
 use Tests\Feature\HttpTestCase;
 
 /**
@@ -140,5 +141,38 @@ class CronDrainHttpTest extends HttpTestCase
 
         $this->assertStringNotContainsString('claimed', $body);
         $this->assertStringNotContainsString(self::SECRET, $body);
+    }
+
+    /* ──────────────────── A panel-rotated secret (#473) ──────────────────── */
+
+    /**
+     * `config.php`'s secret is what {@see self::environment()} configures for
+     * this whole suite; once `mail_config.cron_secret_hash` is rotated it is
+     * meant to take over completely rather than adding a second live
+     * credential — the same precedence MailConfigServiceTest pins at the unit
+     * level, exercised here through the real route.
+     */
+    public function test_a_rotated_secret_works_and_supersedes_the_file_one(): void
+    {
+        $rotated = 'panel-rotated-secret-0123456789';
+        $this->db->prepare(
+            'UPDATE mail_config SET cron_secret_hash = ?, cron_secret_rotated_at = NOW() WHERE id = 1'
+        )->execute([CronSecret::hash($rotated)]);
+
+        try {
+            $this->assertSame(
+                204,
+                $this->request('POST', '/api/cron/drain', headers: [CronController::HEADER => $rotated])->getStatusCode(),
+                'the rotated secret must be accepted',
+            );
+
+            $this->assertSame(
+                401,
+                $this->request('POST', '/api/cron/drain', headers: [CronController::HEADER => self::SECRET])->getStatusCode(),
+                'config.php\'s secret must stop working once a hash is rotated',
+            );
+        } finally {
+            $this->db->exec('UPDATE mail_config SET cron_secret_hash = NULL, cron_secret_rotated_at = NULL WHERE id = 1');
+        }
     }
 }

@@ -37,6 +37,15 @@ final readonly class MailConfigDto
         public ?string $logoUrl,
         public CronInterval $cronInterval = CronInterval::DEFAULT,
         public int $drainBatchSize = self::DEFAULT_DRAIN_BATCH_SIZE,
+        /**
+         * SHA-256 hex, never a plaintext secret. `null` means no rotation from
+         * the admin panel has ever happened — `config.php`'s `cron.secret` is
+         * still the fallback (#473). Not part of {@see toArray()}: a hash has
+         * no operator value once past the constant-time comparison it exists
+         * for, and there is no reason to widen its exposure.
+         */
+        public ?string $cronSecretHash = null,
+        public ?string $cronSecretRotatedAt = null,
     ) {}
 
     public static function fromRow(array $row): self
@@ -52,6 +61,8 @@ final readonly class MailConfigDto
             logoUrl: self::nullIfBlank($row['logo_url'] ?? null),
             cronInterval: CronInterval::fromDeclared($row['cron_interval'] ?? null),
             drainBatchSize: self::batchSize($row['drain_batch_size'] ?? null),
+            cronSecretHash: self::nullIfBlank($row['cron_secret_hash'] ?? null),
+            cronSecretRotatedAt: self::nullIfBlank($row['cron_secret_rotated_at'] ?? null),
         );
     }
 
@@ -106,6 +117,11 @@ final readonly class MailConfigDto
             'logo_url' => $this->logoUrl,
             'cron_interval' => $this->cronInterval->value,
             'drain_batch_size' => $this->drainBatchSize,
+            // Never the hash — only whether one exists and when it was made,
+            // which is what the admin panel needs to show a rotate button
+            // and a "last rotated" line without any secret value at all.
+            'cron_secret_configured' => $this->cronSecretHash !== null,
+            'cron_secret_rotated_at' => $this->cronSecretRotatedAt,
             'is_complete' => $this->isComplete(),
         ];
     }

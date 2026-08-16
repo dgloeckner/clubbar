@@ -6,6 +6,7 @@ namespace App\Modules\Notifications\Controllers;
 
 use App\Modules\Notifications\Enums\DrainSource;
 use App\Modules\Notifications\Services\DrainService;
+use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Terminals\Services\TerminalAnomalyDetector;
 use App\Shared\Config\AppConfig;
 use App\Shared\Logging\Logger;
@@ -23,9 +24,12 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *
  * ### The secret
  *
- * A dedicated one — `cron.secret` in `config.php`, never the install key, never
- * an admin session. Rotating it is one edit to that file and takes effect on
- * the next request; nothing derives from it and nothing caches it. Absent, the
+ * Two homes, never both live at once (#473, {@see MailConfigService}): a hash
+ * rotated from the admin panel (Settings → Mail) if one has ever been
+ * generated there, falling back to `cron.secret` in `config.php` — the
+ * install-time-only, file-editing-only origin this route started with. Once a
+ * panel rotation exists it is the only thing checked; the file value stops
+ * mattering rather than staying valid alongside it. Neither present, the
  * route is not mounted at all, so an installation on a CLI cron does not carry
  * an extra unauthenticated entrance it never asked for.
  *
@@ -66,16 +70,16 @@ class CronController
         private AppConfig $config,
         private Logger $logger,
         private TerminalAnomalyDetector $anomalyDetector,
+        private MailConfigService $mailConfigService,
     ) {}
 
     public function drain(Request $request, Response $response): Response
     {
-        $configured = $this->config->cronSecret;
-
-        if ($configured === null) {
+        if (!$this->mailConfigService->cronSecretConfigured()) {
             // Not "forbidden" — on this installation there is no such endpoint.
             // Saying so plainly is also the answer the admin needs: the URL
-            // trigger is off until `cron.secret` is set.
+            // trigger is off until a secret exists, panel-rotated or in
+            // config.php.
             return $response->withStatus(404);
         }
 
@@ -85,7 +89,7 @@ class CronController
             $this->scrubQueryString();
         }
 
-        if ($provided === '' || !hash_equals($configured, $provided)) {
+        if (!$this->mailConfigService->verifyCronSecret($provided)) {
             // The secret itself is never logged, right or wrong: a mistyped one
             // is usually the real one with a character missing.
             $this->logger->warning('Cron drain rejected', [

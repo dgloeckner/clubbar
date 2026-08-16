@@ -99,4 +99,12 @@ enum AuditAction: string
     case TERMINAL_ANOMALY_DETECTED = 'terminal_anomaly_detected';
     /** An admin marked a terminal anomaly as seen, clearing it from the panel. */
     case TERMINAL_ANOMALY_ACKNOWLEDGED = 'terminal_anomaly_acknowledged';
+    /**
+     * An admin generated a new URL-trigger secret from the panel (#473).
+     *
+     * Carries no secret material — only that a rotation happened, who did it,
+     * and when. The old secret (and `config.php`'s, if that is what was still
+     * authorising the route) stops working the moment this is written.
+     */
+    case CRON_SECRET_ROTATED = 'cron_secret_rotated';
 }

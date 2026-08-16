@@ -431,6 +431,32 @@ The header form is the supported one. The query-string variant works and is
 degraded: the secret lands verbatim in the webserver's access log. Without
 `cron.secret` the route is not mounted at all.
 
+**Rotating the secret without file access.** Settings → Mail in the admin
+panel can generate and rotate this secret too (#473), for exactly the
+situation above: an external scheduler that only offers a bare URL field
+forces the degraded query-string form, and if that secret leaks into an
+access log, rotating it from `config.php` needs file access the "relocated
+data directory" layout (decision 2 below) may not expose to anything
+web-reachable. A panel-rotated secret supersedes `config.php`'s entirely —
+the old value stops working the moment a new one is generated, rather than
+staying valid alongside it — and it is shown exactly once; only its hash is
+stored, the same way terminal API tokens are kept.
+
+### IONOS specifically
+
+IONOS is this project's reference host ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md)), and its **Cronjobs** tool (IONOS account → Hosting → Cronjobs) is a webcron: the form takes a URL in an "HTTP GET" field and fetches it on schedule, with no field for a shell command or a PHP path. On a standard IONOS webhosting contract the CLI entrypoint above has nowhere to go — use the URL trigger instead. (This is specific to that panel tool; an IONOS VPS/Cloud Server with SSH access has a real crontab, where the CLI entrypoint applies as documented above.)
+
+Two more points where the wizard doesn't line up with the rest of this section, both already accounted for on our side:
+
+- **Interval.** The wizard's top-level choice is monthly/weekly/daily — there is no hourly or every-N-minutes option. Declare **daily** under Settings → Mail. Never weekly: the wizard offers it, this application refuses it (see above), and it would erode the 7-day announcement distance.
+- **Execution time limit.** IONOS aborts a cron call after 60 seconds. `DrainService`'s default run budget is 50 seconds for exactly this reason — a killed run just leaves its remaining rows for the next tick — so there is nothing to configure.
+
+The URL field is a bare URL with no documented way to attach a custom header, so the `X-Cron-Secret` header form above is likely unreachable from the wizard. Use the degraded query-string form instead — `https://your-domain.com/api/cron/drain?secret=<secret>` — and expect the access-log exposure noted above. Confirm against your own contract's form before relying on this: verify whether a header option exists, and rotate `cron.secret` if you conclude it does not.
+
+**An external HTTP scheduler avoids both limits at once.** This is the third option ADR-0038 names precisely so the supported hosting set does not narrow to whatever a given panel's wizard offers. cron-job.org (there are others — Cronitor, EasyCron) supports per-minute intervals and a genuine custom-header field: point it at `/api/cron/drain` every 15 minutes with `X-Cron-Secret: <secret>` as a custom header, and neither IONOS limitation above applies — no daily-only interval, no secret in the URL. Use HTTP Basic Auth only if you also change `CronController` to accept it; today it checks the `X-Cron-Secret` header (or the query-string fallback) and nothing else, so a request authenticated only via `Authorization: Basic …` gets a 401.
+
+Two things worth knowing before relying on this: cron-job.org's own default request timeout (30s at the time of writing) is shorter than `DrainService`'s 50s run budget, so its job history may show occasional "timeouts" even on runs that complete normally server-side — the queue's claim staleness and retry ladder already tolerate a killed run, so this is cosmetic, not a correctness problem. And it is not a substitute for the `cron.heartbeat_url` monitor below: cron-job.org can only tell you the HTTP call didn't respond, not that the mail queue is stalled or SMTP is broken, which is what ADR-0038 rule 6 actually asks for. Declare `hourly`, not `daily`, under Settings → Mail once the actual cadence is 15 minutes — `CronInterval` has no 15-minute value, and the self-check only flags a cadence *slower* than declared, never faster, so declaring the coarser bucket is safe.
+
 ### The heartbeat check
 
 Configure `cron.heartbeat_url` in `config.php` with a push monitor's check URL —

@@ -101,6 +101,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
             new InstanceConfigService(new InstanceConfigRepository($this->db, $this->logger), $auditService),
             new MailTransportFactory(new AppConfig(), $this->logger),
             $auditService,
+            new AppConfig(),
         );
 
         $this->builder = new SettlementMailBuilder(
