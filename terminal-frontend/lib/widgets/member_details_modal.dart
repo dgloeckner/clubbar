@@ -518,7 +518,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _formatTransactionTimestamp(transaction.timestamp, locale),
+                  formatTransactionTimestamp(transaction.timestamp, locale),
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: AppFontSizes.sm,
@@ -597,18 +597,5 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         ),
       ),
     );
-  }
-
-  String _formatTransactionTimestamp(DateTime timestamp, String locale) {
-    final months = locale == 'de'
-        ? ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
-        : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-    final month = months[timestamp.month - 1];
-    final day = timestamp.day;
-    final hour = timestamp.hour.toString().padLeft(2, '0');
-    final minute = timestamp.minute.toString().padLeft(2, '0');
-
-    return '$month $day, $hour:$minute';
   }
 }

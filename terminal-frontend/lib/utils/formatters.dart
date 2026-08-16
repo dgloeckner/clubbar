@@ -45,3 +45,27 @@ String formatDateTime(DateTime date, String locale) {
   final format = DateFormat.yMd(locale == 'de' ? 'de_DE' : 'en_GB').add_Hm();
   return format.format(date);
 }
+
+/// Locale-correct transaction timestamp: day/month order follows the
+/// locale (e.g. "5. Mär." in German vs "Mar 5" in English), and the year
+/// is shown only once the entry is more than 11 months old.
+///
+/// [now] defaults to the current time; pass it explicitly in tests to keep
+/// the "how old is this" comparison independent of the wall clock.
+String formatTransactionTimestamp(
+  DateTime timestamp,
+  String locale, {
+  DateTime? now,
+}) {
+  final reference = now ?? DateTime.now();
+  final intlLocale = locale == 'de' ? 'de_DE' : 'en_GB';
+
+  var monthsOld =
+      (reference.year - timestamp.year) * 12 + (reference.month - timestamp.month);
+  if (reference.day < timestamp.day) monthsOld -= 1;
+
+  final format = monthsOld > 11
+      ? DateFormat.yMMMd(intlLocale).add_Hm()
+      : DateFormat.MMMd(intlLocale).add_Hm();
+  return format.format(timestamp);
+}
