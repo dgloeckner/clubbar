@@ -64,7 +64,7 @@ of an input, and put the actions that change it underneath — so
 - [x] Page object: `beginIbanChange`, `cancelIbanChange`, `fillIban`, `expectIbanInput{Visible,Hidden}`, `undoRemoveStoredIban`, `expectIbanRemovalPending{Visible,Hidden}`, `expectSepaStatusContains`, and the mandate-reference equivalents. `fillMemberForm`/`fillMandateReference` reveal the input themselves, so callers keep expressing intent
 - [x] Two existing assertions of a blank input in edit mode replaced by `expectIbanInputHidden()` (`members.spec.ts`, `members-bank-name.spec.ts`)
 - [x] Four new flow specs: change-then-cancel keeps the account through a save; change-then-save replaces it; remove-then-undo is a no-op and remove-then-save revokes; mandate reference assigned by default and shown as a value once minted
-- Verify: **passed** — `admin-chromium` 308/308 against a rebuilt bundle, including the four new flows. One unrelated failure appeared in a 4-worker run (`ui-features.spec.ts` "should perform logout and redirect to login") and passed 8/8 when its file was run alone: a session-state race under parallelism, in a spec this diff does not touch. `admin-mobile` was **not run** — WebKit could not be downloaded in this sandbox (`dev-setup.sh` reports it as a warning); CI covers that project
+- Verify: **passed** — `admin-chromium` 307–308/308 across three 4-worker runs (two before the rebase onto `5cc04c9`, one after), the four new flows green in every one. Each run also produced **one** unrelated failure, and a *different* one each time — `ui-features.spec.ts` "should perform logout and redirect to login", then `notifications-queue.spec.ts` "filtering by status narrows the list to that status". Both passed when their own file was run alone (8/8 and 7/7): shared-state races under parallelism in specs this diff does not touch, not a regression. `admin-mobile` was **not run** — WebKit could not be downloaded in this sandbox (`dev-setup.sh` reports it as a warning); CI covers that project
 
 ### M5 — Docs
 
@@ -72,6 +72,10 @@ of an input, and put the actions that change it underneath — so
 - [x] `use-cases/sepa/uc-sepa-03-member-iban.md` — main flow gains the *Change* step and is renumbered; AF3 rewritten from "clears IBAN field" to *Remove bank details*; T08 split into remove / leave-alone / cancel
 - [x] `admin-frontend/patterns/components.md` — `StoredFieldBox` / `StoredFieldAction` entry under Form Components
 - [x] `plans/INDEX.md` row
+
+### Rebase onto `5cc04c9` (2026-08-16)
+
+One conflict, in `MembersPage.tsx`'s import block: main's [#479](https://github.com/dgloeckner/clubbar/pull/479) renamed `getAmountColor` to `getBalanceColor` on the line above the `useBankName` import this branch removes (the hook moved into `MemberIbanField`). Resolved by taking both sides' intent — main's rename, this branch's removal. No behavioural overlap: #479 touches balance colouring in the member list, this branch touches the form's banking fields.
 
 No ADR change: ADR-0036 §"API surface" already specifies this semantics — the UI
 now follows it visibly instead of describing it.
