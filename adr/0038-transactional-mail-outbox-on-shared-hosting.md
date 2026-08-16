@@ -216,7 +216,7 @@ The queue itself is not settlement-specific: #438's encryption-key and terminal-
 
 | In | Out |
 |---|---|
-| `direct_debit` settlements: pre-notification and cancellation notice | `bank_transfer` / `write_off`: a *payment request* variant (amount, club bank details, no mandate reference) — [#410](https://github.com/dgloeckner/clubbar/issues/410), the `kind` value is reserved for it |
+| `direct_debit` settlements: pre-notification and cancellation notice | `bank_transfer` / `write_off`: **nothing at all**. This row used to promise a *payment request* variant ([#410](https://github.com/dgloeckner/clubbar/issues/410), closed unbuilt): a `bank_transfer` records money that **has already arrived** (§4 of [ADR-0032](./0032-settlement-lifecycle.md) — it is never cancellable for exactly that reason) and a `write_off` moves no money, so neither has anything to announce or to ask for. Nothing in the system asks a member to send money; a member SEPA cannot collect from is contacted by the Kassenwart directly. See **Settlement method** in [CONTEXT.md](../CONTEXT.md) |
 | Members collected at `amount > 0` | Members in credit or at zero — no collection, so no announcement |
 | The member's own address, no CC | Any third-party recipient |
 

@@ -422,7 +422,6 @@ export function NotificationsPage() {
 const KINDS = [
   'sepa_prenotification',
   'cancellation_notice',
-  'payment_request',
   'key_expiry_warning',
   'terminal_token_expiry_warning',
   'terminal_anomaly_warning',

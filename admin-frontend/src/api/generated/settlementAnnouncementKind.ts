@@ -70,5 +70,4 @@ export type SettlementAnnouncementKind = typeof SettlementAnnouncementKind[keyof
 export const SettlementAnnouncementKind = {
   sepa_prenotification: 'sepa_prenotification',
   cancellation_notice: 'cancellation_notice',
-  payment_request: 'payment_request',
 } as const;

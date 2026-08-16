@@ -89,9 +89,10 @@ class MailContentRegistryTest extends TestCase
     }
 
     /**
-     * The one builder that exists today claims every settlement kind, including
-     * the `payment_request` #410 will fill in — so that lands as a branch in
-     * the settlement builder rather than a second builder for one subject.
+     * The one builder that exists today claims every settlement kind — and
+     * there are exactly two of them. `payment_request` was the third until
+     * migration `036` removed it: a settlement announces a collection or
+     * retracts one, and never asks a member to send money.
      */
     public function test_the_settlement_builder_claims_every_settlement_kind(): void
     {
@@ -99,9 +100,18 @@ class MailContentRegistryTest extends TestCase
         // repositories, so the real class answers it without a database.
         $real = (new \ReflectionClass(SettlementMailBuilder::class))->newInstanceWithoutConstructor();
 
-        $this->assertTrue($real->supports(MailKind::SEPA_PRENOTIFICATION));
-        $this->assertTrue($real->supports(MailKind::CANCELLATION_NOTICE));
-        $this->assertTrue($real->supports(MailKind::PAYMENT_REQUEST));
+        $settlementKinds = array_filter(
+            MailKind::cases(),
+            static fn (MailKind $kind): bool => $real->supports($kind),
+        );
+
+        // Stated as the whole set rather than as three assertions: a kind added
+        // to the enum without a branch in the builder would pass those and fail
+        // this, which is the failure worth catching.
+        $this->assertSame(
+            [MailKind::SEPA_PRENOTIFICATION, MailKind::CANCELLATION_NOTICE],
+            array_values($settlementKinds),
+        );
         $this->assertFalse($real->supports(MailKind::KEY_EXPIRY_WARNING));
         $this->assertFalse($real->supports(MailKind::TERMINAL_TOKEN_EXPIRY_WARNING));
     }
