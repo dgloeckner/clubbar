@@ -67,6 +67,7 @@ Each ADR follows this structure:
 | [0040](./0040-remove-mandate-scan-extraction.md) | Remove Mandate Scan Extraction | Accepted | 2026-08-15 |
 | [0041](./0041-terminal-credential-anomaly-detection.md) | Terminal Credential Anomaly Detection | Accepted | 2026-08-15 |
 | [0042](./0042-colour-semantics-for-monetary-values.md) | Colour Semantics for Monetary Values | Accepted | 2026-08-16 |
+| [0043](./0043-terminal-credential-issuance-is-announced.md) | Terminal Credential Issuance Is Announced, Not Gated Further | Accepted | 2026-08-16 |
 
 ## Creating a New ADR
 
