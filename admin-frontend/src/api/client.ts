@@ -16,15 +16,17 @@ import { getApiErrorMessage } from '../utils/apiErrors'
 
 // ─── CSRF ────────────────────────────────────────────────────────────────────
 
-let csrfToken: string | null = localStorage.getItem('csrf_token')
+// Kept in memory only (#109) — it belongs to the PHP session, not to storage
+// that outlives it and stays readable by any script that achieves XSS. The
+// backend hands out a fresh token on every /auth/profile response, so nothing
+// here needs to survive a reload.
+let csrfToken: string | null = null
 
 export function setCsrfToken(token: string | null) {
   csrfToken = token
-  if (token) {
-    localStorage.setItem('csrf_token', token)
-  } else {
-    localStorage.removeItem('csrf_token')
-  }
+  // Migration: earlier versions persisted this token in localStorage. Clear
+  // any leftover value so it doesn't outlive the session it belonged to.
+  localStorage.removeItem('csrf_token')
 }
 
 // ─── Loading state ───────────────────────────────────────────────────────────
@@ -113,8 +115,7 @@ axiosInstance.interceptors.response.use(
       localStorage.removeItem('email')
       localStorage.removeItem('display_name')
       localStorage.removeItem('locale')
-      localStorage.removeItem('csrf_token')
-      csrfToken = null
+      setCsrfToken(null)
       if (window.location.pathname !== '/login') {
         window.location.href = '/login'
       }

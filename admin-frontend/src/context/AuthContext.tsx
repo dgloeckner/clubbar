@@ -11,8 +11,7 @@ import {
   setupTotpWithSession,
   confirmTotpWithSession,
   logoutWithSession,
-  getCurrentSession,
-  isAuthenticated,
+  checkSession,
 } from '../auth/session'
 import { authErrorKey, endsMfaStep } from '../utils/authErrors'
 
@@ -80,17 +79,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   useEffect(() => {
-    const session = getCurrentSession()
-    if (isAuthenticated()) {
-      setAuth({
-        isAuthenticated: true,
-        adminId: session.adminId || undefined,
-        email: session.email || undefined,
-        displayName: session.displayName || undefined,
-        locale: session.locale,
-      })
+    // A localStorage flag can't tell a live session from one whose cookie
+    // already expired server-side (#109) — ask the backend instead. Failure
+    // (401 or otherwise) leaves `auth` at its logged-out default and
+    // checkSession() has already cleared any stale PII/CSRF from storage.
+    let cancelled = false
+    checkSession().then((session) => {
+      if (cancelled) return
+      if (session) {
+        setAuth({
+          isAuthenticated: true,
+          adminId: session.admin_id,
+          email: session.email,
+          displayName: session.display_name,
+          locale: session.locale,
+        })
+      }
+      setInitializing(false)
+    })
+    return () => {
+      cancelled = true
     }
-    setInitializing(false)
   }, [])
 
   const handleLogin = async (credentials: LoginCredentials): Promise<AuthResult> => {

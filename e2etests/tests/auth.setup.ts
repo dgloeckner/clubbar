@@ -28,8 +28,13 @@
  * (which shares the browser's cookie jar) to call the backend API directly:
  *   1. POST /api/auth/login  → may return requiresMfa / requiresTotpSetup
  *   2. Complete MFA or enrollment if needed
- *   3. Set localStorage manually (admin_id, csrf_token, is_authenticated)
+ *   3. Set localStorage manually (admin_id, is_authenticated)
  *   4. Navigate to /dashboard and save storage state
+ *
+ * The CSRF token is NOT written here — the frontend keeps it in memory only,
+ * not in localStorage (#109). Tests that need one for direct API calls fetch
+ * a fresh token from GET /auth/profile using the saved session cookie (see
+ * utils/csrf.ts's loginAs() and csrfHeaders()).
  *
  * page.request shares cookies with the page's browser context, so cookies set
  * by API calls made via page.request are available in the browser and will be
@@ -141,16 +146,17 @@ setup('authenticate as admin', async ({ page, context }) => {
   }
 
   // Step 3: Navigate to the frontend and set the localStorage values that the
-  // React app uses to consider the session authenticated.
+  // React app uses to consider the session authenticated. The CSRF token is
+  // deliberately NOT written here — the app keeps it in memory only (#109)
+  // and will fetch its own via GET /auth/profile on boot.
   await page.goto(`${FRONTEND_BASE}/login`)
   await page.evaluate(
-    ({ id, csrf }) => {
+    ({ id }) => {
       localStorage.setItem('admin_id', id)
-      localStorage.setItem('csrf_token', csrf)
       localStorage.setItem('is_authenticated', 'true')
       localStorage.removeItem('totp_setup_required')
     },
-    { id: adminId, csrf: csrfToken }
+    { id: adminId }
   )
 
   // Step 4: Navigate to dashboard and verify the app accepts the session

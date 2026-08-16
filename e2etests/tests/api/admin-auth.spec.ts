@@ -16,7 +16,6 @@ import { loginAs } from "../../utils/csrf";
 test.describe.configure({ mode: 'default' })
 
 const API_BASE = "http://localhost:8080/api";
-const FRONTEND_BASE = "http://localhost:5173";
 // Same path auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
 const ADMIN_STORAGE_STATE_PATH = path.join("playwright", ".auth", "admin.json");
 
@@ -124,17 +123,28 @@ test.describe("Admin Authentication", () => {
   // exact same session works for all of them. Tests that exercise logout call
   // login() directly instead, so they get their own (real, freshly-obtained) session.
   let cachedSession: Promise<{ cookieString: string; csrfToken: string }> | null = null;
-  function loginCached(): Promise<{ cookieString: string; csrfToken: string }> {
+  function loginCached(request: APIRequestContext): Promise<{ cookieString: string; csrfToken: string }> {
     if (!cachedSession) {
       cachedSession = (async () => {
         const stored = JSON.parse(readFileSync(ADMIN_STORAGE_STATE_PATH, "utf-8"));
         const sessionCookie = stored.cookies?.find((c: any) => c.name === "_session");
-        const frontendOrigin = stored.origins?.find((o: any) => o.origin === FRONTEND_BASE);
-        const csrfToken = frontendOrigin?.localStorage?.find((item: any) => item.name === "csrf_token")?.value;
-        if (!sessionCookie || !csrfToken) {
-          throw new Error(`Missing session cookie or csrf_token in ${ADMIN_STORAGE_STATE_PATH}`);
+        if (!sessionCookie) {
+          throw new Error(`Missing session cookie in ${ADMIN_STORAGE_STATE_PATH}`);
         }
-        return { cookieString: `${sessionCookie.name}=${sessionCookie.value}`, csrfToken };
+        const cookieString = `${sessionCookie.name}=${sessionCookie.value}`;
+        // The CSRF token is no longer persisted to localStorage (#109) — fetch a
+        // fresh one from the session itself, same as the frontend does on boot.
+        const profileResponse = await request.get(`${API_BASE}/auth/profile`, {
+          headers: { cookie: cookieString },
+        });
+        if (!profileResponse.ok()) {
+          throw new Error(`Failed to fetch CSRF token via /auth/profile (${profileResponse.status()})`);
+        }
+        const csrfToken = (await profileResponse.json()).csrf_token;
+        if (!csrfToken) {
+          throw new Error("No csrf_token in /auth/profile response");
+        }
+        return { cookieString, csrfToken };
       })();
     }
     return cachedSession;
@@ -315,7 +325,7 @@ test.describe("Admin Authentication", () => {
     test("should return admin profile with valid session", async ({
       request,
     }) => {
-      const { cookieString } = await loginCached();
+      const { cookieString } = await loginCached(request);
 
       const profileResponse = await request.get(`${API_BASE}/auth/profile`, {
         headers: { cookie: cookieString },
@@ -373,7 +383,7 @@ test.describe("Admin Authentication", () => {
     test("should allow authenticated access to GET /api/admin/members", async ({
       request,
     }) => {
-      const { cookieString } = await loginCached();
+      const { cookieString } = await loginCached(request);
 
       const response = await request.get(`${API_BASE}/admin/members`, {
         headers: { cookie: cookieString },
@@ -430,7 +440,7 @@ test.describe("Admin Authentication", () => {
     test("should maintain session across multiple requests", async ({
       request,
     }) => {
-      const { cookieString } = await loginCached();
+      const { cookieString } = await loginCached(request);
 
       // Make multiple requests with same session
       const profile1 = await request.get(`${API_BASE}/auth/profile`, {

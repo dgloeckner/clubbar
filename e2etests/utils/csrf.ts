@@ -6,31 +6,34 @@
  * don't need to deal with token extraction or header construction.
  *
  * Two usage patterns:
- * 1. Admin-chromium tests (page.request): use csrfHeaders(page) to read token from localStorage
+ * 1. Admin-chromium tests (page.request): use csrfHeaders(page) to fetch a token via /auth/profile
  * 2. API tests (fresh request contexts): use loginAs() to create a CSRF-aware context
  */
 
 import { test } from '@playwright/test'
 import type { Page, APIRequestContext, Playwright } from '@playwright/test'
-import { readFileSync } from 'fs'
 import path from 'path'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
 import { generateTotp, submitTotpWithRetry } from './totp'
 
 const API_BASE = 'http://localhost:8080/api'
-const FRONTEND_BASE = 'http://localhost:5173'
 // Same path auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
 const ADMIN_STORAGE_STATE_PATH = path.join('playwright', '.auth', 'admin.json')
 
 /**
  * Get headers object with the CSRF token for use with page.request mutations.
- * Reads the CSRF token from the page's localStorage (set by the frontend during login).
+ *
+ * The frontend keeps the token in memory only, not in localStorage (#109), so
+ * it isn't readable from the page context. Fetch a fresh one from the API
+ * instead — page.request shares the page's cookie jar, so the session cookie
+ * carries over automatically.
  */
 export async function csrfHeaders(
   page: Page,
   extraHeaders?: Record<string, string>
 ): Promise<Record<string, string>> {
-  const token = await page.evaluate(() => localStorage.getItem('csrf_token') ?? '')
+  const response = await page.request.get(`${API_BASE}/auth/profile`)
+  const token = response.ok() ? ((await response.json()).csrf_token ?? '') : ''
   return {
     ...extraHeaders,
     ...(token ? { 'X-CSRF-Token': token } : {}),
@@ -109,16 +112,23 @@ export async function loginAs(
   // is how #338 turns benign concurrent test logins into 401s (or, worse,
   // into login-rate-limiter lockouts once a replay is rejected enough times).
   if (email === TEST_CREDENTIALS.admin.email && password === TEST_CREDENTIALS.admin.password && !totpSecret) {
-    const stored = JSON.parse(readFileSync(ADMIN_STORAGE_STATE_PATH, 'utf-8'))
-    const frontendOrigin = stored.origins?.find((o: any) => o.origin === FRONTEND_BASE)
-    const csrfToken = frontendOrigin?.localStorage?.find((item: any) => item.name === 'csrf_token')?.value
+    const ctx = await playwright.request.newContext({ baseURL: API_BASE, storageState: ADMIN_STORAGE_STATE_PATH })
+    // The CSRF token is no longer persisted to localStorage (#109) — fetch a
+    // fresh one from the session itself, same as the frontend does on boot.
+    const profileResponse = await ctx.get(`${API_BASE}/auth/profile`)
+    if (!profileResponse.ok()) {
+      throw new Error(
+        `Failed to fetch CSRF token via /auth/profile (${profileResponse.status()}) using the session in ` +
+        `${ADMIN_STORAGE_STATE_PATH}. Did the "setup auth" project run first?`
+      )
+    }
+    const csrfToken = (await profileResponse.json()).csrf_token
     if (!csrfToken) {
       throw new Error(
-        `No csrf_token found in ${ADMIN_STORAGE_STATE_PATH} for origin ${FRONTEND_BASE}. ` +
+        `No csrf_token in /auth/profile response using the session in ${ADMIN_STORAGE_STATE_PATH}. ` +
         `Did the "setup auth" project run first?`
       )
     }
-    const ctx = await playwright.request.newContext({ baseURL: API_BASE, storageState: ADMIN_STORAGE_STATE_PATH })
     return new CsrfAwareContext(ctx, csrfToken)
   }
 
