@@ -264,11 +264,26 @@ Four decisions this milestone had to make, and one thing #409 asks for that is n
 |---|---|
 | The gate's **refusing** half as an E2E: no `cron_heartbeat` row → finalize refused | The row is a singleton the whole backend shares, and `hasEverRun()` never re-closes. Deleting it would block every settlement any concurrently running project creates — the shared-mutable-state failure Patterns 001/004 exist to prevent, in its intermittent form. It is asserted where it can be: `SchedulerGateHttpTest` over a real database, and `scheduler-banner.spec.ts` over the rendered component. What was missing and *is* here is the other half, which no constructed test could show: a real `bin/cron.php` run is what the panel then reports as verified, `source=cli`, with the CLI's own PHP version — the field that exists because on mass hosting it is frequently not the web PHP |
 
-### P10 — Follow-up: payment-request email for `bank_transfer` ([#410](https://github.com/dgloeckner/clubbar/issues/410))
+### P10 — Withdrawn: there is no payment-request email ([#410](https://github.com/dgloeckner/clubbar/issues/410), closed unbuilt)
 
-- [ ] Enqueue `payment_request` for `bank_transfer` settlements — amount, club bank details, payment reference; **no** mandate reference, **no** creditor ID
-- [ ] Decide whether `write_off` notifies at all (recommendation: no — no money moves, no member action)
-- Verify: PHPUnit — a bank-transfer settlement enqueues only `payment_request` rows and the content carries no mandate reference; E2E via Mailpit
+P10 asked for a *payment request* on `bank_transfer` settlements — amount, club bank details, payment reference — on the premise that "the member has to transfer the money themselves". **That premise is false in this system**, and three places said so before the issue was written:
+
+| Source | Says |
+|---|---|
+| [ADR-0032](../adr/0032-settlement-lifecycle.md) §4 | `bank_transfer` \| cancellable: **never** \| *"the money already arrived"* |
+| `CancellationGate` | refuses with *"This settlement records money the member has already transferred… Reverse it instead."* |
+| [UC-A35](../use-cases/admin/UC-A35-manual-settlement.md) | manual settlement covers *"Payments **received** by bank transfer"* |
+
+A `bank_transfer` settlement is the **closing record of money that has already arrived**, so a mail asking for it would ask the member to pay a second time. The implementation was stopped at that point rather than shipped.
+
+The *need* behind the issue is real but small: SEPA can be closed for one member in two ways — no active mandate (`ineligible`), or a collection hold after a bank return (ADR-0032 §7, where the hold exists precisely so no run collects from them again). Both leave a live debt SEPA cannot take.
+
+**Ruling (2026-08-15): the club contacts those members directly — by phone or email — and the system sends nothing.** For a club of this size it is a handful of members a year, and a template plus a trigger plus a retention tier is machinery around a conversation. `write_off` likewise mails nobody: no money moves and there is nothing for the member to do.
+
+- [x] `CONTEXT.md` gains **Settlement method**, whose last line is the rule this cost a slice to learn: *nothing in the system ever asks a member to send money* — with `payment request` in its `_Avoid_` list
+- [x] [ADR-0038](../adr/0038-transactional-mail-outbox-on-shared-hosting.md)'s scope table said the opposite (*"a payment request variant … the `kind` value is reserved for it"*) — that row is the sentence that generated #410, and now carries the ruling
+- [x] `MailKind::PAYMENT_REQUEST` **removed entirely** rather than left reserved: migration `036` re-declares `mail_outbox.kind` and `settlement_announcements.kind` without it, and the enum case, the builder's arm, the retention arm, the OpenAPI enums, the regenerated frontend types, the queue page's filter and both locale files go with it. A filter offering a kind nothing can produce is a promise the product does not keep
+- Verify: PHPUnit green; a queue filter for `payment_request` is refused as an unknown value like any other; `mail-chain` unaffected
 
 ## Order and parallelism
 

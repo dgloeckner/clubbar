@@ -48,6 +48,16 @@ _Avoid_: refund (that is what the bank does to a member under the SEPA return ri
 A periodic run that collects members' unsettled transactions into a SEPA direct-debit batch (or manual settlement).
 _Avoid_: billing run, invoice
 
+**Settlement method**:
+What actually happened to the money in a settlement — never a plan for what might.
+
+`direct_debit` — the club collects by SEPA. The only method that batches, exports and carries a Vorabankündigung.
+`bank_transfer` — the member has already paid; the treasurer is recording receipt. Never cancellable (the money is in), only reversible.
+`write_off` — the club has given up collecting. No money moves either way.
+
+A settlement records money the club has collected, has received, or has given up on. **Nothing in the system ever asks a member to send money.** A member SEPA cannot collect from — no mandate, or on collection hold after a bank return — is contacted by the Kassenwart directly, by phone or email.
+_Avoid_: manual settlement (says how it was entered, not what happened), payment request
+
 ### Notifications
 
 **Vorabankündigung**:

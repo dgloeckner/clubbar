@@ -67,7 +67,6 @@ final class MailRetention
         return match ($kind) {
             MailKind::SEPA_PRENOTIFICATION,
             MailKind::CANCELLATION_NOTICE,
-            MailKind::PAYMENT_REQUEST,
             MailKind::KEY_EXPIRY_WARNING,
             MailKind::TERMINAL_TOKEN_EXPIRY_WARNING,
             MailKind::TERMINAL_ANOMALY_WARNING => self::DEFAULT_SENT_DAYS,

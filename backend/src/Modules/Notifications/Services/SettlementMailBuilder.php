@@ -46,9 +46,11 @@ class SettlementMailBuilder implements MailContentBuilder
     ) {}
 
     /**
-     * The three settlement kinds — everything whose subject is a settlement.
-     * `payment_request` is claimed here too so #410 lands as a branch in this
-     * class rather than a fourth builder for the same subject.
+     * Both settlement kinds — everything whose subject is a settlement.
+     *
+     * There are two, not three: `payment_request` was removed with migration
+     * `034` (see {@see MailKind}). A settlement announces a collection or
+     * retracts one; it never asks a member to send money.
      */
     public function supports(MailKind $kind): bool
     {
@@ -62,8 +64,6 @@ class SettlementMailBuilder implements MailContentBuilder
      *         which cannot happen through the application (the FK cascades), so
      *         it means somebody deleted rows by hand and the message must not
      *         be invented around the gap.
-     * @throws \InvalidArgumentException On a kind this builder has no content
-     *         for — `payment_request` until #410 lands.
      */
     public function build(array $outboxRow): MailMessage
     {
@@ -132,10 +132,6 @@ class SettlementMailBuilder implements MailContentBuilder
                 dueDate: (string) $settlement['execution_date'],
                 treasurerEmail: $mailConfig->replyToAddress,
             )),
-
-            MailKind::PAYMENT_REQUEST => throw new \InvalidArgumentException(
-                'payment_request has no content yet — it lands with #410, and nothing enqueues it before then'
-            ),
         };
     }
 

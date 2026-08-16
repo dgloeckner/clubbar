@@ -63,10 +63,14 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 key, which is why one settlement can carry both an announcement and a
 later cancellation notice for the same member.
 
-`payment_request` ([#410](https://github.com/dgloeckner/clubbar/issues/410))
-and the two expiry warnings
+The two expiry warnings
 ([#438](https://github.com/dgloeckner/clubbar/issues/438)) are reserved:
-the storage accepts them, and nothing enqueues them yet.
+the storage accepts them, and nothing enqueues them yet. There is no
+`payment_request` — it was reserved for
+[#410](https://github.com/dgloeckner/clubbar/issues/410) and removed with
+migration `034` when that issue was closed unbuilt, because a
+`bank_transfer` settlement records money that already arrived and a mail
+asking for it would ask twice.
 
 `terminal_anomaly_warning` is queued by the anomaly detector
 ([ADR-0041](../../adr/0041-terminal-credential-anomaly-detection.md)) and
@@ -79,7 +83,6 @@ export type MailKind = typeof MailKind[keyof typeof MailKind];
 export const MailKind = {
   sepa_prenotification: 'sepa_prenotification',
   cancellation_notice: 'cancellation_notice',
-  payment_request: 'payment_request',
   key_expiry_warning: 'key_expiry_warning',
   terminal_token_expiry_warning: 'terminal_token_expiry_warning',
   terminal_anomaly_warning: 'terminal_anomaly_warning',

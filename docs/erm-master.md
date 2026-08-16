@@ -145,7 +145,7 @@ erDiagram
         bigint id PK "Internal reference"
         char_36 settlement_id FK "Which collection was announced"
         char_36 member_id FK "Who was announced to"
-        enum kind "sepa_prenotification, cancellation_notice, payment_request"
+        enum kind "sepa_prenotification, cancellation_notice"
         datetime sent_at "When the transport accepted it (copied from the queue row)"
     }
 
@@ -560,7 +560,7 @@ An event table rather than columns on `settlement_items` for the reason [ADR-003
 | id | BIGINT | PK, AUTO_INCREMENT | Internal reference |
 | settlement_id | CHAR(36) | FK → settlements.id (CASCADE), NOT NULL | Which collection was announced |
 | member_id | CHAR(36) | FK → members.id (RESTRICT), NOT NULL | Who was announced to. RESTRICT because a member is anonymised, never deleted — and the retention tier must not leave with them |
-| kind | ENUM | NOT NULL | `sepa_prenotification` · `cancellation_notice` · `payment_request`. Only member-addressed settlement mail; an expiry warning has no settlement to be evidence against |
+| kind | ENUM | NOT NULL | `sepa_prenotification` · `cancellation_notice`. Only member-addressed settlement mail; an expiry warning has no settlement to be evidence against |
 | sent_at | DATETIME | NOT NULL | When the transport accepted it. **Copied from the queue row**, not stamped from a second clock, so the two cannot disagree while both exist |
 
 **Indexes:**
@@ -580,7 +580,7 @@ There is **no body column**. Content is rendered from settlement data at send ti
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | CHAR(36) | PK | UUID |
-| kind | ENUM | NOT NULL | `sepa_prenotification` · `cancellation_notice` · `payment_request` · `key_expiry_warning` · `terminal_token_expiry_warning` · `terminal_anomaly_warning` |
+| kind | ENUM | NOT NULL | `sepa_prenotification` · `cancellation_notice` · `key_expiry_warning` · `terminal_token_expiry_warning` · `terminal_anomaly_warning`. A `payment_request` value existed until migration `036` removed it — see CONTEXT.md, **Settlement method** |
 | subject_id | CHAR(36) | NOT NULL, no FK | What the message is about; which table it points at is decided by `kind`. Polymorphic, so no foreign key is possible — stated rather than hidden |
 | dedup_key | VARCHAR(64) | NOT NULL | The rest of a message's identity: the member for settlement mail, the warning tier for an expiry warning |
 | member_id | CHAR(36) | FK → members.id (CASCADE), NULL | The member written to, when there is one. The FK is how erasure finds this table |

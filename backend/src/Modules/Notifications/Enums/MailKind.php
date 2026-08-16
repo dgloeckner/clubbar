@@ -16,6 +16,13 @@ namespace App\Modules\Notifications\Enums;
  * what `subject_id` points at ({@see subjectType()}), and whether the message
  * is addressed to a member or to an admin ({@see addressesMember()}). Both live
  * here so there is one place to be right.
+ *
+ * **There is no `payment_request`.** It was reserved for #410 — a mail asking a
+ * member to transfer their Deckel when SEPA could not collect it — and removed
+ * with migration `036` when the issue was closed unbuilt: a `bank_transfer`
+ * settlement is the record of money that *already arrived* (ADR-0032 §4), so
+ * such a mail would ask for it twice. Nothing in this system asks a member to
+ * send money; see **Settlement method** in CONTEXT.md.
  */
 enum MailKind: string
 {
@@ -24,13 +31,6 @@ enum MailKind: string
 
     /** „Einzug entfällt" — sent only to members whose announcement actually went out. */
     case CANCELLATION_NOTICE = 'cancellation_notice';
-
-    /**
-     * Reserved for #410: `bank_transfer` settlements need a payment request
-     * (amount, club bank details, payment reference) and explicitly **no**
-     * mandate reference or creditor ID. Nothing enqueues this yet.
-     */
-    case PAYMENT_REQUEST = 'payment_request';
 
     /**
      * Reserved for #438: an encryption key approaching expiry, at one of the
@@ -62,8 +62,7 @@ enum MailKind: string
     {
         return match ($this) {
             self::SEPA_PRENOTIFICATION,
-            self::CANCELLATION_NOTICE,
-            self::PAYMENT_REQUEST => MailSubject::SETTLEMENT,
+            self::CANCELLATION_NOTICE => MailSubject::SETTLEMENT,
             self::KEY_EXPIRY_WARNING => MailSubject::ENCRYPTION_KEY,
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING => MailSubject::TERMINAL,

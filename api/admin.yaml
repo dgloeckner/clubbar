@@ -5662,7 +5662,7 @@ components:
           format: uuid
         kind:
           type: string
-          enum: [sepa_prenotification, cancellation_notice, payment_request]
+          enum: [sepa_prenotification, cancellation_notice]
           description: |
             Only member-addressed settlement mail appears here. An expiry
             warning is about a credential and goes to an admin — there is no
@@ -6209,10 +6209,14 @@ components:
         key, which is why one settlement can carry both an announcement and a
         later cancellation notice for the same member.
 
-        `payment_request` ([#410](https://github.com/dgloeckner/clubbar/issues/410))
-        and the two expiry warnings
+        The two expiry warnings
         ([#438](https://github.com/dgloeckner/clubbar/issues/438)) are reserved:
-        the storage accepts them, and nothing enqueues them yet.
+        the storage accepts them, and nothing enqueues them yet. There is no
+        `payment_request` — it was reserved for
+        [#410](https://github.com/dgloeckner/clubbar/issues/410) and removed with
+        migration `036` when that issue was closed unbuilt, because a
+        `bank_transfer` settlement records money that already arrived and a mail
+        asking for it would ask twice.
 
         `terminal_anomaly_warning` is queued by the anomaly detector
         ([ADR-0041](../../adr/0041-terminal-credential-anomaly-detection.md)) and
@@ -6220,7 +6224,6 @@ components:
       enum:
         - sepa_prenotification
         - cancellation_notice
-        - payment_request
         - key_expiry_warning
         - terminal_token_expiry_warning
         - terminal_anomaly_warning
