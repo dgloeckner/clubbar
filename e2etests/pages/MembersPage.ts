@@ -74,6 +74,17 @@ export class MembersPage extends BasePage {
   private readonly bankNameDisplay = () => this.page.getByTestId('members-form-bank-name')
   private readonly storedIbanDisplay = () => this.page.getByTestId('members-form-iban-stored')
   private readonly removeStoredIbanButton = () => this.page.getByTestId('members-form-iban-remove')
+  private readonly changeIbanButton = () => this.page.getByTestId('members-form-iban-change')
+  private readonly cancelIbanChangeButton = () => this.page.getByTestId('members-form-iban-change-cancel')
+  private readonly ibanRemovalPending = () => this.page.getByTestId('members-form-iban-removal-pending')
+  private readonly undoRemoveStoredIbanButton = () => this.page.getByTestId('members-form-iban-remove-undo')
+
+  // Mandate reference: assigned by the server unless one is typed (ADR-0006)
+  private readonly mandateReferenceAssigned = () => this.page.getByTestId('members-form-mandate-reference-assigned')
+  private readonly mandateReferenceAuto = () => this.page.getByTestId('members-form-mandate-reference-auto')
+  private readonly enterMandateReferenceButton = () => this.page.getByTestId('members-form-mandate-reference-enter')
+  private readonly changeMandateReferenceButton = () => this.page.getByTestId('members-form-mandate-reference-change')
+  private readonly cancelMandateReferenceButton = () => this.page.getByTestId('members-form-mandate-reference-cancel')
 
   // Filter controls
   private readonly clearFiltersBtn = () => this.page.getByTestId('members-clear-filters')
@@ -261,6 +272,7 @@ export class MembersPage extends BasePage {
       await this.emailInput().fill(email)
     }
     if (iban) {
+      await this.revealIbanInput()
       await this.ibanInput().fill(iban.toUpperCase())
     }
     if (mandateDate) {
@@ -307,6 +319,27 @@ export class MembersPage extends BasePage {
     await this.expectFormModalVisible()
     await this.fillMemberForm(firstName, lastName, iban, mandateDate, email, language)
     await this.submitForm()
+  }
+
+  /**
+   * Find a member by name and open its edit form.
+   *
+   * Clears the search first: `search()` waits for a request carrying its query,
+   * and re-filling the box with the value it already holds fires no change
+   * event and therefore no request. Tests that save and reopen the same member
+   * hit exactly that.
+   */
+  async reopenMemberForm(firstName: string) {
+    // Both helpers wait for a request their own edit triggers, so calling
+    // either with the value the box already holds fires no change event and
+    // then waits out its timeout. Only clear when there is something to clear.
+    if ((await this.getSearchValue()) !== '') {
+      await this.clearSearch()
+    }
+    await this.search(firstName)
+    await this.expectMemberVisibleInTable(firstName)
+    await this.clickEditButtonForMember(firstName)
+    await this.expectFormModalVisible()
   }
 
   async openEditModalForMember(memberId: string) {
@@ -409,7 +442,13 @@ export class MembersPage extends BasePage {
     return await this.emailInput().inputValue() || ''
   }
 
+  /**
+   * What the IBAN input holds, or '' when it is not showing at all — which is
+   * the normal state for a member whose account is already on file. Prefer
+   * `expectIbanInputHidden()` for that case; it says why.
+   */
   async getFormIbanValue(): Promise<string> {
+    if (!(await this.ibanInput().isVisible())) return ''
     return await this.ibanInput().inputValue() || ''
   }
 
@@ -421,16 +460,66 @@ export class MembersPage extends BasePage {
     return await this.accountHolderNameInput().inputValue() || ''
   }
 
+  /**
+   * The mandate reference as the form currently holds it — from the input when
+   * one is showing, otherwise from the read-only box that displays the
+   * reference the server assigned (ADR-0006).
+   */
   async getFormMandateReferenceValue(): Promise<string> {
-    return await this.mandateReferenceInput().inputValue() || ''
+    if (await this.mandateReferenceInput().isVisible()) {
+      return await this.mandateReferenceInput().inputValue() || ''
+    }
+    // The assigned box also carries a copy button, so read the value element
+    // rather than the box's text.
+    const value = this.page.getByTestId('members-form-mandate-reference-value')
+    if (await value.isVisible()) {
+      return (await value.textContent() || '').trim()
+    }
+    return ''
   }
 
   async fillAccountHolderName(name: string) {
     await this.accountHolderNameInput().fill(name)
   }
 
+  /**
+   * Typing a reference is the migration case, so the input is behind an action
+   * ("Enter an existing reference" / "Change"). Reveal it if it is not showing,
+   * so callers keep expressing intent rather than UI state.
+   */
   async fillMandateReference(reference: string) {
+    await this.revealMandateReferenceInput()
     await this.mandateReferenceInput().fill(reference.toUpperCase())
+  }
+
+  private async revealMandateReferenceInput() {
+    if (await this.mandateReferenceInput().isVisible()) return
+    if (await this.changeMandateReferenceButton().isVisible()) {
+      await this.changeMandateReferenceButton().click()
+    } else {
+      await this.enterMandateReferenceButton().click()
+    }
+    await expect(this.mandateReferenceInput()).toBeVisible()
+  }
+
+  async beginMandateReferenceEntry() {
+    await this.revealMandateReferenceInput()
+  }
+
+  async cancelMandateReferenceEntry() {
+    await this.cancelMandateReferenceButton().click()
+  }
+
+  async expectMandateReferenceAutoVisible() {
+    await expect(this.mandateReferenceAuto()).toBeVisible()
+  }
+
+  async expectMandateReferenceAssignedContains(text: string) {
+    await expect(this.mandateReferenceAssigned()).toContainText(text)
+  }
+
+  async expectMandateReferenceInputHidden() {
+    await expect(this.mandateReferenceInput()).toBeHidden()
   }
 
   async expectIbanValidVisible() {
@@ -490,10 +579,11 @@ export class MembersPage extends BasePage {
   }
 
   /**
-   * The stored account shown beside the (empty) IBAN field when editing a
+   * The stored account, shown *in place of* the IBAN input when editing a
    * member who has one — '****3000 · Commerzbank'. The IBAN itself is sealed
-   * and never returned (ADR-0036), so this line is the whole of what the form
-   * can display, and it is why leaving the field blank keeps the account.
+   * and never returned (ADR-0036), so this box is the whole of what the form
+   * can display, and showing it instead of an empty field is what makes
+   * "leave it alone to keep the account" visible rather than explained (#392).
    */
   async expectStoredIbanContains(text: string) {
     await expect(this.storedIbanDisplay()).toContainText(text)
@@ -506,6 +596,59 @@ export class MembersPage extends BasePage {
   /** Queue removal of the stored bank details — the explicit revoke path. */
   async removeStoredIban() {
     await this.removeStoredIbanButton().click()
+  }
+
+  /** Take back a queued removal before saving. */
+  async undoRemoveStoredIban() {
+    await this.undoRemoveStoredIbanButton().click()
+  }
+
+  async expectIbanRemovalPendingVisible() {
+    await expect(this.ibanRemovalPending()).toBeVisible()
+  }
+
+  async expectIbanRemovalPendingHidden() {
+    await expect(this.ibanRemovalPending()).toBeHidden()
+  }
+
+  /**
+   * The SEPA banner at the top of the form. It previews what *this submit*
+   * would do, so it moves with the pending removal or a newly typed IBAN
+   * rather than reporting the state as it was loaded (#392).
+   */
+  async expectSepaStatusContains(text: string) {
+    await expect(this.page.getByTestId('members-form-sepa-status')).toContainText(text)
+  }
+
+  /** Reveal the IBAN input for a member whose account is already on file. */
+  async beginIbanChange() {
+    await this.changeIbanButton().click()
+    await expect(this.ibanInput()).toBeVisible()
+  }
+
+  /** Abandon a replacement — the stored account stays. */
+  async cancelIbanChange() {
+    await this.cancelIbanChangeButton().click()
+    await expect(this.ibanInput()).toBeHidden()
+  }
+
+  async expectIbanInputVisible() {
+    await expect(this.ibanInput()).toBeVisible()
+  }
+
+  async expectIbanInputHidden() {
+    await expect(this.ibanInput()).toBeHidden()
+  }
+
+  private async revealIbanInput() {
+    if (await this.ibanInput().isVisible()) return
+    await this.beginIbanChange()
+  }
+
+  /** Type an IBAN, revealing the input first if a stored account is standing in for it. */
+  async fillIban(iban: string) {
+    await this.revealIbanInput()
+    await this.ibanInput().fill(iban.toUpperCase())
   }
 
   async selectLanguage(language: string) {

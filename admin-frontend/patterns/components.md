@@ -517,6 +517,49 @@ function IbanInput({ iban, validateIban }) {
 
 ---
 
+#### StoredFieldBox / StoredFieldAction
+
+The read-only box that **stands in for an input** when the value is already on
+file and is not routinely retyped, plus the underlined text actions that sit
+under it.
+
+**File**: `src/components/members/StoredFieldBox.tsx`
+
+**Why it exists** (issue #392): an empty input with a grey example value in it
+reads as "this is what is stored, greyed out" — the opposite of the truth. Two
+member fields have exactly that shape, and both used to explain the rule in
+prose underneath instead of showing it:
+
+- the **IBAN**, sealed under the club's public key and unreadable by the server
+  ([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)), so the input can
+  only ever *overwrite* it;
+- the **mandate reference**, minted by the server when the mandate is opened
+  ([ADR-0006](../../adr/0006-sepa-mandate-reference-strategy.md)).
+
+**Props** (`StoredFieldBox`):
+- `value` (ReactNode, required): The value, already in display form
+- `pending` (boolean, default false): Dimmer + italic — for "will be assigned on save"
+- `actions` (ReactNode, optional): Buttons rendered under the box
+- `monospace` (boolean, default true): Off automatically while `pending`
+- `testId` (string, optional)
+
+**Props** (`StoredFieldAction`): `onClick`, `tone` (`'neutral' | 'danger' | 'primary'`), `testId`, children.
+
+**Rules**:
+- It is **not** an `<input readOnly>`. A disabled-looking field still invites
+  typing, and a focusable one lands in the tab order for nothing.
+- Actions are always `type="button"` — inside a form the default `submit` would
+  make "Change" save the record.
+- Reveal the real input on demand, and move focus into it; otherwise keyboard
+  users are stranded on the button that just disappeared.
+
+**Used by**: `MemberIbanField`, `MemberMandateReferenceField` (both in
+`src/components/members/`). Each renders one of three states — see
+[UC-A12](../../use-cases/admin/UC-A12-edit-member.md) *Banking Fields* for the
+state tables.
+
+---
+
 ### Layout Components
 
 #### PageHeader Component

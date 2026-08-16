@@ -33,10 +33,12 @@ import { validateIban } from '../utils/iban'
 import { toIsoDate } from '../utils/dates'
 import { buildMemberSortBy, type MemberSortKey } from '../utils/memberSort'
 import { getBalanceColor } from '../utils/transactions'
-import { useBankName } from '../hooks/useBankName'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { useListQuery } from '../hooks/useListQuery'
-import { ValidationIndicator } from '../components/forms/ValidationIndicator'
+import { MemberIbanField } from '../components/members/MemberIbanField'
+import { MemberMandateReferenceField } from '../components/members/MemberMandateReferenceField'
+import { deriveSepaFormStatus } from '../utils/sepaStatus'
+import { Alert } from '../components/common/Alert'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import {
   tableWrapperStyles,
@@ -144,7 +146,47 @@ export function MembersPage() {
   // Removing the stored account is its own act, because a blank IBAN field now
   // means "keep" (#392). Reset wherever the form is opened or cleared.
   const [removeStoredIban, setRemoveStoredIban] = useState(false)
-  const { bankName, isLoading: isBankNameLoading } = useBankName(formData.iban)
+  // Overwrite-only (ADR-0036): for a member who has bank details, the IBAN
+  // input appears only on request. While it is hidden `formData.iban` cannot
+  // hold anything, which is what makes "leave it alone to keep the account"
+  // true by construction rather than by instruction.
+  const [isReplacingIban, setIsReplacingIban] = useState(false)
+  // The mandate reference is minted by the server (ADR-0006); typing one is
+  // the migration case, so it too is opt-in rather than the default state.
+  const [isEnteringMandateReference, setIsEnteringMandateReference] = useState(false)
+
+  // Which of its three states each banking field is in. Derived rather than
+  // stored, so there is no way for the flags and the rendering to disagree.
+  const storedIbanMasked = editingMember?.iban_last4
+    ? (editingMember.iban_masked ?? `****${editingMember.iban_last4}`)
+    : null
+  const ibanFieldMode = removeStoredIban
+    ? 'removing'
+    : storedIbanMasked && !isReplacingIban
+      ? 'stored'
+      : 'entry'
+
+  const assignedMandateReference = editingMember?.mandate_reference ?? null
+  const mandateReferenceMode = isEnteringMandateReference
+    ? 'entry'
+    : assignedMandateReference
+      ? 'assigned'
+      : 'auto'
+
+  const sepaFormStatus = deriveSepaFormStatus({
+    savedIsValid: Boolean(editingMember?.is_sepa_valid),
+    hasStoredIban: Boolean(storedIbanMasked),
+    removalPending: removeStoredIban,
+    typedIban: formData.iban,
+    mandateReference: formData.mandate_reference,
+  })
+
+  /** Clears the banking fields' opt-in states — every path that opens or closes the form. */
+  const resetBankingFieldModes = () => {
+    setRemoveStoredIban(false)
+    setIsReplacingIban(false)
+    setIsEnteringMandateReference(false)
+  }
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -305,7 +347,7 @@ export function MembersPage() {
       setShowModal(false)
       setEditingMember(null)
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
-      setRemoveStoredIban(false)
+      resetBankingFieldModes()
 
       // Reload members list with the active filters still applied
       await list.reload()
@@ -415,7 +457,7 @@ export function MembersPage() {
       // was open then — leaving it behind renders it under this member's fields
       // (#131).
       setFormErrors({})
-      setRemoveStoredIban(false)
+      resetBankingFieldModes()
       setFormData({
         first_name: fullMember.first_name ?? '',
         last_name: fullMember.last_name ?? '',
@@ -484,7 +526,7 @@ export function MembersPage() {
                 setEditingMember(null)
                 setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
                 setFormErrors({})
-                setRemoveStoredIban(false)
+                resetBankingFieldModes()
                 setShowModal(true)
               }}
               iconOnly={isMobile}
@@ -1419,36 +1461,48 @@ export function MembersPage() {
               {editingMember ? t('members.editMember') : t('members.createMember')}
             </h2>
 
-            {/* SEPA Status Indicator */}
+            {/*
+              SEPA status. It used to report `is_sepa_valid` as loaded, which
+              left "SEPA-Mandat gültig" standing above the line announcing that
+              the mandate is about to be revoked. It now previews what this
+              submit would do, and says so where that differs from what is
+              saved (#392).
+            */}
             {editingMember && (
-              <div
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: 6,
-                  marginBottom: theme.spacing.md,
-                  backgroundColor: editingMember.is_sepa_valid
-                    ? theme.badges.success.bg
-                    : theme.badges.danger.bg,
-                  border: `1px solid ${editingMember.is_sepa_valid ? theme.colors.semantic.success : theme.colors.semantic.danger}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: theme.spacing.sm,
-                }}
-                data-testid="members-form-sepa-status"
-              >
-                <span style={{ fontSize: 18 }}>
-                  {editingMember.is_sepa_valid ? '✓' : '⚠'}
-                </span>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: theme.colors.text.primary }}>
-                    {editingMember.is_sepa_valid ? t('members.sepaValid') : t('members.sepaMissing')}
-                  </div>
-                  {!editingMember.is_sepa_valid && (
-                    <div style={{ fontSize: 12, color: theme.colors.text.secondary, marginTop: 4 }}>
-                      {t('members.sepaMissingHint')}
-                    </div>
-                  )}
-                </div>
+              <div aria-live="polite">
+                <Alert
+                  testId="members-form-sepa-status"
+                  variant={
+                    sepaFormStatus === 'valid'
+                      ? 'success'
+                      : sepaFormStatus === 'willBecomeValid'
+                        ? 'info'
+                        : sepaFormStatus === 'willBecomeInvalid'
+                          ? 'warning'
+                          : 'danger'
+                  }
+                  icon={
+                    <span style={{ fontSize: theme.typography.fontSize.lg }}>
+                      {sepaFormStatus === 'valid' ? '✓' : sepaFormStatus === 'willBecomeValid' ? 'ⓘ' : '⚠'}
+                    </span>
+                  }
+                  title={
+                    sepaFormStatus === 'valid'
+                      ? t('members.sepaValid')
+                      : sepaFormStatus === 'willBecomeValid'
+                        ? t('members.sepaWillBecomeValid')
+                        : sepaFormStatus === 'willBecomeInvalid'
+                          ? t('members.sepaWillBecomeInvalid')
+                          : t('members.sepaMissing')
+                  }
+                  message={
+                    sepaFormStatus === 'valid'
+                      ? ''
+                      : sepaFormStatus === 'missing'
+                        ? t('members.sepaMissingHint')
+                        : t('members.sepaUnsavedHint')
+                  }
+                />
               </div>
             )}
 
@@ -1575,120 +1629,34 @@ export function MembersPage() {
                 )}
               </div>
 
-              <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.iban')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
-                  <ValidationIndicator
-                    isValid={validateIban(formData.iban)}
-                    show={formData.iban.length > 0}
-                    testId="members-form-iban-validation"
-                  />
-                </label>
-                <input
-                  data-testid="members-form-iban-input"
-                  type="text"
-                  value={formData.iban}
-                  onChange={(e) => { setFormData({ ...formData, iban: e.target.value.replace(/\s/g, '').toUpperCase() }); if (formErrors.iban) setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban'))) }}
-                  placeholder="DE89370400440532013000"
-                  minLength={15}
-                  maxLength={34}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${formErrors.iban ? theme.colors.semantic.danger : theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                    fontFamily: 'monospace',
-                  }}
-                />
-                {/*
-                  The stored account, for a member who has one. The IBAN itself
-                  is sealed (ADR-0036), so this is the whole of what the admin
-                  panel can show — and it is why the input above is empty:
-                  leaving it that way keeps this account, typing replaces it.
-                */}
-                {editingMember?.iban_last4 && !removeStoredIban && (
-                  <p
-                    data-testid="members-form-iban-stored"
-                    style={{
-                      fontSize: theme.typography.fontSize.sm,
-                      color: theme.colors.text.secondary,
-                      marginTop: theme.spacing.xs,
-                    }}
-                  >
-                    {t('members.storedIban', {
-                      masked: editingMember.iban_masked ?? `****${editingMember.iban_last4}`,
-                    })}
-                    {editingMember.bank_name ? ` · ${editingMember.bank_name}` : ''}
-                    {' — '}
-                    <button
-                      type="button"
-                      data-testid="members-form-iban-remove"
-                      onClick={() => { setRemoveStoredIban(true); setFormData((prev) => ({ ...prev, iban: '' })) }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        color: theme.colors.semantic.danger,
-                        cursor: 'pointer',
-                        font: 'inherit',
-                        textDecoration: 'underline',
-                      }}
-                    >
-                      {t('members.removeStoredIban')}
-                    </button>
-                  </p>
-                )}
-                {removeStoredIban && (
-                  <p
-                    data-testid="members-form-iban-removal-pending"
-                    style={{
-                      fontSize: theme.typography.fontSize.sm,
-                      color: theme.colors.semantic.danger,
-                      marginTop: theme.spacing.xs,
-                    }}
-                  >
-                    {t('members.storedIbanWillBeRemoved')}
-                    {' — '}
-                    <button
-                      type="button"
-                      data-testid="members-form-iban-remove-undo"
-                      onClick={() => setRemoveStoredIban(false)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        color: theme.colors.text.secondary,
-                        cursor: 'pointer',
-                        font: 'inherit',
-                        textDecoration: 'underline',
-                      }}
-                    >
-                      {t('common.undo')}
-                    </button>
-                  </p>
-                )}
-                {formData.iban.length >= 12 && formData.iban.toUpperCase().startsWith('DE') && (
-                  <p
-                    data-testid="members-form-bank-name"
-                    style={{
-                      fontSize: theme.typography.fontSize.sm,
-                      color: bankName ? theme.colors.text.secondary : theme.colors.text.muted,
-                      marginTop: theme.spacing.xs,
-                      fontStyle: bankName ? 'normal' : 'italic',
-                    }}
-                  >
-                    {bankName ?? (isBankNameLoading ? t('members.bankNameLoading') : '')}
-                  </p>
-                )}
-                {formErrors.iban && (
-                  <p data-testid="members-form-iban-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
-                    {formErrors.iban}
-                  </p>
-                )}
-              </div>
+              <MemberIbanField
+                mode={ibanFieldMode}
+                value={formData.iban}
+                onChange={(iban) => {
+                  setFormData((prev) => ({ ...prev, iban }))
+                  if (formErrors.iban) {
+                    setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban')))
+                  }
+                }}
+                storedMasked={storedIbanMasked}
+                storedBankName={editingMember?.bank_name}
+                isReplacing={isReplacingIban}
+                onBeginChange={() => setIsReplacingIban(true)}
+                onCancelChange={() => {
+                  // Clearing the field matters as much as hiding it: a half-typed
+                  // IBAN left behind would reach the payload invisibly.
+                  setIsReplacingIban(false)
+                  setFormData((prev) => ({ ...prev, iban: '' }))
+                  setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban')))
+                }}
+                onRemove={() => {
+                  setRemoveStoredIban(true)
+                  setIsReplacingIban(false)
+                  setFormData((prev) => ({ ...prev, iban: '' }))
+                }}
+                onUndoRemove={() => setRemoveStoredIban(false)}
+                error={formErrors.iban}
+              />
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
@@ -1716,32 +1684,26 @@ export function MembersPage() {
                 </span>
               </div>
 
-              <div>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.mandateReference')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
-                </label>
-                <input
-                  data-testid="members-form-mandate-reference-input"
-                  type="text"
-                  value={formData.mandate_reference}
-                  onChange={(e) => setFormData({ ...formData, mandate_reference: e.target.value.toUpperCase() })}
-                  placeholder={t('members.mandateReferencePlaceholder')}
-                  maxLength={35}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                    fontFamily: 'monospace',
-                  }}
-                />
-                <span style={{ fontSize: '12px', color: theme.colors.text.secondary, marginTop: '4px', display: 'block' }}>
-                  {t('members.mandateReferenceHint')}
-                </span>
-              </div>
+              <MemberMandateReferenceField
+                mode={mandateReferenceMode}
+                value={formData.mandate_reference}
+                onChange={(mandate_reference) => {
+                  setFormData((prev) => ({ ...prev, mandate_reference }))
+                  if (formErrors.mandate_reference) {
+                    setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'mandate_reference')))
+                  }
+                }}
+                assignedReference={assignedMandateReference}
+                onBeginEntry={() => setIsEnteringMandateReference(true)}
+                onCancelEntry={() => {
+                  // Back to whatever the server would do on its own: keep the
+                  // assigned reference, or let it mint one.
+                  setIsEnteringMandateReference(false)
+                  setFormData((prev) => ({ ...prev, mandate_reference: assignedMandateReference ?? '' }))
+                  setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'mandate_reference')))
+                }}
+                error={formErrors.mandate_reference}
+              />
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
@@ -1808,7 +1770,7 @@ export function MembersPage() {
                   <button
                     data-testid="members-form-cancel-button"
                     type="button"
-                    onClick={() => setShowModal(false)}
+                    onClick={() => { setShowModal(false); resetBankingFieldModes() }}
                     style={{
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                       background: 'transparent',

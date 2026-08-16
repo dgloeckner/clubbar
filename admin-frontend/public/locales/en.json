@@ -250,7 +250,23 @@
     "countFound_other": "{{count}} members found",
     "storedIban": "On file: {{masked}}",
     "removeStoredIban": "Remove bank details",
-    "storedIbanWillBeRemoved": "Bank details will be removed on save, revoking the mandate."
+    "storedIbanWillBeRemoved": "Bank details will be removed on save, revoking the mandate.",
+    "ibanStoredLabel": "encrypted, on file",
+    "ibanChange": "Change",
+    "ibanReplaces": "replaces {{masked}}",
+    "ibanCancelChange": "Cancel — {{masked}} stays on file",
+    "ibanPlaceholderNew": "Enter the new IBAN",
+    "ibanPlaceholderExample": "e.g. DE89 3704 0044 0532 0130 00",
+    "sepaWillBecomeValid": "SEPA mandate becomes valid on save",
+    "sepaWillBecomeInvalid": "SEPA mandate becomes invalid on save",
+    "sepaUnsavedHint": "Not saved yet.",
+    "mandateReferenceWillBeAssigned": "Assigned on save",
+    "mandateReferenceEnterExisting": "Enter an existing reference",
+    "mandateReferenceCancelEntry": "Cancel — assign the reference automatically",
+    "mandateReferenceCancelChange": "Cancel — {{reference}} stays as it is",
+    "mandateReferenceChange": "Change",
+    "mandateReferenceCopy": "Copy mandate reference",
+    "mandateReferenceAssignedNote": "Appears as the mandate reference on the bank statement."
   },
   "products": {
     "title": "Products",
@@ -1069,8 +1085,8 @@
       "title": "Excluded — no active SEPA mandate",
       "note": "These members owe money but cannot be collected by direct debit. Chase their bank details, or settle them manually.",
       "issue": {
-        "iban": "Missing mandate",
-        "mandate": "Missing IBAN",
+        "iban": "Missing IBAN",
+        "mandate": "Missing mandate",
         "both": "Missing IBAN and mandate"
       }
     },
