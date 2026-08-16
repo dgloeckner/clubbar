@@ -16,6 +16,7 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\NotFoundException;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Products\Repositories\ProductsRepository;
 use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
 use App\Shared\Utils\DateFormatter;
@@ -25,6 +26,7 @@ class TransactionsService
     public function __construct(
         private TransactionsRepository $transactionsRepository,
         private MembersRepository $membersRepository,
+        private ProductsRepository $productsRepository,
         private AuditService $auditService,
         private Logger $logger,
     ) {}
@@ -41,6 +43,12 @@ class TransactionsService
         $acceptedIds = [];
         $errors = [];
         $affectedMemberIds = [];
+        // Current price per product id, looked up at most once per batch. A
+        // 100-row batch is frequently 100 rows for a handful of products. Local
+        // rather than a property: this service is memoised as a singleton, and a
+        // cache that outlived the batch would compare later sales against a
+        // price that has since changed.
+        $productPrices = [];
 
         foreach ($requestedMemberIds as $memberId) {
             // Unknown ids are skipped, not reported as 0. A phantom zero would
@@ -93,7 +101,7 @@ class TransactionsService
                 // A null return means the id was already stored — the terminal
                 // is replaying the batch, which ADR-0004 makes safe. Either way
                 // the transaction is on the server, so either way it is accepted.
-                $this->transactionsRepository->insertTransaction($tx);
+                $stored = $this->transactionsRepository->insertTransaction($tx);
             } catch (TransactionNotStorableException $e) {
                 // #82: a row the database refused. Never report it as accepted —
                 // the terminal would purge a served drink from its offline queue
@@ -106,6 +114,18 @@ class TransactionsService
                     'message' => 'Transaction could not be stored and was not accepted',
                 ];
                 continue;
+            }
+
+            // Only for a row this call actually inserted. The two flags above
+            // run before the insert; this one runs after, and deliberately.
+            // A row the database refused is then never named in an append-only
+            // table it does not appear in; a replayed batch does not write the
+            // entry twice; and an audit write that fails (the classic cause
+            // being migration 040 unapplied, so the ENUM truncates) cannot wedge
+            // the batch permanently — the retry finds the booking already
+            // stored, gets null back, and skips straight past this.
+            if ($stored !== null) {
+                $this->flagPriceDivergence($tx, $productPrices);
             }
 
             $acceptedIds[] = $tx['id'];
@@ -360,6 +380,86 @@ class TransactionsService
             'skew_seconds' => $skewSeconds,
             'direction' => $direction,
         ]);
+    }
+
+    /**
+     * Record a stored sale whose claimed amount disagrees with what the product
+     * costs today (#204, ruling #144 §3, the last item of its field-authority
+     * table).
+     *
+     * The amount is **not** corrected. The terminal charged a price the member
+     * saw and accepted, possibly weeks earlier while offline (ADR-0012);
+     * recomputing it from the current catalogue would silently bill something
+     * other than the tile showed at the bar, and would have nothing to compute
+     * from once the product is deleted. A compromised terminal can lie about
+     * amounts, but it can equally invent whole transactions, so this is not the
+     * weak link — the entry is for accounting honesty, not access control. The
+     * likelier trigger is a terminal running a stale product cache after the
+     * catalogue changed, and this is how that gets noticed.
+     *
+     * An audit entry rather than the `logger->warning` its two siblings above
+     * use: a divergence is a financial fact a treasurer should be able to find,
+     * filter and keep, which is what ADR-0013's table is for and what a daily
+     * JSON log file is not. Like them, it never alters the row and never
+     * rejects it.
+     *
+     * @param array<string, mixed> $tx
+     * @param array<string, int|null> $cache Per-batch product price lookups.
+     */
+    private function flagPriceDivergence(array $tx, array &$cache): void
+    {
+        $productId = $tx['product_id'] ?? null;
+        if (!is_string($productId) || $productId === '') {
+            return;
+        }
+
+        $currentCents = $this->currentPriceCents($productId, $cache);
+        if ($currentCents === null) {
+            // A product that no longer exists, or never did, is not a
+            // divergence — there is nothing to compare against. Not a rejection
+            // either: the sale is real (ruling #143).
+            return;
+        }
+
+        $claimedCents = (int) $tx['amount_cents'];
+        if ($claimedCents === $currentCents) {
+            return;
+        }
+
+        // No actor: a terminal synced this, no admin acted. `admin_user_id` is
+        // nullable and every terminal-originated entry relies on that. The
+        // payload carries ids only and never member PII — it is filed under the
+        // transaction, so the anonymization scrub, which keys on the member's
+        // own entity_id, cannot reach inside it (ADR-0013 principle 8).
+        $this->auditService->log(
+            action: AuditAction::TRANSACTION_PRICE_DIVERGENCE,
+            entityType: EntityType::TRANSACTION,
+            entityId: $tx['id'],
+            newValues: [
+                'member_id' => $tx['member_id'] ?? null,
+                'product_id' => $productId,
+                'terminal_id' => $tx['created_by_terminal_id'] ?? null,
+                'amount_cents' => $claimedCents,
+                'current_price_cents' => $currentCents,
+            ],
+        );
+    }
+
+    /**
+     * @param array<string, int|null> $cache
+     * @return int|null The product's current price, or null when no live
+     *         product carries that id — `findById` already excludes tombstones.
+     */
+    private function currentPriceCents(string $productId, array &$cache): ?int
+    {
+        // array_key_exists, not isset: a cached "no such product" is null, and
+        // isset would re-query it for every remaining row of the batch.
+        if (!array_key_exists($productId, $cache)) {
+            $product = $this->productsRepository->findById($productId);
+            $cache[$productId] = $product === null ? null : (int) $product['price_cents'];
+        }
+
+        return $cache[$productId];
     }
 
     private function hasActiveMandate(array $member): bool

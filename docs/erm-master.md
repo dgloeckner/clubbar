@@ -775,6 +775,7 @@ Centralized audit trail for all master data changes.
 - `settlement_submit` — Exported file handed to the bank ([#81](https://github.com/dgloeckner/ruderbar/issues/81))
 - `settlement_reverse` — Money that already moved has come back ([#196](https://github.com/dgloeckner/clubbar/issues/196))
 - `transaction_storno` — A booking reversed in full ([#169](https://github.com/dgloeckner/ruderbar/issues/169))
+- `transaction_price_divergence` — A synced sale claimed an amount other than the product's current price ([#204](https://github.com/dgloeckner/clubbar/issues/204)). Written by the sync path, so `admin_user_id` is NULL. The amount stands: it is what the member saw and accepted, possibly weeks earlier while offline — the entry records the disagreement rather than correcting it
 - `collection_hold_placed` — A bank return stopped the next run re-debiting a member
 - `collection_hold_cleared` — An admin released that member back into the next run
 - `totp_enrolled` / `totp_reset` — Second factor enrolled or reset

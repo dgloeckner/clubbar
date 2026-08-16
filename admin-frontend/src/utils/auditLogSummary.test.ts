@@ -76,6 +76,41 @@ describe('getAuditLogSummary', () => {
     expect(stepUp).toBe('auditLog.summary.loginFailedStepUp::{"actor":"admin@example.com"}')
   })
 
+  it('names both amounts for a price divergence, and no actor', () => {
+    // A terminal synced this and no admin acted, so the sentence must not
+    // borrow the "An admin" fallback actor for something no admin did.
+    const result = getAuditLogSummary(
+      entry({
+        action: 'transaction_price_divergence',
+        entity_type: 'transaction',
+        admin_user_id: null,
+        admin_user_email: null,
+        new_values: {
+          member_id: 'member-1',
+          product_id: 'product-1',
+          terminal_id: 'terminal-1',
+          amount_cents: 500,
+          current_price_cents: 350,
+        },
+      }),
+      fakeT,
+      'en',
+    )
+    expect(result).toContain('auditLog.summary.transactionPriceDivergence::')
+    expect(result).toContain('"amount"')
+    expect(result).toContain('"price"')
+    expect(result).not.toContain('actor')
+  })
+
+  it('falls back to the generic price-divergence sentence when the amounts are missing', () => {
+    const result = getAuditLogSummary(
+      entry({ action: 'transaction_price_divergence', entity_type: 'transaction', new_values: null }),
+      fakeT,
+      'en',
+    )
+    expect(result).toBe('auditLog.summary.transactionPriceDivergenceGeneric')
+  })
+
   it('extracts a member subject from first_name/last_name', () => {
     const result = getAuditLogSummary(
       entry({ action: 'update', entity_type: 'member', new_values: { first_name: 'Jane', last_name: 'Doe' } }),

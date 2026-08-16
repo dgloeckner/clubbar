@@ -73,6 +73,7 @@ export const ListAuditLogAction = {
   login_failed: 'login_failed',
   export: 'export',
   transaction_storno: 'transaction_storno',
+  transaction_price_divergence: 'transaction_price_divergence',
   settlement_create: 'settlement_create',
   settlement_cancel: 'settlement_cancel',
   settlement_export: 'settlement_export',

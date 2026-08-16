@@ -1,6 +1,6 @@
 # ADR-0013: Audit Logging for Master Data Changes
 
-**Status**: Accepted (amended 2026-08-09 — see [Audit Log Scrubbing](#audit-log-scrubbing-during-gdpr-anonymization))
+**Status**: Accepted (amended 2026-08-09 — see [Audit Log Scrubbing](#audit-log-scrubbing-during-gdpr-anonymization); amended 2026-08-16 — see [Out of scope](#scope) for the two transaction exceptions)
 
 **Date**: 2025-01-23
 
@@ -29,6 +29,13 @@ The Club Bar system manages sensitive member data (personal information, banking
 
 **Out of scope:**
 - Transactions — already immutable and append-only (see [ADR-0004](./0004-immutable-transaction-storage.md)); the transaction table itself serves as its own audit trail
+
+**Two exceptions to that last line**, both recording something the transaction table cannot say about itself:
+
+1. `transaction_storno` — a booking reversed in full (#169). The ledger shows the two rows; only the audit entry records *who* decided to reverse and *why*.
+2. `transaction_price_divergence` — a synced sale whose `amount_cents` disagreed with the product's current `price_cents` (#204, ruling #144 §3). The row is stored exactly as sent and is perfectly self-consistent; what is not visible in it is the *disagreement*, because the comparison is against a catalogue that keeps moving. A price change days later would make yesterday's honest booking look divergent and today's stale one look fine, so the observation has to be recorded at the moment it is made or not at all.
+
+The distinction the exceptions do **not** cross: an ordinary purchase is still never audited. What gets an entry is a human decision about a booking, or an anomaly observed while storing one — never the booking itself.
 
 ---
 
@@ -77,6 +84,7 @@ The Club Bar system manages sensitive member data (personal information, banking
 | `login_failed` | Failed login, or a failed step-up re-authentication before a sensitive cross-account action (#337) | NULL | `{ "attempted_email": "...", "context": "step_up_reauth" }` — `context` present only for the step-up case |
 | `export` | Data export generated. Reserved: declared in the `AuditAction` enum but not currently emitted by any endpoint | NULL | `{ "export_type": "...", "format": "..." }` |
 | `transaction_storno` | A booking reversed in full — the only admin-initiated transaction (#169); see [Out of scope](#scope) for why ordinary purchases are not logged here | NULL | `{ "related_transaction_id": "...", "member_id": "...", "amount_cents": ..., "reason": "..." }` |
+| `transaction_price_divergence` | A synced sale claimed an `amount_cents` other than the product's current `price_cents` (#204). Written by the sync path, so `admin_user_id` is NULL; `ip_address` is the terminal's. The amount stands — this records the disagreement, never corrects it, and never rejects the row. A product that no longer exists is not a divergence and produces no entry | NULL | `{ "member_id": "...", "product_id": "...", "terminal_id": "...", "amount_cents": ..., "current_price_cents": ... }` — ids only, per [What the scrub cannot reach](#what-the-scrub-cannot-reach) |
 | `settlement_create` | Settlement created | NULL | `{ "total_amount_cents": ..., "member_count": ..., "transaction_count": ... }` |
 | `settlement_cancel` | Settlement cancelled | `{ "is_cancelled": false }` | `{ "is_cancelled": true, "reason": "..." }` |
 | `settlement_export` | Settlement exported | NULL | `{ "exported_at": "...", ... }` |

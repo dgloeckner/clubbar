@@ -11,6 +11,7 @@ use App\Modules\Transactions\Exceptions\CannotStornoAStornoException;
 use App\Modules\Transactions\Exceptions\TransactionAlreadyStornoedException;
 use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Products\Repositories\ProductsRepository;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
@@ -23,6 +24,7 @@ class TransactionsServiceTest extends TestCase
 {
     private TransactionsRepository $transactionsRepository;
     private MembersRepository $membersRepository;
+    private ProductsRepository $productsRepository;
     private AuditService $auditService;
     private Logger $logger;
     private TransactionsService $service;
@@ -33,12 +35,14 @@ class TransactionsServiceTest extends TestCase
 
         $this->transactionsRepository = $this->createMock(TransactionsRepository::class);
         $this->membersRepository = $this->createMock(MembersRepository::class);
+        $this->productsRepository = $this->createMock(ProductsRepository::class);
         $this->auditService = $this->createMock(AuditService::class);
         $this->logger = $this->createMock(Logger::class);
 
         $this->service = new TransactionsService(
             $this->transactionsRepository,
             $this->membersRepository,
+            $this->productsRepository,
             $this->auditService,
             $this->logger,
         );
@@ -572,6 +576,199 @@ class TransactionsServiceTest extends TestCase
         $this->logger->expects($this->never())->method('warning');
 
         $this->service->processBatch([$tx]);
+    }
+
+    // ------------------------------------------------------------------
+    // processBatch — price divergence (#204, ruling #144 §3)
+    //
+    // amount_cents is terminal-owned and stored exactly as sent: the terminal
+    // charged a price the member saw and accepted, possibly weeks earlier while
+    // offline, and a deleted product leaves nothing to recompute from. The
+    // server's answer is an audit entry beside the row — never a correction, and
+    // never a rejection. These tests exist mostly to hold that last line: the
+    // whole risk of this feature is a flag quietly becoming a rejection.
+    // ------------------------------------------------------------------
+
+    /** A sale of `product-1` claiming $amountCents, otherwise ordinary. */
+    private function saleClaiming(int $amountCents): array
+    {
+        return [
+            'id' => 'tx-1',
+            'member_id' => 'member-1',
+            'product_id' => 'product-1',
+            'created_by_terminal_id' => 'terminal-1',
+            'amount_cents' => $amountCents,
+            'created_at' => '2026-08-16T12:00:00Z',
+        ];
+    }
+
+    /** Accepts the row and puts $priceCents (or no product at all) in the catalogue. */
+    private function expectAcceptedWithCatalogPrice(array $tx, ?int $priceCents): void
+    {
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember('member-1'));
+        $this->transactionsRepository->method('insertTransaction')->willReturn($tx);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn($tx['amount_cents']);
+        $this->productsRepository->method('findById')->willReturn(
+            $priceCents === null ? null : ['id' => 'product-1', 'price_cents' => $priceCents],
+        );
+    }
+
+    public function test_processBatch_records_an_amount_that_diverges_from_the_current_price(): void
+    {
+        $tx = $this->saleClaiming(500);
+        $this->expectAcceptedWithCatalogPrice($tx, 350);
+
+        $this->auditService->expects($this->once())
+            ->method('log')
+            ->with(
+                AuditAction::TRANSACTION_PRICE_DIVERGENCE,
+                EntityType::TRANSACTION,
+                'tx-1',
+                null,
+                $this->callback(fn (array $values) => $values['amount_cents'] === 500
+                    && $values['current_price_cents'] === 350
+                    && $values['member_id'] === 'member-1'
+                    && $values['product_id'] === 'product-1'
+                    && $values['terminal_id'] === 'terminal-1'),
+                // No actor: a terminal synced this, no admin acted.
+                null,
+            );
+
+        $result = $this->service->processBatch([$tx]);
+
+        // Recorded, not refused — and not corrected.
+        $this->assertSame(['tx-1'], $result->acceptedIds);
+        $this->assertSame(0, $result->rejectedCount);
+        $this->assertSame([], $result->errors);
+    }
+
+    public function test_processBatch_stores_a_divergent_amount_exactly_as_sent(): void
+    {
+        $tx = $this->saleClaiming(500);
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember('member-1'));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(500);
+        $this->productsRepository->method('findById')->willReturn(['id' => 'product-1', 'price_cents' => 350]);
+
+        // The claimed amount reaches the ledger untouched; the entry sits beside
+        // it rather than in place of it.
+        $this->transactionsRepository->expects($this->once())
+            ->method('insertTransaction')
+            ->with($this->callback(fn (array $row) => $row['amount_cents'] === 500))
+            ->willReturn($tx);
+
+        $this->service->processBatch([$tx]);
+    }
+
+    public function test_processBatch_records_nothing_when_the_amount_matches_the_current_price(): void
+    {
+        $tx = $this->saleClaiming(350);
+        $this->expectAcceptedWithCatalogPrice($tx, 350);
+
+        $this->auditService->expects($this->never())->method('log');
+
+        $result = $this->service->processBatch([$tx]);
+
+        $this->assertSame(['tx-1'], $result->acceptedIds);
+        $this->assertSame(0, $result->rejectedCount);
+    }
+
+    public function test_processBatch_accepts_a_sale_for_a_deleted_product_without_recording_a_divergence(): void
+    {
+        // findById already excludes tombstones, so a deleted product reads as
+        // absent. There is nothing to compare against — that is not a
+        // divergence, and the sale still happened (ruling #143).
+        $tx = $this->saleClaiming(500);
+        $this->expectAcceptedWithCatalogPrice($tx, null);
+
+        $this->auditService->expects($this->never())->method('log');
+
+        $result = $this->service->processBatch([$tx]);
+
+        $this->assertSame(['tx-1'], $result->acceptedIds);
+        $this->assertSame(0, $result->rejectedCount);
+        $this->assertSame([], $result->errors);
+    }
+
+    public function test_processBatch_records_no_divergence_for_a_replayed_transaction(): void
+    {
+        // A null insert means the id was already stored. The entry was written
+        // the first time round; writing it again on every retry would fill the
+        // trail with copies of one event.
+        $tx = $this->saleClaiming(500);
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember('member-1'));
+        $this->transactionsRepository->method('insertTransaction')->willReturn(null);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(500);
+        $this->productsRepository->method('findById')->willReturn(['id' => 'product-1', 'price_cents' => 350]);
+
+        $this->auditService->expects($this->never())->method('log');
+
+        $result = $this->service->processBatch([$tx]);
+
+        // Still accepted: the transaction is on the server either way (ADR-0004).
+        $this->assertSame(['tx-1'], $result->acceptedIds);
+    }
+
+    public function test_processBatch_records_no_divergence_for_a_row_the_database_refused(): void
+    {
+        // Naming a transaction that exists nowhere would be a lie in an
+        // append-only table.
+        $tx = $this->saleClaiming(500);
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember('member-1'));
+        $this->transactionsRepository->method('insertTransaction')
+            ->willThrowException(new TransactionNotStorableException('refused'));
+        $this->productsRepository->method('findById')->willReturn(['id' => 'product-1', 'price_cents' => 350]);
+
+        $this->auditService->expects($this->never())->method('log');
+
+        $result = $this->service->processBatch([$tx]);
+
+        $this->assertSame([], $result->acceptedIds);
+        $this->assertSame(1, $result->rejectedCount);
+    }
+
+    public function test_processBatch_looks_a_product_price_up_once_per_batch(): void
+    {
+        // A 100-row batch is frequently 100 rows for one drink.
+        $first = $this->saleClaiming(500);
+        $second = ['id' => 'tx-2'] + $this->saleClaiming(500);
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember('member-1'));
+        $this->transactionsRepository->method('insertTransaction')->willReturnArgument(0);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(1000);
+
+        $this->productsRepository->expects($this->once())
+            ->method('findById')
+            ->with('product-1')
+            ->willReturn(['id' => 'product-1', 'price_cents' => 350]);
+
+        // Both rows still get their own entry — the divergence is per booking.
+        $this->auditService->expects($this->exactly(2))->method('log');
+
+        $result = $this->service->processBatch([$first, $second]);
+
+        $this->assertSame(['tx-1', 'tx-2'], $result->acceptedIds);
+    }
+
+    public function test_processBatch_does_not_requery_a_product_that_does_not_exist(): void
+    {
+        // The cached miss is null, so a lookup guarded by isset() would re-query
+        // it for every remaining row of the batch.
+        $first = $this->saleClaiming(500);
+        $second = ['id' => 'tx-2'] + $this->saleClaiming(500);
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember('member-1'));
+        $this->transactionsRepository->method('insertTransaction')->willReturnArgument(0);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(1000);
+
+        $this->productsRepository->expects($this->once())->method('findById')->willReturn(null);
+        $this->auditService->expects($this->never())->method('log');
+
+        $result = $this->service->processBatch([$first, $second]);
+
+        $this->assertSame(['tx-1', 'tx-2'], $result->acceptedIds);
     }
 
     // ------------------------------------------------------------------
