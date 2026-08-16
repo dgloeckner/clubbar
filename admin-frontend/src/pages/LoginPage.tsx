@@ -229,18 +229,18 @@ function ErrorBanner({ message, testId }: { message: string; testId: string }) {
 function MfaStep() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { submitMfa, loading, error } = useAuth()
+  const { submitMfa, loading } = useAuth()
   const [code, setCode] = useState('')
   const [localError, setLocalError] = useState<string>()
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLocalError(undefined)
-    const success = await submitMfa(code)
-    if (success) {
+    const result = await submitMfa(code)
+    if (result.success) {
       navigate('/dashboard')
     } else {
-      setLocalError(error || t('auth.mfaInvalidCode'))
+      setLocalError(result.error || t('auth.mfaInvalidCode'))
     }
   }
 
@@ -278,7 +278,7 @@ function MfaStep() {
 function TotpSetupStep() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { setupTotp, confirmTotp, loading, error } = useAuth()
+  const { setupTotp, confirmTotp, loading } = useAuth()
   const [qrCode, setQrCode] = useState<string>()
   const [secret, setSecret] = useState<string>()
   const [code, setCode] = useState('')
@@ -306,11 +306,11 @@ function TotpSetupStep() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLocalError(undefined)
-    const success = await confirmTotp(code)
-    if (success) {
+    const result = await confirmTotp(code)
+    if (result.success) {
       navigate('/dashboard')
     } else {
-      setLocalError(error || t('auth.mfaInvalidCode'))
+      setLocalError(result.error || t('auth.mfaInvalidCode'))
     }
   }
 
@@ -423,11 +423,11 @@ export function LoginPage() {
 
   const handleSubmit = async (email: string, password: string) => {
     setLocalError(undefined)
-    const success = await login({ email, password })
-    if (success) {
+    const result = await login({ email, password })
+    if (result.success) {
       navigate('/dashboard')
     } else if (!requiresMfa && !requiresTotpSetup) {
-      setLocalError(error || t('auth.loginFailed'))
+      setLocalError(result.error || t('auth.loginFailed'))
     }
   }
 

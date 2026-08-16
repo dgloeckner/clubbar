@@ -33,11 +33,19 @@ interface AuthState {
   locale?: string
 }
 
+// Callers must read the error off this result, not the `error` field below — by
+// the time an await resolves, a render driven by the *previous* attempt's `error`
+// may already have been captured in a stale closure (#133).
+interface AuthResult {
+  success: boolean
+  error?: string
+}
+
 interface AuthContextType extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<boolean>
-  submitMfa: (code: string) => Promise<boolean>
+  login: (credentials: LoginCredentials) => Promise<AuthResult>
+  submitMfa: (code: string) => Promise<AuthResult>
   setupTotp: () => Promise<{ qrCode: string; secret: string }>
-  confirmTotp: (code: string) => Promise<boolean>
+  confirmTotp: (code: string) => Promise<AuthResult>
   logout: () => Promise<void>
   // True only while the app is checking for an existing session on first load.
   // Routing (App.tsx) gates its full-page loading screen on this, NOT on `loading`.
@@ -85,7 +93,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setInitializing(false)
   }, [])
 
-  const handleLogin = async (credentials: LoginCredentials): Promise<boolean> => {
+  const handleLogin = async (credentials: LoginCredentials): Promise<AuthResult> => {
     setLoading(true)
     setError(undefined)
     try {
@@ -98,21 +106,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
           displayName: response.data.display_name,
           locale: response.data.locale,
         })
-        return true
+        return { success: true }
       }
       if (response.requiresMfa) {
         setAuth(prev => ({ ...prev, requiresMfa: true }))
-        return false
+        return { success: false }
       }
       if (response.requiresTotpSetup) {
         setAuth(prev => ({ ...prev, requiresTotpSetup: true, pendingAdmin: response.data }))
-        return false
+        return { success: false }
       }
-      setError(describe(response))
-      return false
+      const message = describe(response)
+      setError(message)
+      return { success: false, error: message }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('auth.loginFailed'))
-      return false
+      const message = err instanceof Error ? err.message : t('auth.loginFailed')
+      setError(message)
+      return { success: false, error: message }
     } finally {
       setLoading(false)
     }
@@ -122,9 +132,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return setupTotpWithSession()
   }
 
-  const handleConfirmTotp = async (code: string): Promise<boolean> => {
+  const handleConfirmTotp = async (code: string): Promise<AuthResult> => {
     const pendingAdmin = auth.pendingAdmin
-    if (!pendingAdmin) return false
+    if (!pendingAdmin) return { success: false }
 
     setLoading(true)
     setError(undefined)
@@ -140,19 +150,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
           displayName: pendingAdmin.display_name,
           locale: pendingAdmin.locale,
         })
-        return true
+        return { success: true }
       }
-      setError(describe(result))
-      return false
+      const message = describe(result)
+      setError(message)
+      return { success: false, error: message }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('auth.mfaInvalidCode'))
-      return false
+      const message = err instanceof Error ? err.message : t('auth.mfaInvalidCode')
+      setError(message)
+      return { success: false, error: message }
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSubmitMfa = async (code: string): Promise<boolean> => {
+  const handleSubmitMfa = async (code: string): Promise<AuthResult> => {
     setLoading(true)
     setError(undefined)
     try {
@@ -166,18 +178,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
           displayName: response.data.display_name,
           locale: response.data.locale,
         })
-        return true
+        return { success: true }
       }
-      setError(describe(response))
+      const message = describe(response)
+      setError(message)
       // The pending session is gone server-side — leaving the code form up would
       // invite guesses at a session that no longer exists. Back to the password.
       if (endsMfaStep(response.errorCode)) {
         setAuth({ isAuthenticated: false, requiresMfa: false })
       }
-      return false
+      return { success: false, error: message }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('auth.mfaInvalidCode'))
-      return false
+      const message = err instanceof Error ? err.message : t('auth.mfaInvalidCode')
+      setError(message)
+      return { success: false, error: message }
     } finally {
       setLoading(false)
     }
