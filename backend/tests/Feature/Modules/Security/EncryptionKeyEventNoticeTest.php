@@ -229,6 +229,89 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
         }
     }
 
+    /**
+     * The actor (migration 043) is a fact about who ran `register()`, stored
+     * durably at enqueue time — distinct from the recipient, which is every
+     * active admin in turn, including the actor's own copy.
+     */
+    public function test_the_registering_admin_is_recorded_as_actor_on_every_recipients_row(): void
+    {
+        $keypair = sodium_crypto_box_keypair();
+        $dto = $this->service->register(
+            base64_encode(sodium_crypto_box_publickey($keypair)),
+            'notice-key-' . $this->generateUuid(),
+            $this->adminId,
+        );
+        $this->createdKeyIds[] = $dto->id;
+
+        $rows = $this->outboxRowsFor($dto->id);
+        $this->assertNotEmpty($rows);
+        foreach ($rows as $row) {
+            $this->assertSame(
+                $this->adminId,
+                $row['actor_admin_user_id'],
+                'every recipient row must name the same acting admin, including the recipient who acted',
+            );
+        }
+    }
+
+    /** The rendered message names the actor by display name and login when the row carries one. */
+    public function test_the_message_names_the_actor_when_known(): void
+    {
+        $keypair = sodium_crypto_box_keypair();
+        $dto = $this->service->register(
+            base64_encode(sodium_crypto_box_publickey($keypair)),
+            'notice-key-' . $this->generateUuid(),
+            $this->adminId,
+        );
+        $this->createdKeyIds[] = $dto->id;
+
+        $row = null;
+        foreach ($this->outboxRowsFor($dto->id) as $candidate) {
+            if ($candidate['recipient'] === $this->adminEmail) {
+                $row = $candidate;
+                break;
+            }
+        }
+        $this->assertNotNull($row);
+
+        $message = $this->builder->build($row);
+
+        foreach ([$message->html, $message->text] as $body) {
+            $this->assertStringContainsString('Key Notice Recipient', $body);
+            $this->assertStringContainsString($this->adminEmail, $body);
+        }
+    }
+
+    /**
+     * A key event with no human actor — an action taken with `$adminId = null`
+     * — must still queue and render; the actor line is simply absent, exactly
+     * as a pre-migration row behaves.
+     */
+    public function test_a_notice_with_no_actor_still_renders(): void
+    {
+        $keypair = sodium_crypto_box_keypair();
+        $dto = $this->service->register(
+            base64_encode(sodium_crypto_box_publickey($keypair)),
+            'notice-key-' . $this->generateUuid(),
+            null,
+        );
+        $this->createdKeyIds[] = $dto->id;
+
+        $row = null;
+        foreach ($this->outboxRowsFor($dto->id) as $candidate) {
+            if ($candidate['recipient'] === $this->adminEmail) {
+                $row = $candidate;
+                break;
+            }
+        }
+        $this->assertNotNull($row);
+        $this->assertNull($row['actor_admin_user_id']);
+
+        $message = $this->builder->build($row);
+        $this->assertStringNotContainsString('Ausgeführt von', $message->text);
+    }
+
     public function test_the_builder_claims_the_lifecycle_kinds_and_not_the_expiry_warning(): void
     {
         $this->assertTrue($this->builder->supports(MailKind::ENCRYPTION_KEY_REGISTERED));

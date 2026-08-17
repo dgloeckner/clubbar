@@ -32,10 +32,10 @@ use App\Shared\Mail\MailMessage;
  * phishing imitates, and a reader who knows these messages never contain a
  * token has a rule to apply to the one that does.
  *
- * **It does not name who did it.** See {@see TerminalTokenIssuedDataDto} — the
- * actor is not recoverable at send time without guessing, and a security notice
- * that names the wrong colleague is worse than one that names none. It points
- * at the audit log, which is exact.
+ * **It names who did it, when that is known.** See {@see TerminalTokenIssuedDataDto}
+ * — the actor is recorded durably at enqueue time (migration 043) and rendered
+ * as one more row, dropped like any other when it is blank. It still points at
+ * the audit log, which remains the exact record.
  */
 final class TerminalTokenIssuedMail
 {
@@ -57,6 +57,7 @@ final class TerminalTokenIssuedMail
             $t->t('terminal_token_issued.label_terminal') => $data->terminalName,
             $t->t('terminal_token_issued.label_device')   => $data->deviceId,
             $t->t('terminal_token_issued.label_event')    => $t->t('terminal_token_issued.event.' . $data->event),
+            $t->t('terminal_token_issued.label_actor')    => $data->actorLabel,
             $t->t('terminal_token_issued.label_issued')   => $data->issuedOn,
             $t->t('terminal_token_issued.label_expires')  => $data->expiresOn,
         ], static fn(string $value): bool => trim($value) !== '');

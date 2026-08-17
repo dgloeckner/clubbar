@@ -51,9 +51,23 @@ Rotation alone would leave the cheaper attack unannounced. Rotating an existing 
 | Enqueued by | `TerminalsService::createTerminal()` and `::rotateToken()`, via `NotificationsService::warnAdmins()`, in the same call that writes the audit entry |
 | Recipients | Every active admin with an address — including the one who acted |
 | Occasion | The issuance moment (the token's `issued_at` stamp), not a tier |
-| Contents | Terminal name, device id, which of the two events it was, the new token's expiry, who acted, when |
+| Contents | Terminal name, device id, which of the two events it was, who acted, the new token's expiry, when |
 | Never in the mail | The token itself, or any part of it |
 | Failure | Best effort; enqueue failure never fails the issuance |
+
+**Who acted is named, not only recorded.** The mail outbox's `admin_user_id`
+column has always been the recipient — `warnAdmins()` fans one row out per
+active admin — which is why the first shipped version of this notice pointed
+readers at the audit log instead of naming a name: nothing durable carried the
+actor from enqueue to send, and ADR-0038 rule 5 renders a message from current
+state at drain time rather than a stored body, so guessing at the audit log's
+most recent matching entry was the only alternative. Migration 043 closes that
+gap with a second column, `actor_admin_user_id`, written at the same moment as
+the recipient and read back by the builder — no guessing involved, because the
+fact is stored rather than reconstructed. It is nullable and can render blank
+(a pre-migration row, or an actor whose admin account was later deleted,
+`ON DELETE SET NULL`), and the template drops that line exactly as it drops a
+missing expiry, still pointing at the audit log as the exact fallback.
 
 **The occasion is an event, not a tier.** Expiry warnings pass `30d` as the occasion because "this key is inside the 30-day window" stays true for thirty days, and `UNIQUE (kind, subject_id, dedup_key)` is the only thing standing between that and thirty emails. Issuance is not a condition that persists — it happens once, and two rotations of the same terminal are two separate things to be told about. This follows `ADMIN_EMAIL_CHANGED`, which passes the moment of the change for exactly that reason: it announces something already committed, where suppressing the second occurrence would suppress the one that mattered.
 

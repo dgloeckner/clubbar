@@ -105,6 +105,7 @@ class AdminNotifier
                 recipient: $email,
                 language: MailLanguage::fromPreferred($admin['locale'] ?? null),
                 occasion: $occasion,
+                actorAdminUserId: $actorAdminUserId,
             ))) {
                 $queued++;
             } else {
