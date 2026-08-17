@@ -2972,6 +2972,12 @@ paths:
 
         A random 16-character password is generated and returned.
         The password is only shown once and should be communicated to the user securely.
+
+        `roles` sets the new account's roles (ADR-0044). Omitted, it defaults to
+        `admin` — behaviour-preserving, since every admin created before roles
+        existed had full access, and the safe direction for a default to fail:
+        an account created with no role could open nothing, including the page
+        that would fix it.
       operationId: createAdminUser
       security:
         - sessionAuth: []
@@ -2999,6 +3005,8 @@ paths:
               example:
                 error: invalid_credentials
                 message: Re-enter your password to create a new admin user
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
         '409':
           description: Email already exists
           content:
@@ -3022,6 +3030,24 @@ paths:
     patch:
       tags: [Admin Users]
       summary: Update admin user
+      description: |
+        Edit an admin account, optionally including its roles.
+
+        **Changing the role set requires a step-up credential** — the caller's
+        own current password, plus their own fresh TOTP code when they have 2FA
+        enabled (ADR-0044 rule 2: granting a role is minting authority, so it
+        costs what creating an account costs). The gate is conditional on the
+        role set *actually changing*, mirroring `PATCH /auth/profile`'s email
+        gate: editing a display name, or re-submitting the roles the account
+        already holds, needs no credential.
+
+        `roles` replaces the set outright rather than adding to it, and it is
+        validated as a whole: a list naming anything that is not a role, or an
+        empty list, is refused rather than partially applied.
+
+        Rate-limited on the caller's account (5 attempts / 15 min, the same
+        dimension as login), pinned to the route so a failed step-up counts
+        even when the request never reaches the gate.
       operationId: updateAdminUser
       security:
         - sessionAuth: []
@@ -3043,6 +3069,25 @@ paths:
                   description: ISO 639-1 language code
                 is_active:
                   type: boolean
+                roles:
+                  type: array
+                  minItems: 1
+                  description: |
+                    The account's complete role set after this request.
+                    Changing it demands the step-up fields below.
+                  items:
+                    $ref: '#/components/schemas/AdminRole'
+                current_password:
+                  type: string
+                  description: |
+                    The **caller's own** password. Required only when `roles`
+                    changes the account's role set.
+                totp_code:
+                  type: string
+                  pattern: '^\d{6}$'
+                  description: |
+                    The caller's own fresh 6-digit code, required alongside
+                    `current_password` when the caller has 2FA enabled.
       responses:
         '200':
           description: Admin user updated
@@ -3053,9 +3098,21 @@ paths:
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: |
+            Not authenticated, or the step-up credential for a role change is
+            missing or incorrect (`invalid_credentials`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
 
   /admin/admin-users/{adminUserId}/reset-password:
     parameters:
@@ -6854,6 +6911,15 @@ components:
         id:
           type: string
           format: uuid
+        roles:
+          type: array
+          description: |
+            The roles this account holds (ADR-0044). Always at least one — an
+            account with no role can reach nothing, so the API refuses to
+            create that state.
+          items:
+            $ref: '#/components/schemas/AdminRole'
+          example: [admin]
         email:
           type: string
           format: email
@@ -6882,8 +6948,10 @@ components:
 
     AdminUserCreateRequest:
       description: >
-        Creating an admin user mints a persistent, full-privilege peer account
-        (ADR-0015's flat admin model), so it carries a step-up credential (#499).
+        Creating an admin user mints a persistent peer account, so it carries a
+        step-up credential (#499). Since ADR-0044 that account's power is its
+        role set rather than "everything" — but the default is still `admin`,
+        so an omitted `roles` creates exactly what this endpoint always created.
       allOf:
         - $ref: '#/components/schemas/StepUpCredentials'
         - type: object
@@ -6898,6 +6966,16 @@ components:
             locale:
               type: string
               default: de
+            roles:
+              type: array
+              minItems: 1
+              description: |
+                The new account's roles. Defaults to `[admin]` when omitted. A
+                list naming anything that is not a role, or an empty list, is
+                refused rather than partially applied.
+              items:
+                $ref: '#/components/schemas/AdminRole'
+              example: [kassenwart]
 
     # --------------------------------------------------------------------------
     # Reports & Dashboard
