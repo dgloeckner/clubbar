@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and PRDs for this repo live as GitHub issues (`dgloeckner/ruderbar`). Use the `gh` CLI for all operations.
+Issues and PRDs for this repo live as GitHub issues (`dgloeckner/clubbar`). Use the `gh` CLI for all operations.
 
 ## Conventions
 

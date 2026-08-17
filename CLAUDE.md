@@ -968,7 +968,7 @@ scripts/mirror-images.sh           # copy (needs docker login ghcr.io)
 
 ### Issue tracker
 
-Issues are tracked as GitHub Issues on `dgloeckner/ruderbar` via the `gh` CLI; reuse the repo's existing type/priority/area labels. See `docs/agents/issue-tracker.md`.
+Issues are tracked as GitHub Issues on `dgloeckner/clubbar` via the `gh` CLI; reuse the repo's existing type/priority/area labels. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
