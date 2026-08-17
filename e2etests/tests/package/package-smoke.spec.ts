@@ -172,10 +172,27 @@ test.describe('Package: Install Wizard', () => {
     expect(step2.status()).toBe(302);
     expect(step2.headers()['location']).toContain('step=3');
 
-    // Step 3: Migrations
+    // Step 3: Migrations.
+    //
+    // The one request in this suite that is not an ordinary API call: it
+    // applies *every* file in backend/db/migrations to an empty schema, on a
+    // MariaDB container that started moments ago and has never flushed a page.
+    // The config's 10s `actionTimeout` is sized for endpoints that answer a
+    // question; this one builds a database, and its cost grows by one DDL
+    // statement every time somebody adds a migration.
+    //
+    // Measured: ~0.6s against a warm local stack, 11.1s on a CI runner — which
+    // is what tipped this over and produced the failure that led here. The
+    // knock-on was the confusing part: step 3 timing out client-side meant step
+    // 4 never created the admin, so the *login* test failed with a plain 401
+    // several tests later, naming nothing about migrations.
+    //
+    // 60s is headroom, not a target. A step 3 that genuinely takes a minute is
+    // a real regression and still fails.
     const step3 = await request.post(`${PACKAGE_URL}/install.php?step=3`, {
       form: { step: '3' },
       maxRedirects: 0,
+      timeout: 60_000,
     });
     expect(step3.status()).toBe(302);
     expect(step3.headers()['location']).toContain('step=4');
@@ -333,8 +350,13 @@ test.describe.serial('Package: Upgrade Runner', () => {
   });
 
   test('upgrade.php runs migrations successfully', async ({ request }) => {
+    // Same reasoning as step 3 of the wizard: this runs the migration set. It
+    // is cheaper here because the wizard already applied them and these are
+    // SKIPs — but "cheaper because of what another test did first" is not a
+    // budget worth relying on.
     const response = await request.get(
-      `${PACKAGE_URL}/upgrade.php?key=${CI_DEPLOY_SECRET}`
+      `${PACKAGE_URL}/upgrade.php?key=${CI_DEPLOY_SECRET}`,
+      { timeout: 60_000 }
     );
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
