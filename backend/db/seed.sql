@@ -34,6 +34,13 @@ VALUES (
     NOW()
 );
 
+-- The seeded admin holds `admin` (ADR-0044). Migration 044 backfills the
+-- accounts that exist when it runs, and this INSERT happens afterwards — so
+-- without its own grant, the account every E2E run logs in as would hold no
+-- role at all and, from #519 on, be refused everywhere.
+INSERT IGNORE INTO admin_user_roles (admin_user_id, role)
+VALUES ('123e4567-e89b-12d3-a456-426614174000', 'admin');
+
 -- ---------------------------------------------------------------------------
 -- Test terminal
 --   Device ID: test-device-001

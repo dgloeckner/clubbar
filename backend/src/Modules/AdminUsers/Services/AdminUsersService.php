@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\AdminUsers\Services;
 
 use App\Modules\AdminUsers\DTOs\AdminUserDto;
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Shared\Services\AuditService;
@@ -20,7 +22,41 @@ class AdminUsersService
         private AdminUsersRepository $adminUsersRepository,
         private AuditService $auditService,
         private NotificationsService $notificationsService,
+        private AdminUserRolesRepository $adminUserRolesRepository,
     ) {}
+
+    /**
+     * The roles this account holds (ADR-0044).
+     *
+     * Nothing is enforced against them yet — #519 adds the route→roles map —
+     * so today this only answers the panel's question about itself.
+     *
+     * @return list<AdminRole>
+     */
+    public function getRoles(string $id): array
+    {
+        return $this->adminUserRolesRepository->rolesFor($id);
+    }
+
+    /**
+     * Make an account's roles exactly this set.
+     *
+     * An empty set is refused. It is not a restricted account, it is one that
+     * can do nothing at all once #519 lands — and silently, since nothing in
+     * the account form says a role is what makes the login useful. Revoking
+     * somebody's last role is spelled "deactivate the account", which already
+     * exists and says what it means.
+     *
+     * @param list<AdminRole> $roles
+     */
+    public function setRoles(string $id, array $roles): void
+    {
+        if ($roles === []) {
+            throw new BusinessRuleException('An admin user must hold at least one role');
+        }
+
+        $this->adminUserRolesRepository->replace($id, $roles);
+    }
 
     public function listAdminUsers(int $limit, int $offset, array $filters = []): PaginatedResultDto
     {
@@ -49,11 +85,23 @@ class AdminUsersService
             'is_active' => true,
         ]);
 
+        // Behaviour preservation, at the one place new accounts appear: every
+        // admin the panel creates today has full access, and #514 does not
+        // change that. Choosing the role at creation time is #520's job; until
+        // it exists, an account created without one would be locked out of the
+        // whole panel the moment #519 starts enforcing the map.
+        $this->adminUserRolesRepository->replace($admin['id'], [AdminRole::ADMIN]);
+
         $this->auditService->log(
             action: AuditAction::CREATE,
             entityType: EntityType::ADMIN_USER,
             entityId: $admin['id'],
-            newValues: ['email' => $email, 'display_name' => $displayName, 'password' => '[GENERATED]'],
+            newValues: [
+                'email' => $email,
+                'display_name' => $displayName,
+                'password' => '[GENERATED]',
+                'roles' => [AdminRole::ADMIN->value],
+            ],
             adminUserId: $currentAdminId,
         );
 

@@ -511,6 +511,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 $stmt->execute([$id, $email, $hashedPassword, $email]);
 
+                // The first account holds `admin` — the root of ADR-0044's
+                // ladder, and the only role that can hand out the others. The
+                // migration backfills the accounts that exist when it runs;
+                // this one is created afterwards, so it grants its own. Without
+                // it the very first login lands on an account with no role at
+                // all, which from #519 on can open nothing — including the page
+                // that would fix it.
+                $stmt = $pdo->prepare(
+                    'INSERT INTO admin_user_roles (admin_user_id, role) VALUES (?, ?)'
+                );
+                $stmt->execute([$id, 'admin']);
+
                 // The panel audits every admin it creates (AdminUsersService::
                 // createAdminUser) — the very first, highest-privilege account
                 // must not be the one exception (#501). Composer's autoloader
