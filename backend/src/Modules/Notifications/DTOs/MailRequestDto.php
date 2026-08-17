@@ -130,6 +130,39 @@ final readonly class MailRequestDto
      * copy is addressed to — every active admin gets a row with the same actor,
      * including the actor's own row.
      */
+    /**
+     * A copy of an admin lifecycle message for the club-level address
+     * (ADR-0044 rule 3).
+     *
+     * `adminUserId` is deliberately null: the recipient is an address the club
+     * configured, not an account. That has a consequence worth stating —
+     * migration 026's `ON DELETE CASCADE` on `admin_user_id` takes a queued
+     * row with the admin it is addressed to, and this row has no such owner, so
+     * it survives the deletion of whoever it was about. Which is right: "this
+     * account was created and then removed before anyone read about it" is
+     * exactly the sequence the club-level copy exists to witness.
+     *
+     * The dedup key ends in `:club` rather than an account id, so the club copy
+     * neither collides with an admin's nor silences one.
+     */
+    public static function forClub(
+        MailKind $kind,
+        string $subjectId,
+        string $recipient,
+        MailLanguage $language,
+        string $occasion,
+        ?string $actorAdminUserId = null,
+    ): self {
+        return new self(
+            kind: $kind,
+            subjectId: $subjectId,
+            recipient: $recipient,
+            language: $language,
+            dedupKey: $occasion . ':club',
+            actorAdminUserId: $actorAdminUserId,
+        );
+    }
+
     public static function forAdmin(
         MailKind $kind,
         string $subjectId,

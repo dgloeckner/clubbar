@@ -68,6 +68,7 @@ class MailConfigController
             'sender_name' => ['string', 'max:120'],
             'sender_address' => ['email', 'max:255'],
             'reply_to_address' => ['nullable', 'email', 'max:255'],
+            'club_notification_address' => ['nullable', 'email', 'max:255'],
             'header_style' => ['in:' . implode(',', MailLayout::HEADER_STYLES)],
             'footer_org_name' => ['string', 'max:200'],
             'footer_address_line' => ['nullable', 'string', 'max:255'],

@@ -7,6 +7,7 @@ namespace Tests\Feature\Modules\Security;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Repositories\MailConfigRepository;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Notifications\Services\EncryptionKeyEventMailBuilder;
@@ -73,7 +74,16 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
             new SealedIbanRepository($this->db),
             new IbanSealedBox(str_repeat('aa', 32), 'test'),
             $this->createMock(AuditService::class),
-            new AdminNotifier($outbox, $admins, $this->createMock(AuditService::class)),
+            new AdminNotifier(
+                $outbox,
+                $admins,
+                $this->createMock(AuditService::class),
+                // Key lifecycle mail is not a club-level kind (ADR-0044 rule 3
+                // covers admin lifecycle only), so this repository is never
+                // consulted here — it is supplied because the notifier needs
+                // one, not because this suite has an opinion about it.
+                new MailConfigRepository($this->db, $this->logger),
+            ),
             $this->logger,
         );
 

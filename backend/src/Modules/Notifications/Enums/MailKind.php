@@ -134,6 +134,71 @@ enum MailKind: string
      */
     case DECKEL_STATEMENT = 'deckel_statement';
 
+    /**
+     * A new admin account exists (ADR-0044 rule 3).
+     *
+     * ADR-0044 calls account creation the *loud* path — the one that fires
+     * lifecycle mail, against which promoting an existing lesser role was the
+     * quiet one. It was loud only in intention until this kind existed.
+     *
+     * Goes to every active admin **and** to the club-level address, which is
+     * the half that matters: with exactly one admin, a message about an account
+     * being created otherwise goes from the actor, to the actor, about a thing
+     * they just did — silent in precisely the case where that one account is
+     * the compromised one.
+     */
+    case ADMIN_ACCOUNT_CREATED = 'admin_account_created';
+
+    /**
+     * An account's roles moved (ADR-0044 rule 2: granting a role is minting
+     * authority).
+     *
+     * The out-of-band half of the same control the step-up and the
+     * `ROLE_GRANTED` / `ROLE_REVOKED` audit rows provide: whoever holds one
+     * admin's session, password and TOTP code clears the step-up on the grant
+     * path and still cannot reach the other admins' inboxes, or the club's.
+     *
+     * One kind for both directions, unlike the audit actions — a reader of the
+     * *queue* wants "the roles on this account changed, go and look"; a reader
+     * of the *log* is answering "who gained admin last quarter". The occasion
+     * carries the direction, so two changes to one account are two messages.
+     */
+    case ADMIN_ROLE_CHANGED = 'admin_role_changed';
+
+    /**
+     * Does a club-level copy of this go out alongside the admins' (ADR-0044
+     * rule 3)?
+     *
+     * Only admin **lifecycle** events. Not the operational warnings — a
+     * Vorstand list has nothing to do about an expiring terminal token, and
+     * routing every warning there turns the one channel that must be read into
+     * one that is filtered. The point is a second pair of eyes on *who gained
+     * power*, which is the event a compromised sole admin would otherwise be
+     * the only witness to.
+     *
+     * An explicit `match` for the same reason `addressesMember()` is one: the
+     * next kind has to answer the question rather than inherit an answer from
+     * the shape of the existing ones.
+     */
+    public function addressesClub(): bool
+    {
+        return match ($this) {
+            self::ADMIN_ACCOUNT_CREATED,
+            self::ADMIN_ROLE_CHANGED => true,
+            self::SEPA_PRENOTIFICATION,
+            self::CANCELLATION_NOTICE,
+            self::DECKEL_STATEMENT,
+            self::KEY_EXPIRY_WARNING,
+            self::ENCRYPTION_KEY_REGISTERED,
+            self::ENCRYPTION_KEY_ACTIVATED,
+            self::ENCRYPTION_KEY_REVOKED,
+            self::TERMINAL_TOKEN_EXPIRY_WARNING,
+            self::TERMINAL_ANOMALY_WARNING,
+            self::TERMINAL_TOKEN_ISSUED,
+            self::ADMIN_EMAIL_CHANGED => false,
+        };
+    }
+
     /** What `subject_id` refers to for this kind. */
     public function subjectType(): MailSubject
     {
@@ -147,7 +212,9 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED => MailSubject::TERMINAL,
-            self::ADMIN_EMAIL_CHANGED => MailSubject::ADMIN_USER,
+            self::ADMIN_EMAIL_CHANGED,
+            self::ADMIN_ACCOUNT_CREATED,
+            self::ADMIN_ROLE_CHANGED => MailSubject::ADMIN_USER,
             self::DECKEL_STATEMENT => MailSubject::MEMBER,
         };
     }
@@ -181,7 +248,9 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
-            self::ADMIN_EMAIL_CHANGED => false,
+            self::ADMIN_EMAIL_CHANGED,
+            self::ADMIN_ACCOUNT_CREATED,
+            self::ADMIN_ROLE_CHANGED => false,
         };
     }
 }

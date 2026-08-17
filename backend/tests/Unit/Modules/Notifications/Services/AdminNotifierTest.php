@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\Notifications\Services;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\DTOs\MailRequestDto;
 use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Repositories\MailConfigRepository;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Modules\Notifications\Services\AdminNotifier;
 use App\Shared\Enums\AuditAction;
@@ -35,6 +36,13 @@ class AdminNotifierTest extends TestCase
     private AuditService $audit;
     private AdminNotifier $notifier;
 
+    /**
+     * `mail_config` with no club address, which is the default an installation
+     * that has never configured one has (ADR-0044 rule 3). Tests about the
+     * club-level copy set it explicitly.
+     */
+    private MailConfigRepository $mailConfig;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -42,8 +50,10 @@ class AdminNotifierTest extends TestCase
         $this->outbox = $this->createMock(MailOutboxRepository::class);
         $this->admins = $this->createMock(AdminUsersRepository::class);
         $this->audit = $this->createMock(AuditService::class);
+        $this->mailConfig = $this->createMock(MailConfigRepository::class);
+        $this->mailConfig->method('getConfig')->willReturn(['club_notification_address' => null]);
 
-        $this->notifier = new AdminNotifier($this->outbox, $this->admins, $this->audit);
+        $this->notifier = new AdminNotifier($this->outbox, $this->admins, $this->audit, $this->mailConfig);
     }
 
     /**

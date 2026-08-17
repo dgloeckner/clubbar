@@ -19,6 +19,7 @@ class MailConfigRepository
         'sender_name',
         'sender_address',
         'reply_to_address',
+        'club_notification_address',
         'header_style',
         'footer_org_name',
         'footer_address_line',
