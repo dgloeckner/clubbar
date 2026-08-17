@@ -8,6 +8,8 @@ A member-managed bar/club POS system: members identify via RFID at an offline-ca
 
 **Session**:
 The period during which one member is logged in at a terminal, from card scan on the idle screen to session end. A session ends in exactly three ways: explicit logout, inactivity timeout, or checkout completion — nothing else ends or replaces it (a foreign card tap mid-session is rejected).
+
+Unqualified, "session" always means this one. The admin panel's is always the **admin session** — never bare "session".
 _Avoid_: login, visit
 
 **Cart**:
@@ -57,6 +59,32 @@ What actually happened to the money in a settlement — never a plan for what mi
 
 A settlement records money the club has collected, has received, or has given up on. **Nothing in the system ever asks a member to send money.** A member SEPA cannot collect from — no mandate, or on collection hold after a bank return — is contacted by the Kassenwart directly, by phone or email.
 _Avoid_: manual settlement (says how it was entered, not what happened), payment request
+
+### Access
+
+**Admin session**:
+The period during which one person is logged in to the admin panel. Always qualified — bare "session" means a member's terminal Session, which is a different thing with a different lifecycle.
+_Avoid_: session (unqualified), admin login
+
+**Role**:
+Which of the club's jobs a person's admin account is for. Every account has at least one; a person may hold both lesser roles at once. A role says what the account is *for*, never how much power it has in the abstract — there is no "read-only" or "junior" account, only accounts shaped like the office they serve. See [ADR-0044](./adr/0044-tiered-admin-roles.md).
+_Avoid_: permission, tier, level, access rights
+
+**Admin**:
+Whoever holds the server. Unlimited access to everything, including the encryption private key and the power to create accounts and grant roles. Not a Vereinsamt — nobody is elected to it, which is why it keeps an English name among German ones.
+_Avoid_: superadmin, owner, root, administrator
+
+**Kassenwart**:
+The elected treasurer. Members, settlements, SEPA collection, Storno, and the notifications that go with them. Holds a copy of the encryption private key because collecting by SEPA is impossible without it — so a Kassenwart legitimately sees every member's IBAN. That is the office, not a leak.
+
+Cannot create accounts, mint terminal credentials, manage encryption keys, change mail configuration, or read the audit log. Cannot erase a member: erasure is irreversible and stays with the Admin.
+_Avoid_: treasurer (the club says Kassenwart), finance admin, accountant
+
+**Getränkewart**:
+Whoever looks after the bar stock: the drinks list, prices, availability, and what actually sells. Holds no encryption key and therefore *cannot* decrypt any IBAN — the only role whose exclusion from member banking data is cryptographic rather than a matter of which pages they can open.
+
+Sees no member: no names, no Deckel, no transaction rows, no dashboard. Product and terminal figures only.
+_Avoid_: bar operator, bar manager, Barwart, product admin
 
 ### Notifications
 
