@@ -78,7 +78,7 @@ async function registerAndActivateEncryptionKey(
   const rawPublicKey = spki.subarray(spki.length - 32);
 
   const headers = { 'X-CSRF-Token': csrfToken };
-  const stepUp = () => ({ current_password: 'password123', totp_code: generateTotp(totpSecret) });
+  const stepUp = () => ({ current_password: 'Password123', totp_code: generateTotp(totpSecret) });
 
   const registered = await request.post(`${PACKAGE_URL}/api/admin/encryption-keys`, {
     data: {
@@ -141,13 +141,32 @@ test.describe('Package: Install Wizard', () => {
     expect(step3.status()).toBe(302);
     expect(step3.headers()['location']).toContain('step=4');
 
-    // Step 4: Admin user
+    // Step 4: Admin user. #502: a password that clears the length check but
+    // fails the composition rule (lower + upper + digit, matching the rule
+    // AuthController::changePassword already enforces for self-service
+    // password change) must be rejected before the account is created — tried
+    // here, still inside the same authenticated session and before the
+    // eventual success below deletes .installer-data (and its key) for good.
+    for (const weakPassword of ['alllowercase1', 'ALLUPPERCASE1', '12345678901']) {
+      const rejected = await request.post(`${PACKAGE_URL}/install.php?step=4`, {
+        form: {
+          step: '4',
+          admin_email: 'admin@example.com',
+          admin_password: weakPassword,
+          admin_password_confirm: weakPassword,
+        },
+        maxRedirects: 0,
+      });
+      expect(rejected.status(), `password "${weakPassword}" should have been rejected`).toBe(200);
+      expect(await rejected.text()).toContain('one lowercase letter, one uppercase letter, and one digit');
+    }
+
     const step4 = await request.post(`${PACKAGE_URL}/install.php?step=4`, {
       form: {
         step: '4',
         admin_email: 'admin@example.com',
-        admin_password: 'password123',
-        admin_password_confirm: 'password123',
+        admin_password: 'Password123',
+        admin_password_confirm: 'Password123',
       },
       maxRedirects: 0,
     });
@@ -210,7 +229,7 @@ test.describe('Package: API through front controller', () => {
     const response = await request.post(`${PACKAGE_URL}/api/auth/login`, {
       data: {
         email: 'admin@example.com',
-        password: 'password123',
+        password: 'Password123',
       },
     });
     expect(response.ok()).toBeTruthy();

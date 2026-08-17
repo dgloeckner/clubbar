@@ -468,6 +468,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Password must be at least 8 characters.';
                 break;
             }
+            if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/', $password)) {
+                $error = 'Password must contain at least one lowercase letter, one uppercase letter, and one digit.';
+                break;
+            }
             if ($password !== $passwordConfirm) {
                 $error = 'Passwords do not match.';
                 break;
@@ -969,7 +973,7 @@ function renderStep4(bool $isUpdate): void
             <input type="email" name="admin_email" required autocomplete="email">
         </label>
         <label>
-            Password <small>(minimum 8 characters)</small>
+            Password <small>(minimum 8 characters, with at least one lowercase letter, one uppercase letter, and one digit)</small>
             <input type="password" name="admin_password" minlength="8" required autocomplete="new-password">
         </label>
         <label>
