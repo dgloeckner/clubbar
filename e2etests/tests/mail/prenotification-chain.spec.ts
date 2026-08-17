@@ -342,22 +342,43 @@ test.describe('SEPA pre-notification — finalize, drain, delivered mail', () =>
     authenticatedRequest,
     authenticatedTerminalRequest,
   }) => {
-    // The first real drain in the file pays for every connection this
-    // describe block will reuse, and — per DELIVERY_TIMEOUT_MS's comment in
-    // utils/mailpit.ts — can legitimately queue behind unrelated CI load on
-    // the shared compose stack: this project's `dependencies` only order it
-    // after api-tests/admin-chromium, not after api-ordered/api-rotation,
-    // which run on their own workers and can still be mid-flight against the
-    // same backend when this starts. `drainMailQueue()` itself (a synchronous
-    // `docker compose exec`) pays for that queueing before the Mailpit poll
-    // below even begins, so the poll's own 75s budget is not enough on its
-    // own — CI has been observed spending the *whole* 90s test timeout with
-    // the poll still short of its own limit (2026-08-17,
-    // https://github.com/dgloeckner/clubbar/actions/runs/32062376058). Give
-    // the poll's allowance room to actually run out on its own rather than
-    // getting cut off by the outer test timeout first.
-    test.setTimeout(150_000)
-    const FIRST_DRAIN_TIMEOUT_MS = 75_000
+    // The first real drain in the file inherits a real backlog, not a slow
+    // connection: every settlement any of the ~850 api-tests/admin-chromium
+    // tests created and finalized queued a pre-notification row exactly like
+    // this one, and none of them could have been sent — the long-running
+    // backend's MAIL_DSN is deliberately empty (see utils/drain.ts) so those
+    // suites' own assertions can't be swept by a stray send. `claimBatch()`
+    // claims strictly `ORDER BY queued_at ASC` (MailOutboxRepository), so
+    // every one of those older rows is claimed and sent before this test's
+    // brand-new one is even reached. Confirmed directly from a failing CI run
+    // (2026-08-17, https://github.com/dgloeckner/clubbar/actions/runs/32069081621):
+    // `claimed=593 sent=593 ... budget_exhausted=yes duration=25.02s` — the
+    // drain's own default wall-clock budget (mail_config.drain_budget_seconds,
+    // 25s — DrainService::DEFAULT_BUDGET_SECONDS) ran out clearing the
+    // backlog, released what it had not reached, and this test's message was
+    // still pending. No amount of waiting on Mailpit fixes that: the message
+    // was never attempted this round. A longer budget on just this call
+    // helps — the same BUDGET_SECONDS = 55 the mail-statement/mail-credentials/
+    // mail-issuance projects already use for their own drains, for the same
+    // reason. 55 rather than something closer to drain.ts's 90s process
+    // timeout: migration 040 ties that ceiling to IONOS's 60-second cron
+    // timeout, so it is the established safe maximum in this codebase, not a
+    // number specific to any one file.
+    //
+    // One call is not always enough, though: confirmed directly against a
+    // large real backlog (3569 rows, accumulated locally over many manual
+    // test runs — not something a single clean CI run produces, but useful
+    // for proving the mechanism at a scale CI's own backlog only approaches)
+    // that a single 55s round can still end budget_exhausted, and that a
+    // second round of the same budget finishes what the first did not. So
+    // this loops instead of trusting one call, stopping as soon as a round
+    // reports itself not exhausted — the whole backlog, this test's message
+    // included, was reached — rather than after a fixed number of rounds
+    // regardless of whether that many were needed.
+    test.setTimeout(240_000)
+    const FIRST_DRAIN_BUDGET_SECONDS = 55
+    const FIRST_DRAIN_MAX_ROUNDS = 3
+    const FIRST_DRAIN_TIMEOUT_MS = 30_000
 
     const announced = await settleItemisedMember(
       authenticatedRequest,
@@ -371,7 +392,23 @@ test.describe('SEPA pre-notification — finalize, drain, delivered mail', () =>
     // settlement was never due when this drained, which is a different bug
     // from one that reports sent=1 while Mailpit never saw it arrive — and
     // the Mailpit wait below cannot tell those apart if this one fails.
-    console.log(`[first drain] ${drainMailQueue()}`)
+    let backlogCleared = false
+    for (let round = 1; round <= FIRST_DRAIN_MAX_ROUNDS; round++) {
+      const output = drainMailQueue({ budgetSeconds: FIRST_DRAIN_BUDGET_SECONDS })
+      console.log(`[first drain, round ${round}] ${output}`)
+      if (output.includes('budget_exhausted=no')) {
+        backlogCleared = true
+        break
+      }
+    }
+    if (!backlogCleared) {
+      throw new Error(
+        `The mail queue was still not fully drained after ${FIRST_DRAIN_MAX_ROUNDS} rounds of ` +
+          `${FIRST_DRAIN_BUDGET_SECONDS}s each — see the [first drain, round N] lines above for what ` +
+          'each round actually processed. That backlog is bigger than this file has ever seen; the ' +
+          "Mailpit wait below would only produce a confusing timeout for a problem that isn't Mailpit's."
+      )
+    }
 
     const message = await mail.waitForMessage(announced.email, FIRST_DRAIN_TIMEOUT_MS)
     const { html } = parts(message)
