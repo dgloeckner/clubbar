@@ -128,16 +128,91 @@ class AdminControllerTest extends TestCase
 
     public function test_store_refuses_an_address_that_is_already_registered(): void
     {
+        $this->stepUpAuthService->method('verify')->willReturn(true);
         $this->service->method('emailTakenByAnother')->with('taken@example.org')->willReturn(true);
         $this->service->expects($this->never())->method('createAdminUser');
 
         $response = $this->controller->store(
-            $this->post(['email' => 'taken@example.org', 'display_name' => 'Someone', 'locale' => 'de']),
+            $this->post([
+                'email' => 'taken@example.org',
+                'display_name' => 'Someone',
+                'locale' => 'de',
+                'current_password' => 'correct',
+            ]),
             new Response(),
         );
 
         $this->assertSame(422, $response->getStatusCode());
         $this->assertSame(['Email already exists'], $this->decode($response)['messages']['email']);
+    }
+
+    /**
+     * Creating an admin user mints a persistent, full-privilege peer account
+     * (ADR-0015's flat admin model), so it now demands the same step-up
+     * credential from the caller as reset-password and terminal enrolment
+     * (#499).
+     */
+    public function test_store_rejects_a_missing_current_password(): void
+    {
+        $this->service->expects($this->never())->method('createAdminUser');
+
+        $response = $this->controller->store(
+            $this->post(['email' => 'new@example.org', 'display_name' => 'Someone', 'locale' => 'de']),
+            new Response(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('current_password', $this->decode($response)['messages']);
+    }
+
+    public function test_store_rejects_a_failed_step_up_with_no_state_change(): void
+    {
+        $this->stepUpAuthService->method('verify')->willReturn(false);
+        $this->service->expects($this->never())->method('createAdminUser');
+
+        $response = $this->controller->store(
+            $this->post([
+                'email' => 'new@example.org',
+                'display_name' => 'Someone',
+                'locale' => 'de',
+                'current_password' => 'wrong',
+            ]),
+            new Response(),
+        );
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('invalid_credentials', $this->decode($response)['error']);
+    }
+
+    public function test_store_a_correct_step_up_verifies_against_the_caller_and_creates_the_admin(): void
+    {
+        $this->stepUpAuthService->expects($this->once())
+            ->method('verify')
+            ->with(
+                $this->callback(fn(array $caller) => $caller['id'] === 'admin-1'),
+                $this->callback(fn(array $body) => $body['current_password'] === 'correct'),
+                $this->anything(),
+            )
+            ->willReturn(true);
+
+        $this->service->method('emailTakenByAnother')->willReturn(false);
+        $this->service->expects($this->once())
+            ->method('createAdminUser')
+            ->with('new@example.org', 'Someone', 'de', 'admin-1')
+            ->willReturn(['admin' => $this->admin(), 'password' => 'generated-password']);
+
+        $response = $this->controller->store(
+            $this->post([
+                'email' => 'new@example.org',
+                'display_name' => 'Someone',
+                'locale' => 'de',
+                'current_password' => 'correct',
+            ]),
+            new Response(),
+        );
+
+        $this->assertSame(201, $response->getStatusCode());
+        $this->assertSame('generated-password', $this->decode($response)['password']);
     }
 
     public function test_update_rejects_an_unsupported_locale(): void
@@ -191,7 +266,8 @@ class AdminControllerTest extends TestCase
         return (new ServerRequestFactory())
             ->createServerRequest('POST', '/api/admin/admin-users')
             ->withParsedBody($body)
-            ->withAttribute('admin_user_id', 'admin-1');
+            ->withAttribute('admin_user_id', 'admin-1')
+            ->withAttribute('admin_user', ['id' => 'admin-1', 'email' => 'admin@example.org', 'totp_enabled' => 0]);
     }
 
     private function admin(): AdminUserDto

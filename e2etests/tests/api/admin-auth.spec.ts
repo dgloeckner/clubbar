@@ -4,6 +4,7 @@ import path from "path";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { submitTotpWithRetry } from "../../utils/totp";
 import { loginAs } from "../../utils/csrf";
+import { stepUp } from "../../fixtures/stepUp";
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -520,6 +521,7 @@ test.describe("Admin Authentication", () => {
       const createResponse = await request.post(`${API_BASE}/admin/admin-users`, {
         headers: { cookie: cookieString, "X-CSRF-Token": csrfToken },
         data: {
+          ...stepUp(),
           email: `profile-${suffix}@test.example.com`,
           display_name: "Profile Test Admin",
           locale: "de",

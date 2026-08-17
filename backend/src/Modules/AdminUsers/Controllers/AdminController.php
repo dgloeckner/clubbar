@@ -45,13 +45,22 @@ class AdminController
     {
         $body = $request->getParsedBody() ?? [];
         $adminId = $request->getAttribute('admin_user_id');
+        $caller = $request->getAttribute('admin_user');
 
         if (!$this->validator->validate($body, [
             'email' => ['required', 'email'],
             'display_name' => ['required', 'string', 'max:100'],
             'locale' => ['required', 'string', 'in:de,en,fr'],
+            'current_password' => ['required', 'string'],
         ])) {
             return $this->validationFailed($response, $this->validator->errors());
+        }
+
+        if (!$this->stepUpAuthService->verify($caller, $body, $request)) {
+            return $this->json($response, [
+                'error' => 'invalid_credentials',
+                'message' => 'Re-enter your password to create a new admin user',
+            ], 401);
         }
 
         // Check for duplicate email

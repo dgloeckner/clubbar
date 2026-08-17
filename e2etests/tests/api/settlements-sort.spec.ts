@@ -29,6 +29,7 @@ import { test, expect, APIRequestContext } from '@playwright/test'
 import { loginAs } from '../../utils/csrf'
 import { settlementFactory as buildSettlementFactory } from '../../utils/settlements'
 import { TEST_CREDENTIALS } from '../../config/test-credentials'
+import { stepUp } from '../../fixtures/stepUp'
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -113,6 +114,7 @@ test.describe('Settlements list sort keys', () => {
 
     const createAdmin = await seededAdmin.post(`${API_BASE}/admin/admin-users`, {
       data: {
+        ...stepUp(),
         email: `aaa-sort-${suffix}@test.example.com`,
         display_name: earlierName,
         locale: 'de',

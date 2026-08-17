@@ -2,6 +2,7 @@ import { test, expect } from "../../fixtures/auth.fixture";
 import { loginAs } from "../../utils/csrf";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { generateTotp } from "../../utils/totp";
+import { stepUp } from "../../fixtures/stepUp";
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -74,6 +75,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `create-${timestamp}@test.example.com`,
           display_name: "Test Admin Create",
           locale: "de",
@@ -98,6 +100,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: "admin@example.com",
           display_name: "Duplicate",
           locale: "de",
@@ -131,6 +134,61 @@ test.describe("Admin Users API", () => {
     });
 
     expect(response.status()).toBe(401);
+  });
+
+  // Creating an admin user mints a persistent, full-privilege peer account
+  // (ADR-0015's flat admin model), so the caller must first re-prove their
+  // own identity with a step-up credential (#499) — same shape as
+  // reset-password and terminal enrolment.
+  test("should reject creating an admin user without a step-up credential", async ({
+    authenticatedRequest,
+  }) => {
+    const timestamp = Date.now();
+    const response = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users`,
+      {
+        data: {
+          email: `no-stepup-${timestamp}@test.example.com`,
+          display_name: "No Step-Up",
+          locale: "de",
+        },
+      }
+    );
+
+    // Missing current_password fails the Validator rule, not the step-up check.
+    expect(response.status()).toBe(422);
+  });
+
+  test("should reject creating an admin user with a wrong step-up credential", async ({
+    authenticatedRequest,
+  }) => {
+    const timestamp = Date.now();
+    const response = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users`,
+      {
+        data: {
+          ...stepUp({ password: "definitely-wrong-password" }),
+          email: `wrong-stepup-${timestamp}@test.example.com`,
+          display_name: "Wrong Step-Up",
+          locale: "de",
+        },
+      }
+    );
+
+    expect(response.status()).toBe(401);
+    const data = await response.json();
+    expect(data.error).toBe("invalid_credentials");
+
+    // No state change: no admin user was created with this email.
+    const listResponse = await authenticatedRequest.get(
+      `${API_BASE}/admin/admin-users?per_page=100`
+    );
+    const listData = await listResponse.json();
+    expect(
+      listData.data.some(
+        (admin: any) => admin.email === `wrong-stepup-${timestamp}@test.example.com`
+      )
+    ).toBe(false);
   });
 
   // ========== GET SINGLE ADMIN USER ==========
@@ -172,6 +230,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `update-${timestamp}@test.example.com`,
           display_name: "Original Name",
           locale: "de",
@@ -206,6 +265,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `unique-${timestamp}@test.example.com`,
           display_name: "Test",
           locale: "de",
@@ -234,6 +294,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `partial-${timestamp}@test.example.com`,
           display_name: "Original",
           locale: "de",
@@ -268,6 +329,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `deactivate-${timestamp}@test.example.com`,
           display_name: "To Deactivate",
           locale: "de",
@@ -313,6 +375,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `reactivate-${timestamp}@test.example.com`,
           display_name: "To Reactivate",
           locale: "de",
@@ -344,6 +407,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `reset-${timestamp}@test.example.com`,
           display_name: "To Reset Password",
           locale: "de",
@@ -382,6 +446,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `reset-reject-${timestamp}@test.example.com`,
           display_name: "To Reset Password Reject",
           locale: "de",
@@ -429,6 +494,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `pwtest-${timestamp}@test.example.com`,
           display_name: "Password Test Admin",
           locale: "de",
@@ -464,6 +530,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `pwtest-${timestamp}@test.example.com`,
           display_name: "Password Test Admin",
           locale: "de",
@@ -499,6 +566,7 @@ test.describe("Admin Users API", () => {
       `${API_BASE}/admin/admin-users`,
       {
         data: {
+          ...stepUp(),
           email: `pwtest-${timestamp}@test.example.com`,
           display_name: "Password Test Admin",
           locale: "de",

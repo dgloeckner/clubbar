@@ -345,12 +345,13 @@ export function SettingsPage() {
     }
   }
 
-  const handleCreateAdmin = async () => {
+  const handleCreateAdmin = async (credentials: StepUpCredentials) => {
     try {
       const result = await getAdminUsers().createAdminUser({
         email: createAdminFormData.email,
         display_name: createAdminFormData.display_name,
         locale: createAdminFormData.locale,
+        ...credentials,
       })
       setGeneratedPassword(result.password ?? null)
       setShowPasswordModal(true)
@@ -1017,6 +1018,7 @@ export function SettingsPage() {
         formData={createAdminFormData}
         error={modalError}
         fieldErrors={modalFieldErrors}
+        requiresTotp={callerTotpEnabled}
         onFormChange={(field, value) => {
           clearModalError()
           if (field === 'locale') {

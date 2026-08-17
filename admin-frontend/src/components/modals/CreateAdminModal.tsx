@@ -1,6 +1,10 @@
 /**
  * CreateAdminModal Component
  * Modal for creating new admin users
+ *
+ * A new admin is a full-privilege peer account under this app's flat admin
+ * model (ADR-0015), so the same form collects a step-up credential (#499) —
+ * one dialog rather than two, the same shape as terminal enrolment (#395).
  */
 
 import { useEffect, useState } from 'react'
@@ -10,6 +14,11 @@ import { LanguageSelector } from '../forms/LanguageSelector'
 import { FieldError, ModalError, modalInputStyle } from './ModalError'
 import { validateCreateAdminForm } from '../../utils/settingsForms'
 import { useModalDialog } from '../../hooks/useModalDialog'
+import {
+  StepUpCredentialFields,
+  isStepUpComplete,
+  type StepUpCredentials,
+} from './StepUpConfirmDialog'
 
 export interface CreateAdminModalProps {
   isOpen: boolean
@@ -22,8 +31,10 @@ export interface CreateAdminModalProps {
   error?: string | null
   /** Field name → message, as the API reported it. */
   fieldErrors?: Record<string, string>
+  /** True when the signed-in admin has 2FA enrolled — shows the code field. */
+  requiresTotp: boolean
   onFormChange: (field: string, value: string) => void
-  onSubmit: () => void
+  onSubmit: (credentials: StepUpCredentials) => void
   onClose: () => void
 }
 
@@ -32,6 +43,7 @@ export function CreateAdminModal({
   formData,
   error,
   fieldErrors = {},
+  requiresTotp,
   onFormChange,
   onSubmit,
   onClose,
@@ -39,13 +51,18 @@ export function CreateAdminModal({
   const { t } = useTranslation()
   // Field name → i18n key, from validating locally before the request goes out.
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const [password, setPassword] = useState('')
+  const [totpCode, setTotpCode] = useState('')
   const contentRef = useModalDialog(isOpen, onClose)
 
   // The modal stays mounted while closed, so a stale complaint would otherwise
-  // greet whoever opens it next.
+  // greet whoever opens it next — and a password typed for one admin must
+  // never be waiting in the field for the next.
   useEffect(() => {
     if (!isOpen) {
       setValidationErrors({})
+      setPassword('')
+      setTotpCode('')
     }
   }, [isOpen])
 
@@ -58,11 +75,15 @@ export function CreateAdminModal({
 
   const handleSubmit = () => {
     const errors = validateCreateAdminForm(formData)
+    if (!isStepUpComplete(password, totpCode, requiresTotp)) {
+      errors.current_password = 'settings.validation.stepUpRequiredCreateAdmin'
+    }
+
     setValidationErrors(errors)
     if (Object.keys(errors).length > 0) {
       return
     }
-    onSubmit()
+    onSubmit({ current_password: password, totp_code: requiresTotp ? totpCode : undefined })
   }
 
   // The backdrop deliberately carries no close handler: a stray click beside
@@ -126,7 +147,31 @@ export function CreateAdminModal({
             testId="settings-admin-create-locale"
           />
         </div>
-        <div style={{ display: 'flex', gap: theme.spacing.md }}>
+
+        <p
+          style={{
+            margin: `0 0 ${theme.spacing.md} 0`,
+            fontSize: theme.typography.fontSize.xs,
+            color: theme.colors.text.secondary,
+          }}
+        >
+          {t('settings.createAdminStepUpHint')}
+        </p>
+
+        <StepUpCredentialFields
+          requiresTotp={requiresTotp}
+          password={password}
+          totpCode={totpCode}
+          invalid={!!error || !!messageFor('current_password')}
+          onPasswordChange={setPassword}
+          onTotpCodeChange={setTotpCode}
+        />
+        <FieldError
+          message={messageFor('current_password')}
+          testId="settings-admin-create-credential-error"
+        />
+
+        <div style={{ display: 'flex', gap: theme.spacing.md, marginTop: theme.spacing.md }}>
           <button
             data-testid="settings-admin-create-confirm-button"
             onClick={handleSubmit}

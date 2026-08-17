@@ -91,7 +91,11 @@ const listAdminUsers = (
       options);
     }
   /**
- * Create a new admin user.
+ * Create a new admin user. The caller must first re-prove their own
+identity with a step-up credential: their own current password, plus
+their own fresh TOTP code if they have 2FA enabled (#499). This
+step-up is rate-limited on the caller's account (5 attempts / 15 min,
+same dimension as login) and a failed attempt is audited.
 
 **Use Case**: UC-A62
 

@@ -20,6 +20,7 @@ import { test, expect } from '../../fixtures/pageObjects'
 import { TEST_CREDENTIALS } from '../../config/test-credentials'
 import { generateTotp } from '../../utils/totp'
 import { loginAs } from '../../utils/csrf'
+import { stepUp } from '../../fixtures/stepUp'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -41,7 +42,7 @@ async function createUnenrolledAdmin(
   try {
     const email = uniqueEmail(emailPrefix)
     const createResp = await ctx.post(`${API_BASE}/admin/admin-users`, {
-      data: { email, display_name: `Login Test ${emailPrefix}`, locale: 'en' },
+      data: { ...stepUp(), email, display_name: `Login Test ${emailPrefix}`, locale: 'en' },
     })
     if (createResp.status() !== 201) {
       throw new Error(`Failed to create admin user (${createResp.status()}): ${await createResp.text()}`)

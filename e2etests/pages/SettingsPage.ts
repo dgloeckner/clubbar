@@ -385,7 +385,9 @@ export class SettingsPage {
   }
 
   /**
-   * Fill create admin form
+   * Fills the create form, credential included: creating an admin user mints
+   * a full-privilege peer account, so the form asks for a step-up in the same
+   * sitting (#499).
    */
   async fillCreateAdminForm(data: {
     email: string
@@ -403,6 +405,7 @@ export class SettingsPage {
       await this.page.getByTestId('settings-admin-create-locale-trigger').click()
       await this.page.getByTestId(`settings-admin-create-locale-option-${data.locale}`).click()
     }
+    await this.fillStepUpCredential()
   }
 
   /**
