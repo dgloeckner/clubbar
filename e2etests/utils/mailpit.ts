@@ -34,8 +34,22 @@ import { expect, request as playwrightRequest, type APIRequestContext } from '@p
 /** Mailpit's HTTP API, as exposed by the compose stack. */
 export const MAILPIT_URL = process.env.MAILPIT_URL || 'http://localhost:8025'
 
-/** How long a message may take to appear after the drain reports it sent. */
-const DELIVERY_TIMEOUT_MS = 15_000
+/**
+ * How long a message may take to appear after the drain reports it sent.
+ *
+ * The chain this waits on is real: `docker compose exec` a PHP CLI process,
+ * connect to the DB, render the mail, hand it to Mailpit over SMTP, then have
+ * Mailpit index it before the HTTP search reflects it. Every hop is fast in
+ * isolation, but CI runs this suite's projects — and several others — against
+ * one shared compose stack at once (see `mail-chain`'s comment in
+ * playwright.config.ts), so the whole chain can queue behind unrelated load
+ * rather than being slow itself. 15s was tight enough to fail on a clean send
+ * that simply had to wait its turn (#409's own CI run, first drain in the
+ * file); 30s gives that legitimate queueing room without weakening what is
+ * being asserted — a message that truly never arrives still fails, just after
+ * a fairer wait.
+ */
+const DELIVERY_TIMEOUT_MS = 30_000
 
 export interface MailpitAddress {
   Name: string
