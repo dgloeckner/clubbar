@@ -7,61 +7,63 @@
  * 3. Persists language preference after page refresh
  * 4. Switches back to German
  *
+ * Each test mints its own isolated admin (see utils/isolatedAdmin.ts) rather
+ * than switching the shared seeded admin's locale
+ * (playwright/.auth/admin.json, one file for every worker — Pattern 002):
+ * `auth/session.ts` calls `changeLanguage(admin.locale)` on every session
+ * verify, so flipping that account's locale to English — even briefly, even
+ * with a reset in `beforeEach` — was observable by every other test
+ * authenticated as the same admin while this spec's tests ran beside them in
+ * the same shard, turning unrelated German-text assertions in other specs
+ * into flaky failures.
+ *
  * Implements E2E Testing Patterns:
- * - Pattern 001: Test Data Isolation (reset locale before each test)
- * - Pattern 002: Authentication Isolation (authenticatedRequest fixture)
+ * - Pattern 001: Test Data Isolation (a fresh admin per test, not shared state)
+ * - Pattern 002: Authentication Isolation (never mutates the shared admin)
  * - Pattern 005: Using Test IDs (data-testid)
  * - Pattern 006: Page Object Model (ProfilePage, MainLayoutPage)
- * - Pattern 007: Page Object Fixtures (injected POMs)
  * - Pattern 008: Playwright Assertions (expect API)
  */
 
-import { test } from '../../fixtures/auth.fixture'
-import { csrfHeaders } from '../../utils/csrf'
-
-const API_BASE = 'http://localhost:8080/api'
+import { test } from '../../fixtures/pageObjects'
+import { createIsolatedAdmin, signInAndEnroll } from '../../utils/isolatedAdmin'
+import { ProfilePage } from '../../pages/ProfilePage'
+import { MainLayoutPage } from '../../pages/MainLayoutPage'
 
 test.describe('i18n Language Switching', () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to a page first so the page context has loaded cookies+localStorage
-    await page.goto('/members', { waitUntil: 'domcontentloaded' })
+  // Start logged out: each test signs in as its own isolated admin.
+  test.use({ storageState: { cookies: [], origins: [] } })
 
-    // Reset admin's locale to German via the existing browser session.
-    // Using page.request avoids a fresh login (which risks hitting the rate limiter
-    // when multiple tests run in parallel).
-    const headers = await csrfHeaders(page)
-    await page.request.patch(`${API_BASE}/auth/profile`, {
-      data: { locale: 'de' },
-      headers,
-    })
+  test('should display navigation in German by default', async ({ loginPage, page, playwright }) => {
+    const { email, password } = await createIsolatedAdmin(playwright, 'i18n-default')
+    await signInAndEnroll(loginPage, page, email, password)
 
-    // Sync localStorage so the frontend picks up the reset locale
-    await page.evaluate(() => {
-      localStorage.setItem('adminLocale', 'de')
-    })
-  })
-
-  test('should display navigation in German by default', async ({ page, mainLayoutPage }) => {
-    await page.reload()
+    const mainLayoutPage = new MainLayoutPage(page)
     await mainLayoutPage.waitForNavigation()
     await mainLayoutPage.expectNavigationInLanguage('de')
   })
 
-  test('should switch to English when language changed in profile', async ({ page, mainLayoutPage, profilePage }) => {
-    await page.reload()
-    await mainLayoutPage.waitForNavigation()
+  test('should switch to English when language changed in profile', async ({ loginPage, page, playwright }) => {
+    const { email, password } = await createIsolatedAdmin(playwright, 'i18n-switch')
+    await signInAndEnroll(loginPage, page, email, password)
 
+    const profilePage = new ProfilePage(page)
     await profilePage.navigate()
     await profilePage.changeLanguage('en')
 
+    const mainLayoutPage = new MainLayoutPage(page)
     await mainLayoutPage.expectNavigationInLanguage('en')
   })
 
-  test('should persist language after page refresh', async ({ page, mainLayoutPage, profilePage }) => {
-    await page.reload()
+  test('should persist language after page refresh', async ({ loginPage, page, playwright }) => {
+    const { email, password } = await createIsolatedAdmin(playwright, 'i18n-persist')
+    await signInAndEnroll(loginPage, page, email, password)
 
+    const profilePage = new ProfilePage(page)
     await profilePage.navigate()
     await profilePage.changeLanguage('en')
+
+    const mainLayoutPage = new MainLayoutPage(page)
     await mainLayoutPage.expectNavigationInLanguage('en')
 
     await page.reload()
@@ -69,11 +71,15 @@ test.describe('i18n Language Switching', () => {
     await mainLayoutPage.expectNavigationInLanguage('en')
   })
 
-  test('should switch back to German', async ({ page, mainLayoutPage, profilePage }) => {
-    await page.reload()
+  test('should switch back to German', async ({ loginPage, page, playwright }) => {
+    const { email, password } = await createIsolatedAdmin(playwright, 'i18n-back')
+    await signInAndEnroll(loginPage, page, email, password)
 
+    const profilePage = new ProfilePage(page)
     await profilePage.navigate()
     await profilePage.changeLanguage('en')
+
+    const mainLayoutPage = new MainLayoutPage(page)
     await mainLayoutPage.expectNavigationInLanguage('en')
 
     await profilePage.changeLanguage('de')

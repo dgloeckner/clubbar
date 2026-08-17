@@ -19,64 +19,17 @@
  * 006 (page objects), 008 (assertions).
  */
 
-import { Playwright } from '@playwright/test'
 import { test, expect } from '../../fixtures/pageObjects'
-import { TEST_CREDENTIALS } from '../../config/test-credentials'
 import { generateTotp } from '../../utils/totp'
 import { loginAs } from '../../utils/csrf'
+import { createIsolatedAdmin as createAdmin, signInAndEnroll, uniqueTestEmail as uniqueEmail } from '../../utils/isolatedAdmin'
 import { ProfilePage } from '../../pages/ProfilePage'
 
 const API_BASE = 'http://localhost:8080/api'
 
-function uniqueEmail(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}@test.example`
-}
-
-/**
- * Mint an unenrolled admin through an isolated API context, so the browser
- * context under test stays logged out and must drive the real login form.
- */
-async function createAdmin(
-  playwright: Playwright,
-  prefix: string
-): Promise<{ email: string; password: string }> {
-  const ctx = await loginAs(playwright, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
-  try {
-    const email = uniqueEmail(prefix)
-    const response = await ctx.post(`${API_BASE}/admin/admin-users`, {
-      data: { email, display_name: `Credential Test ${prefix}`, locale: 'de' },
-    })
-    if (response.status() !== 201) {
-      throw new Error(`Failed to create admin (${response.status()}): ${await response.text()}`)
-    }
-    return { email, password: (await response.json()).password }
-  } finally {
-    await ctx.dispose()
-  }
-}
-
 test.describe('Profile credential changes (UI)', () => {
   // Start logged out: these tests sign in as their own admin, not the shared one.
   test.use({ storageState: { cookies: [], origins: [] } })
-
-  /**
-   * Log in as a fresh admin and complete the mandatory enrollment gate,
-   * returning the secret the setup screen displayed — the only place a test
-   * can obtain it, since the server never reveals it again.
-   */
-  async function signInAndEnroll(
-    loginPage: { navigate: () => Promise<void>; login: (e: string, p: string) => Promise<void>; totpQrCode: () => { waitFor: (o?: unknown) => Promise<void> }; getTotpSetupSecret: () => Promise<string>; submitTotpSetupCode: (c: string) => Promise<void> },
-    page: { waitForURL: (u: string, o?: unknown) => Promise<void> },
-    email: string,
-    password: string
-  ): Promise<string> {
-    await loginPage.navigate()
-    await loginPage.login(email, password)
-    const secret = await loginPage.getTotpSetupSecret()
-    await loginPage.submitTotpSetupCode(generateTotp(secret))
-    await page.waitForURL('**/dashboard', { timeout: 10000 })
-    return secret
-  }
 
   test('changes the password through the form and the new password authenticates', async ({
     loginPage,
@@ -196,5 +149,29 @@ test.describe('Profile credential changes (UI)', () => {
 
     await profilePage.expectSuccessVisible()
     await profilePage.expectStepUpDialogHidden()
+  })
+
+  /**
+   * #104: a success toast only proves the PATCH resolved, not that the value
+   * survived server-side rather than being rendered optimistically. Reloads
+   * from a fresh navigation to confirm the server actually has it — on this
+   * test's own isolated admin, never the shared one (see file comment).
+   */
+  test('language change persists across a reload', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    test.setTimeout(360_000)
+    const { email, password } = await createAdmin(playwright, 'ui-locale-persist')
+    await signInAndEnroll(loginPage, page, email, password)
+
+    const profilePage = new ProfilePage(page)
+    await profilePage.navigate()
+    await profilePage.changeLanguage('en')
+    await profilePage.expectSuccessVisible()
+
+    await profilePage.navigate()
+    await profilePage.expectLanguageSelected('en')
   })
 })
