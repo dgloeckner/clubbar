@@ -26,8 +26,8 @@ const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.package
 type InstallAuditRow = {
   admin_user_id: string;
   entity_id: string;
-  old_values: string | null;
-  new_values: string;
+  old_values: Record<string, unknown> | null;
+  new_values: { email: string; display_name: string; password: string };
 };
 
 /**
@@ -165,9 +165,8 @@ test.describe('Package: Install Wizard', () => {
     const installAuditEntry = queryInstallAdminAuditEntry();
     expect(installAuditEntry).not.toBeNull();
     expect(installAuditEntry!.admin_user_id).toBe(installAuditEntry!.entity_id);
-    const newValues = JSON.parse(installAuditEntry!.new_values);
-    expect(newValues.email).toBe('admin@example.com');
-    expect(newValues.password).toBe('[INSTALLER]');
+    expect(installAuditEntry!.new_values.email).toBe('admin@example.com');
+    expect(installAuditEntry!.new_values.password).toBe('[INSTALLER]');
     expect(installAuditEntry!.old_values).toBeNull();
 
     // Step 5: the scheduler (#405). A prerequisite step, not a suggestion —
