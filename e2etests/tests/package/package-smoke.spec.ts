@@ -20,6 +20,38 @@ const PACKAGE_URL = process.env.PACKAGE_URL || 'http://localhost:8080';
 const CI_INSTALL_KEY = 'ci-package-install-key-0000';
 const CI_DEPLOY_SECRET = 'ci-deploy-secret-0000';
 
+const REPO_ROOT = path.resolve(__dirname, '../../..');
+const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.package.yml'];
+
+type InstallAuditRow = {
+  admin_user_id: string;
+  entity_id: string;
+  old_values: string | null;
+  new_values: string;
+};
+
+/**
+ * Reads the audit_log row the installer wrote for the first admin (#501)
+ * directly from the package database, bypassing the admin session/API —
+ * this admin's account must stay TOTP-unenrolled for the login test below.
+ */
+function queryInstallAdminAuditEntry(): InstallAuditRow | null {
+  const sql =
+    "SELECT JSON_OBJECT('admin_user_id', al.admin_user_id, 'entity_id', al.entity_id, " +
+    "'old_values', al.old_values, 'new_values', al.new_values) " +
+    'FROM audit_log al JOIN admin_users au ON al.entity_id = au.id ' +
+    "WHERE al.entity_type = 'admin_user' AND al.action = 'create' AND au.email = 'admin@example.com' " +
+    'ORDER BY al.id DESC LIMIT 1';
+
+  const output = execFileSync(
+    'docker',
+    ['compose', ...COMPOSE_FILES, 'exec', '-T', 'database', 'mysql', '-uclubbar', '-pclubbar', 'clubbar', '-N', '-B', '-e', sql],
+    { cwd: REPO_ROOT, encoding: 'utf8' }
+  ).trim();
+
+  return output ? JSON.parse(output) : null;
+}
+
 /**
  * Register and activate an IBAN encryption keypair, the way a club does after
  * installing (ADR-0036).
@@ -121,6 +153,22 @@ test.describe('Package: Install Wizard', () => {
     });
     expect(step4.status()).toBe(302);
     expect(step4.headers()['location']).toContain('step=5');
+
+    // The first admin is created by a raw INSERT the installer runs before
+    // Composer's autoloader (and therefore AdminUsersService/AuditService)
+    // is reachable — every admin the panel creates afterwards is audit-logged,
+    // and this one must not be the exception (#501). Read the row straight
+    // from the database rather than through the login + audit-log API: the
+    // later "requiresTotpSetup" test in this file depends on this admin still
+    // having no second factor enrolled, which completing a real TOTP setup
+    // here would break.
+    const installAuditEntry = queryInstallAdminAuditEntry();
+    expect(installAuditEntry).not.toBeNull();
+    expect(installAuditEntry!.admin_user_id).toBe(installAuditEntry!.entity_id);
+    const newValues = JSON.parse(installAuditEntry!.new_values);
+    expect(newValues.email).toBe('admin@example.com');
+    expect(newValues.password).toBe('[INSTALLER]');
+    expect(installAuditEntry!.old_values).toBeNull();
 
     // Step 5: the scheduler (#405). A prerequisite step, not a suggestion —
     // the drain is the only thing that sends announcement emails, and until a

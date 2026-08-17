@@ -507,6 +507,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 $stmt->execute([$id, $email, $hashedPassword, $email]);
 
+                // The panel audits every admin it creates (AdminUsersService::
+                // createAdminUser) — the very first, highest-privilege account
+                // must not be the one exception (#501). Composer's autoloader
+                // is deliberately out of reach this early (see the file header),
+                // so this writes the equivalent audit_log row directly rather
+                // than pulling in AuditService/AuditLogRepository, mirroring
+                // Pattern 016's shape and masking by hand: action=create,
+                // entity_type=admin_user, password never in plaintext. There is
+                // no session admin yet to attribute the row to — the installer
+                // has no "current admin" the way a panel request does — so the
+                // account is recorded as having created itself, which is what
+                // actually happened.
+                $stmt = $pdo->prepare(
+                    'INSERT INTO audit_log (admin_user_id, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+                );
+                $stmt->execute([
+                    $id,
+                    'create',
+                    'admin_user',
+                    $id,
+                    null,
+                    json_encode(['email' => $email, 'display_name' => $email, 'password' => '[INSTALLER]']),
+                    $_SERVER['REMOTE_ADDR'] ?? null,
+                    $_SERVER['HTTP_USER_AGENT'] ?? null,
+                ]);
+
                 // Instance branding (ADR-0034): optional at install time — the
                 // migration already seeds a 'Club Bar' row, so an empty field
                 // here just leaves that default in place rather than blocking
