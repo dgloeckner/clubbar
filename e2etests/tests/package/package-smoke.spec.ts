@@ -141,7 +141,26 @@ test.describe('Package: Install Wizard', () => {
     expect(step3.status()).toBe(302);
     expect(step3.headers()['location']).toContain('step=4');
 
-    // Step 4: Admin user
+    // Step 4: Admin user. #502: a password that clears the length check but
+    // fails the composition rule (lower + upper + digit, matching the rule
+    // AuthController::changePassword already enforces for self-service
+    // password change) must be rejected before the account is created — tried
+    // here, still inside the same authenticated session and before the
+    // eventual success below deletes .installer-data (and its key) for good.
+    for (const weakPassword of ['alllowercase1', 'ALLUPPERCASE1', '12345678901']) {
+      const rejected = await request.post(`${PACKAGE_URL}/install.php?step=4`, {
+        form: {
+          step: '4',
+          admin_email: 'admin@example.com',
+          admin_password: weakPassword,
+          admin_password_confirm: weakPassword,
+        },
+        maxRedirects: 0,
+      });
+      expect(rejected.status(), `password "${weakPassword}" should have been rejected`).toBe(200);
+      expect(await rejected.text()).toContain('one lowercase letter, one uppercase letter, and one digit');
+    }
+
     const step4 = await request.post(`${PACKAGE_URL}/install.php?step=4`, {
       form: {
         step: '4',
@@ -193,32 +212,6 @@ test.describe('Package: Install Wizard', () => {
     const step6 = await request.get(`${PACKAGE_URL}/install.php?step=6`);
     expect(step6.status()).toBe(200);
     expect(await step6.text()).toContain('Installation Complete');
-  });
-
-  // #502: the first admin account is the highest-value credential in the
-  // system, so its password must meet the same composition rule as
-  // self-service password change (AuthController::changePassword), not just
-  // the bare length check the installer used to apply.
-  test('install wizard rejects a first-admin password that fails the composition rule', async ({ request }) => {
-    const keyResponse = await request.post(`${PACKAGE_URL}/install.php`, {
-      form: { install_key: CI_INSTALL_KEY },
-    });
-    expect(keyResponse.ok()).toBeTruthy();
-
-    for (const weakPassword of ['alllowercase1', 'ALLUPPERCASE1', '12345678901']) {
-      const response = await request.post(`${PACKAGE_URL}/install.php?step=4`, {
-        form: {
-          step: '4',
-          admin_email: 'admin-weak-password@example.com',
-          admin_password: weakPassword,
-          admin_password_confirm: weakPassword,
-        },
-        maxRedirects: 0,
-      });
-      expect(response.status(), `password "${weakPassword}" should have been rejected`).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('one lowercase letter, one uppercase letter, and one digit');
-    }
   });
 });
 
