@@ -1,8 +1,12 @@
+import path from "path";
 import { test, expect } from "../../fixtures/auth.fixture";
 import { loginAs } from "../../utils/csrf";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { generateTotp } from "../../utils/totp";
 import { stepUp } from "../../fixtures/stepUp";
+
+// Same path auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
+const ADMIN_STORAGE_STATE_PATH = path.join("playwright", ".auth", "admin.json");
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -134,6 +138,53 @@ test.describe("Admin Users API", () => {
     });
 
     expect(response.status()).toBe(401);
+  });
+
+  // CsrfMiddleware protects the whole /api/admin route group generically
+  // (csrf-protection.spec.ts:17-59 only exercises /admin/categories), so this
+  // pins that protection specifically to admin-user creation — a future
+  // route reshuffle that accidentally drops admin-users out of the
+  // CSRF-protected group would otherwise go uncaught (#504).
+  test("should reject creating an admin user without a CSRF token", async ({
+    playwright,
+    authenticatedRequest,
+  }) => {
+    // Reuse the shared admin session cookie (set up once by auth.setup.ts)
+    // without the CSRF-token-injecting wrapper authenticatedRequest applies,
+    // so this request is authenticated but carries no X-CSRF-Token header.
+    const sessionOnlyRequest = await playwright.request.newContext({
+      baseURL: API_BASE,
+      storageState: ADMIN_STORAGE_STATE_PATH,
+    });
+
+    const timestamp = Date.now();
+    const email = `csrf-${timestamp}@test.example.com`;
+    const response = await sessionOnlyRequest.post(
+      `${API_BASE}/admin/admin-users`,
+      {
+        data: {
+          ...stepUp(),
+          email,
+          display_name: "CSRF Test",
+          locale: "de",
+        },
+      }
+    );
+
+    expect(response.status()).toBe(403);
+    const data = await response.json();
+    expect(data.error).toBe("csrf_validation_failed");
+
+    await sessionOnlyRequest.dispose();
+
+    // No state change: no admin user was created with this email.
+    const listResponse = await authenticatedRequest.get(
+      `${API_BASE}/admin/admin-users?per_page=100`
+    );
+    const listData = await listResponse.json();
+    expect(listData.data.some((admin: any) => admin.email === email)).toBe(
+      false
+    );
   });
 
   // Creating an admin user mints a persistent, full-privilege peer account
