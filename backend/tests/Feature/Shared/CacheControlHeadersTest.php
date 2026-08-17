@@ -31,6 +31,7 @@ class CacheControlHeadersTest extends HttpTestCase
         $this->adminEmail = 'cache-control-' . bin2hex(random_bytes(4)) . '@example.test';
         $this->db->prepare('INSERT INTO admin_users (id, email, password_hash, is_active) VALUES (?, ?, ?, 1)')
             ->execute([$this->adminId, $this->adminEmail, password_hash('irrelevant', PASSWORD_BCRYPT)]);
+        $this->grantRoles($this->adminId);
     }
 
     protected function tearDown(): void

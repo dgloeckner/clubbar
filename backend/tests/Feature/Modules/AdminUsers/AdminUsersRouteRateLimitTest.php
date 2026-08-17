@@ -35,6 +35,7 @@ class AdminUsersRouteRateLimitTest extends HttpTestCase
             'INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())'
         )->execute([$this->adminId, $this->adminEmail, self::PASSWORD_HASH, 'Rate Limit Admin', 'de']);
+        $this->grantRoles($this->adminId);
 
         // An authenticated admin session, set directly — this test is about the
         // rate limiter in front of the route, not the login flow.

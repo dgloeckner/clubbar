@@ -906,7 +906,11 @@ class ServiceFactory implements ContainerInterface
 
     public function getAdminSessionAuth(): AdminSessionAuth
     {
-        return $this->resolve(AdminSessionAuth::class, fn() => new AdminSessionAuth($this->getAdminUsersRepository(), $this->config));
+        return $this->resolve(AdminSessionAuth::class, fn() => new AdminSessionAuth(
+            $this->getAdminUsersRepository(),
+            $this->config,
+            $this->getAdminUserRolesRepository(),
+        ));
     }
 
     public function getTerminalTokenAuth(): TerminalTokenAuth

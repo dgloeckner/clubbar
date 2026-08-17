@@ -62,10 +62,27 @@ it makes the foundation deployable and verifiable before enforcement lands.
 
 ### M2 — Route→roles map with default-deny enforcement ([#519](https://github.com/dgloeckner/clubbar/issues/519))
 
-- [ ] Declarative route→roles map consulted by `AdminSessionAuth`
-- [ ] **A route with no entry is `admin`-only**, and a build-time test enumerates
-      every route in `routes.php` and fails when one is missing from the map
-- [ ] `insufficient_role` as a distinct error code, separate from unauthenticated
+- [x] `RouteRoleMap` — one declarative table keyed `"METHOD /pattern"`, consulted
+      by `AdminSessionAuth`. Keyed on the **pattern Slim matched**, not the
+      concrete path, so the map is a transcription of `routes.php` with no
+      regex to get wrong
+      — *verified*: `RouteRoleMapTest` 14/14
+- [x] **A route with no entry is `admin`-only**, and the completeness test reads
+      the real route collector, so adding a route to `routes.php` is what makes
+      it fail
+      — *verified*: `RouteRoleMapCompletenessTest` 4/4, both directions (no
+      unclassified route, no stale entry) plus "admin reaches everything"
+- [x] `insufficient_role` — 403, its own error code, documented in `api/admin.yaml`
+      as a reusable response and on the `sessionAuth` scheme
+      — *verified*: `RoleEnforcementHttpTest` 11/11 through the real stack, and
+      `AdminSessionAuthTest`'s role cases (refusal, pattern-not-path, no matched
+      route → admin-only, 401-before-403 ordering)
+- [x] Existing HTTP fixtures grant `admin` via `HttpTestCase::grantRoles()` — a
+      fixture that inserts an `admin_users` row and stops was simulating an
+      account that cannot exist after M1, and the gate fails closed on it
+- [x] Nothing existing changed: backend Feature 616/616, Unit green apart from
+      the pre-existing `ServiceFactoryTest` environment failure, `api-tests`
+      637/637
 
 ### M3 — Step-up and dedicated audit actions on role grant/revoke ([#520](https://github.com/dgloeckner/clubbar/issues/520))
 

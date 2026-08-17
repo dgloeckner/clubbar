@@ -32,6 +32,7 @@ class MailConfigHttpTest extends HttpTestCase
             'INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, totp_enabled, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, 1, 0, NOW(), NOW())'
         )->execute([$this->adminId, "mail-config-{$this->adminId}@example.test", self::PASSWORD_HASH, 'Mail Config', 'de']);
+        $this->grantRoles($this->adminId);
 
         $this->originalConfig = $this->db->query('SELECT * FROM mail_config WHERE id = 1')->fetch() ?: [];
 

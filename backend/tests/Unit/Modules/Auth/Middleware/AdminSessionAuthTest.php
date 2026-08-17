@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Auth\Middleware;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
+use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\Auth\Middleware\AdminSessionAuth;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Auth\Domain\SessionTimeout;
@@ -12,18 +14,30 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Slim\Interfaces\RouteInterface;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Response;
+use Slim\Routing\RouteContext;
 
 class AdminSessionAuthTest extends TestCase
 {
     private AdminUsersRepository $adminUsersRepository;
+    private AdminUserRolesRepository $adminUserRolesRepository;
     private AdminSessionAuth $middleware;
 
     protected function setUp(): void
     {
         $this->adminUsersRepository = $this->createMock(AdminUsersRepository::class);
-        $this->middleware = new AdminSessionAuth($this->adminUsersRepository, new AppConfig());
+        $this->adminUserRolesRepository = $this->createMock(AdminUserRolesRepository::class);
+        // `admin` by default: every account in a migrated installation holds a
+        // role (ADR-0044), and these tests are about the session checks that
+        // run before the role gate. The role cases below say so explicitly.
+        $this->adminUserRolesRepository->method('rolesFor')->willReturn([AdminRole::ADMIN]);
+        $this->middleware = new AdminSessionAuth(
+            $this->adminUsersRepository,
+            new AppConfig(),
+            $this->adminUserRolesRepository,
+        );
 
         // The middleware only calls session_start() when no session is active yet;
         // start one up front so it never runs mid-test and clobbers the $_SESSION
@@ -232,7 +246,11 @@ class AdminSessionAuthTest extends TestCase
     {
         $_ENV['SESSION_REGEN_INTERVAL'] = (string) $seconds;
         try {
-            return new AdminSessionAuth($this->adminUsersRepository, new AppConfig());
+            return new AdminSessionAuth(
+                $this->adminUsersRepository,
+                new AppConfig(),
+                $this->adminUserRolesRepository,
+            );
         } finally {
             unset($_ENV['SESSION_REGEN_INTERVAL']);
         }
@@ -357,5 +375,121 @@ class AdminSessionAuthTest extends TestCase
         $response = $this->middleware->process($this->request(), $this->passthroughHandler());
 
         $this->assertSame(200, $response->getStatusCode());
+    }
+
+    // ── the role gate (ADR-0044, #519) ───────────────────────────────────
+
+    public function test_a_role_the_route_does_not_grant_is_refused(): void
+    {
+        $_SESSION = ['admin_user_id' => 'admin-1', SessionTimeout::AUTHENTICATED_AT => time()];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->expects($this->never())->method('handle');
+
+        $response = $this->middlewareHolding(AdminRole::KASSENWART)
+            ->process($this->routedRequest('/api/admin/terminals'), $handler);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertSame('insufficient_role', $this->decode($response)['error']);
+    }
+
+    /**
+     * The lookup keys on the *pattern* Slim matched, not on the concrete path
+     * — otherwise every route carrying an id would need a regex here, and a
+     * regex is where a hole gets in.
+     */
+    public function test_the_matched_pattern_decides_rather_than_the_concrete_path(): void
+    {
+        $_SESSION = ['admin_user_id' => 'admin-1', SessionTimeout::AUTHENTICATED_AT => time()];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+
+        $allowed = $this->middlewareHolding(AdminRole::KASSENWART)->process(
+            $this->routedRequest('/api/admin/members/{memberId}', '/api/admin/members/abc-123'),
+            $this->passthroughHandler(),
+        );
+        $this->assertSame(200, $allowed->getStatusCode());
+
+        $refused = $this->middlewareHolding(AdminRole::KASSENWART)->process(
+            $this->routedRequest('/api/admin/members/{memberId}', '/api/admin/members/abc-123')
+                ->withMethod('DELETE'),
+            $this->passthroughHandler(),
+        );
+        $this->assertSame(403, $refused->getStatusCode());
+    }
+
+    /**
+     * Fail closed applies to the lookup itself. A request that somehow reached
+     * this middleware without a matched route is treated as unmapped, which is
+     * `admin`-only, rather than as "no route, no restriction".
+     */
+    public function test_a_request_with_no_matched_route_is_admin_only(): void
+    {
+        $_SESSION = ['admin_user_id' => 'admin-1', SessionTimeout::AUTHENTICATED_AT => time()];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+
+        $refused = $this->middlewareHolding(AdminRole::GETRAENKEWART)
+            ->process($this->request(), $this->passthroughHandler());
+        $this->assertSame(403, $refused->getStatusCode());
+
+        $allowed = $this->middlewareHolding(AdminRole::ADMIN)
+            ->process($this->request(), $this->passthroughHandler());
+        $this->assertSame(200, $allowed->getStatusCode());
+    }
+
+    /**
+     * Ordering. Somebody who is not signed in is told that, not that their
+     * office is wrong — a 403 on a dead session would send the SPA to the
+     * refusal screen when it should send it to the login page.
+     */
+    public function test_an_unauthenticated_caller_is_told_that_rather_than_refused_by_role(): void
+    {
+        $_SESSION = [];
+
+        $response = $this->middlewareHolding()->process(
+            $this->routedRequest('/api/admin/terminals'),
+            $this->passthroughHandler(),
+        );
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('admin_not_authenticated', $this->decode($response)['error']);
+    }
+
+    /** Downstream reads the roles from the request rather than asking again. */
+    public function test_the_roles_are_attached_to_the_request(): void
+    {
+        $_SESSION = ['admin_user_id' => 'admin-1', SessionTimeout::AUTHENTICATED_AT => time()];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+
+        $seen = null;
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->method('handle')->willReturnCallback(function (ServerRequestInterface $request) use (&$seen) {
+            $seen = $request->getAttribute('admin_roles');
+            return new Response(200);
+        });
+
+        $this->middlewareHolding(AdminRole::KASSENWART, AdminRole::GETRAENKEWART)
+            ->process($this->routedRequest('/api/admin/members'), $handler);
+
+        $this->assertSame([AdminRole::KASSENWART, AdminRole::GETRAENKEWART], $seen);
+    }
+
+    private function middlewareHolding(AdminRole ...$roles): AdminSessionAuth
+    {
+        $rolesRepository = $this->createMock(AdminUserRolesRepository::class);
+        $rolesRepository->method('rolesFor')->willReturn($roles);
+
+        return new AdminSessionAuth($this->adminUsersRepository, new AppConfig(), $rolesRepository);
+    }
+
+    /**
+     * A request carrying the route Slim's routing middleware would have
+     * attached, so the pattern lookup has something to read.
+     */
+    private function routedRequest(string $pattern, ?string $path = null): ServerRequestInterface
+    {
+        $route = $this->createMock(RouteInterface::class);
+        $route->method('getPattern')->willReturn($pattern);
+
+        return $this->request($path ?? $pattern)->withAttribute(RouteContext::ROUTE, $route);
     }
 }

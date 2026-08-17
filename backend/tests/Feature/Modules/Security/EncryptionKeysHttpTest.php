@@ -37,6 +37,7 @@ class EncryptionKeysHttpTest extends HttpTestCase
             'INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, totp_secret, totp_enabled, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, 1, ?, 1, NOW(), NOW())'
         )->execute([$this->adminId, $this->adminEmail, self::PASSWORD_HASH, 'Keys Http', 'de', self::TOTP_SECRET_ENCRYPTED]);
+        $this->grantRoles($this->adminId);
 
         $this->db->prepare(
             "INSERT INTO encryption_keys (id, key_identifier, algorithm, public_key, fingerprint_sha256, status, created_at, activated_at, expires_at)

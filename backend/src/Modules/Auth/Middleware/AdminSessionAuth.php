@@ -8,16 +8,22 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use App\Modules\AdminUsers\Enums\AdminRole;
+use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\Auth\Domain\RouteRoleMap;
 use App\Modules\Auth\Domain\SessionTimeout;
 use App\Shared\Config\AppConfig;
+use Slim\Interfaces\RouteInterface;
 use Slim\Psr7\Response;
+use Slim\Routing\RouteContext;
 
 class AdminSessionAuth implements MiddlewareInterface
 {
     public function __construct(
         private AdminUsersRepository $adminUsersRepository,
         private AppConfig $config,
+        private AdminUserRolesRepository $adminUserRolesRepository,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -80,13 +86,67 @@ class AdminSessionAuth implements MiddlewareInterface
             }
         }
 
+        // The role gate (ADR-0044). Last of the checks, so a caller who is not
+        // really signed in is told that rather than being told their office is
+        // wrong — and so a demoted admin's stale session still gets the
+        // session-level answers it is entitled to.
+        $roles = $this->adminUserRolesRepository->rolesFor($adminId);
+        if (!$this->permitted($request, $roles)) {
+            return $this->insufficientRole();
+        }
+
         // Attach admin data to request attributes
         $request = $request->withAttribute('admin_user_id', $adminId);
         $request = $request->withAttribute('admin_user', $admin);
+        $request = $request->withAttribute('admin_roles', $roles);
 
         return $handler->handle($request)
             ->withHeader('Cache-Control', 'no-store')
             ->withHeader('Pragma', 'no-cache');
+    }
+
+    /**
+     * Ask the map, keyed on the route *pattern* Slim matched rather than on
+     * the concrete path.
+     *
+     * The pattern is what `routes.php` registered — `/api/admin/members/{memberId}`
+     * — so the map is a transcription of that file and there is no path
+     * matching here to get subtly wrong: no regex, no prefix that accidentally
+     * covers a route nobody classified.
+     *
+     * A request that reached this middleware with no matched route cannot
+     * happen through Slim's routing, and if it ever does it is treated as an
+     * unmapped route — `admin`-only. Fail closed applies to the lookup itself,
+     * not only to its table.
+     *
+     * @param list<AdminRole> $roles
+     */
+    private function permitted(ServerRequestInterface $request, array $roles): bool
+    {
+        $route = $request->getAttribute(RouteContext::ROUTE);
+        $pattern = $route instanceof RouteInterface ? $route->getPattern() : '';
+
+        return RouteRoleMap::permits($roles, $request->getMethod(), $pattern);
+    }
+
+    /**
+     * 403, and its own error code.
+     *
+     * Distinct from `admin_not_authenticated` because the remedy is different
+     * in kind: signing in again fixes nothing, and the SPA has to choose
+     * between a login screen and the named "this section is not available for
+     * your role" page (ADR-0044). The message says nothing about which role
+     * would have been enough — a refusal is not a place to describe the shape
+     * of what the caller is not trusted with.
+     */
+    private function insufficientRole(): ResponseInterface
+    {
+        $response = new Response(403);
+        $response->getBody()->write(json_encode([
+            'error' => 'insufficient_role',
+            'message' => 'This section is not available for your role.',
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 
     private function unauthorized(): ResponseInterface

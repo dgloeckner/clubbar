@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Shared\Config\Env;
 use App\Shared\Database\ConnectionFactory;
 use PDO;
@@ -130,6 +131,32 @@ abstract class HttpTestCase extends TestCase
         }
 
         return $this->app->handle($request);
+    }
+
+    /**
+     * Give a fixture admin the roles a real account has (ADR-0044, #519).
+     *
+     * Every account in a migrated installation holds at least one role: the
+     * migration backfills `admin` onto the ones that existed, the installer and
+     * the seed grant their own, and `AdminUsersService::createAdminUser()`
+     * grants `admin` to the ones the panel creates. A fixture that inserts an
+     * `admin_users` row and stops is therefore simulating an account that
+     * cannot exist — and since the role gate fails closed, every request it
+     * makes answers 403 `insufficient_role`.
+     *
+     * Defaults to `admin`, which is what the fixtures of every suite written
+     * before roles existed were implicitly assuming.
+     */
+    protected function grantRoles(string $adminUserId, AdminRole ...$roles): void
+    {
+        $roles = $roles === [] ? [AdminRole::ADMIN] : $roles;
+
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO admin_user_roles (admin_user_id, role) VALUES (?, ?)'
+        );
+        foreach ($roles as $role) {
+            $stmt->execute([$adminUserId, $role->value]);
+        }
     }
 
     /** @return array<string, mixed> */
