@@ -78,7 +78,7 @@ async function registerAndActivateEncryptionKey(
   const rawPublicKey = spki.subarray(spki.length - 32);
 
   const headers = { 'X-CSRF-Token': csrfToken };
-  const stepUp = () => ({ current_password: 'password123', totp_code: generateTotp(totpSecret) });
+  const stepUp = () => ({ current_password: 'Password123', totp_code: generateTotp(totpSecret) });
 
   const registered = await request.post(`${PACKAGE_URL}/api/admin/encryption-keys`, {
     data: {
@@ -146,8 +146,8 @@ test.describe('Package: Install Wizard', () => {
       form: {
         step: '4',
         admin_email: 'admin@example.com',
-        admin_password: 'password123',
-        admin_password_confirm: 'password123',
+        admin_password: 'Password123',
+        admin_password_confirm: 'Password123',
       },
       maxRedirects: 0,
     });
@@ -194,6 +194,32 @@ test.describe('Package: Install Wizard', () => {
     expect(step6.status()).toBe(200);
     expect(await step6.text()).toContain('Installation Complete');
   });
+
+  // #502: the first admin account is the highest-value credential in the
+  // system, so its password must meet the same composition rule as
+  // self-service password change (AuthController::changePassword), not just
+  // the bare length check the installer used to apply.
+  test('install wizard rejects a first-admin password that fails the composition rule', async ({ request }) => {
+    const keyResponse = await request.post(`${PACKAGE_URL}/install.php`, {
+      form: { install_key: CI_INSTALL_KEY },
+    });
+    expect(keyResponse.ok()).toBeTruthy();
+
+    for (const weakPassword of ['alllowercase1', 'ALLUPPERCASE1', '12345678901']) {
+      const response = await request.post(`${PACKAGE_URL}/install.php?step=4`, {
+        form: {
+          step: '4',
+          admin_email: 'admin-weak-password@example.com',
+          admin_password: weakPassword,
+          admin_password_confirm: weakPassword,
+        },
+        maxRedirects: 0,
+      });
+      expect(response.status(), `password "${weakPassword}" should have been rejected`).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('one lowercase letter, one uppercase letter, and one digit');
+    }
+  });
 });
 
 test.describe('Package: API through front controller', () => {
@@ -210,7 +236,7 @@ test.describe('Package: API through front controller', () => {
     const response = await request.post(`${PACKAGE_URL}/api/auth/login`, {
       data: {
         email: 'admin@example.com',
-        password: 'password123',
+        password: 'Password123',
       },
     });
     expect(response.ok()).toBeTruthy();
