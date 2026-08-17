@@ -345,11 +345,18 @@ test.describe('SEPA pre-notification — finalize, drain, delivered mail', () =>
     // The first real drain in the file pays for every connection this
     // describe block will reuse, and — per DELIVERY_TIMEOUT_MS's comment in
     // utils/mailpit.ts — can legitimately queue behind unrelated CI load on
-    // the shared compose stack. Playwright's 30s default has no room left
-    // for that once setup and the drain itself are accounted for, so this
-    // one wait gets a longer budget than the rest of the file — comfortably
-    // under the test's own extended timeout below.
-    test.setTimeout(90_000)
+    // the shared compose stack: this project's `dependencies` only order it
+    // after api-tests/admin-chromium, not after api-ordered/api-rotation,
+    // which run on their own workers and can still be mid-flight against the
+    // same backend when this starts. `drainMailQueue()` itself (a synchronous
+    // `docker compose exec`) pays for that queueing before the Mailpit poll
+    // below even begins, so the poll's own 75s budget is not enough on its
+    // own — CI has been observed spending the *whole* 90s test timeout with
+    // the poll still short of its own limit (2026-08-17,
+    // https://github.com/dgloeckner/clubbar/actions/runs/32062376058). Give
+    // the poll's allowance room to actually run out on its own rather than
+    // getting cut off by the outer test timeout first.
+    test.setTimeout(150_000)
     const FIRST_DRAIN_TIMEOUT_MS = 75_000
 
     const announced = await settleItemisedMember(
