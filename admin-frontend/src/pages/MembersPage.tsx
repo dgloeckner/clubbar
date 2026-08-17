@@ -728,7 +728,11 @@ export function MembersPage() {
                       size="small"
                       testId={`members-status-toggle-${member.id}`}
                     />
-                    <span style={{ flex: 1, fontWeight: 600, color: theme.colors.text.primary, fontSize: '14px' }}>
+                    {/* minWidth: 0 lets a long, unbreakable name shrink and
+                        ellipsize instead of pushing the balance off the card
+                        — flex items default to min-width: auto, which
+                        refuses to shrink below the text's intrinsic width. */}
+                    <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, color: theme.colors.text.primary, fontSize: '14px' }}>
                       {member.first_name} {member.last_name}
                     </span>
                     {/* The Deckel rides on the name row rather than down with
@@ -737,6 +741,8 @@ export function MembersPage() {
                     <span
                       data-testid={`member-card-balance-${member.id}`}
                       style={{
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
                         fontFamily: 'JetBrains Mono, monospace',
                         fontSize: '13px',
                         fontWeight: 700,

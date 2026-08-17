@@ -497,6 +497,7 @@ export function NewSettlementPage() {
               {t('newSettlement.eligible.empty')}
             </p>
           ) : (
+            <div style={{ overflowX: 'auto' }}>
             <table data-testid="new-settlement-eligible-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={headerRowStyle}>
@@ -616,6 +617,7 @@ export function NewSettlementPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
 
           {/* ── No active mandate ────────────────────────────────── */}
@@ -623,6 +625,7 @@ export function NewSettlementPage() {
             <section data-testid="new-settlement-ineligible-section">
               <h2 style={sectionTitleStyle}>{t('newSettlement.ineligible.title')}</h2>
               <p style={readOnlyNoteStyle}>{t('newSettlement.ineligible.note')}</p>
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={headerRowStyle}>
@@ -647,6 +650,7 @@ export function NewSettlementPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </section>
           )}
 
@@ -655,6 +659,7 @@ export function NewSettlementPage() {
             <section data-testid="new-settlement-held-section">
               <h2 style={sectionTitleStyle}>{t('newSettlement.held.title')}</h2>
               <p style={readOnlyNoteStyle}>{t('newSettlement.held.note')}</p>
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={headerRowStyle}>
@@ -682,6 +687,7 @@ export function NewSettlementPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </section>
           )}
 
@@ -696,6 +702,7 @@ export function NewSettlementPage() {
                 told" is visible before the run is posted rather than after.
               */}
               <p style={readOnlyNoteStyle}>{t('newSettlement.withoutEmail.note')}</p>
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={headerRowStyle}>
@@ -716,6 +723,7 @@ export function NewSettlementPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </section>
           )}
 
@@ -729,6 +737,7 @@ export function NewSettlementPage() {
                 (ruling #141, § 812 BGB).
               */}
               <p style={readOnlyNoteStyle}>{t('newSettlement.credit.note')}</p>
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={headerRowStyle}>
@@ -749,6 +758,7 @@ export function NewSettlementPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </section>
           )}
         </>
