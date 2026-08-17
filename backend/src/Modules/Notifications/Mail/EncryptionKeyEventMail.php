@@ -29,12 +29,14 @@ use App\Shared\Mail\MailMessage;
  *
  * What it does not carry is any private key, any ciphertext, and any IBAN.
  *
- * It also does not name who acted. The outbox row's `admin_user_id` is the
- * admin being *written to* — `warnAdmins()` fans one message out per admin —
- * and nothing persists the actor alongside a queued message, so a name here
- * would either be the reader's own or a guess. The actor is recorded, with the
- * fingerprint, in the `key_registered` / `key_activated` / `key_revoked` audit
- * entry; this message's job is to send someone to look.
+ * **It names who acted, when that is known.** The outbox row's `admin_user_id`
+ * is the admin being *written to* — `warnAdmins()` fans one message out per
+ * admin — but migration 043 added a separate `actor_admin_user_id`, recorded
+ * durably at enqueue time, so the row also carries who performed the swap. It
+ * can legitimately be blank — a row queued before that migration, or one whose
+ * actor's admin account was later deleted — and the line drops rather than
+ * printing empty. The full attribution, with the fingerprint, still lives in
+ * the `key_registered` / `key_activated` / `key_revoked` audit entry.
  *
  * There is likewise no action link: the remedy is to open Settings → Security &
  * Credentials, and a one-click control reachable from an email would be a way
@@ -49,6 +51,7 @@ final class EncryptionKeyEventMail
         ?string $recipientName,
         string $keyIdentifier,
         string $fingerprintSha256,
+        string $actorLabel,
         string $occurredAt,
         MailLanguage $language,
         MailBranding $branding,
@@ -58,14 +61,15 @@ final class EncryptionKeyEventMail
 
         $subject = $t->t('key_event.subject.' . $event);
 
-        $rows = [
+        $rows = array_filter([
             $t->t('key_event.label_name') => $keyIdentifier,
             // Unbroken and unshortened: an admin comparing it against a sheet
             // of paper needs the whole string, and a truncated one would let
             // two keys that differ late in the digest look identical.
             $t->t('key_event.label_fingerprint') => $fingerprintSha256,
+            $t->t('key_event.label_actor') => $actorLabel,
             $t->t('key_event.label_when') => MailFormat::date($occurredAt, $language),
-        ];
+        ], static fn(string $value): bool => trim($value) !== '');
 
         $preheader = $t->t('key_event.preheader', [
             'name' => $keyIdentifier,

@@ -185,4 +185,36 @@ class AdminNotifierTest extends TestCase
 
         $this->assertSame(['enrolled:20260816142317:a1', 'rotated:20260901090000:a1'], $keys);
     }
+
+    /**
+     * The actor is one value, threaded onto every recipient's row — not
+     * recomputed per admin, and not the same thing as `adminUserId`, which
+     * varies per row because it names who that particular copy is addressed to.
+     */
+    public function test_warnAdmins_stamps_the_same_actor_onto_every_recipients_row(): void
+    {
+        $this->admins->method('findActiveRecipients')->willReturn([
+            ['id' => 'a1', 'email' => 'one@club.example', 'locale' => 'de', 'display_name' => 'One'],
+            ['id' => 'a2', 'email' => 'two@club.example', 'locale' => 'de', 'display_name' => 'Two'],
+        ]);
+
+        $queued = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$queued): bool {
+                $queued[] = $request;
+                return true;
+            }
+        );
+
+        $this->notifier->warnAdmins(
+            MailKind::TERMINAL_TOKEN_ISSUED,
+            'terminal-9',
+            'enrolled:20260816142317',
+            actorAdminUserId: 'a1',
+        );
+
+        $this->assertSame('a1', $queued[0]->actorAdminUserId);
+        $this->assertSame('a1', $queued[1]->actorAdminUserId, 'the second recipient still names the same actor');
+        $this->assertSame('a2', $queued[1]->adminUserId, "but is still addressed to that recipient's own id");
+    }
 }

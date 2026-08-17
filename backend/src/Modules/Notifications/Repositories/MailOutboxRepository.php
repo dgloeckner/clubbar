@@ -52,8 +52,9 @@ class MailOutboxRepository
     {
         $stmt = $this->db->prepare(
             'INSERT INTO mail_outbox
-                (id, kind, subject_id, dedup_key, member_id, admin_user_id, recipient, language, status, queued_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                (id, kind, subject_id, dedup_key, member_id, admin_user_id, actor_admin_user_id,
+                 recipient, language, status, queued_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
              ON DUPLICATE KEY UPDATE id = id'
         );
 
@@ -64,6 +65,7 @@ class MailOutboxRepository
             $request->dedupKey,
             $request->memberId,
             $request->adminUserId,
+            $request->actorAdminUserId,
             $request->recipient,
             $request->language->value,
             MailStatus::PENDING->value,

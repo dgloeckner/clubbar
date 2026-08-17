@@ -102,6 +102,17 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         parent::tearDown();
     }
 
+    /** A second admin, distinct from the one {@see settlement()} creates, to stand in as an actor. */
+    private function admin(): string
+    {
+        $id = $this->generateUuid();
+        $this->adminIds[] = $id;
+        $this->db->prepare('INSERT INTO admin_users (id, email, password_hash, is_active) VALUES (?, ?, ?, 1)')
+            ->execute([$id, $id . '@example.com', password_hash('test123', PASSWORD_BCRYPT)]);
+
+        return $id;
+    }
+
     private function member(): string
     {
         $id = $this->generateUuid();
@@ -186,6 +197,70 @@ class MailOutboxRepositoryTest extends DatabaseTestCase
         // announcing to; a retried finalize does not get to rewrite it.
         $this->assertSame($memberIds[0] . '@example.com', $rows[0]['recipient']);
         $this->assertSame('de', $rows[0]['language']);
+    }
+
+    /**
+     * `actor_admin_user_id` (migration 043) is a fact about who acted, distinct
+     * from the recipient a row is addressed to — `enqueue()` must persist both
+     * rather than collapsing them onto the one `admin_user_id` column.
+     */
+    public function test_enqueue_persists_the_actor_separately_from_the_recipient(): void
+    {
+        $recipientId = $this->admin();
+        $actorId = $this->admin();
+        $subjectId = $this->generateUuid();
+
+        $this->repository->enqueue(MailRequestDto::forAdmin(
+            kind: MailKind::TERMINAL_TOKEN_ISSUED,
+            subjectId: $subjectId,
+            adminUserId: $recipientId,
+            recipient: $recipientId . '@example.com',
+            language: MailLanguage::German,
+            occasion: 'enrolled:20260816142317',
+            actorAdminUserId: $actorId,
+        ));
+
+        $stmt = $this->db->prepare('SELECT * FROM mail_outbox WHERE subject_id = ?');
+        $stmt->execute([$subjectId]);
+        $row = $stmt->fetch();
+
+        $this->assertSame($recipientId, $row['admin_user_id']);
+        $this->assertSame($actorId, $row['actor_admin_user_id']);
+        $this->assertNotSame($row['admin_user_id'], $row['actor_admin_user_id']);
+    }
+
+    /**
+     * Deleting the acting admin's account must not take a still-relevant notice
+     * to a different, still-active recipient down with it (`ON DELETE SET
+     * NULL`) — only the name is lost, exactly as the DTO's blank-actor case
+     * already handles at render time.
+     */
+    public function test_deleting_the_actor_admin_clears_the_column_without_deleting_the_row(): void
+    {
+        $recipientId = $this->admin();
+        $actorId = $this->admin();
+        $subjectId = $this->generateUuid();
+
+        $this->repository->enqueue(MailRequestDto::forAdmin(
+            kind: MailKind::TERMINAL_TOKEN_ISSUED,
+            subjectId: $subjectId,
+            adminUserId: $recipientId,
+            recipient: $recipientId . '@example.com',
+            language: MailLanguage::German,
+            occasion: 'enrolled:20260816142317',
+            actorAdminUserId: $actorId,
+        ));
+
+        $this->db->prepare('DELETE FROM admin_users WHERE id = ?')->execute([$actorId]);
+        $this->adminIds = array_values(array_diff($this->adminIds, [$actorId]));
+
+        $stmt = $this->db->prepare('SELECT * FROM mail_outbox WHERE subject_id = ?');
+        $stmt->execute([$subjectId]);
+        $row = $stmt->fetch();
+
+        $this->assertNotFalse($row, 'the notice to the still-active recipient must survive');
+        $this->assertNull($row['actor_admin_user_id']);
+        $this->assertSame($recipientId, $row['admin_user_id']);
     }
 
     /**

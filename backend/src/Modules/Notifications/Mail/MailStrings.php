@@ -258,6 +258,7 @@ final class MailStrings
             'terminal_token_issued.label_terminal' => 'Terminal',
             'terminal_token_issued.label_device'   => 'Geräte-Kennung',
             'terminal_token_issued.label_event'    => 'Vorgang',
+            'terminal_token_issued.label_actor'    => 'Ausgeführt von',
             'terminal_token_issued.label_issued'   => 'Ausgestellt am',
             'terminal_token_issued.label_expires'  => 'Gültig bis',
             'terminal_token_issued.event.enrolled' => 'Terminal eingerichtet',
@@ -313,6 +314,7 @@ final class MailStrings
 
             'key_event.label_name'        => 'Bezeichnung',
             'key_event.label_fingerprint' => 'Fingerabdruck (SHA-256)',
+            'key_event.label_actor'       => 'Ausgeführt von',
             'key_event.label_when'        => 'Zeitpunkt',
 
             'key_event.verify'     => 'Bitte vergleiche den Fingerabdruck mit dem, den der '
@@ -493,6 +495,7 @@ final class MailStrings
             'terminal_token_issued.label_terminal' => 'Terminal',
             'terminal_token_issued.label_device'   => 'Device ID',
             'terminal_token_issued.label_event'    => 'Event',
+            'terminal_token_issued.label_actor'    => 'Performed by',
             'terminal_token_issued.label_issued'   => 'Issued on',
             'terminal_token_issued.label_expires'  => 'Valid until',
             'terminal_token_issued.event.enrolled' => 'Terminal set up',
@@ -542,6 +545,7 @@ final class MailStrings
 
             'key_event.label_name'        => 'Name',
             'key_event.label_fingerprint' => 'Fingerprint (SHA-256)',
+            'key_event.label_actor'       => 'Performed by',
             'key_event.label_when'        => 'When',
 
             'key_event.verify'     => 'Please compare the fingerprint with the one the offline '

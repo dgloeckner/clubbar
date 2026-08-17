@@ -28,6 +28,7 @@ class TerminalTokenIssuedMailTest extends TestCase
         MailLanguage $language = MailLanguage::German,
         string $expiresOn = '16.08.2027',
         string $issuedOn = '16.08.2026, 14:23',
+        string $actorLabel = 'Vorstand (vorstand@example.org)',
     ): TerminalTokenIssuedDataDto {
         return new TerminalTokenIssuedDataDto(
             language: $language,
@@ -37,6 +38,7 @@ class TerminalTokenIssuedMailTest extends TestCase
             terminalName: 'Theke',
             deviceId: 'BAR-MAIN-001',
             event: $event,
+            actorLabel: $actorLabel,
             issuedOn: $issuedOn,
             expiresOn: $expiresOn,
         );
@@ -145,18 +147,27 @@ class TerminalTokenIssuedMailTest extends TestCase
     }
 
     /**
-     * The actor is deliberately absent: the outbox row records who was *told*,
-     * and recovering who *acted* at send time would mean guessing at the audit
-     * log's most recent matching entry. Naming the wrong colleague in a security
-     * notice is worse than naming none, so the message points at the log.
+     * The actor is named when the row carries one — migration 043 records it
+     * durably at enqueue time, so the builder no longer has to guess at the
+     * audit log's most recent matching entry.
      */
-    public function test_it_does_not_guess_at_who_issued_the_credential(): void
+    public function test_it_names_the_actor_when_the_row_carries_one(): void
     {
-        foreach (self::parts(self::notice()) as $part) {
-            // The recipient's own name appears — it is a greeting, not a claim
-            // about who acted — but nothing in the message attributes the
-            // issuance to a person.
-            $this->assertStringNotContainsString('ausgestellt von', $part);
+        foreach (self::parts(self::notice(actorLabel: 'Vorstand (vorstand@example.org)')) as $part) {
+            $this->assertStringContainsString('Vorstand (vorstand@example.org)', $part);
+        }
+    }
+
+    /**
+     * A row queued before migration 043, or one whose actor's admin account was
+     * later deleted, carries no actor at all. The line drops rather than
+     * printing empty, exactly as a missing expiry does — and the message still
+     * points at the audit log as the exact fallback.
+     */
+    public function test_a_missing_actor_drops_its_line_rather_than_printing_a_blank(): void
+    {
+        foreach (self::parts(self::notice(actorLabel: '')) as $part) {
+            $this->assertStringNotContainsString('Ausgeführt von', $part);
             $this->assertStringContainsString('steht im Protokoll', $part);
         }
     }

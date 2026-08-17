@@ -140,6 +140,7 @@ class TerminalTokenIssuedMailBuilder implements MailContentBuilder
             terminalName: (string) $terminal['name'],
             deviceId: (string) $terminal['device_id'],
             event: $event,
+            actorLabel: $this->actorLabel($outboxRow),
             issuedOn: MailFormat::dateTime(self::issuedAt($generation), $language),
             expiresOn: MailFormat::date(self::expiresAt($terminal, $generation), $language),
         ));
@@ -207,5 +208,35 @@ class TerminalTokenIssuedMailBuilder implements MailContentBuilder
         $name = trim((string) ($admin['display_name'] ?? ''));
 
         return $name !== '' ? $name : null;
+    }
+
+    /**
+     * Who acted, formatted for the "Ausgeführt von" row — `display name (login)`,
+     * or just the login when no display name is set. Empty when the row predates
+     * migration 043, or when the actor's admin account was later deleted
+     * (`ON DELETE SET NULL`); the template drops the line rather than print one.
+     *
+     * @param array<string,mixed> $outboxRow
+     */
+    private function actorLabel(array $outboxRow): string
+    {
+        $actorId = $outboxRow['actor_admin_user_id'] ?? null;
+        if (!is_string($actorId) || $actorId === '') {
+            return '';
+        }
+
+        $actor = $this->adminUsersRepository->findById($actorId);
+        if ($actor === null) {
+            return '';
+        }
+
+        $login = trim((string) ($actor['email'] ?? ''));
+        if ($login === '') {
+            return '';
+        }
+
+        $name = trim((string) ($actor['display_name'] ?? ''));
+
+        return $name !== '' ? sprintf('%s (%s)', $name, $login) : $login;
     }
 }

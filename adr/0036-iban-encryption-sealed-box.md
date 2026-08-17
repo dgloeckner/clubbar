@@ -252,9 +252,9 @@ the existing outbox.
 
 | | |
 |---|---|
-| Content | Which transition, the key identifier, the **full** SHA-256 fingerprint, and when. The fingerprint is the public digest of a public key — safe in a mailbox, and the only value that distinguishes the club's own key from someone else's, which the identifier cannot |
+| Content | Which transition, the key identifier, the **full** SHA-256 fingerprint, who performed it, and when. The fingerprint is the public digest of a public key — safe in a mailbox, and the only value that distinguishes the club's own key from someone else's, which the identifier cannot |
 | Never carried | Key material of either half, ciphertext, IBANs, and any action link — the remedy is to open Settings → Security & Credentials, and a control reachable from an email would route around the step-up that guards key management |
-| The actor | Deliberately absent. The fan-out queues one copy per administrator, so the recipient is the only admin a queued row names; the actor belongs to the audit entry, and this message's job is to send somebody to look |
+| The actor | Named when known. The fan-out queues one copy per administrator, so `admin_user_id` is the recipient, not the actor — a separate `actor_admin_user_id` (migration 043) is written at enqueue time and read back at send, without the guessing ADR-0038 rule 5 would otherwise require. It can render blank (a pre-migration row, or an actor whose account was later deleted, `ON DELETE SET NULL`), and the full attribution still lives in the audit entry regardless |
 | Failure | Best effort and never a gate. It queues rather than sends, and a failure is logged rather than rolling back a key operation that already succeeded |
 
 ## Consequences

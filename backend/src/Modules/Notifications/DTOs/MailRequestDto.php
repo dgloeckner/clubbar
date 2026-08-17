@@ -45,6 +45,12 @@ final readonly class MailRequestDto
         public ?string $memberId = null,
         /** Set when the recipient is an admin. */
         public ?string $adminUserId = null,
+        /**
+         * Who performed the action this message announces — distinct from
+         * {@see $adminUserId}, which is who the row is addressed to. Null when the
+         * action had no human actor, or for kinds that predate this field.
+         */
+        public ?string $actorAdminUserId = null,
     ) {
         if (trim($subjectId) === '') {
             throw new \InvalidArgumentException('A queued message must say what it is about');
@@ -119,6 +125,10 @@ final readonly class MailRequestDto
      * `$occasion` is what stops one warning from being every warning — the tier
      * for an expiry notice. It is combined with the admin so that two admins
      * each get told, and neither gets told twice.
+     *
+     * `$actorAdminUserId` is who performed the action, not who this particular
+     * copy is addressed to — every active admin gets a row with the same actor,
+     * including the actor's own row.
      */
     public static function forAdmin(
         MailKind $kind,
@@ -127,6 +137,7 @@ final readonly class MailRequestDto
         string $recipient,
         MailLanguage $language,
         string $occasion,
+        ?string $actorAdminUserId = null,
     ): self {
         return new self(
             kind: $kind,
@@ -135,6 +146,7 @@ final readonly class MailRequestDto
             language: $language,
             dedupKey: $occasion . ':' . $adminUserId,
             adminUserId: $adminUserId,
+            actorAdminUserId: $actorAdminUserId,
         );
     }
 }

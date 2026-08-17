@@ -24,14 +24,19 @@ use PHPUnit\Framework\TestCase;
 class TerminalTokenIssuedMailBuilderTest extends TestCase
 {
     private TerminalsRepository $terminals;
+    private AdminUsersRepository $adminUsers;
     private TerminalTokenIssuedMailBuilder $builder;
 
     protected function setUp(): void
     {
         $this->terminals = $this->createMock(TerminalsRepository::class);
 
-        $adminUsers = $this->createMock(AdminUsersRepository::class);
-        $adminUsers->method('findById')->willReturn(['display_name' => 'Kassenwart']);
+        $adminUsers = $this->adminUsers = $this->createMock(AdminUsersRepository::class);
+        $adminUsers->method('findById')->willReturnMap([
+            ['admin-1', ['display_name' => 'Kassenwart', 'email' => 'kassenwart@example.org']],
+            ['admin-2', ['display_name' => 'Vorstand', 'email' => 'vorstand@example.org']],
+            ['admin-3', ['display_name' => '', 'email' => 'noname@example.org']],
+        ]);
 
         $mailConfigService = $this->createMock(MailConfigService::class);
         $mailConfigService->method('getConfig')->willReturn(MailConfigDto::fromRow([
@@ -230,6 +235,53 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
         $this->expectExceptionMessageMatches('/names no known issuance event/');
 
         $this->builder->build(self::row(['dedup_key' => 'reissued:20260816142317:admin-1']));
+    }
+
+    /**
+     * The actor is a separate identity from the recipient: `admin_user_id` is
+     * who this copy is addressed to, `actor_admin_user_id` (migration 043) is
+     * who performed the mint. A row where they differ — the ordinary case, since
+     * every active admin gets a copy — must still name the actor, not the
+     * reader.
+     */
+    public function test_it_names_the_actor_by_display_name_and_login(): void
+    {
+        $this->terminals->method('findById')->willReturn(self::terminal());
+
+        $message = $this->builder->build(self::row([
+            'admin_user_id' => 'admin-1',
+            'actor_admin_user_id' => 'admin-2',
+        ]));
+
+        foreach ([$message->html, $message->text] as $part) {
+            $this->assertStringContainsString('Vorstand (vorstand@example.org)', $part);
+            // The reader's own admin record must not be substituted for the actor's.
+            $this->assertStringNotContainsString('Kassenwart (kassenwart@example.org)', $part);
+        }
+    }
+
+    /** No display name set: the login alone is still an unambiguous identifier. */
+    public function test_it_falls_back_to_the_login_when_the_actor_has_no_display_name(): void
+    {
+        $this->terminals->method('findById')->willReturn(self::terminal());
+
+        $message = $this->builder->build(self::row(['actor_admin_user_id' => 'admin-3']));
+
+        $this->assertStringContainsString('noname@example.org', $message->text);
+    }
+
+    /**
+     * A row queued before migration 043 carries no actor column at all. The
+     * builder must not invent one — the template drops the line, as it does for
+     * a missing expiry.
+     */
+    public function test_a_row_with_no_actor_omits_the_line(): void
+    {
+        $this->terminals->method('findById')->willReturn(self::terminal());
+
+        $message = $this->builder->build(self::row());
+
+        $this->assertStringNotContainsString('Ausgeführt von', $message->text);
     }
 
     /**

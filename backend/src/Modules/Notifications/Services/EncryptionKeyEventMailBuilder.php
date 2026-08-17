@@ -70,6 +70,7 @@ class EncryptionKeyEventMailBuilder implements MailContentBuilder
             recipientName: $this->recipientName($outboxRow),
             keyIdentifier: (string) $key['key_identifier'],
             fingerprintSha256: (string) $key['fingerprint_sha256'],
+            actorLabel: $this->actorLabel($outboxRow),
             // When the notice was raised, not when the drain got to it: a
             // message that sat in the queue overnight still describes
             // something that happened yesterday.
@@ -90,5 +91,35 @@ class EncryptionKeyEventMailBuilder implements MailContentBuilder
         $name = trim((string) ($admin['display_name'] ?? ''));
 
         return $name !== '' ? $name : null;
+    }
+
+    /**
+     * Who acted, formatted for the "Ausgeführt von" row — `display name (login)`,
+     * or just the login when no display name is set. Empty when the row predates
+     * migration 043, or when the actor's admin account was later deleted
+     * (`ON DELETE SET NULL`); the template drops the line rather than print one.
+     *
+     * @param array<string,mixed> $outboxRow
+     */
+    private function actorLabel(array $outboxRow): string
+    {
+        $actorId = $outboxRow['actor_admin_user_id'] ?? null;
+        if (!is_string($actorId) || $actorId === '') {
+            return '';
+        }
+
+        $actor = $this->adminUsersRepository->findById($actorId);
+        if ($actor === null) {
+            return '';
+        }
+
+        $login = trim((string) ($actor['email'] ?? ''));
+        if ($login === '') {
+            return '';
+        }
+
+        $name = trim((string) ($actor['display_name'] ?? ''));
+
+        return $name !== '' ? sprintf('%s (%s)', $name, $login) : $login;
     }
 }
