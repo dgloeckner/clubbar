@@ -122,7 +122,7 @@ test.describe('Credential expiry warnings — scan, cron, delivered mail', () =>
     }
 
     const admin = await authenticatedRequest.post('/api/admin/admin-users', {
-      data: { email: adminEmail, display_name: `Expiry Kassenwart ${suffix}`, locale: 'de' },
+      data: { ...stepUp(), email: adminEmail, display_name: `Expiry Kassenwart ${suffix}`, locale: 'de' },
     })
     expect(admin.status(), await admin.text()).toBe(201)
     adminUserId = (await admin.json()).id

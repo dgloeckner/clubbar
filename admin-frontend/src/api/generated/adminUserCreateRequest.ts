@@ -57,10 +57,15 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { StepUpCredentials } from './stepUpCredentials';
 
-export interface AdminUserCreateRequest {
+/**
+ * Creating an admin user mints a persistent, full-privilege peer account (ADR-0015's flat admin model), so it carries a step-up credential (#499).
+
+ */
+export type AdminUserCreateRequest = StepUpCredentials & {
   email: string;
   /** @maxLength 100 */
   display_name: string;
   locale?: string;
-}
+};

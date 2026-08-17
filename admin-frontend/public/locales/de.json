@@ -581,6 +581,7 @@
     "ownAccount": "Sie",
     "cannotDeactivateOwnAccount": "Sie können Ihr eigenes Konto nicht deaktivieren",
     "terminals": "Terminals",
+    "createAdminStepUpHint": "Das Anlegen eines Admin-Benutzers gewährt vollen, uneingeschränkten Zugriff auf diese Installation. Bitte bestätigen, dass Sie es sind.",
     "createTerminal": "Terminal erstellen",
     "createTerminalStepUpHint": "Beim Anlegen eines Terminals wird ein Zugang erzeugt, der die Mitgliederliste lesen und Verkäufe buchen kann. Bitte bestätigen, dass Sie es sind.",
     "editTerminal": "Terminal bearbeiten",
@@ -648,7 +649,8 @@
       "mandateTemplateUrlTooLong": "URL des Mandatsformulars darf höchstens 255 Zeichen lang sein",
       "creditorIdRequired": "Gläubiger-ID ist erforderlich",
       "creditorIdTooLong": "Gläubiger-ID darf höchstens 35 Zeichen lang sein",
-      "stepUpRequired": "Zum Ausstellen des Terminal-Tokens Ihr eigenes Passwort (und ggf. 2FA-Code) eingeben"
+      "stepUpRequired": "Zum Ausstellen des Terminal-Tokens Ihr eigenes Passwort (und ggf. 2FA-Code) eingeben",
+      "stepUpRequiredCreateAdmin": "Zum Anlegen eines neuen Admin-Benutzers Ihr eigenes Passwort (und ggf. 2FA-Code) eingeben"
     },
     "security": {
       "tab": "Sicherheit",

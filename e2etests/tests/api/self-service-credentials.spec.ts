@@ -2,6 +2,7 @@ import type { APIRequestContext, Playwright } from '@playwright/test'
 import { test, expect } from '../../fixtures/auth.fixture'
 import { loginAs } from '../../utils/csrf'
 import { generateTotp } from '../../utils/totp'
+import { stepUp } from '../../fixtures/stepUp'
 
 /**
  * Self-service credential changes (#337 follow-up).
@@ -62,7 +63,7 @@ async function createEnrolledAdmin(
 ): Promise<EnrolledAdmin> {
   const email = `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}@test.example.com`
   const createResponse = await authenticatedRequest.post(`${API_BASE}/admin/admin-users`, {
-    data: { email, display_name: `Self Service ${prefix}`, locale: 'de' },
+    data: { ...stepUp(), email, display_name: `Self Service ${prefix}`, locale: 'de' },
   })
   expect(createResponse.status(), await createResponse.text()).toBe(201)
   const { admin, password } = await createResponse.json()

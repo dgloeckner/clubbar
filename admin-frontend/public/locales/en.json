@@ -581,6 +581,7 @@
     "ownAccount": "You",
     "cannotDeactivateOwnAccount": "You cannot deactivate your own account",
     "terminals": "Terminals",
+    "createAdminStepUpHint": "Creating an admin user grants full, unrestricted access to this installation. Confirm it is you.",
     "createTerminal": "Create Terminal",
     "createTerminalStepUpHint": "Enrolling a terminal issues a credential that can read the member list and record sales. Confirm it is you.",
     "editTerminal": "Edit Terminal",
@@ -648,7 +649,8 @@
       "mandateTemplateUrlTooLong": "Mandate template URL must be 255 characters or less",
       "creditorIdRequired": "Creditor ID is required",
       "creditorIdTooLong": "Creditor ID must be 35 characters or less",
-      "stepUpRequired": "Enter your own password (and 2FA code) to issue the terminal token"
+      "stepUpRequired": "Enter your own password (and 2FA code) to issue the terminal token",
+      "stepUpRequiredCreateAdmin": "Enter your own password (and 2FA code) to create a new admin user"
     },
     "security": {
       "tab": "Security",

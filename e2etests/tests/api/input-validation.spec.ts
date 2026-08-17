@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
 import { test, expect } from '../../fixtures/auth.fixture'
+import { stepUp } from '../../fixtures/stepUp'
 
 /**
  * Input-validation hardening (issue #117).
@@ -99,6 +100,7 @@ test.describe('Admin user update applies the whole body', () => {
     const id = randomUUID().slice(0, 8)
     const response = await authenticatedRequest.post(`${API_BASE}/admin/admin-users`, {
       data: {
+        ...stepUp(),
         email: `issue117-${id}@test.example.com`,
         display_name: 'Original Name',
         locale: 'de',
@@ -159,7 +161,7 @@ test.describe('Own-profile email change', () => {
     const taken = `issue117-taken-${id}@test.example.com`
 
     const created = await authenticatedRequest.post(`${API_BASE}/admin/admin-users`, {
-      data: { email: taken, display_name: 'Holder', locale: 'de' },
+      data: { ...stepUp(), email: taken, display_name: 'Holder', locale: 'de' },
     })
     expect(created.status()).toBe(201)
 

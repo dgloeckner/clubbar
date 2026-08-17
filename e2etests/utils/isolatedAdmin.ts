@@ -23,6 +23,7 @@ import type { Page } from '@playwright/test'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
 import { generateTotp } from './totp'
 import { loginAs } from './csrf'
+import { stepUp } from '../fixtures/stepUp'
 import type { LoginPage } from '../pages/LoginPage'
 
 // The `playwright` fixture's own type (PlaywrightWorkerArgs['playwright']) —
@@ -45,7 +46,7 @@ export async function createIsolatedAdmin(
   try {
     const email = uniqueTestEmail(prefix)
     const response = await ctx.post(`${API_BASE}/admin/admin-users`, {
-      data: { email, display_name: `Isolated Test ${prefix}`, locale: 'de' },
+      data: { ...stepUp(), email, display_name: `Isolated Test ${prefix}`, locale: 'de' },
     })
     if (response.status() !== 201) {
       throw new Error(`Failed to create admin (${response.status()}): ${await response.text()}`)

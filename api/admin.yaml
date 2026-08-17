@@ -2962,7 +2962,11 @@ paths:
       tags: [Admin Users]
       summary: Create admin user
       description: |
-        Create a new admin user.
+        Create a new admin user. The caller must first re-prove their own
+        identity with a step-up credential: their own current password, plus
+        their own fresh TOTP code if they have 2FA enabled (#499). This
+        step-up is rate-limited on the caller's account (5 attempts / 15 min,
+        same dimension as login) and a failed attempt is audited.
 
         **Use Case**: UC-A62
 
@@ -2984,16 +2988,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminUserWithPassword'
-        '400':
-          $ref: '#/components/responses/ValidationError'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: |
+            Not authenticated, or the caller's step-up credential
+            (`current_password` / `totp_code`) is missing or incorrect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid_credentials
+                message: Re-enter your password to create a new admin user
         '409':
           description: Email already exists
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
 
   /admin/admin-users/{adminUserId}:
     parameters:
@@ -6802,18 +6817,23 @@ components:
               description: Generated password (shown once)
 
     AdminUserCreateRequest:
-      type: object
-      required: [email, display_name]
-      properties:
-        email:
-          type: string
-          format: email
-        display_name:
-          type: string
-          maxLength: 100
-        locale:
-          type: string
-          default: de
+      description: >
+        Creating an admin user mints a persistent, full-privilege peer account
+        (ADR-0015's flat admin model), so it carries a step-up credential (#499).
+      allOf:
+        - $ref: '#/components/schemas/StepUpCredentials'
+        - type: object
+          required: [email, display_name]
+          properties:
+            email:
+              type: string
+              format: email
+            display_name:
+              type: string
+              maxLength: 100
+            locale:
+              type: string
+              default: de
 
     # --------------------------------------------------------------------------
     # Reports & Dashboard

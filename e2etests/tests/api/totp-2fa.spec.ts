@@ -19,6 +19,7 @@
 import { test, expect } from "../../fixtures/auth.fixture";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { generateTotp, submitTotpWithRetry } from "../../utils/totp";
+import { stepUp } from "../../fixtures/stepUp";
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -55,6 +56,7 @@ async function createAdminUser(
   const email = uniqueEmail(emailPrefix)
   const response = await authenticatedRequest.post(`${API_BASE}/admin/admin-users`, {
     data: {
+      ...stepUp(),
       email,
       display_name: `Test ${emailPrefix}`,
       locale: "en",

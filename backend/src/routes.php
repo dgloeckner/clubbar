@@ -165,7 +165,7 @@ return function (App $app): void {
 
         // Admin users
         $group->get('/admin-users', [AdminUsersAdminController::class, 'index']);
-        $group->post('/admin-users', [AdminUsersAdminController::class, 'store']);
+        $group->post('/admin-users', [AdminUsersAdminController::class, 'store'])->add($stepUpRateLimit);
         $group->get('/admin-users/{id}', [AdminUsersAdminController::class, 'show']);
         $group->patch('/admin-users/{id}', [AdminUsersAdminController::class, 'update']);
         $group->delete('/admin-users/{id}', [AdminUsersAdminController::class, 'destroy']);
