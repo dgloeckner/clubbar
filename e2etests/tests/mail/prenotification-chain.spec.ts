@@ -367,7 +367,11 @@ test.describe('SEPA pre-notification — finalize, drain, delivered mail', () =>
     )
     const today = await serverToday(authenticatedRequest)
 
-    drainMailQueue()
+    // Logged rather than discarded: a run that reports claimed=0 says the
+    // settlement was never due when this drained, which is a different bug
+    // from one that reports sent=1 while Mailpit never saw it arrive — and
+    // the Mailpit wait below cannot tell those apart if this one fails.
+    console.log(`[first drain] ${drainMailQueue()}`)
 
     const message = await mail.waitForMessage(announced.email, FIRST_DRAIN_TIMEOUT_MS)
     const { html } = parts(message)
