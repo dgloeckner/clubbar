@@ -99,7 +99,17 @@ final class MailRetention
             // the `email_changed` audit entry, which names both addresses and
             // is not touched here. Ninety days is well past the point at which
             // an admin would still be asking whether they were told.
-            MailKind::ADMIN_EMAIL_CHANGED => self::DEFAULT_SENT_DAYS,
+            MailKind::ADMIN_EMAIL_CHANGED,
+            // Key lifecycle notices (ADR-0036) keep the default for the same
+            // reason: the durable record is the `key_registered` /
+            // `key_activated` / `key_revoked` audit entry, which carries the
+            // fingerprint and is untouched here. This copy exists to reach an
+            // admin who was not the one acting, and ninety days is well past
+            // the point at which they would still be asking whether they were
+            // told.
+            MailKind::ENCRYPTION_KEY_REGISTERED,
+            MailKind::ENCRYPTION_KEY_ACTIVATED,
+            MailKind::ENCRYPTION_KEY_REVOKED => self::DEFAULT_SENT_DAYS,
             MailKind::DECKEL_STATEMENT => self::STATEMENT_SENT_DAYS,
         };
     }

@@ -60,6 +60,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
 export * from './acknowledgeTerminalAnomaly200';
 export * from './activateEncryptionKey200';
+export * from './activateEncryptionKeyBody';
 export * from './adminProfile';
 export * from './adminUser';
 export * from './adminUserCreateRequest';

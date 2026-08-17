@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Modules\Security\Services;
 
+use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Security\DTOs\EncryptionKeyDto;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Security\Repositories\SealedIbanRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Logging\Logger;
 use App\Shared\Security\CredentialLifecycle;
 use App\Shared\Security\IbanSealedBox;
 use App\Shared\Services\AuditService;
@@ -29,7 +32,54 @@ class EncryptionKeyService
         private SealedIbanRepository $sealedIbans,
         private IbanSealedBox $sealedBox,
         private AuditService $auditService,
+        private AdminNotifier $adminNotifier,
+        private Logger $logger,
     ) {}
+
+    /**
+     * Tell every admin that a key moved through its lifecycle (ADR-0036).
+     *
+     * Queued beside the audit entry rather than instead of it, because the two
+     * reach different people: the audit log is read by whoever goes looking,
+     * and this is for the admin who never does. It is the only signal a key
+     * swap produces that leaves the panel — the dashboard banner speaks only
+     * for a key that is missing or expiring, so one activated today with 365
+     * days on it is silent by construction.
+     *
+     * Best effort, and never a gate. It queues; it does not send (ADR-0038
+     * rule 3), an install with no mail configured discards it at the transport,
+     * and the lifecycle change it describes has already been committed. A
+     * failure here must not roll back a key operation that succeeded, so it is
+     * caught and logged rather than thrown.
+     *
+     * The occasion is the event name: a key is registered once, activated once
+     * (only a PENDING key can be activated) and revoked once, so the kind and
+     * the key id already identify the occurrence. No tier, no generation.
+     */
+    private function announce(MailKind $kind, string $keyId, ?string $adminId): void
+    {
+        try {
+            $this->adminNotifier->warnAdmins($kind, $keyId, self::occasionFor($kind), $adminId);
+        } catch (\Throwable $e) {
+            $this->logger->error('Encryption key lifecycle notice could not be queued', [
+                'kind' => $kind->value,
+                'key_id' => $keyId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private static function occasionFor(MailKind $kind): string
+    {
+        return match ($kind) {
+            MailKind::ENCRYPTION_KEY_REGISTERED => 'registered',
+            MailKind::ENCRYPTION_KEY_ACTIVATED => 'activated',
+            MailKind::ENCRYPTION_KEY_REVOKED => 'revoked',
+            default => throw new \InvalidArgumentException(
+                sprintf('%s is not a key lifecycle event', $kind->value)
+            ),
+        };
+    }
 
     /**
      * Every key with its rotation backlog attached (#394).
@@ -81,6 +131,8 @@ class EncryptionKeyService
             adminUserId: $adminId,
         );
 
+        $this->announce(MailKind::ENCRYPTION_KEY_REGISTERED, $row['id'], $adminId);
+
         return EncryptionKeyDto::fromRow($row);
     }
 
@@ -88,13 +140,28 @@ class EncryptionKeyService
      * Activate a pending key. Starts its 365-day cryptoperiod; a previously
      * active key moves to RETIRING, which is the opening move of a rotation
      * (the batch re-encryption is P5's KeyRotationService).
+     *
+     * Activation demands the private half of the key being activated. Nothing
+     * at registration proves a public key has a counterpart at all — 32 bytes
+     * out of a mistyped clipboard register exactly like a generated key — and
+     * activation is the moment that stops being harmless: from here every IBAN
+     * is sealed under this key, and if the club cannot open it nobody can. The
+     * proof is a public-key derivation, never a trial decryption, and the
+     * secret is wiped as soon as it has been compared.
+     *
+     * @throws \InvalidArgumentException when no key has that id
+     * @throws PrivateKeyMismatchException when the supplied key belongs to
+     *         another keypair, or is not a key at all
      */
-    public function activate(string $id, ?string $adminId): EncryptionKeyDto
+    public function activate(string $id, string $privateKeyBase64, ?string $adminId): EncryptionKeyDto
     {
         $key = $this->repository->findById($id);
         if ($key === null) {
             throw new \InvalidArgumentException('Unknown encryption key.');
         }
+
+        $secretRaw = $this->validatePrivateKeyFor($key, $privateKeyBase64);
+        sodium_memzero($secretRaw);
 
         $now = new \DateTimeImmutable();
         $previous = $this->repository->activateExclusive(
@@ -123,6 +190,8 @@ class EncryptionKeyService
             );
         }
 
+        $this->announce(MailKind::ENCRYPTION_KEY_ACTIVATED, $id, $adminId);
+
         return EncryptionKeyDto::fromRow($this->repository->findById($id));
     }
 
@@ -145,6 +214,8 @@ class EncryptionKeyService
             newValues: ['status' => $status],
             adminUserId: $adminId,
         );
+
+        $this->announce(MailKind::ENCRYPTION_KEY_REVOKED, $id, $adminId);
 
         return EncryptionKeyDto::fromRow($this->repository->findById($id));
     }
@@ -211,14 +282,14 @@ class EncryptionKeyService
     {
         $secretRaw = base64_decode(trim($privateKeyBase64), true);
         if ($secretRaw === false || strlen($secretRaw) !== 32) {
-            throw new \InvalidArgumentException('The private key must be 32 raw bytes, base64-encoded.');
+            throw new PrivateKeyMismatchException('The private key must be 32 raw bytes, base64-encoded.');
         }
 
         $derivedPublic = $this->sealedBox->publicKeyFromSecret($secretRaw);
 
         if (!hash_equals($keyRow['fingerprint_sha256'], hash('sha256', $derivedPublic))) {
             sodium_memzero($secretRaw);
-            throw new \InvalidArgumentException(
+            throw new PrivateKeyMismatchException(
                 sprintf('The supplied private key does not match key "%s".', $keyRow['key_identifier'])
             );
         }

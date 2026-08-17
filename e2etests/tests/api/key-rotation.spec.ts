@@ -113,9 +113,12 @@ test.describe('IBAN encryption key rotation', () => {
       expect(tooEarly.status(), 'the active key cannot be rotated away from').toBe(409)
 
       // ── Activate it: this is what starts the rotation ───────────────────
+      // The private half comes along as proof the club can open what this key
+      // is about to seal — a public key alone proves nothing (ADR-0036).
       const activated = await stepUpPost(
         authenticatedRequest,
         `${API_BASE}/admin/encryption-keys/${newKeyId}/activate`,
+        { private_key: ROTATION_PRIVATE_KEY },
       )
       expect(activated.status(), await activated.text()).toBe(200)
       expect((await activated.json()).key.status).toBe('active')

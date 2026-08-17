@@ -165,7 +165,10 @@ class EncryptionKeysHttpTest extends HttpTestCase
         $this->assertSame('pending', $key['status']);
 
         // Activate → ACTIVE with a 365-day cryptoperiod; the dev key retires.
-        $response = $this->request('POST', "/api/admin/encryption-keys/{$key['id']}/activate", $this->stepUp(), headers: $this->csrf());
+        // The private half proves the club can open what this key will seal.
+        $response = $this->request('POST', "/api/admin/encryption-keys/{$key['id']}/activate", [
+            'private_key' => base64_encode(sodium_crypto_box_secretkey($keypair)),
+        ] + $this->stepUp(), headers: $this->csrf());
 
         $this->assertSame(200, $response->getStatusCode());
         $activated = $this->decode($response)['key'];
@@ -196,11 +199,70 @@ class EncryptionKeysHttpTest extends HttpTestCase
         $response = $this->request(
             'POST',
             '/api/admin/encryption-keys/00000000-0000-0000-0000-000000000000/activate',
-            $this->stepUp(),
+            ['private_key' => base64_encode(random_bytes(32))] + $this->stepUp(),
             headers: $this->csrf(),
         );
 
         $this->assertSame(404, $response->getStatusCode());
+        $this->assertSame('unknown_key', $this->decode($response)['error']);
+    }
+
+    public function test_activating_without_a_private_key_is_a_422(): void
+    {
+        $keypair = sodium_crypto_box_keypair();
+        $response = $this->request('POST', '/api/admin/encryption-keys', [
+            'public_key' => base64_encode(sodium_crypto_box_publickey($keypair)),
+            'key_identifier' => 'no-proof-' . substr($this->adminId, 0, 8),
+        ] + $this->stepUp(), headers: $this->csrf());
+
+        $key = $this->decode($response)['key'];
+        $this->createdKeyIds[] = $key['id'];
+
+        $response = $this->request(
+            'POST',
+            "/api/admin/encryption-keys/{$key['id']}/activate",
+            $this->stepUp(),
+            headers: $this->csrf(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame('pending', $this->keyStatus($key['id']), 'the key must not have been activated');
+    }
+
+    /**
+     * The wrong sheet out of the safe is bad input, not a missing key — the two
+     * used to be the same exception type and would have collapsed into one code.
+     */
+    public function test_activating_with_a_foreign_private_key_is_a_422_mismatch(): void
+    {
+        $keypair = sodium_crypto_box_keypair();
+        $response = $this->request('POST', '/api/admin/encryption-keys', [
+            'public_key' => base64_encode(sodium_crypto_box_publickey($keypair)),
+            'key_identifier' => 'foreign-proof-' . substr($this->adminId, 0, 8),
+        ] + $this->stepUp(), headers: $this->csrf());
+
+        $key = $this->decode($response)['key'];
+        $this->createdKeyIds[] = $key['id'];
+
+        $stranger = sodium_crypto_box_secretkey(sodium_crypto_box_keypair());
+        $response = $this->request(
+            'POST',
+            "/api/admin/encryption-keys/{$key['id']}/activate",
+            ['private_key' => base64_encode($stranger)] + $this->stepUp(),
+            headers: $this->csrf(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame('private_key_mismatch', $this->decode($response)['error']);
+        $this->assertSame('pending', $this->keyStatus($key['id']), 'a refused activation seals nothing');
+    }
+
+    private function keyStatus(string $id): string
+    {
+        $stmt = $this->db->prepare('SELECT status FROM encryption_keys WHERE id = ?');
+        $stmt->execute([$id]);
+
+        return (string) $stmt->fetchColumn();
     }
 
     // ── Rotation (#394) ─────────────────────────────────────────────────────
@@ -264,14 +326,14 @@ class EncryptionKeysHttpTest extends HttpTestCase
     {
         $sourceKeypair = sodium_crypto_box_keypair();
         $sourceId = $this->registerAndActivate(
-            base64_encode(sodium_crypto_box_publickey($sourceKeypair)),
+            $sourceKeypair,
             'rotate-src-' . substr($this->adminId, 0, 8),
         );
 
         // Activating the successor is what puts the source key into RETIRING —
         // there is no separate "start rotation" call.
         $successorId = $this->registerAndActivate(
-            base64_encode(sodium_crypto_box_publickey(sodium_crypto_box_keypair())),
+            sodium_crypto_box_keypair(),
             'rotate-dst-' . substr($this->adminId, 0, 8),
         );
 
@@ -312,11 +374,16 @@ class EncryptionKeysHttpTest extends HttpTestCase
         $this->assertSame(0, $retired['sealed_record_count']);
     }
 
-    /** Register a public key and put it in force; returns the new key's id. */
-    private function registerAndActivate(string $publicKeyBase64, string $identifier): string
+    /**
+     * Register a keypair's public half and put it in force; returns the id.
+     *
+     * Takes the whole keypair rather than the public half alone because
+     * activation now has to prove possession of the private one (ADR-0036).
+     */
+    private function registerAndActivate(string $keypair, string $identifier): string
     {
         $response = $this->request('POST', '/api/admin/encryption-keys', [
-            'public_key' => $publicKeyBase64,
+            'public_key' => base64_encode(sodium_crypto_box_publickey($keypair)),
             'key_identifier' => $identifier,
         ] + $this->stepUp(), headers: $this->csrf());
         $this->assertSame(201, $response->getStatusCode());
@@ -324,7 +391,12 @@ class EncryptionKeysHttpTest extends HttpTestCase
         $id = $this->decode($response)['key']['id'];
         $this->createdKeyIds[] = $id;
 
-        $response = $this->request("POST", "/api/admin/encryption-keys/{$id}/activate", $this->stepUp(), headers: $this->csrf());
+        $response = $this->request(
+            'POST',
+            "/api/admin/encryption-keys/{$id}/activate",
+            ['private_key' => base64_encode(sodium_crypto_box_secretkey($keypair))] + $this->stepUp(),
+            headers: $this->csrf(),
+        );
         $this->assertSame(200, $response->getStatusCode());
 
         return $id;

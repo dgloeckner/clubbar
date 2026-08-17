@@ -47,6 +47,33 @@ enum MailKind: string
     case TERMINAL_TOKEN_EXPIRY_WARNING = 'terminal_token_expiry_warning';
 
     /**
+     * A key moved through its lifecycle: registered, put in force, or revoked.
+     *
+     * Not a warning about time passing but a report that somebody acted, and
+     * the reason it leaves by mail is that everything else about a key swap
+     * stays inside the panel. The audit log records it and nothing reads the
+     * audit log; the dashboard alert only speaks when a key is missing or
+     * expiring, so a freshly activated key with 365 days left is silent by
+     * construction — and it names the key by `key_identifier`, which whoever
+     * registered it chose. An admin who did not perform the action learns
+     * nothing at all.
+     *
+     * Mail is the one channel somebody holding an admin session cannot
+     * suppress, which is the same argument {@see self::ADMIN_EMAIL_CHANGED}
+     * makes about a stolen session moving a login address. The fingerprint
+     * travels in full, because comparing it against the offline generator is
+     * the only check that distinguishes the club's key from someone else's.
+     *
+     * Three kinds rather than one with a state field: they are three different
+     * messages — "there is a new key on file", "it is now sealing your
+     * members' bank details", "a key was withdrawn" — and the subject line is
+     * what gets read.
+     */
+    case ENCRYPTION_KEY_REGISTERED = 'encryption_key_registered';
+    case ENCRYPTION_KEY_ACTIVATED = 'encryption_key_activated';
+    case ENCRYPTION_KEY_REVOKED = 'encryption_key_revoked';
+
+    /**
      * ADR-0041: a terminal's credential looks like it is on more than one
      * device — two addresses active at once, or a sync cursor that does not
      * continue the history this token has been building.
@@ -113,7 +140,10 @@ enum MailKind: string
         return match ($this) {
             self::SEPA_PRENOTIFICATION,
             self::CANCELLATION_NOTICE => MailSubject::SETTLEMENT,
-            self::KEY_EXPIRY_WARNING => MailSubject::ENCRYPTION_KEY,
+            self::KEY_EXPIRY_WARNING,
+            self::ENCRYPTION_KEY_REGISTERED,
+            self::ENCRYPTION_KEY_ACTIVATED,
+            self::ENCRYPTION_KEY_REVOKED => MailSubject::ENCRYPTION_KEY,
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED => MailSubject::TERMINAL,
@@ -145,6 +175,9 @@ enum MailKind: string
             self::CANCELLATION_NOTICE,
             self::DECKEL_STATEMENT => true,
             self::KEY_EXPIRY_WARNING,
+            self::ENCRYPTION_KEY_REGISTERED,
+            self::ENCRYPTION_KEY_ACTIVATED,
+            self::ENCRYPTION_KEY_REVOKED,
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,

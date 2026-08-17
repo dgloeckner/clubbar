@@ -8,6 +8,7 @@ use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Security\DTOs\EncryptionKeyDto;
 use App\Modules\Security\Services\EncryptionKeyService;
 use App\Modules\Security\Services\KeyRotationService;
+use App\Modules\Security\Services\PrivateKeyMismatchException;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Validation\Validator;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -68,16 +69,39 @@ class EncryptionKeysController
         return $this->json($response, ['key' => $dto->toArray()], 201);
     }
 
+    /**
+     * Promote a pending key to ACTIVE.
+     *
+     * The private half of the key being activated travels in this body. It is
+     * not used to decrypt anything — it is the club demonstrating that the
+     * archive holds the counterpart of what is about to seal every IBAN, which
+     * registration alone cannot show (ADR-0036).
+     */
     public function activate(Request $request, Response $response, array $args): Response
     {
         $body = $request->getParsedBody() ?? [];
+
+        if (!$this->validator->validate($body, ['private_key' => ['required', 'string']])) {
+            return $this->validationFailed($response, $this->validator->errors());
+        }
 
         if (!$this->requireStepUp($request, $response, $body, $failed)) {
             return $failed;
         }
 
         try {
-            $dto = $this->encryptionKeyService->activate($args['id'], $request->getAttribute('admin_user_id'));
+            $dto = $this->encryptionKeyService->activate(
+                $args['id'],
+                (string) $body['private_key'],
+                $request->getAttribute('admin_user_id'),
+            );
+        } catch (PrivateKeyMismatchException $e) {
+            // Caught ahead of \InvalidArgumentException, which it extends: the
+            // wrong key out of the safe is bad input (422), a key that is not
+            // there at all is a missing resource (404). Collapsing the two
+            // would tell an admin who grabbed the wrong sheet that their key
+            // had vanished.
+            return $this->json($response, ['error' => 'private_key_mismatch', 'message' => $e->getMessage()], 422);
         } catch (\InvalidArgumentException $e) {
             return $this->json($response, ['error' => 'unknown_key', 'message' => $e->getMessage()], 404);
         } catch (\RuntimeException $e) {

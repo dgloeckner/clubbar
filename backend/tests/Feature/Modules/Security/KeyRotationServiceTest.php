@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Security;
 
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Security\Repositories\SealedIbanRepository;
 use App\Modules\Security\Services\EncryptionKeyService;
@@ -50,6 +51,8 @@ class KeyRotationServiceTest extends DatabaseTestCase
             $this->sealedIbans,
             $this->sealedBox,
             $this->createMock(AuditService::class),
+            $this->createMock(AdminNotifier::class),
+            $this->logger,
         );
         $this->service = new KeyRotationService(
             $this->keys,
@@ -143,7 +146,7 @@ class KeyRotationServiceTest extends DatabaseTestCase
     private function startRotation(int $mandateCount): array
     {
         $old = $this->registerKey();
-        $this->keyService->activate($old['id'], null);
+        $this->keyService->activate($old['id'], base64_encode($old['secret']), null);
 
         $mandates = [];
         for ($i = 0; $i < $mandateCount; $i++) {
@@ -151,7 +154,7 @@ class KeyRotationServiceTest extends DatabaseTestCase
         }
 
         $new = $this->registerKey();
-        $this->keyService->activate($new['id'], null);
+        $this->keyService->activate($new['id'], base64_encode($new['secret']), null);
 
         return ['old' => $old, 'new' => $new, 'mandates' => $mandates];
     }
@@ -327,7 +330,7 @@ class KeyRotationServiceTest extends DatabaseTestCase
     public function testTheActiveKeyCannotBeRotatedAwayFrom(): void
     {
         $key = $this->registerKey();
-        $this->keyService->activate($key['id'], null);
+        $this->keyService->activate($key['id'], base64_encode($key['secret']), null);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Activate the replacement key first');
@@ -374,14 +377,14 @@ class KeyRotationServiceTest extends DatabaseTestCase
         // it keeps saying "compromised" afterwards — finishing the clean-up
         // does not resolve the incident that caused it.
         $old = $this->registerKey();
-        $this->keyService->activate($old['id'], null);
+        $this->keyService->activate($old['id'], base64_encode($old['secret']), null);
         $mandateId = $this->createMandateUnder($old['id'], $old['public']);
 
         $this->keyService->revoke($old['id'], true, null);
         $this->assertNull($this->keys->findActive(), 'a compromised key stops being the active one');
 
         $new = $this->registerKey();
-        $this->keyService->activate($new['id'], null);
+        $this->keyService->activate($new['id'], base64_encode($new['secret']), null);
 
         $batch = $this->service->rotateBatch($old['id'], base64_encode($old['secret']), null);
         $this->assertSame(1, $batch->processed);
@@ -405,10 +408,10 @@ class KeyRotationServiceTest extends DatabaseTestCase
         // seal under one key while the export validated against the other, and
         // rows would be sealed with a key nobody could name.
         $first = $this->registerKey();
-        $this->keyService->activate($first['id'], null);
+        $this->keyService->activate($first['id'], base64_encode($first['secret']), null);
 
         $second = $this->registerKey();
-        $this->keyService->activate($second['id'], null);
+        $this->keyService->activate($second['id'], base64_encode($second['secret']), null);
 
         // Backdated as well as re-activated: `activated_at` is a DATETIME, and
         // two activations inside the same second would leave the tie to be

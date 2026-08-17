@@ -59,6 +59,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type {
   ActivateEncryptionKey200,
+  ActivateEncryptionKeyBody,
   CompleteEncryptionKeyRotation200,
   ListEncryptionKeys200,
   RegisterEncryptionKey201,
@@ -150,18 +151,26 @@ Any previously active key moves to `retiring` — that transition **is**
 the start of a rotation: new IBANs are sealed under the new key
 immediately, while the existing rows still need re-encrypting.
 
+**The body carries the private half of the key being activated**, as
+proof the club holds it. Registration cannot show that a public key has
+a counterpart at all — 32 bytes out of a mistyped clipboard register
+exactly like a generated key — and activation is the moment that stops
+being harmless, because everything sealed from here needs that private
+half to ever be read again. The proof is a public-key derivation, never
+a trial decryption, and the secret is wiped once compared.
+
 Requires a fresh step-up credential.
 
  * @summary Activate a pending key
  */
 const activateEncryptionKey = (
     id: string,
-    stepUpCredentials: StepUpCredentials,
+    activateEncryptionKeyBody: ActivateEncryptionKeyBody,
  options?: SecondParameter<typeof customInstance<ActivateEncryptionKey200>>,) => {
       return customInstance<ActivateEncryptionKey200>(
       {url: `/admin/encryption-keys/${id}/activate`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
-      data: stepUpCredentials
+      data: activateEncryptionKeyBody
     },
       options);
     }
