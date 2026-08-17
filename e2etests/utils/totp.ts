@@ -123,3 +123,25 @@ export async function submitTotpWithRetry(
   }
   return response!
 }
+
+/**
+ * Wait out the rest of the current 30-second TOTP step.
+ *
+ * `totp_last_timestep` replay protection (#338) is per admin row and rejects
+ * any code whose step is not strictly later than the last one accepted for
+ * that row — enrollment (`/auth/2fa/confirm`) and login (`/auth/mfa`) both
+ * consume a step. A caller that enrolls an admin and then, moments later,
+ * logs that same admin in for real again (a second live session, a
+ * re-authentication after a password change, ...) is not racing another
+ * caller's clock window the way `submitTotpWithRetry` guards against — it is
+ * racing *itself*, in the same window it just consumed. That is a near-even
+ * coin flip resolved by `submitTotpWithRetry` only after a wasted round trip,
+ * a full step's wait and up to 30s of jitter meant for spreading out
+ * unrelated concurrent callers, which does nothing useful when there is only
+ * one caller. Awaiting this first makes the next `generateTotp()` land in a
+ * fresh step on the first attempt instead.
+ */
+export async function waitForFreshTotpWindow(): Promise<void> {
+  const msUntilNextStep = 30_000 - (Date.now() % 30_000)
+  await new Promise((resolve) => setTimeout(resolve, msUntilNextStep + 250))
+}

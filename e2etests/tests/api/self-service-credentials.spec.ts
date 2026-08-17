@@ -1,7 +1,7 @@
 import type { APIRequestContext, Playwright } from '@playwright/test'
 import { test, expect } from '../../fixtures/auth.fixture'
 import { loginAs } from '../../utils/csrf'
-import { generateTotp } from '../../utils/totp'
+import { generateTotp, waitForFreshTotpWindow } from '../../utils/totp'
 import { stepUp } from '../../fixtures/stepUp'
 
 /**
@@ -141,6 +141,8 @@ test.describe('Self-service credential changes', () => {
       authenticatedRequest,
       playwright,
     }) => {
+      // waitForFreshTotpWindow below can itself take up to ~30s.
+      test.setTimeout(60_000)
       const admin = await createEnrolledAdmin(authenticatedRequest, playwright, 'pw-happy')
       const newPassword = 'RotatedPass1234'
 
@@ -157,7 +159,11 @@ test.describe('Self-service credential changes', () => {
       await admin.dispose()
 
       // The write is only proven by the credential it produced: log in again
-      // with the new password, which also proves the old one is gone.
+      // with the new password, which also proves the old one is gone. That
+      // login consumes a fresh TOTP step, same as the enrollment inside
+      // createEnrolledAdmin moments ago — wait it out first rather than
+      // risking the same-window replay retry (see waitForFreshTotpWindow).
+      await waitForFreshTotpWindow()
       const reauthed = await loginAs(playwright, admin.email, newPassword, admin.secret)
       const profile = await reauthed.get(`${API_BASE}/auth/profile`)
       expect(profile.status()).toBe(200)
@@ -264,9 +270,14 @@ test.describe('Self-service credential changes', () => {
       authenticatedRequest,
       playwright,
     }) => {
+      // waitForFreshTotpWindow below can itself take up to ~30s.
+      test.setTimeout(60_000)
       const admin = await createEnrolledAdmin(authenticatedRequest, playwright, 'epoch-pw')
 
       // A second, independent session on the same account — the attacker's.
+      // Consumes a fresh TOTP step, same as createEnrolledAdmin's enrollment
+      // moments ago (see waitForFreshTotpWindow).
+      await waitForFreshTotpWindow()
       const other = await loginAs(playwright, admin.email, admin.password, admin.secret)
       expect((await other.get(`${API_BASE}/auth/profile`)).status()).toBe(200)
 
@@ -293,7 +304,12 @@ test.describe('Self-service credential changes', () => {
     })
 
     test('an email change ends other sessions too', async ({ authenticatedRequest, playwright }) => {
+      // waitForFreshTotpWindow below can itself take up to ~30s.
+      test.setTimeout(60_000)
       const admin = await createEnrolledAdmin(authenticatedRequest, playwright, 'epoch-email')
+      // Consumes a fresh TOTP step, same as createEnrolledAdmin's enrollment
+      // moments ago (see waitForFreshTotpWindow).
+      await waitForFreshTotpWindow()
       const other = await loginAs(playwright, admin.email, admin.password, admin.secret)
       expect((await other.get(`${API_BASE}/auth/profile`)).status()).toBe(200)
 
@@ -321,7 +337,12 @@ test.describe('Self-service credential changes', () => {
       authenticatedRequest,
       playwright,
     }) => {
+      // waitForFreshTotpWindow below can itself take up to ~30s.
+      test.setTimeout(60_000)
       const admin = await createEnrolledAdmin(authenticatedRequest, playwright, 'epoch-locale')
+      // Consumes a fresh TOTP step, same as createEnrolledAdmin's enrollment
+      // moments ago (see waitForFreshTotpWindow).
+      await waitForFreshTotpWindow()
       const other = await loginAs(playwright, admin.email, admin.password, admin.secret)
 
       const changed = await admin.ctx.patch(`${API_BASE}/auth/profile`, { data: { locale: 'en' } })

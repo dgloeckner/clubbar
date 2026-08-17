@@ -346,8 +346,11 @@ test.describe('SEPA pre-notification — finalize, drain, delivered mail', () =>
     // describe block will reuse, and — per DELIVERY_TIMEOUT_MS's comment in
     // utils/mailpit.ts — can legitimately queue behind unrelated CI load on
     // the shared compose stack. Playwright's 30s default has no room left
-    // for that once setup and the drain itself are accounted for.
+    // for that once setup and the drain itself are accounted for, so this
+    // one wait gets a longer budget than the rest of the file — comfortably
+    // under the test's own extended timeout below.
     test.setTimeout(90_000)
+    const FIRST_DRAIN_TIMEOUT_MS = 75_000
 
     const announced = await settleItemisedMember(
       authenticatedRequest,
@@ -359,7 +362,7 @@ test.describe('SEPA pre-notification — finalize, drain, delivered mail', () =>
 
     drainMailQueue()
 
-    const message = await mail.waitForMessage(announced.email)
+    const message = await mail.waitForMessage(announced.email, FIRST_DRAIN_TIMEOUT_MS)
     const { html } = parts(message)
 
     // Who is collecting, and under which authority.
