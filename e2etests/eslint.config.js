@@ -16,7 +16,7 @@ module.exports = [
     ignores: ['node_modules/**', 'playwright-report/**', 'test-results/**', 'results/**', 'dist/**'],
   },
   {
-    files: ['tests/**/*.ts'],
+    files: ['tests/**/*.ts', 'utils/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       ecmaVersion: 2022,

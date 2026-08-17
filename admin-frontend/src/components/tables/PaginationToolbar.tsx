@@ -223,8 +223,11 @@ export function PaginationToolbar({
         )}
       </div>
 
-      {/* Right: Navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      {/* Right: Navigation. Wraps on its own — first/prev/five page
+          numbers/next/last can add up to more than a narrow phone's width
+          even after the outer row has already dropped this cluster to its
+          own line. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {variant !== 'minimal' && (
           <NavButton
             onClick={() => onPageChange(1)}

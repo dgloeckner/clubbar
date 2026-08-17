@@ -93,6 +93,19 @@ const cardStyle: React.CSSProperties = {
   gap: theme.spacing.sm,
 }
 
+// A name shares its row with an amount via `justify-content: space-between`.
+// Flex items default to `min-width: auto`, so an unbroken name (a single long
+// word, no spaces to wrap on) refuses to shrink and pushes the amount off the
+// card instead. `minWidth: 0` lets it shrink; the ellipsis keeps it readable.
+const memberNameCardStyle: React.CSSProperties = {
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontWeight: theme.typography.fontWeight.semibold,
+  color: theme.colors.text.primary,
+}
+
 const clearButtonStyle: React.CSSProperties = {
   padding: '6px 12px',
   borderRadius: tableColors.buttonBorderRadius,
@@ -311,12 +324,14 @@ export function ExcludedFromCollectionPage() {
     items.map((m) => (
       <div key={m.member_id} data-testid={`excluded-credit-row-${m.member_id}`} style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: theme.spacing.md }}>
-          <span style={{ fontWeight: theme.typography.fontWeight.semibold, color: theme.colors.text.primary }}>
+          <span style={memberNameCardStyle}>
             {memberName(m)}
           </span>
           <span
             data-testid={`excluded-credit-amount-${m.member_id}`}
             style={{
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
               fontWeight: theme.typography.fontWeight.semibold,
               fontVariantNumeric: 'tabular-nums',
               color: theme.colors.semantic.warning,
@@ -332,12 +347,14 @@ export function ExcludedFromCollectionPage() {
     items.map((h) => (
       <div key={h.member_id} data-testid={`excluded-hold-row-${h.member_id}`} style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: theme.spacing.md }}>
-          <span style={{ fontWeight: theme.typography.fontWeight.semibold, color: theme.colors.text.primary }}>
+          <span style={memberNameCardStyle}>
             {memberName(h)}
           </span>
           <span
             data-testid={`excluded-hold-amount-${h.member_id}`}
             style={{
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
               fontWeight: theme.typography.fontWeight.semibold,
               fontVariantNumeric: 'tabular-nums',
               color: theme.colors.semantic.danger,
@@ -377,12 +394,14 @@ export function ExcludedFromCollectionPage() {
     items.map((m) => (
       <div key={m.member_id} data-testid={`excluded-nomandate-row-${m.member_id}`} style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: theme.spacing.md }}>
-          <span style={{ fontWeight: theme.typography.fontWeight.semibold, color: theme.colors.text.primary }}>
+          <span style={memberNameCardStyle}>
             {memberName(m)}
           </span>
           <span
             data-testid={`excluded-nomandate-amount-${m.member_id}`}
             style={{
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
               fontWeight: theme.typography.fontWeight.semibold,
               fontVariantNumeric: 'tabular-nums',
               color: theme.colors.semantic.info,

@@ -167,19 +167,31 @@ export function AdminUsersTab({
                   transition: `opacity ${theme.transitions.default}`,
                 }}
               >
-                {/* Row 1: Toggle + Name */}
+                {/* Row 1: Toggle + Name. minWidth: 0 lets a long, unbroken
+                    display name shrink and ellipsize instead of pushing the
+                    "Sie" badge off the card — flex items default to
+                    min-width: auto, which refuses to shrink text content. */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md, marginBottom: theme.spacing.sm }}>
                   {renderActiveToggle(admin)}
                   <span
                     data-testid={`settings-admin-user-name-${admin.id}`}
-                    style={{ fontWeight: theme.typography.fontWeight.semibold, fontSize: theme.typography.fontSize.sm }}
+                    style={{
+                      minWidth: 0,
+                      flex: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontWeight: theme.typography.fontWeight.semibold,
+                      fontSize: theme.typography.fontSize.sm,
+                    }}
                   >
                     {admin.display_name}
                   </span>
                   {renderSelfBadge(admin)}
                 </div>
 
-                {/* Row 2: Email */}
+                {/* Row 2: Email. wordBreak so a long, unbroken address wraps
+                    instead of bleeding past the card edge. */}
                 <div
                   data-testid={`settings-admin-user-email-${admin.id}`}
                   style={{
@@ -187,6 +199,7 @@ export function AdminUsersTab({
                     color: theme.colors.text.secondary,
                     marginBottom: theme.spacing.sm,
                     paddingLeft: '44px',
+                    wordBreak: 'break-word',
                   }}
                 >
                   {admin.email}

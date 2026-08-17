@@ -351,9 +351,12 @@ export function NotificationsPage() {
     <div data-testid="notifications-cards" style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.sm }}>
       {items.map((row) => (
         <div key={row.id} data-testid={`notifications-card-${row.id}`} style={cardStyle}>
+          {/* minWidth: 0 lets a long recipient address wrap instead of
+              refusing to shrink (the flex default) and pushing the status
+              badge off the card. */}
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: theme.spacing.sm }}>
-            <div>{renderRecipient(row)}</div>
-            {renderStatusBadge(row)}
+            <div style={{ minWidth: 0, flex: 1, wordBreak: 'break-word' }}>{renderRecipient(row)}</div>
+            <div style={{ flexShrink: 0 }}>{renderStatusBadge(row)}</div>
           </div>
           <div style={mutedStyle}>
             {kindLabel(row.kind ?? '')} &middot; {formatDateTime(row.queued_at ?? '')}
