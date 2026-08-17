@@ -754,7 +754,9 @@ export function SettingsPage() {
     setError(null)
   }
 
-  // Tab styles (prototype styling: button group container)
+  // Tab styles (prototype styling: button group container). Seven tabs don't
+  // fit a phone-width screen, so the row scrolls horizontally instead of
+  // being silently clipped by MainLayout's `overflowX: hidden`.
   const tabContainerStyle: React.CSSProperties = {
     display: 'flex',
     background: theme.colors.bg.card,
@@ -763,11 +765,17 @@ export function SettingsPage() {
     gap: '4px',
     border: '1px solid rgba(71,85,105,0.3)',
     maxWidth: '100%',
+    overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
   }
 
   const tabStyle = (isActive: boolean) => ({
-    flex: isMobile ? 1 : undefined,
-    padding: isMobile ? `${theme.spacing.sm} 0` : `${theme.spacing.md} ${theme.spacing.lg}`,
+    // On mobile the row scrolls instead of squeezing seven tabs to fit, so
+    // each tab keeps its natural width rather than sharing the row via flex:1.
+    flexShrink: isMobile ? 0 : undefined,
+    padding: isMobile ? `${theme.spacing.sm} ${theme.spacing.md}` : `${theme.spacing.md} ${theme.spacing.lg}`,
     borderRadius: '8px',
     background: isActive ? theme.colors.semantic.primary : 'transparent',
     color: isActive ? 'white' : theme.colors.text.secondary,
@@ -797,6 +805,7 @@ export function SettingsPage() {
 
       {/* Tabs Navigation */}
       <div style={{ marginBottom: theme.spacing.xl }}>
+        <style>{`[data-testid="settings-tabs"]::-webkit-scrollbar { display: none; }`}</style>
         <div
           data-testid="settings-tabs"
           style={tabContainerStyle}

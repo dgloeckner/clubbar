@@ -42,6 +42,7 @@ import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { PillActionButton } from '../components/common/PillActionButton'
 import { PageActionButton } from '../components/common/PageActionButton'
 import { PageHeader } from '../components/layout/PageHeader'
+import { BankIcon, PlusIcon } from '../components/icons'
 import { useListQuery } from '../hooks/useListQuery'
 import { downloadBlob, downloadFile } from '../api/client'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
@@ -582,6 +583,9 @@ export function SettlementsPage() {
                 variant="warning"
                 data-testid="settlements-record-bank-return-btn"
                 onClick={() => setLookupOpen(true)}
+                iconOnly={isMobile}
+                icon={<BankIcon size={18} />}
+                title={t('settlements.recordBankReturn')}
               >
                 {t('settlements.recordBankReturn')}
               </PageActionButton>
@@ -590,6 +594,9 @@ export function SettlementsPage() {
                 variant="success"
                 data-testid="settlements-new-btn"
                 onClick={() => navigate('/settlements/new')}
+                iconOnly={isMobile}
+                icon={<PlusIcon size={18} />}
+                title={t('newSettlement.title')}
               >
                 {t('newSettlement.title')}
               </PageActionButton>
