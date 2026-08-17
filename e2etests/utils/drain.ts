@@ -99,6 +99,30 @@ export interface DrainOptions {
  * override that swallowed the flag would drain a different period than the one
  * being asserted.
  */
+/**
+ * `bin/cron.php`'s own message (see the file itself) when its non-blocking
+ * `flock` is already held — by the URL trigger route, which takes the exact
+ * same lock file (`DrainService::lockIn`) so a CLI run and an HTTP-triggered
+ * one can never overlap. `tests/api/cron-drain.spec.ts` fires several real
+ * HTTP-triggered runs, and — unlike this file's own drains — that project
+ * gives no guarantee about exactly when the *process* holding the lock for
+ * one of those requests actually exits relative to when its HTTP response
+ * lands, only that the test itself is done. A drain call here landing in
+ * that window is not an error and not an empty queue: it is a run that
+ * printed exactly this and exited 0 having done nothing, indistinguishable
+ * from genuine idleness to everything downstream — which is why retrying
+ * belongs here, at the one place that can tell the difference, rather than
+ * in every assertion that waits on a message afterwards.
+ */
+const LOCK_HELD_MESSAGE = 'Another drain run holds'
+const LOCK_RETRY_ATTEMPTS = 3
+const LOCK_RETRY_DELAY_MS = 2_000
+
+/** Synchronous sleep — `drainMailQueue` is spawnSync-based throughout. */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
 export function drainMailQueue(options: DrainOptions = {}): string {
   const dsn = options.dsn ?? CONTAINER_MAIL_DSN
   const batchSize = options.batchSize ?? 200
@@ -112,39 +136,59 @@ export function drainMailQueue(options: DrainOptions = {}): string {
     args.push('--budget', String(options.budgetSeconds))
   }
 
-  // spawnSync rather than execFileSync: the latter returns stdout only, and
-  // everything a drain says about trouble — a missing extension, an aborted
-  // run, a message it could not deliver — it says on stderr.
-  const run: SpawnSyncReturns<string> = override
-    ? spawnSync('sh', ['-c', `${override} ${args.join(' ')}`], {
-        cwd: REPO_ROOT,
-        encoding: 'utf8',
-        timeout: DRAIN_TIMEOUT_MS,
-        env: { ...process.env, MAIL_DSN: dsn },
-      })
-    : spawnSync(
-        'docker',
-        ['compose', 'exec', '-T', '-e', `MAIL_DSN=${dsn}`, 'backend', 'php', '/app/bin/cron.php', ...args],
-        { cwd: REPO_ROOT, encoding: 'utf8', timeout: DRAIN_TIMEOUT_MS }
+  for (let attempt = 1; attempt <= LOCK_RETRY_ATTEMPTS; attempt++) {
+    // spawnSync rather than execFileSync: the latter returns stdout only, and
+    // everything a drain says about trouble — a missing extension, an aborted
+    // run, a message it could not deliver — it says on stderr.
+    const run: SpawnSyncReturns<string> = override
+      ? spawnSync('sh', ['-c', `${override} ${args.join(' ')}`], {
+          cwd: REPO_ROOT,
+          encoding: 'utf8',
+          timeout: DRAIN_TIMEOUT_MS,
+          env: { ...process.env, MAIL_DSN: dsn },
+        })
+      : spawnSync(
+          'docker',
+          ['compose', 'exec', '-T', '-e', `MAIL_DSN=${dsn}`, 'backend', 'php', '/app/bin/cron.php', ...args],
+          { cwd: REPO_ROOT, encoding: 'utf8', timeout: DRAIN_TIMEOUT_MS }
+        )
+
+    const output = `${run.stdout ?? ''}${run.stderr ?? ''}`
+
+    if (run.error || run.status !== 0) {
+      throw new Error(
+        'Could not run the mail drain (backend/bin/cron.php). The chain tests need the compose stack ' +
+          'up, or MAIL_DRAIN_COMMAND pointing at an equivalent CLI.\n' +
+          `${output}\n${run.error?.message ?? ''}`
       )
+    }
 
-  const output = `${run.stdout ?? ''}${run.stderr ?? ''}`
+    if (output.includes('ABORTED')) {
+      throw new Error(
+        'The drain run aborted, so whatever it did or did not deliver says nothing about the queue. ' +
+          'Fix this before reading any mail assertion below it.\n' +
+          output
+      )
+    }
 
-  if (run.error || run.status !== 0) {
-    throw new Error(
-      'Could not run the mail drain (backend/bin/cron.php). The chain tests need the compose stack ' +
-        'up, or MAIL_DRAIN_COMMAND pointing at an equivalent CLI.\n' +
-        `${output}\n${run.error?.message ?? ''}`
-    )
+    if (output.includes(LOCK_HELD_MESSAGE)) {
+      if (attempt < LOCK_RETRY_ATTEMPTS) {
+        sleepSync(LOCK_RETRY_DELAY_MS)
+        continue
+      }
+      throw new Error(
+        `The drain's lock was still held after ${LOCK_RETRY_ATTEMPTS} attempts, ` +
+          `${LOCK_RETRY_ATTEMPTS * LOCK_RETRY_DELAY_MS}ms apart. That is not this file's own drains — they run ` +
+          'one at a time — so something outside this test is holding backend/storage/mail-drain.lock well past ' +
+          "a single request's lifetime.\n" +
+          output
+      )
+    }
+
+    return output
   }
 
-  if (output.includes('ABORTED')) {
-    throw new Error(
-      'The drain run aborted, so whatever it did or did not deliver says nothing about the queue. ' +
-        'Fix this before reading any mail assertion below it.\n' +
-        output
-    )
-  }
-
-  return output
+  // Unreachable — the loop above always returns or throws — but satisfies the
+  // compiler's control-flow analysis without an `any`-typed escape hatch.
+  throw new Error('drainMailQueue: exhausted retries without a definitive result')
 }
