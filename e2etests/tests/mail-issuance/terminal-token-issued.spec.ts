@@ -103,7 +103,7 @@ test.describe('Terminal credential issuance — mint, cron, delivered mail', () 
     // recipient. This one is on the list before anything is minted, exactly as a
     // colleague who has been an admin all along would be.
     const admin = await authenticatedRequest.post('/api/admin/admin-users', {
-      data: { email: adminEmail, display_name: `Issuance Kassenwart ${suffix}`, locale: 'de' },
+      data: { ...stepUp(), email: adminEmail, display_name: `Issuance Kassenwart ${suffix}`, locale: 'de' },
     })
     expect(admin.status(), await admin.text()).toBe(201)
     adminUserId = (await admin.json()).id
