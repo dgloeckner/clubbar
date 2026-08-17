@@ -52,6 +52,32 @@ function queryInstallAdminAuditEntry(): InstallAuditRow | null {
   return output ? JSON.parse(output) : null;
 }
 
+type InstallAdminRow = {
+  email: string;
+  password_hash: string;
+  is_active: number;
+};
+
+/**
+ * Reads the admin_users row the installer's raw INSERT wrote (#505). The
+ * redirect and the audit-log entry only prove the request was accepted —
+ * this is the assertion the issue asks for: the actual row, with a real
+ * bcrypt hash and an active account, not just an HTTP/HTML response shape.
+ */
+function queryInstallAdminRow(email: string): InstallAdminRow | null {
+  const sql =
+    "SELECT JSON_OBJECT('email', email, 'password_hash', password_hash, 'is_active', is_active) " +
+    `FROM admin_users WHERE email = '${email}'`;
+
+  const output = execFileSync(
+    'docker',
+    ['compose', ...COMPOSE_FILES, 'exec', '-T', 'database', 'mysql', '-uclubbar', '-pclubbar', 'clubbar', '-N', '-B', '-e', sql],
+    { cwd: REPO_ROOT, encoding: 'utf8' }
+  ).trim();
+
+  return output ? JSON.parse(output) : null;
+}
+
 /**
  * Register and activate an IBAN encryption keypair, the way a club does after
  * installing (ADR-0036).
@@ -109,6 +135,19 @@ test.describe('Package: Install Wizard', () => {
     expect(html).toContain('.installer-data');
   });
 
+  test('install.php rejects a wrong install key and never starts a session', async ({ request }) => {
+    const rejected = await request.post(`${PACKAGE_URL}/install.php`, {
+      form: { install_key: 'definitely-not-the-install-key' },
+    });
+    expect(rejected.ok()).toBeTruthy();
+    expect(await rejected.text()).toContain('Invalid install key');
+
+    // No session cookie was granted, so a wrong key gates every step, not
+    // just the key form itself.
+    const step4 = await request.get(`${PACKAGE_URL}/install.php?step=4`);
+    expect(await step4.text()).toContain('Install Key Required');
+  });
+
   test('install wizard completes via POST steps', async ({ request }) => {
     // Enter install key — sets session cookie on this request context
     const keyResponse = await request.post(`${PACKAGE_URL}/install.php`, {
@@ -140,6 +179,22 @@ test.describe('Package: Install Wizard', () => {
     });
     expect(step3.status()).toBe(302);
     expect(step3.headers()['location']).toContain('step=4');
+
+    // Step 4: a too-short password is rejected before any row is written
+    // (#505 — the length check, checked ahead of and independent of the
+    // composition rule below).
+    const shortPassword = await request.post(`${PACKAGE_URL}/install.php?step=4`, {
+      form: {
+        step: '4',
+        admin_email: 'weak-password@example.com',
+        admin_password: 'short1',
+        admin_password_confirm: 'short1',
+      },
+      maxRedirects: 0,
+    });
+    expect(shortPassword.status()).toBe(200);
+    expect(await shortPassword.text()).toContain('Password must be at least 8 characters');
+    expect(queryInstallAdminRow('weak-password@example.com')).toBeNull();
 
     // Step 4: Admin user. #502: a password that clears the length check but
     // fails the composition rule (lower + upper + digit, matching the rule
@@ -187,6 +242,14 @@ test.describe('Package: Install Wizard', () => {
     expect(installAuditEntry!.new_values.email).toBe('admin@example.com');
     expect(installAuditEntry!.new_values.password).toBe('[INSTALLER]');
     expect(installAuditEntry!.old_values).toBeNull();
+
+    // The row itself (#505): active, and a real bcrypt hash rather than the
+    // plaintext password the request carried.
+    const adminRow = queryInstallAdminRow('admin@example.com');
+    expect(adminRow).not.toBeNull();
+    expect(adminRow!.is_active).toBe(1);
+    expect(adminRow!.password_hash).toMatch(/^\$2y\$/);
+    expect(adminRow!.password_hash).not.toContain('Password123');
 
     // Step 5: the scheduler (#405). A prerequisite step, not a suggestion —
     // the drain is the only thing that sends announcement emails, and until a
