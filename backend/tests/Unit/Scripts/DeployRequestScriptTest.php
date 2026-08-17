@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Scripts;
 
 use PHPUnit\Framework\TestCase;
+use Tests\Support\TempTree;
 
 /**
  * The seam is the CLI contract of scripts/deploy-request.sh: a label and a URL
@@ -20,6 +21,8 @@ use PHPUnit\Framework\TestCase;
  */
 class DeployRequestScriptTest extends TestCase
 {
+    use TempTree;
+
     /** @var resource|null */
     private $server = null;
 
@@ -35,11 +38,31 @@ class DeployRequestScriptTest extends TestCase
             }
         }
 
-        $this->docRoot = sys_get_temp_dir() . '/deploy-request-' . bin2hex(random_bytes(6));
-        mkdir($this->docRoot, 0777, true);
+        $this->docRoot = self::makeTempTree('deploy-request');
         $this->startServer();
     }
 
+    /**
+     * The empty-path guard is load-bearing, and it is not defensive
+     * programming — it is a fix.
+     *
+     * `setUp()` skips before `$docRoot` is assigned whenever `curl` or `jq` is
+     * missing, and PHPUnit still runs `tearDown()` for a skipped test. With
+     * `$docRoot` left at `''`, `glob('' . '/*')` is `glob('/*')` — the
+     * container's **root directory** — and the loop below then unlinked every
+     * non-directory entry in it.
+     *
+     * In the backend dev container (`webdevops/php-apache:8.3`, which ships
+     * curl but no jq) that meant deleting `/bin`, `/lib`, `/lib64`, `/sbin` and
+     * `/entrypoint`, all of which are symlinks at `/` and all of which
+     * `unlink()` happily removes. Losing `/lib64` takes the ELF interpreter
+     * with it, so from that moment every dynamically linked binary failed to
+     * exec with `no such file or directory` — `docker compose exec … php`, the
+     * healthcheck (hence "Up (unhealthy)" while the already-running php-fpm
+     * kept serving), and even a re-`up` of the same container, which could no
+     * longer stat `/entrypoint`. CI never saw it because the CI image has jq,
+     * so `setUp()` completes and `$docRoot` is a real temp directory.
+     */
     protected function tearDown(): void
     {
         if (is_resource($this->server)) {
@@ -47,12 +70,8 @@ class DeployRequestScriptTest extends TestCase
             proc_close($this->server);
             $this->server = null;
         }
-        foreach (glob($this->docRoot . '/*') ?: [] as $file) {
-            unlink($file);
-        }
-        if (is_dir($this->docRoot)) {
-            rmdir($this->docRoot);
-        }
+
+        self::removeTempTree($this->docRoot);
     }
 
     // ── the happy path ────────────────────────────────────────────────
