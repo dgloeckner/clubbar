@@ -174,4 +174,57 @@ test.describe('Profile credential changes (UI)', () => {
     await profilePage.navigate()
     await profilePage.expectLanguageSelected('en')
   })
+
+  /**
+   * #134: a saved `display_name` used to reach only localStorage. AuthContext's
+   * state — what the header actually renders from — was populated at
+   * login/mount and never touched again, so a rename stayed invisible in the
+   * header until a full reload. This asserts the header updates immediately,
+   * with no navigation in between.
+   */
+  test('renaming the display name updates the header immediately, without a reload', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    test.setTimeout(360_000)
+    const { email, password } = await createAdmin(playwright, 'ui-rename')
+    await signInAndEnroll(loginPage, page, email, password)
+
+    const profilePage = new ProfilePage(page)
+    await profilePage.navigate()
+
+    const newName = `Renamed_${Date.now()}`
+    await profilePage.setDisplayName(newName)
+    await profilePage.saveProfile()
+    await profilePage.expectSuccessVisible()
+
+    await expect(page.locator('[data-testid="header-user-badge"]')).toContainText(newName)
+  })
+
+  /**
+   * #134: i18n persisted the language under its own `adminLocale` localStorage
+   * key, separate from the `locale` key session.ts uses for the rest of the
+   * admin's identity — and only the latter was cleared on logout. The two
+   * could diverge permanently. Fixed by consolidating on a single key; this
+   * asserts no second key reappears and the shared one holds the new value.
+   */
+  test('changing language leaves a single, consistent locale key in storage', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    test.setTimeout(360_000)
+    const { email, password } = await createAdmin(playwright, 'ui-locale-key')
+    await signInAndEnroll(loginPage, page, email, password)
+
+    const profilePage = new ProfilePage(page)
+    await profilePage.navigate()
+    await profilePage.changeLanguage('en')
+    await profilePage.expectSuccessVisible()
+
+    const keys = await page.evaluate(() => Object.keys(localStorage))
+    expect(keys).not.toContain('adminLocale')
+    expect(await page.evaluate(() => localStorage.getItem('locale'))).toBe('en')
+  })
 })

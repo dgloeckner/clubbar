@@ -58,7 +58,7 @@ export const test = pomTest.extend<{
   showClicks: [async ({ context, walkthroughLang }, use) => {
     // Set admin locale in localStorage before any page loads
     await context.addInitScript((lang) => {
-      localStorage.setItem('adminLocale', lang);
+      localStorage.setItem('locale', lang);
     }, walkthroughLang);
 
     await context.addInitScript(() => {

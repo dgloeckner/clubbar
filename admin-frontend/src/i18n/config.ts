@@ -5,7 +5,9 @@ import { initReactI18next } from 'react-i18next';
 import de from '../../public/locales/de.json';
 import en from '../../public/locales/en.json';
 
-const LOCALE_STORAGE_KEY = 'adminLocale';
+// Same key session.ts uses for the admin's `locale` field, so a login/logout/
+// profile-save writes one value instead of two that can drift apart (#134).
+const LOCALE_STORAGE_KEY = 'locale';
 
 // Get initial language from localStorage or default to German
 function getInitialLanguage(): string {

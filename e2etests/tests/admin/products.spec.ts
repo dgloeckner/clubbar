@@ -320,7 +320,7 @@ test.describe('Admin Products Page', () => {
       data: { locale: 'de' },
       headers: await csrfHeaders(page),
     })
-    await page.evaluate(() => localStorage.setItem('adminLocale', 'de'))
+    await page.evaluate(() => localStorage.setItem('locale', 'de'))
     await authenticatedProductsPage.reloadPage()
 
     const deName = `${prefix}Weizen`
