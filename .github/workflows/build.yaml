@@ -410,12 +410,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { lane: api, id: api-1, shard: 1/2, projects: --project=api-tests }
-          - { lane: api, id: api-2, shard: 2/2, projects: --project=api-tests }
-          - { lane: ui, id: ui-1, shard: 1/2, projects: --project=admin-chromium --project=admin-mobile }
-          - { lane: ui, id: ui-2, shard: 2/2, projects: --project=admin-chromium --project=admin-mobile }
+          - { lane: api, id: api-1, shard: 1/2, browsers: chromium, projects: --project=api-tests }
+          - { lane: api, id: api-2, shard: 2/2, browsers: chromium, projects: --project=api-tests }
+          - { lane: ui, id: ui-1, shard: 1/2, browsers: chromium webkit, projects: --project=admin-chromium --project=admin-mobile }
+          - { lane: ui, id: ui-2, shard: 2/2, browsers: chromium webkit, projects: --project=admin-chromium --project=admin-mobile }
           # One job, no shard: every project in it is deliberately serial.
-          - { lane: chain, id: chain, shard: 1/1, projects: --project=api-ordered --project=api-rotation --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance }
+          - { lane: chain, id: chain, shard: 1/1, browsers: chromium, projects: --project=api-ordered --project=api-rotation --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance }
 
     steps:
       - uses: actions/checkout@v4
@@ -516,10 +516,29 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-chromium-webkit-${{ hashFiles('e2etests/package-lock.json') }}
+          # Per lane, because lanes now install different browser sets: a
+          # chromium-only lane must not fill the entry the ui lane restores, or
+          # that lane silently redownloads WebKit on every run.
+          key: playwright-${{ matrix.lane }}-${{ hashFiles('e2etests/package-lock.json') }}
 
+      # Only the browsers this lane actually launches. `admin-mobile`
+      # (`devices['iPhone 14']`) is the **only** project in CI that runs on
+      # WebKit, and it lives in the ui lane; everything else drives Chromium or
+      # no browser at all.
+      #
+      # It is `--with-deps` that makes this worth doing. The browser binaries
+      # come from the cache above, but the apt packages never do — they are
+      # refetched by every job on every run, and WebKit's closure is the
+      # expensive half (gstreamer, libwoff, libmanette, fonts...). Measured on
+      # the first run of this matrix, with the binaries cached:
+      #
+      #     Fetched 104 MB in 13min 40s (127 kB/s)
+      #
+      # in a job whose tests then took 1m47. The mirror is not always that
+      # slow — the same step took 39 seconds on main an hour earlier — which is
+      # exactly why it is worth not paying for it five times over.
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium webkit
+        run: npx playwright install --with-deps ${{ matrix.browsers }}
         working-directory: e2etests
 
       - name: Run E2E tests
