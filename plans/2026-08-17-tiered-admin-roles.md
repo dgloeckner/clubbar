@@ -170,6 +170,20 @@ it makes the foundation deployable and verifiable before enforcement lands.
       check, and naming a person *and* claiming club-addressing is refused
 - [x] `club_notification_address` documented in `api/admin.yaml` on both the
       read and write shapes of `mail-config`
+- [x] The queue the fan-out fills is kept off the delivery chains' path. ADR-0044
+      sends these notices to **every active admin** as well as the club address,
+      which is a handful of rows in a club and quadratic in this test suite —
+      every spec that mints a throwaway admin leaves it active, so a full run
+      ended with thousands of rows queued ahead of whatever a chain spec was
+      waiting for. `prenotification-chain` then drained, spent its batch and its
+      budget on the backlog, and reported *Mailpit should hold exactly 1
+      message: received 0* in a file that had done nothing wrong. A
+      `quiet mail backlog` setup project — after everything that queues, before
+      everything that delivers — discards the unclaimed backlog, and
+      `--project=mail-lifecycle` was added to the CI matrix, which M5b had
+      created without wiring up
+      — *verified*: reproduced locally against a 6,450-row backlog (4 chain
+      specs failing), then green with the setup in place
 
 ### M6 — Admin frontend: hidden nav, per-role landing, refusal screen ([#516](https://github.com/dgloeckner/clubbar/issues/516))
 

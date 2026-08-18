@@ -33,6 +33,9 @@ const WORKFLOW = resolve(HERE, '..', '..', '.github', 'workflows', 'build.yaml')
 export const NOT_IN_CI = {
   'setup auth': 'A setup project: every lane pulls it in as a dependency, so it is never named.',
   'setup walkthrough-data': 'Setup for the walkthrough captures below, pulled in the same way.',
+  'quiet mail backlog':
+    'A setup project too: `mail-chain` pulls it in, so it runs before every mail chain ' +
+    'without ever being named on a command line.',
   'rate-limit':
     'Needs the DISABLE_*_RATE_LIMITING flags removed from the stack, which the dev and CI ' +
     'compose files both set. Documented in playwright.config.ts; run with npm run test:rate-limit.',

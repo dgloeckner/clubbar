@@ -239,11 +239,24 @@ export default defineConfig({
     // Needs the compose stack (the drain runs through `docker compose exec`)
     // and Mailpit on :8025. `--no-deps` runs it alone against a stack that is
     // already seeded, which is what to use while iterating on a single spec.
+    // Everything that queues has run; nothing that delivers has started. That
+    // is the only moment the backlog can be discarded, and it is why this is a
+    // project with dependencies rather than a `beforeAll` in one spec.
+    {
+      name: 'quiet mail backlog',
+      testDir: './tests',
+      testMatch: /mail-backlog\.setup\.ts/,
+      // The same edge `mail-chain` used to carry, and for the same reason: it
+      // waits for the suites that fill the queue, unless the chain lane has the
+      // database to itself, in which case there is nothing to wait for.
+      dependencies: orderedAfter(['api-tests', 'admin-chromium']),
+    },
+
     {
       name: 'mail-chain',
       testDir: './tests/mail',
       fullyParallel: false,
-      dependencies: orderedAfter(['api-tests', 'admin-chromium']),
+      dependencies: ['quiet mail backlog'],
     },
 
     // The Deckelauszug chain (#463): cadence on → bin/cron.php → Mailpit.

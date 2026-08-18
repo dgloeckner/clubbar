@@ -21,6 +21,15 @@
  * the PHPUnit tests already do — and Pattern 010 exists because that is not the
  * same claim.
  *
+ * ### The second exception (#521)
+ *
+ * `discardPendingMailBacklog()` below, for the same reason in a different
+ * place: there is no admin endpoint that discards queued mail. `GET
+ * /notifications` lists it and `POST /notifications/{id}/retry` re-queues one;
+ * nothing throws any away, deliberately — an outbox an admin can empty is not
+ * an outbox. So the *suite's* backlog, which is an artefact of the suite and
+ * not of the product, has nowhere else to be cleared from.
+ *
  * ### Shape
  *
  * `docker compose exec` and `spawnSync`, the same mechanism (and the same
@@ -90,4 +99,53 @@ export function setTerminalTokenExpiry(terminalId: string, days: number): void {
     `UPDATE terminals SET token_expires_at = NOW() + INTERVAL ${Number(days)} DAY ` +
       `WHERE id = '${terminalId.replace(/'/g, '')}'`,
   )
+}
+
+/**
+ * Throw away mail the rest of the suite queued and nobody is waiting for.
+ *
+ * ### Why the chains need this
+ *
+ * Admin-addressed mail fans out to **every active admin** — ADR-0043's issuance
+ * notice does, and ADR-0044's lifecycle notices do, by design and by written
+ * decision. In a club that is a handful of rows. In this suite it is quadratic:
+ * every spec that mints a throwaway admin leaves it *active* forever, so the
+ * hundredth account creation queues a hundred rows, and a full run ends with
+ * thousands of them pending.
+ *
+ * A chain spec then finalizes its own settlement, runs one drain and waits for
+ * one message. The drain claims oldest-first, so it spends its whole batch and
+ * its whole wall-clock budget on that backlog and never reaches the row the
+ * spec is waiting for — which surfaces as `Mailpit should hold exactly 1
+ * message(s) for <member>: Expected 1, Received 0`, in a file that did nothing
+ * wrong.
+ *
+ * ### Why it is safe
+ *
+ * The chain projects are the only specs that assert on *delivered* mail, and
+ * they run after this by construction (see `playwright.config.ts`). Everything
+ * else asserts on outbox rows through the API, finds them by id (Pattern 003),
+ * and had already finished with them: `minimumAgeSeconds` protects any row a
+ * concurrently-running project queued moments ago.
+ *
+ * @returns the number of rows discarded, for the setup step to report.
+ */
+export function discardPendingMailBacklog(minimumAgeSeconds = 60): number {
+  const age = Math.max(0, Math.trunc(minimumAgeSeconds))
+
+  const before = countPendingMail()
+  execSql(
+    `DELETE FROM mail_outbox WHERE status = 'pending' ` +
+      `AND queued_at < NOW() - INTERVAL ${age} SECOND`,
+  )
+
+  return before - countPendingMail()
+}
+
+/** How many messages are queued and unsent right now. */
+export function countPendingMail(): number {
+  const output = execSql(`SELECT COUNT(*) FROM mail_outbox WHERE status = 'pending'`)
+  const match = output.match(/(\d+)/g)
+
+  return match ? Number(match[match.length - 1]) : 0
 }
