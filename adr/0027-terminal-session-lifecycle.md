@@ -1,6 +1,6 @@
 # ADR-0027: Terminal Session Lifecycle and Cart Ownership
 
-**Status**: Accepted (amended 2026-08-06 — see [Amendment 1](#amendment-1-nothing-ends-a-session-during-a-critical-operation), [Amendment 2](#amendment-2-per-route-scan-policy-53), [Amendment 3](#amendment-3-a-shorter-resumable-receipt-25))
+**Status**: Accepted (amended 2026-08-18 — see [Amendment 1](#amendment-1-nothing-ends-a-session-during-a-critical-operation), [Amendment 2](#amendment-2-per-route-scan-policy-53), [Amendment 3](#amendment-3-a-shorter-resumable-receipt-25), [Amendment 4](#amendment-4-the-displayed-catalogue-is-frozen-for-the-session))
 
 **Date**: 2026-08-05
 
@@ -54,6 +54,7 @@ Session ends are suspended for as long as a checkout or dispense is in flight (r
 | 8 | All session ends go through a single `endSession()` on a session controller; no screen clears member or cart state directly. | One code path to enforce the invariant; future paths (e.g. new screens) cannot reintroduce #13 — and, since rule 7's guard lives inside `endSession()`, cannot reintroduce #48 either. |
 | 9 | On the **Confirmation** screen any card that could start a session finalizes the shown receipt and starts that member's session (the same member gets a fresh session — "one more round"); an invalid card shows a scan error and does **not** finalize the receipt. | The receipt is a finished transaction, not an open cart: there is nothing to protect and takeover is the queue win. Added by [amendment 2](#amendment-2-per-route-scan-policy-53). |
 | 10 | The **Confirmation** screen auto-returns to idle after **8 s**, and offers a non-destructive "Done" that dismisses it immediately plus a "continue shopping" that returns to the product list **without ending the session**. | The receipt is the tail of a fast flow; a long dwell throttles the whole queue. Added by [amendment 3](#amendment-3-a-shorter-resumable-receipt-25). |
+| 11 | The product grid (prices and per-product active/availability status) is snapshotted at `startSession()` and rendered from that snapshot until `endSession()`, regardless of how many background syncs land in between. The underlying cache keeps updating live throughout. | A background sync can otherwise repaint a price under a member's eyes mid-order, and — because the cart pins price at tap time — give the *same product* two different prices within the *same cart*. Added by [amendment 4](#amendment-4-the-displayed-catalogue-is-frozen-for-the-session). |
 
 ### Amendments
 
@@ -93,6 +94,52 @@ Two details follow from rule 7 rather than from this amendment, and are recorded
 
 The raw session UUID is also gone from the member-facing receipt. It carried no meaning for the person reading it; staff look a transaction up from the local database or the backend.
 
+#### Amendment 4: the displayed catalogue is frozen for the session
+
+Decided 2026-08-18. The terminal syncs `products_cache` on an independent background
+timer that is never paused for an active session, and `ProductSelectionScreen` listens
+to `ProductsProvider` reactively — so a price (or a product being deactivated) landing
+mid-sync repaints the grid live, in front of the member. Meanwhile the cart already
+pins each item's price at tap time (by design — see [ADR-0033](./0033-terminal-sync-contract.md)
+§6: the member is charged what the tile showed, not what the catalogue says later).
+Put together, an untimely sync could give the *same product* two different prices
+within the *same cart* — one tap before the sync, one after — with no warning to the
+member or staff.
+
+The fix extends this ADR's existing invariant (rule 8: session state has one owner)
+to *displayed* catalogue data, not just cart/member state:
+
+- `ProductsProvider.freezeForSession()` snapshots the current category/product lists;
+  its `categories`/`products` getters (and `getVisibleProducts()`, which now filters
+  through the `products` getter) serve that snapshot instead of live data.
+- `ProductsProvider.refreshProducts()` is unchanged — it keeps writing the *underlying*
+  lists unconditionally, so the freeze never stops the cache itself from staying
+  current; only the read path the grid uses is affected.
+- `SessionController.startSession()` calls `freezeForSession()` (only on the `started`
+  branch — a same-member no-op or a rejected foreign scan must not silently refresh
+  the snapshot mid-session); `SessionController.endSession()` calls
+  `unfreezeForSession()`.
+
+Because every session start/end already funnels through `SessionController` (rule 8),
+this covers every existing call site — inactivity timeout, explicit logout, checkout
+confirmation, and rule-9 Confirmation-screen takeover — with no changes to any screen.
+"Continue shopping" (rule 10) does not end the session, so the freeze correctly
+persists across multiple rounds in one sitting rather than refreshing between them.
+
+**Deactivation follows the same freeze.** A product deactivated or deleted mid-session
+stays visible/tappable until the session ends, exactly like its price, rather than
+being hidden immediately. This was a deliberate choice, not an oversight: splitting
+"freeze price, but not active status" would require diffing individual fields between
+live and frozen data instead of swapping two lists, for a staleness window this ADR
+already treats as bounded and acceptable (rule 6's ~70 s ceiling, or a session's
+length at most). A genuine emergency removal (e.g. a recall) is a physical/staff-side
+stop, not something the grid enforces mid-tap today either.
+
+This does not change [ADR-0012](./0012-eventual-consistency-frontend-caching.md)'s or
+[ADR-0033](./0033-terminal-sync-contract.md)'s decisions: those cover staleness
+*across* sessions and terminal-vs-backend price divergence, both of which remain
+exactly as decided. This amendment only bounds staleness to *within* one session.
+
 ### Alternatives considered
 
 - **Scan-to-switch** (a new card tap ends the current session and starts a new one): more convenient when a member walks away, but a bystander's tap could silently destroy an active cart, and a mis-read could switch billing identity mid-order. Rejected — the inactivity timeout covers the walk-away case safely.
@@ -118,6 +165,8 @@ The raw session UUID is also gone from the member-facing receipt. It carried no 
 
 - [ADR-0014](./0014-rfid-scanning-integration.md) — RFID scanning integration
 - [ADR-0023](./0023-terminal-balance-state-management.md) — balance state shown within a session
+- [ADR-0012](./0012-eventual-consistency-frontend-caching.md) — the terminal-vs-backend staleness this amendment does not change; Amendment 4 only bounds staleness to within one session
+- [ADR-0033](./0033-terminal-sync-contract.md) — why the cart pins the tap-time price (§6), which is what makes an unfrozen grid a same-cart, two-prices problem
 - Issues: #13 (cart persists across logout), #23 (inactivity timeout), #26 (scan outside idle screen), #48 (logout during in-flight checkout)
 - Decision records for the amendments: #55 (logout guard), #53 (per-route scan policy)
 - `CONTEXT.md` — definitions of *Session*, *Cart*, *Deckel*

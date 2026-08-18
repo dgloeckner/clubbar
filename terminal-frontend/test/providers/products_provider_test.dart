@@ -449,6 +449,137 @@ void main() {
     });
   });
 
+  group('ProductsProvider - session price freeze', () {
+    late MockProductsService mockService;
+    late MockConfigService mockConfig;
+    late ProductsProvider provider;
+
+    ProductsCacheData product({
+      required String id,
+      required int priceCents,
+      int isActive = 1,
+    }) {
+      return ProductsCacheData(
+        id: id,
+        categoryId: 'cat-1',
+        names: jsonEncode({'de': 'Bier', 'en': 'Beer'}),
+        descriptions: null,
+        priceCents: priceCents,
+        isActive: isActive,
+        requiresDispenser: 0,
+        iconName: null,
+        updatedAt: '2025-02-01T10:00:00Z',
+      );
+    }
+
+    final category = CategoriesCacheData(
+      id: 'cat-1',
+      names: jsonEncode({'de': 'Getränke', 'en': 'Drinks'}),
+      isActive: 1,
+      updatedAt: '2025-02-01T10:00:00Z',
+    );
+
+    setUp(() {
+      mockService = MockProductsService();
+      mockConfig = MockConfigService();
+      when(() => mockConfig.dispenserEnabled).thenReturn(false);
+      when(() => mockService.sortForDisplay(any()))
+          .thenAnswer((i) => i.positionalArguments.first as List<ProductsCacheData>);
+      provider = ProductsProvider(
+        service: mockService,
+        config: mockConfig,
+      );
+    });
+
+    test(
+        'freezeForSession keeps categories/products/getVisibleProducts on the '
+        'pre-freeze snapshot across a later refresh', () async {
+      when(() => mockService.getActiveCategoriesWithProducts()).thenAnswer(
+          (_) async => [(category, [product(id: 'prod-1', priceCents: 500)])]);
+      await provider.refreshProducts();
+
+      provider.freezeForSession();
+
+      when(() => mockService.getActiveCategoriesWithProducts()).thenAnswer(
+          (_) async => [(category, [product(id: 'prod-1', priceCents: 600)])]);
+      await provider.refreshProducts();
+
+      expect(provider.products.single.priceCents, 500);
+      expect(provider.categories, [category]);
+      expect(provider.getVisibleProducts('cat-1').single.priceCents, 500);
+    });
+
+    test(
+        'refreshProducts keeps updating the underlying data while frozen, '
+        'visible again once unfrozen', () async {
+      when(() => mockService.getActiveCategoriesWithProducts()).thenAnswer(
+          (_) async => [(category, [product(id: 'prod-1', priceCents: 500)])]);
+      await provider.refreshProducts();
+      provider.freezeForSession();
+
+      when(() => mockService.getActiveCategoriesWithProducts()).thenAnswer(
+          (_) async => [(category, [product(id: 'prod-1', priceCents: 600)])]);
+      await provider.refreshProducts();
+
+      provider.unfreezeForSession();
+
+      expect(provider.products.single.priceCents, 600);
+      expect(provider.getVisibleProducts('cat-1').single.priceCents, 600);
+    });
+
+    test('unfreezeForSession without a prior freeze is a no-op', () async {
+      when(() => mockService.getActiveCategoriesWithProducts()).thenAnswer(
+          (_) async => [(category, [product(id: 'prod-1', priceCents: 500)])]);
+      await provider.refreshProducts();
+
+      provider.unfreezeForSession();
+
+      expect(provider.products.single.priceCents, 500);
+    });
+
+    test(
+        'getVisibleProducts keeps a product deactivated mid-session visible '
+        'until the session ends (deactivation follows the price freeze)',
+        () async {
+      when(() => mockService.getActiveCategoriesWithProducts()).thenAnswer(
+          (_) async => [(category, [product(id: 'prod-1', priceCents: 500)])]);
+      await provider.refreshProducts();
+      provider.freezeForSession();
+
+      when(() => mockService.getActiveCategoriesWithProducts()).thenAnswer(
+          (_) async => [
+                (
+                  category,
+                  [product(id: 'prod-1', priceCents: 500, isActive: 0)]
+                )
+              ]);
+      await provider.refreshProducts();
+
+      expect(provider.getVisibleProducts('cat-1'), hasLength(1),
+          reason: 'still frozen: the deactivation has not been shown yet');
+
+      provider.unfreezeForSession();
+
+      expect(provider.getVisibleProducts('cat-1'), isEmpty,
+          reason: 'unfrozen: live data now filters the inactive product out');
+    });
+
+    test('notifyListeners still fires on refreshProducts while frozen',
+        () async {
+      when(() => mockService.getActiveCategoriesWithProducts())
+          .thenAnswer((_) async => []);
+      await provider.refreshProducts();
+      provider.freezeForSession();
+
+      var notified = 0;
+      provider.addListener(() => notified++);
+
+      await provider.refreshProducts();
+
+      expect(notified, greaterThan(0));
+    });
+  });
+
   group('ProductsProvider display order (issue #33)', () {
     late MockProductsRepository mockRepository;
     late ProductsProvider provider;

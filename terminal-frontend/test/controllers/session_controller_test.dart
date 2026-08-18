@@ -5,10 +5,13 @@ import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
 
 class MockMembersProvider extends Mock implements MembersProvider {}
 
 class MockCartProvider extends Mock implements CartProvider {}
+
+class MockProductsProvider extends Mock implements ProductsProvider {}
 
 class FakeMembersCacheData extends Fake implements MembersCacheData {}
 
@@ -31,15 +34,18 @@ void main() {
 
   late MockMembersProvider members;
   late MockCartProvider cart;
+  late MockProductsProvider products;
   MembersCacheData? selected;
 
   SessionController buildController({
     Duration timeout = const Duration(seconds: 60),
     Duration warning = const Duration(seconds: 10),
+    bool withProductsProvider = true,
   }) {
     return SessionController(
       membersProvider: members,
       cartProvider: cart,
+      productsProvider: withProductsProvider ? products : null,
       inactivityTimeout: timeout,
       warningDuration: warning,
     );
@@ -48,6 +54,7 @@ void main() {
   setUp(() {
     members = MockMembersProvider();
     cart = MockCartProvider();
+    products = MockProductsProvider();
     selected = null;
 
     when(() => members.selectedMember).thenAnswer((_) => selected);
@@ -58,6 +65,8 @@ void main() {
       selected = null;
     });
     when(() => cart.clearCart()).thenReturn(null);
+    when(() => products.freezeForSession()).thenReturn(null);
+    when(() => products.unfreezeForSession()).thenReturn(null);
   });
 
   group('endSession', () {
@@ -275,6 +284,58 @@ void main() {
       expect(controller.endSession(), isTrue);
       expect(controller.hasActiveSession, isFalse);
       verify(() => members.clearSelectedMember()).called(1);
+    });
+  });
+
+  group('product price freeze', () {
+    test('startSession freezes the products provider', () async {
+      final controller = buildController();
+
+      await controller.startSession(_member('a'));
+
+      verify(() => products.freezeForSession()).called(1);
+    });
+
+    test('endSession unfreezes the products provider', () async {
+      final controller = buildController();
+      await controller.startSession(_member('a'));
+
+      controller.endSession();
+
+      verify(() => products.unfreezeForSession()).called(1);
+    });
+
+    test('sameMemberNoOp does not re-freeze', () async {
+      final controller = buildController();
+      await controller.startSession(_member('a'));
+      clearInteractions(products);
+
+      final result = await controller.startSession(_member('a'));
+
+      expect(result, SessionStartResult.sameMemberNoOp);
+      verifyNever(() => products.freezeForSession());
+    });
+
+    test('rejectedActiveSession does not re-freeze', () async {
+      final controller = buildController();
+      await controller.startSession(_member('a'));
+      clearInteractions(products);
+
+      final result = await controller.startSession(_member('b'));
+
+      expect(result, SessionStartResult.rejectedActiveSession);
+      verifyNever(() => products.freezeForSession());
+    });
+
+    test('SessionController still works when productsProvider is omitted',
+        () async {
+      final controller = buildController(withProductsProvider: false);
+
+      await controller.startSession(_member('a'));
+      expect(controller.hasActiveSession, isTrue);
+
+      expect(controller.endSession(), isTrue);
+      expect(controller.hasActiveSession, isFalse);
     });
   });
 }

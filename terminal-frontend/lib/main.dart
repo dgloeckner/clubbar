@@ -360,6 +360,7 @@ void main() async {
   final sessionController = SessionController(
     membersProvider: membersProvider,
     cartProvider: cartProvider,
+    productsProvider: productsProvider,
   );
 
   // Load products into provider (after seeding database)

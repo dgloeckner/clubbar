@@ -112,6 +112,11 @@ to review items before purchase
 - Minimum quantity is 1 (reaching 0 removes item)
 - No maximum quantity limit
 - Transactions created only on "Buy" confirmation
+- Grid prices and product visibility are stable for the duration of a session: a
+  background sync landing while the member is shopping never changes what's shown
+  or tappable, even across "Continue Shopping" rounds. This closes a gap where the
+  same product could otherwise carry two different prices within the same cart —
+  one tap before a sync, one after. See [ADR-0027 Amendment 4](../../adr/0027-terminal-session-lifecycle.md#amendment-4-the-displayed-catalogue-is-frozen-for-the-session).
 
 ## Error Cases
 
