@@ -403,7 +403,19 @@ export function AuditLogPage() {
   /** Render desktop table */
   const renderDesktopTable = () => (
     <div data-testid="audit-log-table-wrapper" style={tableWrapperStyles}>
-      <table data-testid="audit-log-table" style={tableElementStyles}>
+      <table
+        data-testid="audit-log-table"
+        style={{
+          ...tableElementStyles,
+          // `table-layout: fixed` held the Admin and Aktion columns to their
+          // declared pixel widths regardless of content, so a long email
+          // address or action slug overflowed the cell and visually
+          // overlapped the next column's badge instead of wrapping or being
+          // clipped (mirrors the settlements table fix, #373). `auto` lets
+          // the browser size each column to what its content needs.
+          tableLayout: 'auto',
+        }}
+      >
         <thead>
           <tr style={headerRowStyle}>
             <th style={{ ...headerCellBaseStyle, width: '180px' }}>
