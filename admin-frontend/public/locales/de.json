@@ -130,7 +130,10 @@
     "unauthorized": "Nicht autorisiert",
     "notFound": "Nicht gefunden",
     "serverError": "Serverfehler",
-    "loadData": "Daten konnten nicht geladen werden"
+    "loadData": "Daten konnten nicht geladen werden",
+    "insufficientRoleTitle": "Kein Zugriff auf diesen Bereich",
+    "insufficientRoleMessage": "Diese Seite gehört zu einem Amt, das Ihr Konto nicht innehat. Falls sich das kürzlich geändert hat: Ihre Rollen wurden angepasst. Wenden Sie sich an eine Administratorin oder einen Administrator, wenn Sie diesen Bereich benötigen.",
+    "insufficientRoleHome": "Zur Startseite"
   },
   "dates": {
     "today": "Heute",

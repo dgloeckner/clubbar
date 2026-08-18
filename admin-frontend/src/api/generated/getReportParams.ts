@@ -64,6 +64,24 @@ import type { PerPageParameter } from './perPageParameter';
 export type GetReportParams = {
 date_from?: string;
 date_to?: string;
+/**
+ * **Restricted by role** (ADR-0044). `getraenkewart` may use
+`category`, `product`, `day`, `week`, `month` and `year`; anything
+else — `member` above all — answers 403 `insufficient_role`.
+
+`member` makes each row's `dimension` a named member with their
+personal spend, which is the treasurer's business and not the
+drinks list's. The restriction is an **allow-list**: a dimension
+added later is refused for `getraenkewart` until somebody grants it
+deliberately.
+
+`summary.unique_member_count` is unaffected for every role — it is
+a count with no names attached.
+
+A value that is not a dimension at all stays a `400` for every
+role: a typo is a malformed request, not an authorization failure.
+
+ */
 group_by?: GetReportGroupBy;
 /**
  * Comma-separated category IDs

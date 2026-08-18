@@ -57,20 +57,20 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { AdminRole } from './adminRole';
+import type { Error } from './error';
 
-export interface AdminUser {
-  id?: string;
-  /** The roles this account holds (ADR-0044). Always at least one — an
-account with no role can reach nothing, so the API refuses to
-create that state.
+/**
+ * Authenticated, but the caller's role does not reach this route
+(ADR-0044). `error` is `insufficient_role`.
+
+Distinct from `401` in kind, not degree: signing in again changes
+nothing, and a client must send the user to a "not available for your
+role" screen rather than to the login page. The message never names
+which role would have sufficed — a refusal is not a place to describe
+the shape of what the caller is not trusted with.
+
+Also the answer for an account holding no role at all, including on
+`/auth/*`.
+
  */
-  roles?: AdminRole[];
-  email?: string;
-  display_name?: string;
-  locale?: string;
-  is_active?: boolean;
-  /** @nullable */
-  last_login_at?: string | null;
-  created_at?: string;
-}
+export type InsufficientRoleResponse = Error;

@@ -57,20 +57,19 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { AdminProfile } from './adminProfile';
 import type { AdminRole } from './adminRole';
 
-export interface AdminUser {
-  id?: string;
-  /** The roles this account holds (ADR-0044). Always at least one — an
-account with no role can reach nothing, so the API refuses to
-create that state.
+export type GetProfileResponseAdmin = AdminProfile & {
+  /** Every role the caller holds, in the order `admin`,
+`kassenwart`, `getraenkewart`.
+
+Returned so the panel can hide the navigation it cannot use
+and land the caller on a page they can open. It is not a
+permission: the server refuses independently on every
+request, and a client that knows its own roles is still a
+client. An account holding no role reports an empty array —
+never a default.
  */
-  roles?: AdminRole[];
-  email?: string;
-  display_name?: string;
-  locale?: string;
-  is_active?: boolean;
-  /** @nullable */
-  last_login_at?: string | null;
-  created_at?: string;
-}
+  roles: AdminRole[];
+};

@@ -43,6 +43,9 @@ export class MainLayoutPage extends BasePage {
   private readonly navSettings = () => this.page.locator('[data-testid="nav-settings"]')
   private readonly navAuditLog = () => this.page.locator('[data-testid="nav-audit-log"]')
   private readonly headerUserBadge = () => this.page.locator('[data-testid="header-user-badge"]')
+  private readonly insufficientRole = () => this.page.locator('[data-testid="insufficient-role-page"]')
+  private readonly insufficientRoleHomeLink = () =>
+    this.page.locator('[data-testid="insufficient-role-home-link"]')
   private readonly headerLogoutButton = () =>
     this.page.locator('[data-testid="header-logout-button"], [data-testid="header-logout-button-mobile"]').first()
 
@@ -94,6 +97,33 @@ export class MainLayoutPage extends BasePage {
 
   async clickLogout() {
     await this.headerLogoutButton().click()
+  }
+
+  /**
+   * The sections this session can navigate to, by their test IDs (ADR-0044).
+   *
+   * Read off the rendered nav rather than asserted one locator at a time, so a
+   * test can state the whole set an office sees — and fail when an entry the
+   * role must not see appears, which per-entry assertions quietly miss.
+   */
+  async getVisibleNavTestIds(): Promise<string[]> {
+    await this.page.locator('[data-testid="desktop-nav"]').waitFor({ state: 'visible', timeout: 10000 })
+    return this.page.locator('[data-testid="desktop-nav"] [data-testid^="nav-"]').evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('data-testid') ?? '')
+    )
+  }
+
+  /** The named refusal screen a role-gated page renders (ADR-0044, #516). */
+  async expectInsufficientRoleScreen() {
+    await expect(this.insufficientRole()).toBeVisible()
+  }
+
+  async expectNoInsufficientRoleScreen() {
+    await expect(this.insufficientRole()).toBeHidden()
+  }
+
+  async clickInsufficientRoleHomeLink() {
+    await this.insufficientRoleHomeLink().click()
   }
 
   /**

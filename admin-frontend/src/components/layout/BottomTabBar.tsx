@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
+import { useAuth } from '../../context/AuthContext'
+import { permitsPath } from '../../utils/adminRoles'
 import {
   HomeIcon,
   UsersIcon,
@@ -34,6 +36,7 @@ function GridDotsIcon({ size = 20, color = 'currentColor' }: { size?: number; co
 export function BottomTabBar() {
   const { t } = useTranslation()
   const location = useLocation()
+  const { roles } = useAuth()
   const [showMore, setShowMore] = useState(false)
   const moreRef = useRef<HTMLDivElement>(null)
 
@@ -44,7 +47,7 @@ export function BottomTabBar() {
     { label: t('nav.members'), path: '/members', icon: UsersIcon, testId: 'tab-members' },
     { label: t('nav.products'), path: '/products', icon: PackageIcon, testId: 'tab-products' },
     { label: t('nav.journalShort'), path: '/journal', icon: BookIcon, testId: 'tab-journal' },
-  ]
+  ].filter((tab) => permitsPath(roles, tab.path))
 
   const moreItems = [
     { label: t('nav.settlements'), path: '/settlements', icon: ReceiptIcon, testId: 'tab-settlements' },
@@ -53,7 +56,7 @@ export function BottomTabBar() {
     { label: t('nav.notifications'), path: '/notifications', icon: MailIcon, testId: 'tab-notifications' },
     { label: t('nav.auditLog'), path: '/audit-log', icon: AuditLogIcon, testId: 'tab-audit-log' },
     { label: t('nav.profile'), path: '/profile', icon: UserIcon, testId: 'tab-profile' },
-  ]
+  ].filter((item) => permitsPath(roles, item.path))
 
   const isMoreActive = moreItems.some((item) => isActive(item.path))
 
@@ -116,6 +119,7 @@ export function BottomTabBar() {
         </Link>
       ))}
 
+      {moreItems.length > 0 && (
       <div ref={moreRef} style={{ flex: 1, position: 'relative' }}>
         <button
           data-testid="tab-more"
@@ -168,6 +172,7 @@ export function BottomTabBar() {
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }

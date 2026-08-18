@@ -103,6 +103,27 @@ function isRejectedCredential(error: unknown): boolean {
   return response?.data?.error === 'invalid_credentials'
 }
 
+/**
+ * A 403 `insufficient_role` (ADR-0044) is not a broken request: it is the
+ * server disagreeing with what the panel believes the caller may do, which
+ * happens whenever a role is revoked while a tab stays open. The panel cannot
+ * fix that by retrying — it has to go and re-read the roles it holds, so the
+ * navigation and the route guard tell the truth again.
+ *
+ * Registered by `AuthProvider`, which owns the roles; this module only knows
+ * that somebody wants to hear about it.
+ */
+let insufficientRoleHandler: (() => void) | null = null
+
+export function setInsufficientRoleHandler(handler: (() => void) | null): void {
+  insufficientRoleHandler = handler
+}
+
+function isInsufficientRole(error: unknown): boolean {
+  const response = (error as { response?: { status?: number; data?: { error?: string } } })?.response
+  return response?.status === 403 && response?.data?.error === 'insufficient_role'
+}
+
 axiosInstance.interceptors.response.use(
   (response) => {
     decrementPending()
@@ -110,6 +131,9 @@ axiosInstance.interceptors.response.use(
   },
   (error) => {
     decrementPending()
+    if (isInsufficientRole(error)) {
+      insufficientRoleHandler?.()
+    }
     if (error.response?.status === 401 && !isRejectedCredential(error)) {
       localStorage.removeItem('admin_id')
       localStorage.removeItem('email')
