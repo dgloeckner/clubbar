@@ -1,5 +1,5 @@
 -- =============================================================================
--- 044_admin_user_roles.sql — an admin account gains a role, and loses nothing
+-- 045_admin_user_roles.sql — an admin account gains a role, and loses nothing
 -- =============================================================================
 -- ADR-0044 replaces ADR-0015's single sentence "all admin users have full
 -- access" with three roles: `admin`, `kassenwart`, `getraenkewart`. This is the
@@ -40,7 +40,7 @@
 -- `db/seed.sql` inserts its admin *after* migrations run, so the backfill never
 -- sees it; the seed grants its own role for the same reason the installer does.
 --
--- Rollback: db/rollback/044_admin_user_roles.down.sql
+-- Rollback: db/rollback/045_admin_user_roles.down.sql
 -- =============================================================================
 
 CREATE TABLE admin_user_roles (

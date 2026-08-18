@@ -164,7 +164,7 @@ class AdminUserRolesSchemaTest extends SchemaTestCase
      */
     private function backfillStatement(): string
     {
-        $sql = file_get_contents(__DIR__ . '/../../../db/migrations/044_admin_user_roles.sql');
+        $sql = file_get_contents(__DIR__ . '/../../../db/migrations/045_admin_user_roles.sql');
         $this->assertNotFalse($sql, 'migration 044 must exist');
 
         // Drop `--` comment lines first: this file's header is prose, and prose

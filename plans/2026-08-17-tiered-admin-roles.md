@@ -34,7 +34,7 @@ Ordered by dependency. Status legend: `[ ]` not started · `[~]` in progress ·
 Storage only. After this milestone every role still has full access, on purpose:
 it makes the foundation deployable and verifiable before enforcement lands.
 
-- [x] Migration `044_admin_user_roles.sql` — a **relation**, not a `role` column,
+- [x] Migration `045_admin_user_roles.sql` — a **relation**, not a `role` column,
       because ADR-0044 §4 requires one person to hold both lesser roles at once.
       Role vocabulary is a column `ENUM`; the backfill is `INSERT IGNORE … SELECT`
       so it only ever adds
