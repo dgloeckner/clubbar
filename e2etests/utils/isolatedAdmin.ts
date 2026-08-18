@@ -33,6 +33,9 @@ type Playwright = typeof import('playwright-core')
 
 const API_BASE = 'http://localhost:8080/api'
 
+/** The roles an account may hold (ADR-0044). */
+export type AdminRoleName = 'admin' | 'kassenwart' | 'getraenkewart'
+
 export function uniqueTestEmail(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}@test.example`
 }
@@ -48,7 +51,7 @@ export function uniqueTestEmail(prefix: string): string {
 export async function createIsolatedAdmin(
   playwright: Playwright,
   prefix: string,
-  roles?: Array<'admin' | 'kassenwart' | 'getraenkewart'>
+  roles?: AdminRoleName[]
 ): Promise<{ email: string; password: string }> {
   const ctx = await loginAs(playwright, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
   try {
