@@ -273,9 +273,17 @@ jobs:
         run: npm ci
         working-directory: e2etests
 
-      # The rule is itself code, and it gates the whole suite — it gets tests.
-      - name: Test the lint rules
+      # The rules and checks below are themselves code, and they gate the whole
+      # suite — they get tests.
+      - name: Test the lint rules and CI checks
         run: npm run test:lint-rules
+        working-directory: e2etests
+
+      # A project the workflow never names is a project whose specs cannot fail
+      # the build, and nothing else notices: `mail-lifecycle` (#521) shipped
+      # exactly that way. Cheap enough to run here, where there is no stack.
+      - name: Check every Playwright project runs in CI
+        run: npm run check:ci-lanes
         working-directory: e2etests
 
       - name: Lint E2E specs
