@@ -58,27 +58,11 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-/**
- * An admin role (ADR-0044). `admin` is a strict superset of the other two;
-`kassenwart` (treasurer — members, settlements, SEPA) and
-`getraenkewart` (bar stock — categories, products) are lesser siblings
-beneath it. Roles compose additively, so one account may hold both
-lesser roles without being `admin`.
-
-An account's role set is either `admin` alone, or a non-empty
-combination of the two lesser roles — `admin` is never held alongside
-a lesser role. A `roles` array mixing `admin` with another value is
-refused.
-
-The set is hardcoded: a new role is a schema migration, not
-configuration.
-
- */
-export type AdminRole = typeof AdminRole[keyof typeof AdminRole];
+export type TerminalAnomalyKind = typeof TerminalAnomalyKind[keyof typeof TerminalAnomalyKind];
 
 
-export const AdminRole = {
-  admin: 'admin',
-  kassenwart: 'kassenwart',
-  getraenkewart: 'getraenkewart',
+export const TerminalAnomalyKind = {
+  concurrent_ip: 'concurrent_ip',
+  cursor_regression: 'cursor_regression',
+  cursor_reset: 'cursor_reset',
 } as const;

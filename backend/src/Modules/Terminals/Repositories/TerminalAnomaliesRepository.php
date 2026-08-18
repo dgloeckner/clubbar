@@ -134,6 +134,29 @@ class TerminalAnomaliesRepository
     }
 
     /**
+     * Every unacknowledged anomaly for one terminal, newest first.
+     *
+     * The counts on `Terminal`/the dashboard alert say *that* something is
+     * open; this is what an admin needs to *act* on one — the id to
+     * acknowledge, and the evidence behind it (ADR-0041 §4).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function openForTerminal(string $terminalId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, kind, first_detected_at, last_detected_at, occurrence_count, details
+               FROM terminal_anomalies
+              WHERE terminal_id = :terminal_id
+                AND acknowledged_at IS NULL
+           ORDER BY last_detected_at DESC'
+        );
+        $stmt->execute(['terminal_id' => $terminalId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
      * Every unacknowledged anomaly, newest first — the dashboard's alert and
      * the terminals list both render from this one read.
      *

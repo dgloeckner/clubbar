@@ -3,12 +3,14 @@
  * Terminal devices list with toggle for active/inactive status and action buttons
  */
 
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme, formatDateTime } from '../../styles/design-system'
 import { Toggle } from '../common/Toggle'
 import { Badge } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
 import { TerminalLifecycleBadge, type TokenLifecycleBadgeState } from './TerminalLifecycleBadge'
+import { TerminalAnomalyPanel } from './TerminalAnomalyPanel'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import type { Terminal as GeneratedTerminal } from '../../api/generated'
 
@@ -24,6 +26,8 @@ export interface TerminalsTabProps {
   onRevokeAccess: (id: string) => void
   onDeactivateTerminal: (id: string) => void
   onReactivateTerminal: (id: string) => void
+  /** Fired after an anomaly is acknowledged, so the caller can refresh its counts (ADR-0041 §4). */
+  onAnomalyAcknowledged?: () => void
 }
 
 function EditIcon() {
@@ -142,20 +146,28 @@ function TokenExpiry({ terminal }: { terminal: Terminal }) {
  *
  * Silent for a terminal with nothing open, which is almost all of them almost
  * all of the time.
+ *
+ * Clickable: before this it was purely informational, so an open anomaly
+ * could only be cleared by calling the API directly — a banner nobody can
+ * dismiss is a banner that gets ignored (ADR-0041 §4). `onSelect` opens
+ * {@link TerminalAnomalyPanel} with the detail behind the count.
  */
-function AnomalyMarker({ terminal }: { terminal: Terminal }) {
+function AnomalyMarker({ terminal, onSelect }: { terminal: Terminal; onSelect: (terminal: Terminal) => void }) {
   const { t } = useTranslation()
 
   if (!terminal.has_open_anomaly) return null
 
   return (
     <Tooltip content={t('settings.terminalAnomalyHint')}>
-      <span
+      <button
+        type="button"
+        onClick={() => onSelect(terminal)}
         data-testid={`settings-terminal-anomaly-${terminal.id}`}
         data-anomaly-count={terminal.open_anomaly_count ?? 0}
+        style={{ background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer' }}
       >
         <Badge label={t('settings.terminalAnomaly')} variant="danger" />
-      </span>
+      </button>
     </Tooltip>
   )
 }
@@ -169,10 +181,12 @@ export function TerminalsTab({
   onRevokeAccess,
   onDeactivateTerminal,
   onReactivateTerminal,
+  onAnomalyAcknowledged,
 }: TerminalsTabProps) {
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
+  const [anomalyTerminal, setAnomalyTerminal] = useState<Terminal | null>(null)
 
   if (loading) {
     return (
@@ -269,7 +283,7 @@ export function TerminalsTab({
                     >
                       {terminal.name}
                     </div>
-                    <AnomalyMarker terminal={terminal} />
+                    <AnomalyMarker terminal={terminal} onSelect={setAnomalyTerminal} />
                   </div>
                   <code
                     data-testid={`settings-terminal-device-id-${terminal.id}`}
@@ -462,7 +476,7 @@ export function TerminalsTab({
                       />
                     </Tooltip>
                     <span data-testid={`settings-terminal-name-${terminal.id}`}>{terminal.name}</span>
-                    <AnomalyMarker terminal={terminal} />
+                    <AnomalyMarker terminal={terminal} onSelect={setAnomalyTerminal} />
                   </td>
 
                   {/* Device ID */}
@@ -582,6 +596,14 @@ export function TerminalsTab({
           </table>
         </div>
       )}
+
+      <TerminalAnomalyPanel
+        isOpen={anomalyTerminal !== null}
+        terminalId={anomalyTerminal?.id ?? ''}
+        terminalName={anomalyTerminal?.name ?? ''}
+        onClose={() => setAnomalyTerminal(null)}
+        onAcknowledged={() => onAnomalyAcknowledged?.()}
+      />
     </div>
   )
 }

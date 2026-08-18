@@ -207,6 +207,7 @@ final class RouteRoleMap
         'DELETE /api/admin/terminals/{id}' => self::ADMIN_ONLY,
         'POST /api/admin/terminals/{id}/rotate-token' => self::ADMIN_ONLY,
         'POST /api/admin/terminals/{id}/revoke' => self::ADMIN_ONLY,
+        'GET /api/admin/terminals/{id}/anomalies' => self::ADMIN_ONLY,
         'POST /api/admin/terminals/{id}/anomalies/{anomalyId}/acknowledge' => self::ADMIN_ONLY,
     ];
 

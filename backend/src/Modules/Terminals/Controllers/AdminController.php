@@ -190,6 +190,20 @@ class AdminController
     }
 
     /**
+     * Every open anomaly for one terminal (ADR-0041 §4).
+     *
+     * The terminals list and the credentials board only carry a count, so a
+     * marker there has nothing to acknowledge until the admin opens this —
+     * it is what supplies the anomaly ids `acknowledgeAnomaly()` needs.
+     */
+    public function listAnomalies(Request $request, Response $response, array $args): Response
+    {
+        $anomalies = $this->terminalsService->listOpenAnomalies($args['id']);
+
+        return $this->json($response, ['anomalies' => $anomalies]);
+    }
+
+    /**
      * Mark a detected anomaly as seen (ADR-0041 §4).
      *
      * No step-up gate. The two credential-minting endpoints have one because

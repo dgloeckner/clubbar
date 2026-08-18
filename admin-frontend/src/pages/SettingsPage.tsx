@@ -999,6 +999,7 @@ export function SettingsPage() {
           onRevokeAccess={handleRevokeAccess}
           onDeactivateTerminal={handleDeactivateTerminal}
           onReactivateTerminal={handleReactivateTerminal}
+          onAnomalyAcknowledged={loadTerminals}
         />
       )}
 

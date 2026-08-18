@@ -206,6 +206,33 @@ class TerminalAnomaliesRepositoryTest extends DatabaseTestCase
         $this->assertArrayNotHasKey($this->terminalId, $this->repository->openCountsByTerminal());
     }
 
+    public function test_open_for_terminal_carries_the_detail_the_count_cannot(): void
+    {
+        $id = $this->open($this->terminalId, TerminalAnomalyKind::CONCURRENT_IP, ['overlap_seconds' => 1500]);
+
+        $rows = $this->repository->openForTerminal($this->terminalId);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($id, $rows[0]['id']);
+        $this->assertSame('concurrent_ip', $rows[0]['kind']);
+        $this->assertSame(1500, json_decode((string) $rows[0]['details'], true)['overlap_seconds']);
+    }
+
+    public function test_open_for_terminal_leaves_out_another_terminals_rows(): void
+    {
+        $this->open($this->otherTerminalId, TerminalAnomalyKind::CONCURRENT_IP);
+
+        $this->assertSame([], $this->repository->openForTerminal($this->terminalId));
+    }
+
+    public function test_open_for_terminal_leaves_out_what_has_been_acknowledged(): void
+    {
+        $id = $this->open($this->terminalId, TerminalAnomalyKind::CONCURRENT_IP);
+        $this->repository->acknowledge($id, $this->generateUuid(), time());
+
+        $this->assertSame([], $this->repository->openForTerminal($this->terminalId));
+    }
+
     public function test_anomalies_go_when_the_terminal_goes(): void
     {
         $id = $this->open($this->terminalId, TerminalAnomalyKind::CONCURRENT_IP);

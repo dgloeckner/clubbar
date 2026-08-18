@@ -69,6 +69,8 @@ class DashboardServiceTest extends TestCase
         $this->assertSame('none', $alert['severity']);
         $this->assertSame(0, $alert['count']);
         $this->assertSame([], $alert['kinds']);
+        $this->assertSame(0, $alert['terminal_count']);
+        $this->assertNull($alert['terminal_name']);
     }
 
     /**
@@ -83,6 +85,8 @@ class DashboardServiceTest extends TestCase
 
         $this->assertSame('error', $alert['severity']);
         $this->assertStringContainsString('Theke 1', $alert['message']);
+        $this->assertSame(1, $alert['terminal_count']);
+        $this->assertSame('Theke 1', $alert['terminal_name']);
     }
 
     /**
@@ -112,6 +116,8 @@ class DashboardServiceTest extends TestCase
         $this->assertSame(2, $alert['count']);
         $this->assertStringContainsString('Theke 1', $alert['message']);
         $this->assertStringNotContainsString('2 terminals', $alert['message']);
+        $this->assertSame(1, $alert['terminal_count']);
+        $this->assertSame('Theke 1', $alert['terminal_name']);
     }
 
     public function test_several_terminals_are_counted_rather_than_named(): void
@@ -122,6 +128,8 @@ class DashboardServiceTest extends TestCase
         ]);
 
         $this->assertStringContainsString('2 terminals', $alert['message']);
+        $this->assertSame(2, $alert['terminal_count']);
+        $this->assertNull($alert['terminal_name']);
     }
 
     // ── Terminal status ─────────────────────────────────────────────────────

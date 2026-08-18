@@ -24,7 +24,9 @@ import { useTranslation } from 'react-i18next'
 import { theme, formatDateTime } from '../../styles/design-system'
 import { Alert } from '../common/Alert'
 import { Badge } from '../common/Badge'
+import { Tooltip } from '../common/Tooltip'
 import { TerminalLifecycleBadge } from './TerminalLifecycleBadge'
+import { TerminalAnomalyPanel } from './TerminalAnomalyPanel'
 import { StepUpConfirmDialog, type StepUpCredentials } from '../modals/StepUpConfirmDialog'
 import { TokenDisplayModal } from '../modals/TokenDisplayModal'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
@@ -65,6 +67,7 @@ export function TerminalCredentials({ callerTotpEnabled }: TerminalCredentialsPr
   const [dialogError, setDialogError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [issuedToken, setIssuedToken] = useState<string | null>(null)
+  const [anomalyTarget, setAnomalyTarget] = useState<Terminal | null>(null)
 
   const load = useCallback(async () => {
     const signal = request.next()
@@ -158,6 +161,7 @@ export function TerminalCredentials({ callerTotpEnabled }: TerminalCredentialsPr
               setDialogError(null)
               setRotateTarget(terminal)
             }}
+            onSelectAnomaly={() => setAnomalyTarget(terminal)}
           />
         ))}
       </div>
@@ -182,11 +186,27 @@ export function TerminalCredentials({ callerTotpEnabled }: TerminalCredentialsPr
         token={issuedToken}
         onClose={() => setIssuedToken(null)}
       />
+
+      <TerminalAnomalyPanel
+        isOpen={anomalyTarget !== null}
+        terminalId={anomalyTarget?.id ?? ''}
+        terminalName={anomalyTarget?.name ?? ''}
+        onClose={() => setAnomalyTarget(null)}
+        onAcknowledged={() => void load()}
+      />
     </section>
   )
 }
 
-function TerminalCard({ terminal, onRotate }: { terminal: Terminal; onRotate: () => void }) {
+function TerminalCard({
+  terminal,
+  onRotate,
+  onSelectAnomaly,
+}: {
+  terminal: Terminal
+  onRotate: () => void
+  onSelectAnomaly: () => void
+}) {
   const { t } = useTranslation()
 
   // No expiry means no credential at all — a revoked terminal, or one whose
@@ -225,6 +245,21 @@ function TerminalCard({ terminal, onRotate }: { terminal: Terminal; onRotate: ()
               showDot={false}
               testId={`credentials-terminal-pending-${terminal.id}`}
             />
+          )}
+          {/* Same marker as the Terminals tab (ADR-0041 §4) — a credential in
+              doubt is exactly what this board exists to surface. */}
+          {terminal.has_open_anomaly && (
+            <Tooltip content={t('settings.terminalAnomalyHint')}>
+              <button
+                type="button"
+                onClick={onSelectAnomaly}
+                data-testid={`credentials-terminal-anomaly-${terminal.id}`}
+                data-anomaly-count={terminal.open_anomaly_count ?? 0}
+                style={{ background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer' }}
+              >
+                <Badge label={t('settings.terminalAnomaly')} variant="danger" />
+              </button>
+            </Tooltip>
           )}
         </div>
 
