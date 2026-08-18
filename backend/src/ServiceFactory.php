@@ -393,6 +393,7 @@ class ServiceFactory implements ContainerInterface
             $this->getAuditService(),
             $this->getNotificationsService(),
             $this->getAdminUserRolesRepository(),
+            $this->getAdminNotifier(),
         ));
     }
 
@@ -554,6 +555,8 @@ class ServiceFactory implements ContainerInterface
     {
         return $this->resolve(AdminSecurityMailBuilder::class, fn() => new AdminSecurityMailBuilder(
             $this->getAdminUsersRepository(),
+            $this->getMailConfigService(),
+            $this->getAdminUserRolesRepository(),
         ));
     }
 

@@ -8,6 +8,7 @@ use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Services\AuditService;
@@ -36,6 +37,7 @@ class AdminUsersServiceRolesTest extends TestCase
             $this->createMock(AuditService::class),
             $this->createMock(NotificationsService::class),
             $this->roles,
+            $this->createMock(AdminNotifier::class),
         );
     }
 

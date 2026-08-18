@@ -312,6 +312,26 @@ export default defineConfig({
       dependencies: ['mail-credentials'],
     },
 
+    // The admin lifecycle chain (ADR-0044 rule 3): creating an account or
+    // moving its roles → bin/cron.php → the club's mailbox.
+    //
+    // Its own project for the reason each of the four before it is: these
+    // notices go to **every active admin**, so while this file's accounts exist
+    // its messages would land in the other files' mailboxes and theirs in this
+    // one, each failing on a count the other caused. Last, because its drains
+    // claim the whole queue like the rest, and `dependencies` makes that
+    // ordering structural rather than alphabetical luck.
+    //
+    // It is also the only chain that asserts for an address belonging to **no
+    // account at all** — the club-level address, which is the entire point of
+    // the feature.
+    {
+      name: 'mail-lifecycle',
+      testDir: './tests/mail-lifecycle',
+      fullyParallel: false,
+      dependencies: ['mail-issuance'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',

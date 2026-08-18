@@ -292,6 +292,42 @@ final class MailStrings
                                         . 'Administratorin oder einen anderen Administrator: '
                                         . 'nur sie können das Konto zurücksetzen.',
 
+            // ── Admin-Lebenszyklus (ADR-0044) ───────────────────────────────
+            // Geht an alle aktiven Admins *und* an die Vereinsadresse: bei
+            // genau einem Admin ginge die Nachricht sonst von der handelnden
+            // Person an dieselbe Person über etwas, das sie gerade selbst
+            // getan hat.
+            'admin_lifecycle.eyebrow'          => 'Sicherheitshinweis',
+            'admin_lifecycle.created.subject'  => 'Ein neues Admin-Konto wurde angelegt',
+            'admin_lifecycle.created.preheader' => 'Ein neues Konto hat Zugriff auf den Adminbereich.',
+            'admin_lifecycle.created.title'    => 'Neues Admin-Konto',
+            'admin_lifecycle.created.lede'     => 'im Adminbereich wurde ein neues Konto angelegt: '
+                                                . '<strong>{account}</strong>.',
+            'admin_lifecycle.created.lede_text' => 'im Adminbereich wurde ein neues Konto angelegt: {account}.',
+            'admin_lifecycle.roles.subject'    => 'Die Rollen eines Admin-Kontos wurden geändert',
+            'admin_lifecycle.roles.preheader'  => 'Ein Konto hat jetzt andere Rechte im Adminbereich.',
+            'admin_lifecycle.roles.title'      => 'Rollen geändert',
+            'admin_lifecycle.roles.lede'       => 'die Rollen des Admin-Kontos <strong>{account}</strong> '
+                                                . 'wurden geändert.',
+            'admin_lifecycle.roles.lede_text'  => 'die Rollen des Admin-Kontos {account} wurden geändert.',
+            'admin_lifecycle.label_account'    => 'Konto',
+            'admin_lifecycle.label_roles'      => 'Rollen jetzt',
+            'admin_lifecycle.label_when'       => 'Zeitpunkt',
+            'admin_lifecycle.label_actor'      => 'Ausgeführt von',
+            'admin_lifecycle.roles_none'       => '(keine)',
+            'admin_lifecycle.expected'         => 'Wenn das so gewollt war, ist nichts weiter zu tun.',
+            'admin_lifecycle.unexpected'       => 'Wenn nicht: Im Adminbereich unter Einstellungen → '
+                                                . 'Admin-Konten lässt sich das Konto deaktivieren, und das '
+                                                . 'Audit-Log zeigt, wer welche Rolle vergeben oder entzogen hat.',
+            'admin_lifecycle.no_secret'        => 'Diese Nachricht enthält bewusst keine Zugangsdaten. Ein '
+                                                . 'neu vergebenes Passwort wird nur einmal im Adminbereich '
+                                                . 'angezeigt und nirgends gespeichert.',
+            // Rollennamen bleiben in beiden Sprachen die Wörter, die der Verein
+            // benutzt (ADR-0044) — wie Storno und Deckel.
+            'admin_lifecycle.role.admin'         => 'Admin',
+            'admin_lifecycle.role.kassenwart'    => 'Kassenwart',
+            'admin_lifecycle.role.getraenkewart' => 'Getränkewart',
+
             // ── Schlüssel-Lebenszyklus (ADR-0036) ───────────────────────────
             'key_event.subject.registered' => 'Ein neuer Schlüssel für Bankverbindungen wurde hinterlegt',
             'key_event.subject.activated'  => 'Die Bankverbindungen werden ab sofort mit einem anderen '
@@ -524,6 +560,38 @@ final class MailStrings
             'email_changed.expected'  => 'If this was you, there is nothing further to do.',
             'email_changed.unexpected' => 'If it was not, contact another administrator immediately: '
                                         . 'only they can reset the account.',
+
+            // ── Admin lifecycle (ADR-0044) ──────────────────────────────────
+            'admin_lifecycle.eyebrow'          => 'Security notice',
+            'admin_lifecycle.created.subject'  => 'A new admin account was created',
+            'admin_lifecycle.created.preheader' => 'A new account has access to the admin panel.',
+            'admin_lifecycle.created.title'    => 'New admin account',
+            'admin_lifecycle.created.lede'     => 'a new account was created in the admin panel: '
+                                                . '<strong>{account}</strong>.',
+            'admin_lifecycle.created.lede_text' => 'a new account was created in the admin panel: {account}.',
+            'admin_lifecycle.roles.subject'    => 'The roles on an admin account were changed',
+            'admin_lifecycle.roles.preheader'  => 'An account now has different rights in the admin panel.',
+            'admin_lifecycle.roles.title'      => 'Roles changed',
+            'admin_lifecycle.roles.lede'       => 'the roles on the admin account <strong>{account}</strong> '
+                                                . 'were changed.',
+            'admin_lifecycle.roles.lede_text'  => 'the roles on the admin account {account} were changed.',
+            'admin_lifecycle.label_account'    => 'Account',
+            'admin_lifecycle.label_roles'      => 'Roles now',
+            'admin_lifecycle.label_when'       => 'When',
+            'admin_lifecycle.label_actor'      => 'Performed by',
+            'admin_lifecycle.roles_none'       => '(none)',
+            'admin_lifecycle.expected'         => 'If this was intended, there is nothing further to do.',
+            'admin_lifecycle.unexpected'       => 'If it was not: the account can be deactivated under '
+                                                . 'Settings → Admin accounts, and the audit log shows who '
+                                                . 'granted or revoked which role.',
+            'admin_lifecycle.no_secret'        => 'This message deliberately carries no credentials. A newly '
+                                                . 'issued password is shown once in the admin panel and '
+                                                . 'stored nowhere.',
+            // Role names stay the words the club uses, in both languages
+            // (ADR-0044) — as Storno and Deckel do.
+            'admin_lifecycle.role.admin'         => 'Admin',
+            'admin_lifecycle.role.kassenwart'    => 'Kassenwart',
+            'admin_lifecycle.role.getraenkewart' => 'Getränkewart',
 
             // ── Key lifecycle (ADR-0036) ────────────────────────────────────
             'key_event.subject.registered' => 'A new key for bank details was added',
