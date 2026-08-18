@@ -345,6 +345,30 @@ test.describe("Admin Authentication", () => {
       expect(data.admin).toHaveProperty("last_login_at");
     });
 
+    /**
+     * ADR-0044 / #514: the profile tells the panel which roles the caller
+     * holds, so it can hide the navigation it cannot use and land on a page it
+     * can open.
+     *
+     * The seeded admin holding exactly `admin` is also the end-to-end proof of
+     * the migration's behaviour-preserving property: migration 044 backfills
+     * `admin` onto every account that exists, and the accounts created after it
+     * — the seed's, and the installer's first admin — grant their own. An
+     * account that came out of this stack holding no role would fail here.
+     */
+    test("should report the roles the caller holds", async ({ request }) => {
+      const { cookieString } = await loginCached(request);
+
+      const profileResponse = await request.get(`${API_BASE}/auth/profile`, {
+        headers: { cookie: cookieString },
+      });
+
+      expect(profileResponse.status()).toBe(200);
+
+      const data = await profileResponse.json();
+      expect(data.admin.roles).toEqual(["admin"]);
+    });
+
     test("should reject profile request without session", async ({
       request,
     }) => {

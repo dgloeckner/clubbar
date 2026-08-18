@@ -2972,6 +2972,12 @@ paths:
 
         A random 16-character password is generated and returned.
         The password is only shown once and should be communicated to the user securely.
+
+        `roles` sets the new account's roles (ADR-0044). Omitted, it defaults to
+        `admin` — behaviour-preserving, since every admin created before roles
+        existed had full access, and the safe direction for a default to fail:
+        an account created with no role could open nothing, including the page
+        that would fix it.
       operationId: createAdminUser
       security:
         - sessionAuth: []
@@ -2999,6 +3005,8 @@ paths:
               example:
                 error: invalid_credentials
                 message: Re-enter your password to create a new admin user
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
         '409':
           description: Email already exists
           content:
@@ -3022,6 +3030,24 @@ paths:
     patch:
       tags: [Admin Users]
       summary: Update admin user
+      description: |
+        Edit an admin account, optionally including its roles.
+
+        **Changing the role set requires a step-up credential** — the caller's
+        own current password, plus their own fresh TOTP code when they have 2FA
+        enabled (ADR-0044 rule 2: granting a role is minting authority, so it
+        costs what creating an account costs). The gate is conditional on the
+        role set *actually changing*, mirroring `PATCH /auth/profile`'s email
+        gate: editing a display name, or re-submitting the roles the account
+        already holds, needs no credential.
+
+        `roles` replaces the set outright rather than adding to it, and it is
+        validated as a whole: a list naming anything that is not a role, or an
+        empty list, is refused rather than partially applied.
+
+        Rate-limited on the caller's account (5 attempts / 15 min, the same
+        dimension as login), pinned to the route so a failed step-up counts
+        even when the request never reaches the gate.
       operationId: updateAdminUser
       security:
         - sessionAuth: []
@@ -3043,6 +3069,25 @@ paths:
                   description: ISO 639-1 language code
                 is_active:
                   type: boolean
+                roles:
+                  type: array
+                  minItems: 1
+                  description: |
+                    The account's complete role set after this request.
+                    Changing it demands the step-up fields below.
+                  items:
+                    $ref: '#/components/schemas/AdminRole'
+                current_password:
+                  type: string
+                  description: |
+                    The **caller's own** password. Required only when `roles`
+                    changes the account's role set.
+                totp_code:
+                  type: string
+                  pattern: '^\d{6}$'
+                  description: |
+                    The caller's own fresh 6-digit code, required alongside
+                    `current_password` when the caller has 2FA enabled.
       responses:
         '200':
           description: Admin user updated
@@ -3053,9 +3098,21 @@ paths:
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: |
+            Not authenticated, or the step-up credential for a role change is
+            missing or incorrect (`invalid_credentials`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
 
   /admin/admin-users/{adminUserId}/reset-password:
     parameters:
@@ -3148,6 +3205,22 @@ paths:
             format: date
         - name: group_by
           in: query
+          description: |
+            **Restricted by role** (ADR-0044). `getraenkewart` may use
+            `category`, `product`, `day`, `week`, `month` and `year`; anything
+            else — `member` above all — answers 403 `insufficient_role`.
+
+            `member` makes each row's `dimension` a named member with their
+            personal spend, which is the treasurer's business and not the
+            drinks list's. The restriction is an **allow-list**: a dimension
+            added later is refused for `getraenkewart` until somebody grants it
+            deliberately.
+
+            `summary.unique_member_count` is unaffected for every role — it is
+            a count with no names attached.
+
+            A value that is not a dimension at all stays a `400` for every
+            role: a typo is a malformed request, not an authorization failure.
           schema:
             type: string
             enum: [category, product, member, day, week, month, year]
@@ -3171,6 +3244,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Report'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
@@ -4258,7 +4333,19 @@ components:
       type: apiKey
       in: cookie
       name: PHPSESSID
-      description: PHP session cookie (HttpOnly, Secure, SameSite=Lax)
+      description: |
+        PHP session cookie (HttpOnly, Secure, SameSite=Lax).
+
+        **Every operation secured this way can answer `403 insufficient_role`**
+        (see the `InsufficientRole` response), because authentication and
+        authorization are separate questions here: the session says who is
+        calling, and the route→roles map of ADR-0044 says whether that caller's
+        role reaches this route. The map is default-deny — a route it does not
+        name is `admin`-only — so a client cannot infer reachability from the
+        absence of an explicit `403` on an operation.
+
+        Roles are additive and a caller may hold several; `GET /auth/profile`
+        reports the ones they hold.
 
   parameters:
     memberId:
@@ -4301,6 +4388,26 @@ components:
           example:
             error: unauthorized
             message: Authentication required
+    InsufficientRole:
+      description: |
+        Authenticated, but the caller's role does not reach this route
+        (ADR-0044). `error` is `insufficient_role`.
+
+        Distinct from `401` in kind, not degree: signing in again changes
+        nothing, and a client must send the user to a "not available for your
+        role" screen rather than to the login page. The message never names
+        which role would have sufficed — a refusal is not a place to describe
+        the shape of what the caller is not trusted with.
+
+        Also the answer for an account holding no role at all, including on
+        `/auth/*`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: insufficient_role
+            message: This section is not available for your role.
     NotFound:
       description: Resource not found
       content:
@@ -4589,12 +4696,44 @@ components:
           type: boolean
           description: Whether TOTP two-factor authentication is enrolled for this admin
 
+    AdminRole:
+      type: string
+      description: |
+        An admin role (ADR-0044). `admin` is a strict superset of the other two;
+        `kassenwart` (treasurer — members, settlements, SEPA) and
+        `getraenkewart` (bar stock — categories, products) are lesser siblings
+        beneath it. Roles compose additively, so one account may hold both
+        lesser roles without being `admin`.
+
+        The set is hardcoded: a new role is a schema migration, not
+        configuration.
+      enum: [admin, kassenwart, getraenkewart]
+
     GetProfileResponse:
       type: object
       required: [admin]
       properties:
         admin:
-          $ref: '#/components/schemas/AdminProfile'
+          allOf:
+            - $ref: '#/components/schemas/AdminProfile'
+            - type: object
+              required: [roles]
+              properties:
+                roles:
+                  type: array
+                  description: |
+                    Every role the caller holds, in the order `admin`,
+                    `kassenwart`, `getraenkewart`.
+
+                    Returned so the panel can hide the navigation it cannot use
+                    and land the caller on a page they can open. It is not a
+                    permission: the server refuses independently on every
+                    request, and a client that knows its own roles is still a
+                    client. An account holding no role reports an empty array —
+                    never a default.
+                  items:
+                    $ref: '#/components/schemas/AdminRole'
+                  example: [admin]
         csrf_token:
           type: string
           nullable: true
@@ -6560,6 +6699,29 @@ components:
           maxLength: 255
           description: Where a reply goes — the Kassenwart, since a pre-notification invites one.
           example: kassenwart@example.org
+        club_notification_address:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 255
+          description: |
+            A club-level address — a Vorstand list, the Kassenwart's inbox —
+            that also receives **admin lifecycle mail**: an account being
+            created, and an account's roles changing (ADR-0044 rule 3).
+
+            *In addition to* every active admin, never instead of them. The
+            point is a second pair of eyes: with exactly one admin, a notice
+            about account creation otherwise travels from the person who acted
+            to the same person, about something they just did — and is silent
+            in precisely the case where that one account is the compromised one.
+
+            `null` means unset, which is the previous behaviour exactly: active
+            admins only, no error.
+
+            It lives here, on an `admin`-only endpoint, deliberately: a
+            `kassenwart` must not be able to redirect the channel that would
+            report their own promotion.
+          example: vorstand@example.org
         header_style:
           type: string
           enum: [red, petrol, paper]
@@ -6706,6 +6868,15 @@ components:
           format: email
           nullable: true
           maxLength: 255
+        club_notification_address:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 255
+          description: |
+            The club-level address that also receives admin lifecycle mail
+            (ADR-0044 rule 3). Send `null` to switch it off and return to
+            mailing active admins only.
         header_style:
           type: string
           enum: [red, petrol, paper]
@@ -6790,6 +6961,15 @@ components:
         id:
           type: string
           format: uuid
+        roles:
+          type: array
+          description: |
+            The roles this account holds (ADR-0044). Always at least one — an
+            account with no role can reach nothing, so the API refuses to
+            create that state.
+          items:
+            $ref: '#/components/schemas/AdminRole'
+          example: [admin]
         email:
           type: string
           format: email
@@ -6818,8 +6998,10 @@ components:
 
     AdminUserCreateRequest:
       description: >
-        Creating an admin user mints a persistent, full-privilege peer account
-        (ADR-0015's flat admin model), so it carries a step-up credential (#499).
+        Creating an admin user mints a persistent peer account, so it carries a
+        step-up credential (#499). Since ADR-0044 that account's power is its
+        role set rather than "everything" — but the default is still `admin`,
+        so an omitted `roles` creates exactly what this endpoint always created.
       allOf:
         - $ref: '#/components/schemas/StepUpCredentials'
         - type: object
@@ -6834,6 +7016,16 @@ components:
             locale:
               type: string
               default: de
+            roles:
+              type: array
+              minItems: 1
+              description: |
+                The new account's roles. Defaults to `[admin]` when omitted. A
+                list naming anything that is not a role, or an empty list, is
+                refused rather than partially applied.
+              items:
+                $ref: '#/components/schemas/AdminRole'
+              example: [kassenwart]
 
     # --------------------------------------------------------------------------
     # Reports & Dashboard

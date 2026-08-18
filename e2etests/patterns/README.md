@@ -20,6 +20,7 @@ This directory contains established patterns for writing robust, reliable E2E te
 | [Pattern 008: Playwright Assertions & Auto-Waiting](008-playwright-assertions.md) | Use `expect()` instead of try-catch visibility checks | Silent failures → Clear error messages |
 | [Pattern 009: User-Flow-Based Tests](pattern-009-user-flow-based-tests.md) | Chain related operations into flow tests instead of one-assert-per-test | Bloated suites with redundant setup → Concise flows with shared setup |
 | [Pattern 010: Asserting on Delivered Mail](pattern-010-mail-assertions.md) | Read the message a real drain delivered to a real SMTP server | Asserting on our own queue rows → Blank amounts, stub text parts and duplicates go unnoticed |
+| [Pattern 011: Testing a Role You Are Not](pattern-011-role-fixtures.md) | Mint the office under test per worker and make requests as it | Demoting the shared seeded admin → unrelated specs in the same shard fail on a role they never touched |
 
 ---
 

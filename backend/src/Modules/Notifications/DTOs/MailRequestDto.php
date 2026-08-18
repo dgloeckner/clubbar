@@ -51,6 +51,13 @@ final readonly class MailRequestDto
          * action had no human actor, or for kinds that predate this field.
          */
         public ?string $actorAdminUserId = null,
+        /**
+         * True for the club-level copy of an admin lifecycle notice (ADR-0044
+         * rule 3) — the one kind of row addressed to nobody in particular.
+         * Never persisted: it exists so the constructor can tell "addressed to
+         * the club" apart from "somebody forgot to attribute this".
+         */
+        public bool $addressedToClub = false,
     ) {
         if (trim($subjectId) === '') {
             throw new \InvalidArgumentException('A queued message must say what it is about');
@@ -61,10 +68,27 @@ final readonly class MailRequestDto
         // Not a style rule: an unattributed row cannot be found by erasure and
         // cannot be cleaned up when the person leaves, and both failures are
         // silent.
-        if ($memberId === null && $adminUserId === null) {
+        //
+        // A club-addressed row (ADR-0044 rule 3) is the one legitimate case
+        // with neither, and it says so rather than slipping through: the
+        // recipient is an address the club configured, belonging to no person
+        // at all, so there is nobody for erasure to find and nothing for a
+        // cascade to clean up. It carries no member data by construction — the
+        // lifecycle kinds are about an *admin account* — and it is deliberately
+        // outside migration 026's `admin_user_id` cascade, because a notice
+        // about an account that was created and then deleted is exactly what
+        // the club-level copy exists to preserve.
+        if ($memberId === null && $adminUserId === null && !$addressedToClub) {
             throw new \InvalidArgumentException(
                 'A queued message must name the member or the admin it is addressed to, '
                 . 'so erasure and cleanup can find it'
+            );
+        }
+
+        if ($addressedToClub && ($memberId !== null || $adminUserId !== null)) {
+            throw new \InvalidArgumentException(
+                'A club-addressed message belongs to no person; naming one would put it '
+                . 'inside a cascade it must survive'
             );
         }
     }
@@ -130,6 +154,40 @@ final readonly class MailRequestDto
      * copy is addressed to — every active admin gets a row with the same actor,
      * including the actor's own row.
      */
+    /**
+     * A copy of an admin lifecycle message for the club-level address
+     * (ADR-0044 rule 3).
+     *
+     * `adminUserId` is deliberately null: the recipient is an address the club
+     * configured, not an account. That has a consequence worth stating —
+     * migration 026's `ON DELETE CASCADE` on `admin_user_id` takes a queued
+     * row with the admin it is addressed to, and this row has no such owner, so
+     * it survives the deletion of whoever it was about. Which is right: "this
+     * account was created and then removed before anyone read about it" is
+     * exactly the sequence the club-level copy exists to witness.
+     *
+     * The dedup key ends in `:club` rather than an account id, so the club copy
+     * neither collides with an admin's nor silences one.
+     */
+    public static function forClub(
+        MailKind $kind,
+        string $subjectId,
+        string $recipient,
+        MailLanguage $language,
+        string $occasion,
+        ?string $actorAdminUserId = null,
+    ): self {
+        return new self(
+            kind: $kind,
+            subjectId: $subjectId,
+            recipient: $recipient,
+            language: $language,
+            dedupKey: $occasion . ':club',
+            actorAdminUserId: $actorAdminUserId,
+            addressedToClub: true,
+        );
+    }
+
     public static function forAdmin(
         MailKind $kind,
         string $subjectId,

@@ -57,6 +57,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { AdminRole } from './adminRole';
 
 export type UpdateAdminUserBody = {
   email?: string;
@@ -65,4 +66,22 @@ export type UpdateAdminUserBody = {
   /** ISO 639-1 language code */
   locale?: string;
   is_active?: boolean;
+  /**
+   * The account's complete role set after this request.
+Changing it demands the step-up fields below.
+
+   * @minItems 1
+   */
+  roles?: AdminRole[];
+  /** The **caller's own** password. Required only when `roles`
+changes the account's role set.
+ */
+  current_password?: string;
+  /**
+   * The caller's own fresh 6-digit code, required alongside
+`current_password` when the caller has 2FA enabled.
+
+   * @pattern ^\d{6}$
+   */
+  totp_code?: string;
 };

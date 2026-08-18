@@ -102,6 +102,12 @@ same dimension as login) and a failed attempt is audited.
 A random 16-character password is generated and returned.
 The password is only shown once and should be communicated to the user securely.
 
+`roles` sets the new account's roles (ADR-0044). Omitted, it defaults to
+`admin` — behaviour-preserving, since every admin created before roles
+existed had full access, and the safe direction for a default to fail:
+an account created with no role could open nothing, including the page
+that would fix it.
+
  * @summary Create admin user
  */
 const createAdminUser = (
@@ -115,6 +121,24 @@ const createAdminUser = (
       options);
     }
   /**
+ * Edit an admin account, optionally including its roles.
+
+**Changing the role set requires a step-up credential** — the caller's
+own current password, plus their own fresh TOTP code when they have 2FA
+enabled (ADR-0044 rule 2: granting a role is minting authority, so it
+costs what creating an account costs). The gate is conditional on the
+role set *actually changing*, mirroring `PATCH /auth/profile`'s email
+gate: editing a display name, or re-submitting the roles the account
+already holds, needs no credential.
+
+`roles` replaces the set outright rather than adding to it, and it is
+validated as a whole: a list naming anything that is not a role, or an
+empty list, is refused rather than partially applied.
+
+Rate-limited on the caller's account (5 attempts / 15 min, the same
+dimension as login), pinned to the route so a failed step-up counts
+even when the request never reaches the gate.
+
  * @summary Update admin user
  */
 const updateAdminUser = (

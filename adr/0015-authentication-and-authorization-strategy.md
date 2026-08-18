@@ -1,11 +1,13 @@
 # ADR-0015: Authentication and Authorization Strategy
 
-**Status**: Accepted (amended 2026-08-09 and 2026-08-15)
+**Status**: Accepted (amended 2026-08-09, 2026-08-15 and 2026-08-18)
 **Date**: 2025-01-23
 
 > **Amended 2026-08-09.** Two facts about terminal tokens stated here were wrong or have since changed; the *decision* — device-level Bearer authentication, one token per terminal, revocable — is unaffected. Amended text is marked inline; the reasoning is in the [Amendment](#amendment-2026-08-09--how-a-terminal-token-is-hashed-and-how-long-it-lives) section.
 >
 > **Amended 2026-08-15.** Self-service credential changes now carry a step-up credential, and any credential change ends the account's other sessions. Both are additions to the admin-panel section below; see also the [ADR-0026 amendment](./0026-mandatory-totp-two-factor-authentication.md#amendment-2026-08-15--a-reset-now-ends-the-targets-sessions) for why the session behaviour changed.
+>
+> **Amended 2026-08-18 by [ADR-0044](./0044-tiered-admin-roles.md).** *"All admin users have full access"* is no longer true: an admin account holds one or more of three roles — `admin`, `kassenwart`, `getraenkewart` — and a declarative route→roles map decides what each may reach. The **Admin Authorization** section below is rewritten accordingly. Nobody lost access in the change: every account predating it holds `admin`, which is exactly the access this ADR always described, and a route with no entry in the map is `admin`-only.
 
 ## Context
 
@@ -114,7 +116,19 @@ unchangeable on exactly the installations least able to notice why.
 
 ### Admin Authorization
 
-All admin users have full access: CRUD all entities, settlements, GDPR workflows, user management, audit log. Access is controlled by `is_active` flag and mandatory 2FA enrollment (`totp_enabled`) on the admin user account.
+Admin accounts hold one or more of three hardcoded roles — `admin`,
+`kassenwart` (the elected treasurer) and `getraenkewart` (the bar stock) — and
+what an account may reach is decided by a declarative route→roles map, where **a
+route with no entry is `admin`-only**. An account holding `admin` has the full
+access this ADR originally described: CRUD all entities, settlements, GDPR
+workflows, user management, audit log. Roles compose additively, so one person
+may hold both lesser offices and still not be `admin`. (amended 2026-08-18; see
+[ADR-0044](./0044-tiered-admin-roles.md) for the grant table and its threat
+model)
+
+Access is gated by `is_active` and mandatory 2FA enrollment (`totp_enabled`) on
+the admin user account before any of that is consulted: the role map is asked
+last, and answers 403 `insufficient_role`.
 
 New admin accounts cannot access any admin functionality until TOTP enrollment is complete. The `AdminSessionAuth` middleware enforces this: authenticated sessions with `totp_enabled = 0` are blocked from all endpoints except `/api/auth/2fa/setup` and `/api/auth/2fa/confirm`.
 
@@ -258,6 +272,7 @@ Rotation is still manual — there is no refresh mechanism, and this ADR's "toke
 - [ADR-0017](./0017-input-validation-injection-prevention.md): Input Validation and Injection Prevention
 - [ADR-0025](./0025-session-fixation-protection.md): Session Fixation Protection
 - [ADR-0026](./0026-mandatory-totp-two-factor-authentication.md): Mandatory TOTP Two-Factor Authentication
+- [ADR-0044](./0044-tiered-admin-roles.md): Tiered Admin Roles — amends the flat admin model above
 
 ## References
 

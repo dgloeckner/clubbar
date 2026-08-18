@@ -84,6 +84,28 @@ export interface MailConfig {
    * @nullable
    */
   reply_to_address?: string | null;
+  /**
+   * A club-level address — a Vorstand list, the Kassenwart's inbox —
+that also receives **admin lifecycle mail**: an account being
+created, and an account's roles changing (ADR-0044 rule 3).
+
+*In addition to* every active admin, never instead of them. The
+point is a second pair of eyes: with exactly one admin, a notice
+about account creation otherwise travels from the person who acted
+to the same person, about something they just did — and is silent
+in precisely the case where that one account is the compromised one.
+
+`null` means unset, which is the previous behaviour exactly: active
+admins only, no error.
+
+It lives here, on an `admin`-only endpoint, deliberately: a
+`kassenwart` must not be able to redirect the channel that would
+report their own promotion.
+
+   * @maxLength 255
+   * @nullable
+   */
+  club_notification_address?: string | null;
   /** Header band variant. `paper` is the settlement-mail default. */
   header_style?: MailConfigHeaderStyle;
   /** @maxLength 200 */

@@ -9,7 +9,8 @@ import axios from 'axios'
 import { getAuthentication } from '../api/generated/authentication/authentication'
 import { setCsrfToken } from '../api/client'
 import { changeLanguage } from '../i18n/config'
-import type { UpdateProfileRequest, AdminProfile } from '../api/generated'
+import type { UpdateProfileRequest, AdminProfile, AdminRole } from '../api/generated'
+import { parseRoles } from '../utils/adminRoles'
 
 // ─── Session check ─────────────────────────────────────────────────────────────
 
@@ -18,6 +19,12 @@ export interface SessionCheckResult {
   email: string
   display_name: string
   locale: string
+  /**
+   * The roles the session holds (ADR-0044). Read here rather than remembered
+   * from login, because a role revoked mid-session must be gone the next time
+   * the panel boots — and because it is the only response that carries them.
+   */
+  roles: AdminRole[]
 }
 
 /**
@@ -43,6 +50,7 @@ export async function checkSession(): Promise<SessionCheckResult | null> {
       email: r.admin.email,
       display_name: r.admin.display_name,
       locale: r.admin.locale,
+      roles: parseRoles(r.admin.roles),
     }
   } catch {
     clearStoredSession()

@@ -60,6 +60,22 @@ enum AuditAction: string
      * this records a change to who can sign in — never merely a contact detail.
      */
     case EMAIL_CHANGED = 'email_changed';
+
+    /**
+     * Roles gained and lost (ADR-0044 rule 2: granting a role is minting
+     * authority).
+     *
+     * Their own actions rather than a field inside a generic `update` row,
+     * because the audit log is the one place an escalation has to be findable
+     * — and a grant and a revocation are read for opposite reasons. "Who
+     * gained `admin` last quarter" is the escalation question; "who lost
+     * `kassenwart` in March" is the handover question.
+     *
+     * A single PATCH that both grants and revokes writes both rows: they are
+     * different events that happened to arrive in one request.
+     */
+    case ROLE_GRANTED = 'role_granted';
+    case ROLE_REVOKED = 'role_revoked';
     case MANDATE_DOCUMENT_UPLOAD = 'mandate_document_upload';
     case MANDATE_DOCUMENT_DELETE = 'mandate_document_delete';
     // IBAN encryption key lifecycle (ADR-0036). The private key never touches

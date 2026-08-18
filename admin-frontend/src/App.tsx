@@ -5,7 +5,7 @@
 
 import React, { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { LoadingProvider } from './context/LoadingContext'
 import { InstanceConfigProvider, useInstanceConfig } from './context/InstanceConfigContext'
@@ -26,16 +26,26 @@ import { AuditLogPage } from './pages/AuditLogPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { DashboardPage } from './pages/DashboardPage'
+import { InsufficientRolePage } from './pages/InsufficientRolePage'
 
 // Layout
 import { MainLayout } from './components/layout/MainLayout'
+import { landingPath, permitsPath } from './utils/adminRoles'
 
 /**
  * Protected Route Component
- * Redirects to login if not authenticated
+ * Redirects to login if not authenticated, and refuses — by name — a page the
+ * caller's roles do not cover (ADR-0044, #516).
+ *
+ * The refusal renders *inside* the layout rather than redirecting: a redirect
+ * would leave the caller on a working page with no explanation of why the one
+ * they asked for vanished, and would make a bookmark silently unfixable. This
+ * is a courtesy, not a control — the server refuses the underlying requests
+ * whatever this component decides.
  */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, initializing } = useAuth()
+  const { isAuthenticated, initializing, roles } = useAuth()
+  const { pathname } = useLocation()
   const { t } = useTranslation()
 
   if (initializing) {
@@ -55,15 +65,22 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     )
   }
 
-  return isAuthenticated ? <MainLayout>{children}</MainLayout> : <Navigate to="/login" />
+  if (!isAuthenticated) return <Navigate to="/login" />
+
+  return <MainLayout>{permitsPath(roles, pathname) ? children : <InsufficientRolePage />}</MainLayout>
 }
 
 /**
  * Main App Routes
  */
 function AppRoutes() {
-  const { isAuthenticated, initializing } = useAuth()
+  const { isAuthenticated, initializing, roles } = useAuth()
   const { t } = useTranslation()
+
+  // Where "home" is depends on the office: a Getränkewart's dashboard is a 403
+  // (it carries named members and their Deckel), so they land on the drinks
+  // list they actually came for.
+  const home = landingPath(roles)
 
   if (initializing) {
     return (
@@ -84,8 +101,8 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
-      <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to={home} /> : <LoginPage />} />
+      <Route path="/" element={isAuthenticated ? <Navigate to={home} /> : <Navigate to="/login" />} />
 
       {/* Protected Routes */}
       <Route
@@ -196,7 +213,7 @@ function AppRoutes() {
       />
 
       {/* 404 Fallback */}
-      <Route path="*" element={<Navigate to="/dashboard" />} />
+      <Route path="*" element={<Navigate to={home} />} />
     </Routes>
   )
 }

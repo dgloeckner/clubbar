@@ -57,9 +57,15 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { AdminRole } from './adminRole';
 
 export interface AdminUser {
   id?: string;
+  /** The roles this account holds (ADR-0044). Always at least one — an
+account with no role can reach nothing, so the API refuses to
+create that state.
+ */
+  roles?: AdminRole[];
   email?: string;
   display_name?: string;
   locale?: string;

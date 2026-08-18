@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\Services;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
+use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Services\AdminSecurityMailBuilder;
+use App\Modules\Notifications\Services\MailConfigService;
 use App\Shared\Mail\MailLayout;
 use PHPUnit\Framework\TestCase;
 
@@ -24,12 +27,14 @@ use PHPUnit\Framework\TestCase;
 class AdminSecurityMailBuilderTest extends TestCase
 {
     private AdminUsersRepository $adminUsersRepository;
+    private AdminUserRolesRepository $adminUserRolesRepository;
     private AdminSecurityMailBuilder $builder;
     private MailConfigDto $mailConfig;
 
     protected function setUp(): void
     {
         $this->adminUsersRepository = $this->createMock(AdminUsersRepository::class);
+        $this->adminUserRolesRepository = $this->createMock(AdminUserRolesRepository::class);
 
         $this->mailConfig = new MailConfigDto(
             senderName: 'Beispiel-Ruderverein e.V.',
@@ -42,7 +47,14 @@ class AdminSecurityMailBuilderTest extends TestCase
             logoUrl: null,
         );
 
-        $this->builder = new AdminSecurityMailBuilder($this->adminUsersRepository);
+        $mailConfigService = $this->createMock(MailConfigService::class);
+        $mailConfigService->method('getConfig')->willReturn($this->mailConfig);
+
+        $this->builder = new AdminSecurityMailBuilder(
+            $this->adminUsersRepository,
+            $mailConfigService,
+            $this->adminUserRolesRepository,
+        );
     }
 
     /** @param array<string,mixed> $overrides */

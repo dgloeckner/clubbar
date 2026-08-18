@@ -10,6 +10,7 @@ use App\Shared\Logging\Logger;
 use App\Shared\Validation\Validator;
 
 // Repositories
+use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
@@ -243,6 +244,14 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(AdminUsersRepository::class, fn() => new AdminUsersRepository($this->pdo, $this->logger));
     }
 
+    public function getAdminUserRolesRepository(): AdminUserRolesRepository
+    {
+        return $this->resolve(
+            AdminUserRolesRepository::class,
+            fn() => new AdminUserRolesRepository($this->pdo, $this->logger)
+        );
+    }
+
     public function getAuditLogRepository(): AuditLogRepository
     {
         return $this->resolve(AuditLogRepository::class, fn() => new AuditLogRepository($this->pdo, $this->logger));
@@ -383,6 +392,8 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminUsersRepository(),
             $this->getAuditService(),
             $this->getNotificationsService(),
+            $this->getAdminUserRolesRepository(),
+            $this->getAdminNotifier(),
         ));
     }
 
@@ -506,6 +517,7 @@ class ServiceFactory implements ContainerInterface
             $this->getMailOutboxRepository(),
             $this->getAdminUsersRepository(),
             $this->getAuditService(),
+            $this->getMailConfigRepository(),
         ));
     }
 
@@ -543,6 +555,8 @@ class ServiceFactory implements ContainerInterface
     {
         return $this->resolve(AdminSecurityMailBuilder::class, fn() => new AdminSecurityMailBuilder(
             $this->getAdminUsersRepository(),
+            $this->getMailConfigService(),
+            $this->getAdminUserRolesRepository(),
         ));
     }
 
@@ -896,7 +910,11 @@ class ServiceFactory implements ContainerInterface
 
     public function getAdminSessionAuth(): AdminSessionAuth
     {
-        return $this->resolve(AdminSessionAuth::class, fn() => new AdminSessionAuth($this->getAdminUsersRepository(), $this->config));
+        return $this->resolve(AdminSessionAuth::class, fn() => new AdminSessionAuth(
+            $this->getAdminUsersRepository(),
+            $this->config,
+            $this->getAdminUserRolesRepository(),
+        ));
     }
 
     public function getTerminalTokenAuth(): TerminalTokenAuth

@@ -45,6 +45,22 @@ const list = useListQuery<Item, ItemFilters, ItemSortKey>({
 })
 ```
 
+### [Role-Aware Navigation](./role-visibility.md)
+**Purpose**: show each admin office only the sections it can open (ADR-0044)
+
+- ✅ `SECTION_ROLES` — the section→roles table, default-deny like the server's
+- ✅ Per-role landing, and why it reads the roles off the auth result
+- ✅ The named `insufficient_role` refusal screen, and the mid-session case
+- ✅ The completeness test that fails when a nav entry is left unclassified
+
+**When to use**: when adding a page, a nav entry or a role
+
+**Quick Start**:
+```typescript
+// src/utils/adminRoles.ts — a page with no entry here is admin-only
+'/products': BAR,
+```
+
 ---
 
 ### [Component Patterns](./components.md)
