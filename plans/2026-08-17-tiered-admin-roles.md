@@ -272,11 +272,14 @@ it makes the foundation deployable and verifiable before enforcement lands.
 - [x] `admin-frontend/patterns/role-visibility.md` — shipped with M6, same
       reasoning
 - [x] This plan and `plans/INDEX.md` refreshed
-- [!] Amendment note on ADR-0015 — **drafted, not applied**. ADR-0015 §Admin
-      Authorization still reads *"All admin users have full access"*, which
-      ADR-0044 has amended in fact. Editing an ADR needs the owner's explicit
-      confirmation, so the proposed wording is in the PR body for #518 rather
-      than in the file, and this item stays open until somebody says yes
+- [x] Amendment note on ADR-0015, applied with the owner's approval. Its
+      §Admin Authorization read *"All admin users have full access"*, which
+      ADR-0044 had amended in fact four milestones earlier. The note goes where
+      that file already keeps its amendments — the Status line and a dated
+      blockquote under the header, beside the 2026-08-09 and 2026-08-15 ones —
+      so a reader meets it before the text it corrects. The section itself is
+      rewritten and marked inline, and the paragraph below it (TOTP enrolment
+      gating everything until complete) is untouched, because it stayed true
 
 ---
 
