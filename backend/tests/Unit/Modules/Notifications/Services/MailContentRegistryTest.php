@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Notifications\Services;
 
 use App\Modules\Notifications\Contracts\MailContentBuilder;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
@@ -22,6 +23,15 @@ use PHPUnit\Framework\TestCase;
  */
 class MailContentRegistryTest extends TestCase
 {
+    private function mailConfig(): MailConfigDto
+    {
+        return MailConfigDto::fromRow([
+            'sender_name' => 'FRGS Ruderbar',
+            'sender_address' => 'bar@example.org',
+            'footer_org_name' => 'FRGS Ruderbar',
+        ]);
+    }
+
     private function builderFor(MailKind $claims, string $subject = 'built'): MailContentBuilder
     {
         return new class ($claims, $subject) implements MailContentBuilder {
@@ -35,7 +45,7 @@ class MailContentRegistryTest extends TestCase
                 return $kind === $this->claims;
             }
 
-            public function build(array $outboxRow): MailMessage
+            public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage
             {
                 return new MailMessage(
                     to: 'someone@example.org',
@@ -56,11 +66,11 @@ class MailContentRegistryTest extends TestCase
 
         $this->assertSame(
             'key warning',
-            $registry->build(['kind' => 'key_expiry_warning'])->subject,
+            $registry->build(['kind' => 'key_expiry_warning'], $this->mailConfig())->subject,
         );
         $this->assertSame(
             'announcement',
-            $registry->build(['kind' => 'sepa_prenotification'])->subject,
+            $registry->build(['kind' => 'sepa_prenotification'], $this->mailConfig())->subject,
         );
     }
 
@@ -85,7 +95,7 @@ class MailContentRegistryTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessageMatches('/key_expiry_warning/');
 
-        $registry->build(['kind' => 'key_expiry_warning']);
+        $registry->build(['kind' => 'key_expiry_warning'], $this->mailConfig());
     }
 
     /**

@@ -7,7 +7,6 @@ namespace Tests\Unit\Modules\Notifications\Services;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
-use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\TerminalTokenIssuedMailBuilder;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use PHPUnit\Framework\TestCase;
@@ -26,6 +25,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
     private TerminalsRepository $terminals;
     private AdminUsersRepository $adminUsers;
     private TerminalTokenIssuedMailBuilder $builder;
+    private MailConfigDto $mailConfig;
 
     protected function setUp(): void
     {
@@ -38,17 +38,15 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
             ['admin-3', ['display_name' => '', 'email' => 'noname@example.org']],
         ]);
 
-        $mailConfigService = $this->createMock(MailConfigService::class);
-        $mailConfigService->method('getConfig')->willReturn(MailConfigDto::fromRow([
+        $this->mailConfig = MailConfigDto::fromRow([
             'sender_name' => 'FRGS Ruderbar',
             'sender_address' => 'bar@example.org',
             'footer_org_name' => 'FRGS Ruderbar',
-        ]));
+        ]);
 
         $this->builder = new TerminalTokenIssuedMailBuilder(
             $this->terminals,
             $adminUsers,
-            $mailConfigService,
         );
     }
 
@@ -130,7 +128,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
     {
         $this->terminals->method('findById')->willReturn(self::terminal());
 
-        $message = $this->builder->build(self::row());
+        $message = $this->builder->build(self::row(), $this->mailConfig);
 
         $this->assertSame('kassenwart@example.org', $message->to);
         $this->assertStringContainsString('Theke', $message->subject);
@@ -160,7 +158,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
 
         $message = $this->builder->build(self::row([
             'dedup_key' => 'rotated:20260816142317:admin-1',
-        ]));
+        ]), $this->mailConfig);
 
         foreach ([$message->html, $message->text] as $part) {
             $this->assertStringContainsString('16.08.2027', $part);
@@ -186,7 +184,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
 
         $message = $this->builder->build(self::row([
             'dedup_key' => 'rotated:20260816142317:admin-1',
-        ]));
+        ]), $this->mailConfig);
 
         $this->assertStringContainsString('16.08.2027', $message->text);
     }
@@ -204,7 +202,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
             'token_expires_at' => null,
         ]));
 
-        $message = $this->builder->build(self::row());
+        $message = $this->builder->build(self::row(), $this->mailConfig);
 
         $this->assertStringContainsString('Theke', $message->subject);
         $this->assertStringNotContainsString('Gültig bis', $message->text);
@@ -224,7 +222,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/terminal-1 no longer exists/');
 
-        $this->builder->build(self::row());
+        $this->builder->build(self::row(), $this->mailConfig);
     }
 
     public function test_a_key_naming_no_known_event_is_refused(): void
@@ -234,7 +232,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/names no known issuance event/');
 
-        $this->builder->build(self::row(['dedup_key' => 'reissued:20260816142317:admin-1']));
+        $this->builder->build(self::row(['dedup_key' => 'reissued:20260816142317:admin-1']), $this->mailConfig);
     }
 
     /**
@@ -251,7 +249,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
         $message = $this->builder->build(self::row([
             'admin_user_id' => 'admin-1',
             'actor_admin_user_id' => 'admin-2',
-        ]));
+        ]), $this->mailConfig);
 
         foreach ([$message->html, $message->text] as $part) {
             $this->assertStringContainsString('Vorstand (vorstand@example.org)', $part);
@@ -265,7 +263,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
     {
         $this->terminals->method('findById')->willReturn(self::terminal());
 
-        $message = $this->builder->build(self::row(['actor_admin_user_id' => 'admin-3']));
+        $message = $this->builder->build(self::row(['actor_admin_user_id' => 'admin-3']), $this->mailConfig);
 
         $this->assertStringContainsString('noname@example.org', $message->text);
     }
@@ -279,7 +277,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
     {
         $this->terminals->method('findById')->willReturn(self::terminal());
 
-        $message = $this->builder->build(self::row());
+        $message = $this->builder->build(self::row(), $this->mailConfig);
 
         $this->assertStringNotContainsString('Ausgeführt von', $message->text);
     }
@@ -299,7 +297,7 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
             'pending_token_hash' => str_repeat('b', 64),
         ]));
 
-        $message = $this->builder->build(self::row());
+        $message = $this->builder->build(self::row(), $this->mailConfig);
 
         foreach ([$message->html, $message->text] as $part) {
             $this->assertDoesNotMatchRegularExpression('/\b[0-9a-f]{64}\b/', $part);

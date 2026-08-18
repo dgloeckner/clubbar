@@ -9,6 +9,7 @@ use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
 use App\Modules\Instance\Services\InstanceConfigService;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\MailConfigRepository;
@@ -48,6 +49,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
     private SettlementsService $service;
     private MailOutboxRepository $outbox;
     private SettlementMailBuilder $builder;
+    private MailConfigDto $mailConfig;
 
     private array $testMemberIds = [];
     private array $testAdminUserIds = [];
@@ -108,8 +110,8 @@ class SettlementAnnouncementTest extends DatabaseTestCase
             $settlementsRepository,
             $membersRepository,
             new SepaConfigRepository($this->db, $this->logger),
-            $mailConfigService,
         );
+        $this->mailConfig = $mailConfigService->getConfig();
 
         $this->adminId = $this->createTestAdminUser();
     }
@@ -374,7 +376,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
         ]);
 
         $row = $this->outbox->findBySubjectId($settlementId)[0];
-        $message = $this->builder->build($row);
+        $message = $this->builder->build($row, $this->mailConfig);
 
         $this->assertSame($this->emailOf($memberId), $message->to);
 
@@ -422,7 +424,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
         }
         $this->assertNotNull($notice);
 
-        $message = $this->builder->build($notice);
+        $message = $this->builder->build($notice, $this->mailConfig);
 
         $this->assertStringContainsString('entfällt', $message->subject);
         $this->assertStringContainsString('6,00 €', $message->text);
@@ -438,7 +440,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
         $row = $this->outbox->findBySubjectId($settlementId)[0];
         $this->assertSame('en', $row['language']);
 
-        $message = $this->builder->build($row);
+        $message = $this->builder->build($row, $this->mailConfig);
         $this->assertStringContainsString('EUR 2.50', $message->text);
         $this->assertStringContainsString('Advance notice', $message->subject);
     }

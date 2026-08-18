@@ -542,7 +542,6 @@ class ServiceFactory implements ContainerInterface
             $this->getSettlementsRepository(),
             $this->getMembersRepository(),
             $this->getSepaConfigRepository(),
-            $this->getMailConfigService(),
         ));
     }
 
@@ -550,7 +549,6 @@ class ServiceFactory implements ContainerInterface
     {
         return $this->resolve(AdminSecurityMailBuilder::class, fn() => new AdminSecurityMailBuilder(
             $this->getAdminUsersRepository(),
-            $this->getMailConfigService(),
         ));
     }
 
@@ -581,7 +579,6 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(TerminalTokenIssuedMailBuilder::class, fn() => new TerminalTokenIssuedMailBuilder(
             $this->getTerminalsRepository(),
             $this->getAdminUsersRepository(),
-            $this->getMailConfigService(),
         ));
     }
 
@@ -595,7 +592,6 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(EncryptionKeyEventMailBuilder::class, fn() => new EncryptionKeyEventMailBuilder(
             $this->getEncryptionKeysRepository(),
             $this->getAdminUsersRepository(),
-            $this->getMailConfigService(),
         ));
     }
 
@@ -608,7 +604,6 @@ class ServiceFactory implements ContainerInterface
             $this->getEncryptionKeysRepository(),
             $this->getTerminalsRepository(),
             $this->getAdminUsersRepository(),
-            $this->getMailConfigService(),
         ));
     }
 
@@ -670,7 +665,6 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalsRepository(),
             $this->getTerminalAnomaliesRepository(),
             $this->getAdminUsersRepository(),
-            $this->getMailConfigService(),
         ));
     }
 

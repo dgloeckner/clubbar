@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Contracts;
 
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Shared\Mail\MailMessage;
 
@@ -24,10 +25,16 @@ interface MailContentBuilder
 
     /**
      * @param array<string,mixed> $outboxRow A row as `claimBatch()` returns it.
+     * @param MailConfigDto $mailConfig The run's mail configuration — branding,
+     *        sender, reply-to. Passed in rather than each implementation
+     *        fetching its own: the drain already reads it once per run
+     *        (`DrainService::drain()`), and every implementation that needs it
+     *        wants the identical, unchanging value for every row in the batch,
+     *        not a fresh read per message.
      *
      * @throws \RuntimeException When the subject the row points at is gone. A
      *         message must not be invented around the gap — a wrong
      *         announcement is worse than a failed one.
      */
-    public function build(array $outboxRow): MailMessage;
+    public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage;
 }

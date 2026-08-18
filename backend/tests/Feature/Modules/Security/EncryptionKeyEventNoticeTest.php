@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Modules\Security;
 
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Modules\Notifications\Services\AdminNotifier;
@@ -35,6 +36,7 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
     private EncryptionKeysRepository $keys;
     private AdminUsersRepository $admins;
     private EncryptionKeyEventMailBuilder $builder;
+    private MailConfigDto $mailConfig;
     private array $createdKeyIds = [];
     private string $adminId;
     private string $adminEmail;
@@ -78,8 +80,8 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
         $this->builder = new EncryptionKeyEventMailBuilder(
             $this->keys,
             $admins,
-            $this->mailConfigService(),
         );
+        $this->mailConfig = $this->mailConfigService()->getConfig();
     }
 
     protected function tearDown(): void
@@ -219,7 +221,7 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
         }
         $this->assertNotNull($row, 'expected a queued notice to render');
 
-        $message = $this->builder->build($row);
+        $message = $this->builder->build($row, $this->mailConfig);
         $fingerprint = $this->keys->findById($key['id'])['fingerprint_sha256'];
 
         foreach ([$message->html, $message->text] as $body) {
@@ -275,7 +277,7 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
         }
         $this->assertNotNull($row);
 
-        $message = $this->builder->build($row);
+        $message = $this->builder->build($row, $this->mailConfig);
 
         foreach ([$message->html, $message->text] as $body) {
             $this->assertStringContainsString('Key Notice Recipient', $body);
@@ -308,7 +310,7 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
         $this->assertNotNull($row);
         $this->assertNull($row['actor_admin_user_id']);
 
-        $message = $this->builder->build($row);
+        $message = $this->builder->build($row, $this->mailConfig);
         $this->assertStringNotContainsString('Ausgeführt von', $message->text);
     }
 

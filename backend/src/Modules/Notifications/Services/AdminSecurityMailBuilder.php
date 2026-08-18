@@ -6,6 +6,7 @@ namespace App\Modules\Notifications\Services;
 
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailSubject;
@@ -35,7 +36,6 @@ class AdminSecurityMailBuilder implements MailContentBuilder
 {
     public function __construct(
         private AdminUsersRepository $adminUsersRepository,
-        private MailConfigService $mailConfigService,
     ) {}
 
     public function supports(MailKind $kind): bool
@@ -51,7 +51,7 @@ class AdminSecurityMailBuilder implements MailContentBuilder
      * @throws \InvalidArgumentException On an `ADMIN_USER` kind this builder
      *         has no content for.
      */
-    public function build(array $outboxRow): MailMessage
+    public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage
     {
         $kind = MailKind::from((string) $outboxRow['kind']);
         $adminUserId = (string) $outboxRow['subject_id'];
@@ -73,7 +73,7 @@ class AdminSecurityMailBuilder implements MailContentBuilder
                 recipientName: $admin['display_name'] ?? null,
                 changedAt: (string) ($outboxRow['queued_at'] ?? ''),
                 language: $language,
-                branding: $this->mailConfigService->getConfig()->toBranding(),
+                branding: $mailConfig->toBranding(),
             ),
             default => throw new \InvalidArgumentException(
                 sprintf('%s has no content builder yet', $kind->value)

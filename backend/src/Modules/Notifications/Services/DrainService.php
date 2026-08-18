@@ -263,7 +263,7 @@ class DrainService
 
                 $message = null;
                 try {
-                    $message = $this->mailContent->build($row);
+                    $message = $this->mailContent->build($row, $config);
                 } catch (\Throwable $e) {
                     // The settlement behind the row is gone, or the kind has no
                     // content yet. Neither becomes true later, so this is

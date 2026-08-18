@@ -7,6 +7,7 @@ namespace App\Modules\Notifications\Services;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\DTOs\CancellationNoticeDataDto;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\DTOs\PreNotificationDataDto;
 use App\Modules\Notifications\DTOs\StatementLineDto;
 use App\Modules\Notifications\Enums\MailKind;
@@ -42,7 +43,6 @@ class SettlementMailBuilder implements MailContentBuilder
         private SettlementsRepository $settlementsRepository,
         private MembersRepository $membersRepository,
         private SepaConfigRepository $sepaConfigRepository,
-        private MailConfigService $mailConfigService,
     ) {}
 
     /**
@@ -65,7 +65,7 @@ class SettlementMailBuilder implements MailContentBuilder
      *         it means somebody deleted rows by hand and the message must not
      *         be invented around the gap.
      */
-    public function build(array $outboxRow): MailMessage
+    public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage
     {
         $kind = MailKind::from((string) $outboxRow['kind']);
         $settlementId = (string) $outboxRow['subject_id'];
@@ -84,7 +84,6 @@ class SettlementMailBuilder implements MailContentBuilder
 
         $amountCents = (int) array_sum(array_column($items, 'amount_cents'));
         $member = $this->membersRepository->findMailRecipients([$memberId])[$memberId] ?? null;
-        $mailConfig = $this->mailConfigService->getConfig();
         $branding = $mailConfig->toBranding();
         // Read once per message: the drain builds a batch in a loop, and the
         // creditor block contributes three of the announcement's fields.

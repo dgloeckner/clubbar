@@ -741,7 +741,7 @@ final class FixedContentBuilder implements MailContentBuilder
         return true;
     }
 
-    public function build(array $outboxRow): MailMessage
+    public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage
     {
         return new MailMessage(
             to: (string) $outboxRow['recipient'],

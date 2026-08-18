@@ -6,6 +6,7 @@ namespace App\Modules\Notifications\Services;
 
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\DTOs\TerminalTokenIssuedDataDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
@@ -58,7 +59,6 @@ class TerminalTokenIssuedMailBuilder implements MailContentBuilder
     public function __construct(
         private TerminalsRepository $terminalsRepository,
         private AdminUsersRepository $adminUsersRepository,
-        private MailConfigService $mailConfigService,
     ) {}
 
     public function supports(MailKind $kind): bool
@@ -106,7 +106,7 @@ class TerminalTokenIssuedMailBuilder implements MailContentBuilder
      *         the message, where an admin can see that something was meant to be
      *         said.
      */
-    public function build(array $outboxRow): MailMessage
+    public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage
     {
         $terminalId = (string) $outboxRow['subject_id'];
         $terminal = $this->terminalsRepository->findById($terminalId);
@@ -136,7 +136,7 @@ class TerminalTokenIssuedMailBuilder implements MailContentBuilder
             // since — the rule every other builder follows.
             recipientAddress: (string) $outboxRow['recipient'],
             recipientName: $this->recipientName($outboxRow),
-            branding: $this->mailConfigService->getConfig()->toBranding(),
+            branding: $mailConfig->toBranding(),
             terminalName: (string) $terminal['name'],
             deviceId: (string) $terminal['device_id'],
             event: $event,
