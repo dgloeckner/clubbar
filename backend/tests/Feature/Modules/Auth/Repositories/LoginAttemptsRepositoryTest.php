@@ -98,4 +98,46 @@ class LoginAttemptsRepositoryTest extends DatabaseTestCase
 
         $this->db->prepare('DELETE FROM terminal_auth_attempts WHERE ip_address = ?')->execute([$this->ip]);
     }
+
+    /**
+     * `countRecentByIp`/`countRecentByEmail` never look back more than 15
+     * minutes, but nothing before this deleted a row that old — `clearForEmail()`
+     * only fires for the account whose own login just succeeded, so a probed
+     * or mistyped account's attempts sat forever. This pins the one path back
+     * to empty.
+     */
+    public function test_pruning_removes_only_what_is_older_than_the_cutoff(): void
+    {
+        $this->repository->record($this->ip, $this->emailA);
+        $stmt = $this->db->prepare(
+            'UPDATE login_attempts SET attempted_at = DATE_SUB(NOW(), INTERVAL 2 DAY) WHERE email = ?'
+        );
+        $stmt->execute([$this->emailA]);
+        $this->repository->record($this->ip, $this->emailB);
+
+        $removed = $this->repository->pruneOlderThan(date('Y-m-d H:i:s', strtotime('-1 day')));
+
+        $this->assertSame(1, $removed);
+        // The count check bypasses the window filter entirely, since a pruned
+        // row and a merely-out-of-window one must not read alike here.
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM login_attempts WHERE email = ?');
+        $stmt->execute([$this->emailA]);
+        $this->assertSame(0, (int) $stmt->fetchColumn());
+        $this->assertSame(1, $this->repository->countRecentByEmail($this->emailB, 15));
+    }
+
+    /** Same method, the table with no `email` column — the prune is generic over both. */
+    public function test_pruning_works_on_a_table_with_no_email_column(): void
+    {
+        $terminalAttempts = new LoginAttemptsRepository($this->db, 'terminal_auth_attempts');
+        $terminalAttempts->record($this->ip);
+        $this->db->prepare(
+            'UPDATE terminal_auth_attempts SET attempted_at = DATE_SUB(NOW(), INTERVAL 2 DAY) WHERE ip_address = ?'
+        )->execute([$this->ip]);
+
+        $removed = $terminalAttempts->pruneOlderThan(date('Y-m-d H:i:s', strtotime('-1 day')));
+
+        $this->assertSame(1, $removed);
+        $this->assertSame(0, $terminalAttempts->countRecentByIp($this->ip, 15));
+    }
 }

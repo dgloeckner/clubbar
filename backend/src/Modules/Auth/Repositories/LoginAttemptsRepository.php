@@ -73,4 +73,27 @@ class LoginAttemptsRepository
         $stmt = $this->db->prepare("DELETE FROM {$this->table} WHERE email = :email");
         $stmt->execute(['email' => $email]);
     }
+
+    /**
+     * Drop attempts older than the retention window, same shape as
+     * `TerminalIpSightingsRepository::pruneOlderThan()` (ADR-0041 §5).
+     *
+     * Nothing here reads past `countRecentByIp`/`countRecentByEmail`'s own
+     * window (15 minutes at most), but neither table has any other path back
+     * to empty: `clearForEmail()` only fires for the account whose *own*
+     * login just fully succeeded, so a probed or mistyped or deleted account
+     * keeps its rows forever, and `terminal_auth_attempts` — no `email`
+     * column, no clearing path at all — keeps every bad bearer token from
+     * every scanner that ever hit `/api/sync/*`, permanently. This is the one
+     * way either table shrinks.
+     *
+     * @return int Rows removed.
+     */
+    public function pruneOlderThan(string $cutoff): int
+    {
+        $stmt = $this->db->prepare("DELETE FROM {$this->table} WHERE attempted_at < :cutoff");
+        $stmt->execute(['cutoff' => $cutoff]);
+
+        return $stmt->rowCount();
+    }
 }

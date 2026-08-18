@@ -180,6 +180,28 @@ try {
         exit(0);
     }
 
+    // Neither login_attempts nor terminal_auth_attempts has any other path
+    // back to empty: countRecentByIp/countRecentByEmail only ever look back
+    // 15 minutes, but clearForEmail() fires solely for the account whose own
+    // login just fully succeeded, so a probed or mistyped account's rows sit
+    // forever, and terminal_auth_attempts — no email column, no clearing path
+    // at all — keeps every bad bearer token from every scanner permanently.
+    // A day of retention outlives every rate-limit window in use (15 minutes)
+    // with room for a human to look back at what tripped a lock, without
+    // growing without bound. Order doesn't matter here the way it does for
+    // the scan/enqueue calls below — nothing here queues mail for this tick
+    // to carry — so it rides along wherever is convenient.
+    try {
+        $cutoff = date('Y-m-d H:i:s', time() - 86400);
+        $prunedLogin = $factory->getLoginAttemptsRepository()->pruneOlderThan($cutoff);
+        $prunedTerminal = $factory->getTerminalAuthAttemptsRepository()->pruneOlderThan($cutoff);
+        if ($prunedLogin > 0 || $prunedTerminal > 0) {
+            $say("Pruned auth attempts: {$prunedLogin} login, {$prunedTerminal} terminal.");
+        }
+    } catch (\Throwable $e) {
+        fwrite(STDERR, "Warning: auth attempt pruning failed: {$e->getMessage()}\n");
+    }
+
     // ADR-0041, before the drain on purpose: a warning raised by this scan is
     // queued into the outbox, and running it first means that warning leaves in
     // the same tick rather than waiting for the next one.
