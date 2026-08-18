@@ -140,11 +140,13 @@ All backend code must follow these patterns. Reference them when implementing fe
 - **When**: Transaction processing, member lookup
 
 **[Pattern 015: Authorization & Access Control](./pattern-015-authorization-access-control.md)**
-- PSR-15 middleware for endpoint-level access control
-- Terminal Bearer token → `/api/sync/*` access
-- Admin session → `/api/admin/*` access
-- Prevent auth method confusion
-- **When**: Protecting endpoints; controlling access
+- Two axes: credential type (route group middleware), then office (`RouteRoleMap`)
+- Terminal Bearer token → `/api/sync/*`; admin session → `/api/admin/*`
+- **Default-deny**: a route with no map entry is `admin`-only, and the
+  completeness test fails until somebody classifies it
+- `insufficient_role` (403) vs `admin_not_authenticated` (401), and allow-lists
+  where the boundary lands on a parameter rather than a route (ADR-0044)
+- **When**: adding any admin route; changing who may reach one
 
 ---
 

@@ -258,10 +258,28 @@ it makes the foundation deployable and verifiable before enforcement lands.
 
 ### M8 — Documentation ([#518](https://github.com/dgloeckner/clubbar/issues/518))
 
-- [ ] `backend/patterns/pattern-015-authorization-access-control.md` rewritten
-      around the route→roles map
-- [ ] Amendment note on ADR-0015 (owner confirmation required before editing it)
-- [ ] This plan and `plans/INDEX.md` refreshed
+- [x] `backend/patterns/pattern-015-authorization-access-control.md` rewritten
+      around the route→roles map: two axes (credential type, then office), the
+      three rules, the checklist for adding a route, `insufficient_role` beside
+      the other refusals, the parameter allow-list, the step-up as an
+      orthogonal axis, and the panel's own table with the standing note that it
+      is not enforcement. It lost 300 lines of hypothetical middleware in the
+      process, and the line that said *"currently all admins have equal
+      access"* — which had become false
+- [x] `backend/patterns/README.md` entry rewritten to match
+- [x] E2E Pattern 011 (*Testing a Role You Are Not*) — shipped with M7, where
+      the fixtures it documents live
+- [x] `admin-frontend/patterns/role-visibility.md` — shipped with M6, same
+      reasoning
+- [x] This plan and `plans/INDEX.md` refreshed
+- [x] Amendment note on ADR-0015, applied with the owner's approval. Its
+      §Admin Authorization read *"All admin users have full access"*, which
+      ADR-0044 had amended in fact four milestones earlier. The note goes where
+      that file already keeps its amendments — the Status line and a dated
+      blockquote under the header, beside the 2026-08-09 and 2026-08-15 ones —
+      so a reader meets it before the text it corrects. The section itself is
+      rewritten and marked inline, and the paragraph below it (TOTP enrolment
+      gating everything until complete) is untouched, because it stayed true
 
 ---
 
