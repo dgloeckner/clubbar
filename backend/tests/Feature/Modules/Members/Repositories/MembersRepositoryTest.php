@@ -318,44 +318,70 @@ class MembersRepositoryTest extends DatabaseTestCase
 
     public function test_findModifiedSince_orders_by_coalesce_updated_deleted(): void
     {
-        // Create test member
-        $testMemberId = $this->generateUuid();
-        $testMember = [
-            'id' => $testMemberId,
+        // Two members this test fully controls, so the ordering assertion
+        // below never depends on incidental rows left by other tests.
+        // `create()` always sets updated_at, so any single member already
+        // satisfies findModifiedSince(0) — a test with only one member of
+        // its own can pass or silently assert nothing depending on what
+        // else happens to be in the table (#543).
+        $earlierMemberId = $this->generateUuid();
+        $earlierMember = [
+            'id' => $earlierMemberId,
             'card_uid' => '04:AA:BB:CC:DD:EE:55',
-            'first_name' => 'Order',
+            'first_name' => 'Earlier',
             'last_name' => 'Test',
-            'email' => 'order-test@example.com',
+            'email' => 'order-test-earlier@example.com',
             'preferred_language' => 'de',
             'is_active' => 1,
             'iban' => 'DE89370400440532013000',
-            'mandate_reference' => 'MANDATE' . substr($testMemberId, 0, 8),
+            'mandate_reference' => 'MANDATE' . substr($earlierMemberId, 0, 8),
             'mandate_signed_at' => '2025-01-01',
         ];
-        $this->membersRepository->create($testMember);
-        $this->testMemberIds[] = $testMemberId;
+        $this->membersRepository->create($earlierMember);
+        $this->testMemberIds[] = $earlierMemberId;
 
-        // Delete the member (sets deleted_at, updated_at stays the same)
-        $this->membersRepository->updateById($testMemberId, ['deleted_at' => date('Y-m-d H:i:s')]);
+        // Delete it (sets deleted_at, updated_at stays at creation time)
+        $this->membersRepository->updateById($earlierMemberId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        sleep(1);
+
+        $laterMemberId = $this->generateUuid();
+        $laterMember = [
+            'id' => $laterMemberId,
+            'card_uid' => '04:AA:BB:CC:DD:EE:66',
+            'first_name' => 'Later',
+            'last_name' => 'Test',
+            'email' => 'order-test-later@example.com',
+            'preferred_language' => 'de',
+            'is_active' => 1,
+            'iban' => 'DE89370400440532013000',
+            'mandate_reference' => 'MANDATE' . substr($laterMemberId, 0, 8),
+            'mandate_signed_at' => '2025-01-01',
+        ];
+        $this->membersRepository->create($laterMember);
+        $this->testMemberIds[] = $laterMemberId;
 
         // Query should return results ordered by COALESCE(updated_at, deleted_at)
         $results = $this->membersRepository->findModifiedSince(0);
 
-        // Verify results are ordered (ASC)
-        $previousTimestamp = null;
-        foreach ($results as $result) {
-            $currentTimestamp = $result['deleted_at'] ?? $result['updated_at'];
-
-            if ($previousTimestamp !== null) {
-                $this->assertGreaterThanOrEqual(
-                    strtotime($previousTimestamp),
-                    strtotime($currentTimestamp),
-                    'Results should be ordered by COALESCE(updated_at, deleted_at) ASC'
-                );
+        $earlierIndex = null;
+        $laterIndex = null;
+        foreach ($results as $index => $result) {
+            if ($result['id'] === $earlierMemberId) {
+                $earlierIndex = $index;
             }
-
-            $previousTimestamp = $currentTimestamp;
+            if ($result['id'] === $laterMemberId) {
+                $laterIndex = $index;
+            }
         }
+
+        $this->assertNotNull($earlierIndex, 'Earlier-modified member should be included in results');
+        $this->assertNotNull($laterIndex, 'Later-modified member should be included in results');
+        $this->assertLessThan(
+            $laterIndex,
+            $earlierIndex,
+            'Earlier-modified member should sort before the later-modified one (COALESCE(updated_at, deleted_at) ASC)'
+        );
     }
 
     public function test_sync_cursor_prevents_race_condition_when_no_changes(): void
