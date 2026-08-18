@@ -167,7 +167,12 @@ return function (App $app): void {
         $group->get('/admin-users', [AdminUsersAdminController::class, 'index']);
         $group->post('/admin-users', [AdminUsersAdminController::class, 'store'])->add($stepUpRateLimit);
         $group->get('/admin-users/{id}', [AdminUsersAdminController::class, 'show']);
-        $group->patch('/admin-users/{id}', [AdminUsersAdminController::class, 'update']);
+        // Carries a step-up when the role set actually changes (ADR-0044 rule
+        // 2), so it shares the step-up rate-limit dimension for the same
+        // reason `POST /admin-users` does (#500, #511): a limiter the
+        // controller only reaches after deciding to demand a credential is a
+        // limiter an attacker can call unboundedly.
+        $group->patch('/admin-users/{id}', [AdminUsersAdminController::class, 'update'])->add($stepUpRateLimit);
         $group->delete('/admin-users/{id}', [AdminUsersAdminController::class, 'destroy']);
         $group->post('/admin-users/{id}/reactivate', [AdminUsersAdminController::class, 'reactivate']);
         // Cross-account password reset requires a step-up credential (#337),

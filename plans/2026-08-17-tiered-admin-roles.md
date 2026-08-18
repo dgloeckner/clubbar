@@ -86,9 +86,19 @@ it makes the foundation deployable and verifiable before enforcement lands.
 
 ### M3 — Step-up and dedicated audit actions on role grant/revoke ([#520](https://github.com/dgloeckner/clubbar/issues/520))
 
-- [ ] Role change carries step-up, gated on the role set *actually* changing
-- [ ] `ROLE_GRANTED` / `ROLE_REVOKED` audit actions
-- [ ] Out-of-band lifecycle mail on a role change
+- [x] `PATCH /admin-users/{id}` carries a step-up when the role set *actually*
+      changes, and the step-up limiter is pinned on the route. Closes the hole
+      the epic would otherwise have opened: creating an admin cost a password
+      and a TOTP code while **promoting** one cost only a live session
+      — *verified*: `AdminUserRolesHttpTest` 13/13
+- [x] `ROLE_GRANTED` / `ROLE_REVOKED` audit actions (migration 045), written
+      from the **diff** — a save that re-sends the same roles is not an
+      escalation and must not read like one. A creation writes its grant too,
+      so "who gained `admin` last quarter" does not miss accounts created as one
+- [x] `roles` on create and update, validated as a whole: a list naming a
+      non-role is refused rather than silently filtered
+- [ ] Out-of-band lifecycle mail on a role change — carried into M5, where the
+      club-level notification address lives
 
 ### M4 — Allow-list `group_by` on `/reports/{reportType}` ([#515](https://github.com/dgloeckner/clubbar/issues/515))
 

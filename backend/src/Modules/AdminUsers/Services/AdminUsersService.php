@@ -28,8 +28,10 @@ class AdminUsersService
     /**
      * The roles this account holds (ADR-0044).
      *
-     * Nothing is enforced against them yet — #519 adds the route→roles map —
-     * so today this only answers the panel's question about itself.
+     * What `GET /auth/profile` reports and what the panel renders from. The
+     * *enforcing* read is `AdminSessionAuth`'s, which goes to the repository
+     * directly — a gate that ran through a service would be one more layer
+     * between the request and the answer.
      *
      * @return list<AdminRole>
      */
@@ -39,29 +41,101 @@ class AdminUsersService
     }
 
     /**
-     * Make an account's roles exactly this set.
+     * Make an account's roles exactly this set, and record what moved.
      *
      * An empty set is refused. It is not a restricted account, it is one that
-     * can do nothing at all once #519 lands — and silently, since nothing in
-     * the account form says a role is what makes the login useful. Revoking
-     * somebody's last role is spelled "deactivate the account", which already
-     * exists and says what it means.
+     * can do nothing at all — and silently, since nothing in the account form
+     * says a role is what makes the login useful. Revoking somebody's last
+     * role is spelled "deactivate the account", which already exists and says
+     * what it means.
+     *
+     * The audit rows are written from the **diff**, not from the submitted
+     * set: a PATCH that re-sends the roles an account already holds is a save,
+     * not a grant, and a log where every save looks like an escalation is a log
+     * nobody reads. A request that both grants and revokes writes both rows —
+     * two events that happened to arrive together.
      *
      * @param list<AdminRole> $roles
+     * @return bool Whether anything actually changed.
      */
-    public function setRoles(string $id, array $roles): void
+    public function setRoles(string $id, array $roles, ?string $currentAdminId = null): bool
     {
         if ($roles === []) {
             throw new BusinessRuleException('An admin user must hold at least one role');
         }
 
-        $this->adminUserRolesRepository->replace($id, $roles);
+        $before = $this->adminUserRolesRepository->rolesFor($id);
+        $after = AdminRole::fromValues(AdminRole::toValues($roles));
+
+        $granted = array_values(array_diff(AdminRole::toValues($after), AdminRole::toValues($before)));
+        $revoked = array_values(array_diff(AdminRole::toValues($before), AdminRole::toValues($after)));
+
+        if ($granted === [] && $revoked === []) {
+            return false;
+        }
+
+        $this->adminUserRolesRepository->replace($id, $after);
+
+        // Both lists ride on both rows. Reading "granted: admin" without
+        // knowing the account now holds *only* admin tells you less than half
+        // of what changed, and the row is the only artefact a reviewer has.
+        if ($granted !== []) {
+            $this->auditService->log(
+                action: AuditAction::ROLE_GRANTED,
+                entityType: EntityType::ADMIN_USER,
+                entityId: $id,
+                oldValues: ['roles' => AdminRole::toValues($before)],
+                newValues: ['roles' => AdminRole::toValues($after), 'granted' => $granted],
+                adminUserId: $currentAdminId,
+            );
+        }
+
+        if ($revoked !== []) {
+            $this->auditService->log(
+                action: AuditAction::ROLE_REVOKED,
+                entityType: EntityType::ADMIN_USER,
+                entityId: $id,
+                oldValues: ['roles' => AdminRole::toValues($before)],
+                newValues: ['roles' => AdminRole::toValues($after), 'revoked' => $revoked],
+                adminUserId: $currentAdminId,
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether applying this role set would change anything.
+     *
+     * The controller asks before deciding to demand a step-up, mirroring
+     * `PATCH /profile`, which gates on the email actually moving rather than on
+     * every save. Re-submitting an unchanged role set alongside a display-name
+     * edit must not demand a password and a fresh TOTP code.
+     *
+     * @param list<AdminRole> $roles
+     */
+    public function rolesWouldChange(string $id, array $roles): bool
+    {
+        $before = AdminRole::toValues($this->adminUserRolesRepository->rolesFor($id));
+        $after = AdminRole::toValues(AdminRole::fromValues(AdminRole::toValues($roles)));
+
+        return $before !== $after;
     }
 
     public function listAdminUsers(int $limit, int $offset, array $filters = []): PaginatedResultDto
     {
         $result = $this->adminUsersRepository->listPaginated($limit, $offset, $filters);
-        $items = array_map(fn($row) => AdminUserDto::fromRow($row)->toArray(), $result['items']);
+        // One query for the page's roles rather than one per row: the list is
+        // the surface #516 renders a role column from, and N+1 here would be
+        // paid on every keystroke of the admin search.
+        $roles = $this->adminUserRolesRepository->rolesForMany(
+            array_map(static fn(array $row): string => $row['id'], $result['items'])
+        );
+
+        $items = array_map(
+            fn($row) => AdminUserDto::fromRow($row, $roles[$row['id']] ?? [])->toArray(),
+            $result['items'],
+        );
 
         return new PaginatedResultDto(items: $items, total: $result['total'], limit: $limit, offset: $offset);
     }
@@ -69,11 +143,19 @@ class AdminUsersService
     public function findAdminUserById(string $id): ?AdminUserDto
     {
         $row = $this->adminUsersRepository->findById($id);
-        return $row ? AdminUserDto::fromRow($row) : null;
+        return $row ? AdminUserDto::fromRow($row, $this->adminUserRolesRepository->rolesFor($id)) : null;
     }
 
-    public function createAdminUser(string $email, string $displayName, string $locale, ?string $currentAdminId = null): array
-    {
+    /**
+     * @param list<AdminRole> $roles Defaults to `admin` — see below.
+     */
+    public function createAdminUser(
+        string $email,
+        string $displayName,
+        string $locale,
+        ?string $currentAdminId = null,
+        array $roles = [],
+    ): array {
         $password = $this->generateRandomPassword();
         $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
 
@@ -85,12 +167,18 @@ class AdminUsersService
             'is_active' => true,
         ]);
 
-        // Behaviour preservation, at the one place new accounts appear: every
-        // admin the panel creates today has full access, and #514 does not
-        // change that. Choosing the role at creation time is #520's job; until
-        // it exists, an account created without one would be locked out of the
-        // whole panel the moment #519 starts enforcing the map.
-        $this->adminUserRolesRepository->replace($admin['id'], [AdminRole::ADMIN]);
+        // `admin` when the caller names no role. That is behaviour-preserving
+        // — every admin the panel created before roles existed had full access
+        // — and it is the safe direction for a default to fail: an account
+        // created with no role at all could open nothing, including the page
+        // that would fix it.
+        $roles = $roles === [] ? [AdminRole::ADMIN] : $roles;
+
+        // Through `setRoles`, not straight to the repository, so a creation
+        // also writes its ROLE_GRANTED row. "Who gained `admin` last quarter"
+        // has to return the accounts that were *created* as admin, not only
+        // the ones promoted later.
+        $this->setRoles($admin['id'], $roles, $currentAdminId);
 
         $this->auditService->log(
             action: AuditAction::CREATE,
@@ -100,12 +188,12 @@ class AdminUsersService
                 'email' => $email,
                 'display_name' => $displayName,
                 'password' => '[GENERATED]',
-                'roles' => [AdminRole::ADMIN->value],
+                'roles' => AdminRole::toValues($roles),
             ],
             adminUserId: $currentAdminId,
         );
 
-        return ['admin' => AdminUserDto::fromRow($admin), 'password' => $password];
+        return ['admin' => $this->withRoles($admin), 'password' => $password];
     }
 
     /**
@@ -180,7 +268,7 @@ class AdminUsersService
             );
         }
 
-        return AdminUserDto::fromRow($admin);
+        return $this->withRoles($admin);
     }
 
     /**
@@ -256,7 +344,7 @@ class AdminUsersService
             adminUserId: $currentAdminId,
         );
 
-        return AdminUserDto::fromRow($admin);
+        return $this->withRoles($admin);
     }
 
     public function reactivateAdminUser(string $id, ?string $currentAdminId = null): AdminUserDto
@@ -272,7 +360,7 @@ class AdminUsersService
             adminUserId: $currentAdminId,
         );
 
-        return AdminUserDto::fromRow($admin);
+        return $this->withRoles($admin);
     }
 
     public function resetAdminPassword(string $targetAdminId, ?string $currentAdminId = null): array
@@ -297,7 +385,7 @@ class AdminUsersService
         // same way as any other credential change.
         $this->adminUsersRepository->touchCredentialsEpoch($targetAdminId);
 
-        return ['admin' => AdminUserDto::fromRow($admin), 'password' => $password];
+        return ['admin' => $this->withRoles($admin), 'password' => $password];
     }
 
     public function verifyCurrentPassword(string $adminId, string $currentPassword): bool
@@ -330,6 +418,20 @@ class AdminUsersService
         // theirs: `AuthController::changePassword` re-stamps it immediately
         // after this returns.
         $this->adminUsersRepository->touchCredentialsEpoch($adminId);
+    }
+
+    /**
+     * A DTO carrying the account's current roles.
+     *
+     * Every write path returns the row it just wrote, and a response whose
+     * `roles` were silently empty would read as "this account holds none" —
+     * which is a state the system refuses to create.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function withRoles(array $row): AdminUserDto
+    {
+        return AdminUserDto::fromRow($row, $this->adminUserRolesRepository->rolesFor($row['id']));
     }
 
     private function generateRandomPassword(int $length = 16): string
