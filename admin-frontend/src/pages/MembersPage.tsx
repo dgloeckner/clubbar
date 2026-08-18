@@ -1231,7 +1231,17 @@ export function MembersPage() {
           <div data-testid="members-table-wrapper" style={tableWrapperStyles}>
             <table
               data-testid="members-table"
-              style={tableElementStyles}
+              style={{
+                ...tableElementStyles,
+                // `table-layout: fixed` held the Email column to its declared
+                // pixel width regardless of content, so a long email address
+                // (no break opportunity) overflowed the cell and visually
+                // overlapped the next column instead of wrapping or being
+                // clipped (same class of bug as the audit log table, #373 /
+                // #545). `auto` lets the browser size each column to what its
+                // content needs.
+                tableLayout: 'auto',
+              }}
             >
               <thead>
                 <tr style={headerRowStyle}>
@@ -1250,15 +1260,6 @@ export function MembersPage() {
                   </th>
                   <th style={{ ...headerCellBaseStyle, width: '180px' }} data-testid="members-table-header-email">
                     {t('members.table.email')}
-                  </th>
-                  <th style={{ ...headerCellBaseStyle, width: '150px' }}>
-                    <SortableTableHeader
-                      label={t('members.table.cardUid')}
-                      sortKey="card_uid"
-                      currentSort={{ key: list.sortKey, direction: list.sortDirection }}
-                      onSort={(key: string, direction: 'asc' | 'desc') => list.setSort(key as MemberSortKey, direction)}
-                      testId="members-table-header-card-uid"
-                    />
                   </th>
                   <th style={{ ...headerCellBaseStyle, width: '130px' }}>
                     <SortableTableHeader
@@ -1341,9 +1342,6 @@ export function MembersPage() {
                         </span>
                       )}
                     </td>
-                    <TableCell testId="member-card-uid">
-                      {member.card_uid || '—'}
-                    </TableCell>
                     {/* The Deckel. Zero is greyed rather than hidden: the
                         treasurer scanning the column wants the settled rows to
                         fall away, but a blank cell would read as "not known"

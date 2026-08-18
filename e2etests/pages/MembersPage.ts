@@ -807,10 +807,6 @@ export class MembersPage extends BasePage {
     await this.clickSortableHeader('members-table-header-created', expectedSortBy)
   }
 
-  async clickCardUidColumnHeader(expectedSortBy: 'card_uid_asc' | 'card_uid_desc' = 'card_uid_asc') {
-    await this.clickSortableHeader('members-table-header-card-uid', expectedSortBy)
-  }
-
   /**
    * DECKEL COLUMN (#371)
    */
@@ -878,11 +874,6 @@ export class MembersPage extends BasePage {
   /** The created dates of the visible rows, top to bottom, as rendered. */
   async getMemberCreatedDates(): Promise<string[]> {
     return await this.page.locator('[data-testid^="members-table-cell-created-"]').allTextContents()
-  }
-
-  /** The card UIDs of the visible rows, top to bottom; cardless rows render an em dash. */
-  async getMemberCardUids(): Promise<string[]> {
-    return await this.page.getByTestId('member-card-uid').allTextContents()
   }
 
   /**
