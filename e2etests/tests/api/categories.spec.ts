@@ -363,6 +363,9 @@ test.describe('Categories API - Terminal Sync', () => {
     const body = await response.json();
     expect(typeof body.cursor).toBe('number');
     expect(typeof body.count).toBe('number');
+    // Regression guard: findModifiedSince has no LIMIT, so there is never a
+    // "more" to report — has_more must not reappear as a hand-set flag.
+    expect(body).not.toHaveProperty('has_more');
 
     // Sync keeps its own cursor envelope, keyed by entity — the admin list's
     // `data` envelope is a different contract and does not apply here.

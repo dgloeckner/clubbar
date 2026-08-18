@@ -400,6 +400,9 @@ test.describe('Products API', () => {
     expect(Array.isArray(body.products)).toBe(true)
     expect(typeof body.cursor).toBe('number')
     expect(typeof body.count).toBe('number')
+    // Regression guard: findModifiedSince has no LIMIT, so there is never a
+    // "more" to report — has_more must not reappear as a hand-set flag.
+    expect(body).not.toHaveProperty('has_more')
     expect(body.count).toBe(body.products.length)
 
     // ── Active/inactive: both returned in sync ──────────────────
