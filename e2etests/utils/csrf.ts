@@ -44,7 +44,7 @@ export async function csrfHeaders(
  * A request context wrapper that automatically includes CSRF tokens
  * on mutation requests (POST, PATCH, PUT, DELETE).
  */
-class CsrfAwareContext {
+export class CsrfAwareContext {
   constructor(
     private ctx: APIRequestContext,
     private csrfToken: string,

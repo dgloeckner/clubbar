@@ -224,7 +224,37 @@ it makes the foundation deployable and verifiable before enforcement lands.
 
 ### M7 — E2E access matrix and per-role flows ([#517](https://github.com/dgloeckner/clubbar/issues/517))
 
-- [ ] One spec per role walking what it may and may not reach
+- [x] `fixtures/roleRequests.ts` — a Kassenwart and a Getränkewart session per
+      worker, minted rather than borrowed. Demoting the shared seeded admin
+      would be observable mid-run by every spec authenticated as it (Pattern
+      002), and worker-scoped keeps the step-up and the enrolment off the
+      per-test path (Pattern 004)
+- [x] `role-access-matrix.spec.ts` — the grant table stated **once, as data**,
+      and walked as each lesser office: 80 endpoints, every pair either refused
+      by name (403 `insufficient_role`) or not refused on role grounds
+      — *verified*: 3/3, and the table was checked against a deliberate lie
+      before being trusted — claiming `getraenkewart` may read `/admin/members`
+      makes it fail with exactly that line
+- [x] Transcribed by hand from `RouteRoleMap` rather than generated from it: a
+      table generated from the thing under test proves only that the generator
+      ran. Completeness stays with `RouteRoleMapCompletenessTest`, which is
+      what fails when a route is added — the two nets are named in both files
+      so neither is mistaken for the other
+- [x] Reaching an endpoint is probed with an empty body and an id that belongs
+      to nobody, so a 400/404/422 is a pass. The two endpoints that settle money
+      in bulk are refusal-only: a test that depends on validation to avoid
+      settling the club is not one to trust
+- [x] `role-flows.spec.ts` — each office's actual job, to completion and read
+      back: a Kassenwart runs a settlement end to end, a Getränkewart re-prices
+      a product and the new price survives a fresh `GET`
+      — *verified*: 5/5, including the three boundaries — `group_by=member`
+      refused for `getraenkewart` while `group_by=category` still answers 200,
+      a Kassenwart refused both minting an account and promoting one, and an
+      `admin` promoting nobody without a step-up (asserted on the **stored**
+      role set, not on the status code)
+- [x] Pattern 011 documents the fixtures and the rule that keeps them usable:
+      never log the shared office out, never reset its 2FA
+- [x] Passes at `--workers=4` with the rest of the suite: `api-tests` 644/644
 
 ### M8 — Documentation ([#518](https://github.com/dgloeckner/clubbar/issues/518))
 
