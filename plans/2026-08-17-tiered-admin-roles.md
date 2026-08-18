@@ -91,7 +91,7 @@ it makes the foundation deployable and verifiable before enforcement lands.
       the epic would otherwise have opened: creating an admin cost a password
       and a TOTP code while **promoting** one cost only a live session
       — *verified*: `AdminUserRolesHttpTest` 13/13
-- [x] `ROLE_GRANTED` / `ROLE_REVOKED` audit actions (migration 045), written
+- [x] `ROLE_GRANTED` / `ROLE_REVOKED` audit actions (migration 046), written
       from the **diff** — a save that re-sends the same roles is not an
       escalation and must not read like one. A creation writes its grant too,
       so "who gained `admin` last quarter" does not miss accounts created as one
@@ -118,8 +118,37 @@ it makes the foundation deployable and verifiable before enforcement lands.
 
 ### M5 — Club-level notification address for admin lifecycle mail ([#521](https://github.com/dgloeckner/clubbar/issues/521))
 
-- [ ] Admin lifecycle mail also goes to a configured club address, so the alarm
-      still fires when there is one admin and they are the problem
+**M5a — storage and fan-out (shipped, behaviour-neutral):**
+
+- [x] Migration 047: `mail_config.club_notification_address`, wired through the
+      DTO, the repository's writable columns and the controller's validation.
+      It lives on `mail_config` because that is `admin`-only in the grant table
+      — load-bearing, not convenient: a Kassenwart must not be able to redirect
+      the channel that would report their own promotion
+- [x] Migration 048: `admin_account_created` and `admin_role_changed` mail kinds,
+      with `MailKind::addressesClub()` as an explicit `match` so the next kind
+      has to answer the question rather than inherit an answer
+- [x] `MailRequestDto::forClub()` — no `admin_user_id`, so migration 026's
+      cascade cannot take the club's copy along with the account it is about,
+      and a `:club` dedup suffix so it neither collides with an admin's copy nor
+      silences one
+- [x] `AdminNotifier` fans out to the club address for club-addressed kinds;
+      unset degrades to exactly today's behaviour with no error
+- [x] Retention classified for both kinds
+- [x] Behaviour-neutral: nothing enqueues the new kinds yet. Backend Feature
+      635/635, Unit green apart from the pre-existing `ServiceFactoryTest`
+      environment failure
+
+**M5b — the messages themselves (not started):**
+
+- [ ] `AdminAccountCreatedMail` / `AdminRoleChangedMail` templates and their
+      de/en strings, as branches of `AdminSecurityMailBuilder` (it already
+      claims the whole `ADMIN_USER` subject)
+- [ ] `AdminUsersService` enqueues on account creation and on a role change
+- [ ] Asserted against what a real drain delivered to Mailpit (E2E Pattern 010),
+      never the outbox row — including the single-admin case, which is the whole
+      point
+- [ ] Never contains a password, token or key material
 
 ### M6 — Admin frontend: hidden nav, per-role landing, refusal screen ([#516](https://github.com/dgloeckner/clubbar/issues/516))
 

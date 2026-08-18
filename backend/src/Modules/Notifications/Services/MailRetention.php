@@ -109,7 +109,16 @@ final class MailRetention
             // told.
             MailKind::ENCRYPTION_KEY_REGISTERED,
             MailKind::ENCRYPTION_KEY_ACTIVATED,
-            MailKind::ENCRYPTION_KEY_REVOKED => self::DEFAULT_SENT_DAYS,
+            MailKind::ENCRYPTION_KEY_REVOKED,
+            // Admin lifecycle notices (ADR-0044) keep the default on the same
+            // reasoning: the durable record is the `create` / `role_granted` /
+            // `role_revoked` audit entry, which names actor, target and the
+            // roles that moved and is untouched here. This copy exists to reach
+            // the admins who were *not* acting, and the club address, within
+            // the window in which either would still be asking whether they
+            // were told.
+            MailKind::ADMIN_ACCOUNT_CREATED,
+            MailKind::ADMIN_ROLE_CHANGED => self::DEFAULT_SENT_DAYS,
             MailKind::DECKEL_STATEMENT => self::STATEMENT_SENT_DAYS,
         };
     }

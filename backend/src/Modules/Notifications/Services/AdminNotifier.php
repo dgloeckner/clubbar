@@ -9,6 +9,7 @@ use App\Modules\Notifications\DTOs\EnqueueResultDto;
 use App\Modules\Notifications\DTOs\MailRequestDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
+use App\Modules\Notifications\Repositories\MailConfigRepository;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Services\AuditService;
@@ -39,6 +40,7 @@ class AdminNotifier
         private MailOutboxRepository $mailOutboxRepository,
         private AdminUsersRepository $adminUsersRepository,
         private AuditService $auditService,
+        private MailConfigRepository $mailConfigRepository,
     ) {}
 
     /**
@@ -117,6 +119,31 @@ class AdminNotifier
             }
         }
 
+        // The club-level copy (ADR-0044 rule 3), for admin lifecycle kinds
+        // only. It is *additional* to the fan-out above, never instead of it:
+        // the point is a second pair of eyes, and with exactly one admin the
+        // first pair belongs to whoever just acted.
+        //
+        // Read from `mail_config`, which the grant table keeps `admin`-only —
+        // that placement is what stops a Kassenwart redirecting the channel
+        // that would report their own promotion.
+        if ($kind->addressesClub()) {
+            $club = $this->clubAddress();
+            if ($club !== null && $this->mailOutboxRepository->enqueue(MailRequestDto::forClub(
+                kind: $kind,
+                subjectId: $subjectId,
+                recipient: $club,
+                // The club address belongs to no account and therefore has no
+                // `preferred_language`; the installation's own default is the
+                // closest true answer.
+                language: MailLanguage::German,
+                occasion: $occasion,
+                actorAdminUserId: $actorAdminUserId,
+            ))) {
+                $queued++;
+            }
+        }
+
         $result = new EnqueueResultDto($queued, $withoutEmail, alreadyQueued: $alreadyQueued);
 
         // Audited only when something was actually queued: this runs off a
@@ -133,5 +160,26 @@ class AdminNotifier
         }
 
         return $result;
+    }
+
+    /**
+     * The configured club address, or null when there is none.
+     *
+     * Unset degrades to exactly today's behaviour — active admins only, no
+     * error, nothing queued to nowhere. An installation that never configures
+     * this is not misconfigured; it simply has not bought the property. A
+     * failure to read the config is the same answer for the same reason: this
+     * runs inside actions that must not fail because a notification could not
+     * be addressed.
+     */
+    private function clubAddress(): ?string
+    {
+        try {
+            $address = trim((string) (($this->mailConfigRepository->getConfig() ?? [])['club_notification_address'] ?? ''));
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $address === '' ? null : $address;
     }
 }

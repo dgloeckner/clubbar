@@ -88,6 +88,19 @@ final readonly class MailConfigDto
          */
         public ?string $cronSecretHash = null,
         public ?string $cronSecretRotatedAt = null,
+        /**
+         * A club-level address that also receives admin lifecycle mail
+         * (ADR-0044 rule 3) — a Vorstand list, the Kassenwart's inbox.
+         *
+         * `null` is unset, and unset is today's behaviour: active admins only.
+         * It is *additional* to them, never instead of them, because the point
+         * is a second pair of eyes rather than a different pair.
+         *
+         * Last in the signature and optional, deliberately: this DTO is
+         * constructed positionally in several places, and inserting a required
+         * parameter in the middle silently shifts every argument after it.
+         */
+        public ?string $clubNotificationAddress = null,
     ) {}
 
     public static function fromRow(array $row): self
@@ -96,6 +109,7 @@ final readonly class MailConfigDto
             senderName: (string) ($row['sender_name'] ?? ''),
             senderAddress: (string) ($row['sender_address'] ?? ''),
             replyToAddress: self::nullIfBlank($row['reply_to_address'] ?? null),
+            clubNotificationAddress: self::nullIfBlank($row['club_notification_address'] ?? null),
             headerStyle: (string) ($row['header_style'] ?? MailLayout::DEFAULT_HEADER_STYLE),
             footerOrgName: (string) ($row['footer_org_name'] ?? ''),
             footerAddressLine: self::nullIfBlank($row['footer_address_line'] ?? null),
@@ -154,6 +168,7 @@ final readonly class MailConfigDto
             'sender_name' => $this->senderName,
             'sender_address' => $this->senderAddress,
             'reply_to_address' => $this->replyToAddress,
+            'club_notification_address' => $this->clubNotificationAddress,
             'header_style' => $this->headerStyle,
             'footer_org_name' => $this->footerOrgName,
             'footer_address_line' => $this->footerAddressLine,

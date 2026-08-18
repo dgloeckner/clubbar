@@ -516,6 +516,7 @@ class ServiceFactory implements ContainerInterface
             $this->getMailOutboxRepository(),
             $this->getAdminUsersRepository(),
             $this->getAuditService(),
+            $this->getMailConfigRepository(),
         ));
     }
 
