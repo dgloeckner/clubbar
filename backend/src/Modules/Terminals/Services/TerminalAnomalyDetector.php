@@ -123,10 +123,27 @@ class TerminalAnomalyDetector
     /**
      * Terminals whose addresses were active at the same time.
      *
-     * The intervals arrive already collapsed to one per (terminal, address).
-     * For a terminal with more than one, the widest pairwise overlap is the
-     * finding — reporting every pair would turn one evening of a cloned till
-     * into a list nobody reads.
+     * The intervals arrive already collapsed to one per (terminal, address),
+     * but "address" is a raw string, and a single dual-stack client is not one
+     * address: IPv6 privacy extensions (RFC 4941) and SLAAC rotate the low 64
+     * bits every so often while the network stays put. Left as raw strings,
+     * that rotation alone produces a second "distinct" address and — given
+     * enough time — a same-network pair that clears the overlap threshold.
+     * {@see collapseByNetwork} merges sightings that share an IPv6 /64 (an
+     * IPv4 address is its own network; nothing there rotates the same way)
+     * before the pairwise comparison runs, so the finding is about distinct
+     * networks, not distinct strings.
+     *
+     * This does not, and must not, collapse an IPv4 address with an IPv6
+     * address just because a legitimate dual-stack client could produce that
+     * exact pair: an attacker reachable only over IPv6 riding alongside a
+     * legitimate IPv4 session produces the identical shape. That case still
+     * alerts — {@see describeNetwork} only changes how a *rotating* address is
+     * labelled, never whether a genuine second network is reported.
+     *
+     * For a terminal with more than one network, the widest pairwise overlap
+     * is the finding — reporting every pair would turn one evening of a
+     * cloned till into a list nobody reads.
      *
      * @return list<array{terminal_id: string, details: array<string, mixed>}>
      */
@@ -141,21 +158,23 @@ class TerminalAnomalyDetector
         $findings = [];
 
         foreach ($byTerminal as $terminalId => $intervals) {
-            if (count($intervals) < 2) {
+            $networks = self::collapseByNetwork($intervals);
+
+            if (count($networks) < 2) {
                 continue;
             }
 
             $worst = null;
 
-            for ($i = 0; $i < count($intervals); $i++) {
-                for ($j = $i + 1; $j < count($intervals); $j++) {
-                    $overlap = self::overlapSeconds($intervals[$i], $intervals[$j]);
+            for ($i = 0; $i < count($networks); $i++) {
+                for ($j = $i + 1; $j < count($networks); $j++) {
+                    $overlap = self::overlapSeconds($networks[$i], $networks[$j]);
 
                     if ($overlap >= $threshold && ($worst === null || $overlap > $worst['overlap_seconds'])) {
                         $worst = [
                             'overlap_seconds' => $overlap,
-                            'a' => $intervals[$i],
-                            'b' => $intervals[$j],
+                            'a' => $networks[$i],
+                            'b' => $networks[$j],
                         ];
                     }
                 }
@@ -169,26 +188,106 @@ class TerminalAnomalyDetector
                 'terminal_id' => (string) $terminalId,
                 'details' => [
                     'overlap_seconds' => $worst['overlap_seconds'],
-                    'distinct_ips' => count($intervals),
+                    'distinct_ips' => count($networks),
                     'ips' => [
-                        [
-                            'ip_address' => $worst['a']['ip_address'],
-                            'first_seen_at' => $worst['a']['first_seen_at'],
-                            'last_seen_at' => $worst['a']['last_seen_at'],
-                            'request_count' => $worst['a']['request_count'],
-                        ],
-                        [
-                            'ip_address' => $worst['b']['ip_address'],
-                            'first_seen_at' => $worst['b']['first_seen_at'],
-                            'last_seen_at' => $worst['b']['last_seen_at'],
-                            'request_count' => $worst['b']['request_count'],
-                        ],
+                        self::describeNetwork($worst['a']),
+                        self::describeNetwork($worst['b']),
                     ],
                 ],
             ];
         }
 
         return $findings;
+    }
+
+    /**
+     * Merge sightings that share an IPv6 /64 into one network.
+     *
+     * @param list<array{ip_address: string, first_seen_at: string, last_seen_at: string, request_count: int}> $intervals
+     * @return list<array{ip_address: string, addresses: list<string>, first_seen_at: string, last_seen_at: string, request_count: int}>
+     */
+    private static function collapseByNetwork(array $intervals): array
+    {
+        $groups = [];
+
+        foreach ($intervals as $row) {
+            $key = self::networkKey($row['ip_address']);
+
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'ip_address' => $row['ip_address'],
+                    'addresses' => [$row['ip_address']],
+                    'first_seen_at' => $row['first_seen_at'],
+                    'last_seen_at' => $row['last_seen_at'],
+                    'request_count' => $row['request_count'],
+                ];
+
+                continue;
+            }
+
+            $groups[$key]['addresses'][] = $row['ip_address'];
+            // Lexical min/max is correct here because both columns are the
+            // fixed-width 'Y-m-d H:i:s' the repository writes.
+            $groups[$key]['first_seen_at'] = min($groups[$key]['first_seen_at'], $row['first_seen_at']);
+            $groups[$key]['last_seen_at'] = max($groups[$key]['last_seen_at'], $row['last_seen_at']);
+            $groups[$key]['request_count'] += $row['request_count'];
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * The network a sighting belongs to, for grouping.
+     *
+     * An IPv4 address is its own network — nothing rotates it the way IPv6
+     * privacy addresses rotate. An unparseable value (should not happen; the
+     * column only ever holds `REMOTE_ADDR`) falls back to the raw string, so a
+     * malformed row degrades to today's behaviour instead of being silently
+     * merged with something it may not belong with.
+     */
+    private static function networkKey(string $ip): string
+    {
+        $packed = @inet_pton($ip);
+
+        if ($packed === false || strlen($packed) !== 16) {
+            return $ip;
+        }
+
+        return 'v6:' . bin2hex(substr($packed, 0, 8));
+    }
+
+    /**
+     * @param array{ip_address: string, addresses: list<string>, first_seen_at: string, last_seen_at: string, request_count: int} $network
+     * @return array{ip_address: string, first_seen_at: string, last_seen_at: string, request_count: int}
+     */
+    private static function describeNetwork(array $network): array
+    {
+        $addresses = array_values(array_unique($network['addresses']));
+
+        $label = count($addresses) > 1
+            ? sprintf('%s (%d rotating addresses)', self::prefixLabel($addresses[0]), count($addresses))
+            : $addresses[0];
+
+        return [
+            'ip_address' => $label,
+            'first_seen_at' => $network['first_seen_at'],
+            'last_seen_at' => $network['last_seen_at'],
+            'request_count' => $network['request_count'],
+        ];
+    }
+
+    /** The `/64` an IPv6 address belongs to, for display; any other input is returned unchanged. */
+    private static function prefixLabel(string $ip): string
+    {
+        $packed = @inet_pton($ip);
+
+        if ($packed === false || strlen($packed) !== 16) {
+            return $ip;
+        }
+
+        $prefix = inet_ntop(substr($packed, 0, 8) . str_repeat("\0", 8));
+
+        return $prefix === false ? $ip : $prefix . '/64';
     }
 
     /**
