@@ -1,6 +1,6 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
-import { generateTotp, submitTotpWithRetry } from "../../utils/totp";
+import { generateTotp, submitTotpWithRetry, waitForFreshTotpWindow } from "../../utils/totp";
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -119,7 +119,14 @@ test.describe("MFA attempt cap", () => {
     }
 
     // The cap is a session cap, not an account lock — an admin who mistyped five
-    // times signs in again rather than phoning someone.
+    // times signs in again rather than phoning someone. This project runs its
+    // tests strictly in order in a single worker (fullyParallel: false), and
+    // "a wrong code below the cap..." above already completed one real login
+    // for this same admin row — usually only moments ago. Waiting out the rest
+    // of that TOTP step first avoids a near-certain self-collision with it
+    // (not a concurrent caller, so submitTotpWithRetry's jitter — built for
+    // spreading *those* apart — buys nothing here, only a wasted round trip).
+    await waitForFreshTotpWindow();
     const fresh = await startMfaPendingSession(request);
     const response = await submitTotpWithRetry(TEST_CREDENTIALS.totp.adminSecret, (code) =>
       submitCode(request, fresh, code)

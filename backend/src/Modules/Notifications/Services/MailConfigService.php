@@ -30,6 +30,17 @@ use App\Shared\Services\AuditService;
  */
 class MailConfigService
 {
+    /**
+     * `getConfig()` is called once per outbox row by every `MailContentBuilder`
+     * that renders a settlement or statement message — a drain clearing a real
+     * backlog calls it hundreds of times in a batch that never once changes it.
+     * Cached for the lifetime of this instance, which is the lifetime of one
+     * request or one CLI run (`ServiceFactory::resolve()` — a fresh instance
+     * every time), so nothing here can see a different admin's write. Every
+     * method below that mutates the row clears this before returning.
+     */
+    private ?MailConfigDto $cachedConfig = null;
+
     public function __construct(
         private MailConfigRepository $mailConfigRepository,
         private InstanceConfigService $instanceConfigService,
@@ -39,6 +50,11 @@ class MailConfigService
     ) {}
 
     public function getConfig(): MailConfigDto
+    {
+        return $this->cachedConfig ??= $this->loadConfig();
+    }
+
+    private function loadConfig(): MailConfigDto
     {
         $config = $this->mailConfigRepository->getConfig() ?? [];
 
@@ -72,6 +88,8 @@ class MailConfigService
             newValues: self::auditable($config),
             adminUserId: $adminUserId,
         );
+
+        $this->cachedConfig = null;
 
         return $this->getConfig();
     }
@@ -124,6 +142,7 @@ class MailConfigService
     {
         $plaintext = CronSecret::generate();
         $this->mailConfigRepository->rotateCronSecret(CronSecret::hash($plaintext), $adminUserId);
+        $this->cachedConfig = null;
 
         // No oldValues/newValues: the event is the fact, and there is no
         // truthful "before" to show that is not itself a secret.

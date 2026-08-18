@@ -6,6 +6,7 @@ namespace App\Modules\Notifications\Services;
 
 use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\Domain\StatementPeriod;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Mail\DeckelStatementMail;
@@ -52,7 +53,7 @@ class DeckelStatementMailBuilder implements MailContentBuilder
      *         rendered at a guessed boundary would state a number for a date
      *         nobody asked about, which is worse than an unsent one.
      */
-    public function build(array $outboxRow): MailMessage
+    public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage
     {
         $periodKey = trim((string) ($outboxRow['dedup_key'] ?? ''));
         $period = StatementPeriod::fromStoredKey($periodKey);

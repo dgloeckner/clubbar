@@ -7,7 +7,6 @@ namespace Tests\Unit\Modules\Notifications\Services;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
-use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\TerminalAnomalyMailBuilder;
 use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
@@ -26,6 +25,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
     private TerminalAnomaliesRepository $anomalies;
     private AdminUsersRepository $adminUsers;
     private TerminalAnomalyMailBuilder $builder;
+    private MailConfigDto $mailConfig;
 
     protected function setUp(): void
     {
@@ -34,18 +34,16 @@ class TerminalAnomalyMailBuilderTest extends TestCase
         $this->adminUsers = $this->createMock(AdminUsersRepository::class);
         $this->adminUsers->method('findActiveRecipients')->willReturn([]);
 
-        $mailConfigService = $this->createMock(MailConfigService::class);
-        $mailConfigService->method('getConfig')->willReturn(MailConfigDto::fromRow([
+        $this->mailConfig = MailConfigDto::fromRow([
             'sender_name' => 'FRGS Ruderbar',
             'sender_address' => 'bar@example.org',
             'footer_org_name' => 'FRGS Ruderbar',
-        ]));
+        ]);
 
         $this->builder = new TerminalAnomalyMailBuilder(
             $this->terminals,
             $this->anomalies,
             $this->adminUsers,
-            $mailConfigService,
         );
     }
 
@@ -84,7 +82,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
             ]),
         ]]);
 
-        $message = $this->builder->build($this->outboxRow());
+        $message = $this->builder->build($this->outboxRow(), $this->mailConfig);
 
         $this->assertSame('kassenwart@example.org', $message->to);
         $this->assertStringContainsString('Theke 1', $message->subject);
@@ -104,7 +102,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
         $this->terminals->method('findById')->willReturn(['id' => 'terminal-1', 'name' => 'Theke 1']);
         $this->anomalies->method('listOpen')->willReturn([]);
 
-        $message = $this->builder->build($this->outboxRow());
+        $message = $this->builder->build($this->outboxRow(), $this->mailConfig);
 
         $this->assertStringContainsString('nichts gesperrt', $message->text);
     }
@@ -124,7 +122,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
             ]),
         ]]);
 
-        $message = $this->builder->build($this->outboxRow('cursor_reset:ffff0000:admin-1'));
+        $message = $this->builder->build($this->outboxRow('cursor_reset:ffff0000:admin-1'), $this->mailConfig);
 
         $this->assertStringContainsString('products', $message->text);
         $this->assertStringContainsString('9000', $message->text);
@@ -138,7 +136,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
         $row = $this->outboxRow();
         $row['language'] = 'en';
 
-        $message = $this->builder->build($row);
+        $message = $this->builder->build($row, $this->mailConfig);
 
         $this->assertStringContainsString('worth a look', $message->subject);
         $this->assertStringContainsString('Nothing has been blocked', $message->text);
@@ -155,7 +153,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
 
-        $this->builder->build($this->outboxRow());
+        $this->builder->build($this->outboxRow(), $this->mailConfig);
     }
 
     /**
@@ -168,7 +166,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
         $this->terminals->method('findById')->willReturn(['id' => 'terminal-1', 'name' => 'Theke 1']);
         $this->anomalies->method('listOpen')->willReturn([]);
 
-        $message = $this->builder->build($this->outboxRow());
+        $message = $this->builder->build($this->outboxRow(), $this->mailConfig);
 
         $this->assertStringContainsString('Theke 1', $message->subject);
         $this->assertNotSame('', trim($message->text));
@@ -198,7 +196,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
         ]);
 
         $builder = $this->rebuildWith($adminUsers);
-        $message = $builder->build($this->outboxRow());
+        $message = $builder->build($this->outboxRow(), $this->mailConfig);
 
         $this->assertStringContainsString('Kassenwart Klaus', $message->text);
         $this->assertSame('kassenwart@example.org', $message->to);
@@ -214,7 +212,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
             ['id' => 'admin-1', 'email' => 'a@example.org', 'locale' => 'de', 'display_name' => ''],
         ]);
 
-        $message = $this->rebuildWith($adminUsers)->build($this->outboxRow());
+        $message = $this->rebuildWith($adminUsers)->build($this->outboxRow(), $this->mailConfig);
 
         $this->assertNotSame('', trim($message->text));
     }
@@ -233,7 +231,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
             'details' => json_encode(['overlap_seconds' => 1500, 'ips' => [['ip_address' => '10.9.9.9']]]),
         ]]);
 
-        $message = $this->builder->build($this->outboxRow());
+        $message = $this->builder->build($this->outboxRow(), $this->mailConfig);
 
         $this->assertStringNotContainsString('10.9.9.9', $message->text);
     }
@@ -248,7 +246,7 @@ class TerminalAnomalyMailBuilderTest extends TestCase
             'details' => json_encode(['overlap_seconds' => 1500, 'ips' => [['ip_address' => '10.9.9.9']]]),
         ]]);
 
-        $message = $this->builder->build($this->outboxRow('concurrent_ip:abcd1234:admin-1'));
+        $message = $this->builder->build($this->outboxRow('concurrent_ip:abcd1234:admin-1'), $this->mailConfig);
 
         $this->assertStringNotContainsString('10.9.9.9', $message->text);
     }
@@ -267,18 +265,10 @@ class TerminalAnomalyMailBuilderTest extends TestCase
 
     private function rebuildWith(AdminUsersRepository $adminUsers): TerminalAnomalyMailBuilder
     {
-        $mailConfigService = $this->createMock(MailConfigService::class);
-        $mailConfigService->method('getConfig')->willReturn(MailConfigDto::fromRow([
-            'sender_name' => 'FRGS Ruderbar',
-            'sender_address' => 'bar@example.org',
-            'footer_org_name' => 'FRGS Ruderbar',
-        ]));
-
         return new TerminalAnomalyMailBuilder(
             $this->terminals,
             $this->anomalies,
             $adminUsers,
-            $mailConfigService,
         );
     }
 }

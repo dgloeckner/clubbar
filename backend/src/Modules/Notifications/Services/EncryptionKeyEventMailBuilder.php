@@ -6,6 +6,7 @@ namespace App\Modules\Notifications\Services;
 
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Mail\EncryptionKeyEventMail;
@@ -32,7 +33,6 @@ class EncryptionKeyEventMailBuilder implements MailContentBuilder
     public function __construct(
         private EncryptionKeysRepository $encryptionKeysRepository,
         private AdminUsersRepository $adminUsersRepository,
-        private MailConfigService $mailConfigService,
     ) {}
 
     public function supports(MailKind $kind): bool
@@ -48,7 +48,7 @@ class EncryptionKeyEventMailBuilder implements MailContentBuilder
      *         is reachable, and a notice about a key that no longer exists
      *         must not be invented around the gap.
      */
-    public function build(array $outboxRow): MailMessage
+    public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage
     {
         $kind = MailKind::from((string) $outboxRow['kind']);
         $keyId = (string) $outboxRow['subject_id'];
@@ -76,7 +76,7 @@ class EncryptionKeyEventMailBuilder implements MailContentBuilder
             // something that happened yesterday.
             occurredAt: (string) ($outboxRow['queued_at'] ?? ''),
             language: MailLanguage::fromPreferred((string) ($outboxRow['language'] ?? null)),
-            branding: $this->mailConfigService->getConfig()->toBranding(),
+            branding: $mailConfig->toBranding(),
         );
     }
 

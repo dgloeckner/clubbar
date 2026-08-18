@@ -121,10 +121,16 @@ export class MailpitClient {
    * this whole milestone is here to catch, so an extra message must fail the
    * wait rather than satisfy it early.
    */
-  async waitForMessages(recipient: string, count: number): Promise<MailpitMessage[]> {
+  /**
+   * `timeoutMs` defaults to `DELIVERY_TIMEOUT_MS`; pass a longer one for a
+   * wait that structurally pays a one-time cost the default doesn't budget
+   * for — e.g. a suite's first drain, which pays for every connection the
+   * rest of the run reuses (see the call in prenotification-chain.spec.ts).
+   */
+  async waitForMessages(recipient: string, count: number, timeoutMs = DELIVERY_TIMEOUT_MS): Promise<MailpitMessage[]> {
     await expect
       .poll(async () => (await this.messagesTo(recipient)).length, {
-        timeout: DELIVERY_TIMEOUT_MS,
+        timeout: timeoutMs,
         message: `Mailpit should hold exactly ${count} message(s) for ${recipient}`,
       })
       .toBe(count)
@@ -138,8 +144,8 @@ export class MailpitClient {
   }
 
   /** Wait for the one message this recipient is expected to have. */
-  async waitForMessage(recipient: string): Promise<MailpitMessage> {
-    const [message] = await this.waitForMessages(recipient, 1)
+  async waitForMessage(recipient: string, timeoutMs = DELIVERY_TIMEOUT_MS): Promise<MailpitMessage> {
+    const [message] = await this.waitForMessages(recipient, 1, timeoutMs)
 
     return message
   }

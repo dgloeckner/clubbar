@@ -10,6 +10,20 @@ use App\Shared\Repository\SafeQuery;
 
 class SepaConfigRepository
 {
+    /**
+     * `getConfig()` is read once per outbox row by `SettlementMailBuilder` —
+     * every settlement announcement needs the creditor block — so a drain
+     * clearing a real backlog reads this identical, unchanging row hundreds
+     * of times in one batch. Cached for the lifetime of this instance, which
+     * is the lifetime of one request or one CLI run (`ServiceFactory::resolve()`
+     * hands out a fresh instance every time), so this can never see a
+     * different request's write. `$loaded` rather than `??=`: a genuinely
+     * unconfigured installation caches `null` too, correctly, instead of
+     * re-querying every call.
+     */
+    private ?array $cachedConfig = null;
+    private bool $loaded = false;
+
     public function __construct(
         private PDO $db,
         private Logger $logger,
@@ -17,8 +31,13 @@ class SepaConfigRepository
 
     public function getConfig(): ?array
     {
-        $stmt = $this->db->query('SELECT * FROM sepa_config WHERE id = 1');
-        return $stmt->fetch() ?: null;
+        if (!$this->loaded) {
+            $stmt = $this->db->query('SELECT * FROM sepa_config WHERE id = 1');
+            $this->cachedConfig = $stmt->fetch() ?: null;
+            $this->loaded = true;
+        }
+
+        return $this->cachedConfig;
     }
 
     public function updateConfig(array $data): ?array
@@ -31,6 +50,8 @@ class SepaConfigRepository
         $stmt->execute($values);
 
         $this->logger->info('SEPA config updated');
+        $this->loaded = false;
+
         return $this->getConfig();
     }
 

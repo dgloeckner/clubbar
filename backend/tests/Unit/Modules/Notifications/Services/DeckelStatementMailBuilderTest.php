@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\Notifications\Services;
 
 use App\Modules\Dashboard\Domain\CreditLimit;
 use App\Modules\Notifications\DTOs\DeckelStatementDataDto;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Services\DeckelStatementMailBuilder;
@@ -27,6 +28,16 @@ use RuntimeException;
  */
 class DeckelStatementMailBuilderTest extends TestCase
 {
+    /** Unused by this builder — accepted only to satisfy the interface. */
+    private function mailConfig(): MailConfigDto
+    {
+        return MailConfigDto::fromRow([
+            'sender_name' => 'FRGS Ruderbar',
+            'sender_address' => 'bar@example.org',
+            'footer_org_name' => 'FRGS Ruderbar',
+        ]);
+    }
+
     public function test_it_claims_the_statement_kind_and_nothing_else(): void
     {
         $builder = new DeckelStatementMailBuilder($this->createMock(DeckelStatementService::class));
@@ -67,7 +78,7 @@ class DeckelStatementMailBuilderTest extends TestCase
             'recipient' => 'snapshot@example.org',
             'language' => 'en',
             'dedup_key' => '2026-08',
-        ]);
+        ], $this->mailConfig());
 
         $this->assertSame('snapshot@example.org', $message->to);
         $this->assertNotSame('', $message->text);
@@ -89,7 +100,7 @@ class DeckelStatementMailBuilderTest extends TestCase
             )
             ->willReturn($this->statement());
 
-        (new DeckelStatementMailBuilder($service))->build($this->row('2026-Q3'));
+        (new DeckelStatementMailBuilder($service))->build($this->row('2026-Q3'), $this->mailConfig());
     }
 
     /**
@@ -107,7 +118,7 @@ class DeckelStatementMailBuilderTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageMatches('/must not invent/');
 
-        (new DeckelStatementMailBuilder($service))->build($this->row('letzter Monat'));
+        (new DeckelStatementMailBuilder($service))->build($this->row('letzter Monat'), $this->mailConfig());
     }
 
     /** @return array<string,mixed> */

@@ -8,7 +8,6 @@ use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Services\AdminSecurityMailBuilder;
-use App\Modules\Notifications\Services\MailConfigService;
 use App\Shared\Mail\MailLayout;
 use PHPUnit\Framework\TestCase;
 
@@ -26,13 +25,13 @@ class AdminSecurityMailBuilderTest extends TestCase
 {
     private AdminUsersRepository $adminUsersRepository;
     private AdminSecurityMailBuilder $builder;
+    private MailConfigDto $mailConfig;
 
     protected function setUp(): void
     {
         $this->adminUsersRepository = $this->createMock(AdminUsersRepository::class);
 
-        $mailConfigService = $this->createMock(MailConfigService::class);
-        $mailConfigService->method('getConfig')->willReturn(new MailConfigDto(
+        $this->mailConfig = new MailConfigDto(
             senderName: 'Beispiel-Ruderverein e.V.',
             senderAddress: 'kasse@example.org',
             replyToAddress: null,
@@ -41,9 +40,9 @@ class AdminSecurityMailBuilderTest extends TestCase
             footerAddressLine: 'Musterweg 35, 60599 Frankfurt am Main',
             websiteUrl: null,
             logoUrl: null,
-        ));
+        );
 
-        $this->builder = new AdminSecurityMailBuilder($this->adminUsersRepository, $mailConfigService);
+        $this->builder = new AdminSecurityMailBuilder($this->adminUsersRepository);
     }
 
     /** @param array<string,mixed> $overrides */
@@ -82,7 +81,7 @@ class AdminSecurityMailBuilderTest extends TestCase
             'display_name' => 'Erika Mustermann',
         ]);
 
-        $message = $this->builder->build(self::row());
+        $message = $this->builder->build(self::row(), $this->mailConfig);
 
         $this->assertSame('former@example.org', $message->to);
         $this->assertStringNotContainsString('now@example.org', $message->html);
@@ -97,8 +96,8 @@ class AdminSecurityMailBuilderTest extends TestCase
             'display_name' => 'Erika',
         ]);
 
-        $german = $this->builder->build(self::row(['language' => 'de']));
-        $english = $this->builder->build(self::row(['language' => 'en']));
+        $german = $this->builder->build(self::row(['language' => 'de']), $this->mailConfig);
+        $english = $this->builder->build(self::row(['language' => 'en']), $this->mailConfig);
 
         $this->assertNotSame($german->subject, $english->subject);
         $this->assertStringContainsString('21.08.2026', $german->text);
@@ -117,6 +116,6 @@ class AdminSecurityMailBuilderTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/admin-1/');
 
-        $this->builder->build(self::row());
+        $this->builder->build(self::row(), $this->mailConfig);
     }
 }
