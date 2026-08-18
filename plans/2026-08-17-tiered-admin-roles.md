@@ -187,11 +187,40 @@ it makes the foundation deployable and verifiable before enforcement lands.
 
 ### M6 — Admin frontend: hidden nav, per-role landing, refusal screen ([#516](https://github.com/dgloeckner/clubbar/issues/516))
 
-- [ ] Sections the role cannot reach are **hidden**, not disabled
-- [ ] Landing per role — `getraenkewart` → Products, otherwise Dashboard
-- [ ] A named `insufficient_role` screen, because hidden navigation is not
-      enforcement: a bookmark, a stale tab or a role changed mid-session all
-      produce a legitimate 403 for a legitimate user
+- [x] Sections the role cannot reach are **hidden**, not disabled — in the
+      desktop nav and the mobile tab bar alike. A disabled entry advertises the
+      section and invites the 403 anyway
+      — *verified*: `role-navigation.spec.ts` asserts the **whole** visible nav
+      set per office, so an entry that should not be there fails the test
+      rather than going unnoticed
+- [x] `SECTION_ROLES` in `src/utils/adminRoles.ts` — the client half of the
+      route map, default-deny like it, and *separate* from it because one page
+      fans out to several endpoints
+      — *verified*: `adminRoles.test.ts` 18/18, including the completeness
+      property: it reads both nav components' source and fails on any `path:`
+      it cannot find in the table, so adding a nav entry is what makes it fail
+- [x] Landing per role — `getraenkewart` → Products, otherwise Dashboard. The
+      roles come off the `AuthResult` rather than the context, because the
+      navigation happens in the same tick the state is set
+      — *verified*: the Getränkewart test signs in through the real login and
+      enrolment forms and waits for `/products`
+- [x] A named `insufficient_role` screen, rendered **inside** the layout rather
+      than redirecting: a redirect leaves the caller on a working page with no
+      explanation of why the one they asked for vanished, and makes a stale
+      bookmark unfixable
+- [x] The mid-session case, which is the reason the screen exists: a 403
+      carrying `insufficient_role` makes the panel re-read its own roles
+      (single-flight — the profile call is itself role-gated), and the guard
+      and navigation then correct themselves without logging anybody out
+      — *verified*: a role revoked while the tab is open collapses the nav to
+      the new office and refuses the page it was on
+- [x] `admin-frontend/patterns/role-visibility.md` — how to add a page, where
+      the table lives, and the standing rule that none of this is enforcement
+- [x] Nothing existing changed: frontend unit 347/347, `admin-chromium` 317
+      passed (one pre-existing failure, `settings-credentials` › *rotating a
+      terminal token*, which reproduces unchanged on the base commit — a
+      revoked leftover terminal in this dev database, not in CI's fresh one),
+      `admin-mobile` 49/49
 
 ### M7 — E2E access matrix and per-role flows ([#517](https://github.com/dgloeckner/clubbar/issues/517))
 

@@ -71,6 +71,15 @@ export interface MailConfigUpdateRequest {
    * @nullable
    */
   reply_to_address?: string | null;
+  /**
+   * The club-level address that also receives admin lifecycle mail
+(ADR-0044 rule 3). Send `null` to switch it off and return to
+mailing active admins only.
+
+   * @maxLength 255
+   * @nullable
+   */
+  club_notification_address?: string | null;
   header_style?: MailConfigUpdateRequestHeaderStyle;
   /** @maxLength 200 */
   footer_org_name?: string;

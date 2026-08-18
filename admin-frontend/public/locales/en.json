@@ -130,7 +130,10 @@
     "unauthorized": "Unauthorized",
     "notFound": "Not found",
     "serverError": "Server error",
-    "loadData": "Failed to load data"
+    "loadData": "Failed to load data",
+    "insufficientRoleTitle": "No access to this section",
+    "insufficientRoleMessage": "This page belongs to an office your account does not hold. If that changed recently, your roles were adjusted. Ask an administrator if you need this section.",
+    "insufficientRoleHome": "Go to start page"
   },
   "dates": {
     "today": "Today",

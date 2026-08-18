@@ -57,10 +57,10 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { AdminProfile } from './adminProfile';
+import type { GetProfileResponseAdmin } from './getProfileResponseAdmin';
 
 export interface GetProfileResponse {
-  admin: AdminProfile;
+  admin: GetProfileResponseAdmin;
   /** @nullable */
   csrf_token?: string | null;
 }

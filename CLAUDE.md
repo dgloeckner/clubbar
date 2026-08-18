@@ -163,6 +163,10 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
   - Claim the signal before a search debounce, one slot per independent stream
   - Spinner ownership when a mutation reload supersedes a loader effect
   - On a list page `useListQuery` already owns this slot; use `useLatestRequest` directly for a page's other streams (a second fetch, an interval, a tab switch)
+- **Role-Aware Navigation Pattern**: show each admin office only the sections it can open (ADR-0044)
+  - `SECTION_ROLES` in `src/utils/adminRoles.ts` — section→roles, default-deny
+  - Per-role landing, and the named `insufficient_role` refusal screen
+  - A nav entry left unclassified fails the unit suite, not review
 - **Component Patterns**: Index of reusable UI components — check it before writing a new one
 
 **Important**: When building pages and components in the admin frontend, follow the test IDs pattern to ensure E2E tests are reliable and maintainable. See `admin-frontend/patterns/test-ids.md` for comprehensive guide and examples, and `admin-frontend/patterns/table-implementation.md` before touching a list page. Any page that fetches on a filter, search, sort, page or interval must follow `admin-frontend/patterns/data-fetching.md` — without it the page can render the results of a request it has already superseded.

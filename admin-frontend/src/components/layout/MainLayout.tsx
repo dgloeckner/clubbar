@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useLoading } from '../../context/LoadingContext'
 import { useInstanceConfig } from '../../context/InstanceConfigContext'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { permitsPath } from '../../utils/adminRoles'
 import { LoadingIndicator } from '../common/LoadingIndicator'
 import { BottomTabBar } from './BottomTabBar'
 import { SchedulerBanner } from './SchedulerBanner'
@@ -35,7 +36,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
-  const { displayName, logout } = useAuth()
+  const { displayName, logout, roles } = useAuth()
   const { isLoading } = useLoading()
   const { instanceName } = useInstanceConfig()
   const breakpoint = useBreakpoint()
@@ -50,6 +51,10 @@ export function MainLayout({ children }: MainLayoutProps) {
   const isActive = (path: string): boolean =>
     location.pathname === path || location.pathname.startsWith(`${path}/`)
 
+  // Sections the caller's roles cannot open are removed, not disabled
+  // (ADR-0044, #516). A disabled entry advertises the section and invites the
+  // 403 anyway; a Getränkewart has no business knowing the settlement screen is
+  // there. This is presentation only — the server refuses independently.
   const navItems = [
     { label: t('nav.dashboard'), path: '/dashboard', icon: <HomeIcon size={20} />, testId: 'nav-dashboard' },
     { label: t('nav.members'), path: '/members', icon: <UsersIcon size={20} />, testId: 'nav-members' },
@@ -60,7 +65,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     { label: t('nav.settings'), path: '/settings', icon: <SettingsIcon size={20} />, testId: 'nav-settings' },
     { label: t('nav.notifications'), path: '/notifications', icon: <MailIcon size={20} />, testId: 'nav-notifications' },
     { label: t('nav.auditLog'), path: '/audit-log', icon: <AuditLogIcon size={20} />, testId: 'nav-audit-log' },
-  ]
+  ].filter((item) => permitsPath(roles, item.path))
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const isTablet = breakpoint === 'tablet'

@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { LoginForm } from '../components/forms/LoginForm'
 import { useAuth } from '../context/AuthContext'
+import { landingPath } from '../utils/adminRoles'
 import { Card } from '../components/common/Card'
 import { Input } from '../components/common/Input'
 import { Button } from '../components/common/Button'
@@ -238,7 +239,7 @@ function MfaStep() {
     setLocalError(undefined)
     const result = await submitMfa(code)
     if (result.success) {
-      navigate('/dashboard')
+      navigate(landingPath(result.roles ?? []))
     } else {
       setLocalError(result.error || t('auth.mfaInvalidCode'))
     }
@@ -308,7 +309,7 @@ function TotpSetupStep() {
     setLocalError(undefined)
     const result = await confirmTotp(code)
     if (result.success) {
-      navigate('/dashboard')
+      navigate(landingPath(result.roles ?? []))
     } else {
       setLocalError(result.error || t('auth.mfaInvalidCode'))
     }
@@ -425,7 +426,10 @@ export function LoginPage() {
     setLocalError(undefined)
     const result = await login({ email, password })
     if (result.success) {
-      navigate('/dashboard')
+      // Per role (ADR-0044, #516): a Getränkewart's dashboard is a 403, so
+      // "logged in" has to mean a page they can actually work on. The roles
+      // come off the result rather than the context — see AuthResult.
+      navigate(landingPath(result.roles ?? []))
     } else if (!requiresMfa && !requiresTotpSetup) {
       setLocalError(result.error || t('auth.loginFailed'))
     }

@@ -57,10 +57,11 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { AdminRole } from './adminRole';
 import type { StepUpCredentials } from './stepUpCredentials';
 
 /**
- * Creating an admin user mints a persistent, full-privilege peer account (ADR-0015's flat admin model), so it carries a step-up credential (#499).
+ * Creating an admin user mints a persistent peer account, so it carries a step-up credential (#499). Since ADR-0044 that account's power is its role set rather than "everything" — but the default is still `admin`, so an omitted `roles` creates exactly what this endpoint always created.
 
  */
 export type AdminUserCreateRequest = StepUpCredentials & {
@@ -68,4 +69,12 @@ export type AdminUserCreateRequest = StepUpCredentials & {
   /** @maxLength 100 */
   display_name: string;
   locale?: string;
+  /**
+   * The new account's roles. Defaults to `[admin]` when omitted. A
+list naming anything that is not a role, or an empty list, is
+refused rather than partially applied.
+
+   * @minItems 1
+   */
+  roles?: AdminRole[];
 };

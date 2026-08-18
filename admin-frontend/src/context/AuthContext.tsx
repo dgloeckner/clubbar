@@ -3,7 +3,7 @@
  * Provides global auth state and methods to all components
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   loginWithSession,
@@ -14,6 +14,8 @@ import {
   checkSession,
 } from '../auth/session'
 import { authErrorKey, endsMfaStep } from '../utils/authErrors'
+import { setInsufficientRoleHandler } from '../api/client'
+import type { AdminRole } from '../api/generated'
 
 // UI-level types — not from generated schemas
 interface LoginCredentials {
@@ -30,6 +32,12 @@ interface AuthState {
   email?: string
   displayName?: string
   locale?: string
+  /**
+   * The roles this session holds (ADR-0044). Empty until the profile has been
+   * read, and empty for an account that really holds none — both cases mean
+   * "show nothing", which is the direction to fail in.
+   */
+  roles: AdminRole[]
 }
 
 // Callers must read the error off this result, not the `error` field below — by
@@ -38,6 +46,14 @@ interface AuthState {
 interface AuthResult {
   success: boolean
   error?: string
+  /**
+   * The roles the new session holds, on success. Handed back for the same
+   * reason as `error` above: the caller navigates the moment this resolves,
+   * and the `roles` it captured in its closure is still the previous render's.
+   * Landing on the right page cannot depend on a state update that has not
+   * happened yet.
+   */
+  roles?: AdminRole[]
 }
 
 interface AuthContextType extends AuthState {
@@ -65,7 +81,7 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const { t } = useTranslation()
-  const [auth, setAuth] = useState<AuthState>({ isAuthenticated: false })
+  const [auth, setAuth] = useState<AuthState>({ isAuthenticated: false, roles: [] })
   const [initializing, setInitializing] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
@@ -93,6 +109,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           email: session.email,
           displayName: session.display_name,
           locale: session.locale,
+          roles: session.roles,
         })
       }
       setInitializing(false)
@@ -102,20 +119,74 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
+  /**
+   * The state a freshly authenticated session starts in.
+   *
+   * Login, MFA and TOTP enrolment all answer with the account but not with its
+   * roles, so the profile is read once here rather than a tick later: a render
+   * that happens between "authenticated" and "roles known" would hide every
+   * section and bounce the caller off the page they just logged in to.
+   * A profile that will not load leaves the roles empty, and the refusal
+   * screen says so.
+   */
+  const authenticated = async (admin: {
+    admin_id: string
+    email: string
+    display_name: string
+    locale: string
+  }): Promise<AuthState> => {
+    const session = await checkSession()
+
+    return {
+      isAuthenticated: true,
+      adminId: admin.admin_id,
+      email: admin.email,
+      displayName: admin.display_name,
+      locale: admin.locale,
+      roles: session?.roles ?? [],
+    }
+  }
+
+  /**
+   * Re-read the roles after the server has refused something on role grounds.
+   *
+   * Only the roles: a 403 is not a dead session, so nothing else about the
+   * auth state is touched, and a profile call that fails leaves the panel
+   * showing what it already believed rather than logging anybody out.
+   */
+  const refreshRoles = async (): Promise<void> => {
+    const session = await checkSession()
+    if (session) {
+      setAuth(prev => (prev.isAuthenticated ? { ...prev, roles: session.roles } : prev))
+    }
+  }
+
+  // The profile request is itself gated by the role map, so a role-less
+  // account's refresh would answer 403 and ask for another refresh. One in
+  // flight at a time breaks that loop.
+  const refreshing = useRef(false)
+
+  useEffect(() => {
+    setInsufficientRoleHandler(() => {
+      if (refreshing.current) return
+      refreshing.current = true
+      void refreshRoles().finally(() => {
+        refreshing.current = false
+      })
+    })
+
+    return () => setInsufficientRoleHandler(null)
+  }, [])
+
   const handleLogin = async (credentials: LoginCredentials): Promise<AuthResult> => {
     setLoading(true)
     setError(undefined)
     try {
       const response = await loginWithSession(credentials)
       if (response.success && response.data) {
-        setAuth({
-          isAuthenticated: true,
-          adminId: response.data.admin_id,
-          email: response.data.email,
-          displayName: response.data.display_name,
-          locale: response.data.locale,
-        })
-        return { success: true }
+        const next = await authenticated(response.data)
+        setAuth(next)
+        return { success: true, roles: next.roles }
       }
       if (response.requiresMfa) {
         setAuth(prev => ({ ...prev, requiresMfa: true }))
@@ -150,16 +221,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const result = await confirmTotpWithSession(code, pendingAdmin)
       if (result.success) {
-        setAuth({
-          isAuthenticated: true,
+        const next = {
+          ...(await authenticated(pendingAdmin)),
           requiresTotpSetup: false,
           pendingAdmin: undefined,
-          adminId: pendingAdmin.admin_id,
-          email: pendingAdmin.email,
-          displayName: pendingAdmin.display_name,
-          locale: pendingAdmin.locale,
-        })
-        return { success: true }
+        }
+        setAuth(next)
+        return { success: true, roles: next.roles }
       }
       const message = describe(result)
       setError(message)
@@ -179,22 +247,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await submitMfaWithSession(code)
       if (response.success && response.data) {
-        setAuth({
-          isAuthenticated: true,
-          requiresMfa: false,
-          adminId: response.data.admin_id,
-          email: response.data.email,
-          displayName: response.data.display_name,
-          locale: response.data.locale,
-        })
-        return { success: true }
+        const next = { ...(await authenticated(response.data)), requiresMfa: false }
+        setAuth(next)
+        return { success: true, roles: next.roles }
       }
       const message = describe(response)
       setError(message)
       // The pending session is gone server-side — leaving the code form up would
       // invite guesses at a session that no longer exists. Back to the password.
       if (endsMfaStep(response.errorCode)) {
-        setAuth({ isAuthenticated: false, requiresMfa: false })
+        setAuth({ isAuthenticated: false, requiresMfa: false, roles: [] })
       }
       return { success: false, error: message }
     } catch (err) {
@@ -210,7 +272,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoading(true)
     try {
       await logoutWithSession()
-      setAuth({ isAuthenticated: false })
+      setAuth({ isAuthenticated: false, roles: [] })
       setError(undefined)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.logoutFailed'))

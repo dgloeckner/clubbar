@@ -37,16 +37,30 @@ export function uniqueTestEmail(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}@test.example`
 }
 
-/** Mint an unenrolled admin through an isolated API context. */
+/**
+ * Mint an unenrolled admin through an isolated API context.
+ *
+ * `roles` (ADR-0044) defaults to what the endpoint has always created — an
+ * `admin` — so every existing caller is unaffected. Pass a lesser set to mint
+ * the office a test needs: a Getränkewart account is the only honest way to
+ * test that the panel hides what that office may not open.
+ */
 export async function createIsolatedAdmin(
   playwright: Playwright,
-  prefix: string
+  prefix: string,
+  roles?: Array<'admin' | 'kassenwart' | 'getraenkewart'>
 ): Promise<{ email: string; password: string }> {
   const ctx = await loginAs(playwright, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
   try {
     const email = uniqueTestEmail(prefix)
     const response = await ctx.post(`${API_BASE}/admin/admin-users`, {
-      data: { ...stepUp(), email, display_name: `Isolated Test ${prefix}`, locale: 'de' },
+      data: {
+        ...stepUp(),
+        email,
+        display_name: `Isolated Test ${prefix}`,
+        locale: 'de',
+        ...(roles ? { roles } : {}),
+      },
     })
     if (response.status() !== 201) {
       throw new Error(`Failed to create admin (${response.status()}): ${await response.text()}`)
@@ -60,17 +74,23 @@ export async function createIsolatedAdmin(
 /**
  * Log in as a fresh admin and complete the mandatory enrollment gate,
  * returning the secret the setup screen displayed.
+ *
+ * `landing` is where the panel is expected to arrive afterwards. It is a
+ * parameter rather than a constant because the landing page is per role
+ * (ADR-0044, #516): a Getränkewart's dashboard would be a 403, so they land on
+ * the drinks list instead.
  */
 export async function signInAndEnroll(
   loginPage: LoginPage,
   page: Page,
   email: string,
-  password: string
+  password: string,
+  landing: string = '/dashboard'
 ): Promise<string> {
   await loginPage.navigate()
   await loginPage.login(email, password)
   const secret = await loginPage.getTotpSetupSecret()
   await loginPage.submitTotpSetupCode(generateTotp(secret))
-  await page.waitForURL('**/dashboard', { timeout: 10000 })
+  await page.waitForURL(`**${landing}`, { timeout: 10000 })
   return secret
 }
