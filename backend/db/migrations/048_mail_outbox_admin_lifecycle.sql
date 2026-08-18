@@ -1,5 +1,5 @@
 -- =============================================================================
--- 047_mail_outbox_admin_lifecycle.sql — account creation and role changes announce themselves
+-- 048_mail_outbox_admin_lifecycle.sql — account creation and role changes announce themselves
 -- =============================================================================
 -- ADR-0044 rule 2 says granting a role is minting authority; rule 3 says the
 -- alarm has to survive a single admin. #520 gave role changes a step-up and
@@ -19,7 +19,7 @@
 -- until now it did not actually have any. The quiet path (promotion) is
 -- `admin_role_changed`.
 --
--- Rollback: db/rollback/047_mail_outbox_admin_lifecycle.down.sql
+-- Rollback: db/rollback/048_mail_outbox_admin_lifecycle.down.sql
 -- =============================================================================
 
 ALTER TABLE mail_outbox MODIFY COLUMN kind ENUM(

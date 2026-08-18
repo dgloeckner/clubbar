@@ -91,7 +91,7 @@ it makes the foundation deployable and verifiable before enforcement lands.
       the epic would otherwise have opened: creating an admin cost a password
       and a TOTP code while **promoting** one cost only a live session
       — *verified*: `AdminUserRolesHttpTest` 13/13
-- [x] `ROLE_GRANTED` / `ROLE_REVOKED` audit actions (migration 045), written
+- [x] `ROLE_GRANTED` / `ROLE_REVOKED` audit actions (migration 046), written
       from the **diff** — a save that re-sends the same roles is not an
       escalation and must not read like one. A creation writes its grant too,
       so "who gained `admin` last quarter" does not miss accounts created as one
@@ -120,12 +120,12 @@ it makes the foundation deployable and verifiable before enforcement lands.
 
 **M5a — storage and fan-out (shipped, behaviour-neutral):**
 
-- [x] Migration 046: `mail_config.club_notification_address`, wired through the
+- [x] Migration 047: `mail_config.club_notification_address`, wired through the
       DTO, the repository's writable columns and the controller's validation.
       It lives on `mail_config` because that is `admin`-only in the grant table
       — load-bearing, not convenient: a Kassenwart must not be able to redirect
       the channel that would report their own promotion
-- [x] Migration 047: `admin_account_created` and `admin_role_changed` mail kinds,
+- [x] Migration 048: `admin_account_created` and `admin_role_changed` mail kinds,
       with `MailKind::addressesClub()` as an explicit `match` so the next kind
       has to answer the question rather than inherit an answer
 - [x] `MailRequestDto::forClub()` — no `admin_user_id`, so migration 026's

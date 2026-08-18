@@ -1,5 +1,5 @@
 -- =============================================================================
--- 046_mail_config_club_notification_address.sql — the alarm survives one admin
+-- 047_mail_config_club_notification_address.sql — the alarm survives one admin
 -- =============================================================================
 -- ADR-0044 rule 3. ADR-0043 already noted, honestly, that a single-admin
 -- installation gets no security benefit from admin-addressed alert mail, only a
@@ -28,7 +28,7 @@
 -- one address, not a list. A club that wants several uses the thing built for
 -- the job: a mailing list address.
 --
--- Rollback: db/rollback/046_mail_config_club_notification_address.down.sql
+-- Rollback: db/rollback/047_mail_config_club_notification_address.down.sql
 -- =============================================================================
 
 ALTER TABLE mail_config
