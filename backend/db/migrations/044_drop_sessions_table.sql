@@ -1,0 +1,21 @@
+-- =============================================================================
+-- 044_drop_sessions_table.sql — remove the unused `sessions` table
+-- =============================================================================
+-- The `sessions` table was never written to. Admin auth runs on native PHP
+-- sessions with no database save handler installed, and the `SessionRepository`
+-- that read/wrote this table was registered in the service container but
+-- injected nowhere — dead code, confirmed and recorded in the 2026-08-15
+-- amendment to ADR-0026. Real session invalidation on a credential change
+-- (password/email/2FA reset) runs on the `admin_users.credentials_changed_at`
+-- epoch added by 036_admin_credentials_epoch.sql instead, which needs no
+-- session store of any kind.
+--
+-- No FK to unwind: 001_initial_schema.sql already documents the
+-- `admin_user_id` link as "logical only", not a real FOREIGN KEY constraint.
+-- Any rows in the table are pre-release test data and are discarded.
+--
+-- Rollback: db/rollback/044_drop_sessions_table.down.sql — recreates the
+-- table, empty. Its rows are not recoverable, which is the point.
+-- =============================================================================
+
+DROP TABLE sessions;

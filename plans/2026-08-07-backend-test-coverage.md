@@ -124,7 +124,7 @@ Also fixed in passing: `tests/Feature/DatabaseTestCase.php` now sets `PDO::ATTR_
 
 Target: these files ≥85%. Projected total: **~29%**.
 
-- [ ] **2.1** `AuthService` + `TokenService` + `SessionRepository` — constant-time credential comparison (regression guard for C1 in `2026-03-17-security-critical-fixes.md`), inactive-admin rejection, session create/lookup/expiry.
+- [ ] **2.1** `AuthService` + `TokenService` — constant-time credential comparison (regression guard for C1 in `2026-03-17-security-critical-fixes.md`), inactive-admin rejection.
 - [ ] **2.2** `TotpService` (20 stmt, 0%) — `generateSecret` entropy/format, `verifyCode` accept/reject inside and outside the time window, `encrypt`/`decrypt` round-trip, and `decrypt` returning `false` on a tampered ciphertext.
 - [ ] **2.3** `AdminUsersService` (111 stmt, 0%) + `AdminUsersRepository` (65) + `AdminUserDto` (23) — password hashing never round-trips plaintext; **self-deactivation refused**; `resetAdminPassword` clearing the TOTP secret; `verifyCurrentPassword` on wrong password; duplicate-email handling.
 - [ ] **2.4** Middleware: `AdminSessionAuth` (27), `TerminalTokenAuth` (26), `CsrfMiddleware` (13), ~~`RateLimitMiddleware`~~ — unauthenticated → 401, bad CSRF → 403. **Task 6.1's harness now exists** (shipped with #78). `RateLimitMiddleware` is done: ruling [#145](https://github.com/dgloeckner/ruderbar/issues/145) replaced the IP-only limiter this task was written against, and #78 pinned the replacement in `tests/Unit/Shared/Middleware/RateLimitMiddlewareTest.php` (both counting dimensions, the 429 shape, the disabled flag) plus the route wiring in `AuthRouteRateLimitTest`.
