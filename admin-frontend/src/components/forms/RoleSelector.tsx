@@ -77,7 +77,10 @@ export function RoleSelector({
               }}
             >
               {/* Native checkbox for a11y and keyboard support, visually
-                  hidden behind the custom box drawn beside it. */}
+                  hidden behind the custom box drawn beside it. Kept at a real
+                  1x1px (clipped) rather than 0x0 — a zero-size element has no
+                  bounding box, which fails both Playwright's actionability
+                  check and, in some browsers, focus/keyboard handling. */}
               <input
                 type="checkbox"
                 data-testid={`${testId}-checkbox-${role}`}
@@ -86,9 +89,14 @@ export function RoleSelector({
                 onChange={() => onChange(toggleRole(value, role))}
                 style={{
                   position: 'absolute',
-                  opacity: 0,
-                  width: 0,
-                  height: 0,
+                  width: 1,
+                  height: 1,
+                  padding: 0,
+                  margin: -1,
+                  overflow: 'hidden',
+                  clip: 'rect(0, 0, 0, 0)',
+                  whiteSpace: 'nowrap',
+                  border: 0,
                 }}
               />
               <span
