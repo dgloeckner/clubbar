@@ -529,22 +529,24 @@ jobs:
           # that lane silently redownloads WebKit on every run.
           key: playwright-${{ matrix.lane }}-${{ hashFiles('e2etests/package-lock.json') }}
 
+      # `--with-deps` apt-installs WebKit's system libraries (gstreamer,
+      # libwoff, libmanette, fonts...) on every run, and the Azure mirror GH
+      # runners pull from is what turned "Fetched 104 MB" into 13m40s on one
+      # run and 39s an hour later on main — the .deb archive was never cached,
+      # only the browser binaries were (the cache above). This restores
+      # /var/cache/apt/archives so a hit lets apt skip the network fetch
+      # entirely and reuse the .debs already on disk.
+      - name: Cache apt archives for Playwright system deps
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-archives-${{ matrix.lane }}-${{ hashFiles('e2etests/package-lock.json') }}
+          restore-keys: apt-archives-${{ matrix.lane }}-
+
       # Only the browsers this lane actually launches. `admin-mobile`
       # (`devices['iPhone 14']`) is the **only** project in CI that runs on
       # WebKit, and it lives in the ui lane; everything else drives Chromium or
       # no browser at all.
-      #
-      # It is `--with-deps` that makes this worth doing. The browser binaries
-      # come from the cache above, but the apt packages never do — they are
-      # refetched by every job on every run, and WebKit's closure is the
-      # expensive half (gstreamer, libwoff, libmanette, fonts...). Measured on
-      # the first run of this matrix, with the binaries cached:
-      #
-      #     Fetched 104 MB in 13min 40s (127 kB/s)
-      #
-      # in a job whose tests then took 1m47. The mirror is not always that
-      # slow — the same step took 39 seconds on main an hour earlier — which is
-      # exactly why it is worth not paying for it five times over.
       - name: Install Playwright browsers
         run: npx playwright install --with-deps ${{ matrix.browsers }}
         working-directory: e2etests
@@ -705,6 +707,13 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ hashFiles('e2etests/package-lock.json') }}
+
+      - name: Cache apt archives for Playwright system deps
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-archives-chromium-${{ hashFiles('e2etests/package-lock.json') }}
+          restore-keys: apt-archives-chromium-
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
