@@ -390,8 +390,34 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    diagnosable only by a human scrolling the web UI. Keep any new log-dumping
    step bounded, and keep it above the report.
 
-   For the full trace, `playwright-report-<shard>` and
-   `playwright-traces-<shard>` are uploaded as artifacts on every run.
+   For the full trace, `playwright-report-<lane>` and
+   `playwright-traces-<lane>` are uploaded as artifacts on every run — the lane
+   ids are `api-1`, `api-2`, `ui-1`, `ui-2` and `chain` (see below).
+
+   **The CI job runs in three lanes, not two blind shards.** `--shard` splits
+   tests but cannot split a **dependency-connected component**, and almost
+   every project was in one: `api-ordered`, `api-rotation` and the mail chains
+   all declare `api-tests` and `admin-chromium` as dependencies, so Playwright
+   had to keep the lot together. Measured on the old matrix: shard 1 got **28**
+   tests and ran 52 seconds; shard 2 got **995** and ran 7m54.
+
+   | Lane | Projects | Shape |
+   |------|----------|-------|
+   | `api` | `api-tests` | 2 shards, 318/318 — homogeneous, so count-balancing is time-balancing |
+   | `ui` | `admin-chromium`, `admin-mobile` | 2 shards |
+   | `chain` | `api-ordered`, `api-rotation`, `mail-chain`, `mail-statement`, `mail-credentials`, `mail-issuance` | 1 job, no shard: every project in it is deliberately serial |
+
+   Those dependencies are about **one shared database**, not about data, so a
+   job of its own satisfies them. `E2E_LANE=chain` is what says so, and it is
+   the only thing that relaxes a dependency edge — a local `npx playwright
+   test` sets nothing and behaves exactly as before. To reproduce a lane:
+
+   ```bash
+   cd e2etests
+   E2E_LANE=chain npx playwright test --project=api-ordered --project=api-rotation \
+     --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance
+   npx playwright test --project=api-tests --shard=1/2
+   ```
 
    **Reproducing CI locally without Docker** (e.g. in a sandbox that has no
    daemon): install `mariadb-server`, apply `backend/db/migrations/*.sql` then

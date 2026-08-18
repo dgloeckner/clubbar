@@ -13,6 +13,45 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * @see https://playwright.dev/docs/test-configuration
  */
+/**
+ * CI lanes (#e2e-sharding).
+ *
+ * `--shard` splits *tests*, but it cannot split a **dependency-connected
+ * component**: every project in one has to land in the same shard. Almost
+ * everything in this file is in one such component, because `api-ordered`,
+ * `api-rotation` and the whole mail chain declare `api-tests` and
+ * `admin-chromium` as dependencies. Measured on the two-way shard CI used to
+ * run: shard 1 got **28** tests and shard 2 got **995**, so the second shard
+ * was the entire suite and the first was a 52-second no-op that still paid two
+ * minutes of stack setup.
+ *
+ * Those dependencies are about **one shared database**, not about data. They
+ * order the specs that cannot run beside company: the MFA lockout that eats
+ * the shared admin's TOTP time-step, the key rotation that changes what the
+ * whole installation seals under, the mail chains whose drains claim the whole
+ * queue and whose `mail_config` is a singleton other specs write.
+ *
+ * CI gives each job its own MariaDB, so running those projects in a **job of
+ * their own** satisfies every one of those requirements by construction —
+ * nothing else is running against that database at all. `E2E_LANE=chain` is
+ * how the run says so, and it is the only thing that relaxes the edges:
+ * a local `npx playwright test` sets nothing, keeps every dependency, and
+ * behaves exactly as it always has.
+ *
+ * Ordering *within* the chain lane is preserved, because that part is real:
+ * the rotation still runs after the lockout, and the four mail chains still
+ * run in their fixed order.
+ */
+const CHAIN_LANE = process.env.E2E_LANE === 'chain'
+
+/**
+ * The dependencies a chain-lane project keeps. `whenShared` is what it needs
+ * when the parallel suites run against the same database; `whenAlone` is what
+ * is still true when they do not.
+ */
+const orderedAfter = (whenShared: string[], whenAlone: string[] = ['setup auth']): string[] =>
+  CHAIN_LANE ? whenAlone : whenShared
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
@@ -142,7 +181,7 @@ export default defineConfig({
       testDir: './tests/api',
       testMatch: /auth-mfa-lockout\.spec\.ts/,
       fullyParallel: false,
-      dependencies: ['api-tests'],
+      dependencies: orderedAfter(['api-tests']),
     },
 
     // Last of all, and for a stronger reason than the project above.
@@ -166,7 +205,7 @@ export default defineConfig({
       testDir: './tests/api',
       testMatch: /key-rotation\.spec\.ts/,
       fullyParallel: false,
-      dependencies: ['api-tests', 'api-ordered', 'admin-chromium'],
+      dependencies: orderedAfter(['api-tests', 'api-ordered', 'admin-chromium'], ['api-ordered']),
     },
 
     // The mail chain (#409): finalize → backend/bin/cron.php → Mailpit.
@@ -204,7 +243,7 @@ export default defineConfig({
       name: 'mail-chain',
       testDir: './tests/mail',
       fullyParallel: false,
-      dependencies: ['api-tests', 'admin-chromium'],
+      dependencies: orderedAfter(['api-tests', 'admin-chromium']),
     },
 
     // The Deckelauszug chain (#463): cadence on → bin/cron.php → Mailpit.
