@@ -2,414 +2,215 @@
 
 **Status**: Active
 
-**Related ADR**: ADR-0015 (Authentication and Authorization Strategy)
+**Related ADRs**: ADR-0015 (Authentication and Authorization Strategy), ADR-0044 (Tiered Admin Roles)
 
-**Purpose**: Implement authorization and access control to protect endpoints based on authentication type (Terminal device, Admin user) and resource ownership.
+**Purpose**: Decide, for every request, whether the caller may make it — by
+credential type first, then by the office the account holds.
 
 ---
 
 ## Context
 
-Once a client is **authenticated** (Patterns 012-013), the backend must ensure they have **authorization** to access requested resources:
+Authentication (Patterns 012–013) answers *who is calling*. This pattern answers
+*whether they may*, and it does so on two axes that are easy to confuse:
 
-| Question | Authentication | Authorization |
-|----------|---|---|
-| **Who are you?** | ✓ Answered by auth patterns | |
-| **What can you do?** | | ✓ Answered by auth patterns |
-| **Can you access this resource?** | | ✓ Answered by this pattern |
+| Axis | Question | Decided by |
+|------|----------|-----------|
+| **Credential** | Is this a terminal device or an admin session? | Route group middleware (`TerminalTokenAuth` / `AdminSessionAuth`) |
+| **Office** | Which admin role does this account hold? | `RouteRoleMap`, consulted inside `AdminSessionAuth` |
 
-**Authorization Rules**:
-- **Terminal devices** (Pattern 012): Can access `/api/sync/*` (data for offline sync)
-- **Terminal devices**: Cannot access `/api/admin/*` (administrative endpoints)
-- **Admin users** (Pattern 013): Can access `/api/admin/*` (all admin operations)
-- **Admin users**: Cannot access `/api/sync/*` with session (different auth mechanism)
-- **Members**: No API access (identified by RFID, not authenticated)
+The second axis is new as of ADR-0044. Before it, every authenticated admin
+reached every admin endpoint, and "authorization" for the panel meant nothing
+beyond "is there a session". Any code or comment still saying *all admins have
+equal access* is out of date.
 
----
+**The rules, in one place:**
 
-## Pattern Definition
-
-### Middleware for Access Control
-
-#### 1. Terminal Token Access (Sync Endpoints)
-
-Authorization for terminal access is enforced by Slim 4 route group middleware. The `TerminalTokenAuth` middleware (PSR-15) is applied only to `/api/sync/*` routes, so terminals structurally cannot access `/api/admin/*` endpoints.
-
-```php
-// src/Modules/Auth/Middleware/TerminalTokenAuth.php
-// (See Pattern 012 for full implementation)
-
-// Authorization is enforced via Slim 4 route groups:
-// - /api/sync/* routes use TerminalTokenAuth middleware
-// - /api/admin/* routes use AdminSessionAuth middleware
-// - A terminal Bearer token will never pass AdminSessionAuth
-// - An admin session will never pass TerminalTokenAuth
-```
-
-If additional terminal-level authorization is needed (e.g., restricting specific terminals to specific endpoints), it can be added as a separate PSR-15 middleware:
-
-```php
-// src/Shared/Middleware/AuthorizeTerminalSync.php (optional)
-namespace App\Shared\Middleware;
-
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
-use Slim\Psr7\Response;
-
-/**
- * Optional PSR-15 middleware for additional terminal authorization checks.
- */
-class AuthorizeTerminalSync implements MiddlewareInterface
-{
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
-    {
-        $terminal = $request->getAttribute('terminal');
-
-        if (!$terminal) {
-            return $this->forbidden('Terminal not authenticated');
-        }
-
-        // Additional authorization logic here (if needed)
-
-        return $handler->handle($request);
-    }
-
-    private function forbidden(string $message): ResponseInterface
-    {
-        $response = new Response(403);
-        $response->getBody()->write(json_encode(['error' => 'forbidden', 'message' => $message]));
-        return $response->withHeader('Content-Type', 'application/json');
-    }
-}
-```
-
-#### 2. Admin Session Access (Admin Endpoints)
-
-Admin authorization is enforced by the `AdminSessionAuth` middleware (PSR-15), which already verifies the admin is active. It is applied to all `/api/admin/*` and `/api/auth/*` (protected) routes via Slim 4 route groups.
-
-```php
-// src/Modules/Auth/Middleware/AdminSessionAuth.php
-// (See Pattern 013 for full implementation)
-
-// The middleware already checks:
-// 1. Session is active
-// 2. admin_user_id exists in $_SESSION
-// 3. Admin user exists in database (PDO lookup)
-// 4. Admin user is_active = true
-// On failure: Returns 401 JSON response
-```
-
-#### 3. Preventing Auth Mixup
-
-Auth mixup is prevented structurally by Slim 4's route group middleware design:
-
-```php
-// src/routes.php — Each route group has exactly one auth middleware
-
-// Terminal endpoints: ONLY accept Bearer token
-$app->group('/api/sync', function (RouteCollectorProxy $group) {
-    // ... sync routes
-})->add(TerminalTokenAuth::class);  // Rejects requests without Bearer token
-
-// Admin endpoints: ONLY accept session cookie
-$app->group('/api/admin', function (RouteCollectorProxy $group) {
-    // ... admin routes
-})->add(AdminSessionAuth::class);   // Rejects requests without valid session
-
-// The middleware implementations are mutually exclusive:
-// - TerminalTokenAuth checks Authorization header for Bearer token
-// - AdminSessionAuth checks $_SESSION for admin_user_id
-// - A Bearer token will never satisfy AdminSessionAuth
-// - A session cookie will never satisfy TerminalTokenAuth
-```
-
-No explicit "prevent mixup" middleware is needed because the route structure enforces separation.
+- **Terminal devices** reach `/api/sync/*` and nothing else. A Bearer token
+  never passes `AdminSessionAuth`, and a session never passes
+  `TerminalTokenAuth` — the separation is structural, not conditional.
+- **Admin sessions** reach `/api/admin/*` and `/api/auth/*`, filtered by the
+  roles the account holds.
+- **Members** never call the API. They are identified by RFID at a terminal
+  (Pattern 014), which is not authentication.
 
 ---
 
-### Route Protection (Slim 4)
+## Layer 1: credential type, by route group
+
+`routes.php` puts each group behind its own middleware. There is no per-route
+decision to get wrong and no controller that can forget one:
 
 ```php
-// src/routes.php
-use App\Modules\Auth\Middleware\TerminalTokenAuth;
-use App\Modules\Auth\Middleware\AdminSessionAuth;
-use Slim\App;
-use Slim\Routing\RouteCollectorProxy;
+$app->group('/api/sync', function (RouteCollectorProxy $group) { /* ... */ })
+    ->add($terminalTokenAuth);
 
-return function (App $app): void {
-
-    /**
-     * Public Routes (No Auth Required)
-     */
-    $app->get('/api/health', [HealthController::class, 'check']);
-    $app->post('/api/auth/login', [AuthController::class, 'login']);
-
-    /**
-     * Terminal Sync API Routes
-     *
-     * Authentication: Bearer token (Pattern 012)
-     * Authorization: Terminal device access (Pattern 015)
-     */
-    $app->group('/api/sync', function (RouteCollectorProxy $group) {
-        $group->get('/members', [MembersSyncController::class, 'index']);
-        $group->get('/categories', [ProductsSyncController::class, 'categories']);
-        $group->get('/products', [ProductsSyncController::class, 'products']);
-        $group->patch('/members/{memberId}/language', [MembersSyncController::class, 'updateLanguage']);
-        $group->post('/transactions', [TransactionsSyncController::class, 'processBatch']);
-    })->add(TerminalTokenAuth::class);
-
-    /**
-     * Admin API Routes
-     *
-     * Authentication: Session cookie (Pattern 013)
-     * Authorization: Admin user access (Pattern 015)
-     */
-    $app->group('/api/admin', function (RouteCollectorProxy $group) {
-        $group->get('/members', [MembersAdminController::class, 'index']);
-        $group->post('/members', [MembersAdminController::class, 'store']);
-        $group->get('/members/{memberId}', [MembersAdminController::class, 'show']);
-        $group->patch('/members/{memberId}', [MembersAdminController::class, 'update']);
-        // ...etc
-    })->add(AdminSessionAuth::class);
-};
+$app->group('/api/admin', function (RouteCollectorProxy $group) { /* ... */ })
+    ->add($adminSessionAuth);
 ```
 
----
+## Layer 2: the route→roles map
 
-### Resource Ownership Authorization
-
-In the Club Bar system, all admin users have equal access to all resources (no role-based differentiation). Resource ownership checks are not needed for admin endpoints since all admins can manage all members, products, and settlements.
-
-If resource-level authorization is needed in the future, it can be implemented as a PSR-15 middleware:
+`App\Modules\Auth\Domain\RouteRoleMap` is one declarative table, consulted by
+`AdminSessionAuth` after the session is established. It is **not** per-controller
+checks: those scatter the model across sixty call sites, fail *open* by omission
+— a controller with no check is simply open, and nothing surfaces that — and
+cannot be verified by a single test over the route table.
 
 ```php
-// src/Shared/Middleware/AuthorizeResourceOwner.php (future, if needed)
-namespace App\Shared\Middleware;
-
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
-use Slim\Psr7\Response;
-use Slim\Routing\RouteContext;
-
-/**
- * PSR-15 Middleware for resource ownership checks (optional).
- *
- * Would be used if the system introduces role-based access control (RBAC).
- */
-class AuthorizeResourceOwner implements MiddlewareInterface
-{
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
-    {
-        $routeContext = RouteContext::fromRequest($request);
-        $route = $routeContext->getRoute();
-        $resourceId = $route->getArgument('id');
-        $adminUserId = $request->getAttribute('admin_user_id');
-
-        // Currently all admins have equal access — no ownership restriction
-        // Future: Add role checks here if needed
-
-        return $handler->handle($request);
-    }
-}
+private const MAP = [
+    'GET /api/admin/members'    => self::TREASURY,   // admin + kassenwart
+    'DELETE /api/admin/members/{memberId}' => self::ADMIN_ONLY,
+    'GET /api/admin/products'   => self::BAR,        // admin + getraenkewart
+    'GET /api/admin/reports/{reportType}' => self::EVERY_ROLE,
+];
 ```
 
----
+### Three rules
 
-### Rate Limiting by Auth Type
+1. **Default-deny.** A route with no entry is `admin`-only. When somebody adds a
+   route six months from now and does not touch the map, it works for `admin`
+   and answers 403 for everyone else until a human deliberately grants it. The
+   failure mode is "a Kassenwart cannot reach the new page" — visible, reported,
+   fixed in a minute — rather than a silent grant.
+2. **Grants are additive.** There are no deny rules. Holding two roles is the
+   union of both. A future role needing "everything except X" is a signal that X
+   belongs behind its own grant.
+3. **The key is method + pattern.** `GET /sepa-config` and `PATCH /sepa-config`
+   are the same path and different grants, and that is the common shape rather
+   than the exception. The pattern is the one **Slim matched**
+   (`/api/admin/members/{memberId}`), never the concrete path — so the map is a
+   literal transcription of `routes.php`, with no path matching to get wrong.
 
-Rate limiting can be implemented as a custom PSR-15 middleware or via a reverse proxy (e.g., nginx):
+Every entry lists `AdminRole::ADMIN` explicitly even though it is a strict
+superset of the other two: reading a row must answer "who may do this" without
+also knowing a rule about who is implied.
+
+### Adding a route
+
+1. Register it in `routes.php`.
+2. Add its `"METHOD /pattern"` to `RouteRoleMap::MAP` with the roles it needs.
+   `ADMIN_ONLY` is a perfectly good answer — it just has to be written down.
+3. If the panel gains a page for it, classify that page in the frontend's own
+   table (`admin-frontend/src/utils/adminRoles.ts`).
+
+Step 2 is not optional and not on your memory: `RouteRoleMapCompletenessTest`
+reads the **real route collector** and fails on any session-authenticated route
+with no entry, naming it. It fails in both directions — a stale entry for a
+route that no longer exists fails too.
+
+### What a refusal looks like
+
+| Situation | Status | Body |
+|-----------|:------:|------|
+| No session, or an expired one | 401 | `{"error": "admin_not_authenticated"}` |
+| A live session whose roles do not cover the route | 403 | `{"error": "insufficient_role", "message": "This section is not available for your role."}` |
+| A rejected step-up credential | 401 | `{"error": "invalid_credentials"}` |
+
+401 is checked before 403: an expired session is not a role problem, and telling
+an anonymous caller which roles a route needs is free reconnaissance.
+
+The middleware also attaches `admin_roles` to the request, so a controller can
+make a finer decision without re-reading the database:
 
 ```php
-// Rate limit configuration (conceptual)
-// Terminal API: 60 requests per 60 seconds (sync once per minute typical)
-// Admin API: 120 requests per 60 seconds (interactive usage)
-// Login attempts: 5 attempts per 60 seconds (prevent brute force)
-
-// Implementation options:
-// 1. Custom PSR-15 middleware using APCu/Redis for counters
-// 2. nginx rate limiting (recommended for production)
-// 3. Slim 4 third-party middleware package
+/** @var list<AdminRole> $roles */
+$roles = $request->getAttribute('admin_roles', []);
 ```
+
+## Layer 3: allow-lists, where the boundary lands on a parameter
+
+Some boundaries are not routes. `GET /api/admin/reports/{reportType}` is shared
+by all three offices, but `group_by=member` turns a revenue report into a list of
+named people and what they drink, while `group_by=category` is the drinks list
+doing its job.
+
+`ReportGroupByPolicy` answers that, and it is an **allow-list** on purpose: a
+dimension added later is refused until somebody grants it, in a diff a reviewer
+sees. Every role is enumerated, `admin` included, so a new dimension fails the
+build until it is classified — the map's completeness property, applied to a
+parameter.
+
+Two details worth copying if you ever add a second one:
+
+- **A value that is not a dimension at all stays a 400 for every role.** A typo
+  is a malformed request, not an authorization failure, and answering 403 to it
+  tells the caller their role is the problem when it is not.
+- **Aggregates are not the boundary.** `summary.unique_member_count` is
+  unchanged for every role: a count with no names attached is not a member list.
+
+## The step-up axis
+
+Roles say *whether* you may; a step-up (`StepUpAuthService`, ADR-0015) says
+*prove it is still you*. They are orthogonal and both apply: `PATCH /admin-users/{id}` is `admin`-only **and**
+demands the caller's own password and TOTP code when the role set actually
+changes. Granting a role is minting authority, so it costs a credential even
+though the session is already `admin`.
+
+## The panel's own table is not enforcement
+
+`admin-frontend` keeps a second, smaller table (`src/utils/adminRoles.ts`) so it
+can hide navigation a role cannot use and land each office on a page it can
+open. It is a separate table rather than a copy — the server maps API routes,
+the panel maps SPA sections, and one page fans out to several endpoints.
+
+It is a courtesy, never a control. The server refuses independently on every
+request, which is what makes a bookmark, a stale tab and a role changed
+mid-session all safe.
 
 ---
 
 ## Authorization Matrix
 
-| Endpoint | Terminal Auth (Bearer) | Admin Auth (Session) | Member (RFID) |
-|----------|:---:|:---:|:---:|
-| `GET /api/sync/members` | ✅ Allowed | ❌ Denied | ❌ N/A |
-| `PATCH /api/sync/members/{id}/language` | ✅ Allowed | ❌ Denied | ❌ N/A |
-| `POST /api/sync/transactions` | ✅ Allowed | ❌ Denied | ❌ N/A |
-| `GET /api/admin/members` | ❌ Denied | ✅ Allowed | ❌ N/A |
-| `POST /api/admin/members` | ❌ Denied | ✅ Allowed | ❌ N/A |
-| `PATCH /api/admin/members/{id}` | ❌ Denied | ✅ Allowed | ❌ N/A |
-| `DELETE /api/admin/members/{id}` | ❌ Denied | ✅ Allowed | ❌ N/A |
-| `POST /api/admin/members/{id}/export` | ❌ Denied | ✅ Allowed | ❌ N/A |
-| `POST /api/auth/login` | ❌ N/A | ✅ Allowed | ❌ N/A |
-| `GET /api/health` | ✅ Allowed | ✅ Allowed | ✅ Allowed |
+`admin` reaches everything, so only the lesser offices are worth tabulating.
+
+| Endpoint | Terminal (Bearer) | `admin` | `kassenwart` | `getraenkewart` |
+|----------|:---:|:---:|:---:|:---:|
+| `GET /api/sync/*` | ✅ | ❌ | ❌ | ❌ |
+| `GET /api/auth/profile` | ❌ | ✅ | ✅ | ✅ |
+| `GET /api/admin/dashboard` | ❌ | ✅ | ✅ | ❌ |
+| `GET /api/admin/members` | ❌ | ✅ | ✅ | ❌ |
+| `DELETE /api/admin/members/{id}` | ❌ | ✅ | ❌ | ❌ |
+| `POST /api/admin/members/{id}/anonymize` | ❌ | ✅ | ❌ | ❌ |
+| `GET`/`POST` `/api/admin/products`, `/categories` | ❌ | ✅ | ❌ | ✅ |
+| `GET /api/admin/settlements` and the SEPA export | ❌ | ✅ | ✅ | ❌ |
+| `GET /api/admin/sepa-config` | ❌ | ✅ | ✅ | ❌ |
+| `PATCH /api/admin/sepa-config` | ❌ | ✅ | ❌ | ❌ |
+| `GET`/`PATCH` `/api/admin/mail-config` | ❌ | ✅ | ❌ | ❌ |
+| `GET /api/admin/audit-log` | ❌ | ✅ | ❌ | ❌ |
+| `/api/admin/admin-users/*`, `/terminals/*`, `/encryption-keys/*` | ❌ | ✅ | ❌ | ❌ |
+| `GET /api/admin/reports/{reportType}` | ❌ | ✅ | ✅ | ✅ (allow-listed `group_by`) |
+| `GET /api/health` | ✅ | ✅ | ✅ | ✅ |
+
+`mail-config` being `admin`-only is load-bearing rather than convenient: a
+Kassenwart who could redirect the alert address could silence the notice that
+reports their own promotion. Every other detection in ADR-0044 depends on it.
 
 ---
 
-## Error Responses
+## Testing
 
-### 401 Unauthorized (Missing/Invalid Auth)
+| Claim | Where |
+|-------|-------|
+| The map's own logic — defaults, intersection, pattern-not-path | `tests/Unit/Modules/Auth/Domain/RouteRoleMapTest.php` |
+| Every registered route is classified, and no entry is stale | `tests/Feature/Modules/Auth/RouteRoleMapCompletenessTest.php` |
+| The refusal happens through the real stack, in the right order | `tests/Feature/Modules/Auth/RoleEnforcementHttpTest.php` |
+| The parameter allow-list | `tests/Unit/Modules/Reports/Domain/ReportGroupByPolicyTest.php`, `tests/Feature/Modules/Reports/ReportGroupByRoleHttpTest.php` |
+| The whole grant table, as data, over HTTP as each office | `e2etests/tests/api/role-access-matrix.spec.ts` |
+| Each office's actual job, run to completion | `e2etests/tests/api/role-flows.spec.ts` |
+| The panel hides what it cannot reach, and names the refusal | `e2etests/tests/admin/role-navigation.spec.ts` |
 
-```php
-// Missing or invalid authentication
-HTTP 401 Unauthorized
-{
-    "error": "unauthorized",
-    "message": "Invalid or missing authentication credentials"
-}
-```
-
-### 403 Forbidden (Authenticated but Not Authorized)
-
-```php
-// Authenticated but not authorized to access this resource
-HTTP 403 Forbidden
-{
-    "error": "forbidden",
-    "message": "You do not have permission to access this resource"
-}
-```
-
-### Examples
-
-```json
-// Terminal trying to access admin endpoint
-{
-    "error": "forbidden",
-    "message": "Terminal cannot access admin endpoints"
-}
-
-// Admin trying to sync with Bearer token
-{
-    "error": "bad_request",
-    "message": "Sync endpoints require Bearer token authentication"
-}
-
-// User trying to access another user's resource
-{
-    "error": "forbidden",
-    "message": "Cannot access another user's resource"
-}
-```
-
----
-
-## Controller-Level Authorization
-
-For fine-grained control within controllers:
+A fixture that inserts an `admin_users` row and stops simulates an account that
+cannot exist, and the gate fails closed on it. `HttpTestCase::grantRoles()` is
+how a feature test gives its admin the roles it needs:
 
 ```php
-// src/Modules/Members/Controllers/AdminController.php
-namespace App\Modules\Members\Controllers;
-
-use App\Modules\Members\Services\MembersService;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-
-/**
- * Admin controller for member management.
- *
- * All endpoints require:
- * - Session authentication (AdminSessionAuth middleware)
- * - Admin data available via request attributes
- *
- * Implements Pattern 015: Authorization & Access Control
- */
-final class AdminController
-{
-    public function __construct(private readonly MembersService $service) {}
-
-    /**
-     * DELETE /api/admin/members/{memberId}
-     *
-     * Admin user data is available from request attributes,
-     * set by AdminSessionAuth middleware.
-     */
-    public function destroy(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
-    {
-        $memberId = $args['memberId'];
-        $adminUser = $request->getAttribute('admin_user');
-
-        // Example: Additional authorization check (if needed)
-        // Currently all admins have equal access
-
-        $this->service->delete($memberId);
-
-        return $response->withStatus(204);
-    }
-}
+$id = $this->createAdminUser();
+$this->grantRoles($id, AdminRole::KASSENWART);
 ```
 
----
-
-## Audit Logging with Authorization
-
-```php
-// src/Shared/Services/AuditService.php
-namespace App\Shared\Services;
-
-use App\Shared\Enums\AuditAction;
-use App\Shared\Enums\EntityType;
-use App\Modules\AuditLog\Repositories\AuditLogRepository;
-
-/**
- * Log authorization decisions and access (Pattern 016).
- *
- * Uses the centralized AuditService which writes to the audit_log table
- * via AuditLogRepository (PDO).
- *
- * Implements Pattern 015: Authorization & Access Control
- * Related to ADR-0013: Audit Logging
- */
-class AuditService
-{
-    public function __construct(private AuditLogRepository $auditLogRepository) {}
-
-    /**
-     * Log an audit entry for master data changes or access events.
-     *
-     * Auto-captures IP address and user agent from $_SERVER superglobals.
-     *
-     * @param AuditAction $action Type of action (login, logout, create, update, etc.)
-     * @param EntityType $entityType Type of entity affected
-     * @param string $entityId Primary key of affected record
-     * @param array|null $oldValues Field values before change
-     * @param array|null $newValues Field values after change
-     * @param string|null $adminUserId UUID of admin who performed action
-     */
-    public function log(
-        AuditAction $action,
-        EntityType $entityType,
-        string $entityId,
-        ?array $oldValues = null,
-        ?array $newValues = null,
-        ?string $adminUserId = null,
-        ?string $ipAddress = null,
-        ?string $userAgent = null,
-    ): void {
-        $this->auditLogRepository->insert([
-            'admin_user_id' => $adminUserId,
-            'action' => $action->value,
-            'entity_type' => $entityType->value,
-            'entity_id' => $entityId,
-            'old_values' => $this->maskSensitiveFields($oldValues),
-            'new_values' => $this->maskSensitiveFields($newValues),
-            'ip_address' => $ipAddress ?? ($_SERVER['REMOTE_ADDR'] ?? null),
-            'user_agent' => $userAgent ?? ($_SERVER['HTTP_USER_AGENT'] ?? null),
-        ]);
-    }
-}
-```
-
-The `Logger` class (see `App\Shared\Logging\Logger`) is also used for application-level logging (info, warning, error) in JSON format to daily log files.
+E2E specs mint the office they are testing rather than demoting the shared
+seeded admin — see E2E Pattern 011.
 
 ---
 
@@ -417,135 +218,38 @@ The `Logger` class (see `App\Shared\Logging\Logger`) is also used for applicatio
 
 ### Positive
 
-- **Clear separation**: Terminal, Admin, and Public endpoints clearly protected
-- **Consistent enforcement**: Middleware applies uniformly across all routes
-- **Audit trail**: Authorization decisions logged for security review
-- **Prevents confusion**: Auth mixup prevented at middleware level
-- **Flexible**: Easy to add resource-level checks later
+- **One place to read the model.** "Who may do this?" is answered by one table,
+  not by grepping sixty controllers.
+- **Omission fails closed and loudly.** A forgotten route is `admin`-only and a
+  red test, rather than an open endpoint nobody notices.
+- **Escalation is expensive and visible.** Role grants carry a step-up, dedicated
+  audit actions and out-of-band mail (ADR-0044).
 
 ### Negative
 
-- **Multiple middleware**: More layers to understand
-- **Route configuration complexity**: Must remember which middleware for each route
-- **Performance**: Each request passes through multiple middleware
+- **The map must be maintained beside `routes.php`.** Two files move together.
+- **A boundary on a parameter needs its own allow-list**, which is a second
+  mechanism to learn.
+- **`admin` remains the root.** Whoever can grant a role can grant it to
+  themselves; ADR-0044 accepts that and makes it loud rather than pretending
+  otherwise.
 
 ### Mitigations
 
-1. **Document authorization rules** clearly in route comments
-2. **Use consistent middleware patterns** across all routes
-3. **Provide authorization helper functions** in base controller
-4. **Test authorization thoroughly** (see Testing section)
-5. **Log authorization failures** for security monitoring
-
----
-
-## Integration with ADR-0015
-
-This pattern implements:
-- ✅ **Principle 2**: Device-level Terminal Authentication
-  - Terminal endpoints require Bearer tokens
-  - Enforced at middleware layer
-
-- ✅ **Principle 3**: Session-based Admin Authentication
-  - Admin endpoints require sessions
-  - Enforced at middleware layer
-
-- ✅ **Principle 4**: No Member Authentication
-  - Members never access API directly
-  - Members identified by RFID only
-
-Complements:
-- **Pattern 012**: Terminal API Token Authentication (who you are)
-- **Pattern 013**: Admin Session Authentication (who you are)
-- **Pattern 014**: RFID Member Identification (non-authentication)
-- **ADR-0015**: Full authentication strategy
-- **ADR-0013**: Audit Logging
-
----
-
-## Testing
-
-### Unit Tests
-
-```php
-// tests/Unit/Middleware/TerminalTokenAuthTest.php
-public function test_terminal_auth_allows_sync_endpoints_with_valid_token()
-{
-    $request = $this->createServerRequest('GET', '/api/sync/members')
-        ->withHeader('Authorization', 'Bearer ' . $this->validToken);
-
-    $handler = $this->createMockHandler();
-    $response = $this->middleware->process($request, $handler);
-
-    $this->assertEquals(200, $response->getStatusCode());
-}
-
-public function test_terminal_auth_rejects_missing_token()
-{
-    $request = $this->createServerRequest('GET', '/api/sync/members');
-
-    $handler = $this->createMockHandler();
-    $response = $this->middleware->process($request, $handler);
-
-    $this->assertEquals(401, $response->getStatusCode());
-}
-```
-
-### Integration Tests (Playwright)
-
-```typescript
-// tests/api/authorization.spec.ts
-test('Terminal cannot access /api/admin/members', async () => {
-    const response = await fetch('http://localhost:8080/api/admin/members', {
-        headers: {
-            'Authorization': 'Bearer ' + VALID_TERMINAL_TOKEN
-        }
-    });
-    expect(response.status).toBe(403);
-    const data = await response.json();
-    expect(data.error).toBe('forbidden');
-});
-
-test('Admin session cannot access /api/sync/members', async () => {
-    // Login as admin
-    const loginResponse = await fetch('http://localhost:8080/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            email: 'admin@test.com',
-            password: 'password123'
-        })
-    });
-    const cookie = loginResponse.headers.get('set-cookie');
-
-    // Try to access sync endpoint
-    const response = await fetch('http://localhost:8080/api/sync/members', {
-        headers: {
-            'Cookie': cookie
-        }
-    });
-    expect(response.status).toBe(401);  // Expecting Bearer token
-});
-
-test('Unauthenticated request denied', async () => {
-    const response = await fetch('http://localhost:8080/api/admin/members');
-    expect(response.status).toBe(401);
-});
-
-test('Health endpoint accessible without auth', async () => {
-    const response = await fetch('http://localhost:8080/api/health');
-    expect(response.status).toBe(200);
-});
-```
+1. The completeness test makes the maintenance burden a build failure rather
+   than a review burden.
+2. Allow-lists enumerate every role, so a new value fails the build until it is
+   classified.
+3. Lifecycle mail reaches a club-level address that an `admin` cannot silence
+   without also being the one who configured it.
 
 ---
 
 ## See Also
 
+- **ADR-0044**: Tiered Admin Roles — the grant table and its threat model
 - **ADR-0015**: Authentication and Authorization Strategy
-- **ADR-0013**: Audit Logging
-- **ADR-0017**: Input Validation and Injection Prevention
 - **Pattern 012**: Terminal API Token Authentication
-- **Pattern 013**: Admin Session Authentication
-- **Pattern 014**: RFID Member Identification
-- **Pattern 001**: Input Validation (Custom Validator)
+- **Pattern 013**: Admin Session Authentication — where the step-up credential is verified
+- **E2E Pattern 011**: Testing a Role You Are Not
+- `admin-frontend/patterns/role-visibility.md`: the panel's own table
