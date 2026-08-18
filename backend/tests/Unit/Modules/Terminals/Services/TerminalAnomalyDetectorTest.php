@@ -171,6 +171,124 @@ class TerminalAnomalyDetectorTest extends TestCase
         $this->assertSame(0, $this->detector()->run()->opened);
     }
 
+    // --- IPv6 /64 collapsing ---------------------------------------------------
+
+    /**
+     * A single dual-stack device on one line rotates its IPv6 privacy address
+     * (RFC 4941) while staying in the same /64. Raw-string grouping saw that
+     * as two addresses and, given enough uptime, a same-network "overlap".
+     */
+    public function testRotatingAddressesInTheSameIpv6SlashSixtyFourDoNotOverlap(): void
+    {
+        $this->sightings = $this->createMock(TerminalIpSightingsRepository::class);
+        $this->sightings->method('activeIntervalsSince')->willReturn([
+            $this->interval('2003:fb:6f09:c200:aaaa:bbbb:cccc:0001', '2026-08-15 18:00:00', '2026-08-15 19:30:00'),
+            $this->interval('2003:fb:6f09:c200:1111:2222:3333:4444', '2026-08-15 19:00:00', '2026-08-15 21:00:00'),
+        ]);
+
+        $this->anomalies->expects($this->never())->method('open');
+
+        $this->assertSame(0, $this->detector()->run()->opened);
+    }
+
+    /**
+     * Two distinct /64s overlapping is still exactly what the detector exists
+     * to catch, even though both addresses are IPv6.
+     */
+    public function testDifferentIpv6SlashSixtyFoursStillOverlap(): void
+    {
+        $this->sightings = $this->createMock(TerminalIpSightingsRepository::class);
+        $this->sightings->method('activeIntervalsSince')->willReturn([
+            $this->interval('2003:fb:6f09:c200::1', '2026-08-15 18:00:00', '2026-08-15 20:00:00'),
+            $this->interval('2001:db8:dead:beef::1', '2026-08-15 19:00:00', '2026-08-15 21:00:00'),
+        ]);
+
+        $this->anomalies->method('findOpen')->willReturn(null);
+        $this->anomalies->expects($this->once())
+            ->method('open')
+            ->with(
+                $this->anything(),
+                'terminal-1',
+                TerminalAnomalyKind::CONCURRENT_IP,
+                $this->callback(fn(array $d) => $d['overlap_seconds'] === 3600 && $d['distinct_ips'] === 2),
+                $this->anything(),
+            );
+
+        $this->assertSame(1, $this->detector()->run()->opened);
+    }
+
+    /**
+     * A dual-stack IPv4/IPv6 pair from one device is indistinguishable, from
+     * server-side signals alone, from an IPv6-only attacker riding alongside a
+     * legitimate IPv4 session — so unlike same-/64 IPv6 rotation, this pair
+     * must keep alerting rather than being collapsed away.
+     */
+    public function testIpv4AndIpv6FromTheSameWindowStillOverlap(): void
+    {
+        $this->sightings = $this->createMock(TerminalIpSightingsRepository::class);
+        $this->sightings->method('activeIntervalsSince')->willReturn([
+            $this->interval('93.223.99.144', '2026-08-15 18:00:00', '2026-08-15 19:00:00'),
+            $this->interval('2003:fb:6f09:c200::1', '2026-08-15 18:30:00', '2026-08-15 19:30:00'),
+        ]);
+
+        $this->anomalies->method('findOpen')->willReturn(null);
+        $this->anomalies->expects($this->once())
+            ->method('open')
+            ->with(
+                $this->anything(),
+                'terminal-1',
+                TerminalAnomalyKind::CONCURRENT_IP,
+                $this->callback(fn(array $d) => $d['overlap_seconds'] === 1800 && $d['distinct_ips'] === 2),
+                $this->anything(),
+            );
+
+        $this->assertSame(1, $this->detector()->run()->opened);
+    }
+
+    /**
+     * When a /64 group is reported, the label says "rotating addresses"
+     * rather than picking one raw address to stand in for the group — a
+     * reviewer should not have to guess that more than one string was merged.
+     */
+    public function testCollapsedIpv6GroupIsLabelledAsRotatingAddresses(): void
+    {
+        $this->sightings = $this->createMock(TerminalIpSightingsRepository::class);
+        $this->sightings->method('activeIntervalsSince')->willReturn([
+            $this->interval('2003:fb:6f09:c200:aaaa::1', '2026-08-15 18:00:00', '2026-08-15 19:00:00', 5),
+            $this->interval('2003:fb:6f09:c200:bbbb::1', '2026-08-15 18:30:00', '2026-08-15 19:30:00', 4),
+            $this->interval('2001:db8:dead:beef::1', '2026-08-15 18:15:00', '2026-08-15 20:00:00', 30),
+        ]);
+
+        $this->anomalies->method('findOpen')->willReturn(null);
+        $this->anomalies->expects($this->once())
+            ->method('open')
+            ->with(
+                $this->anything(),
+                'terminal-1',
+                TerminalAnomalyKind::CONCURRENT_IP,
+                $this->callback(function (array $d): bool {
+                    if ($d['distinct_ips'] !== 2) {
+                        return false;
+                    }
+
+                    $rotating = array_values(array_filter(
+                        $d['ips'],
+                        fn(array $ip) => str_contains((string) $ip['ip_address'], 'rotating addresses'),
+                    ));
+
+                    if (count($rotating) !== 1) {
+                        return false;
+                    }
+
+                    return $rotating[0]['ip_address'] === '2003:fb:6f09:c200::/64 (2 rotating addresses)'
+                        && $rotating[0]['request_count'] === 9;
+                }),
+                $this->anything(),
+            );
+
+        $this->assertSame(1, $this->detector()->run()->opened);
+    }
+
     // --- cursor findings ------------------------------------------------------
 
     public function testRegressionToANonZeroCursorIsARegression(): void
