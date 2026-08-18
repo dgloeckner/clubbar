@@ -4,7 +4,7 @@
 
 **Related:** [ADR-0004](../adr/0004-immutable-transaction-storage.md) (append-only transactions — the table this mostly concerns only grows), [ADR-0041](../adr/0041-terminal-credential-anomaly-detection.md) (the audit-log dedup check this touches)
 
-**Status:** Implemented (2026-08-18). Migration applied and verified against a seeded 600k-row `transactions` table.
+**Status:** Implemented (2026-08-18). Migration applied and verified against a seeded 600k-row `transactions` table; auth-attempt pruning verified end-to-end via `cron.php`.
 
 | Task | Status | Evidence |
 |------|--------|----------|
@@ -15,8 +15,10 @@
 | 5. Fix `AuditLogRepository::listWithFilters()` wrapping `created_at` in `DATE()` | `[x]` | Same semantics (pinned by a new boundary test), 594,252 rows examined → 44,896 (a 30-day window on the 600k-row table); ~578ms → ~9-13ms |
 | 6. Try `transactions(transaction_type, occurred_at)` — **rejected** | `[x]` | See "What didn't work" below |
 | 7. Investigate `sessions` table pruning — **no fix shipped** | `[x]` | See "The sessions table is dead code" below — there is nothing to prune |
-| 8. New regression test | `[x]` | `AuditLogRepositoryTest::test_listWithFilters_date_range_includes_both_boundary_instants` |
-| 9. Full backend suite green | `[x]` | `docker compose exec -w /app backend ./vendor/bin/phpunit` |
+| 8. Audit every rate-limiting mechanism's SQL | `[x]` | See "Rate limiting" below — queries are sargable and index-covered everywhere; two of the four backing tables had no pruning at all |
+| 9. Add `LoginAttemptsRepository::pruneOlderThan()`, wired into `cron.php` | `[x]` | New `CronScriptTest::test_a_run_prunes_stale_auth_attempts` (end-to-end) + `LoginAttemptsRepositoryTest` unit coverage for both tables it backs |
+| 10. New regression tests | `[x]` | `AuditLogRepositoryTest::test_listWithFilters_date_range_includes_both_boundary_instants`, `LoginAttemptsRepositoryTest::test_pruning_removes_only_what_is_older_than_the_cutoff` + `test_pruning_works_on_a_table_with_no_email_column`, `CronScriptTest::test_a_run_prunes_stale_auth_attempts` |
+| 11. Full backend suite green | `[x]` | `docker compose exec -w /app backend ./vendor/bin/phpunit` |
 
 ---
 
@@ -55,13 +57,25 @@ Following the trail further changed the diagnosis. `AdminSessionAuth` — the mi
 
 So "the table only ever grew" would have been the wrong story: in production it never grows, because nothing populates it. `SessionRepository`, the `sessions` table, and its index are unused schema and dead code, left over from before the app settled on native PHP sessions for admin auth. Wiring a prune job into `cron.php` for a table nothing writes to would have been solving a problem that doesn't exist, so no code change ships here — this is a finding to hand to the maintainer, not a performance fix. Removing the table itself is a schema change CLAUDE.md requires explicit confirmation for, so it's out of scope for this PR.
 
+## Rate limiting
+
+Asked separately, alongside `sessions`: how rate limiting is implemented, and whether its SQL is optimal. It's one reusable primitive — `RateLimitMiddleware` + `LoginAttemptsRepository`, parametrized by table — instantiated four ways (admin login, MFA, step-up re-auth, terminal bearer-token auth), plus one ephemeral PHP-session counter for MFA guess attempts that never touches the database at all.
+
+The SQL itself is already optimal: every check is `WHERE ip_address = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)` (or the `email`-scoped equivalent) against `login_attempts`/`terminal_auth_attempts`, neither indexed column wrapped in a function, both tables carrying a matching composite index (`idx_ip_time`, `idx_email_time`) — index-only `COUNT(*)` scans throughout. No `DATE()`-style regression here.
+
+What was missing was the same shape of gap as `mail_outbox` versus `sessions`, but landing on the `mail_outbox` side this time — these tables are genuinely live and growing, just never pruned. `login_attempts.clearForEmail()` only fires for the account whose *own* login just fully succeeded (ruling #78), so a probed, mistyped, or deleted account's failed attempts sit forever. `terminal_auth_attempts` has no `email` column and no clearing path at all — every bad bearer token from every scanner hitting `/api/sync/*`, permanently. Both stay index-covered as they grow, so no query-shape regression, but unbounded row/disk growth all the same. `TerminalIpSightingsRepository::pruneOlderThan()` (ADR-0041 §5, 30-day retention) was already the established pattern for exactly this kind of table; `LoginAttemptsRepository::pruneOlderThan()` follows it, parametrized the same way `record()`/`countRecentByIp()` already are so one method serves both tables. Retention is a day — comfortably past every rate-limit window in use (15 minutes) while still giving a human something to look back at.
+
 ## Changes
 
 | File | Change |
 |------|--------|
 | `backend/db/migrations/044_transaction_and_audit_log_indices.sql` (+ `rollback/044_...down.sql`) | `ADD INDEX idx_transactions_occurred_at (occurred_at)`, `ADD INDEX idx_audit_entity_action_created (entity_id, action, created_at)` |
 | `backend/src/Modules/AuditLog/Repositories/AuditLogRepository.php` | `listWithFilters()`: `DATE(al.created_at) >= / <= ?` → plain `al.created_at >= ? ` / `al.created_at <= ?` with the upper bound widened via `UnsettledTransactions::endOfDay()` (already used the same way in `TransactionsRepository`) |
+| `backend/src/Modules/Auth/Repositories/LoginAttemptsRepository.php` | New `pruneOlderThan(string $cutoff): int`, same shape as `TerminalIpSightingsRepository::pruneOlderThan()` |
+| `backend/bin/cron.php` | New step pruning `login_attempts` and `terminal_auth_attempts` past a 1-day cutoff, same try/catch-and-report pattern as the other periodic maintenance calls |
 | `backend/tests/Feature/Modules/AuditLog/Repositories/AuditLogRepositoryTest.php` | New boundary test for `date_from`/`date_to` |
+| `backend/tests/Feature/Modules/Auth/Repositories/LoginAttemptsRepositoryTest.php` | New `pruneOlderThan()` coverage for both the `email`-bearing and `email`-less tables |
+| `backend/tests/Feature/Modules/Notifications/CronScriptTest.php` | New end-to-end test: a run prunes stale attempts from both tables and leaves recent ones |
 
 ## Test Commands
 
@@ -69,6 +83,6 @@ So "the table only ever grew" would have been the wrong story: in production it 
 # Backend suite (inside the container — host PHP has no bcmath)
 docker compose exec -w /app backend ./vendor/bin/phpunit
 
-# Just the touched area
-docker compose exec -w /app backend ./vendor/bin/phpunit --filter AuditLogRepositoryTest
+# Just the touched areas
+docker compose exec -w /app backend ./vendor/bin/phpunit --filter "AuditLogRepositoryTest|LoginAttemptsRepositoryTest|CronScriptTest"
 ```

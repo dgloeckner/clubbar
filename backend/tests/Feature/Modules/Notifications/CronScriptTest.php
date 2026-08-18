@@ -61,6 +61,12 @@ class CronScriptTest extends DatabaseTestCase
         }
         $this->createdMembers = [];
 
+        foreach ($this->authAttemptIps as $ip) {
+            $this->db->prepare('DELETE FROM login_attempts WHERE ip_address = ?')->execute([$ip]);
+            $this->db->prepare('DELETE FROM terminal_auth_attempts WHERE ip_address = ?')->execute([$ip]);
+        }
+        $this->authAttemptIps = [];
+
         parent::tearDown();
     }
 
@@ -68,6 +74,9 @@ class CronScriptTest extends DatabaseTestCase
 
     /** @var list<string> */
     private array $createdMembers = [];
+
+    /** @var list<string> */
+    private array $authAttemptIps = [];
 
     private ?string $originalCadence = null;
 
@@ -120,6 +129,76 @@ class CronScriptTest extends DatabaseTestCase
         // those differ, and the difference is the first thing to rule out when
         // a queue will not move.
         $this->assertNotNull($row['php_version']);
+    }
+
+    /**
+     * `login_attempts`/`terminal_auth_attempts` have no path back to empty
+     * beyond this: `countRecentByIp`/`countRecentByEmail` never look back more
+     * than 15 minutes, but `clearForEmail()` only fires for the account whose
+     * own login just succeeded, and `terminal_auth_attempts` has no clearing
+     * path at all. A run prunes what is older than a day and leaves what is
+     * still inside it.
+     */
+    public function test_a_run_prunes_stale_auth_attempts(): void
+    {
+        $ip = $this->authAttemptIp();
+        $this->insertLoginAttempt($ip, strtotime('-2 days'));
+        $liveLoginId = $this->insertLoginAttempt($ip, strtotime('-1 hour'));
+        $this->insertTerminalAuthAttempt($ip, strtotime('-2 days'));
+        $liveTerminalId = $this->insertTerminalAuthAttempt($ip, strtotime('-1 hour'));
+
+        $result = $this->runCron();
+
+        $this->assertSame(0, $result['exit'], $result['output']);
+        $this->assertStringContainsString('Pruned auth attempts: 1 login, 1 terminal.', $result['output']);
+        $this->assertSame([$liveLoginId], $this->remainingLoginAttemptIds($ip));
+        $this->assertSame([$liveTerminalId], $this->remainingTerminalAuthAttemptIds($ip));
+    }
+
+    private function authAttemptIp(): string
+    {
+        // Documentation range (RFC 5737): never a real client, unique enough
+        // per run that a parallel test cannot see this one's rows.
+        $ip = '198.51.100.' . (crc32($this->generateUuid()) % 200 + 1);
+        $this->authAttemptIps[] = $ip;
+
+        return $ip;
+    }
+
+    private function insertLoginAttempt(string $ip, int $attemptedAt): int
+    {
+        $this->db->prepare(
+            'INSERT INTO login_attempts (ip_address, attempted_at) VALUES (?, ?)'
+        )->execute([$ip, date('Y-m-d H:i:s', $attemptedAt)]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    private function insertTerminalAuthAttempt(string $ip, int $attemptedAt): int
+    {
+        $this->db->prepare(
+            'INSERT INTO terminal_auth_attempts (ip_address, attempted_at) VALUES (?, ?)'
+        )->execute([$ip, date('Y-m-d H:i:s', $attemptedAt)]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    /** @return list<int> */
+    private function remainingLoginAttemptIds(string $ip): array
+    {
+        $stmt = $this->db->prepare('SELECT id FROM login_attempts WHERE ip_address = ?');
+        $stmt->execute([$ip]);
+
+        return array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN, 0));
+    }
+
+    /** @return list<int> */
+    private function remainingTerminalAuthAttemptIds(string $ip): array
+    {
+        $stmt = $this->db->prepare('SELECT id FROM terminal_auth_attempts WHERE ip_address = ?');
+        $stmt->execute([$ip]);
+
+        return array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN, 0));
     }
 
     /**
