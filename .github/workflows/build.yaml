@@ -393,11 +393,29 @@ jobs:
       && needs['build-backend'].result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    # Three lanes rather than two blind shards, because `--shard` cannot split a
+    # dependency-connected component and almost every project was in one: the
+    # ordered specs and the mail chains all declare `api-tests` and
+    # `admin-chromium` as dependencies, so Playwright had to keep the lot
+    # together. Measured on the old two-way shard: shard 1 got **28** tests and
+    # ran for 52 seconds, shard 2 got **995** and ran for 7m54 — the matrix paid
+    # for two stacks and bought nothing.
+    #
+    # Those dependencies are about one shared database, so a job of its own
+    # satisfies them (see the `E2E_LANE` note in playwright.config.ts). The
+    # remaining two lanes are homogeneous, which is what makes Playwright's
+    # count-based sharding balance them by *time*: 318/318 for `api`, and
+    # 180/179 for `ui`.
     strategy:
       fail-fast: false
       matrix:
-        shardIndex: [1, 2]
-        shardTotal: [2]
+        include:
+          - { lane: api, id: api-1, shard: 1/2, projects: --project=api-tests }
+          - { lane: api, id: api-2, shard: 2/2, projects: --project=api-tests }
+          - { lane: ui, id: ui-1, shard: 1/2, projects: --project=admin-chromium --project=admin-mobile }
+          - { lane: ui, id: ui-2, shard: 2/2, projects: --project=admin-chromium --project=admin-mobile }
+          # One job, no shard: every project in it is deliberately serial.
+          - { lane: chain, id: chain, shard: 1/1, projects: --project=api-ordered --project=api-rotation --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance }
 
     steps:
       - uses: actions/checkout@v4
@@ -505,18 +523,20 @@ jobs:
         working-directory: e2etests
 
       - name: Run E2E tests
-        # `api-ordered`, `api-rotation`, `mail-chain`, `mail-statement`,
-        # `mail-credentials` and `mail-issuance` carry
-        # the specs that cannot run alongside anything else — see the projects in
-        # playwright.config.ts. Each depends on the suites it must follow, so
-        # they run after them rather than beside them. Listing them explicitly
-        # matters: those specs live in their own testDir or are excluded from
-        # `api-tests`, so leaving one out drops it from CI silently.
-        run: npx playwright test --project=api-tests --project=api-ordered --project=api-rotation --project=admin-chromium --project=admin-mobile --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        # Every project is named explicitly, in one lane or another: these specs
+        # live in their own testDir or are excluded from `api-tests`, so leaving
+        # one out drops it from CI silently. The union of the three lanes is the
+        # project list this job used to run as one.
+        #
+        # `E2E_LANE` reaches playwright.config.ts, where it is the only thing
+        # that relaxes a dependency edge — and only for the chain lane, which
+        # has this database to itself.
+        run: npx playwright test ${{ matrix.projects }} --shard=${{ matrix.shard }}
         working-directory: e2etests
         env:
           CI: true
           ADMIN_URL: http://localhost:5173
+          E2E_LANE: ${{ matrix.lane }}
 
       # Container logs, bounded. Enough to see a backend 500 or a crash loop
       # behind a failing test, without burying what comes after it.
@@ -544,7 +564,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-${{ matrix.shardIndex }}
+          name: playwright-report-${{ matrix.id }}
           # results/ carries the JSON reporter output the debugging workflow in
           # CLAUDE.md reads; the HTML report alone cannot be grepped.
           path: |
@@ -556,7 +576,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-traces-${{ matrix.shardIndex }}
+          name: playwright-traces-${{ matrix.id }}
           path: e2etests/test-results/
           retention-days: 14
 
