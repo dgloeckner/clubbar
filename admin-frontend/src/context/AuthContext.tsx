@@ -62,6 +62,13 @@ interface AuthContextType extends AuthState {
   setupTotp: () => Promise<{ qrCode: string; secret: string }>
   confirmTotp: (code: string) => Promise<AuthResult>
   logout: () => Promise<void>
+  /**
+   * Sync a profile save (email/display_name/locale) into auth state. The
+   * header and everywhere else that reads `displayName`/`email`/`locale`
+   * from context render from this state, not from localStorage, so without
+   * this call a rename or locale change stays invisible until a reload (#134).
+   */
+  updateProfile: (admin: { email: string; display_name: string; locale: string }) => void
   // True only while the app is checking for an existing session on first load.
   // Routing (App.tsx) gates its full-page loading screen on this, NOT on `loading`.
   initializing: boolean
@@ -268,6 +275,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  const updateProfile = (admin: { email: string; display_name: string; locale: string }): void => {
+    setAuth(prev => (prev.isAuthenticated
+      ? { ...prev, email: admin.email, displayName: admin.display_name, locale: admin.locale }
+      : prev))
+  }
+
   const handleLogout = async () => {
     setLoading(true)
     try {
@@ -288,6 +301,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setupTotp: handleSetupTotp,
     confirmTotp: handleConfirmTotp,
     logout: handleLogout,
+    updateProfile,
     initializing,
     loading,
     error,

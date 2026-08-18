@@ -23,10 +23,12 @@ import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { StepUpConfirmDialog, type StepUpCredentials } from '../components/modals/StepUpConfirmDialog'
 import { changeLanguage } from '../i18n/config'
 import { useFormatters } from '../hooks/useFormatters'
+import { useAuth } from '../context/AuthContext'
 
 export function ProfilePage() {
   const { t } = useTranslation()
   const { intlLocale } = useFormatters()
+  const { updateProfile: updateAuthProfile } = useAuth()
   const [profile, setProfile] = useState<AdminProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -94,7 +96,8 @@ export function ProfilePage() {
     changeLanguage(newLocale)  // Update i18n and localStorage immediately
     setLocale(newLocale)       // Update local state
     try {
-      await updateProfileWithSession({ locale: newLocale })  // Persist to backend
+      const updated = await updateProfileWithSession({ locale: newLocale })  // Persist to backend
+      updateAuthProfile(updated)  // Keep header/context in sync (#134)
     } catch {
       // locale preference save failed — non-critical
     }
@@ -130,6 +133,7 @@ export function ProfilePage() {
       })
 
       setProfile(updated)
+      updateAuthProfile(updated)  // Keep header/context in sync (#134)
       setEmailStepUpOpen(false)
       setSuccess(t('profile.profileUpdated'))
 
