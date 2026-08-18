@@ -134,9 +134,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                   ),
                   child: MemberBar(
                     member: selectedMember,
-                    itemCount: cartProvider.itemCount,
                     deckelCents: membersProvider.memberDeckel,
-                    onCartPressed: () => context.go('/cart'),
                     onLogoutPressed: () {
                       // ADR-0027: all session ends go through endSession(),
                       // which refuses to run mid-checkout (rule 7).

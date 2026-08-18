@@ -201,8 +201,8 @@ void main() {
       await tester.tap(find.text('Pils 0,5l'));
       await pumpFrames(tester, count: 5);
 
-      // Open the cart via the member bar's cart button
-      await tester.tap(find.byIcon(Icons.shopping_cart_outlined));
+      // Open the cart via the cart summary bar's "Warenkorb" button
+      await tester.tap(find.byKey(const Key('view-cart-button')));
       await pumpFrames(tester);
 
       expect(find.byType(ShoppingCartScreen), findsOneWidget);

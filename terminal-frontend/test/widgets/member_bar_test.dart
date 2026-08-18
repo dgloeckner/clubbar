@@ -48,7 +48,6 @@ void main() {
         child: Scaffold(
           body: MemberBar(
             member: _member.copyWith(balanceCents: balanceCents),
-            itemCount: 0,
             onLogoutPressed: onLogoutPressed,
           ),
         ),

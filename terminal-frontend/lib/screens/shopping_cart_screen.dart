@@ -61,7 +61,6 @@ class ShoppingCartScreen extends StatelessWidget {
                   ),
                   child: MemberBar(
                     member: selectedMember,
-                    itemCount: cartProvider.itemCount,
                     deckelCents: membersProvider.memberDeckel,
                     showBackButton: true,
                     onBackPressed: () => context.go('/products'),
@@ -107,7 +106,6 @@ class ShoppingCartScreen extends StatelessWidget {
                 ),
                 child: MemberBar(
                   member: selectedMember,
-                  itemCount: cartProvider.itemCount,
                   deckelCents: membersProvider.memberDeckel,
                   showBackButton: true,
                   onBackPressed: () => context.go('/products'),

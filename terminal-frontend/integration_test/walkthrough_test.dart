@@ -356,7 +356,7 @@ void main() {
       await capture(tester, 'Book a sauna session');
 
       // -- Scene 7: Shopping cart --
-      await tester.tap(find.byIcon(Icons.shopping_cart_outlined));
+      await tester.tap(find.byKey(const Key('view-cart-button')));
       await pumpFrames(tester, count: 20);
 
       expect(find.byType(ShoppingCartScreen), findsOneWidget);
