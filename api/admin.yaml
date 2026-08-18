@@ -3008,7 +3008,8 @@ paths:
         '403':
           $ref: '#/components/responses/InsufficientRole'
         '409':
-          description: Email already exists
+          description: |
+            Email already exists, or `roles` mixes `admin` with a lesser role.
           content:
             application/json:
               schema:
@@ -3044,6 +3045,12 @@ paths:
         `roles` replaces the set outright rather than adding to it, and it is
         validated as a whole: a list naming anything that is not a role, or an
         empty list, is refused rather than partially applied.
+
+        No account can change its own role set, `admin` included — a caller
+        submitting `roles` for their own id gets `403 cannot_edit_own_roles`
+        rather than a step-up prompt, regardless of what the array contains.
+        A role change is always made by a *different* admin acting on the
+        account.
 
         Rate-limited on the caller's account (5 attempts / 15 min, the same
         dimension as login), pinned to the route so a failed step-up counts
@@ -3106,9 +3113,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/InsufficientRole'
+          description: |
+            Either the caller lacks `admin` (`insufficient_role`), or `roles`
+            names the caller's own account (`cannot_edit_own_roles`) — no
+            account, `admin` included, can change its own role set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            `roles` mixes `admin` with a lesser role, or would revoke `admin`
+            from the last account holding it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
@@ -4704,6 +4726,11 @@ components:
         `getraenkewart` (bar stock — categories, products) are lesser siblings
         beneath it. Roles compose additively, so one account may hold both
         lesser roles without being `admin`.
+
+        An account's role set is either `admin` alone, or a non-empty
+        combination of the two lesser roles — `admin` is never held alongside
+        a lesser role. A `roles` array mixing `admin` with another value is
+        refused.
 
         The set is hardcoded: a new role is a schema migration, not
         configuration.

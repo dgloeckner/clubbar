@@ -582,6 +582,7 @@
     "deactivateAdminConfirm": "Are you sure you want to deactivate this admin user?",
     "ownAccount": "You",
     "cannotDeactivateOwnAccount": "You cannot deactivate your own account",
+    "cannotEditOwnRoles": "You cannot change your own roles — ask another admin to do it",
     "terminals": "Terminals",
     "createAdminStepUpHint": "Creating an admin user grants full, unrestricted access to this installation. Confirm it is you.",
     "createTerminal": "Create Terminal",

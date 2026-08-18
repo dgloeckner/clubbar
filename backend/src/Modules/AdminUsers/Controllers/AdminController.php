@@ -137,6 +137,18 @@ class AdminController
             }
         }
 
+        // CONTEXT.md's Role entry: no account can change its own role set,
+        // Admin included — a role change is always made by a *different*
+        // Admin acting on the account. Checked server-side rather than left to
+        // the panel hiding the control, since this is the id that decides
+        // whether the caller keeps their own access, not a UI nicety.
+        if ($roles !== null && $id === $adminId) {
+            return $this->json($response, [
+                'error' => 'cannot_edit_own_roles',
+                'message' => 'You cannot change your own roles',
+            ], 403);
+        }
+
         // ADR-0044 rule 2: granting a role is minting authority, so it costs a
         // step-up — the same price `POST /admin-users` pays. Without this,
         // creating an admin needs a password and a fresh TOTP code while

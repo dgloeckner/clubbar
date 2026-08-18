@@ -37,8 +37,20 @@ class AdminUserRolesRepositoryTest extends TestCase
                 PRIMARY KEY (admin_user_id, role)
             )'
         );
+        $this->db->exec(
+            'CREATE TABLE admin_users (
+                id CHAR(36) PRIMARY KEY,
+                is_active INTEGER NOT NULL DEFAULT 1
+            )'
+        );
 
         $this->repository = new AdminUserRolesRepository($this->db, $this->createMock(Logger::class));
+    }
+
+    private function account(string $id, bool $active = true): void
+    {
+        $this->db->prepare('INSERT INTO admin_users (id, is_active) VALUES (?, ?)')
+            ->execute([$id, $active ? 1 : 0]);
     }
 
     public function test_an_account_with_no_rows_holds_no_roles(): void
@@ -145,5 +157,29 @@ class AdminUserRolesRepositoryTest extends TestCase
     public function test_resolving_roles_for_an_empty_id_list_asks_the_database_nothing(): void
     {
         $this->assertSame([], $this->repository->rolesForMany([]));
+    }
+
+    /**
+     * The guard rail the service layer builds "never neuter the last admin"
+     * on: how many *active* accounts hold a given role right now.
+     */
+    public function test_counting_active_holders_of_a_role(): void
+    {
+        $this->account('admin-1');
+        $this->account('admin-2');
+        $this->repository->replace('admin-1', [AdminRole::ADMIN]);
+        $this->repository->replace('admin-2', [AdminRole::ADMIN, AdminRole::KASSENWART]);
+
+        $this->assertSame(2, $this->repository->countActiveHolders(AdminRole::ADMIN));
+        $this->assertSame(1, $this->repository->countActiveHolders(AdminRole::KASSENWART));
+        $this->assertSame(0, $this->repository->countActiveHolders(AdminRole::GETRAENKEWART));
+    }
+
+    public function test_a_deactivated_holder_does_not_count(): void
+    {
+        $this->account('admin-1', active: false);
+        $this->repository->replace('admin-1', [AdminRole::ADMIN]);
+
+        $this->assertSame(0, $this->repository->countActiveHolders(AdminRole::ADMIN));
     }
 }

@@ -49,11 +49,6 @@ class AdminUsersRepository
             ->fetchAll();
     }
 
-    public function countActive(): int
-    {
-        return (int) $this->db->query('SELECT COUNT(*) FROM admin_users WHERE is_active = 1')->fetchColumn();
-    }
-
     public function create(array $data): array
     {
         $id = $data['id'] ?? Uuid::v4();

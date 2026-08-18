@@ -260,6 +260,61 @@ class AdminControllerTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
     }
 
+    public function test_update_rejects_invalid_role_values(): void
+    {
+        $this->service->expects($this->never())->method('setRoles');
+
+        $response = $this->controller->update(
+            $this->post(['roles' => ['superuser']]),
+            new Response(),
+            ['id' => 'a-2'],
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('roles', $this->decode($response)['messages']);
+    }
+
+    /**
+     * CONTEXT.md's Role entry: no account can change its own role set. The
+     * request-scoped id (`admin_user_id`) is what "own account" means here,
+     * matched against the path id — never trust the client to omit `roles`
+     * on itself.
+     */
+    public function test_update_refuses_a_caller_changing_their_own_roles(): void
+    {
+        $this->service->expects($this->never())->method('setRoles');
+        $this->stepUpAuthService->expects($this->never())->method('verify');
+
+        $response = $this->controller->update(
+            $this->post(['roles' => ['kassenwart']]),
+            new Response(),
+            ['id' => 'admin-1'], // matches the caller's own id set in post()
+        );
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertSame('cannot_edit_own_roles', $this->decode($response)['error']);
+    }
+
+    public function test_update_lets_an_admin_change_someone_elses_roles(): void
+    {
+        $this->stepUpAuthService->method('verify')->willReturn(true);
+        $this->service->method('emailTakenByAnother')->willReturn(false);
+        $this->service->method('rolesWouldChange')->willReturn(true);
+        $this->service->method('updateAdminUser')->willReturn($this->admin());
+        $this->service->method('findAdminUserById')->willReturn($this->admin());
+        $this->service->expects($this->once())
+            ->method('setRoles')
+            ->with('a-2', $this->anything(), 'admin-1');
+
+        $response = $this->controller->update(
+            $this->post(['roles' => ['kassenwart'], 'current_password' => 'correct']),
+            new Response(),
+            ['id' => 'a-2'],
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
     /** @param array<string, mixed> $body */
     private function post(array $body): \Psr\Http\Message\ServerRequestInterface
     {

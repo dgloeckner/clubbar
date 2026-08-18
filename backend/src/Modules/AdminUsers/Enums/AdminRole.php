@@ -11,6 +11,9 @@ namespace App\Modules\AdminUsers\Enums;
  * every admin account holds today; `kassenwart` (the elected treasurer) and
  * `getraenkewart` (the bar stock) are lesser siblings beneath it. Roles compose
  * additively — one person may hold both lesser roles without becoming `admin`.
+ * `admin` is never held alongside a lesser role: an account's role set is
+ * either `admin` alone or a non-empty subset of {`kassenwart`,
+ * `getraenkewart`} — enforced in `AdminUsersService::applyRoles()`.
  *
  * German names for the two club offices, English for `admin`, on the precedent
  * CONTEXT.md set for Storno, Deckel and Vorabankündigung: use the word the

@@ -93,8 +93,30 @@ class AdminUsersService
             throw new BusinessRuleException('An admin user must hold at least one role');
         }
 
-        $before = $this->adminUserRolesRepository->rolesFor($id);
         $after = AdminRole::fromValues(AdminRole::toValues($roles));
+
+        // Admin-exclusivity (CONTEXT.md's Role entry, ADR-0044): an account's
+        // role set is either `admin` alone, or any non-empty subset of the two
+        // lesser roles. `admin` combined with a lesser role is not "more
+        // privileged" — it is a state the domain does not recognise.
+        if (in_array(AdminRole::ADMIN, $after, true) && count($after) > 1) {
+            throw new BusinessRuleException('admin cannot be combined with a lesser role');
+        }
+
+        $before = $this->adminUserRolesRepository->rolesFor($id);
+
+        // Defense in depth for "never neuter the last admin". Nothing on the
+        // request path is supposed to reach this today — `PATCH
+        // /admin-users/{id}` is `admin`-only (RouteRoleMap) and the controller
+        // refuses a caller editing their own roles — so the only way to revoke
+        // `admin` from its last holder is for a *different* admin to do it,
+        // which this guard would also refuse. It exists anyway: a fragile
+        // invariant whose only backing is "nothing else calls this function
+        // yet" is worth two lines to make explicit.
+        $revokingAdmin = in_array(AdminRole::ADMIN, $before, true) && !in_array(AdminRole::ADMIN, $after, true);
+        if ($revokingAdmin && $this->adminUserRolesRepository->countActiveHolders(AdminRole::ADMIN) <= 1) {
+            throw new BusinessRuleException('Cannot remove admin from the last account holding it');
+        }
 
         $granted = array_values(array_diff(AdminRole::toValues($after), AdminRole::toValues($before)));
         $revoked = array_values(array_diff(AdminRole::toValues($before), AdminRole::toValues($after)));
@@ -398,8 +420,17 @@ class AdminUsersService
             throw new BusinessRuleException('Cannot deactivate own account');
         }
 
-        $activeCount = $this->adminUsersRepository->countActive();
-        if ($activeCount <= 1) {
+        // Role-aware, not "the last active account of any kind" (#548): that
+        // blanket count let this account be deactivated as long as some
+        // Kassenwart/Getränkewart account was still active, even if it was
+        // the system's only remaining `admin`. Defense in depth, same as the
+        // guard in `applyRoles()` — `PATCH .../{id}` is `admin`-only and
+        // self-deactivation is refused above, so the caller reaching this line
+        // is always a *different*, still-active admin.
+        $roles = $this->adminUserRolesRepository->rolesFor($id);
+        if (in_array(AdminRole::ADMIN, $roles, true)
+            && $this->adminUserRolesRepository->countActiveHolders(AdminRole::ADMIN) <= 1
+        ) {
             throw new BusinessRuleException('Cannot deactivate the last active admin');
         }
 

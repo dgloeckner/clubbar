@@ -5,15 +5,30 @@
 
 import { theme } from '../../styles/design-system'
 import { Toggle } from '../common/Toggle'
-import { Badge } from '../common/Badge'
+import { Badge, type BadgeProps } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
 import type { AdminUser as GeneratedAdminUser } from '../../api/generated'
+import type { AdminRole } from '../../api/generated/adminRole'
 
 // Required fields that are always present in the API response
 type AdminUser = GeneratedAdminUser & { id: string; email: string; display_name: string; locale: string; is_active: boolean; created_at: string }
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useTranslation } from 'react-i18next'
 import { useFormatters } from '../../hooks/useFormatters'
+
+// Role names shown verbatim in both locales (CONTEXT.md's precedent for
+// Storno/Deckel/Vorabankündigung) — a distinct color per role so the roster
+// can be scanned for "who is admin" without reading every row.
+const ROLE_BADGE_LABEL: Record<AdminRole, string> = {
+  admin: 'Admin',
+  kassenwart: 'Kassenwart',
+  getraenkewart: 'Getränkewart',
+}
+const ROLE_BADGE_VARIANT: Record<AdminRole, BadgeProps['variant']> = {
+  admin: 'danger',
+  kassenwart: 'info',
+  getraenkewart: 'success',
+}
 
 export interface AdminUsersTabProps {
   users: AdminUser[]
@@ -84,6 +99,20 @@ export function AdminUsersTab({
    * button dispatches no mouse events, so a tooltip wrapped around one never
    * opens.
    */
+  const renderRoleBadges = (admin: AdminUser) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: theme.spacing.xs }}>
+      {(admin.roles ?? []).map((role) => (
+        <Badge
+          key={role}
+          label={ROLE_BADGE_LABEL[role]}
+          variant={ROLE_BADGE_VARIANT[role]}
+          showDot={false}
+          testId={`settings-admin-user-role-badge-${admin.id}-${role}`}
+        />
+      ))}
+    </div>
+  )
+
   const renderSelfBadge = (admin: AdminUser) =>
     isSelf(admin.id) ? (
       <Tooltip content={t('settings.cannotDeactivateOwnAccount')} position="top">
@@ -203,6 +232,11 @@ export function AdminUsersTab({
                   }}
                 >
                   {admin.email}
+                </div>
+
+                {/* Row 2b: Role badges */}
+                <div style={{ paddingLeft: '44px', marginBottom: theme.spacing.sm }}>
+                  {renderRoleBadges(admin)}
                 </div>
 
                 {/* Row 3: Last Login + Action Buttons */}
@@ -334,6 +368,16 @@ export function AdminUsersTab({
                       fontWeight: theme.typography.fontWeight.semibold,
                     }}
                   >
+                    Role
+                  </th>
+                  <th
+                    style={{
+                      padding: theme.spacing.md,
+                      textAlign: 'left',
+                      borderBottom: `1px solid ${theme.colors.border.light}`,
+                      fontWeight: theme.typography.fontWeight.semibold,
+                    }}
+                  >
                     {t('profile.lastLogin')}
                   </th>
                   <th
@@ -376,6 +420,11 @@ export function AdminUsersTab({
                     {/* Email */}
                     <td style={{ padding: theme.spacing.md }} data-testid={`settings-admin-user-email-${admin.id}`}>
                       {admin.email}
+                    </td>
+
+                    {/* Role badges */}
+                    <td style={{ padding: theme.spacing.md }} data-testid={`settings-admin-user-roles-${admin.id}`}>
+                      {renderRoleBadges(admin)}
                     </td>
 
                     {/* Last Login (Relative Date) */}

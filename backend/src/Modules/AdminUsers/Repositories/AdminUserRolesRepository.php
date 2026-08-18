@@ -73,6 +73,25 @@ class AdminUserRolesRepository
     }
 
     /**
+     * How many *active* accounts hold this role right now.
+     *
+     * The read `AdminUsersService` builds its "never neuter the last admin"
+     * guard on (#548): a role can be revoked from an inactive account without
+     * tripping it, since an inactive account grants nobody anything today.
+     */
+    public function countActiveHolders(AdminRole $role): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) FROM admin_user_roles r
+             JOIN admin_users u ON u.id = r.admin_user_id
+             WHERE r.role = ? AND u.is_active = 1'
+        );
+        $stmt->execute([$role->value]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
      * Make the account's roles exactly this set.
      *
      * Delete-then-insert inside a transaction, rather than a diff: the set is

@@ -114,7 +114,12 @@ class AdminLifecycleNoticeTest extends DatabaseTestCase
     public function test_a_role_change_queues_its_own_notice(): void
     {
         $this->givenClubAddressIs($this->clubAddress);
-        $created = $this->createAccount();
+        // Created as Getränkewart rather than the default admin: this test is
+        // about the notice a role change queues, not about the "never
+        // neuter the last admin" guard (#548) — and on a migrate-only CI
+        // database with no seeded admin, this account created as `admin`
+        // would be the only one, tripping that guard on the very next line.
+        $created = $this->createAccount([AdminRole::GETRAENKEWART]);
 
         $this->service->setRoles($created, [AdminRole::KASSENWART], null);
 

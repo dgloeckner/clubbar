@@ -393,6 +393,8 @@ export class SettingsPage {
     email: string
     display_name: string
     locale?: string
+    /** Defaults to `['admin']` — every role set is a click, none pre-checked. */
+    roles?: Array<'admin' | 'kassenwart' | 'getraenkewart'>
   }) {
     if (data.email) {
       await this.page.getByTestId('settings-admin-create-email').fill(data.email)
@@ -404,6 +406,19 @@ export class SettingsPage {
       // LanguageSelector is a custom dropdown, not a native select
       await this.page.getByTestId('settings-admin-create-locale-trigger').click()
       await this.page.getByTestId(`settings-admin-create-locale-option-${data.locale}`).click()
+    }
+    // Set-to, not click-blindly: the modal can carry a role selection over
+    // from an earlier rejected submit in the same test (e.g. a validation
+    // test that first submits invalid data, then fixes it and resubmits in
+    // the same open modal) — a raw click toggles whatever is already there,
+    // which can silently uncheck the target role a second call meant to set.
+    const target = data.roles ?? ['admin']
+    for (const role of ['admin', 'kassenwart', 'getraenkewart'] as const) {
+      const checkbox = this.page.getByTestId(`settings-admin-create-role-checkbox-${role}`)
+      const wantChecked = target.includes(role)
+      if ((await checkbox.isChecked()) !== wantChecked) {
+        await this.page.getByTestId(`settings-admin-create-role-option-${role}`).click()
+      }
     }
     await this.fillStepUpCredential()
   }
@@ -632,6 +647,21 @@ export class SettingsPage {
   }
 
   /**
+   * The role badge labels shown on this admin's row (desktop table or mobile
+   * card — the badge test IDs are the same in both, `settings-admin-user-
+   * role-badge-<id>-<role>`).
+   */
+  async getAdminUserRoles(email: string): Promise<string[]> {
+    const row = await this.findAdminUserRowByEmail(email)
+    if (!row) {
+      return []
+    }
+
+    const badges = row.locator('[data-testid^="settings-admin-user-role-badge-"]')
+    return await badges.allTextContents()
+  }
+
+  /**
    * How many rows carry this email. Counting a known email instead of the whole
    * table (Pattern 003) keeps the assertion valid while other workers add rows,
    * and survives a list that is still reloading.
@@ -661,6 +691,8 @@ export class SettingsPage {
     email?: string
     display_name?: string
     locale?: string
+    /** Toggles this role's checkbox (see `toggleRole` for what one click does). */
+    toggleRole?: 'admin' | 'kassenwart' | 'getraenkewart'
   }) {
     if (data.email) {
       const emailInput = this.page.getByTestId('settings-admin-edit-email')
@@ -675,6 +707,22 @@ export class SettingsPage {
       await this.page.getByTestId('settings-admin-edit-locale-trigger').click()
       await this.page.getByTestId(`settings-admin-edit-locale-option-${data.locale}`).click()
     }
+    if (data.toggleRole) {
+      await this.page.getByTestId(`settings-admin-edit-role-option-${data.toggleRole}`).click()
+    }
+  }
+
+  /**
+   * Fill the step-up fields the Edit modal shows once its role selection has
+   * actually moved away from what the account held when it was opened.
+   */
+  async fillEditAdminStepUpCredential() {
+    await this.fillStepUpCredential()
+  }
+
+  /** Whether a role's checkbox in the Edit modal is disabled (self-edit). */
+  async isEditAdminRoleDisabled(role: 'admin' | 'kassenwart' | 'getraenkewart'): Promise<boolean> {
+    return await this.page.getByTestId(`settings-admin-edit-role-checkbox-${role}`).isDisabled()
   }
 
   /**

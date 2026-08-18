@@ -8,6 +8,8 @@ import {
   rolesForPath,
   permitsPath,
   landingPath,
+  toggleRole,
+  sameRoleSet,
   SECTION_ROLES,
 } from './adminRoles'
 
@@ -133,6 +135,78 @@ describe('landingPath', () => {
     const path = landingPath([])
     expect(permitsPath([], path)).toBe(false)
     expect(Object.keys(SECTION_ROLES)).toContain(path)
+  })
+})
+
+/**
+ * Admin-exclusivity (CONTEXT.md's Role entry): a role set is either `admin`
+ * alone, or a non-empty combination of the two lesser roles. `toggleRole` is
+ * what the checkbox group in the create/edit admin modals calls on click, so
+ * the exclusivity rule has to live here rather than being re-derived per
+ * checkbox handler.
+ */
+describe('toggleRole', () => {
+  it('checking a lesser role from empty just adds it', () => {
+    expect(toggleRole([], 'kassenwart')).toEqual(['kassenwart'])
+  })
+
+  it('the two lesser roles freely combine', () => {
+    expect(toggleRole(['kassenwart'], 'getraenkewart')).toEqual(['kassenwart', 'getraenkewart'])
+  })
+
+  it('unchecking a lesser role removes only that one', () => {
+    expect(toggleRole(['kassenwart', 'getraenkewart'], 'kassenwart')).toEqual(['getraenkewart'])
+  })
+
+  it('checking admin replaces whatever lesser roles were selected', () => {
+    expect(toggleRole(['kassenwart', 'getraenkewart'], 'admin')).toEqual(['admin'])
+  })
+
+  it('checking a lesser role while admin is selected drops admin', () => {
+    expect(toggleRole(['admin'], 'kassenwart')).toEqual(['kassenwart'])
+  })
+
+  it('unchecking admin clears the set — it has no lesser-role fallback', () => {
+    expect(toggleRole(['admin'], 'admin')).toEqual([])
+  })
+
+  it('result never mixes admin with a lesser role, for any starting point', () => {
+    const starts: Array<Array<'admin' | 'kassenwart' | 'getraenkewart'>> = [
+      [],
+      ['admin'],
+      ['kassenwart'],
+      ['getraenkewart'],
+      ['kassenwart', 'getraenkewart'],
+    ]
+    const roles: Array<'admin' | 'kassenwart' | 'getraenkewart'> = ['admin', 'kassenwart', 'getraenkewart']
+
+    for (const start of starts) {
+      for (const role of roles) {
+        const result = toggleRole(start, role)
+        const hasAdmin = result.includes('admin')
+        const hasLesser = result.includes('kassenwart') || result.includes('getraenkewart')
+        expect(hasAdmin && hasLesser, `toggleRole(${JSON.stringify(start)}, '${role}') = ${JSON.stringify(result)}`).toBe(false)
+      }
+    }
+  })
+})
+
+/**
+ * The Edit modal's step-up gate reads this to decide whether the account's
+ * roles were actually touched — order must not count as a change, since
+ * `toggleRole` appends rather than re-sorting.
+ */
+describe('sameRoleSet', () => {
+  it('is order-insensitive', () => {
+    expect(sameRoleSet(['getraenkewart', 'kassenwart'], ['kassenwart', 'getraenkewart'])).toBe(true)
+  })
+
+  it('is false when the sets differ', () => {
+    expect(sameRoleSet(['kassenwart'], ['kassenwart', 'getraenkewart'])).toBe(false)
+  })
+
+  it('two empty sets are the same set', () => {
+    expect(sameRoleSet([], [])).toBe(true)
   })
 })
 

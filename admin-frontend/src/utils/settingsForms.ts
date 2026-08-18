@@ -19,6 +19,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export interface CreateAdminFormValues {
   email: string
   display_name: string
+  /** Never pre-selected (CONTEXT.md's Role entry) — an explicit choice. */
+  roles: string[]
 }
 
 export interface CreateTerminalFormValues {
@@ -39,6 +41,10 @@ export function validateCreateAdminForm(values: CreateAdminFormValues): Record<s
 
   if (!values.display_name.trim()) {
     errors.display_name = VALIDATION_REQUIRED
+  }
+
+  if (values.roles.length === 0) {
+    errors.roles = VALIDATION_REQUIRED
   }
 
   return errors

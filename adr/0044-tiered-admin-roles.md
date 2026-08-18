@@ -47,6 +47,8 @@ Nobody loses power on the day this ships. Some people gain a smaller amount of i
 | `kassenwart` | The elected treasurer: members, settlements, SEPA collection, storno, member notifications | German — the word the club and the Vorstand already use |
 | `getraenkewart` | Whoever looks after the bar stock: the drinks list, prices, availability, product sales figures | German, same reason |
 
+An account's role set is either `admin` alone, or any non-empty combination of the two lesser roles — `admin` is never held alongside `kassenwart` or `getraenkewart`. "Roles compose additively" above is about the two lesser roles combining with each other, not about reaching `admin` by addition: `admin` is the root of the ladder, not a further rung on top of the other two. No account can change its own role set either, `admin` included — a role change is always made by a *different* admin acting on the account (#548).
+
 `admin` stays English deliberately. `Kassenwart` and `Getränkewart` are Vereinsämter that a Mitgliederversammlung elects; `admin` is not, and the language difference is a permanent, free reminder that it is a different kind of thing. It stops a future reader assuming there ought to be a Vorstand vote about who gets it.
 
 This follows the precedent `CONTEXT.md` set for `Storno`, `Deckel` and `Vorabankündigung`: use the word the people who read it actually say. Role names are user-facing — they appear in the account form, the admin list, and audit rows the Vorstand may one day read.

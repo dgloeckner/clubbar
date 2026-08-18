@@ -77,6 +77,36 @@ export function rolesForPath(pathname: string): AdminRole[] {
   return section ? SECTION_ROLES[section] : ADMIN_ONLY
 }
 
+/**
+ * Apply one checkbox click to a role set, keeping it a valid combination.
+ *
+ * Admin-exclusivity (CONTEXT.md's Role entry): a role set is either `admin`
+ * alone, or a non-empty combination of the two lesser roles. Checking `admin`
+ * therefore replaces whatever lesser roles were selected, and checking a
+ * lesser role drops `admin` if it was set — there is no state a sequence of
+ * clicks can reach that mixes the two.
+ */
+export function toggleRole(current: AdminRole[], role: AdminRole): AdminRole[] {
+  if (role === 'admin') {
+    return current.includes('admin') ? [] : ['admin']
+  }
+
+  const withoutAdmin = current.filter((r) => r !== 'admin')
+
+  return withoutAdmin.includes(role)
+    ? withoutAdmin.filter((r) => r !== role)
+    : [...withoutAdmin, role]
+}
+
+/** Whether two role sets are the same, regardless of order. */
+export function sameRoleSet(a: AdminRole[], b: AdminRole[]): boolean {
+  if (a.length !== b.length) return false
+
+  const sorted = (roles: AdminRole[]) => [...roles].sort()
+
+  return sorted(a).every((role, i) => role === sorted(b)[i])
+}
+
 /** Whether an account holding `held` may open `pathname`. */
 export function permitsPath(held: AdminRole[], pathname: string): boolean {
   const allowed = rolesForPath(pathname)
