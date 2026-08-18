@@ -27,8 +27,16 @@ class RfidDetectorButton extends StatefulWidget {
 class _RfidDetectorButtonState extends State<RfidDetectorButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _glowController;
-  late Animation<double> _glowAnimation;
+  late Animation<double> _spreadAnimation;
   late Animation<double> _opacityAnimation;
+
+  // Fixed blur radius (was animated 40px -> 60px): a BoxShadow's blurRadius
+  // drives Skia's mask-filter sigma, so animating it forces a new blur mask
+  // every frame. On the terminal's Pi this pinned a core near 70% CPU for as
+  // long as the idle screen (this button) was on screen — i.e. always. The
+  // spread/opacity pulse below reproduces the same visual breathing effect
+  // without ever touching blurRadius.
+  static const double _glowBlurRadius = 50.0;
 
   // Colors from prototype
   static const Color _blue = AppColors.semanticPrimary;
@@ -44,8 +52,8 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
       vsync: this,
     )..repeat(reverse: true);
 
-    // Glow blur radius: 40px -> 60px (from prototype)
-    _glowAnimation = Tween<double>(begin: 40.0, end: 60.0).animate(
+    // Glow spread radius: 0px -> 6px (replaces the old blurRadius animation)
+    _spreadAnimation = Tween<double>(begin: 0.0, end: 6.0).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
 
@@ -98,61 +106,63 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
           onTap: demoMode && !rfidProvider.isScanning
               ? () => rfidProvider.simulateCardDetection(context)
               : null,
-          child: AnimatedBuilder(
-            animation: _glowAnimation,
-            builder: (context, child) {
-              return Container(
-                width: 237,
-                height: 237,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: rfidProvider.isScanning
-                        ? [primaryColor, secondaryColor] // Full opacity when scanning
-                        : [
-                            primaryColor.withValues(alpha: 0.2),
-                            secondaryColor.withValues(alpha: 0.2),
-                          ], // 20% opacity when idle
-                  ),
-                  boxShadow: [
-                    if (!widget.isOffline)
-                      BoxShadow(
-                        color: primaryColor.withValues(
-                          alpha: rfidProvider.isScanning ? 0.5 : _opacityAnimation.value,
-                        ),
-                        blurRadius: rfidProvider.isScanning ? 60 : _glowAnimation.value,
-                        spreadRadius: rfidProvider.isScanning ? 5 : 0,
-                      ),
-                  ],
-                ),
-                child: Center(
-                  child: widget.isOffline
-                      ? const Icon(
-                          Icons.sensors_off,
-                          size: 135,
-                          color: _slate,
-                        )
-                      : rfidProvider.isScanning
-                      ? SizedBox(
-                          width: 101,
-                          height: 101,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation(
-                              Colors.white.withValues(alpha: 0.8),
-                            ),
-                            strokeWidth: 3,
+          child: RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: _glowController,
+              builder: (context, child) {
+                return Container(
+                  width: 237,
+                  height: 237,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: rfidProvider.isScanning
+                          ? [primaryColor, secondaryColor] // Full opacity when scanning
+                          : [
+                              primaryColor.withValues(alpha: 0.2),
+                              secondaryColor.withValues(alpha: 0.2),
+                            ], // 20% opacity when idle
+                    ),
+                    boxShadow: [
+                      if (!widget.isOffline)
+                        BoxShadow(
+                          color: primaryColor.withValues(
+                            alpha: rfidProvider.isScanning ? 0.5 : _opacityAnimation.value,
                           ),
-                        )
-                      : SvgPicture.asset(
-                          'assets/icons/ui/rfid_icon.svg',
-                          width: 135,
-                          height: 135,
+                          blurRadius: rfidProvider.isScanning ? 60 : _glowBlurRadius,
+                          spreadRadius: rfidProvider.isScanning ? 5 : _spreadAnimation.value,
                         ),
-                ),
-              );
-            },
+                    ],
+                  ),
+                  child: Center(
+                    child: widget.isOffline
+                        ? const Icon(
+                            Icons.sensors_off,
+                            size: 135,
+                            color: _slate,
+                          )
+                        : rfidProvider.isScanning
+                        ? SizedBox(
+                            width: 101,
+                            height: 101,
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation(
+                                Colors.white.withValues(alpha: 0.8),
+                              ),
+                              strokeWidth: 3,
+                            ),
+                          )
+                        : SvgPicture.asset(
+                            'assets/icons/ui/rfid_icon.svg',
+                            width: 135,
+                            height: 135,
+                          ),
+                  ),
+                );
+              },
+            ),
           ),
         );
       },
