@@ -115,13 +115,13 @@ void main() {
     void stubReferenceDataSync() {
       when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
           .thenAnswer((_) async => MemberDeltaResponse(
-              members: [], cursor: 0, count: 0, hasMore: false));
+              members: [], cursor: 0, count: 0));
       when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
           .thenAnswer((_) async => CategoryDeltaResponse(
-              categories: [], cursor: 0, count: 0, hasMore: false));
+              categories: [], cursor: 0, count: 0));
       when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
           .thenAnswer((_) async => ProductDeltaResponse(
-              products: [], cursor: 0, count: 0, hasMore: false));
+              products: [], cursor: 0, count: 0));
     }
 
     TransactionsLocalData unsyncedTransaction({
@@ -166,7 +166,6 @@ void main() {
                 members: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
 
       when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
@@ -174,14 +173,12 @@ void main() {
                 categories: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
       when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
           .thenAnswer((_) async => ProductDeltaResponse(
                 products: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
 
       final result = await syncService.syncAll();
@@ -195,7 +192,6 @@ void main() {
                 members: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
 
       when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
@@ -203,14 +199,12 @@ void main() {
                 categories: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
       when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
           .thenAnswer((_) async => ProductDeltaResponse(
                 products: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
 
       expect(syncService.isSyncing, isFalse);
@@ -262,21 +256,18 @@ void main() {
                 members: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
       when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
           .thenAnswer((_) async => CategoryDeltaResponse(
                 categories: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
       when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
           .thenAnswer((_) async => ProductDeltaResponse(
                 products: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
 
       // Return unsynced transactions
@@ -352,21 +343,18 @@ void main() {
                 members: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
       when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
           .thenAnswer((_) async => CategoryDeltaResponse(
                 categories: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
       when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
           .thenAnswer((_) async => ProductDeltaResponse(
                 products: [],
                 cursor: 0,
                 count: 0,
-                hasMore: false,
               ));
 
       final unsyncedTxns = [
@@ -609,8 +597,7 @@ void main() {
             .thenAnswer((_) async => ProductDeltaResponse(
                 products: [productDto('prod-1', deletedAt: deletedOn)],
                 cursor: 0,
-                count: 1,
-                hasMore: false));
+                count: 1));
 
         expect(await syncService.syncAll(), equals(SyncResult.success));
 
@@ -628,8 +615,7 @@ void main() {
             .thenAnswer((_) async => CategoryDeltaResponse(
                 categories: [categoryDto('cat-1', deletedAt: deletedOn)],
                 cursor: 0,
-                count: 1,
-                hasMore: false));
+                count: 1));
 
         expect(await syncService.syncAll(), equals(SyncResult.success));
 
@@ -651,7 +637,7 @@ void main() {
             .thenAnswer((_) async => MemberDeltaResponse(members: [
                   memberDto('member-1'),
                   memberDto('member-gone', deletedAt: deletedOn),
-                ], cursor: 0, count: 2, hasMore: false));
+                ], cursor: 0, count: 2));
 
         expect(await syncService.syncAll(), equals(SyncResult.success));
 
@@ -673,8 +659,7 @@ void main() {
             .thenAnswer((_) async => MemberDeltaResponse(
                 members: [memberDto('member-gone', deletedAt: deletedOn)],
                 cursor: 0,
-                count: 1,
-                hasMore: false));
+                count: 1));
         when(() => mockTransactionsRepo.getUnsyncedTransactions())
             .thenAnswer((_) async => [unsyncedTransaction(id: 'txn-queued')]);
         when(() => mockNetworkService.syncTransactions(any()))
@@ -702,8 +687,7 @@ void main() {
             .thenAnswer((_) async => ProductDeltaResponse(
                 products: [productDto('prod-1', deletedAt: deletedOn)],
                 cursor: 0,
-                count: 1,
-                hasMore: false));
+                count: 1));
         when(() => mockTransactionsRepo.getUnsyncedTransactions()).thenAnswer(
             (_) async =>
                 [unsyncedTransaction(id: 'txn-queued', productId: 'prod-1')]);
@@ -762,21 +746,18 @@ void main() {
                   members: [],
                   cursor: 0,
                   count: 0,
-                  hasMore: false,
                 ));
         when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
             .thenAnswer((_) async => CategoryDeltaResponse(
                   categories: [],
                   cursor: 0,
                   count: 0,
-                  hasMore: false,
                 ));
         when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
             .thenAnswer((_) async => ProductDeltaResponse(
                   products: [],
                   cursor: 0,
                   count: 0,
-                  hasMore: false,
                 ));
 
         // Return unsynced transactions
@@ -849,21 +830,18 @@ void main() {
                   members: [],
                   cursor: 0,
                   count: 0,
-                  hasMore: false,
                 ));
         when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
             .thenAnswer((_) async => CategoryDeltaResponse(
                   categories: [],
                   cursor: 0,
                   count: 0,
-                  hasMore: false,
                 ));
         when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
             .thenAnswer((_) async => ProductDeltaResponse(
                   products: [],
                   cursor: 0,
                   count: 0,
-                  hasMore: false,
                 ));
 
         when(() => mockTransactionsRepo.getUnsyncedTransactions())
@@ -901,21 +879,18 @@ void main() {
                   members: [],
                   cursor: 0,
                   count: 0,
-                  hasMore: false,
                 ));
         when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
             .thenAnswer((_) async => CategoryDeltaResponse(
                   categories: [],
                   cursor: 0,
                   count: 0,
-                  hasMore: false,
                 ));
         when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
             .thenAnswer((_) async => ProductDeltaResponse(
                   products: [],
                   cursor: 0,
                   count: 0,
-                  hasMore: false,
                 ));
 
         when(() => mockTransactionsRepo.getUnsyncedTransactions())

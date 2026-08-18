@@ -363,7 +363,6 @@ test.describe('Categories API - Terminal Sync', () => {
     const body = await response.json();
     expect(typeof body.cursor).toBe('number');
     expect(typeof body.count).toBe('number');
-    expect(typeof body.has_more).toBe('boolean');
 
     // Sync keeps its own cursor envelope, keyed by entity — the admin list's
     // `data` envelope is a different contract and does not apply here.

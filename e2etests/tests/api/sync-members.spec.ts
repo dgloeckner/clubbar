@@ -23,7 +23,6 @@ test.describe('Sync Members Endpoint', () => {
     expect(Array.isArray(body.members)).toBeTruthy();
     expect(body.cursor).toBeDefined();
     expect(typeof body.count).toBe('number');
-    expect(typeof body.has_more).toBe('boolean');
   });
 
   test('GET /api/sync/members returns valid member objects', async ({ authenticatedTerminalRequest }) => {

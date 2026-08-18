@@ -400,7 +400,6 @@ test.describe('Products API', () => {
     expect(Array.isArray(body.products)).toBe(true)
     expect(typeof body.cursor).toBe('number')
     expect(typeof body.count).toBe('number')
-    expect(typeof body.has_more).toBe('boolean')
     expect(body.count).toBe(body.products.length)
 
     // ── Active/inactive: both returned in sync ──────────────────

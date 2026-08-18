@@ -29,7 +29,6 @@ test.describe('Sync Categories Endpoint', () => {
     const body = await response.json();
     expect(Array.isArray(body.categories)).toBeTruthy();
     expect(typeof body.count).toBe('number');
-    expect(typeof body.has_more).toBe('boolean');
     expect(typeof body.cursor).toBe('number');
     expect(body.count).toBe(body.categories.length);
 

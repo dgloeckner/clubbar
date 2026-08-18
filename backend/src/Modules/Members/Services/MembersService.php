@@ -63,7 +63,6 @@ class MembersService
         return new SyncResultDto(
             items: $members,
             cursor: SyncCursor::next($rows, $since, $queriedAt),
-            hasMore: false,
         );
     }
 

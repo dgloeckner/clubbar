@@ -120,7 +120,7 @@ class MembersService
     {
         $rows = $this->membersRepository->findModifiedSince($since);
         $members = array_map(fn($row) => MemberDto::fromRow($row), $rows);
-        return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
+        return new SyncResultDto(items: $members, cursor: $cursor);
     }
 }
 ```
@@ -197,7 +197,6 @@ final readonly class SyncResultDto
     public function __construct(
         public array $items,
         public int $cursor,
-        public bool $hasMore,
     ) {}
 
     public function toArray(string $itemsKey = 'items'): array
@@ -211,7 +210,6 @@ final readonly class SyncResultDto
             $itemsKey => $mappedItems,
             'cursor' => $this->cursor,
             'count' => count($mappedItems),
-            'has_more' => $this->hasMore,
         ];
     }
 }

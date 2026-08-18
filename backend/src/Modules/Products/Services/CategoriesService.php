@@ -31,7 +31,6 @@ class CategoriesService
         return new SyncResultDto(
             items: $categories,
             cursor: SyncCursor::next($rows, $since, $queriedAt),
-            hasMore: false,
         );
     }
 

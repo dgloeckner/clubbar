@@ -665,7 +665,7 @@ final class MembersService extends BaseService  // Extends Pattern 010: BaseServ
             ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
             : $since;
 
-        return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
+        return new SyncResultDto(items: $members, cursor: $cursor);
     }
 
     /**
