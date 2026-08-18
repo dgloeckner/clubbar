@@ -102,9 +102,19 @@ it makes the foundation deployable and verifiable before enforcement lands.
 
 ### M4 — Allow-list `group_by` on `/reports/{reportType}` ([#515](https://github.com/dgloeckner/clubbar/issues/515))
 
-- [ ] `getraenkewart` is restricted to `category`, `product`, `day`, `week`,
-      `month`, `year` — an **allow-list**, never a deny-list. Not `member`, which
-      turns every row into a named member with their personal spend
+- [x] `ReportGroupByPolicy` — `getraenkewart` restricted to `category`,
+      `product`, `day`, `week`, `month`, `year`. An **allow-list**: a dimension
+      added later is refused until somebody grants it, in a diff a reviewer sees
+      — *verified*: `ReportGroupByPolicyTest` 9/9, `ReportGroupByRoleHttpTest` 6/6
+- [x] Every role is enumerated, `admin` included, so a new dimension **fails the
+      build** until it is classified — the route map's completeness property
+      applied to the parameter
+- [x] A value that is not a dimension at all stays a 400 for every role: a typo
+      is a malformed request, not an authorization failure. (Caught by the
+      existing `reports.spec.ts` › *invalid group_by returns 400*, which the
+      first version of this slice turned into a 403)
+- [x] `summary.unique_member_count` untouched for every role — a count with no
+      names attached
 
 ### M5 — Club-level notification address for admin lifecycle mail ([#521](https://github.com/dgloeckner/clubbar/issues/521))
 
