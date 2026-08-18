@@ -866,7 +866,41 @@ docker compose exec backend cat /app/logs/$TODAY.log | \
 
 ---
 
+## Destructive Test Cleanup (CRITICAL)
+
+**A `tearDown()` that deletes must never be able to point at a path the test did not create.**
+
+This rule exists because of a real incident, not a hypothetical. `DeployRequestScriptTest::setUp()` called `markTestSkipped()` — `jq` is not installed in the backend container — *before* assigning `$this->docRoot`. PHPUnit runs `tearDown()` for a skipped test anyway, so the cleanup ran with the property still at its `''` default:
+
+```php
+// The bug, in full
+private string $docRoot = '';                       // never assigned when setUp skips
+
+foreach (glob($this->docRoot . '/*') ?: [] as $f) { // glob('/*') — the ROOT directory
+    unlink($f);                                     // unlink() removes symlinks without complaint
+}
+```
+
+`/bin`, `/lib`, `/lib64`, `/sbin` and `/entrypoint` are symlinks at `/` on a merged-usr image, so all five were deleted. **Losing `/lib64` removes the ELF interpreter**, after which every dynamically linked binary in that container fails to exec with `no such file or directory`: `docker compose exec … php`, the container healthcheck (so the container reads `Up (unhealthy)` while the already-running php-fpm keeps serving HTTP), and even `docker compose up` on the same container, which can no longer stat `/entrypoint`. Nothing in the failure names a test — it reads as a broken image — and CI never sees it, because the CI image has `jq` and `setUp()` completes.
+
+### The rules
+
+1. **Use `Tests\Support\TempTree`** (`backend/tests/Support/TempTree.php`) — `makeTempTree()` to create, `removeTempTree()` to delete. It refuses an empty path, a non-existent path, and anything that does not resolve to a location *under* the system temp directory. `TempTreeTest` is its regression test.
+2. **Never concatenate a path onto a possibly-unset property** and hand the result to `glob()`, `unlink()`, `rmdir()` or `rm -rf`. `'' . '/*'` is `/`.
+3. **Assign the path before any `markTestSkipped()`** — or, better, do not depend on ordering at all, per rule 1.
+4. **A skip is not a "no cleanup" signal.** `tearDown()` runs for skipped, errored and incomplete tests alike.
+5. **`unlink()` deletes symlinks**, so a "delete only files, not directories" loop is not a safety property at `/`. Every dangerous entry in a root directory is a symlink.
+6. **Do not add a destructive cleanup to a path outside `sys_get_temp_dir()`.** Fixtures that must live in the repo are removed by naming the exact files, never by globbing a directory.
+
+### Reviewing for it
+
+When reviewing or writing a test that deletes anything, ask the two questions the incident answers: *what is this path when `setUp()` did not finish?* and *what is in that directory if the answer is `/`?*
+
+---
+
 ## Anti-Patterns (What NOT to Do)
+
+❌ **Deleting from a path a `setUp()` may never have assigned**: `glob('' . '/*')` is `glob('/*')` — see *Destructive Test Cleanup*; use `Tests\Support\TempTree`
 
 ❌ **Running tests without JSON reporter**: Loses failure details, makes debugging harder
 ❌ **Continuing test execution with >10 failures**: Wastes time; stop and fix systemic issue first

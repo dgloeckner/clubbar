@@ -9,6 +9,7 @@ use App\Modules\Auth\Services\AuthService;
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Auth\Services\TotpService;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Shared\Config\AppConfig;
@@ -432,8 +433,15 @@ class AuthController
             return $this->json($response, ['error' => 'admin_not_authenticated'], 401);
         }
 
+        // Roles ride along here and nowhere else in the auth responses: this is
+        // the endpoint the panel calls to find out what to render (ADR-0044 —
+        // hidden navigation, per-role landing page). It is not a permission
+        // check. The server refuses independently on every request, because a
+        // client that has been told its own roles is still a client.
         return $this->json($response, [
-            'admin' => $this->formatAdmin($admin),
+            'admin' => $this->formatAdmin($admin) + [
+                'roles' => AdminRole::toValues($this->adminUsersService->getRoles($adminId)),
+            ],
             'csrf_token' => $_SESSION['csrf_token'] ?? null,
         ]);
     }

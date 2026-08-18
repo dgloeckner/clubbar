@@ -4589,12 +4589,44 @@ components:
           type: boolean
           description: Whether TOTP two-factor authentication is enrolled for this admin
 
+    AdminRole:
+      type: string
+      description: |
+        An admin role (ADR-0044). `admin` is a strict superset of the other two;
+        `kassenwart` (treasurer — members, settlements, SEPA) and
+        `getraenkewart` (bar stock — categories, products) are lesser siblings
+        beneath it. Roles compose additively, so one account may hold both
+        lesser roles without being `admin`.
+
+        The set is hardcoded: a new role is a schema migration, not
+        configuration.
+      enum: [admin, kassenwart, getraenkewart]
+
     GetProfileResponse:
       type: object
       required: [admin]
       properties:
         admin:
-          $ref: '#/components/schemas/AdminProfile'
+          allOf:
+            - $ref: '#/components/schemas/AdminProfile'
+            - type: object
+              required: [roles]
+              properties:
+                roles:
+                  type: array
+                  description: |
+                    Every role the caller holds, in the order `admin`,
+                    `kassenwart`, `getraenkewart`.
+
+                    Returned so the panel can hide the navigation it cannot use
+                    and land the caller on a page they can open. It is not a
+                    permission: the server refuses independently on every
+                    request, and a client that knows its own roles is still a
+                    client. An account holding no role reports an empty array —
+                    never a default.
+                  items:
+                    $ref: '#/components/schemas/AdminRole'
+                  example: [admin]
         csrf_token:
           type: string
           nullable: true
