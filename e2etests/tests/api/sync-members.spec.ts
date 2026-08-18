@@ -23,7 +23,9 @@ test.describe('Sync Members Endpoint', () => {
     expect(Array.isArray(body.members)).toBeTruthy();
     expect(body.cursor).toBeDefined();
     expect(typeof body.count).toBe('number');
-    expect(typeof body.has_more).toBe('boolean');
+    // Regression guard: findModifiedSince has no LIMIT, so there is never a
+    // "more" to report — has_more must not reappear as a hand-set flag.
+    expect(body).not.toHaveProperty('has_more');
   });
 
   test('GET /api/sync/members returns valid member objects', async ({ authenticatedTerminalRequest }) => {

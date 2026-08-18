@@ -37,7 +37,6 @@ class ProductsService
         return new SyncResultDto(
             items: $products,
             cursor: SyncCursor::next($rows, $since, $queriedAt),
-            hasMore: false,
         );
     }
 

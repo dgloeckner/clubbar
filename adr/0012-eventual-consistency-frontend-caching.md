@@ -255,15 +255,26 @@ findModifiedSince(sinceMs):
      ORDER BY COALESCE(updated_at, deleted_at) ASC
 ```
 
-**Service Layer Cursor Logic** (amended 2026-08-08) — the same rule for every syncable entity, so it lives in one shared helper (`App\Shared\Sync\SyncCursor`) rather than being restated per module:
+**Service Layer Cursor Logic** (amended 2026-08-08, `has_more` removed 2026-08-18) — the same rule for every syncable entity, so it lives in one shared helper (`App\Shared\Sync\SyncCursor`) rather than being restated per module:
 
 ```
 syncSince(since):
     queriedAt = current second          # before the query, not after
     rows      = findModifiedSince(since)
     cursor    = SyncCursor::next(rows, since, queriedAt)   # see Cursor Semantics above
-    return { items: map(rows), cursor, hasMore: false }
+    return { items: map(rows), cursor }
 ```
+
+> **Amended 2026-08-18.** The response carried a `has_more` field, hardcoded `false`
+> at every one of the three call sites. `findModifiedSince()` has no `LIMIT` — it
+> always returns the complete delta in one query — so there was never a "more" for
+> the field to report; it was a placeholder for response-size pagination that was
+> never built. Since sync pagination does not exist, the field has been removed
+> from `SyncResultDto`, the three delta response schemas in `api/terminal.yaml`,
+> and the generated terminal client. If sync pagination is added later (a `LIMIT`
+> on `findModifiedSince()` plus continuation logic in `SyncCursor`), `has_more`
+> should be reintroduced as a computed value at that point, not restored as a
+> hand-set flag.
 
 **Terminal DTOs:**
 ```dart

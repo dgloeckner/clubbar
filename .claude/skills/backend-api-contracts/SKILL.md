@@ -179,9 +179,10 @@ expect(body.pagination.total).toBeGreaterThanOrEqual(0);
 expect(body.pagination.total_pages).toBe(Math.ceil(body.pagination.total / 10));
 ```
 
-**Sync endpoints are different.** `/api/sync/*` uses cursor pagination
-(`{ products: [...], cursor, count, has_more }`) and is not affected by any of
-the above.
+**Sync endpoints are different.** `/api/sync/*` uses a cursor envelope
+(`{ products: [...], cursor, count }`) and is not affected by any of the
+above. There is no `has_more`: `findModifiedSince()` has no `LIMIT`, so every
+sync response is always the complete delta.
 
 ---
 

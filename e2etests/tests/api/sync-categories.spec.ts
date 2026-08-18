@@ -29,8 +29,10 @@ test.describe('Sync Categories Endpoint', () => {
     const body = await response.json();
     expect(Array.isArray(body.categories)).toBeTruthy();
     expect(typeof body.count).toBe('number');
-    expect(typeof body.has_more).toBe('boolean');
     expect(typeof body.cursor).toBe('number');
+    // Regression guard: findModifiedSince has no LIMIT, so there is never a
+    // "more" to report — has_more must not reappear as a hand-set flag.
+    expect(body).not.toHaveProperty('has_more');
     expect(body.count).toBe(body.categories.length);
 
     const found = body.categories.find((c: any) => c.id === created.id);

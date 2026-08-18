@@ -9,7 +9,6 @@ final readonly class SyncResultDto
     public function __construct(
         public array $items,
         public int $cursor,
-        public bool $hasMore,
     ) {}
 
     public function toArray(string $itemsKey = 'items'): array
@@ -19,7 +18,6 @@ final readonly class SyncResultDto
             $itemsKey => $mappedItems,
             'cursor' => $this->cursor,
             'count' => count($mappedItems),
-            'has_more' => $this->hasMore,
         ];
     }
 }

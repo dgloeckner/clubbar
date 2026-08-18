@@ -167,15 +167,15 @@ class FakeNetworkService extends NetworkService {
 
   @override
   Future<MemberDeltaResponse?> syncMembers({int? since}) async =>
-      MemberDeltaResponse(members: [], cursor: 0, count: 0, hasMore: false);
+      MemberDeltaResponse(members: [], cursor: 0, count: 0);
 
   @override
   Future<CategoryDeltaResponse?> syncCategories({int? since}) async =>
-      CategoryDeltaResponse(categories: [], cursor: 0, count: 0, hasMore: false);
+      CategoryDeltaResponse(categories: [], cursor: 0, count: 0);
 
   @override
   Future<ProductDeltaResponse?> syncProducts({int? since}) async =>
-      ProductDeltaResponse(products: [], cursor: 0, count: 0, hasMore: false);
+      ProductDeltaResponse(products: [], cursor: 0, count: 0);
 
   @override
   Future<TransactionBatchResponse> syncTransactions(

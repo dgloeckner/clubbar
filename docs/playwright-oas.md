@@ -91,13 +91,12 @@ export function expectApiError(
   expectIsoTimestamp(error!.timestamp);
 }
 
-export function expectPaginatedResponse<T>(
-  data: { cursor: string; count: number; has_more: boolean } | undefined
+export function expectSyncEnvelope<T>(
+  data: { cursor: string; count: number } | undefined
 ) {
   expect(data).toBeDefined();
   expectIsoTimestamp(data!.cursor);
   expect(typeof data!.count).toBe('number');
-  expect(typeof data!.has_more).toBe('boolean');
 }
 ```
 
@@ -111,7 +110,7 @@ export function expectPaginatedResponse<T>(
 // tests/api/sync-members.spec.ts
 import { test, expect } from '../fixtures/api-client';
 import { getSyncMembers } from '../../src/generated/terminal-api';
-import { expectUuid, expectIsoTimestamp, expectPaginatedResponse } from '../fixtures/api-assertions';
+import { expectUuid, expectIsoTimestamp, expectSyncEnvelope } from '../fixtures/api-assertions';
 
 test.describe('GET /api/sync/members', () => {
   test.describe('successful responses', () => {
@@ -124,7 +123,7 @@ test.describe('GET /api/sync/members', () => {
       expect(response.status).toBe(200);
       expect(data).toBeDefined();
       expect(Array.isArray(data!.members)).toBe(true);
-      expectPaginatedResponse(data);
+      expectSyncEnvelope(data);
     });
 
     test('filters members by since timestamp', async ({ api }) => {
@@ -146,7 +145,6 @@ test.describe('GET /api/sync/members', () => {
 
       expect(data!.members).toHaveLength(0);
       expect(data!.count).toBe(0);
-      expect(data!.has_more).toBe(false);
     });
   });
 
@@ -193,20 +191,18 @@ test.describe('GET /api/sync/members', () => {
     });
   });
 
-  test.describe('pagination', () => {
-    test('cursor can be used for subsequent requests', async ({ api }) => {
+  test.describe('cursor', () => {
+    test('cursor can be used for a subsequent request', async ({ api }) => {
       const first = await getSyncMembers({
         query: { since: '1970-01-01T00:00:00Z' },
       });
 
-      if (first.data!.has_more) {
-        const next = await getSyncMembers({
-          query: { since: first.data!.cursor },
-        });
+      const next = await getSyncMembers({
+        query: { since: first.data!.cursor },
+      });
 
-        expect(next.error).toBeUndefined();
-        expect(next.data).toBeDefined();
-      }
+      expect(next.error).toBeUndefined();
+      expect(next.data).toBeDefined();
     });
   });
 });
@@ -218,7 +214,7 @@ test.describe('GET /api/sync/members', () => {
 // tests/api/sync-categories.spec.ts
 import { test, expect } from '../fixtures/api-client';
 import { getSyncCategories } from '../../src/generated/terminal-api';
-import { expectUuid, expectIsoTimestamp, expectPaginatedResponse } from '../fixtures/api-assertions';
+import { expectUuid, expectIsoTimestamp, expectSyncEnvelope } from '../fixtures/api-assertions';
 
 test.describe('GET /api/sync/categories', () => {
   test('returns category delta response', async ({ api }) => {
@@ -229,7 +225,7 @@ test.describe('GET /api/sync/categories', () => {
     expect(error).toBeUndefined();
     expect(response.status).toBe(200);
     expect(Array.isArray(data!.categories)).toBe(true);
-    expectPaginatedResponse(data);
+    expectSyncEnvelope(data);
   });
 
   test('each category has localized names', async ({ api }) => {
@@ -257,7 +253,7 @@ test.describe('GET /api/sync/categories', () => {
 // tests/api/sync-products.spec.ts
 import { test, expect } from '../fixtures/api-client';
 import { getSyncProducts } from '../../src/generated/terminal-api';
-import { expectUuid, expectIsoTimestamp, expectPaginatedResponse } from '../fixtures/api-assertions';
+import { expectUuid, expectIsoTimestamp, expectSyncEnvelope } from '../fixtures/api-assertions';
 
 test.describe('GET /api/sync/products', () => {
   test('returns product delta response', async ({ api }) => {
@@ -268,7 +264,7 @@ test.describe('GET /api/sync/products', () => {
     expect(error).toBeUndefined();
     expect(response.status).toBe(200);
     expect(Array.isArray(data!.products)).toBe(true);
-    expectPaginatedResponse(data);
+    expectSyncEnvelope(data);
   });
 
   test('each product has required fields', async ({ api }) => {

@@ -1138,16 +1138,10 @@ components:
           type: integer
           minimum: 0
           description: Number of members in this response
-        has_more:
-          type: boolean
-          description: |
-            If true, more members exist beyond `limit`. Terminal should make
-            another request with same `since` but higher `limit`.
       required:
         - members
         - cursor
         - count
-        - has_more
       example:
         members:
           - id: 123e4567-e89b-12d3-a456-426614174000
@@ -1172,7 +1166,6 @@ components:
             updated_at: '2025-01-21T10:00:00Z'
         cursor: 1737383025
         count: 2
-        has_more: false
 
     CategoryDeltaResponse:
       type: object
@@ -1196,16 +1189,10 @@ components:
           type: integer
           minimum: 0
           description: Number of categories in this response
-        has_more:
-          type: boolean
-          description: |
-            If true, more categories exist beyond `limit`. Terminal should make
-            another request with same `since` but higher `limit`.
       required:
         - categories
         - cursor
         - count
-        - has_more
       example:
         categories:
           - id: abc12345-e21a-11d3-b456-426614174001
@@ -1226,7 +1213,6 @@ components:
             updated_at: '2025-01-10T10:15:30Z'
         cursor: 1736504130
         count: 2
-        has_more: false
 
     ProductDeltaResponse:
       type: object
@@ -1250,16 +1236,10 @@ components:
           type: integer
           minimum: 0
           description: Number of products in this response
-        has_more:
-          type: boolean
-          description: |
-            If true, more products exist beyond `limit`. Terminal should make
-            another request with same `since` but higher `limit`.
       required:
         - products
         - cursor
         - count
-        - has_more
       example:
         products:
           - id: 987f6543-e21a-11d3-b456-426614174999
@@ -1292,7 +1272,6 @@ components:
             updated_at: '2025-01-10T10:15:30Z'
         cursor: 1736504130
         count: 2
-        has_more: false
 
     TransactionBatchRequest:
       type: object
@@ -1707,7 +1686,7 @@ x-internal-notes: |
 
   # Cursor is int64 (Unix timestamp in milliseconds) - clients store and reuse directly
   # Taken across BOTH columns of EVERY returned row: a tombstone may carry only deleted_at
-  # has_more is always false; the full delta is returned
+  # No has_more field: findModifiedSince has no LIMIT, so the full delta is always returned
   ```
 
   ### Delta Sync Algorithm (Categories)
