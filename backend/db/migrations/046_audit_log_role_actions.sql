@@ -1,5 +1,5 @@
 -- =============================================================================
--- 045_audit_log_role_actions.sql — granting a role is its own event
+-- 046_audit_log_role_actions.sql — granting a role is its own event
 -- =============================================================================
 -- ADR-0044 rule 2: *granting a role is minting authority*. The audit log is
 -- where that has to be findable, and folding it into the generic `update` row
@@ -13,7 +13,7 @@
 -- question. One action would answer both only after filtering on a value inside
 -- the JSON, which is the situation this migration exists to avoid.
 --
--- Rollback: db/rollback/045_audit_log_role_actions.down.sql
+-- Rollback: db/rollback/046_audit_log_role_actions.down.sql
 -- =============================================================================
 
 ALTER TABLE audit_log MODIFY COLUMN action ENUM(
