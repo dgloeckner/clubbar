@@ -3,11 +3,16 @@
  * Modal for editing admin users
  */
 
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { LanguageSelector } from '../forms/LanguageSelector'
+import { RoleSelector } from '../forms/RoleSelector'
 import { FieldError, ModalError, modalInputStyle } from './ModalError'
 import { useModalDialog } from '../../hooks/useModalDialog'
+import { sameRoleSet } from '../../utils/adminRoles'
+import { AdminRole } from '../../api/generated/adminRole'
+import { StepUpCredentialFields, isStepUpComplete, type StepUpCredentials } from './StepUpConfirmDialog'
 
 export interface EditAdminModalProps {
   isOpen: boolean
@@ -15,30 +20,76 @@ export interface EditAdminModalProps {
     email: string
     display_name: string
     locale: 'de' | 'en'
+    roles: AdminRole[]
   }
+  /** The roles the account held when the modal was opened — the step-up
+   *  fields (and the change itself) fire only when `formData.roles` has
+   *  actually moved away from this. */
+  initialRoles: AdminRole[]
+  /** True when the account being edited is the signed-in caller's own —
+   *  nobody can change their own roles (CONTEXT.md's Role entry), so the
+   *  selector is locked rather than merely hidden. */
+  isSelf: boolean
+  /** True when the caller (not the target) has 2FA enabled — shows the code field. */
+  requiresTotp: boolean
   /** Message from the last failed submit, e.g. an email the API already knows. */
   error?: string | null
   /** Field name → message, as the API reported it. */
   fieldErrors?: Record<string, string>
   onFormChange: (field: string, value: string) => void
-  onSubmit: () => void
+  onRolesChange: (roles: AdminRole[]) => void
+  onSubmit: (credentials?: StepUpCredentials) => void
   onClose: () => void
 }
 
 export function EditAdminModal({
   isOpen,
   formData,
+  initialRoles,
+  isSelf,
+  requiresTotp,
   error,
   fieldErrors = {},
   onFormChange,
+  onRolesChange,
   onSubmit,
   onClose,
 }: EditAdminModalProps) {
   const { t } = useTranslation()
   const contentRef = useModalDialog(isOpen, onClose)
+  const [password, setPassword] = useState('')
+  const [totpCode, setTotpCode] = useState('')
+  const [stepUpValidationError, setStepUpValidationError] = useState<string | null>(null)
+
+  // A fresh open asks for the credential again — a password typed while
+  // editing one account must not carry over to the next.
+  useEffect(() => {
+    if (!isOpen) {
+      setPassword('')
+      setTotpCode('')
+      setStepUpValidationError(null)
+    }
+  }, [isOpen])
 
   if (!isOpen) {
     return null
+  }
+
+  const rolesChanged = !sameRoleSet(formData.roles, initialRoles)
+
+  const handleSubmit = () => {
+    if (!rolesChanged) {
+      onSubmit()
+      return
+    }
+
+    if (!isStepUpComplete(password, totpCode, requiresTotp)) {
+      setStepUpValidationError('settings.validation.stepUpRequiredCreateAdmin')
+      return
+    }
+
+    setStepUpValidationError(null)
+    onSubmit({ current_password: password, totp_code: requiresTotp ? totpCode : undefined })
   }
 
   // The backdrop deliberately carries no close handler: a stray click beside
@@ -102,10 +153,53 @@ export function EditAdminModal({
             testId="settings-admin-edit-locale"
           />
         </div>
+
+        <RoleSelector
+          value={formData.roles}
+          onChange={onRolesChange}
+          disabled={isSelf}
+          disabledReason={isSelf ? t('settings.cannotEditOwnRoles') : undefined}
+          testId="settings-admin-edit-role"
+        />
+        <FieldError message={fieldErrors.roles} testId="settings-admin-edit-role-error" />
+
+        {rolesChanged && (
+          <div
+            style={{
+              marginTop: theme.spacing.md,
+              marginBottom: theme.spacing.md,
+              paddingTop: theme.spacing.md,
+              borderTop: `1px solid ${theme.colors.border.light}`,
+            }}
+          >
+            <p
+              style={{
+                margin: `0 0 ${theme.spacing.md} 0`,
+                fontSize: theme.typography.fontSize.xs,
+                color: theme.colors.text.secondary,
+              }}
+            >
+              {t('settings.createAdminStepUpHint')}
+            </p>
+            <StepUpCredentialFields
+              requiresTotp={requiresTotp}
+              password={password}
+              totpCode={totpCode}
+              invalid={!!error || !!stepUpValidationError}
+              onPasswordChange={setPassword}
+              onTotpCodeChange={setTotpCode}
+            />
+            <FieldError
+              message={stepUpValidationError ? t(stepUpValidationError) : undefined}
+              testId="settings-admin-edit-credential-error"
+            />
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: theme.spacing.md }}>
           <button
             data-testid="settings-admin-edit-confirm-button"
-            onClick={onSubmit}
+            onClick={handleSubmit}
             style={{
               flex: 1,
               padding: theme.spacing.md,

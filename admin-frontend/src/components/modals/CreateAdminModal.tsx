@@ -11,9 +11,11 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { LanguageSelector } from '../forms/LanguageSelector'
+import { RoleSelector } from '../forms/RoleSelector'
 import { FieldError, ModalError, modalInputStyle } from './ModalError'
 import { validateCreateAdminForm } from '../../utils/settingsForms'
 import { useModalDialog } from '../../hooks/useModalDialog'
+import { AdminRole } from '../../api/generated/adminRole'
 import {
   StepUpCredentialFields,
   isStepUpComplete,
@@ -26,6 +28,7 @@ export interface CreateAdminModalProps {
     email: string
     display_name: string
     locale: 'de' | 'en'
+    roles: AdminRole[]
   }
   /** Message from the last failed submit, e.g. an email the API already knows. */
   error?: string | null
@@ -34,6 +37,7 @@ export interface CreateAdminModalProps {
   /** True when the signed-in admin has 2FA enrolled — shows the code field. */
   requiresTotp: boolean
   onFormChange: (field: string, value: string) => void
+  onRolesChange: (roles: AdminRole[]) => void
   onSubmit: (credentials: StepUpCredentials) => void
   onClose: () => void
 }
@@ -45,6 +49,7 @@ export function CreateAdminModal({
   fieldErrors = {},
   requiresTotp,
   onFormChange,
+  onRolesChange,
   onSubmit,
   onClose,
 }: CreateAdminModalProps) {
@@ -147,6 +152,13 @@ export function CreateAdminModal({
             testId="settings-admin-create-locale"
           />
         </div>
+
+        <RoleSelector
+          value={formData.roles}
+          onChange={onRolesChange}
+          testId="settings-admin-create-role"
+        />
+        <FieldError message={messageFor('roles')} testId="settings-admin-create-role-error" />
 
         <p
           style={{

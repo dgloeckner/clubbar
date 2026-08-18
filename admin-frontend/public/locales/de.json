@@ -582,6 +582,7 @@
     "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?",
     "ownAccount": "Sie",
     "cannotDeactivateOwnAccount": "Sie können Ihr eigenes Konto nicht deaktivieren",
+    "cannotEditOwnRoles": "Sie können Ihre eigenen Rollen nicht ändern – bitten Sie einen anderen Admin darum",
     "terminals": "Terminals",
     "createAdminStepUpHint": "Das Anlegen eines Admin-Benutzers gewährt vollen, uneingeschränkten Zugriff auf diese Installation. Bitte bestätigen, dass Sie es sind.",
     "createTerminal": "Terminal erstellen",

@@ -16,6 +16,7 @@ import { getInstanceBranding } from '../api/generated/instance-branding/instance
 import { getProfile } from '../auth/session'
 import { useInstanceConfig } from '../context/InstanceConfigContext'
 import type { SepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
+import { AdminRole } from '../api/generated/adminRole'
 
 // Required fields that are always present in the API responses
 type AdminUser = GeneratedAdminUser & { id: string; email: string; display_name: string; locale: string; is_active: boolean; created_at: string }
@@ -106,20 +107,27 @@ export function SettingsPage() {
     email: string
     display_name: string
     locale: 'de' | 'en'
+    roles: AdminRole[]
   }>({
     email: '',
     display_name: '',
     locale: 'de',
+    roles: [],
   })
   const [editAdminFormData, setEditAdminFormData] = useState<{
     email: string
     display_name: string
     locale: 'de' | 'en'
+    roles: AdminRole[]
   }>({
     email: '',
     display_name: '',
     locale: 'de',
+    roles: [],
   })
+  // The role set the account held when the Edit modal opened — the step-up
+  // fields fire only once `editAdminFormData.roles` has moved away from this.
+  const [editAdminInitialRoles, setEditAdminInitialRoles] = useState<AdminRole[]>([])
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null)
@@ -351,31 +359,39 @@ export function SettingsPage() {
         email: createAdminFormData.email,
         display_name: createAdminFormData.display_name,
         locale: createAdminFormData.locale,
+        roles: createAdminFormData.roles,
         ...credentials,
       })
       setGeneratedPassword(result.password ?? null)
       setShowPasswordModal(true)
       setShowCreateAdminModal(false)
       clearModalError()
-      setCreateAdminFormData({ email: '', display_name: '', locale: 'de' })
+      setCreateAdminFormData({ email: '', display_name: '', locale: 'de', roles: [] })
       await loadAdminUsers()
     } catch (err: unknown) {
       reportModalError(err, 'settings.errors.createAdminUser')
     }
   }
 
-  const handleUpdateAdmin = async () => {
+  const handleUpdateAdmin = async (credentials?: StepUpCredentials) => {
     if (!editingAdmin) return
     try {
+      // No account can change its own roles (CONTEXT.md's Role entry) — the
+      // backend refuses `roles` outright on a self-edit, so it is left out of
+      // the request entirely rather than resent unchanged.
+      const isSelf = editingAdmin.id === callerAdminId
       await getAdminUsers().updateAdminUser(editingAdmin.id!, {
         email: editAdminFormData.email || undefined,
         display_name: editAdminFormData.display_name || undefined,
         locale: editAdminFormData.locale || undefined,
+        roles: isSelf ? undefined : editAdminFormData.roles,
+        ...credentials,
       })
       setShowEditAdminModal(false)
       setEditingAdmin(null)
       clearModalError()
-      setEditAdminFormData({ email: '', display_name: '', locale: 'de' })
+      setEditAdminFormData({ email: '', display_name: '', locale: 'de', roles: [] })
+      setEditAdminInitialRoles([])
       await loadAdminUsers()
     } catch (err: unknown) {
       reportModalError(err, 'settings.errors.updateAdminUser')
@@ -947,11 +963,14 @@ export function SettingsPage() {
           onEditUser={(admin) => {
             clearModalError()
             setEditingAdmin(admin)
+            const roles = admin.roles ?? []
             setEditAdminFormData({
               email: admin.email,
               display_name: admin.display_name,
               locale: (admin.locale === 'en' ? 'en' : 'de') as 'de' | 'en',
+              roles,
             })
+            setEditAdminInitialRoles(roles)
             setShowEditAdminModal(true)
           }}
           onResetPassword={handleResetPassword}
@@ -1033,19 +1052,26 @@ export function SettingsPage() {
             }))
           }
         }}
+        onRolesChange={(roles) => {
+          clearModalError()
+          setCreateAdminFormData((prev) => ({ ...prev, roles }))
+        }}
         onSubmit={handleCreateAdmin}
         onClose={() => {
           clearModalError()
           setShowCreateAdminModal(false)
           // The form was only cleared after a *successful* create, so a
           // cancelled entry greeted whoever opened the modal next (#131).
-          setCreateAdminFormData({ email: '', display_name: '', locale: 'de' })
+          setCreateAdminFormData({ email: '', display_name: '', locale: 'de', roles: [] })
         }}
       />
 
       <EditAdminModal
         isOpen={showEditAdminModal}
         formData={editAdminFormData}
+        initialRoles={editAdminInitialRoles}
+        isSelf={editingAdmin?.id === callerAdminId}
+        requiresTotp={callerTotpEnabled}
         error={modalError}
         fieldErrors={modalFieldErrors}
         onFormChange={(field, value) => {
@@ -1061,6 +1087,10 @@ export function SettingsPage() {
               [field]: value,
             }))
           }
+        }}
+        onRolesChange={(roles) => {
+          clearModalError()
+          setEditAdminFormData((prev) => ({ ...prev, roles }))
         }}
         onSubmit={handleUpdateAdmin}
         onClose={() => {

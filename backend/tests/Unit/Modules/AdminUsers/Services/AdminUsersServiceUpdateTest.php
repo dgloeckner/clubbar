@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\AdminUsers\Services;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
@@ -26,17 +27,19 @@ class AdminUsersServiceUpdateTest extends TestCase
 {
     private AdminUsersRepository $repository;
     private NotificationsService $notifications;
+    private AdminUserRolesRepository $roles;
     private AdminUsersService $service;
 
     protected function setUp(): void
     {
         $this->repository = $this->createMock(AdminUsersRepository::class);
         $this->notifications = $this->createMock(NotificationsService::class);
+        $this->roles = $this->createMock(AdminUserRolesRepository::class);
         $this->service = new AdminUsersService(
             $this->repository,
             $this->createMock(AuditService::class),
             $this->notifications,
-            $this->createMock(AdminUserRolesRepository::class),
+            $this->roles,
             $this->createMock(AdminNotifier::class),
         );
     }
@@ -58,7 +61,7 @@ class AdminUsersServiceUpdateTest extends TestCase
 
     public function test_deactivation_and_the_other_fields_are_both_applied(): void
     {
-        $this->repository->method('countActive')->willReturn(5);
+        $this->roles->method('rolesFor')->with('admin-2')->willReturn([AdminRole::KASSENWART]);
 
         $writes = [];
         $this->repository->method('updateById')
@@ -107,12 +110,43 @@ class AdminUsersServiceUpdateTest extends TestCase
      */
     public function test_a_refused_deactivation_writes_nothing_at_all(): void
     {
-        $this->repository->method('countActive')->willReturn(1);
+        $this->roles->method('rolesFor')->with('admin-2')->willReturn([AdminRole::ADMIN]);
+        $this->roles->method('countActiveHolders')->with(AdminRole::ADMIN)->willReturn(1);
         $this->repository->expects($this->never())->method('updateById');
 
         $this->expectException(BusinessRuleException::class);
 
         $this->service->updateAdminUser('admin-2', ['is_active' => false, 'display_name' => 'Renamed'], 'admin-1');
+    }
+
+    /**
+     * The role-aware guard (#548) only fires for the account holding `admin`
+     * — deactivating the last active Kassenwart-only account, say, is an
+     * operational choice, not a lockout.
+     */
+    public function test_deactivating_a_non_admin_never_consults_the_admin_count(): void
+    {
+        $this->roles->method('rolesFor')->with('admin-2')->willReturn([AdminRole::KASSENWART]);
+        $this->roles->expects($this->never())->method('countActiveHolders');
+        $this->repository->method('updateById')->willReturn(self::row(['is_active' => 0]));
+
+        $this->service->updateAdminUser('admin-2', ['is_active' => false], 'admin-1');
+    }
+
+    /**
+     * Deactivating an admin is fine as soon as another active account also
+     * holds `admin`.
+     */
+    public function test_deactivating_an_admin_is_allowed_when_another_admin_remains(): void
+    {
+        $this->roles->method('rolesFor')->with('admin-2')->willReturn([AdminRole::ADMIN]);
+        $this->roles->method('countActiveHolders')->with(AdminRole::ADMIN)->willReturn(2);
+        $this->repository->expects($this->once())
+            ->method('updateById')
+            ->with('admin-2', ['is_active' => 0])
+            ->willReturn(self::row(['is_active' => 0]));
+
+        $this->service->updateAdminUser('admin-2', ['is_active' => false], 'admin-1');
     }
 
     public function test_a_body_without_is_active_still_updates_the_named_fields(): void
@@ -210,7 +244,7 @@ class AdminUsersServiceUpdateTest extends TestCase
 
     public function test_the_string_zero_a_form_post_sends_deactivates(): void
     {
-        $this->repository->method('countActive')->willReturn(5);
+        $this->roles->method('rolesFor')->with('admin-2')->willReturn([AdminRole::KASSENWART]);
 
         $this->repository->expects($this->once())
             ->method('updateById')
