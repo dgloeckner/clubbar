@@ -39,6 +39,7 @@ class SchedulerGateHttpTest extends HttpTestCase
             'INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, totp_enabled, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, 1, 0, NOW(), NOW())'
         )->execute([$this->adminId, "scheduler-{$this->adminId}@example.test", self::PASSWORD_HASH, 'Scheduler', 'de']);
+        $this->grantRoles($this->adminId);
 
         $this->originalHeartbeat = $this->db->query('SELECT * FROM cron_heartbeat WHERE id = 1')->fetch() ?: [];
 

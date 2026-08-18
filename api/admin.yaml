@@ -4258,7 +4258,19 @@ components:
       type: apiKey
       in: cookie
       name: PHPSESSID
-      description: PHP session cookie (HttpOnly, Secure, SameSite=Lax)
+      description: |
+        PHP session cookie (HttpOnly, Secure, SameSite=Lax).
+
+        **Every operation secured this way can answer `403 insufficient_role`**
+        (see the `InsufficientRole` response), because authentication and
+        authorization are separate questions here: the session says who is
+        calling, and the route→roles map of ADR-0044 says whether that caller's
+        role reaches this route. The map is default-deny — a route it does not
+        name is `admin`-only — so a client cannot infer reachability from the
+        absence of an explicit `403` on an operation.
+
+        Roles are additive and a caller may hold several; `GET /auth/profile`
+        reports the ones they hold.
 
   parameters:
     memberId:
@@ -4301,6 +4313,26 @@ components:
           example:
             error: unauthorized
             message: Authentication required
+    InsufficientRole:
+      description: |
+        Authenticated, but the caller's role does not reach this route
+        (ADR-0044). `error` is `insufficient_role`.
+
+        Distinct from `401` in kind, not degree: signing in again changes
+        nothing, and a client must send the user to a "not available for your
+        role" screen rather than to the login page. The message never names
+        which role would have sufficed — a refusal is not a place to describe
+        the shape of what the caller is not trusted with.
+
+        Also the answer for an account holding no role at all, including on
+        `/auth/*`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: insufficient_role
+            message: This section is not available for your role.
     NotFound:
       description: Resource not found
       content:
