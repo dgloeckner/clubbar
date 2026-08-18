@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\AdminUsers\Services;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\NotFoundException;
@@ -36,6 +37,7 @@ class AdminUsersServiceUpdateTest extends TestCase
             $this->createMock(AuditService::class),
             $this->notifications,
             $this->createMock(AdminUserRolesRepository::class),
+            $this->createMock(AdminNotifier::class),
         );
     }
 

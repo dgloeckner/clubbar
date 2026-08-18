@@ -11,6 +11,8 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
@@ -23,6 +25,7 @@ class AdminUsersService
         private AuditService $auditService,
         private NotificationsService $notificationsService,
         private AdminUserRolesRepository $adminUserRolesRepository,
+        private AdminNotifier $adminNotifier,
     ) {}
 
     /**
@@ -59,6 +62,32 @@ class AdminUsersService
      * @return bool Whether anything actually changed.
      */
     public function setRoles(string $id, array $roles, ?string $currentAdminId = null): bool
+    {
+        if (!$this->applyRoles($id, $roles, $currentAdminId)) {
+            return false;
+        }
+
+        // The out-of-band half of ADR-0044 rule 2. The step-up proves who is
+        // acting and the audit rows record it; this is what reaches the people
+        // who were *not* acting — every other active admin, and the club-level
+        // address — through a channel the compromised session does not hold.
+        $this->announce(MailKind::ADMIN_ROLE_CHANGED, $id, 'changed', $currentAdminId);
+
+        return true;
+    }
+
+    /**
+     * Write the role set and audit what moved, announcing nothing.
+     *
+     * Separate from {@see setRoles()} because account creation goes through it
+     * too, and a brand-new account must not also be announced as one whose
+     * roles *changed*: it has no history to have changed from. The caller that
+     * knows which event this is owns the announcement.
+     *
+     * @param list<AdminRole> $roles
+     * @return bool Whether anything actually changed.
+     */
+    private function applyRoles(string $id, array $roles, ?string $currentAdminId): bool
     {
         if ($roles === []) {
             throw new BusinessRuleException('An admin user must hold at least one role');
@@ -174,11 +203,13 @@ class AdminUsersService
         // that would fix it.
         $roles = $roles === [] ? [AdminRole::ADMIN] : $roles;
 
-        // Through `setRoles`, not straight to the repository, so a creation
+        // Through `applyRoles`, not straight to the repository, so a creation
         // also writes its ROLE_GRANTED row. "Who gained `admin` last quarter"
         // has to return the accounts that were *created* as admin, not only
-        // the ones promoted later.
-        $this->setRoles($admin['id'], $roles, $currentAdminId);
+        // the ones promoted later. `applyRoles` rather than `setRoles` because
+        // this is not a role *change* — it is the account's first state, and
+        // announcing it as a change would be a second, wrong message.
+        $this->applyRoles($admin['id'], $roles, $currentAdminId);
 
         $this->auditService->log(
             action: AuditAction::CREATE,
@@ -193,7 +224,46 @@ class AdminUsersService
             adminUserId: $currentAdminId,
         );
 
+        // ADR-0044 rule 3, and the event the ADR calls the *loud* path: it is
+        // announced to every active admin and to the club address, so that a
+        // single-admin installation still has a witness other than whoever
+        // just acted.
+        $this->announce(MailKind::ADMIN_ACCOUNT_CREATED, $admin['id'], 'created', $currentAdminId);
+
         return ['admin' => $this->withRoles($admin), 'password' => $password];
+    }
+
+    /**
+     * Queue an admin lifecycle notice, and never let it fail the thing it
+     * announces.
+     *
+     * The account has already been created, or the roles already moved, by the
+     * time this runs. A queue that will not take the notice is a smaller
+     * problem than a caller told their change failed when it did not — the
+     * same reasoning `onEmailChanged()` applies below, and ADR-0038 rule 3's
+     * position that this only ever queues.
+     *
+     * The occasion carries the moment rather than a tier, so two changes to one
+     * account are two messages rather than one the unique index swallows. Unix
+     * seconds, because `forAdmin()` appends a 36-character UUID to build the
+     * dedup key and the column is VARCHAR(64) — a formatted timestamp overruns
+     * it.
+     */
+    private function announce(MailKind $kind, string $adminUserId, string $event, ?string $actorAdminUserId): void
+    {
+        try {
+            $this->adminNotifier->warnAdmins(
+                kind: $kind,
+                subjectId: $adminUserId,
+                occasion: $event . ':' . time(),
+                actorAdminUserId: $actorAdminUserId,
+            );
+        } catch (\Throwable) {
+            // Deliberately swallowed rather than audited: a failed enqueue is
+            // not a role event, and writing one under ROLE_GRANTED would put
+            // noise in the one query — "who gained admin" — that these actions
+            // exist to answer.
+        }
     }
 
     /**

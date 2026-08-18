@@ -97,8 +97,8 @@ it makes the foundation deployable and verifiable before enforcement lands.
       so "who gained `admin` last quarter" does not miss accounts created as one
 - [x] `roles` on create and update, validated as a whole: a list naming a
       non-role is refused rather than silently filtered
-- [ ] Out-of-band lifecycle mail on a role change — carried into M5, where the
-      club-level notification address lives
+- [x] Out-of-band lifecycle mail on a role change — delivered in M5b, where the
+      club-level notification address it has to reach lives
 
 ### M4 — Allow-list `group_by` on `/reports/{reportType}` ([#515](https://github.com/dgloeckner/clubbar/issues/515))
 
@@ -139,16 +139,51 @@ it makes the foundation deployable and verifiable before enforcement lands.
       635/635, Unit green apart from the pre-existing `ServiceFactoryTest`
       environment failure
 
-**M5b — the messages themselves (not started):**
+**M5b — the messages themselves (shipped):**
 
-- [ ] `AdminAccountCreatedMail` / `AdminRoleChangedMail` templates and their
-      de/en strings, as branches of `AdminSecurityMailBuilder` (it already
-      claims the whole `ADMIN_USER` subject)
-- [ ] `AdminUsersService` enqueues on account creation and on a role change
-- [ ] Asserted against what a real drain delivered to Mailpit (E2E Pattern 010),
-      never the outbox row — including the single-admin case, which is the whole
-      point
-- [ ] Never contains a password, token or key material
+- [x] `AdminLifecycleMail` renders both notices in de and en, as branches of
+      `AdminSecurityMailBuilder` (which already claims the whole `ADMIN_USER`
+      subject). One class rather than two, on the precedent
+      `EncryptionKeyEventMail` set for its three events
+      — *verified*: `AdminLifecycleMailTest` 7/7
+- [x] It names the role set the account holds **now**, not the delta: ADR-0038
+      rule 5 renders from current state at send time, and a message queued
+      before a second change would otherwise describe a world that no longer
+      exists. The delta lives in the audit log, and the message says so
+- [x] `AdminUsersService` enqueues on account creation and on a role change,
+      best effort — the account is already created and the roles already moved
+      when it runs. A creation announces a creation and **not** also a role
+      change: `applyRoles()` writes and audits, and the caller that knows which
+      event this is owns the announcement
+      — *verified*: `AdminLifecycleNoticeTest` 6/6, including the
+      zero-other-admins case and the unset-address degradation
+- [x] Asserted against what a real drain delivered to Mailpit (E2E Pattern 010)
+      in its own `mail-lifecycle` project — creation and promotion, both to the
+      club address, both through `bin/cron.php`
+- [x] Never contains a password, token or key material — asserted in both
+      PHPUnit and against the delivered message, using the *real* generated
+      password rather than a pattern resembling one
+- [x] `MailRequestDto` learned that a club-addressed row is a legitimate third
+      case. It previously refused any row naming neither a member nor an admin —
+      correctly, since an unattributed row cannot be found by erasure — and the
+      club copy names neither. It is now an explicit flag rather than a loosened
+      check, and naming a person *and* claiming club-addressing is refused
+- [x] `club_notification_address` documented in `api/admin.yaml` on both the
+      read and write shapes of `mail-config`
+- [x] The queue the fan-out fills is kept off the delivery chains' path. ADR-0044
+      sends these notices to **every active admin** as well as the club address,
+      which is a handful of rows in a club and quadratic in this test suite —
+      every spec that mints a throwaway admin leaves it active, so a full run
+      ended with thousands of rows queued ahead of whatever a chain spec was
+      waiting for. `prenotification-chain` then drained, spent its batch and its
+      budget on the backlog, and reported *Mailpit should hold exactly 1
+      message: received 0* in a file that had done nothing wrong. A
+      `quiet mail backlog` setup project — after everything that queues, before
+      everything that delivers — discards the unclaimed backlog, and
+      `--project=mail-lifecycle` was added to the CI matrix, which M5b had
+      created without wiring up
+      — *verified*: reproduced locally against a 6,450-row backlog (4 chain
+      specs failing), then green with the setup in place
 
 ### M6 — Admin frontend: hidden nav, per-role landing, refusal screen ([#516](https://github.com/dgloeckner/clubbar/issues/516))
 

@@ -239,11 +239,24 @@ export default defineConfig({
     // Needs the compose stack (the drain runs through `docker compose exec`)
     // and Mailpit on :8025. `--no-deps` runs it alone against a stack that is
     // already seeded, which is what to use while iterating on a single spec.
+    // Everything that queues has run; nothing that delivers has started. That
+    // is the only moment the backlog can be discarded, and it is why this is a
+    // project with dependencies rather than a `beforeAll` in one spec.
+    {
+      name: 'quiet mail backlog',
+      testDir: './tests',
+      testMatch: /mail-backlog\.setup\.ts/,
+      // The same edge `mail-chain` used to carry, and for the same reason: it
+      // waits for the suites that fill the queue, unless the chain lane has the
+      // database to itself, in which case there is nothing to wait for.
+      dependencies: orderedAfter(['api-tests', 'admin-chromium']),
+    },
+
     {
       name: 'mail-chain',
       testDir: './tests/mail',
       fullyParallel: false,
-      dependencies: orderedAfter(['api-tests', 'admin-chromium']),
+      dependencies: ['quiet mail backlog'],
     },
 
     // The Deckelauszug chain (#463): cadence on → bin/cron.php → Mailpit.
@@ -310,6 +323,26 @@ export default defineConfig({
       testDir: './tests/mail-issuance',
       fullyParallel: false,
       dependencies: ['mail-credentials'],
+    },
+
+    // The admin lifecycle chain (ADR-0044 rule 3): creating an account or
+    // moving its roles → bin/cron.php → the club's mailbox.
+    //
+    // Its own project for the reason each of the four before it is: these
+    // notices go to **every active admin**, so while this file's accounts exist
+    // its messages would land in the other files' mailboxes and theirs in this
+    // one, each failing on a count the other caused. Last, because its drains
+    // claim the whole queue like the rest, and `dependencies` makes that
+    // ordering structural rather than alphabetical luck.
+    //
+    // It is also the only chain that asserts for an address belonging to **no
+    // account at all** — the club-level address, which is the entire point of
+    // the feature.
+    {
+      name: 'mail-lifecycle',
+      testDir: './tests/mail-lifecycle',
+      fullyParallel: false,
+      dependencies: ['mail-issuance'],
     },
 
     // Package smoke tests - only run when PACKAGE_TEST=1
