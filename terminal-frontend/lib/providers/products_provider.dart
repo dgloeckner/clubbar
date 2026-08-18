@@ -22,6 +22,14 @@ class ProductsProvider extends ChangeNotifier with ErrorSignal {
   final bool _isLoading = false;
   bool _isSyncing = false;
 
+  /// Session price freeze: a snapshot taken when a member session starts, so
+  /// a mid-session background sync cannot repaint the grid with a different
+  /// price (or availability) than what's already tappable in front of the
+  /// member. See ADR-0027 Amendment 4.
+  bool _frozen = false;
+  List<CategoriesCacheData> _frozenCategories = [];
+  List<ProductsCacheData> _frozenProducts = [];
+
   ProductsProvider({
     required ProductsService service,
     required ConfigService config,
@@ -40,10 +48,29 @@ class ProductsProvider extends ChangeNotifier with ErrorSignal {
     super.dispose();
   }
 
-  List<CategoriesCacheData> get categories => _categories;
-  List<ProductsCacheData> get products => _products;
+  List<CategoriesCacheData> get categories =>
+      _frozen ? _frozenCategories : _categories;
+  List<ProductsCacheData> get products =>
+      _frozen ? _frozenProducts : _products;
   bool get isLoading => _isLoading;
   bool get isSyncing => _isSyncing;
+
+  /// Snapshot the current catalogue so a background sync during an active
+  /// member session cannot change what's displayed/tappable. Called only by
+  /// [SessionController.startSession] (ADR-0027 owns the session lifecycle).
+  void freezeForSession() {
+    _frozenCategories = List.unmodifiable(_categories);
+    _frozenProducts = List.unmodifiable(_products);
+    _frozen = true;
+  }
+
+  /// Resume showing live data. Called only by
+  /// [SessionController.endSession].
+  void unfreezeForSession() {
+    _frozen = false;
+    _frozenCategories = [];
+    _frozenProducts = [];
+  }
 
   /// Refresh products from service
   Future<void> refreshProducts() async {
@@ -88,7 +115,7 @@ class ProductsProvider extends ChangeNotifier with ErrorSignal {
   List<ProductsCacheData> getVisibleProducts(String categoryId) {
     final dispenserEnabled = _config.dispenserEnabled;
 
-    final visible = _products
+    final visible = products
         .where((p) => p.categoryId == categoryId)
         .where((p) => p.isActive == 1)
         .where((p) {

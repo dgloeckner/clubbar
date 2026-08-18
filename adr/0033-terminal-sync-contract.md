@@ -201,5 +201,5 @@ One consequence of §2 worth stating plainly, because it is what made the batch-
 - [ADR-0017](./0017-input-validation-injection-prevention.md) — validation posture the allowlist sits inside
 - [ADR-0020](./0020-sepa-mandate-requirement-terminal-access.md) — the preventive half at the terminal, of which this is the backstop
 - [ADR-0022](./0022-test-strategy-and-automation.md) — where the enforcing-OAS drift check belongs
-- [ADR-0027](./0027-terminal-session-lifecycle.md) — the session the sale is recorded in
+- [ADR-0027](./0027-terminal-session-lifecycle.md) — the session the sale is recorded in; [Amendment 4](./0027-terminal-session-lifecycle.md#amendment-4-the-displayed-catalogue-is-frozen-for-the-session) covers the in-session refinement of "the terminal charged a price the member saw" — the displayed price cannot itself drift mid-session
 - [ADR-0032](./0032-settlement-lifecycle.md) — what happens to these transactions once they are unsettled rows

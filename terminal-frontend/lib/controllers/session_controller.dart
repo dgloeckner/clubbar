@@ -5,6 +5,7 @@ import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
 
 /// Outcome of a [SessionController.startSession] attempt (ADR-0027 rules 1-4).
 enum SessionStartResult {
@@ -27,6 +28,7 @@ enum SessionStartResult {
 class SessionController extends ChangeNotifier {
   final MembersProvider _membersProvider;
   final CartProvider _cartProvider;
+  final ProductsProvider? _productsProvider;
   final Duration inactivityTimeout;
   final Duration warningDuration;
 
@@ -39,10 +41,12 @@ class SessionController extends ChangeNotifier {
   SessionController({
     required MembersProvider membersProvider,
     required CartProvider cartProvider,
+    ProductsProvider? productsProvider,
     this.inactivityTimeout = AppConfig.inactivityTimeout,
     this.warningDuration = AppConfig.inactivityWarningDuration,
   })  : _membersProvider = membersProvider,
-        _cartProvider = cartProvider;
+        _cartProvider = cartProvider,
+        _productsProvider = productsProvider;
 
   bool get hasActiveSession => _membersProvider.selectedMember != null;
 
@@ -66,6 +70,7 @@ class SessionController extends ChangeNotifier {
 
     _cartProvider.clearCart();
     await _membersProvider.setSelectedMember(member);
+    _productsProvider?.freezeForSession();
     _startInactivityTimer();
     notifyListeners();
     return SessionStartResult.started;
@@ -89,6 +94,7 @@ class SessionController extends ChangeNotifier {
     _cancelTimers();
     _cartProvider.clearCart();
     _membersProvider.clearSelectedMember();
+    _productsProvider?.unfreezeForSession();
     notifyListeners();
     return true;
   }

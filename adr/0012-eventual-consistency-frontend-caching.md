@@ -445,6 +445,7 @@ Query backend for every operation; no local storage.
 - [ADR-0003: GZIP Compression for HTTP](./0003-gzip-compression-http.md) - Reduces sync payload sizes by ~85%
 - [ADR-0023: Terminal Balance State Management](./0023-terminal-balance-state-management.md) - Member balances cached locally and updated during sync
 - [ADR-0024: Transaction History Retrieval in Terminal](./0024-transaction-history-retrieval-terminal.md) - On-demand transaction history fetching (separate from sync cycle)
+- [ADR-0027: Terminal Session Lifecycle and Cart Ownership](./0027-terminal-session-lifecycle.md#amendment-4-the-displayed-catalogue-is-frozen-for-the-session) - Amendment 4 bounds the "stale price/product until sync" staleness this ADR accepts to within a single member session, so it cannot also drift *during* one
 
 ---
 
