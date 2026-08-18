@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\Services;
 
 use App\Modules\Notifications\Contracts\MailContentBuilder;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Shared\Mail\MailMessage;
 
@@ -31,9 +32,9 @@ final class MailContentRegistry
         $this->builders = array_values($builders);
     }
 
-    public function build(array $outboxRow): MailMessage
+    public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage
     {
-        return $this->builderFor(MailKind::from((string) $outboxRow['kind']))->build($outboxRow);
+        return $this->builderFor(MailKind::from((string) $outboxRow['kind']))->build($outboxRow, $mailConfig);
     }
 
     public function supports(MailKind $kind): bool

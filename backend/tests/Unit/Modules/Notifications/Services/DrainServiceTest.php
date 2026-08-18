@@ -692,7 +692,7 @@ final class StubContentBuilder implements MailContentBuilder
         return true;
     }
 
-    public function build(array $outboxRow): MailMessage
+    public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage
     {
         return ($this->render)($outboxRow);
     }

@@ -8,7 +8,6 @@ use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Services\CredentialExpiryMailBuilder;
-use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use PHPUnit\Framework\TestCase;
@@ -27,6 +26,7 @@ class CredentialExpiryMailBuilderTest extends TestCase
     private TerminalsRepository $terminals;
     private AdminUsersRepository $adminUsers;
     private CredentialExpiryMailBuilder $builder;
+    private MailConfigDto $mailConfig;
 
     protected function setUp(): void
     {
@@ -35,18 +35,16 @@ class CredentialExpiryMailBuilderTest extends TestCase
         $this->adminUsers = $this->createMock(AdminUsersRepository::class);
         $this->adminUsers->method('findById')->willReturn(['display_name' => 'Kassenwart']);
 
-        $mailConfigService = $this->createMock(MailConfigService::class);
-        $mailConfigService->method('getConfig')->willReturn(MailConfigDto::fromRow([
+        $this->mailConfig = MailConfigDto::fromRow([
             'sender_name' => 'FRGS Ruderbar',
             'sender_address' => 'bar@example.org',
             'footer_org_name' => 'FRGS Ruderbar',
-        ]));
+        ]);
 
         $this->builder = new CredentialExpiryMailBuilder(
             $this->keys,
             $this->terminals,
             $this->adminUsers,
-            $mailConfigService,
         );
     }
 
@@ -100,7 +98,7 @@ class CredentialExpiryMailBuilderTest extends TestCase
             'expires_at' => self::inDays(25),
         ]);
 
-        $message = $this->builder->build(self::row());
+        $message = $this->builder->build(self::row(), $this->mailConfig);
 
         $this->assertSame('kassenwart@example.org', $message->to);
         $this->assertSame('Kassenwart', $message->toName);
@@ -119,7 +117,7 @@ class CredentialExpiryMailBuilderTest extends TestCase
             'expires_at' => self::inDays(3),
         ]);
 
-        $message = $this->builder->build(self::row(['dedup_key' => '7d:admin-1']));
+        $message = $this->builder->build(self::row(['dedup_key' => '7d:admin-1']), $this->mailConfig);
 
         // At seven days nobody opens a mail to find out whether it matters.
         $this->assertStringStartsWith('Dringend:', $message->subject);
@@ -137,7 +135,7 @@ class CredentialExpiryMailBuilderTest extends TestCase
             'kind' => MailKind::TERMINAL_TOKEN_EXPIRY_WARNING->value,
             'subject_id' => 'terminal-1',
             'dedup_key' => '7d:admin-1',
-        ]));
+        ]), $this->mailConfig);
 
         $this->assertStringContainsString('Theke', $message->subject);
         $this->assertStringContainsString('Token rotieren', $message->text);
@@ -156,7 +154,7 @@ class CredentialExpiryMailBuilderTest extends TestCase
             'expires_at' => self::inDays(-2),
         ]);
 
-        $message = $this->builder->build(self::row(['dedup_key' => '7d:admin-1']));
+        $message = $this->builder->build(self::row(['dedup_key' => '7d:admin-1']), $this->mailConfig);
 
         $this->assertStringContainsString('0 Tage', $message->text);
         $this->assertStringNotContainsString('in -', $message->text);
@@ -169,7 +167,7 @@ class CredentialExpiryMailBuilderTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('no longer exists');
 
-        $this->builder->build(self::row());
+        $this->builder->build(self::row(), $this->mailConfig);
     }
 
     /**
@@ -190,7 +188,7 @@ class CredentialExpiryMailBuilderTest extends TestCase
             'kind' => MailKind::TERMINAL_TOKEN_EXPIRY_WARNING->value,
             'subject_id' => 'terminal-1',
             'dedup_key' => '7d:20260102030405:admin-1',
-        ]));
+        ]), $this->mailConfig);
 
         $this->assertStringStartsWith('Dringend:', $message->subject);
         $this->assertStringContainsString('Theke', $message->subject);
@@ -201,6 +199,6 @@ class CredentialExpiryMailBuilderTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('no known warning tier');
 
-        $this->builder->build(self::row(['dedup_key' => '45d:admin-1']));
+        $this->builder->build(self::row(['dedup_key' => '45d:admin-1']), $this->mailConfig);
     }
 }

@@ -506,16 +506,22 @@ test.describe("Admin Authentication", () => {
    * there would lock the rest of the suite out.
    */
   test.describe("PATCH /api/auth/profile", () => {
-    /** Create a fresh admin and return a fully-logged-in context for it. */
+    /**
+     * Create a fresh admin and return a fully-logged-in context for it.
+     *
+     * Uses `loginCached` (the shared admin's already-established "setup auth"
+     * session), not `login()`, to get privilege for the admin-users create
+     * call below: this helper only needs a privileged session to mint a
+     * throwaway admin, it doesn't exercise the login endpoint itself, so a
+     * real password+MFA login here would just be another caller racing
+     * `totp_last_timestep` (#338) for no reason — the same reasoning that
+     * gave `loginCached` to the tests above.
+     */
     async function freshAdminContext(
       request: APIRequestContext,
       playwright: Parameters<typeof loginAs>[0],
     ) {
-      const { cookieString, csrfToken } = await login(
-        request,
-        ADMIN_EMAIL,
-        ADMIN_PASSWORD,
-      );
+      const { cookieString, csrfToken } = await loginCached(request);
 
       const suffix = `${Date.now()}${Math.random().toString(36).slice(2, 7)}`;
       const createResponse = await request.post(`${API_BASE}/admin/admin-users`, {

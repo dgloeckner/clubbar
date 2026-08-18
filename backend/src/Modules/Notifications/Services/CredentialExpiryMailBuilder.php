@@ -7,6 +7,7 @@ namespace App\Modules\Notifications\Services;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\DTOs\CredentialExpiryDataDto;
+use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Mail\CredentialExpiryMail;
@@ -47,7 +48,6 @@ class CredentialExpiryMailBuilder implements MailContentBuilder
         private EncryptionKeysRepository $encryptionKeysRepository,
         private TerminalsRepository $terminalsRepository,
         private AdminUsersRepository $adminUsersRepository,
-        private MailConfigService $mailConfigService,
     ) {}
 
     public function supports(MailKind $kind): bool
@@ -65,7 +65,7 @@ class CredentialExpiryMailBuilder implements MailContentBuilder
      *         credential that no longer exists must not be invented around the
      *         gap.
      */
-    public function build(array $outboxRow): MailMessage
+    public function build(array $outboxRow, MailConfigDto $mailConfig): MailMessage
     {
         $kind = MailKind::from((string) $outboxRow['kind']);
         $subjectId = (string) $outboxRow['subject_id'];
@@ -91,7 +91,7 @@ class CredentialExpiryMailBuilder implements MailContentBuilder
             // since — the same rule every other builder follows.
             recipientAddress: (string) $outboxRow['recipient'],
             recipientName: $this->recipientName($outboxRow),
-            branding: $this->mailConfigService->getConfig()->toBranding(),
+            branding: $mailConfig->toBranding(),
             credential: $credential,
             name: $name,
             tierDays: $tier,
