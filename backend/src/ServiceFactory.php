@@ -31,7 +31,6 @@ use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Modules\Notifications\Repositories\DeckelStatementRepository;
 use App\Modules\Notifications\Repositories\StatementRecipientsRepository;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
-use App\Modules\Auth\Repositories\SessionRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\CollectionHoldRepository;
 use App\Modules\Settlements\Repositories\SettlementAnnouncementsRepository;
@@ -304,11 +303,6 @@ class ServiceFactory implements ContainerInterface
             LoginAttemptsRepository::class . ':terminal',
             fn() => new LoginAttemptsRepository($this->pdo, 'terminal_auth_attempts'),
         );
-    }
-
-    public function getSessionRepository(): SessionRepository
-    {
-        return $this->resolve(SessionRepository::class, fn() => new SessionRepository($this->pdo, $this->logger));
     }
 
     public function getSettlementsRepository(): SettlementsRepository

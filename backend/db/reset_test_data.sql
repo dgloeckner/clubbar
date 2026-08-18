@@ -38,7 +38,6 @@ DELETE FROM mandates;
 DELETE FROM members;
 DELETE FROM terminals;
 DELETE FROM audit_log;
-DELETE FROM sessions;
 DELETE FROM sepa_config;
 DELETE FROM admin_users;
 DELETE FROM encryption_keys;
