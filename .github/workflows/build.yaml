@@ -462,6 +462,21 @@ jobs:
         run: npm ci
         working-directory: admin-frontend
 
+      # This matrix runs 5 jobs in parallel (api-1, api-2, ui-1, ui-2, chain),
+      # each pulling the same 3 images at the same moment — exactly the
+      # concentration that trips Docker Hub's per-source-IP anonymous pull
+      # limit (see the "Docker Hub rate limits" note in CLAUDE.md, written for
+      # the analogous cloud-dev-session case). scripts/pull-images.sh is the
+      # existing fix for that: it prefetches through the GHCR mirror with
+      # retry/backoff, best-effort (always exits 0, so a registry problem
+      # still surfaces as `docker compose up`'s own error). CLUBBAR_IMAGE_MIRROR=1
+      # tries the mirror first here, since Hub's budget is worth saving for
+      # jobs/images that have no mirror rather than spending it 5x on one push.
+      - name: Prefetch service images (GHCR mirror first)
+        run: scripts/pull-images.sh database backend mailpit
+        env:
+          CLUBBAR_IMAGE_MIRROR: '1'
+
       # Started explicitly rather than through hoverkraft-tech/compose-action,
       # whose post step dumps the *entire* container log — over a megabyte of
       # per-request access lines — as the last thing in the job. GitHub's
@@ -666,6 +681,11 @@ jobs:
           VERSION="${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}"
           echo "$VERSION" > backend/VERSION
           ./scripts/build-package.sh "$VERSION"
+
+      - name: Prefetch service images (GHCR mirror first)
+        run: scripts/pull-images.sh database backend
+        env:
+          CLUBBAR_IMAGE_MIRROR: '1'
 
       # Explicit, for the same reason as the E2E job: the action's post step
       # dumped every container log line as the last thing in the job, which is
