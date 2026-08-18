@@ -56,6 +56,34 @@ class AuditLogRepositoryTest extends DatabaseTestCase
         $this->assertSame('auditor@example.com', $result['items'][0]['admin_user_email']);
     }
 
+    /**
+     * `date_from`/`date_to` used to wrap `created_at` in `DATE()`, which reads
+     * identically but stops the optimizer using any index on the column at
+     * all — a full-table scan on every filtered page (594k rows examined for a
+     * 30-day window on a 600k-row table in the query-plan audit that replaced
+     * it with plain range comparisons). These pin the boundary semantics that
+     * rewrite has to preserve: `date_to` is a calendar day, inclusive of every
+     * second in it, not just its midnight instant.
+     */
+    public function test_listWithFilters_date_range_includes_both_boundary_instants(): void
+    {
+        $entityId = $this->entityId();
+        $onFromDay = $this->insertEntry($entityId, 'create', '2026-01-01 00:00:00');
+        $onToDay = $this->insertEntry($entityId, 'update', '2026-01-03 23:59:59');
+        $beforeRange = $this->insertEntry($entityId, 'delete', '2025-12-31 23:59:59');
+        $afterRange = $this->insertEntry($entityId, 'export', '2026-01-04 00:00:00');
+
+        $result = $this->repository->listWithFilters(10, 0, [
+            'entity_id' => $entityId,
+            'date_from' => '2026-01-01',
+            'date_to' => '2026-01-03',
+        ], 'created_at', 'asc');
+
+        $this->assertSame([$onFromDay, $onToDay], $this->ids($result['items']));
+        $this->assertNotContains($beforeRange, $this->ids($result['items']));
+        $this->assertNotContains($afterRange, $this->ids($result['items']));
+    }
+
     private function createAdminUser(string $email): string
     {
         $adminId = $this->generateUuid();

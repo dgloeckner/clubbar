@@ -7,6 +7,7 @@ namespace App\Modules\AuditLog\Repositories;
 use PDO;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
+use App\Shared\Repository\UnsettledTransactions;
 
 class AuditLogRepository
 {
@@ -102,13 +103,20 @@ class AuditLogRepository
         $where = [];
         $params = [];
 
+        // Plain range comparisons rather than DATE(al.created_at) >= / <= — a
+        // function wrapped around the indexed column stops the optimizer using
+        // idx_audit_created_action (or idx_audit_entity_action_created) at all,
+        // which turned every date-filtered page into a full-table index scan
+        // (594k rows examined for a 30-day window on a 600k-row table). A plain
+        // date string still compares correctly against created_at's implicit
+        // 00:00:00, so only the upper bound needs widening to the end of day.
         if (isset($filters['date_from'])) {
-            $where[] = 'DATE(al.created_at) >= ?';
+            $where[] = 'al.created_at >= ?';
             $params[] = $filters['date_from'];
         }
         if (isset($filters['date_to'])) {
-            $where[] = 'DATE(al.created_at) <= ?';
-            $params[] = $filters['date_to'];
+            $where[] = 'al.created_at <= ?';
+            $params[] = UnsettledTransactions::endOfDay((string) $filters['date_to']);
         }
         if (isset($filters['action'])) {
             $where[] = 'al.action = ?';
