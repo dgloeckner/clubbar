@@ -407,8 +407,18 @@ export class SettingsPage {
       await this.page.getByTestId('settings-admin-create-locale-trigger').click()
       await this.page.getByTestId(`settings-admin-create-locale-option-${data.locale}`).click()
     }
-    for (const role of data.roles ?? ['admin']) {
-      await this.page.getByTestId(`settings-admin-create-role-checkbox-${role}`).click()
+    // Set-to, not click-blindly: the modal can carry a role selection over
+    // from an earlier rejected submit in the same test (e.g. a validation
+    // test that first submits invalid data, then fixes it and resubmits in
+    // the same open modal) — a raw click toggles whatever is already there,
+    // which can silently uncheck the target role a second call meant to set.
+    const target = data.roles ?? ['admin']
+    for (const role of ['admin', 'kassenwart', 'getraenkewart'] as const) {
+      const checkbox = this.page.getByTestId(`settings-admin-create-role-checkbox-${role}`)
+      const wantChecked = target.includes(role)
+      if ((await checkbox.isChecked()) !== wantChecked) {
+        await this.page.getByTestId(`settings-admin-create-role-option-${role}`).click()
+      }
     }
     await this.fillStepUpCredential()
   }
@@ -698,7 +708,7 @@ export class SettingsPage {
       await this.page.getByTestId(`settings-admin-edit-locale-option-${data.locale}`).click()
     }
     if (data.toggleRole) {
-      await this.page.getByTestId(`settings-admin-edit-role-checkbox-${data.toggleRole}`).click()
+      await this.page.getByTestId(`settings-admin-edit-role-option-${data.toggleRole}`).click()
     }
   }
 

@@ -62,6 +62,7 @@ export function RoleSelector({
               key={role}
               data-testid={`${testId}-option-${role}`}
               style={{
+                position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
                 gap: theme.spacing.sm,

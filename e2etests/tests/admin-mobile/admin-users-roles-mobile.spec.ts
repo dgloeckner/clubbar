@@ -22,7 +22,7 @@ function generateUnique(): string {
 
 async function openAdminUsersTab(page: import('@playwright/test').Page) {
   await page.goto('/settings')
-  await page.getByTestId('settings-admin-users-tab').click()
+  await page.getByTestId('settings-tab-admin-users').click()
   await page.getByTestId('settings-admin-users-mobile-cards').waitFor({ state: 'visible', timeout: 10000 })
 }
 
@@ -52,7 +52,7 @@ test.describe('Admin role assignment — mobile', () => {
     // The selector and both its options are reachable without the dialog
     // clipping them off-screen at 390px wide.
     await expect(page.getByTestId('settings-admin-create-role')).toBeVisible()
-    await page.getByTestId('settings-admin-create-role-checkbox-kassenwart').click()
+    await page.getByTestId('settings-admin-create-role-option-kassenwart').click()
     await expect(page.getByTestId('settings-admin-create-role-checkbox-kassenwart')).toBeChecked()
 
     await fillStepUp(page)

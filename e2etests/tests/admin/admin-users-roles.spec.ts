@@ -76,10 +76,10 @@ test.describe('Creating an admin with a specific role', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
 
     const page = authenticatedSettingsPage.page
-    await page.getByTestId('settings-admin-create-role-checkbox-kassenwart').click()
+    await page.getByTestId('settings-admin-create-role-option-kassenwart').click()
     await expect(page.getByTestId('settings-admin-create-role-checkbox-kassenwart')).toBeChecked()
 
-    await page.getByTestId('settings-admin-create-role-checkbox-admin').click()
+    await page.getByTestId('settings-admin-create-role-option-admin').click()
 
     await expect(page.getByTestId('settings-admin-create-role-checkbox-admin')).toBeChecked()
     await expect(page.getByTestId('settings-admin-create-role-checkbox-kassenwart')).not.toBeChecked()
