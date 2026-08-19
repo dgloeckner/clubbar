@@ -18,12 +18,12 @@ Club Bar is a complete point-of-sale solution designed for sports clubs, communi
 |-----------|----------|
 | Unreliable network at venue | **Offline-first** — Terminal works without internet |
 | Manual billing is error-prone | **RFID identification** — Tap card, select products, done |
-| Tedious member onboarding | **Scan & extract** — Upload a signed SEPA form, AI reads the fields, admin just confirms |
+| One admin account, one blast radius | **Role-based access** — Treasurer, bar steward, and full admin see only what their office needs |
 | Spreadsheet accounting chaos | **Automated SEPA settlement** — Generate bank-ready XML |
 | GDPR compliance concerns | **Privacy by design** — Anonymization workflows built-in |
 | Expensive POS hardware | **Commodity hardware** — Runs on any tablet or Raspberry Pi with a USB RFID reader |
 | Recurring SaaS fees | **Self-hosted & free** — No subscriptions, no vendor lock-in, your data stays yours |
-| Complex software requirements | **Simple deployment** — PHP backend, SQLite/MySQL |
+| Complex software requirements | **Simple deployment** — PHP backend, MariaDB |
 
 ---
 
@@ -92,17 +92,18 @@ flowchart TB
 
 ### For Administrators
 - **Member management** — CRUD, RFID assignment, GDPR export/anonymization
-- **Scan-to-onboard** — Upload a signed SEPA mandate form and let AI extract member data (name, IBAN, mandate date) automatically. Supports **Anthropic (Claude)** and **OpenAI (GPT-4o)** as LLM providers — just set an API key in `.env` and go
+- **Role-based access** — `admin`, `Kassenwart` (treasurer), and `Getränkewart` (bar steward) accounts each see only the office they hold. See [Role-Based Admin Access](./docs/role-based-access.md)
 - **Product catalog** — Categories, multilingual names, prices in cents
 - **Settlement workflow** — Preview, finalize, export SEPA XML or CSV
 - **Audit trail** — Complete history of all administrative actions
+- **Reliable email notifications** — SEPA pre-notifications, cancellations, the periodic Deckelauszug, and security alerts, queued and retried so a slow host or a timed-out request never loses one. See [Notifications & the Mail Outbox](./docs/notifications-and-mail.md)
 
 ### Technical Highlights
 - **Offline-first architecture** — Terminal caches data locally, syncs when connected
 - **Immutable transactions** — Append-only ledger, corrections via reverse entries
 - **Idempotent sync** — Client-generated UUIDs prevent duplicates
 - **SEPA Direct Debit** — pain.008.001.08 XML generation with mandate handling
-- **LLM-powered data extraction** — Scanned SEPA mandate forms are read by vision AI (Anthropic Claude or OpenAI GPT-4o) to extract IBAN, name, and mandate date with per-field confidence scores
+- **Tiered admin roles** — Default-deny, fail-closed authorization enforced on every backend route ([ADR-0044](./adr/0044-tiered-admin-roles.md))
 
 ### Optional: Token Dispenser Integration
 
@@ -129,6 +130,9 @@ Products that require dispensing are flagged with `requires_dispenser` in the pr
 | [Use Cases](./use-cases/README.md) | Functional requirements by domain (64 use cases with status) |
 | [API Specs](./api/) | OpenAPI 3.0 specifications |
 | [Data Model](./docs/) | Entity-Relationship diagrams |
+| [Role-Based Admin Access](./docs/role-based-access.md) | `admin` / `Kassenwart` / `Getränkewart` roles, authorization flow, diagrams |
+| [Security Concept](./docs/security-concept.md) | Defense-in-depth overview — transport, auth, authorization, encryption at rest, monitoring |
+| [Notifications & the Mail Outbox](./docs/notifications-and-mail.md) | Reliable email delivery on shared hosting — queueing, retries, the periodic Deckelauszug |
 | [Deployment Guide](./docs/deployment.md) | Production deployment, backups, and security |
 | [Terminal Install](./terminal-frontend/INSTALL.md) | Terminal app deployment on Raspberry Pi |
 | [Token Dispenser](https://github.com/dgloeckner/remote-token-dispenser) | Optional hardware integration — ESP8266 firmware, schematics, mock server |
@@ -151,29 +155,23 @@ For terminal app deployment on Raspberry Pi or Linux, see the **[Terminal Instal
 
 ## Security
 
-### Admin Panel
+Club Bar layers transport security, strong authentication, role-based
+authorization, encryption at rest, and audit logging / anomaly detection —
+no single layer is trusted to carry the whole system.
 
-- **Mandatory two-factor authentication (TOTP)** — Every admin account must enroll a TOTP authenticator app on first login. 2FA cannot be bypassed.
-- **Back up your TOTP secret** — During enrollment, a **backup key** is shown below the QR code, with a button to copy it. Store it in a password manager before finishing enrollment. There are no recovery codes.
-- **Keep two admin accounts** — Recovery is admin-to-admin: any signed-in admin can reset another's password or 2FA from Settings → Admin Users. A single-admin installation that loses its authenticator has no recovery path inside the application and needs direct database access. See the **[Admin Lockout Runbook](./docs/runbook-admin-lockout.md)**.
-- **Changing your own password or email needs a second factor** — Both re-ask for your password and a current 2FA code, and both sign out every *other* session on the account. The address an email was changed away from is notified.
-- **Use HTTPS in production** — Admin credentials and session cookies must be transmitted over TLS. See the [Deployment Guide](./docs/deployment.md) for certificate setup.
-- **Sessions expire** — Admin sessions time out after 2 hours of inactivity.
+| Layer | Mechanism |
+|---|---|
+| Transport | HTTPS required in production, HSTS, CSP |
+| Authentication | Mandatory TOTP 2FA for admins; 256-bit bearer tokens for terminals |
+| Authorization | Role-based access (`admin` / `Kassenwart` / `Getränkewart`), fail-closed on every request |
+| Data at rest | IBANs encrypted with a libsodium sealed box — the server holds only the public key, never a decryptable copy |
+| Monitoring | Append-only audit log, terminal credential anomaly detection, an announced (never silent) token-issuance flow |
 
-### Terminal
-
-- **Bearer token authentication** — Each terminal authenticates with a unique, revocable API token. Tokens can be rotated from the Admin Panel without affecting other terminals.
-- **Network isolation** — The terminal and the optional token dispenser communicate over local WiFi only; no internet access is required after initial setup.
-- **Physical security** — RFID cards are member identifiers. Keep the terminal in a supervised area — an unattended, unlocked terminal allows transactions on any tapped card.
-
-### Recommended Authenticator Apps
-
-| App | Platform | Notes |
-|-----|----------|-------|
-| [Aegis](https://getaegis.app/) | Android | Open source, encrypted local backups |
-| [Raivo OTP](https://raivo-otp.com/) | iOS | Open source, iCloud backup |
-| [Google Authenticator](https://support.google.com/accounts/answer/1066447) | Android & iOS | Simple, widely used |
-| [Authy](https://authy.com/) | Android & iOS | Multi-device sync |
+See the **[Security Concept](./docs/security-concept.md)** for the full
+picture with diagrams — including admin/terminal authentication details,
+2FA recovery, and the built-in security self-check — and the
+**[Admin Lockout Runbook](./docs/runbook-admin-lockout.md)** if an admin
+account becomes unusable.
 
 ---
 
