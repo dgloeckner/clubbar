@@ -300,26 +300,35 @@ export function TerminalsTab({
                 </div>
               </div>
 
-              {/* Info row: Last Sync + Last Transaction */}
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '10px', fontSize: '12px', color: theme.colors.text.secondary }}>
+              {/* Info row: Last Sync + Last Transaction — label stacked above value so a
+                  long date never has to wrap mid-value inside a narrow column. */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  columnGap: '12px',
+                  rowGap: '8px',
+                  marginBottom: '10px',
+                  fontSize: '12px',
+                  color: theme.colors.text.secondary,
+                }}
+              >
                 <div>
-                  <span style={{ color: theme.colors.text.muted }}>{t('settings.lastSync')}: </span>
-                  <span data-testid={`settings-terminal-last-sync-${terminal.id}`}>
+                  <div style={{ color: theme.colors.text.muted, marginBottom: '2px' }}>{t('settings.lastSync')}</div>
+                  <div data-testid={`settings-terminal-last-sync-${terminal.id}`}>
                     {terminal.last_sync_at ? formatDateTime(terminal.last_sync_at) : t('dates.never')}
-                  </span>
+                  </div>
                 </div>
                 <div>
-                  <span style={{ color: theme.colors.text.muted }}>{t('settings.lastTransaction')}: </span>
-                  <span data-testid={`settings-terminal-last-transaction-${terminal.id}`}>
+                  <div style={{ color: theme.colors.text.muted, marginBottom: '2px' }}>{t('settings.lastTransaction')}</div>
+                  <div data-testid={`settings-terminal-last-transaction-${terminal.id}`}>
                     {terminal.last_transaction_at ? formatDateTime(terminal.last_transaction_at) : t('dates.never')}
-                  </span>
+                  </div>
                 </div>
-              </div>
-
-              {/* Token expiry (#106) */}
-              <div style={{ marginBottom: '10px', fontSize: '12px', color: theme.colors.text.secondary }}>
-                <span style={{ color: theme.colors.text.muted }}>{t('settings.tokenExpires')}: </span>
-                <TokenExpiry terminal={terminal} />
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ color: theme.colors.text.muted, marginBottom: '2px' }}>{t('settings.tokenExpires')}</div>
+                  <TokenExpiry terminal={terminal} />
+                </div>
               </div>
 
               {/* Actions row */}
