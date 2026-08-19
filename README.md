@@ -18,12 +18,12 @@ Club Bar is a complete point-of-sale solution designed for sports clubs, communi
 |-----------|----------|
 | Unreliable network at venue | **Offline-first** — Terminal works without internet |
 | Manual billing is error-prone | **RFID identification** — Tap card, select products, done |
-| Tedious member onboarding | **Scan & extract** — Upload a signed SEPA form, AI reads the fields, admin just confirms |
+| One admin account, one blast radius | **Role-based access** — Treasurer, bar steward, and full admin see only what their office needs |
 | Spreadsheet accounting chaos | **Automated SEPA settlement** — Generate bank-ready XML |
 | GDPR compliance concerns | **Privacy by design** — Anonymization workflows built-in |
 | Expensive POS hardware | **Commodity hardware** — Runs on any tablet or Raspberry Pi with a USB RFID reader |
 | Recurring SaaS fees | **Self-hosted & free** — No subscriptions, no vendor lock-in, your data stays yours |
-| Complex software requirements | **Simple deployment** — PHP backend, SQLite/MySQL |
+| Complex software requirements | **Simple deployment** — PHP backend, MariaDB |
 
 ---
 
@@ -92,7 +92,7 @@ flowchart TB
 
 ### For Administrators
 - **Member management** — CRUD, RFID assignment, GDPR export/anonymization
-- **Scan-to-onboard** — Upload a signed SEPA mandate form and let AI extract member data (name, IBAN, mandate date) automatically. Supports **Anthropic (Claude)** and **OpenAI (GPT-4o)** as LLM providers — just set an API key in `.env` and go
+- **Role-based access** — `admin`, `Kassenwart` (treasurer), and `Getränkewart` (bar steward) accounts each see only the office they hold. See [Role-Based Admin Access](./docs/role-based-access.md)
 - **Product catalog** — Categories, multilingual names, prices in cents
 - **Settlement workflow** — Preview, finalize, export SEPA XML or CSV
 - **Audit trail** — Complete history of all administrative actions
@@ -102,7 +102,7 @@ flowchart TB
 - **Immutable transactions** — Append-only ledger, corrections via reverse entries
 - **Idempotent sync** — Client-generated UUIDs prevent duplicates
 - **SEPA Direct Debit** — pain.008.001.08 XML generation with mandate handling
-- **LLM-powered data extraction** — Scanned SEPA mandate forms are read by vision AI (Anthropic Claude or OpenAI GPT-4o) to extract IBAN, name, and mandate date with per-field confidence scores
+- **Tiered admin roles** — Default-deny, fail-closed authorization enforced on every backend route ([ADR-0044](./adr/0044-tiered-admin-roles.md))
 
 ### Optional: Token Dispenser Integration
 
@@ -129,6 +129,7 @@ Products that require dispensing are flagged with `requires_dispenser` in the pr
 | [Use Cases](./use-cases/README.md) | Functional requirements by domain (64 use cases with status) |
 | [API Specs](./api/) | OpenAPI 3.0 specifications |
 | [Data Model](./docs/) | Entity-Relationship diagrams |
+| [Role-Based Admin Access](./docs/role-based-access.md) | `admin` / `Kassenwart` / `Getränkewart` roles, authorization flow, diagrams |
 | [Deployment Guide](./docs/deployment.md) | Production deployment, backups, and security |
 | [Terminal Install](./terminal-frontend/INSTALL.md) | Terminal app deployment on Raspberry Pi |
 | [Token Dispenser](https://github.com/dgloeckner/remote-token-dispenser) | Optional hardware integration — ESP8266 firmware, schematics, mock server |
@@ -153,6 +154,7 @@ For terminal app deployment on Raspberry Pi or Linux, see the **[Terminal Instal
 
 ### Admin Panel
 
+- **Role-based access** — Admin accounts hold `admin`, `Kassenwart`, and/or `Getränkewart`; each office reaches only the routes and panel sections it needs, enforced with a default-deny, fail-closed backend check on every request. See [Role-Based Admin Access](./docs/role-based-access.md) and [ADR-0044](./adr/0044-tiered-admin-roles.md).
 - **Mandatory two-factor authentication (TOTP)** — Every admin account must enroll a TOTP authenticator app on first login. 2FA cannot be bypassed.
 - **Back up your TOTP secret** — During enrollment, a **backup key** is shown below the QR code, with a button to copy it. Store it in a password manager before finishing enrollment. There are no recovery codes.
 - **Keep two admin accounts** — Recovery is admin-to-admin: any signed-in admin can reset another's password or 2FA from Settings → Admin Users. A single-admin installation that loses its authenticator has no recovery path inside the application and needs direct database access. See the **[Admin Lockout Runbook](./docs/runbook-admin-lockout.md)**.
