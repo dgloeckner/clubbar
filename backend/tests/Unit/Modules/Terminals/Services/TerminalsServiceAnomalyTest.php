@@ -10,6 +10,7 @@ use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Terminals\Services\TerminalsService;
 use App\Shared\Config\AppConfig;
 use App\Shared\Enums\AuditAction;
+use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
@@ -161,6 +162,45 @@ class TerminalsServiceAnomalyTest extends TestCase
         $this->anomalies->method('openCountsByTerminal')->willReturn(['terminal-1' => 1]);
 
         $this->assertSame(1, $this->service->getTerminal('terminal-1')->toArray()['open_anomaly_count']);
+    }
+
+    // ── Listing the open anomalies behind the count (ADR-0041 §4) ───────────
+
+    /**
+     * The counts on the list/detail cannot carry the id an admin needs to
+     * acknowledge one — this is what a click on the marker fetches.
+     */
+    public function testListOpenAnomaliesReturnsTheDetailBehindTheCount(): void
+    {
+        $this->terminalsRepository->method('findById')->willReturn($this->terminalRow('terminal-1', 'Theke 1'));
+        $this->anomalies->method('openForTerminal')->with('terminal-1')->willReturn([
+            $this->anomaly(['kind' => 'concurrent_ip', 'last_detected_at' => '2026-08-15 18:30:00']),
+        ]);
+
+        $anomalies = $this->service->listOpenAnomalies('terminal-1');
+
+        $this->assertCount(1, $anomalies);
+        $this->assertSame('anomaly-1', $anomalies[0]['id']);
+        $this->assertSame('concurrent_ip', $anomalies[0]['kind']);
+        $this->assertSame('error', $anomalies[0]['severity']);
+        $this->assertSame(3, $anomalies[0]['occurrence_count']);
+    }
+
+    public function testListOpenAnomaliesRefusesAnUnknownTerminal(): void
+    {
+        $this->terminalsRepository->method('findById')->willReturn(null);
+
+        $this->expectException(NotFoundException::class);
+
+        $this->service->listOpenAnomalies('nope');
+    }
+
+    public function testListOpenAnomaliesIsEmptyWhenNothingIsOpen(): void
+    {
+        $this->terminalsRepository->method('findById')->willReturn($this->terminalRow('terminal-1', 'Theke 1'));
+        $this->anomalies->method('openForTerminal')->willReturn([]);
+
+        $this->assertSame([], $this->service->listOpenAnomalies('terminal-1'));
     }
 
     private function terminalRow(string $id, string $name): array

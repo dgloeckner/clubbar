@@ -275,6 +275,7 @@ return function (App $app): void {
         $group->post('/terminals/{id}/rotate-token', [TerminalsAdminController::class, 'rotateToken'])->add($stepUpRateLimit);
         $group->post('/terminals/{id}/revoke', [TerminalsAdminController::class, 'revoke']);
         // ADR-0041: clears the alert, never the credential.
+        $group->get('/terminals/{id}/anomalies', [TerminalsAdminController::class, 'listAnomalies']);
         $group->post('/terminals/{id}/anomalies/{anomalyId}/acknowledge', [TerminalsAdminController::class, 'acknowledgeAnomaly']);
     })->add(CsrfMiddleware::class)->add(AdminSessionAuth::class);
 };

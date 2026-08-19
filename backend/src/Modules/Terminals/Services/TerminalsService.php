@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Terminals\Services;
 
+use App\Modules\Terminals\DTOs\TerminalAnomalyDto;
 use App\Modules\Terminals\DTOs\TerminalDto;
 use App\Modules\Terminals\DTOs\TerminalWithTokenDto;
 use App\Shared\DTOs\PaginatedResultDto;
@@ -274,6 +275,25 @@ class TerminalsService
             entityId: $terminalId,
             newValues: ['api_token_hash' => null, 'is_active' => false],
             adminUserId: $adminUserId,
+        );
+    }
+
+    /**
+     * Every open anomaly for one terminal, with the detail an admin needs to
+     * decide whether to acknowledge it (ADR-0041 §4). The marker on the
+     * terminals list and the credentials board only carries a count; this is
+     * what a click on it fetches.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listOpenAnomalies(string $terminalId): array
+    {
+        $terminal = $this->terminalsRepository->findById($terminalId);
+        if (!$terminal) throw NotFoundException::forResource('Terminal', $terminalId);
+
+        return array_map(
+            fn(array $row) => TerminalAnomalyDto::fromRow($row)->toArray(),
+            $this->anomaliesRepository->openForTerminal($terminalId),
         );
     }
 

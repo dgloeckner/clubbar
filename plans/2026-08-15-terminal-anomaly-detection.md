@@ -2,7 +2,7 @@
 
 **ADR**: [ADR-0041](../adr/0041-terminal-credential-anomaly-detection.md)
 
-**Status**: In Progress (M1–M3, M4.1/4.3 and M5.1 done and verified; the acknowledge UI and the E2E tests are the remaining work — see 4.2/4.4/5.2/5.3)
+**Status**: In Progress (M1–M4 and M5.1 done and verified; the E2E tests are the remaining work — see 5.2/5.3)
 
 **Branch**: `claude/terminal-ip-token-security-dd6zfo`
 
@@ -45,10 +45,10 @@ Nothing is ever blocked or revoked. Alert only.
 
 ### M4 — Surfacing
 
-- [x] **4.1** Dashboard: `alerts.terminal_anomaly` in `DashboardService::getDashboard()` as a static method beside `encryptionKeyAlert()`; OpenAPI schema; regenerate the TS client; banner on `DashboardPage.tsx` following the existing inline-banner pattern with `data-testid`/`data-severity`.
-- [~] **4.2** Terminals surface: `open_anomaly_count`/`has_open_anomaly` on `TerminalDto` and the marker in `TerminalsTab.tsx` are done. **Remaining**: the same marker on `TerminalCredentials.tsx` (the Security & Credentials board).
+- [x] **4.1** Dashboard: `alerts.terminal_anomaly` in `DashboardService::getDashboard()` as a static method beside `encryptionKeyAlert()`; OpenAPI schema; regenerate the TS client; banner on `DashboardPage.tsx` following the existing inline-banner pattern with `data-testid`/`data-severity`. Revisited: the banner was rendering the backend's English `message` verbatim regardless of the admin's chosen language — every other dashboard alert that varies by count (`sepa_issues`) already built its text from `t()`, this one didn't. `terminal_count`/`terminal_name` now ride alongside `message` so the frontend can build a localized string instead of showing the backend's.
+- [x] **4.2** Terminals surface: `open_anomaly_count`/`has_open_anomaly` on `TerminalDto`, the marker in `TerminalsTab.tsx`, and the same marker on `TerminalCredentials.tsx` (the Security & Credentials board) are done.
 - [x] **4.3** Email: `MailKind::TERMINAL_ANOMALY_WARNING`, a `TerminalAnomalyMail` builder + registration in `MailContentRegistry` (today it only carries `SettlementMailBuilder`, so an admin-addressed row would fail to render), `MailStrings` de/en entries, enqueue via `NotificationsService::warnAdmins()`.
-- [~] **4.4** Acknowledge: the endpoint, its audit entry and the OpenAPI path are done and unit-tested. **Remaining**: the UI to call it. The marker is currently informational, so an open anomaly can only be cleared through the API — this is the main gap left, because a banner nobody can dismiss is a banner that gets ignored. Needs `GET /api/admin/terminals/{id}/anomalies` (the list DTO carries only a count, so the UI has no anomaly id to acknowledge) plus a small panel behind the marker.
+- [x] **4.4** Acknowledge: the endpoint, its audit entry and the OpenAPI path were done and unit-tested; the UI to call it was the gap — an open anomaly could only be cleared by calling the API directly, so it read as stuck even after the underlying detector false-positive (IPv6 rotation, #544) was fixed, because the row it had already opened stayed open until acknowledged. `GET /api/admin/terminals/{id}/anomalies` (`TerminalAnomaliesRepository::openForTerminal()`, `TerminalsService::listOpenAnomalies()`) now supplies the anomaly ids the count alone couldn't, and `TerminalAnomalyPanel.tsx` is the small panel behind the marker on both `TerminalsTab.tsx` and `TerminalCredentials.tsx` — it lists each open anomaly with an Acknowledge button and refreshes the caller's terminal list on success.
 
 ### M5 — Tests
 

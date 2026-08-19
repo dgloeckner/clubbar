@@ -85,9 +85,21 @@ export type DashboardResponseAlertsTerminalAnomaly = {
   severity?: DashboardResponseAlertsTerminalAnomalySeverity;
   /** Distinct anomaly kinds currently open */
   kinds?: DashboardResponseAlertsTerminalAnomalyKindsItem[];
-  /** Human-readable alert message. Names the terminal when
-exactly one is affected; counts distinct terminals beyond
-that.
+  /** Human-readable (English) alert message. Names the
+terminal when exactly one is affected; counts distinct
+terminals beyond that. The admin frontend does not render
+this directly — it builds a localized string from
+`terminal_count`/`terminal_name` instead — but it is kept
+for API consumers that have no locale of their own.
  */
   message?: string;
+  /** Distinct terminals with an open anomaly. Not the same as `count`: one till can carry both a concurrent-use row and a cursor row for the same incident.
+ */
+  terminal_count?: number;
+  /**
+   * The affected terminal's name, set only when `terminal_count` is exactly 1 — the one case an admin can act on without opening anything.
+
+   * @nullable
+   */
+  terminal_name?: string | null;
 };

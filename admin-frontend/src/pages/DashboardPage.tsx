@@ -100,6 +100,15 @@ export function DashboardPage() {
   const sepaConfigSeverity = sepaConfigAlert?.severity ?? 'none'
   const terminalAnomalyAlert = alerts.terminal_anomaly
   const terminalAnomalySeverity = terminalAnomalyAlert?.severity ?? 'none'
+  // Built here rather than shown from `alert.message`: the backend's string is
+  // always English, and this page renders in the admin's chosen language.
+  const terminalAnomalyTerminalCount = terminalAnomalyAlert?.terminal_count ?? 0
+  const terminalAnomalyMessage =
+    terminalAnomalyTerminalCount === 1
+      ? terminalAnomalyAlert?.terminal_name
+        ? t('dashboard.terminalAnomalySingle', { name: terminalAnomalyAlert.terminal_name })
+        : t('dashboard.terminalAnomalyUnnamed')
+      : t('dashboard.terminalAnomalyMultiple', { count: terminalAnomalyTerminalCount })
   const members_near_limit = data.members_near_limit
   const near_limit_members = members_near_limit?.members ?? []
   // The list is capped by the backend; the total says whether it is the whole
@@ -297,7 +306,7 @@ export function DashboardPage() {
             flexWrap: 'wrap',
           }}
         >
-          <span>{terminalAnomalyAlert.message}</span>
+          <span>{terminalAnomalyMessage}</span>
           <Link
             data-testid="dashboard-terminal-anomaly-link"
             to="/settings"

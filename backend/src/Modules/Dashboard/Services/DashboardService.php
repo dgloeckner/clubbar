@@ -319,8 +319,13 @@ class DashboardService
      * kinds have routine innocent causes (a restore from backup, a
      * re-provisioning), so a warning is the honest volume for them.
      *
+     * `terminal_count` and `terminal_name` ride alongside `message` so a
+     * caller that wants its own wording — the admin frontend renders this in
+     * the admin's chosen language, not English — has the pieces to build it
+     * without re-deriving "one terminal vs. several" itself.
+     *
      * @param list<array<string, mixed>> $openAnomalies rows from terminal_anomalies, unacknowledged
-     * @return array{count: int, severity: string, kinds: list<string>, message: string}
+     * @return array{count: int, severity: string, kinds: list<string>, message: string, terminal_count: int, terminal_name: ?string}
      */
     public static function terminalAnomalyAlert(array $openAnomalies): array
     {
@@ -330,6 +335,8 @@ class DashboardService
                 'severity' => 'none',
                 'kinds' => [],
                 'message' => 'No terminal credential anomalies',
+                'terminal_count' => 0,
+                'terminal_name' => null,
             ];
         }
 
@@ -366,6 +373,8 @@ class DashboardService
             'severity' => $severity,
             'kinds' => $kinds,
             'message' => $message,
+            'terminal_count' => $terminalCount,
+            'terminal_name' => $terminalCount === 1 ? ($name !== '' ? $name : null) : null,
         ];
     }
 

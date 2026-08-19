@@ -3722,6 +3722,43 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /admin/terminals/{terminalId}/anomalies:
+    get:
+      tags: [Terminals]
+      summary: List open anomalies for a terminal
+      description: |
+        Every unacknowledged anomaly for one terminal (ADR-0041 §4).
+
+        `Terminal.open_anomaly_count` says a marker should be shown; this is
+        what a click on it fetches — the detail, and the anomaly ids
+        `acknowledgeTerminalAnomaly` needs, that the count alone cannot carry.
+      operationId: listTerminalAnomalies
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: terminalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Open anomalies for this terminal
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  anomalies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TerminalAnomaly'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /admin/terminals/{terminalId}/anomalies/{anomalyId}/acknowledge:
     post:
       tags: [Terminals]
@@ -6237,6 +6274,43 @@ components:
           type: string
           format: date-time
 
+    TerminalAnomaly:
+      type: object
+      description: >
+        One open anomaly row (ADR-0041 §4) — the detail behind
+        `Terminal.open_anomaly_count`, carrying the id an admin needs to
+        acknowledge it.
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [concurrent_ip, cursor_regression, cursor_reset]
+        severity:
+          type: string
+          enum: [warning, error]
+          description: >
+            How this one anomaly reads alone — `error` for `concurrent_ip`,
+            `warning` for the two cursor kinds, which both have a routine
+            innocent cause.
+        first_detected_at:
+          type: string
+          format: date-time
+        last_detected_at:
+          type: string
+          format: date-time
+        occurrence_count:
+          type: integer
+          description: How many cron ticks in a row found this still true.
+        details:
+          type: object
+          description: >
+            Evidence behind the finding — the overlapping addresses and
+            overlap duration for `concurrent_ip`, or the stream and the two
+            cursor values for a cursor anomaly. Shape depends on `kind`.
+          additionalProperties: true
+
     CreateTerminalRequest:
       description: >
         Enrolling a terminal mints a credential that reads the member roster and
@@ -7760,9 +7834,25 @@ components:
                 message:
                   type: string
                   description: |
-                    Human-readable alert message. Names the terminal when
-                    exactly one is affected; counts distinct terminals beyond
-                    that.
+                    Human-readable (English) alert message. Names the
+                    terminal when exactly one is affected; counts distinct
+                    terminals beyond that. The admin frontend does not render
+                    this directly — it builds a localized string from
+                    `terminal_count`/`terminal_name` instead — but it is kept
+                    for API consumers that have no locale of their own.
+                terminal_count:
+                  type: integer
+                  description: >
+                    Distinct terminals with an open anomaly. Not the same as
+                    `count`: one till can carry both a concurrent-use row and
+                    a cursor row for the same incident.
+                terminal_name:
+                  type: string
+                  nullable: true
+                  description: >
+                    The affected terminal's name, set only when
+                    `terminal_count` is exactly 1 — the one case an admin can
+                    act on without opening anything.
         members_near_limit:
           type: object
           description: |

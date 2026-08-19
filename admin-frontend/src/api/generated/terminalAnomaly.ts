@@ -57,28 +57,25 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { TerminalAnomalyDetails } from './terminalAnomalyDetails';
+import type { TerminalAnomalyKind } from './terminalAnomalyKind';
+import type { TerminalAnomalySeverity } from './terminalAnomalySeverity';
 
 /**
- * An admin role (ADR-0044). `admin` is a strict superset of the other two;
-`kassenwart` (treasurer — members, settlements, SEPA) and
-`getraenkewart` (bar stock — categories, products) are lesser siblings
-beneath it. Roles compose additively, so one account may hold both
-lesser roles without being `admin`.
-
-An account's role set is either `admin` alone, or a non-empty
-combination of the two lesser roles — `admin` is never held alongside
-a lesser role. A `roles` array mixing `admin` with another value is
-refused.
-
-The set is hardcoded: a new role is a schema migration, not
-configuration.
+ * One open anomaly row (ADR-0041 §4) — the detail behind `Terminal.open_anomaly_count`, carrying the id an admin needs to acknowledge it.
 
  */
-export type AdminRole = typeof AdminRole[keyof typeof AdminRole];
-
-
-export const AdminRole = {
-  admin: 'admin',
-  kassenwart: 'kassenwart',
-  getraenkewart: 'getraenkewart',
-} as const;
+export interface TerminalAnomaly {
+  id?: string;
+  kind?: TerminalAnomalyKind;
+  /** How this one anomaly reads alone — `error` for `concurrent_ip`, `warning` for the two cursor kinds, which both have a routine innocent cause.
+ */
+  severity?: TerminalAnomalySeverity;
+  first_detected_at?: string;
+  last_detected_at?: string;
+  /** How many cron ticks in a row found this still true. */
+  occurrence_count?: number;
+  /** Evidence behind the finding — the overlapping addresses and overlap duration for `concurrent_ip`, or the stream and the two cursor values for a cursor anomaly. Shape depends on `kind`.
+ */
+  details?: TerminalAnomalyDetails;
+}

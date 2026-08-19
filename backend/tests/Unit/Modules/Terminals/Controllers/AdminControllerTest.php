@@ -337,6 +337,24 @@ class AdminControllerTest extends TestCase
         $this->assertLessThan(0, $body['terminal']['days_until_expiry']);
     }
 
+    // ── Listing open anomalies (ADR-0041 §4) ────────────────────────────────
+
+    public function test_list_anomalies_reports_what_the_service_returns(): void
+    {
+        $this->service->expects($this->once())
+            ->method('listOpenAnomalies')
+            ->with('terminal-1')
+            ->willReturn([['id' => 'anomaly-1', 'kind' => 'concurrent_ip', 'severity' => 'error']]);
+
+        $body = $this->decode($this->controller->listAnomalies(
+            $this->get('/api/admin/terminals/terminal-1/anomalies'),
+            new Response(),
+            ['id' => 'terminal-1'],
+        ));
+
+        $this->assertSame([['id' => 'anomaly-1', 'kind' => 'concurrent_ip', 'severity' => 'error']], $body['anomalies']);
+    }
+
     // ── Acknowledging an anomaly (ADR-0041 §4) ──────────────────────────────
 
     public function test_acknowledging_an_anomaly_reports_success(): void

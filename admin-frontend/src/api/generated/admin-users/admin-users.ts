@@ -135,6 +135,12 @@ already holds, needs no credential.
 validated as a whole: a list naming anything that is not a role, or an
 empty list, is refused rather than partially applied.
 
+No account can change its own role set, `admin` included — a caller
+submitting `roles` for their own id gets `403 cannot_edit_own_roles`
+rather than a step-up prompt, regardless of what the array contains.
+A role change is always made by a *different* admin acting on the
+account.
+
 Rate-limited on the caller's account (5 attempts / 15 min, the same
 dimension as login), pinned to the route so a failed step-up counts
 even when the request never reaches the gate.
