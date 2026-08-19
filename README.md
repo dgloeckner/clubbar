@@ -130,6 +130,7 @@ Products that require dispensing are flagged with `requires_dispenser` in the pr
 | [API Specs](./api/) | OpenAPI 3.0 specifications |
 | [Data Model](./docs/) | Entity-Relationship diagrams |
 | [Role-Based Admin Access](./docs/role-based-access.md) | `admin` / `Kassenwart` / `Getränkewart` roles, authorization flow, diagrams |
+| [Security Concept](./docs/security-concept.md) | Defense-in-depth overview — transport, auth, authorization, encryption at rest, monitoring |
 | [Deployment Guide](./docs/deployment.md) | Production deployment, backups, and security |
 | [Terminal Install](./terminal-frontend/INSTALL.md) | Terminal app deployment on Raspberry Pi |
 | [Token Dispenser](https://github.com/dgloeckner/remote-token-dispenser) | Optional hardware integration — ESP8266 firmware, schematics, mock server |
@@ -151,6 +152,24 @@ For terminal app deployment on Raspberry Pi or Linux, see the **[Terminal Instal
 ---
 
 ## Security
+
+Club Bar layers transport security, strong authentication, role-based
+authorization, encryption at rest, and audit logging / anomaly detection —
+no single layer is trusted to carry the whole system. See the
+**[Security Concept](./docs/security-concept.md)** for the full picture,
+with diagrams for each layer.
+
+| Layer | Mechanism |
+|---|---|
+| Transport | HTTPS required in production, HSTS, CSP |
+| Authentication | Mandatory TOTP 2FA for admins; 256-bit bearer tokens for terminals |
+| Authorization | Role-based access (`admin` / `Kassenwart` / `Getränkewart`), fail-closed on every request |
+| Data at rest | IBANs encrypted with a libsodium sealed box — the server holds only the public key, never a decryptable copy |
+| Monitoring | Append-only audit log, terminal credential anomaly detection, an announced (never silent) token-issuance flow |
+
+The rest of this section covers day-to-day operator guidance; see the
+[Security Concept](./docs/security-concept.md) for how these mechanisms fit
+together and why each was chosen.
 
 ### Admin Panel
 
