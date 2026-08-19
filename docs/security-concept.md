@@ -90,7 +90,9 @@ sequenceDiagram
 - Password, email, or 2FA changes require **step-up** (current password +
   fresh TOTP code) and end every *other* session on the account —
   `credentials_changed_at` compared against each session's own timestamp, no
-  session store to enumerate.
+  session store to enumerate. When the email address changes, the *old*
+  address is notified out-of-band — the one channel a hijacker who already
+  has the new address can't suppress.
 - No self-disable of 2FA and no recovery codes — recovery is admin-to-admin
   (Settings → Admin Users → Reset 2FA), which is why the README and
   [Admin Lockout Runbook](./runbook-admin-lockout.md) both say: keep at least
@@ -110,6 +112,13 @@ sequenceDiagram
   rotation.
 - Compared with `hash_equals()` (constant-time) to avoid a timing side
   channel.
+- **Network isolation** — the terminal and the optional token dispenser
+  communicate over local WiFi only; no internet access is required after
+  initial setup.
+- **Physical security is out of scope for software** — RFID cards are member
+  *identifiers*, not credentials (see above), so an unattended, unlocked
+  terminal allows a transaction on any tapped card. Keep it in a supervised
+  area.
 
 ---
 
@@ -170,7 +179,10 @@ flowchart LR
 ## 6. Credential lifecycle & anomaly detection
 
 Minting a terminal credential and noticing it might be misused are two
-different problems, solved with two different postures.
+different problems, solved with two different postures. Both alert by email
+through the same durable queue — see
+[Notifications & the Mail Outbox](./notifications-and-mail.md) for how
+delivery is made reliable on shared hosting.
 
 ```mermaid
 sequenceDiagram
@@ -278,6 +290,15 @@ at install time and in CI. See [ADR-0031](../adr/0031-production-hardening-on-sh
   [Deployment Guide](./deployment.md).
 - Run the built-in security check after every deployment, not just once.
 
+### Recommended authenticator apps
+
+| App | Platform | Notes |
+|-----|----------|-------|
+| [Aegis](https://getaegis.app/) | Android | Open source, encrypted local backups |
+| [Raivo OTP](https://raivo-otp.com/) | iOS | Open source, iCloud backup |
+| [Google Authenticator](https://support.google.com/accounts/answer/1066447) | Android & iOS | Simple, widely used |
+| [Authy](https://authy.com/) | Android & iOS | Multi-device sync |
+
 ---
 
 ## See also
@@ -294,6 +315,7 @@ at install time and in CI. See [ADR-0031](../adr/0031-production-hardening-on-sh
 - [ADR-0043](../adr/0043-terminal-credential-issuance-is-announced.md) — Terminal Credential Issuance Is Announced
 - [ADR-0044](../adr/0044-tiered-admin-roles.md) — Tiered Admin Roles
 - [Role-Based Admin Access](./role-based-access.md) — the authorization layer, in detail
+- [Notifications & the Mail Outbox](./notifications-and-mail.md) — how security alerts are delivered reliably
 - [Admin Lockout Runbook](./runbook-admin-lockout.md)
 - `backend/patterns/pattern-012-terminal-api-token-authentication.md`
 - `backend/patterns/pattern-013-admin-session-authentication.md`
