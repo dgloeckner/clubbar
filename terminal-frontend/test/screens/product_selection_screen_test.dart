@@ -185,63 +185,6 @@ void main() {
       expect(find.text('Keine Produkte in dieser Kategorie'), findsOneWidget);
     });
 
-    testWidgets('displays cart button', (WidgetTester tester) async {
-      final categories = [
-        CategoriesCacheData(
-          id: 'cat-1',
-          names: jsonEncode({'de': 'Bier'}),
-          isActive: 1,
-          updatedAt: '2025-02-01T10:00:00Z',
-        ),
-      ];
-
-      final testMember = MembersCacheData(
-        id: 'member-1',
-        cardUid: 'card-123',
-        firstName: 'John',
-        lastName: 'Doe',
-        preferredLanguage: 'de',
-        isActive: 1,
-        isSepaValid: 1,
-        balanceCents: 0,
-        updatedAt: '2024-01-01T00:00:00Z',
-      );
-
-      when(() => mockProductsProvider.categories).thenReturn(categories);
-      when(() => mockProductsProvider.products).thenReturn([]);
-      when(() => mockProductsProvider.getVisibleProducts(any()))
-          .thenReturn([]);
-      when(() => mockProductsProvider.isProductAvailable(any()))
-          .thenReturn(true);
-      when(() => mockProductsProvider.addListener(any())).thenReturn(null);
-      when(() => mockProductsProvider.removeListener(any())).thenReturn(null);
-      when(() => mockCartProvider.itemCount).thenReturn(5);
-      when(() => mockCartProvider.addListener(any())).thenReturn(null);
-      when(() => mockCartProvider.removeListener(any())).thenReturn(null);
-      when(() => mockMembersProvider.selectedMember).thenReturn(testMember);
-      when(() => mockMembersProvider.addListener(any())).thenReturn(null);
-      when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
-
-      await tester.pumpWidget(
-        createTestApp(
-          child: MultiProvider(
-            providers: [
-              ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
-              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
-              ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
-              ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
-            ],
-            child: const Scaffold(body: ProductSelectionScreen()),
-          ),
-        ),
-      );
-
-      // Cart button should show badge with item count
-      expect(find.byIcon(Icons.shopping_cart_outlined), findsOneWidget);
-      expect(find.text('5'), findsOneWidget);
-    });
-
     testWidgets('renders successfully when empty', (WidgetTester tester) async {
       when(() => mockProductsProvider.categories).thenReturn([]);
       when(() => mockProductsProvider.products).thenReturn([]);
@@ -1677,19 +1620,6 @@ void main() {
                 iconName: any(named: 'iconName'),
                 requiresDispenser: any(named: 'requiresDispenser'),
               ));
-        });
-
-        testWidgets('nor can the member bar\'s cart button open it',
-            (WidgetTester tester) async {
-          await pumpInFlight(tester);
-
-          final inkWell = tester.widget<InkWell>(
-            find.descendant(
-              of: find.byKey(const Key('member-bar-cart')),
-              matching: find.byType(InkWell),
-            ),
-          );
-          expect(inkWell.onTap, isNull);
         });
 
         testWidgets('the cart screen cannot be opened mid-checkout',

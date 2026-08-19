@@ -175,10 +175,8 @@ class _ViewCartButton extends StatelessWidget {
 
     return SecondaryButton(
       key: const Key('view-cart-button'),
-      // Not the cart glyph: the member bar above already carries that one
-      // with the item-count badge, and two identical icons on one screen
-      // read as two different destinations. A list is what this button
-      // actually opens — the order, itemised.
+      // Not the cart glyph: a list is what this button actually opens — the
+      // order, itemised — so the icon says that instead.
       icon: Icons.list_alt,
       label: l10n.viewCart,
       height: CartSummaryBar._buttonHeight,

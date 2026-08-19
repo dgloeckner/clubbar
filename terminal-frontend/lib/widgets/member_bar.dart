@@ -9,23 +9,19 @@ import 'package:clubbar_terminal/widgets/member_details_modal.dart';
 
 class MemberBar extends StatelessWidget {
   final MembersCacheData member;
-  final int itemCount;
   final int? deckelCents;
-  final VoidCallback? onCartPressed;
   final VoidCallback? onBackPressed;
   final VoidCallback? onLogoutPressed;
   final bool showBackButton;
 
-  /// Edge of the cart / back button. This is the tallest control in the row,
-  /// so it alone sets the bar's height — 58 before #369, where the band above
-  /// the product grid had to give six pixels back.
+  /// Edge of the back button. This is the tallest control in the row, so it
+  /// alone sets the bar's height — 58 before #369, where the band above the
+  /// product grid had to give six pixels back.
   static const double _actionButtonSize = 52.0;
 
   const MemberBar({
     required this.member,
-    required this.itemCount,
     this.deckelCents,
-    this.onCartPressed,
     this.onBackPressed,
     this.onLogoutPressed,
     this.showBackButton = false,
@@ -39,8 +35,8 @@ class MemberBar extends StatelessWidget {
     // so logout is refused for as long as it runs. Read here rather than per
     // screen so every surface showing the MemberBar is covered.
     //
-    // The cart and back buttons are refused for the same window (#34): leaving
-    // the screen that started the checkout unmounts the context it is waiting
+    // The back button is refused for the same window (#34): leaving the
+    // screen that started the checkout unmounts the context it is waiting
     // on, and the member would be left on the other screen with an emptied
     // cart and no confirmation to show for their money.
     final navigationBlocked = context.select<SessionController, bool>(
@@ -157,13 +153,14 @@ class MemberBar extends StatelessWidget {
           // Action buttons on right
           Row(
             children: [
-              // Cart button or Back button
-              if (showBackButton)
-                _buildBackButton(blocked: navigationBlocked)
-              else
-                _buildCartButton(blocked: navigationBlocked),
-              const SizedBox(width: 8),
-              // Logout button — disabled while a checkout/dispense runs
+              if (showBackButton) ...[
+                _buildBackButton(blocked: navigationBlocked),
+                const SizedBox(width: 8),
+              ],
+              // Logout button — disabled while a checkout/dispense runs.
+              // Sized to match _actionButtonSize: on screens without a back
+              // button this is the only control in the row, and it alone
+              // must keep setting the bar's height, not shrink it.
               Material(
                 key: const Key('member-bar-logout'),
                 color: Colors.transparent,
@@ -173,8 +170,8 @@ class MemberBar extends StatelessWidget {
                   child: Opacity(
                     opacity: navigationBlocked ? 0.4 : 1.0,
                     child: Container(
-                      width: 46,
-                      height: 46,
+                      width: _actionButtonSize,
+                      height: _actionButtonSize,
                       decoration: BoxDecoration(
                         color: AppColors.borderLight,
                         borderRadius: BorderRadius.circular(AppBorderRadius.md),
@@ -186,7 +183,7 @@ class MemberBar extends StatelessWidget {
                       child: const Icon(
                         Icons.exit_to_app,
                         color: AppColors.textSecondary,
-                        size: 22,
+                        size: 26,
                       ),
                     ),
                   ),
@@ -195,67 +192,6 @@ class MemberBar extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildCartButton({required bool blocked}) {
-    return Material(
-      key: const Key('member-bar-cart'),
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: blocked ? null : onCartPressed,
-        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-        child: Opacity(
-          opacity: blocked ? 0.4 : 1.0,
-          child: Container(
-            width: _actionButtonSize,
-            height: _actionButtonSize,
-            decoration: BoxDecoration(
-              color: AppColors.semanticPrimary,
-              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-            ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Center(
-                  child: Icon(
-                    Icons.shopping_cart_outlined,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
-                // Badge with item count
-                if (itemCount > 0)
-                  Positioned(
-                    top: -4,
-                    right: -4,
-                    child: Container(
-                      constraints:
-                          const BoxConstraints(minWidth: 24, minHeight: 24),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.semanticDanger,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Text(
-                          itemCount.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
