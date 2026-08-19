@@ -43,6 +43,7 @@ flowchart TB
         A2[Product catalog]
         A3[SEPA settlements]
         A4[GDPR compliance]
+        A5[Role-based access]
     end
 
     subgraph Backend["Backend API (PHP)"]
@@ -50,8 +51,17 @@ flowchart TB
         B2[SEPA XML export]
         B3[Audit logging]
         B4[Delta sync]
+        B5[IBAN sealed-box encryption]
         DB[(Database)]
+        Outbox[(Mail outbox)]
         B1 --> DB
+        B1 --> Outbox
+    end
+
+    subgraph Scheduler["Scheduler (cron.php)"]
+        S1[Drain mail outbox]
+        S2[Periodic Deckelauszug]
+        S3[Terminal anomaly detection]
     end
 
     subgraph Dispenser["Token Dispenser (optional)"]
@@ -60,10 +70,21 @@ flowchart TB
         D1 --> D2
     end
 
+    Mail[["Mail server (SMTP)"]]
+
     Terminal <-->|"Sync API"| Backend
     Admin <-->|"REST API"| Backend
     Terminal <-->|"HTTP REST\n(local WiFi)"| Dispenser
+    Scheduler -->|"drains"| Outbox
+    Outbox --> Mail
+    Scheduler --> DB
 ```
+
+See [Role-Based Admin Access](./docs/role-based-access.md),
+[Security Concept](./docs/security-concept.md), and
+[Notifications & the Mail Outbox](./docs/notifications-and-mail.md) for how
+the pieces above enforce access control, protect data at rest, and deliver
+mail reliably.
 
 ---
 
