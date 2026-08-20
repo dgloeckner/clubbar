@@ -155,6 +155,7 @@
     "lastName": "Nachname",
     "displayName": "Anzeigename",
     "email": "E-Mail",
+    "dateOfBirth": "Geburtsdatum",
     "iban": "IBAN",
     "bankName": "Bank",
     "bankNameLoading": "Wird gesucht…",

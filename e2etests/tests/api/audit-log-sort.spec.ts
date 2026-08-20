@@ -43,6 +43,7 @@ test.describe('Admin Audit Log Sorting', () => {
         first_name: 'Audit',
         last_name: token,
         email: `${token}@test.com`,
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
       },
     });

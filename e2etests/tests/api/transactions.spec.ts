@@ -26,6 +26,7 @@ async function createMember(authenticatedRequest) {
       first_name: `Test${uniqueId}`,
       last_name: `Member${uniqueId}`,
       email: `test${uniqueId}@example.com`,
+      date_of_birth: '1985-06-15',
       iban: 'DE89370400440532013000',
       mandate_signed_at: mandateDate,
       preferred_language: 'de',
@@ -50,6 +51,7 @@ async function createMemberWithoutMandate(authenticatedRequest) {
       first_name: `NoMandate${uniqueId}`,
       last_name: `Member${uniqueId}`,
       email: `nomandate${uniqueId}@example.com`,
+      date_of_birth: '1985-06-15',
       preferred_language: 'de',
     },
   });

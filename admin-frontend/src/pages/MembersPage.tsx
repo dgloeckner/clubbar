@@ -135,6 +135,7 @@ export function MembersPage() {
     first_name: '',
     last_name: '',
     email: '',
+    date_of_birth: '',
     iban: '',
     account_holder_name: '',
     mandate_reference: '',
@@ -306,6 +307,10 @@ export function MembersPage() {
           // Required by the form validation above, so this is never blank —
           // the backend also refuses to clear it for an active member (#362).
           email: formData.email,
+          // Sent as a plain value, never as null: the birth date may be
+          // corrected but not cleared (ADR-0045). Erasure is the anonymize
+          // action's alone, and the API answers 422 to a blank one here.
+          date_of_birth: formData.date_of_birth,
           // Now that these fields can be left empty, clearing one has to reach
           // the backend as an explicit null — `undefined` would drop the key
           // and silently keep the old value (#131).
@@ -330,6 +335,7 @@ export function MembersPage() {
           last_name: formData.last_name,
           // Required by the form validation above, so this is never blank.
           email: formData.email,
+          date_of_birth: formData.date_of_birth,
           // A member who has not brought their bank details yet is a state the
           // list already shows as "SEPA: Missing" — the form no longer refuses
           // to create one (#131).
@@ -346,7 +352,7 @@ export function MembersPage() {
       // Reset form
       setShowModal(false)
       setEditingMember(null)
-      setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
+      setFormData({ first_name: '', last_name: '', email: '', date_of_birth: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
       resetBankingFieldModes()
 
       // Reload members list with the active filters still applied
@@ -469,6 +475,7 @@ export function MembersPage() {
         iban: '',
         account_holder_name: fullMember.account_holder_name ?? '',
         mandate_reference: fullMember.mandate_reference ?? '',
+        date_of_birth: fullMember.date_of_birth ?? '',
         mandate_signed_at: fullMember.mandate_signed_at ?? '',
         preferred_language: fullMember.preferred_language ?? 'de',
         card_uid: fullMember.card_uid ?? '',
@@ -524,7 +531,7 @@ export function MembersPage() {
               data-testid="members-create-button"
               onClick={() => {
                 setEditingMember(null)
-                setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
+                setFormData({ first_name: '', last_name: '', email: '', date_of_birth: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
                 setFormErrors({})
                 resetBankingFieldModes()
                 setShowModal(true)
@@ -1585,6 +1592,38 @@ export function MembersPage() {
                 {formErrors.email && (
                   <p data-testid="members-form-email-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
                     {formErrors.email}
+                  </p>
+                )}
+              </div>
+
+              {/* Jugendschutz (ADR-0045): the terminal computes the member's age
+                  from this date at checkout, so a product with a `min_age` can be
+                  refused offline. Required, and never in the future — the same
+                  control and the same `max` guard as the mandate date below. */}
+              <div>
+                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                  {t('members.dateOfBirth')} *
+                </label>
+                <input
+                  data-testid="members-form-dob-input"
+                  type="date"
+                  required
+                  value={formData.date_of_birth}
+                  onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                  max={toIsoDate(new Date())}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${formErrors.date_of_birth ? theme.colors.semantic.danger : theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                  }}
+                />
+                {formErrors.date_of_birth && (
+                  <p data-testid="members-form-dob-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                    {formErrors.date_of_birth}
                   </p>
                 )}
               </div>

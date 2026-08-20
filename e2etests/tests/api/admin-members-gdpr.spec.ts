@@ -17,6 +17,7 @@ async function createGdprTestMember(authenticatedRequest: any, testId: string) {
       first_name: `GdprTest${testId}`,
       last_name: 'Member',
       email: `gdpr-${testId}@test.example`,
+      date_of_birth: '1985-06-15',
       preferred_language: 'en',
     },
   });
@@ -194,6 +195,7 @@ test.describe('Admin Members GDPR Endpoints', () => {
         first_name: `Atomic${testId}`,
         last_name: 'Member',
         email: `atomic-${testId}@test.example`,
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });

@@ -155,6 +155,7 @@
     "lastName": "Last Name",
     "displayName": "Display Name",
     "email": "Email",
+    "dateOfBirth": "Date of birth",
     "iban": "IBAN",
     "bankName": "Bank",
     "bankNameLoading": "Looking up…",

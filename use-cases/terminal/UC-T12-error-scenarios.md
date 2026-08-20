@@ -309,6 +309,66 @@ where a mandate is its own record carrying reference, IBAN and signature date ([
 
 ---
 
+## E7: Product Age-Restricted
+
+**Implementation Status**: Planned — epic [#582](https://github.com/dgloeckner/clubbar/issues/582), [ADR-0045](../../adr/0045-age-restricted-products.md)
+
+### Actor
+Member younger than a product's `min_age`
+
+### Trigger
+Checkout is attempted with a cart containing at least one product whose `min_age` exceeds the member's age, computed **at the moment of checkout** from the member's date of birth. Unlike E6 this is *not* refused at card scan: an underage member has a perfectly normal session and may buy every unrestricted product on the grid.
+
+### Flow
+1. Member scans card, session starts normally
+2. Restricted tiles render in a disabled state naming the required age — a courtesy, not the control
+3. Member reaches checkout with a restricted product in the cart
+4. `CartService.validateCartBeforeCheckout()` refuses — this is the authority, and it holds with the UI bypassed
+5. Refusal is displayed; the cart and the session survive
+
+### Error Display
+
+| Element | Content |
+|---------|---------|
+| Icon | Warning icon |
+| Title (DE) | "Altersbeschränkung" |
+| Title (EN) | "Age restriction" |
+| Message (DE) | "Dieses Getränk ist erst ab {age} Jahren erhältlich." |
+| Message (EN) | "This drink is only available from age {age}." |
+| Retry | **None** — see below |
+
+`{age}` is the **product's** required age. The message must never state the member's age or date of birth: the terminal screen is read by whoever is standing at the bar (`research/art9-rfid-display-retention.md`), and rule 6 of ADR-0045 makes this binding.
+
+### Why there is no Retry
+Age is a standing condition, like E2's balance limit and unlike E4's network error. Nothing about a second attempt would be different, so a Retry button would be an invitation to keep tapping. The member removes the item or ends the session.
+
+### Check ordering
+The age check runs **after** the empty-cart check and **before** the credit-limit check. A refusal on legal grounds must not be masked by a message about money.
+
+### A NULL date of birth
+Refused, never allowed. A member row with no date of birth is an anonymized member ([ADR-0045](../../adr/0045-age-restricted-products.md) rule 3), who is also inactive and stopped at E3 before ever reaching a cart. There is no "unknown age" path.
+
+### Postconditions
+- No transaction created
+- Cart unchanged — the member may remove the item and check out the rest
+- Session continues
+
+### Test Derivation
+- Under age: member born 17 years ago, product `min_age = 18` → refused
+- **Exactly of age today**: member born exactly 18 years ago today → **allowed**. The birthday boundary is where off-by-one errors live
+- Day before the birthday: born 18 years ago tomorrow → refused
+- Over age → allowed
+- Unrestricted product (`min_age` NULL) → always allowed, whatever the member's age
+- NULL date of birth → refused
+- Mixed cart: one restricted item among unrestricted ones → whole checkout refused, cart intact
+- UI bypassed: item forced into the cart without going through the tile → still refused
+
+### Related
+- [ADR-0045: Age-Restricted Products](../../adr/0045-age-restricted-products.md)
+- `research/juschg-age-limits.md`
+
+---
+
 ## Summary: Error Messages
 
 | Code | Title | Message |
@@ -319,6 +379,7 @@ where a mandate is its own record carrying reference, IBAN and signature date ([
 | E4 | Sync Pending | (Status indicator only, no blocking message) |
 | E5 | Session Timeout | "Session ending in X seconds. Tap to continue." |
 | E6 | SEPA Mandate Missing | "SEPA mandate missing or invalid. Please contact administration to set up your payment details." |
+| E7 | Age restriction | "This drink is only available from age {age}." |
 
 ## Localization
 

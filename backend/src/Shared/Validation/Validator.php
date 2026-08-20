@@ -75,6 +75,7 @@ class Validator
             'boolean'  => (!is_bool($value) && $value !== null && $value !== 0 && $value !== 1 && $value !== '0' && $value !== '1') ? "{$field} must be a boolean" : null,
             'uuid'     => ($value && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $value)) ? "{$field} must be a valid UUID" : null,
             'date'     => $this->validateDate($field, $value),
+            'past_date' => $this->validatePastDate($field, $value),
             'business_day' => $this->validateBusinessDay($field, $value),
             'array'    => ($value !== null && !is_array($value)) ? "{$field} must be an array" : null,
             'json'     => ($value !== null && !is_array($value) && json_decode((string)$value) === null) ? "{$field} must be valid JSON" : null,
@@ -134,15 +135,59 @@ class Validator
             return $message;
         }
 
+        return $this->parseDate($value) === null ? $message : null;
+    }
+
+    /**
+     * A calendar date that is not in the future.
+     *
+     * Two fields need this and neither could express it: `mandate_signed_at`
+     * carried only `['nullable', 'date']`, so a mandate could be recorded as
+     * signed next month, and `date_of_birth` (ADR-0045) has the sharper version
+     * of the same problem — a member born tomorrow is younger than every
+     * `min_age` forever and the Jugendschutz check silently refuses them for
+     * good.
+     *
+     * The rule owns exactly one question. A malformed value returns null here
+     * and is reported once by `date`; an absent one is `required`'s business.
+     * Today passes: a mandate signed this morning is the ordinary case.
+     */
+    private function validatePastDate(string $field, mixed $value): ?string
+    {
+        if ($value === null || $value === '' || !is_string($value)) {
+            return null;
+        }
+
+        $parsed = $this->parseDate($value);
+
+        if ($parsed === null) {
+            // Unparseable — `date` names it. Saying so twice would make one
+            // mistake read as two.
+            return null;
+        }
+
+        $today = new \DateTimeImmutable('today');
+
+        return $parsed->format('Y-m-d') > $today->format('Y-m-d')
+            ? "{$field} must not be in the future"
+            : null;
+    }
+
+    /**
+     * The one place a date string becomes a date, shared by `date` and
+     * `past_date` so the two cannot disagree about what parses.
+     */
+    private function parseDate(string $value): ?\DateTimeImmutable
+    {
         foreach (self::DATE_FORMATS as $format) {
             $parsed = \DateTimeImmutable::createFromFormat($format, $value);
 
             if ($parsed !== false && $parsed->format($format) === $value) {
-                return null;
+                return $parsed;
             }
         }
 
-        return $message;
+        return null;
     }
 
     private function validateMin(string $field, mixed $value, ?string $param): ?string

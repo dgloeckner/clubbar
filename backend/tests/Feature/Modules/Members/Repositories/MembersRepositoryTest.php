@@ -900,6 +900,82 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->assertNotNull($row['deleted_at']);
     }
 
+    /**
+     * Erasure nulls the birth date (epic #582 M2, ADR-0045).
+     *
+     * This is the load-bearing GDPR line of the whole Jugendschutz change. The
+     * field is `required` on create so the terminal never has to reason about
+     * an unknown age, and the column is NULL-able only so that this write can
+     * happen — `docs/legal-requirements-and-how-we-meet-them.md:58` already
+     * lists the date of birth among the erased fields (OLG Dresden 4 U 1278/21).
+     *
+     * The assertion is deliberately explicit rather than folded into the
+     * collection-hold test above: a future column added to `anonymize()` must
+     * not be able to displace this one silently.
+     */
+    public function test_anonymize_nulls_the_date_of_birth(): void
+    {
+        $member = $this->createMemberWithBankingData(['date_of_birth' => '1990-05-04']);
+        $this->assertSame('1990-05-04', $this->fetchMemberRow($member['id'])['date_of_birth']);
+
+        $this->assertTrue($this->membersRepository->anonymize($member['id']));
+
+        $this->assertNull(
+            $this->fetchMemberRow($member['id'])['date_of_birth'],
+            'a NULL birth date must mean an anonymized member and nothing else (ADR-0045 rule 3)'
+        );
+    }
+
+    public function test_create_persists_the_date_of_birth(): void
+    {
+        $member = $this->createMemberWithBankingData(['date_of_birth' => '2008-02-29']);
+
+        $this->assertSame('2008-02-29', $member['date_of_birth']);
+        $this->assertSame('2008-02-29', $this->membersRepository->findById($member['id'])['date_of_birth']);
+    }
+
+    /**
+     * A member created without one is possible at the repository layer — the
+     * `required` rule lives in the controller, and the repository is also what
+     * the importer and the tests write through. It must not fail; it must
+     * simply store NULL.
+     */
+    public function test_create_without_a_date_of_birth_stores_null(): void
+    {
+        $member = $this->createMemberWithBankingData();
+
+        $this->assertNull($member['date_of_birth']);
+    }
+
+    public function test_updateById_corrects_the_date_of_birth(): void
+    {
+        $member = $this->createMemberWithBankingData(['date_of_birth' => '1990-05-04']);
+
+        $updated = $this->membersRepository->updateById($member['id'], ['date_of_birth' => '1990-04-05']);
+
+        $this->assertSame('1990-04-05', $updated['date_of_birth']);
+    }
+
+    /**
+     * The delta sync is how an erasure reaches the kiosks that hold the date
+     * (ADR-0045 decision 2, mitigation 4). If the anonymized row did not ride
+     * the ordinary cursor, a terminal would keep a birth date the server has
+     * already erased.
+     */
+    public function test_an_anonymized_member_reaches_the_terminal_with_no_date_of_birth(): void
+    {
+        $member = $this->createMemberWithBankingData(['date_of_birth' => '1990-05-04']);
+        $before = time() - 1;
+
+        $this->membersRepository->anonymize($member['id']);
+
+        $rows = $this->membersRepository->findModifiedSince($before * 1000);
+        $synced = array_values(array_filter($rows, fn (array $r): bool => $r['id'] === $member['id']));
+
+        $this->assertCount(1, $synced, 'the erasure must ride the ordinary delta sync');
+        $this->assertNull($synced[0]['date_of_birth']);
+    }
+
     /** @return array<string, mixed> The raw row, columns included that no read model exposes. */
     private function fetchMemberRow(string $memberId): array
     {

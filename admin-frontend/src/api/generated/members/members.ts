@@ -105,7 +105,7 @@ const listMembers = (
 
 **Use Case**: UC-A11
 
-**Required fields**: first_name, last_name, iban, mandate_signed_at, preferred_language
+**Required fields**: first_name, last_name, email, date_of_birth, preferred_language
 
 **Auto-generated**:
 - `id`: UUID

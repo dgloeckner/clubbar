@@ -222,6 +222,7 @@ test.describe('Deckelauszug — cadence, cron, delivered statement', () => {
         first_name: 'Deckel',
         last_name: `Auszug${suffix}`,
         email: `deckel-${suffix}@test.example`,
+        date_of_birth: '1985-06-15',
         preferred_language: language,
         iban: FACTORY_IBAN,
         mandate_signed_at: '2024-01-01',

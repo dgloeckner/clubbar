@@ -45,6 +45,10 @@ test.describe('GDPR Member Anonymization', () => {
     expect(anonBody.is_sepa_valid).toBe(false);
     expect(anonBody.account_holder_name).toBeNull();
     expect(anonBody.mandate_reference).toBeNull();
+    // The birth date is a direct identifier and OLG Dresden 4 U 1278/21 names
+    // it alongside the name and the address (#582 M2, ADR-0045). It is
+    // `required` on create precisely so a NULL can only ever mean this.
+    expect(anonBody.date_of_birth).toBeNull();
 
     // card_uid should be ANON-{uuid}, not null
     expect(anonBody.card_uid).toMatch(/^ANON-/);
@@ -60,6 +64,7 @@ test.describe('GDPR Member Anonymization', () => {
     expect(getBody.first_name).toBeNull();
     expect(getBody.last_name).toBeNull();
     expect(getBody.email).toBeNull();
+    expect(getBody.date_of_birth).toBeNull();
     expect(getBody).not.toHaveProperty('iban');
     expect(getBody.iban_last4).toBeNull();
     expect(getBody.is_sepa_valid).toBe(false);

@@ -101,6 +101,20 @@ export, which takes the private key for the length of one request.
    */
   account_holder_name?: string | null;
   /**
+   * The member's date of birth, used by the terminal to enforce a
+product's minimum age offline
+([ADR-0045](../../adr/0045-age-restricted-products.md)). The raw
+date is what the terminal syncs — not an age in years, which is
+wrong from the member's next birthday until the next sync.
+
+`null` means the member has been **anonymized**, never "unknown".
+The field is required on create and cannot be cleared through an
+update; erasure nulls it through the anonymize endpoint.
+
+   * @nullable
+   */
+  date_of_birth?: string | null;
+  /**
    * @maxLength 35
    * @nullable
    */

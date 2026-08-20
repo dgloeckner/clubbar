@@ -28,8 +28,11 @@ Members must meet all requirements to use the terminal:
 | Valid card | card_uid exists in cache | "Unknown card" |
 | Active account | is_active = true | "Account inactive" |
 | SEPA valid | is_sepa_valid = true | "SEPA mandate missing" |
+| Old enough for *this product* | member age at checkout ≥ product `min_age` | "Age restriction" (per product, at checkout) |
 
 A member without an **active mandate** cannot start a session at all — blocked at card scan, before any product view opens, with no grace period. `is_sepa_valid` is derived from *whether the member has an active mandate*, not from a `NOT NULL` check on two member-table fields: the mandate reference used to be auto-generated the instant an IBAN was typed, so the old predicate collapsed to "somebody typed an IBAN" rather than "somebody signed a mandate". See [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md) (amended 2026-08-07) and [ADR-0006](../../adr/0006-sepa-mandate-reference-strategy.md) (amended: a mandate is its own record carrying reference, IBAN and signature date).
+
+The last row is different in kind from the three above it: it is **not** a session requirement. Age never blocks terminal *access* — an underage member scans in, sees the whole grid, and buys everything without a `min_age`. The refusal is per product and lands at checkout, where the drink would actually be handed over. See [UC-T12 E7](./UC-T12-error-scenarios.md#e7-product-age-restricted) and [ADR-0045](../../adr/0045-age-restricted-products.md).
 
 ## Shopping Cart Model
 

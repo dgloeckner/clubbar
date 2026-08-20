@@ -24,6 +24,7 @@ async function createMember(authenticatedRequest: APIRequestContext, lastNameSuf
       first_name: `Search${uniqueId}`,
       last_name: lastName,
       email: `search${uniqueId}@example.com`,
+      date_of_birth: '1985-06-15',
       iban: 'DE89370400440532013000',
       mandate_signed_at: mandateDate,
       preferred_language: 'de',

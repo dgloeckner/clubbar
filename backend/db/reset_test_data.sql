@@ -19,7 +19,9 @@
 --   - 1 admin user: admin@example.com / password123
 --   - 2 categories: Getränke, Sauna
 --   - 13 products with nice icons (including Sauna-Token with dispenser)
---   - 8 members with nice names and valid SEPA data (2 with real card UIDs)
+--   - 8 members with nice names and valid SEPA data (2 with real card UIDs);
+--     every one carries a date of birth, and two are deliberately minors --
+--     Sabine Klein is 15, Julia Wagner is 17 (ADR-0045, Jugendschutz)
 --   - 3 terminals with known test tokens (Bar + Sauna active, Terrace inactive)
 --   - 2 E2E terminals: the Playwright test terminal and one whose token expired
 -- =============================================================================
@@ -291,7 +293,7 @@ VALUES (
 -- DE02120300000000202051 - Another valid format
 
 -- Member 1: Hans Müller (active rower)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555551-5555-5555-5555-555555555551',
     '0003195661',
@@ -299,6 +301,7 @@ VALUES (
     'Müller',
     'hans.mueller@example.de',
     '+49 170 1234567',
+    '1978-03-14',  -- 40s
     'de',
     'Hans Müller',
     1,
@@ -307,7 +310,7 @@ VALUES (
 );
 
 -- Member 2: Maria Schmidt (team captain)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555552-5555-5555-5555-555555555552',
     '0013466849',
@@ -315,6 +318,7 @@ VALUES (
     'Schmidt',
     'maria.schmidt@example.de',
     '+49 171 2345678',
+    '1985-07-22',  -- 40
     'de',
     'Maria Schmidt',
     1,
@@ -323,7 +327,7 @@ VALUES (
 );
 
 -- Member 3: Thomas Weber (English preferred)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555553-5555-5555-5555-555555555553',
     'CARD003',
@@ -331,6 +335,7 @@ VALUES (
     'Weber',
     'thomas.weber@example.de',
     '+49 172 3456789',
+    '1992-11-02',  -- 30s
     'en',
     'Thomas Weber',
     1,
@@ -339,7 +344,7 @@ VALUES (
 );
 
 -- Member 4: Anna Fischer (sauna enthusiast)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555554-5555-5555-5555-555555555554',
     'CARD004',
@@ -347,6 +352,7 @@ VALUES (
     'Fischer',
     'anna.fischer@example.de',
     '+49 173 4567890',
+    '1969-01-30',  -- 50s
     'de',
     'Anna Fischer',
     1,
@@ -355,7 +361,7 @@ VALUES (
 );
 
 -- Member 5: Michael Bauer (veteran rower)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555555-5555-5555-5555-555555555555',
     'CARD005',
@@ -363,6 +369,7 @@ VALUES (
     'Bauer',
     'michael.bauer@example.de',
     '+49 174 5678901',
+    '1955-09-08',  -- 70
     'de',
     'Michael Bauer',
     1,
@@ -371,7 +378,7 @@ VALUES (
 );
 
 -- Member 6: Sabine Klein (new member)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555556-5555-5555-5555-555555555556',
     'CARD006',
@@ -379,6 +386,7 @@ VALUES (
     'Klein',
     'sabine.klein@example.de',
     '+49 175 6789012',
+    (CURDATE() - INTERVAL 15 YEAR),  -- under 16 -- Jugendschutz fixture
     'de',
     'Sabine Klein',
     1,
@@ -387,7 +395,7 @@ VALUES (
 );
 
 -- Member 7: Peter Hoffmann (board member)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555557-5555-5555-5555-555555555557',
     'CARD007',
@@ -395,6 +403,7 @@ VALUES (
     'Hoffmann',
     'peter.hoffmann@example.de',
     '+49 176 7890123',
+    '1974-05-19',  -- 50s
     'de',
     'Peter Hoffmann',
     1,
@@ -403,7 +412,7 @@ VALUES (
 );
 
 -- Member 8: Julia Wagner (youth coach)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555558-5555-5555-5555-555555555558',
     'CARD008',
@@ -411,6 +420,7 @@ VALUES (
     'Wagner',
     'julia.wagner@example.de',
     '+49 177 8901234',
+    (CURDATE() - INTERVAL 17 YEAR),  -- 16 or 17 -- Jugendschutz fixture
     'de',
     'Julia Wagner',
     1,

@@ -1,5 +1,6 @@
 import type { APIRequestContext } from '@playwright/test'
 import { minimumExecutionDate, serverToday } from './dates'
+import { ADULT_DATE_OF_BIRTH } from './transactions'
 import type { ApiRequestLike } from './request-context'
 
 /**
@@ -140,6 +141,7 @@ async function createMemberWithPurchase(
       first_name: firstName,
       last_name: lastName,
       email,
+      date_of_birth: ADULT_DATE_OF_BIRTH,
       preferred_language: preferredLanguage,
       iban: FACTORY_IBAN,
       mandate_signed_at: '2024-01-01',

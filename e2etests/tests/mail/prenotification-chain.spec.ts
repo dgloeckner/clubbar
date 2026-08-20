@@ -157,6 +157,7 @@ async function settleItemisedMember(
       first_name: 'Mail',
       last_name: `Kette${suffix}`,
       email: `mailkette-${suffix}@test.example`,
+      date_of_birth: '1985-06-15',
       preferred_language: 'de',
       iban: FACTORY_IBAN,
       mandate_signed_at: '2024-01-01',

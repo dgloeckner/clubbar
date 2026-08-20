@@ -78,6 +78,8 @@ export interface MemberUpdateRequest {
    * @nullable
    */
   phone?: string | null;
+  /** May be **corrected** but not cleared: neither `""` nor `null` is accepted, because a null birth date means an anonymized member ([ADR-0045](../../adr/0045-age-restricted-products.md) rule 3) and erasure is the anonymize endpoint's alone. */
+  date_of_birth?: string;
   preferred_language?: string;
   /**
    * Overwrite-only. The stored IBAN is sealed and never returned

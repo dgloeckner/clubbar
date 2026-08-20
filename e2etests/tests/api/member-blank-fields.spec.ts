@@ -26,6 +26,9 @@ const uniqueMemberBody = (overrides: Record<string, unknown> = {}) => {
     first_name: `Blank${id}`,
     last_name: `Member${id}`,
     email: `blank-${id}@example.com`,
+    // Mandatory since #582 M2 (ADR-0045) — and deliberately not clearable, see
+    // member-date-of-birth.spec.ts.
+    date_of_birth: '1985-06-15',
     preferred_language: 'de',
     phone: '+49 170 1234567',
     card_uid: id.toUpperCase().replace(/[^0-9A-F]/g, '0'),

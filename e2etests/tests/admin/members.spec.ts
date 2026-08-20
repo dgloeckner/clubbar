@@ -33,6 +33,7 @@ test.describe('Admin Members Page', () => {
       accountHolder: `Holder${ts}`,
       mandateRef: `REF${ts}`,
       cardUid: `000${ts.toString().slice(-8)}`,
+      dateOfBirth: '1979-11-23',
       language: 'de' as const,
     }
 
@@ -46,6 +47,7 @@ test.describe('Admin Members Page', () => {
       createData.mandateDate,
       createData.email,
       createData.language,
+      createData.dateOfBirth,
     )
     await authenticatedMembersPage.fillAccountHolderName(createData.accountHolder)
     await authenticatedMembersPage.fillMandateReference(createData.mandateRef)
@@ -65,6 +67,10 @@ test.describe('Admin Members Page', () => {
     expect(await authenticatedMembersPage.getFormFirstNameValue()).toBe(createData.firstName)
     expect(await authenticatedMembersPage.getFormLastNameValue()).toBe(createData.lastName)
     expect(await authenticatedMembersPage.getFormEmailValue()).toBe(createData.email)
+    // Jugendschutz (ADR-0045): mandatory on create, and it has to come back on
+    // the edit form — an admin who cannot see the stored date cannot notice a
+    // wrong one, and a wrong one reads as a lawful refusal at the terminal.
+    expect(await authenticatedMembersPage.getDateOfBirthValue()).toBe(createData.dateOfBirth)
     // Overwrite-only (#392): there is no IBAN input at all, because the stored
     // IBAN is sealed and never returned (ADR-0036). The stored account takes
     // its place, and replacing it is a deliberate action.

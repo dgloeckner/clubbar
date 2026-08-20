@@ -28,6 +28,12 @@ _Avoid_: home screen, lock screen
 The act of converting the cart into immutable transactions billed to the session's member. Completing checkout leads to the confirmation screen and then ends the session.
 _Avoid_: purchase, payment
 
+**Jugendschutz**:
+The refusal to sell a product to a member who is too young for it. The limit belongs to the **product** (`min_age`, a number the Getränkewart sets), the age belongs to the **member** (a date of birth, from which age is computed — never a stored number), and the refusal happens at **checkout**, offline, on the terminal.
+
+It is a standing condition, not a transient failure: nothing about it will be different if the member tries again, so the refusal offers no Retry. The message names the age the product requires and never the member's own — the terminal screen is read by whoever is at the bar. See [ADR-0045](./adr/0045-age-restricted-products.md).
+_Avoid_: age check, age gate, 18+, adult verification, ID check (the system verifies no identity — it trusts the birth date on file)
+
 ### Accounting
 
 **Transaction**:
@@ -83,7 +89,7 @@ _Avoid_: treasurer (the club says Kassenwart), finance admin, accountant
 **Getränkewart**:
 Whoever looks after the bar stock: the drinks list, prices, availability, and what actually sells. Holds no encryption key and therefore *cannot* decrypt any IBAN — the only role whose exclusion from member banking data is cryptographic rather than a matter of which pages they can open.
 
-Sees no member: no names, no Deckel, no transaction rows, no dashboard. Product and terminal figures only.
+Sees no member: no names, no Deckel, no transaction rows, no dashboard. Product and terminal figures only. Sets a product's **Jugendschutz** age — a legal number on a drink — and still sees no member and no birth date.
 _Avoid_: bar operator, bar manager, Barwart, product admin
 
 ### Notifications

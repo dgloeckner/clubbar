@@ -67,6 +67,7 @@ test.describe('Bank Lookup API', () => {
         first_name: `BankTest${ts}`,
         last_name: `Last${ts}`,
         email: `banktest-${ts}@example.com`,
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
         iban: 'DE89370400440532013000',
         mandate_signed_at: '2025-01-01',

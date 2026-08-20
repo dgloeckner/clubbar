@@ -50,6 +50,15 @@ export interface CreateMemberOptions {
   cardUid?: string
   /** Whether member is active. Default: true. */
   isActive?: boolean
+  /**
+   * Override date_of_birth. Default: a comfortably adult date.
+   *
+   * The field is mandatory (#582 M2, ADR-0045) — there is no way to create a
+   * member without one, so this option exists to make a member *young*, not to
+   * make one ageless. `dateOfBirthForAge(15)` is the shape a Jugendschutz test
+   * wants.
+   */
+  dateOfBirth?: string
 }
 
 export interface CreatedMember {
@@ -57,6 +66,7 @@ export interface CreatedMember {
   first_name: string
   last_name: string
   email: string
+  date_of_birth: string | null
   [key: string]: any
 }
 
@@ -79,6 +89,7 @@ export async function createMemberViaPage(
     first_name: options.firstName ?? defaults.first_name,
     last_name: options.lastName ?? defaults.last_name,
     email: options.email ?? defaults.email,
+    date_of_birth: options.dateOfBirth ?? defaults.date_of_birth,
     preferred_language: options.preferredLanguage ?? defaults.preferred_language,
   }
 

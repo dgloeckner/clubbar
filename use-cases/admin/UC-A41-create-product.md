@@ -33,6 +33,7 @@ Admin clicks "New Product"
 | Name (other langs) | No | Max 100 chars each |
 | Price | Yes | > 0, max 2 decimals |
 | Category | Yes | Existing category |
+| Minimum age | No | Integer 1–99. Empty = unrestricted |
 
 ## Multilingual Names
 - Tab per enabled language
