@@ -7,15 +7,12 @@
 # checkout. This file is that missing configuration — it keeps the scan on
 # first-party, shipped source code.
 #
-# Excluding the binary assets is not cosmetic: the CLI's SARIF writer reads every
-# file it reports an issue in and decodes it as UTF-8 text
-# (cli/.../formatter/Sarif.scala -> better.files File.lines), so a single finding
-# in a non-text file aborts the whole run with
-# `java.nio.charset.MalformedInputException` *after* the analysis completed, and
-# no report is written at all.
+# The volume matters as much as the content: GitHub accepts at most 25,000
+# results per SARIF run, and an unscoped analysis of this repository produced
+# more than that from PHP_CodeSniffer alone.
 
 exclude_paths:
-  # Binary assets — not code, and fatal to the CLI's SARIF writer (see above).
+  # Binary assets — not code, and nothing any of the tools can say about them.
   - '**.png'
   - '**.jpg'
   - '**.jpeg'
@@ -63,9 +60,8 @@ exclude_paths:
   - '.idea/**'
 
   # Test suites. This is a security scan of what we ship; the test code is
-  # reviewed on its own terms and its volume otherwise drowns the report
-  # (PHP_CodeSniffer alone reported 25k style findings across the repository,
-  # over GitHub's 25,000-results-per-run SARIF limit).
+  # reviewed on its own terms, and its volume is most of what pushed the report
+  # past GitHub's per-run limit.
   - 'backend/tests/**'
   - 'e2etests/**'
   - 'terminal-frontend/test/**'
