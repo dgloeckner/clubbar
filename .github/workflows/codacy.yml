@@ -65,6 +65,26 @@ jobs:
           # This will handover control about PR rejection to the GitHub side
           max-allowed-issues: 2147483647
 
+      # TEMPORARY (removed before merge): the SARIF writer names no file when it
+      # fails to decode one. The JSON formatter reads no files, so re-running with
+      # it yields the exact set of files Codacy reported issues in.
+      - name: Diagnose unreadable SARIF report
+        if: always() && steps.codacy.outcome == 'failure'
+        run: |
+          echo "--- working tree after the analysis (files tools left behind):"
+          git status --porcelain=v1 -uall | head -50
+          "$CLI_SCRIPT_PATH" analyze --format json --output results.json --max-allowed-issues 2147483647 || true
+          jq -r '.[] | .filename? // empty' results.json | sort -u > issue-files.txt
+          echo "--- $(wc -l < issue-files.txt) distinct files with issues"
+          echo "--- issue files that are missing or not valid UTF-8:"
+          while IFS= read -r f; do
+            if [ ! -f "$f" ]; then echo "MISSING:  $f"
+            elif ! iconv -f UTF-8 -t UTF-8 "$f" > /dev/null 2>&1; then echo "NON-UTF8: $f"
+            fi
+          done < issue-files.txt
+          echo "--- issues per top-level directory:"
+          cut -d/ -f1-2 issue-files.txt | sort | uniq -c | sort -rn | head -20
+
       # A crashed or interrupted run leaves the output file empty, which the upload
       # would reject as malformed SARIF. Report that as a warning instead.
       - name: Check SARIF report
