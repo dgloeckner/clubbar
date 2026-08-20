@@ -24,7 +24,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^16.5.4",
-    "react-router-dom": "^6.30.5",
+    "react-router-dom": "^7.18.2",
     "recharts": "^3.7.0"
   },
   "devDependencies": {
@@ -32,11 +32,11 @@
     "@testing-library/react": "^14.3.1",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
-    "@typescript-eslint/eslint-plugin": "^6.10.0",
-    "@typescript-eslint/parser": "^6.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.67.0",
+    "@typescript-eslint/parser": "^8.67.0",
     "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "^4.1.11",
-    "eslint": "^8.54.0",
+    "eslint": "^10.8.1",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.14",
     "jsdom": "^29.1.1",
