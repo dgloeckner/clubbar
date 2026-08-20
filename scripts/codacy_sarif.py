@@ -15,7 +15,7 @@ character that happens to land on byte 8190 -- and any file can drift onto that
 boundary with a one-byte edit. The JSON formatter reads no files, so converting
 its output here sidesteps the bug entirely.
 
-Usage: codacy-sarif.py <codacy-report.json> <output.sarif>
+Usage: codacy_sarif.py <codacy-report.json> <output.sarif>
 """
 
 import json
@@ -44,6 +44,8 @@ def issues(report):
 
 
 def convert(report):
+    """Return the SARIF rules and results for a Codacy report, and a count of
+    entries too incomplete to place."""
     rules, rule_index, results, skipped = [], {}, [], 0
 
     for issue in issues(report):
@@ -79,6 +81,7 @@ def convert(report):
 
 
 def main(argv):
+    """Convert the report named by argv[1] into the SARIF file named by argv[2]."""
     if len(argv) != 3:
         sys.exit(f"usage: {argv[0]} <codacy-report.json> <output.sarif>")
 
