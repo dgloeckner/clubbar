@@ -47,6 +47,7 @@ Creates a new member account.
 |-------|----------|------------|------|
 | First name | Yes | Non-empty, max 100 chars | |
 | Last name | Yes | Non-empty, max 100 chars | |
+| Date of birth | Yes | Date, not in the future | Jugendschutz ([ADR-0045](../../adr/0045-age-restricted-products.md)); erasable — anonymization nulls it |
 | Email | No | Valid email format | |
 | IBAN | Yes | Valid IBAN format + checksum | Required for terminal access |
 | Mandate date | Yes | Date, not in future | Required with IBAN |

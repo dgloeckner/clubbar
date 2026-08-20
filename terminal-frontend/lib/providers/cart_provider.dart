@@ -57,6 +57,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
     String language, {
     String? iconName,
     bool requiresDispenser = false,
+    int? minAge,
   }) {
     final existingIndex =
         _items.indexWhere((item) => item.productId == productId);
@@ -75,6 +76,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
         language: language,
         iconName: iconName,
         requiresDispenser: requiresDispenser,
+        minAge: minAge,
       ));
     }
 
@@ -142,7 +144,16 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           await _service.validateCartBeforeCheckout(member, _items);
 
       if (!valid) {
-        emitError(error ?? TerminalErrorKey.checkoutFailed);
+        // The refused age travels with the error so the modal can name it.
+        // Recomputed rather than returned by the validator, which answers a
+        // yes/no question for every caller and should not grow a payload for
+        // one of them.
+        emitError(
+          error ?? TerminalErrorKey.checkoutFailed,
+          requiredAge: error == TerminalErrorKey.ageRestricted
+              ? _service.requiredAgeBlocking(member, _items)
+              : null,
+        );
         _isLoading = false;
         _soundService.play(SoundEvent.checkoutError);
         notifyListeners();

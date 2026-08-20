@@ -227,6 +227,62 @@ void main() {
       expect(provider.lastErrorKey, equals(TerminalErrorKey.accountInactive));
     });
 
+    /// The refused age has to travel with the error, because the copy names it
+    /// (ADR-0045 rule 6): the member is told what the *drink* requires, never
+    /// what they are.
+    test('an age refusal carries the age the drink requires', () async {
+      final member = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: DateTime.now().toIso8601String(),
+        dateOfBirth: '2012-01-01',
+      );
+
+      provider.addItem('korn', 'Korn', 250, 1, 'de', minAge: 18);
+
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (false, TerminalErrorKey.ageRestricted));
+      when(() => mockService.requiredAgeBlocking(any(), any())).thenReturn(18);
+
+      await provider.checkout(MockBuildContext(), member, 'test-session-id');
+
+      expect(provider.lastErrorKey, equals(TerminalErrorKey.ageRestricted));
+      expect(provider.lastError!.requiredAge, 18);
+      expect(provider.items, hasLength(1), reason: 'the cart survives a refusal');
+    });
+
+    /// Every other failure leaves the field null, so nothing else can
+    /// accidentally render an age.
+    test('another refusal carries no age at all', () async {
+      final member = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: DateTime.now().toIso8601String(),
+        dateOfBirth: '1985-06-15',
+      );
+
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (false, TerminalErrorKey.balanceLimitExceeded));
+
+      await provider.checkout(MockBuildContext(), member, 'test-session-id');
+
+      expect(provider.lastError!.requiredAge, isNull);
+    });
+
     // Acceptance criterion (#57): a member who taps checkout twice against the
     // same failure must be told twice — the second rejection has to reach the
     // UI as its own event, not be swallowed as "unchanged state".

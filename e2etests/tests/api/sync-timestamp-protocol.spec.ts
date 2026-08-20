@@ -36,6 +36,7 @@ test.describe('Sync Timestamp Protocol', () => {
         first_name: 'Sync',
         last_name: token,
         email: `${token}@test.com`,
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
       },
     });

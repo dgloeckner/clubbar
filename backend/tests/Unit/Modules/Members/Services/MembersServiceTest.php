@@ -156,6 +156,88 @@ class MembersServiceTest extends TestCase
         ]);
     }
 
+    /**
+     * A corrected birth date has to reach the row (#582 M2, ADR-0045).
+     *
+     * The allowlist above is a second gate behind the controller's rules, and
+     * this field is the one where being silently dropped is worst: the value on
+     * file is what the terminal's Jugendschutz check trusts, so an
+     * uncorrectable typo is a member refused every restricted product for good,
+     * with the edit form reporting success.
+     */
+    public function test_updateMember_lets_a_corrected_date_of_birth_through(): void
+    {
+        $this->membersRepository->method('findById')->willReturn($this->member('member-1'));
+
+        $this->membersRepository
+            ->expects($this->once())
+            ->method('updateById')
+            ->with('member-1', ['date_of_birth' => '1990-04-05'])
+            ->willReturn($this->member('member-1', ['date_of_birth' => '1990-04-05']));
+
+        $this->membersService->updateMember('member-1', ['date_of_birth' => '1990-04-05']);
+    }
+
+    /**
+     * `createMember()` threads the birth date to the repository under the
+     * column name. It is a named parameter rather than another key in an array,
+     * so a caller that forgets it is a type error rather than a member with no
+     * age.
+     */
+    public function test_createMember_writes_the_date_of_birth(): void
+    {
+        $this->membersRepository
+            ->expects($this->once())
+            ->method('create')
+            ->with($this->callback(function (array $data): bool {
+                $this->assertSame('1990-05-04', $data['date_of_birth']);
+
+                return true;
+            }))
+            ->willReturn($this->member('member-1', ['date_of_birth' => '1990-05-04']));
+
+        $dto = $this->membersService->createMember(
+            firstName: 'Ada',
+            lastName: 'Lovelace',
+            email: 'ada@example.org',
+            phone: null,
+            cardUid: null,
+            language: \App\Modules\Members\Enums\SupportedLanguage::from('de'),
+            dateOfBirth: '1990-05-04',
+        );
+
+        $this->assertSame('1990-05-04', $dto->dateOfBirth);
+    }
+
+    /**
+     * The member list does not carry birth dates (#582 M2, ADR-0045).
+     *
+     * The list is a roster on a screen — names, balances, SEPA state — and
+     * every row of it is personal data an admin scrolls past without asking
+     * for. The birth date is needed in exactly two places: the terminal, which
+     * gets it through the sync, and the edit form, which loads the member by id
+     * before it opens. `MemberListItem` in `api/admin.yaml` says so too.
+     *
+     * This is the one place minimization is cheap enough to be worth writing
+     * down, so it is asserted rather than assumed.
+     */
+    public function test_listMembers_leaves_the_date_of_birth_out_of_the_roster(): void
+    {
+        $this->membersRepository
+            ->method('listPaginated')
+            ->willReturn([
+                'items' => [$this->member('member-1', ['date_of_birth' => '1990-05-04'])],
+                'total' => 1,
+            ]);
+
+        $result = $this->membersService->listMembers(20, 0);
+
+        $this->assertArrayNotHasKey('date_of_birth', $result->items[0]);
+        // The row is otherwise unchanged — this drops one key, it does not
+        // reshape the list.
+        $this->assertSame('member-1', $result->items[0]['id']);
+    }
+
     public function test_updateMember_converts_is_active_to_an_int(): void
     {
         // PDO turns a bound `false` into an empty string, which MariaDB then

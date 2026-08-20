@@ -74,6 +74,18 @@ enum AuditAction: string
      * A single PATCH that both grants and revokes writes both rows: they are
      * different events that happened to arrive in one request.
      */
+    /**
+     * A sale the terminal should have refused, detected at sync (ADR-0045 §3).
+     *
+     * The transaction is stored unchanged — by the time the row arrives the
+     * drink is gone, and refusing it would delete the club's knowledge of a
+     * sale that happened rather than un-serve the minor. This is the record
+     * that makes it findable, and being an `audit_log` row it is append-only:
+     * a past sale to a minor stays true regardless of what changes afterwards
+     * (invariant 4), including the product later being un-restricted.
+     */
+    case JUGENDSCHUTZ_VIOLATION = 'jugendschutz_violation';
+
     case ROLE_GRANTED = 'role_granted';
     case ROLE_REVOKED = 'role_revoked';
     case MANDATE_DOCUMENT_UPLOAD = 'mandate_document_upload';

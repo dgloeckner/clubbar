@@ -38,6 +38,10 @@ class AdminController
         'last_name' => ['nullable', 'string', 'max:100'],
         'email' => ['nullable', 'email', 'max:255'],
         'phone' => ['nullable', 'string', 'max:20'],
+        // Required on create, never clearable on update, nullable in the column:
+        // the split is what makes a NULL birth date mean "anonymized member"
+        // and nothing else (ADR-0045).
+        'date_of_birth' => ['nullable', 'date', 'past_date'],
         'preferred_language' => ['nullable', 'string', 'in:de,en,fr'],
         'account_holder_name' => ['nullable', 'string', 'max:70'],
         'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/'],
@@ -46,7 +50,10 @@ class AdminController
         // spaces IBANs are conventionally printed with.
         'iban' => ['nullable', 'string', 'iban', 'max:34'],
         'mandate_reference' => ['nullable', 'string', 'max:35'],
-        'mandate_signed_at' => ['nullable', 'date'],
+        // `past_date` arrived with the birth date and fixes this field too: a
+        // mandate recorded as signed next month is the same mistake on a date
+        // that decides whether a collection is covered.
+        'mandate_signed_at' => ['nullable', 'date', 'past_date'],
     ];
 
     /**
@@ -64,6 +71,14 @@ class AdminController
      * NULLs but only one empty string, so the second member cleared this way
      * would collide. Both paths now run the same list, so the two cannot drift
      * apart again.
+     *
+     * `date_of_birth` is deliberately absent too, for a different reason: it
+     * has no "cleared" state an admin may reach. Erasing it is
+     * `anonymizeMember()`'s job alone — irreversible, `admin`-only (ADR-0044) —
+     * and a NULL birth date is what the terminal reads as "anonymized member"
+     * (ADR-0045 rule 3). Mapping a blank to null here would let an admin
+     * produce that state by clearing a form field on a member who is still
+     * active and still buying drinks, so a blank is a validation error instead.
      *
      * `mandate_reference` is deliberately absent. Blank does not mean absent on
      * the create path: an absent reference is minted from the member id
@@ -217,6 +232,7 @@ class AdminController
         $rules['last_name'][] = 'required';
         $rules['email'][] = 'required';
         $rules['preferred_language'][] = 'required';
+        $rules['date_of_birth'][] = 'required';
         $rules['card_uid'][] = 'unique:members,card_uid';
 
         if (!$this->validator->validate($body, $rules)) {
@@ -238,6 +254,7 @@ class AdminController
             // reference is not the same as an absent one on this path.
             mandateReference: $body['mandate_reference'] ?? null,
             mandateSignedAt: $body['mandate_signed_at'] ?? null,
+            dateOfBirth: $body['date_of_birth'],
             adminUserId: $adminId,
         );
 
@@ -264,6 +281,15 @@ class AdminController
         $rules = array_intersect_key(self::FIELD_RULES, $body);
         if (isset($rules['card_uid'])) {
             $rules['card_uid'][] = "unique:members,card_uid,{$memberId}";
+        }
+        // Naming the birth date means giving one. It is not in
+        // BLANK_MEANS_NULL, so a blank would otherwise sail past every rule in
+        // its set and reach the row as the empty string — and a birth date an
+        // admin can empty from the edit form is one that can produce, by
+        // accident, the state the terminal reads as "anonymized member"
+        // (ADR-0045 rule 3). Erasure stays `anonymizeMember()`'s alone.
+        if (isset($rules['date_of_birth'])) {
+            $rules['date_of_birth'][] = 'required';
         }
 
         if ($rules !== [] && !$this->validator->validate($body, $rules)) {

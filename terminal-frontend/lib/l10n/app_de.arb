@@ -706,6 +706,30 @@
   "@errorBalanceLimitExceeded": {
     "description": "TerminalErrorKey.balanceLimitExceeded — checkout would push the tab past the credit limit"
   },
+  "productAgeRestrictedNote": "Erst ab {age} Jahren",
+  "@productAgeRestrictedNote": {
+    "description": "Greyed-out product tile note (ADR-0045). Names the age the PRODUCT requires, never the member's own.",
+    "placeholders": {
+      "age": {
+        "type": "int",
+        "example": "18"
+      }
+    }
+  },
+  "errorAgeRestricted": "Dieses Getränk gibt es erst ab {age} Jahren – bitte wähle etwas anderes.",
+  "@errorAgeRestricted": {
+    "description": "TerminalErrorKey.ageRestricted — the cart holds a product the member is too young for (ADR-0045). Names the age the PRODUCT requires; never the member's own age or birth date, because the terminal screen is read by whoever is at the bar.",
+    "placeholders": {
+      "age": {
+        "type": "int",
+        "example": "18"
+      }
+    }
+  },
+  "errorAgeRestrictedUnknown": "Dieses Getränk ist für dich nicht freigegeben – bitte wähle etwas anderes.",
+  "@errorAgeRestrictedUnknown": {
+    "description": "TerminalErrorKey.ageRestricted without a known age — an unreachable fallback that avoids printing a placeholder number."
+  },
   "errorCheckoutCancelled": "Bezahlung abgebrochen – dein Warenkorb bleibt unverändert.",
   "@errorCheckoutCancelled": {
     "description": "TerminalErrorKey.checkoutCancelled — member cancelled the checkout"

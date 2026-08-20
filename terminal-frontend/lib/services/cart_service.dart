@@ -4,6 +4,7 @@ import 'package:clubbar_terminal/models/cart_item.dart';
 import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/utils/age.dart';
 import 'package:clubbar_terminal/utils/app_logger.dart';
 import 'package:drift/drift.dart';
 
@@ -77,6 +78,17 @@ class CartService {
       return (false, TerminalErrorKey.cartEmpty);
     }
 
+    // Jugendschutz (ADR-0045, UC-T12 E7). Deliberately **before** the credit
+    // limit: a member who is both too young and over their limit is told the
+    // thing that will not change by paying something off, and a refusal on
+    // legal grounds is never dressed up as a money message.
+    //
+    // Deliberately **after** the empty-cart check, so "you have not chosen
+    // anything" keeps its own plain answer.
+    if (requiredAgeBlocking(member, items) != null) {
+      return (false, TerminalErrorKey.ageRestricted);
+    }
+
     // Credit limit (UC-T11 E3, UC-T12). The cart screen already disables the
     // button above the limit; this is the authority, not a duplicate of it —
     // the tab can move under the member's feet (a sync landing mid-session)
@@ -87,6 +99,42 @@ class CartService {
     }
 
     return (true, null);
+  }
+
+  /// The highest age in [items] that [member] has not reached, or null if the
+  /// cart is fine for them.
+  ///
+  /// Returns the *age*, not a boolean, because the refusal has to name it: the
+  /// member is told what the drink requires, never what they are (ADR-0045
+  /// rule 6). The strictest line wins, so a cart holding both a beer and a
+  /// spirit refuses with 18 rather than 16.
+  ///
+  /// Synchronous and pure — the two inputs are already in hand, which is what
+  /// makes this safe to call from the product grid as well as from checkout.
+  ///
+  /// **No fail-open branch.** A member with no cached birth date is anonymized
+  /// (rule 3), and an unparseable one is a cache this code will not guess
+  /// about; both refuse anything with a limit. Neither can reach an ordinary
+  /// member: the field is required at creation, and an anonymized member is
+  /// inactive and stopped at the card scan long before a cart exists.
+  int? requiredAgeBlocking(MembersCacheData member, List<CartItem> items) {
+    final restricted = items
+        .map((item) => item.minAge)
+        .whereType<int>()
+        .toList(growable: false);
+    if (restricted.isEmpty) return null;
+
+    final now = DateTime.now();
+
+    int? blocking;
+    for (final age in restricted) {
+      if (!mayBuyAtAge(member.dateOfBirth, age, now) &&
+          (blocking == null || age > blocking)) {
+        blocking = age;
+      }
+    }
+
+    return blocking;
   }
 
   /// Where [items] would leave [member] relative to the credit limit.

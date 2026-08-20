@@ -64,9 +64,31 @@ import { useFormatters } from '../hooks/useFormatters'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 
-// Extend the generated Product type with fields not yet in OAS spec
-type ProductWithExtras = Product & {
-  requires_dispenser?: boolean
+// `requires_dispenser` and `min_age` are in the OAS spec and the generated
+// type since #582 M3; the alias is kept because the page passes it around by
+// name in a dozen places.
+type ProductWithExtras = Product
+
+/**
+ * Read the Jugendschutz age out of the form field (ADR-0045).
+ *
+ * Three outcomes, and the middle one is the point: an **empty** field is not a
+ * missing value to be dropped, it is the assertion that this drink carries no
+ * legal age. It travels to the API as an explicit `null` so clearing one
+ * actually clears the column.
+ *
+ * `'invalid'` covers what the number input cannot stop on its own — a `0`,
+ * a `100`, a decimal — so the admin gets a sentence instead of the backend's
+ * 422.
+ */
+function parseMinAge(value: string): number | null | 'invalid' {
+  const trimmed = value.trim()
+  if (trimmed === '') return null
+
+  const parsed = Number(trimmed)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 99) return 'invalid'
+
+  return parsed
 }
 
 // Extend Category to ensure required fields are non-optional at runtime
@@ -100,7 +122,7 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<ProductWithExtras | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
-  const [formData, setFormData] = useState({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
+  const [formData, setFormData] = useState({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '' })
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
     type: 'delete'
@@ -192,7 +214,7 @@ export function ProductsPage() {
   function openCreateModal() {
     setModalMode('create')
     setEditingProduct(null)
-    setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
+    setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '' })
     setSelectedCategory('')
     setSelectedIcon(null)
     setFormError(null)
@@ -206,6 +228,9 @@ export function ProductsPage() {
       names: { de: product.names?.de || '', en: product.names?.en || '' },
       price: ((product.price_cents ?? 0) / 100).toFixed(2),
       requiresDispenser: product.requires_dispenser || false,
+      // Held as a string like `price`, so the input round-trips an empty field
+      // as "unrestricted" rather than as a 0 nobody can be old enough for.
+      minAge: product.min_age == null ? '' : String(product.min_age),
     })
     setSelectedCategory(product.category_id || '')
     setSelectedIcon(product.icon_name || null)
@@ -233,6 +258,12 @@ export function ProductsPage() {
       return
     }
 
+    const minAge = parseMinAge(formData.minAge)
+    if (minAge === 'invalid') {
+      setFormError(t('products.validation.minAgeRange'))
+      return
+    }
+
     try {
       // Filter out empty language names - backend requires all values to be non-empty
       const nonEmptyNames = Object.entries(formData.names)
@@ -245,11 +276,12 @@ export function ProductsPage() {
         category_id: selectedCategory,
         icon_name: selectedIcon,
         requires_dispenser: formData.requiresDispenser,
+        min_age: minAge,
       }
 
       await getProducts().createProduct(productData as ProductCreateRequest)
 
-      setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
+      setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '' })
       setSelectedCategory('')
       setSelectedIcon(null)
       setModalMode('create')
@@ -288,6 +320,12 @@ export function ProductsPage() {
       return
     }
 
+    const minAge = parseMinAge(formData.minAge)
+    if (minAge === 'invalid') {
+      setFormError(t('products.validation.minAgeRange'))
+      return
+    }
+
     try {
       // Filter out empty language names - backend requires all values to be non-empty
       const nonEmptyNames = Object.entries(formData.names)
@@ -300,11 +338,17 @@ export function ProductsPage() {
         category_id: selectedCategory,
         icon_name: selectedIcon,
         requires_dispenser: formData.requiresDispenser,
+        // Always sent, never omitted: an empty field means "unrestricted", and
+        // un-restricting a drink is the write that makes it *more* available.
+        // A dropped key would leave the old age on the row with the form
+        // claiming it had been cleared (ADR-0045; the backend reads an explicit
+        // null via `array_key_exists`).
+        min_age: minAge,
       }
 
       await getProducts().updateProduct(editingProduct!.id!, updateData as ProductUpdateRequest)
 
-      setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
+      setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '' })
       setSelectedCategory('')
       setSelectedIcon(null)
       setEditingProduct(null)
@@ -375,7 +419,7 @@ export function ProductsPage() {
 
   function handleCancel() {
     setShowModal(false)
-    setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
+    setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '' })
     setSelectedCategory('')
     setSelectedIcon(null)
     setFormError(null)
@@ -993,6 +1037,61 @@ export function ProductsPage() {
                 testId="products-form-icon-select"
                 label={`${t('products.icon')} (${t('common.optional')})`}
               />
+
+              {/* Jugendschutz (ADR-0045): the legal age this drink requires.
+                  The terminal compares it against the member's own age at
+                  checkout, offline. Empty is the ordinary state of a drinks
+                  list, and the hint has to say so — a Getränkewart should not
+                  have to guess whether a blank field means "unrestricted" or
+                  "not filled in yet". */}
+              <div style={{ marginBottom: isMobile ? '12px' : '20px' }}>
+                <label
+                  htmlFor="products-form-min-age-input"
+                  style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    color: tableColors.cellText,
+                    fontSize: '14px',
+                    fontWeight: '500',
+                  }}
+                >
+                  {t('products.minAge')} ({t('common.optional')})
+                </label>
+                <input
+                  id="products-form-min-age-input"
+                  data-testid="products-form-min-age-input"
+                  type="number"
+                  min={1}
+                  max={99}
+                  step={1}
+                  inputMode="numeric"
+                  placeholder={t('products.minAgePlaceholder')}
+                  value={formData.minAge}
+                  onChange={(e) => setFormData({ ...formData, minAge: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: `1px solid ${theme.colors.border.muted}`,
+                    borderRadius: '6px',
+                    backgroundColor: theme.colors.bg.inputAlt,
+                    color: tableColors.cellText,
+                    fontSize: '14px',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                {!isMobile && (
+                  <p
+                    style={{
+                      marginTop: '6px',
+                      color: theme.colors.text.secondary,
+                      fontSize: '12px',
+                      lineHeight: '1.5',
+                    }}
+                  >
+                    {t('products.minAgeHelp')}
+                  </p>
+                )}
+              </div>
 
               <div style={{ marginBottom: isMobile ? '12px' : '20px' }}>
                 <label

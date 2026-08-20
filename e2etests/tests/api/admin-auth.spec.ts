@@ -429,6 +429,7 @@ test.describe("Admin Authentication", () => {
           email: "newmember@example.com",
           first_name: "Test",
           last_name: "Member",
+          date_of_birth: '1985-06-15',
         },
       });
 
@@ -443,6 +444,7 @@ test.describe("Admin Authentication", () => {
         {
           data: {
             first_name: "Updated",
+            date_of_birth: '1985-06-15',
           },
         }
       );

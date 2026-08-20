@@ -75,4 +75,13 @@ export interface ProductUpdateRequest {
    * @nullable
    */
   icon_name?: string | null;
+  /** Whether buying this product releases a physical token from the dispenser. Present on the endpoint since #35; it was simply never written down here. */
+  requires_dispenser?: boolean;
+  /**
+   * Optional. Omit or send `null` for an unrestricted product ([ADR-0045](../../adr/0045-age-restricted-products.md)). On update, an explicit `null` removes an existing restriction.
+   * @minimum 1
+   * @maximum 99
+   * @nullable
+   */
+  min_age?: number | null;
 }

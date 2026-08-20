@@ -155,6 +155,7 @@
     "lastName": "Last Name",
     "displayName": "Display Name",
     "email": "Email",
+    "dateOfBirth": "Date of birth",
     "iban": "IBAN",
     "bankName": "Bank",
     "bankNameLoading": "Looking up…",
@@ -298,7 +299,8 @@
     "countFound_other": "{{count}} products found",
     "validation": {
       "priceRequired": "Valid price is required",
-      "categoryRequired": "Category is required"
+      "categoryRequired": "Category is required",
+      "minAgeRange": "Minimum age must be between 1 and 99 (empty = no age restriction)"
     },
     "errors": {
       "load": "Failed to load products",
@@ -307,7 +309,10 @@
       "updateStatus": "Failed to update product status",
       "delete": "Failed to delete product",
       "loadCategories": "Categories could not be loaded, so no category can be selected. A product cannot be saved without one."
-    }
+    },
+    "minAge": "Minimum age",
+    "minAgePlaceholder": "e.g. 16",
+    "minAgeHelp": "Leave empty if the drink carries no age restriction. The terminal refuses the purchase if the member is younger."
   },
   "categories": {
     "title": "Categories",

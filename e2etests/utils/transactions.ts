@@ -28,10 +28,34 @@ export interface TestMemberData {
   first_name: string
   last_name: string
   email: string
+  /**
+   * Mandatory since #582 M2 (ADR-0045): a member cannot be created without a
+   * date of birth, because the terminal's Jugendschutz check has no
+   * "unknown age" branch. Every builder here supplies an adult date by
+   * default — a test that needs a minor states one explicitly.
+   */
+  date_of_birth: string
   preferred_language: 'de' | 'en'
   iban: string
   mandate_reference: string
   mandate_signed_at: string
+}
+
+/** Comfortably adult, fixed rather than relative so a run is reproducible. */
+export const ADULT_DATE_OF_BIRTH = '1985-06-15'
+
+/**
+ * A birth date that makes the member exactly `years` old today.
+ *
+ * Anchored on today rather than written out, so a Jugendschutz test still
+ * means what it says next year. `years: 18` lands on the birthday itself,
+ * which is the boundary the check has to get right.
+ */
+export const dateOfBirthForAge = (years: number, dayOffset = 0): string => {
+  const d = new Date()
+  d.setUTCFullYear(d.getUTCFullYear() - years)
+  d.setUTCDate(d.getUTCDate() + dayOffset)
+  return d.toISOString().slice(0, 10)
 }
 
 /**
@@ -53,6 +77,7 @@ export const createTestMember = (
     first_name: `${firstName}_${timestamp}`,
     last_name: lastName,
     email: `${baseEmail}-${timestamp}@test.example`,
+    date_of_birth: ADULT_DATE_OF_BIRTH,
     preferred_language: 'de',
     // SEPA data (valid by default)
     iban: 'DE89370400440532013000',
@@ -80,6 +105,7 @@ export const createSepaInvalidMember = (
     first_name: `${firstName}_${timestamp}`,
     last_name: lastName,
     email: `invalid-${timestamp}@test.example`,
+    date_of_birth: ADULT_DATE_OF_BIRTH,
     preferred_language: 'de',
     // Conditionally include SEPA fields
     iban: missingField === 'iban' || missingField === 'both' ? '' : 'DE89370400440532013000',

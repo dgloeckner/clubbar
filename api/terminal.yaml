@@ -746,8 +746,26 @@ components:
       type: object
       description: |
         Member record (cached locally on terminal).
-        Contains only non-sensitive data: UUID, card_uid, first/last name, registration date, and preferred language.
-        Bank details, contact info, and other sensitive data stored backend-only (admin UI only).
+
+        **Amended by [ADR-0045](../../adr/0045-age-restricted-products.md).** This
+        description used to say the payload "contains only non-sensitive data".
+        That stopped being true when `date_of_birth` joined it: enforcing
+        JuSchG § 9 at an offline kiosk means the kiosk holds a real birth date.
+        The ADR takes that trade deliberately rather than leaving it to rot here.
+
+        What the terminal gets: UUID, card_uid, first/last name, date of birth,
+        registration date, preferred language, and the two booleans that decide
+        whether the member may transact.
+
+        What it still does not get, and what keeps the widening bounded: no
+        email, no phone, no address, no IBAN, no mandate, no Deckel. Banking and
+        contact data remain backend-only.
+
+        The birth date is **never displayed** — the refusal names the age the
+        product requires, never the member's (ADR-0045 rule 6), because the
+        screen is read by whoever is standing at the bar. And erasure takes it
+        back off every kiosk through this same delta sync: an anonymized row
+        arrives with the field nulled, on the ordinary cursor.
       properties:
         id:
           type: string
@@ -770,6 +788,29 @@ components:
           nullable: true
           maxLength: 100
           description: Member's last name (null if anonymized)
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+          description: |
+            The member's date of birth, for the Jugendschutz check
+            ([ADR-0045](../../adr/0045-age-restricted-products.md)).
+
+            The **raw date**, deliberately, and never an age in years: age
+            changes on a day the server cannot predict a sync for, so a
+            precomputed number is silently wrong from the member's next
+            birthday until the terminal next reaches the server. The terminal
+            computes the age itself, at checkout, from its own clock — which is
+            what makes the check correct on any day, arbitrarily long offline.
+
+            `null` means the member has been **anonymized**, never "unknown":
+            the field is required when a member is created, so there is no
+            third state and no fail-open branch. A member with no birth date is
+            also inactive, and is refused at card scan before any cart exists.
+
+            Never render this value, and never derive a rendered age from it
+            (rule 6).
+          example: '1985-06-15'
         preferred_language:
           type: string
           pattern: '^[a-z]{2}(-[A-Z]{2})?$'
@@ -815,6 +856,7 @@ components:
         - card_uid
         - first_name
         - last_name
+        - date_of_birth
         - preferred_language
         - is_active
         - is_sepa_valid
@@ -825,6 +867,7 @@ components:
         card_uid: '04:d2:3e:5a:10:80:80'
         first_name: Max
         last_name: Mustermann
+        date_of_birth: '1985-06-15'
         preferred_language: de
         is_active: true
         is_sepa_valid: true
@@ -976,6 +1019,27 @@ components:
             If true, purchasing this product triggers the physical dispenser hardware.
             Terminal must confirm dispenser readiness before allowing checkout.
           default: false
+        min_age:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 99
+          description: |
+            The minimum age a member must have reached to buy this product
+            ([ADR-0045](../../adr/0045-age-restricted-products.md)).
+
+            The terminal compares it against the age it computes from the
+            member's `date_of_birth`, at checkout, offline. The **cart service
+            is the authority**: a greyed-out tile is a courtesy, and every
+            refusal path must hold with the UI bypassed (rule 1).
+
+            `null` means **unrestricted**, which is most of a drinks list. A
+            free integer rather than a `{16, 18}` enum: JuSchG's two thresholds
+            are German law, and a club running this elsewhere sets its own
+            numbers.
+
+            The refusal names *this* value — never the member's age (rule 6).
+          example: 18
         deleted_at:
           type: string
           format: date-time
@@ -1021,6 +1085,7 @@ components:
         is_active: true
         icon_name: beer-pils
         requires_dispenser: false
+        min_age: 16
         deleted_at: null
         created_at: '2024-01-01T00:00:00Z'
         updated_at: '2025-01-10T10:15:30Z'
@@ -1673,7 +1738,7 @@ x-internal-notes: |
   ### Delta Sync Algorithm (Members)
   ```
   SELECT
-    id, card_uid, first_name, last_name, preferred_language,
+    id, card_uid, first_name, last_name, date_of_birth, preferred_language,
     is_active,
     EXISTS (
       SELECT 1 FROM mandates m
@@ -1700,7 +1765,7 @@ x-internal-notes: |
   ### Delta Sync Algorithm (Products)
   ```
   SELECT id, category_id, names, descriptions, price_cents, is_active,
-         icon_name, requires_dispenser, deleted_at, created_at, updated_at
+         icon_name, requires_dispenser, min_age, deleted_at, created_at, updated_at
   FROM products
   WHERE updated_at >= {since} OR (deleted_at >= {since} AND deleted_at IS NOT NULL)
   ORDER BY COALESCE(updated_at, deleted_at) ASC

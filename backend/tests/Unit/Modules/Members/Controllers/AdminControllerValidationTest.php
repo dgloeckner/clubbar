@@ -50,6 +50,10 @@ class AdminControllerValidationTest extends TestCase
             'last_name' => 'Lovelace',
             'email' => 'ada@example.org',
             'preferred_language' => 'de',
+            // Required since #582 M2 — a member cannot be created without one
+            // (ADR-0045). Every create fixture here carries it so the tests
+            // below keep testing the field they are named for.
+            'date_of_birth' => '1990-05-04',
         ];
     }
 
@@ -270,6 +274,7 @@ class AdminControllerValidationTest extends TestCase
                 $this->identicalTo(null),
                 $this->identicalTo(null),
                 $this->identicalTo(null),
+                '1990-05-04',
                 'admin-1',
             )
             ->willReturn($this->member());

@@ -29,6 +29,7 @@ Admin selects member from list
 |-------|-------|
 | First name | |
 | Last name | |
+| Date of birth | Not in the future. May be corrected but not cleared — a blank one means an anonymized member ([ADR-0045](../../adr/0045-age-restricted-products.md)) |
 | Email | |
 | IBAN | Overwrite-only — see *Banking fields* below. Validation on change |
 | Mandate date | Required if IBAN set |

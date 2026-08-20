@@ -43,6 +43,7 @@ async function seedMemberWithPurchases(
       first_name: 'Preview',
       last_name: `Fixture${suffix}`,
       email: `preview-${suffix}@test.example`,
+      date_of_birth: '1985-06-15',
       preferred_language: 'de',
       ...(withMandate ? { iban: FACTORY_IBAN, mandate_signed_at: '2024-01-01' } : {}),
     },

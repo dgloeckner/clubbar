@@ -27,6 +27,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'Persistence',
         last_name: 'Test',
         email: 'persistence@example.com',
+        date_of_birth: '1985-06-15',
         phone: '+41791111111',
         preferred_language: 'en',
       },
@@ -59,6 +60,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'NoPhone',
         last_name: 'Member',
         email: 'nophone@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
         // phone is optional - not included
       },
@@ -82,6 +84,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'First',
         last_name: 'Member',
         email: 'first@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -93,6 +96,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'Second',
         last_name: 'Member',
         email: 'second@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -121,6 +125,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'ListTest',
         last_name: 'Member',
         email: 'listtest@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -148,6 +153,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'UpdateTest',
         last_name: 'Original',
         email: 'update@example.com',
+        date_of_birth: '1985-06-15',
         phone: '+41790000000',
         preferred_language: 'de',
       },
@@ -185,6 +191,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'SingleField',
         last_name: 'Test',
         email: 'singlefield@example.com',
+        date_of_birth: '1985-06-15',
         phone: '+41781234567',
         preferred_language: 'en',
       },
@@ -214,6 +221,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'ListUpdateTest',
         last_name: 'Original',
         email: 'listupdate@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -239,6 +247,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'TimestampTest',
         last_name: 'Member',
         email: 'timestamp@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -270,6 +279,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'DeleteTest',
         last_name: 'Member',
         email: 'deletetest@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -291,6 +301,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'DeleteListTest',
         last_name: 'Member',
         email: 'deletelisttest@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -319,6 +330,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'DeleteIsolation1',
         last_name: 'Keep',
         email: 'delete1@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -329,6 +341,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'DeleteIsolation2',
         last_name: 'Delete',
         email: 'delete2@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -355,6 +368,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'FilterDE',
         last_name: 'Member',
         email: 'filterde@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
       },
     });
@@ -364,6 +378,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'FilterFR',
         last_name: 'Member',
         email: 'filterfr@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'fr',
       },
     });
@@ -395,6 +410,7 @@ test.describe('Admin Members Database Persistence', () => {
           first_name: `PaginationTest${i}`,
           last_name: 'Member',
           email: `pagination${i}@example.com`,
+          date_of_birth: '1985-06-15',
           preferred_language: 'en',
         },
       });
@@ -426,6 +442,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'GDPRTest',
         last_name: 'Member',
         email: 'gdpr@example.com',
+        date_of_birth: '1985-06-15',
         phone: '+41791234567',
         preferred_language: 'en',
       },
@@ -455,6 +472,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'ExportTest',
         last_name: 'Member',
         email: 'exporttest@example.com',
+        date_of_birth: '1985-06-15',
         phone: '+41798765432',
         preferred_language: 'en',
       },
@@ -490,6 +508,7 @@ test.describe('Admin Members Database Persistence', () => {
           first_name: `Concurrent${i}`,
           last_name: 'Member',
           email: `concurrent${i}@example.com`,
+          date_of_birth: '1985-06-15',
           preferred_language: 'en',
         },
       });
@@ -514,6 +533,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'Independent1',
         last_name: 'Original',
         email: 'independent1@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -525,6 +545,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'Independent2',
         last_name: 'Original',
         email: 'independent2@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -549,6 +570,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: longString,
         last_name: 'LongTest',
         email: 'longtext@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -569,6 +591,7 @@ test.describe('Admin Members Database Persistence', () => {
         first_name: 'SpecialChar',
         last_name: 'Email',
         email: specialEmail,
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -589,6 +612,7 @@ test.describe('Admin Members Database Persistence', () => {
           first_name: 'PhoneTest',
           last_name: 'Member',
           email: `phone${Math.random()}@example.com`,
+          date_of_birth: '1985-06-15',
           phone: phone,
           preferred_language: 'en',
         },

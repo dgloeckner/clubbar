@@ -45,7 +45,7 @@ class ClubBarDatabase extends _$ClubBarDatabase {
   ClubBarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -169,6 +169,23 @@ class ClubBarDatabase extends _$ClubBarDatabase {
                 m, 'categories_cache', 'deleted_at', 'TEXT');
             await _addColumnIfNotExists(
                 m, 'products_cache', 'deleted_at', 'TEXT');
+          }
+          if (from < 11) {
+            // Jugendschutz (ADR-0045): the member's birth date and the
+            // product's minimum age — the two halves of a check the terminal
+            // has to make offline.
+            //
+            // Both nullable with no default, and that is the correct state for
+            // a row cached before this migration: nothing already in the cache
+            // is known to carry an age limit, and no member's birth date is
+            // known until the next delta sync delivers it. Until then a
+            // restricted product simply does not exist locally, and a member
+            // with no cached date is refused any product that does — refusing
+            // is the safe direction, and one sync cycle fixes it.
+            await _addColumnIfNotExists(
+                m, 'members_cache', 'date_of_birth', 'TEXT');
+            await _addColumnIfNotExists(
+                m, 'products_cache', 'min_age', 'INTEGER');
           }
         },
       );

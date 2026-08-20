@@ -85,8 +85,21 @@ class MembersService
 
         // Bank names are stored on the mandate at write time (ADR-0036) —
         // there is no plaintext IBAN left to derive them from on read.
+        //
+        // The birth date is dropped here (ADR-0045): the list is a roster an
+        // admin scrolls, and it needs names, balances and SEPA state, not a
+        // date of birth on every row. The two consumers that do need it read
+        // one member at a time — the edit form loads the member by id before it
+        // opens, and the terminal gets it through the sync — so nothing is lost
+        // by keeping it off the list. `MemberListItem` in `api/admin.yaml`
+        // agrees.
         $items = array_map(
-            fn($row) => MemberAdminDto::fromRow($row)->toArray(),
+            function ($row): array {
+                $member = MemberAdminDto::fromRow($row)->toArray();
+                unset($member['date_of_birth']);
+
+                return $member;
+            },
             $result['items'],
         );
 
@@ -136,6 +149,7 @@ class MembersService
         ?string $accountHolderName = null,
         ?string $mandateReference = null,
         ?string $mandateSignedAt = null,
+        ?string $dateOfBirth = null,
         ?string $adminUserId = null,
     ): MemberAdminDto {
         $memberData = [
@@ -143,6 +157,7 @@ class MembersService
             'last_name' => $lastName,
             'email' => $email,
             'phone' => $phone,
+            'date_of_birth' => $dateOfBirth,
             'card_uid' => $cardUid,
             'preferred_language' => $language->value,
             'is_active' => true,
@@ -209,6 +224,12 @@ class MembersService
         // way (#120).
         $updatable = [
             'first_name', 'last_name', 'email', 'phone', 'card_uid',
+            // A birth date may be *corrected* — the value on file is what the
+            // terminal's Jugendschutz check trusts, so a typo has to be fixable
+            // (ADR-0045). It cannot be *cleared*: the controller rejects a blank
+            // one, because a NULL birth date means an anonymized member and
+            // nothing else.
+            'date_of_birth',
             'preferred_language', 'is_active', 'iban', 'account_holder_name',
             'mandate_reference', 'mandate_signed_at',
         ];

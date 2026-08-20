@@ -19,6 +19,7 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
+use App\Shared\Utils\Age;
 use App\Shared\Utils\DateFormatter;
 
 class TransactionsService
@@ -43,12 +44,13 @@ class TransactionsService
         $acceptedIds = [];
         $errors = [];
         $affectedMemberIds = [];
-        // Current price per product id, looked up at most once per batch. A
-        // 100-row batch is frequently 100 rows for a handful of products. Local
-        // rather than a property: this service is memoised as a singleton, and a
-        // cache that outlived the batch would compare later sales against a
-        // price that has since changed.
-        $productPrices = [];
+        // The product row per id, looked up at most once per batch. A 100-row
+        // batch is frequently 100 rows for a handful of products, and two flags
+        // now read from it — the price and the Jugendschutz age. Local rather
+        // than a property: this service is memoised as a singleton, and a cache
+        // that outlived the batch would judge later sales against a price, or a
+        // legal age, that has since changed.
+        $products = [];
 
         foreach ($requestedMemberIds as $memberId) {
             // Unknown ids are skipped, not reported as 0. A phantom zero would
@@ -125,7 +127,8 @@ class TransactionsService
             // the batch permanently — the retry finds the booking already
             // stored, gets null back, and skips straight past this.
             if ($stored !== null) {
-                $this->flagPriceDivergence($tx, $productPrices);
+                $this->flagPriceDivergence($tx, $products);
+                $this->flagJugendschutzViolation($tx, $member, $products);
             }
 
             $acceptedIds[] = $tx['id'];
@@ -446,20 +449,142 @@ class TransactionsService
     }
 
     /**
-     * @param array<string, int|null> $cache
-     * @return int|null The product's current price, or null when no live
+     * @param array<string, array<string, mixed>|null> $cache
+     * @return array<string, mixed>|null The live product, or null when no live
      *         product carries that id — `findById` already excludes tombstones.
      */
-    private function currentPriceCents(string $productId, array &$cache): ?int
+    private function product(string $productId, array &$cache): ?array
     {
         // array_key_exists, not isset: a cached "no such product" is null, and
         // isset would re-query it for every remaining row of the batch.
         if (!array_key_exists($productId, $cache)) {
-            $product = $this->productsRepository->findById($productId);
-            $cache[$productId] = $product === null ? null : (int) $product['price_cents'];
+            $cache[$productId] = $this->productsRepository->findById($productId);
         }
 
         return $cache[$productId];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>|null> $cache
+     */
+    private function currentPriceCents(string $productId, array &$cache): ?int
+    {
+        $product = $this->product($productId, $cache);
+
+        return $product === null ? null : (int) $product['price_cents'];
+    }
+
+    /**
+     * Record a stored sale the terminal should have refused on legal grounds
+     * (ADR-0045 §3, JuSchG § 9).
+     *
+     * Runs after the insert and only for a row this call actually inserted, for
+     * the same reasons `flagPriceDivergence` does: a replayed batch must not
+     * write the record twice, and a row the database refused must not be named
+     * in an append-only table it does not appear in.
+     *
+     * **The age is recomputed at the transaction's own timestamp**, never at
+     * ingest (rule 2). A terminal may sync a fortnight after the sale, and the
+     * question is whether the drink was lawful when it was handed over — not
+     * whether the member has since had a birthday. Judging it at ingest would
+     * make a late-syncing till quietly launder the incident.
+     *
+     * Three cases return without recording, and each is a decision rather than
+     * an oversight:
+     *
+     * - **No live product.** Deleted since the sale, so there is no `min_age`
+     *   left to have breached. The price flag treats a tombstoned product the
+     *   same way.
+     * - **`min_age` is NULL.** The drink carries no legal age. A minor buying
+     *   an Apfelschorle is not an incident; blocking terminal *access* on age is
+     *   an explicit non-goal.
+     * - **The age cannot be established** — an absent or unreadable birth date,
+     *   which in practice means an anonymized member. Nothing is asserted,
+     *   because a violation invented out of missing data is a legal finding the
+     *   server cannot support. This is not the terminal's rule 3 inverted: there
+     *   the absence of a date means *refuse*, and refusing is a safe default
+     *   because nothing has happened yet. Here the sale is already a fact, and
+     *   the only question is what can honestly be recorded about it.
+     *
+     * @param array<string, mixed> $member
+     * @param array<string, array<string, mixed>|null> $products
+     */
+    private function flagJugendschutzViolation(array $tx, array $member, array &$products): void
+    {
+        $productId = $tx['product_id'] ?? null;
+        if (!is_string($productId) || $productId === '') {
+            return;
+        }
+
+        $product = $this->product($productId, $products);
+        if ($product === null || ($product['min_age'] ?? null) === null) {
+            return;
+        }
+
+        $minAge = (int) $product['min_age'];
+
+        $occurredAt = $tx['created_at'] ?? null;
+        if (!is_string($occurredAt) || $occurredAt === '') {
+            return;
+        }
+
+        try {
+            $soldAt = new \DateTimeImmutable($occurredAt);
+        } catch (\Exception) {
+            // Unparseable: the database refuses the row and #82 reports it as
+            // unstorable, so this is unreachable for a stored sale. Guarded
+            // anyway rather than letting an exception escape a flag.
+            return;
+        }
+
+        $ageAtSale = Age::yearsAt($member['date_of_birth'] ?? null, $soldAt);
+        if ($ageAtSale === null) {
+            $this->logger->warning('Age-restricted product sold to a member whose age cannot be established', [
+                'transaction_id' => $tx['id'] ?? null,
+                'member_id' => $tx['member_id'] ?? null,
+                'product_id' => $productId,
+                'min_age' => $minAge,
+            ]);
+
+            return;
+        }
+
+        if ($ageAtSale >= $minAge) {
+            return;
+        }
+
+        $this->logger->warning('Age-restricted product sold to an underage member', [
+            'transaction_id' => $tx['id'] ?? null,
+            'member_id' => $tx['member_id'] ?? null,
+            'product_id' => $productId,
+            'terminal_id' => $tx['created_by_terminal_id'] ?? null,
+            'min_age' => $minAge,
+            'age_at_sale' => $ageAtSale,
+        ]);
+
+        // No actor: a terminal synced this, no admin acted. The payload carries
+        // ids and two numbers — never the member's name and never their birth
+        // date. It is filed under the *transaction*, so the anonymization
+        // scrub, which keys on the member's own entity_id, cannot reach inside
+        // it (ADR-0013 principle 8); recording the date of birth here would
+        // leave it behind after an erasure that is supposed to remove it.
+        //
+        // `min_age` is stored as it stood at the sale rather than looked up
+        // later, which is what makes the record survive the drink being
+        // un-restricted afterwards (invariant 4).
+        $this->auditService->log(
+            action: AuditAction::JUGENDSCHUTZ_VIOLATION,
+            entityType: EntityType::TRANSACTION,
+            entityId: $tx['id'],
+            newValues: [
+                'member_id' => $tx['member_id'] ?? null,
+                'product_id' => $productId,
+                'terminal_id' => $tx['created_by_terminal_id'] ?? null,
+                'min_age' => $minAge,
+                'age_at_sale' => $ageAtSale,
+                'occurred_at' => $occurredAt,
+            ],
+        );
     }
 
     private function hasActiveMandate(array $member): bool

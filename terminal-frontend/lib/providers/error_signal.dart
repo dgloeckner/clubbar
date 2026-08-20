@@ -25,16 +25,21 @@ mixin ErrorSignal on ChangeNotifier {
   ///
   /// [cause] is the raw exception. It goes to the log and nowhere else — the
   /// member sees only the localized copy for [key].
+  ///
+  /// [requiredAge] is carried only by [TerminalErrorKey.ageRestricted], whose
+  /// copy has to name the age the product demands (ADR-0045 rule 6).
   @protected
   void emitError(
     TerminalErrorKey key, {
     Object? cause,
     StackTrace? stackTrace,
+    int? requiredAge,
   }) {
     _lastError = TerminalError(
       key: key,
       sequence: ++_errorSequence,
       httpStatusCode: httpStatusCodeOf(cause),
+      requiredAge: requiredAge,
     );
     logTerminalError(key, cause, stackTrace);
   }

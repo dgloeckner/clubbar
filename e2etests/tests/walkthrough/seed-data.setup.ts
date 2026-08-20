@@ -29,6 +29,7 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
         first_name: m.first,
         last_name: m.last,
         email: `${m.email}@sportverein-demo.de`,
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
         iban: 'DE89370400440532013000',
         mandate_signed_at: '2025-06-15',
@@ -50,6 +51,7 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
       first_name: 'Klaus',
       last_name: 'Bauer',
       email: 'klaus.bauer@sportverein-demo.de',
+      date_of_birth: '1985-06-15',
       preferred_language: 'de',
       iban: 'DE27100777770209299700',
       mandate_signed_at: '2025-03-10',
@@ -72,6 +74,7 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
       first_name: 'Lisa',
       last_name: 'Hoffmann',
       email: 'lisa.hoffmann@sportverein-demo.de',
+      date_of_birth: '1985-06-15',
       preferred_language: 'de',
     },
   });

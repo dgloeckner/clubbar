@@ -28,6 +28,7 @@ async function createMember(authenticatedRequest: APIRequestContext) {
       first_name: `TypeFilter${uniqueId}`,
       last_name: `Member${uniqueId}`,
       email: `typefilter${uniqueId}@example.com`,
+      date_of_birth: '1985-06-15',
       iban: 'DE89370400440532013000',
       mandate_signed_at: new Date().toISOString().slice(0, 10),
       preferred_language: 'de',

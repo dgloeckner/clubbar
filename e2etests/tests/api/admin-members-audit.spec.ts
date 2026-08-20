@@ -26,6 +26,7 @@ test.describe('Admin Members Audit Logging', () => {
         first_name: 'Audit',
         last_name: 'Test',
         email: 'audit@test.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -62,6 +63,7 @@ test.describe('Admin Members Audit Logging', () => {
         first_name: 'Update',
         last_name: 'Test',
         email: 'update@test.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -99,6 +101,7 @@ test.describe('Admin Members Audit Logging', () => {
         first_name: 'IBAN',
         last_name: 'Test',
         email: 'iban@test.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -127,6 +130,7 @@ test.describe('Admin Members Audit Logging', () => {
         first_name: 'Delete',
         last_name: 'Test',
         email: 'delete@test.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -160,6 +164,7 @@ test.describe('Admin Members Audit Logging', () => {
         first_name: 'Anon',
         last_name: 'User',
         email: 'anon@test.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -206,6 +211,7 @@ test.describe('Admin Members Audit Logging', () => {
         first_name: 'Filter',
         last_name: 'Test',
         email: 'filter@test.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -256,6 +262,7 @@ test.describe('Admin Members Audit Logging', () => {
         first_name: 'AdminInfo',
         last_name: 'Test',
         email: 'admininfo@test.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -283,6 +290,7 @@ test.describe('Admin Members Audit Logging', () => {
         first_name: 'IP',
         last_name: 'Test',
         email: 'ip@test.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });

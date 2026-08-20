@@ -9,6 +9,15 @@ class ProductsCache extends Table {
   IntColumn get priceCents => integer()();
   IntColumn get isActive => integer().withDefault(Constant(1))();
   IntColumn get requiresDispenser => integer().withDefault(Constant(0))(); // 1=requires dispenser, 0=normal product
+  /// Minimum legal age to buy this product, or null for unrestricted
+  /// (ADR-0045). Compared against the age computed from the member's own
+  /// `date_of_birth` at checkout, offline.
+  ///
+  /// Null is the ordinary state of most of a drinks list. A free integer
+  /// rather than a `{16, 18}` enum: JuSchG's two thresholds are German law,
+  /// and a club running this elsewhere sets its own numbers.
+  IntColumn get minAge => integer().nullable()();
+
   TextColumn get iconName => text().nullable()(); // Canonical kebab-case icon name (e.g., "beer-pils")
   TextColumn get updatedAt => text()();
 

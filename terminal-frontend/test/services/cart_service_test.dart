@@ -56,7 +56,8 @@ void main() {
           .thenAnswer((_) async => 0);
     });
 
-    MembersCacheData memberWith({int isActive = 1}) => MembersCacheData(
+    MembersCacheData memberWith({int isActive = 1, String? dateOfBirth = '1985-06-15'}) =>
+        MembersCacheData(
           id: 'member-1',
           cardUid: 'card-123',
           firstName: 'John',
@@ -66,7 +67,30 @@ void main() {
           isSepaValid: 1,
           balanceCents: 0,
           updatedAt: DateTime.now().toIso8601String(),
+          dateOfBirth: dateOfBirth,
         );
+
+    /// A birth date that makes the member exactly [years] old today, shifted by
+    /// [dayOffset]. Anchored on the clock rather than written out, so a
+    /// boundary case still means what it says next year.
+    String bornForAge(int years, {int dayOffset = 0}) {
+      final now = DateTime.now();
+      final d = DateTime(now.year - years, now.month, now.day + dayOffset);
+      return '${d.year.toString().padLeft(4, '0')}-'
+          '${d.month.toString().padLeft(2, '0')}-'
+          '${d.day.toString().padLeft(2, '0')}';
+    }
+
+    List<CartItem> cartOf({int? minAge, int cents = 350}) => [
+          CartItem(
+            productId: 'prod-1',
+            productName: 'Drink',
+            quantity: 1,
+            priceCents: cents,
+            language: 'de',
+            minAge: minAge,
+          ),
+        ];
 
     List<CartItem> cartWorth(int cents) => [
           CartItem(
@@ -276,6 +300,185 @@ void main() {
 
       expect(valid, isFalse);
       expect(error, equals(TerminalErrorKey.cartEmpty));
+    });
+
+    /// The gate itself (epic #582 M6, ADR-0045, UC-T12 E7).
+    ///
+    /// `validateCartBeforeCheckout` is **the authority**. The product grid
+    /// greys restricted tiles out, but that is a courtesy: every case below is
+    /// written as if the UI had been bypassed entirely, because the cart can
+    /// also be carried across a sync that restricts a product mid-session.
+    group('Jugendschutz (ADR-0045, UC-T12 E7)', () {
+      test('refuses a drink the member is too young for', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: bornForAge(17)),
+          cartOf(minAge: 18),
+        );
+
+        expect(valid, isFalse);
+        expect(error, equals(TerminalErrorKey.ageRestricted));
+      });
+
+      /// The boundary. A member is of age *on* their birthday, and this is the
+      /// case an off-by-one gets wrong in the direction a member notices.
+      test('allows it on the birthday itself', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: bornForAge(18)),
+          cartOf(minAge: 18),
+        );
+
+        expect(valid, isTrue);
+        expect(error, isNull);
+      });
+
+      test('refuses it the day before the birthday', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: bornForAge(18, dayOffset: 1)),
+          cartOf(minAge: 18),
+        );
+
+        expect(valid, isFalse);
+        expect(error, equals(TerminalErrorKey.ageRestricted));
+      });
+
+      test('allows a comfortably older member', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: '1985-06-15'),
+          cartOf(minAge: 18),
+        );
+
+        expect(valid, isTrue);
+        expect(error, isNull);
+      });
+
+      test('lets anyone buy an unrestricted drink', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: bornForAge(12)),
+          cartOf(minAge: null),
+        );
+
+        expect(valid, isTrue, reason: 'a minor may still buy an Apfelschorle');
+        expect(error, isNull);
+      });
+
+      test('decides the two JuSchG thresholds independently', () async {
+        final seventeen = memberWith(dateOfBirth: bornForAge(17));
+
+        final (beerOk, beerError) =
+            await service.validateCartBeforeCheckout(seventeen, cartOf(minAge: 16));
+        expect(beerOk, isTrue);
+        expect(beerError, isNull);
+
+        final (spiritOk, spiritError) =
+            await service.validateCartBeforeCheckout(seventeen, cartOf(minAge: 18));
+        expect(spiritOk, isFalse);
+        expect(spiritError, equals(TerminalErrorKey.ageRestricted));
+      });
+
+      /// Rule 3: a null birth date is an **anonymized** member, never "unknown,
+      /// allow anyway". There is no fail-open branch to reach.
+      test('refuses when the member has no birth date at all', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: null),
+          cartOf(minAge: 16),
+        );
+
+        expect(valid, isFalse);
+        expect(error, equals(TerminalErrorKey.ageRestricted));
+      });
+
+      test('a cached birth date that will not parse refuses too', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: 'not a date'),
+          cartOf(minAge: 16),
+        );
+
+        expect(valid, isFalse, reason: 'unreadable is not permission');
+        expect(error, equals(TerminalErrorKey.ageRestricted));
+      });
+
+      test('one restricted line refuses the whole cart', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: bornForAge(17)),
+          [
+            CartItem(
+              productId: 'schorle',
+              productName: 'Schorle',
+              quantity: 2,
+              priceCents: 220,
+              language: 'de',
+            ),
+            CartItem(
+              productId: 'korn',
+              productName: 'Korn',
+              quantity: 1,
+              priceCents: 250,
+              language: 'de',
+              minAge: 18,
+            ),
+          ],
+        );
+
+        expect(valid, isFalse);
+        expect(error, equals(TerminalErrorKey.ageRestricted));
+      });
+
+      /// Ordering matters, and it is a design decision rather than an accident:
+      /// a refusal on legal grounds must not be reported as a money problem.
+      /// The member who is both over their limit and too young is told the
+      /// thing that will not change by paying something off.
+      test('reports the age, not the money, when both would block', () async {
+        when(() => mockRepo.getEffectiveBalance(any()))
+            .thenAnswer((_) async => 9900);
+
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: bornForAge(15)),
+          cartOf(minAge: 18, cents: 900),
+        );
+
+        expect(valid, isFalse);
+        expect(error, equals(TerminalErrorKey.ageRestricted));
+      });
+
+      /// ...but an empty cart is still an empty cart. The age check sits after
+      /// that one, so "you have not chosen anything" never gets dressed up as a
+      /// legal refusal.
+      test('an empty cart is still reported as empty', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: bornForAge(15)),
+          [],
+        );
+
+        expect(valid, isFalse);
+        expect(error, equals(TerminalErrorKey.cartEmpty));
+      });
+
+      test('names the highest age the cart demands', () async {
+        final required = service.requiredAgeBlocking(
+          memberWith(dateOfBirth: bornForAge(15)),
+          [
+            CartItem(
+              productId: 'beer',
+              productName: 'Pils',
+              quantity: 1,
+              priceCents: 350,
+              language: 'de',
+              minAge: 16,
+            ),
+            CartItem(
+              productId: 'korn',
+              productName: 'Korn',
+              quantity: 1,
+              priceCents: 250,
+              language: 'de',
+              minAge: 18,
+            ),
+          ],
+        );
+
+        expect(required, 18,
+            reason: 'the refusal should name the strictest limit in the cart');
+      });
     });
 
     group('credit limit (UC-T11 E3, UC-T12)', () {

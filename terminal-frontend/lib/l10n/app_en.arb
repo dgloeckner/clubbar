@@ -194,6 +194,30 @@
   "errorProductsRefreshFailed": "The product list could not be updated — please try again in a moment",
   "errorCheckoutFailed": "Something went wrong — you have not been charged. Please try again.",
   "errorBalanceLimitExceeded": "Your limit is reached — please remove items or see the bar staff.",
+  "productAgeRestrictedNote": "From age {age}",
+  "@productAgeRestrictedNote": {
+    "description": "Greyed-out product tile note (ADR-0045). Names the age the PRODUCT requires, never the member's own.",
+    "placeholders": {
+      "age": {
+        "type": "int",
+        "example": "18"
+      }
+    }
+  },
+  "errorAgeRestricted": "This drink is only available from age {age} — please choose something else.",
+  "@errorAgeRestricted": {
+    "description": "TerminalErrorKey.ageRestricted — the cart holds a product the member is too young for (ADR-0045). Names the age the PRODUCT requires; never the member's own age or birth date, because the terminal screen is read by whoever is at the bar.",
+    "placeholders": {
+      "age": {
+        "type": "int",
+        "example": "18"
+      }
+    }
+  },
+  "errorAgeRestrictedUnknown": "This drink is not available to you — please choose something else.",
+  "@errorAgeRestrictedUnknown": {
+    "description": "TerminalErrorKey.ageRestricted without a known age — an unreachable fallback that avoids printing a placeholder number."
+  },
   "errorCheckoutCancelled": "Checkout cancelled — your cart is unchanged.",
   "errorTransactionCreateFailed": "Your purchase could not be saved — you have not been charged. Please try again.",
   "errorDispenserNotConfigured": "The token dispenser is not set up — please see the bar staff.",

@@ -23,6 +23,7 @@
 
 import { Page, expect } from '@playwright/test'
 import { BasePage } from './BasePage'
+import { ADULT_DATE_OF_BIRTH } from '../utils/transactions'
 
 export class MembersPage extends BasePage {
   // Stats cards
@@ -56,6 +57,7 @@ export class MembersPage extends BasePage {
   private readonly ibanInput = () => this.page.getByTestId('members-form-iban-input')
   private readonly accountHolderNameInput = () => this.page.getByTestId('members-form-account-holder-name-input')
   private readonly mandateReferenceInput = () => this.page.getByTestId('members-form-mandate-reference-input')
+  private readonly dateOfBirthInput = () => this.page.getByTestId('members-form-dob-input')
   private readonly mandateDateInput = () => this.page.getByTestId('members-form-mandate-date-input')
   private readonly languageSelect = () => this.page.getByTestId('members-form-language-select')
   private readonly formSubmitBtn = () => this.page.getByTestId('members-form-submit-button')
@@ -257,6 +259,13 @@ export class MembersPage extends BasePage {
    * `iban` and `mandateDate` accept an empty string, for the member who has not
    * brought their bank details yet — the list calls that state "SEPA: Missing"
    * and the form accepts it (#131).
+   *
+   * The date of birth is mandatory (ADR-0045), so it is filled by default
+   * rather than passed by every caller. An edit form arrives with the stored
+   * value already in the input; overwriting it there would silently change data
+   * the test never mentioned, so it is only written when the field is empty or
+   * when the caller asked for a specific date — which is what a Jugendschutz
+   * test does to make a member young.
    */
   async fillMemberForm(
     firstName: string,
@@ -264,7 +273,8 @@ export class MembersPage extends BasePage {
     iban: string,
     mandateDate: string,
     email?: string,
-    language?: string
+    language?: string,
+    dateOfBirth?: string
   ) {
     await this.firstNameInput().fill(firstName)
     await this.lastNameInput().fill(lastName)
@@ -274,6 +284,9 @@ export class MembersPage extends BasePage {
     if (iban) {
       await this.revealIbanInput()
       await this.ibanInput().fill(iban.toUpperCase())
+    }
+    if (dateOfBirth || !(await this.dateOfBirthInput().inputValue())) {
+      await this.dateOfBirthInput().fill(dateOfBirth ?? ADULT_DATE_OF_BIRTH)
     }
     if (mandateDate) {
       await this.mandateDateInput().fill(mandateDate)
@@ -314,11 +327,16 @@ export class MembersPage extends BasePage {
     await this.formCancelBtn().click()
   }
 
-  async createMember(firstName: string, lastName: string, iban: string, mandateDate: string, email?: string, language?: string) {
+  async createMember(firstName: string, lastName: string, iban: string, mandateDate: string, email?: string, language?: string, dateOfBirth?: string) {
     await this.openCreateModal()
     await this.expectFormModalVisible()
-    await this.fillMemberForm(firstName, lastName, iban, mandateDate, email, language)
+    await this.fillMemberForm(firstName, lastName, iban, mandateDate, email, language, dateOfBirth)
     await this.submitForm()
+  }
+
+  /** What the form currently shows as the member's date of birth. */
+  async getDateOfBirthValue(): Promise<string> {
+    return (await this.dateOfBirthInput().inputValue()) || ''
   }
 
   /**

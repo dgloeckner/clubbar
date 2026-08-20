@@ -89,6 +89,11 @@ class MembersRepository {
             cardUid: Value(cardUid),
             firstName: Value(dto.firstName),
             lastName: Value(dto.lastName),
+            // Stored as the bare day. The generated client models the field as
+            // a DateTime because the spec says `format: date`; keeping only
+            // `YYYY-MM-DD` in the cache means no timezone can move a birthday
+            // across a day boundary on the device.
+            dateOfBirth: Value(_dayOrNull(dto.dateOfBirth)),
             preferredLanguage: Value(dto.preferredLanguage),
             isActive: Value(dto.isActive ? 1 : 0),
             isSepaValid: Value(dto.isSepaValid ? 1 : 0),
@@ -98,6 +103,19 @@ class MembersRepository {
         );
       }
     });
+  }
+
+  /// `YYYY-MM-DD` for [value], or null when there is none.
+  ///
+  /// Null is preserved rather than defaulted: it means an anonymized member
+  /// (ADR-0045 rule 3), which the checkout refuses — inventing a date here
+  /// would turn an erased member into a buyer.
+  static String? _dayOrNull(DateTime? value) {
+    if (value == null) return null;
+
+    return '${value.year.toString().padLeft(4, '0')}-'
+        '${value.month.toString().padLeft(2, '0')}-'
+        '${value.day.toString().padLeft(2, '0')}';
   }
 
   /// Take [cardUid] away from whoever else holds it locally, so [keepMemberId]

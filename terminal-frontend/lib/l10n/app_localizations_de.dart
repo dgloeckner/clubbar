@@ -560,6 +560,20 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dein Limit ist erreicht – bitte Artikel entfernen oder beim Bar-Team melden.';
 
   @override
+  String productAgeRestrictedNote(int age) {
+    return 'Erst ab $age Jahren';
+  }
+
+  @override
+  String errorAgeRestricted(int age) {
+    return 'Dieses Getränk gibt es erst ab $age Jahren – bitte wähle etwas anderes.';
+  }
+
+  @override
+  String get errorAgeRestrictedUnknown =>
+      'Dieses Getränk ist für dich nicht freigegeben – bitte wähle etwas anderes.';
+
+  @override
   String get errorCheckoutCancelled =>
       'Bezahlung abgebrochen – dein Warenkorb bleibt unverändert.';
 

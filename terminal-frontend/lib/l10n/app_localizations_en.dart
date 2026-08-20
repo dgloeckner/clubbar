@@ -559,6 +559,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your limit is reached — please remove items or see the bar staff.';
 
   @override
+  String productAgeRestrictedNote(int age) {
+    return 'From age $age';
+  }
+
+  @override
+  String errorAgeRestricted(int age) {
+    return 'This drink is only available from age $age — please choose something else.';
+  }
+
+  @override
+  String get errorAgeRestrictedUnknown =>
+      'This drink is not available to you — please choose something else.';
+
+  @override
   String get errorCheckoutCancelled =>
       'Checkout cancelled — your cart is unchanged.';
 
