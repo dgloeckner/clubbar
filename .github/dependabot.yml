@@ -9,6 +9,12 @@
 #     belong in one group — react/react-dom with their @types, eslint with its
 #     plugins and the typescript-eslint pair, vite with vitest. Bumping half a
 #     toolchain is how a green PR turns red on merge.
+#   * Packages that *cannot* move apart belong in one group even when they are
+#     conceptually unrelated. A peer range that excludes the next major of
+#     another direct dependency — @testing-library/react 14's `react: ^18.0.0`
+#     against react 19 — makes a lone bump an unresolvable lockfile rather than
+#     a failing test (#594). `npm run check:dependabot-groups` in /e2etests
+#     fails the build when this file and the manifests disagree about that.
 #   * Everything a group does not claim falls into a catch-all that takes only
 #     minor and patch. A major of an unclaimed package therefore arrives as its
 #     own pull request, which is what a breaking change needs: react-router
@@ -48,14 +54,34 @@ updates:
       timezone: "Europe/Berlin"
     open-pull-requests-limit: 10
     groups:
-      # The runtime and its types are one unit: @types/react 19 against react 18
-      # does not type-check.
+      # The runtime, its types, and every direct dependency whose peer range
+      # pins it to react's *current* major.
+      #
+      # @types/react 19 against react 18 does not type-check, so the types have
+      # always been here. @testing-library/react joined them the hard way:
+      # version 14 declares `"react": "^18.0.0"`, so the react 19 pull request
+      # (#594) shipped a lockfile that `npm ci` refuses outright —
+      #
+      #     npm error ERESOLVE could not resolve
+      #     npm error Found: react@19.2.8
+      #     npm error Could not resolve dependency:
+      #     npm error peer react@"^18.0.0" from @testing-library/react@14.3.1
+      #
+      # — and a pull request that cannot install is one no reviewer can rescue:
+      # nothing runs, nothing is red for a reason you can read, and the only
+      # fix is a second bump Dependabot was never asked to make.
+      #
+      # Hence the rule, which `npm run check:dependabot-groups` in /e2etests
+      # enforces on every build: **if a direct dependency's peer range excludes
+      # the next major of another direct dependency, the two belong in one
+      # group.** They can only move together, so they must be offered together.
       react:
         patterns:
           - "react"
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+          - "@testing-library/*"
 
       # Kept out of the `react` group on purpose. Router majors are breaking on
       # their own schedule and get their own pull request; the two packages are
@@ -72,8 +98,10 @@ updates:
           - "react-i18next"
 
       # Vitest's supported vite range moves with its own major, so they ship
-      # together. jsdom and @testing-library are the environment those tests
-      # run in and break with them.
+      # together, and @vitest/coverage-v8 pins vitest to the exact patch. jsdom
+      # is the environment those tests run in. @testing-library is not here: it
+      # peers on react, not on vite, and that is the peer that breaks — see the
+      # react group above.
       vite:
         patterns:
           - "vite"
@@ -81,7 +109,6 @@ updates:
           - "vitest"
           - "@vitest/*"
           - "jsdom"
-          - "@testing-library/*"
 
       # Spans both directories by design — the browser build a version wants is
       # resolved from the installed @playwright/test, so a split between
@@ -133,6 +160,7 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+          - "@testing-library/*"
           - "react-router"
           - "react-router-dom"
           - "i18next"
@@ -143,7 +171,6 @@ updates:
           - "vitest"
           - "@vitest/*"
           - "jsdom"
-          - "@testing-library/*"
           - "@playwright/test"
           - "playwright"
           - "playwright-core"
