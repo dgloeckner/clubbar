@@ -30,6 +30,10 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       e2e: ${{ steps.filter.outputs.e2e }}
       terminal: ${{ steps.filter.outputs.terminal }}
+      # Manifests and the Dependabot config gate each other: a group that no
+      # longer matches a manifest's peer ranges produces pull requests that
+      # cannot install (#594), and the check that says so lives in lint-e2e.
+      deps: ${{ steps.filter.outputs.deps }}
       # "Run the lot": main and releases must build every artifact regardless
       # of paths, and a workflow edit has to be exercised end to end.
       full: ${{ steps.full.outputs.value }}
@@ -58,6 +62,12 @@ jobs:
               - 'terminal-frontend/**'
             ci:
               - '.github/workflows/**'
+            deps:
+              - '.github/dependabot.yml'
+              - 'admin-frontend/package.json'
+              - 'admin-frontend/package-lock.json'
+              - 'e2etests/package.json'
+              - 'e2etests/package-lock.json'
 
       - name: Decide whether to run everything
         id: full
@@ -257,7 +267,9 @@ jobs:
   # rather than after a green-but-hollow run.
   lint-e2e:
     needs: [changes]
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.e2e == 'true'
+    if: >-
+      needs.changes.outputs.full == 'true' || needs.changes.outputs.e2e == 'true'
+      || needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -284,6 +296,14 @@ jobs:
       # exactly that way. Cheap enough to run here, where there is no stack.
       - name: Check every Playwright project runs in CI
         run: npm run check:ci-lanes
+        working-directory: e2etests
+
+      # A Dependabot group that has drifted from the manifests produces a pull
+      # request `npm ci` refuses to install — no test runs, nothing is red for
+      # a readable reason, and review cannot fix it (react 19, #594). Runs on
+      # dependency pull requests too, via the `deps` filter above.
+      - name: Check Dependabot groups against the manifests
+        run: npm run check:dependabot-groups
         working-directory: e2etests
 
       - name: Lint E2E specs
