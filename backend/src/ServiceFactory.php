@@ -885,6 +885,10 @@ class ServiceFactory implements ContainerInterface
             self::positiveEnv('TERMINAL_ANOMALY_LOOKBACK_MINUTES', TerminalAnomalyDetector::DEFAULT_LOOKBACK_MINUTES),
             self::positiveEnv('TERMINAL_ANOMALY_MIN_OVERLAP_MINUTES', TerminalAnomalyDetector::DEFAULT_MIN_OVERLAP_MINUTES),
             self::positiveEnv('TERMINAL_IP_RETENTION_DAYS', TerminalAnomalyDetector::DEFAULT_RETENTION_DAYS),
+            self::positiveEnv(
+                'TERMINAL_ANOMALY_DUAL_STACK_MAX_REQUESTS_PER_HOUR',
+                TerminalAnomalyDetector::DEFAULT_DUAL_STACK_MAX_REQUESTS_PER_HOUR,
+            ),
         ));
     }
 

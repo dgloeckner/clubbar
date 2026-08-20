@@ -63,4 +63,10 @@ Nothing is ever blocked or revoked. Alert only.
 - A single cursor regression opens an anomaly. Thresholds do not work here: `SyncCursor::next()` catches a lagging client up on its next poll, so a fork yields one regression per stream per data-change event, not a continuous stream.
 - Sightings are bucketed at 5 minutes — one row per request would be ~7,000/terminal/day for no extra answer.
 - `X-Forwarded-For` is not trusted. Behind a proxy that hides the client address, `concurrent_ip` cannot fire; the cursor detectors carry the load.
-- IPv6 privacy extensions are a known false-positive source; /64 grouping is the fix and is deliberately deferred (ADR-0041 Consequences).
+- IPv6 privacy extensions were a known false-positive source (ADR-0041 Consequences); /64 grouping shipped in #544.
+- A dual-stack IPv4/IPv6 pair is separated from a real second device by **volume, not shape**: one terminal is one
+  60-second polling loop however many address families it speaks, while a second device adds a loop of its own
+  (`TERMINAL_ANOMALY_DUAL_STACK_MAX_REQUESTS_PER_HOUR`, default 480). Applied only when the window holds exactly one
+  address of each family — a third network is not explained by dual-stack and always alerts. Residual blind spot: a
+  v4-only till beside a v6-only intruder, together inside one client's cadence, is invisible to `concurrent_ip`; the
+  cursor detectors carry that load, as they already do behind a proxy.

@@ -53,6 +53,20 @@ class TerminalAnomalyDetector
      */
     public const DEFAULT_MIN_OVERLAP_MINUTES = 15;
 
+    /**
+     * The combined request volume, per hour, that still reads as one terminal.
+     *
+     * One terminal is one polling loop — a 60-second cycle of 3–5 calls, so
+     * 180–300 requests an hour (ADR-0041 §1) — and a loop does not get busier
+     * by changing address family. A second device does not redistribute that
+     * traffic; it adds a loop of its own and roughly doubles the total. The
+     * default sits above the busiest single client and below the quietest
+     * plausible pair, and it errs upward on purpose: this detector alerts
+     * rather than enforces, so a missed clone costs a delay while a false
+     * alarm costs the credibility of every alert after it.
+     */
+    public const DEFAULT_DUAL_STACK_MAX_REQUESTS_PER_HOUR = 480;
+
     /** How long a source IP is kept (ADR-0041 §5). */
     public const DEFAULT_RETENTION_DAYS = 30;
 
@@ -66,6 +80,7 @@ class TerminalAnomalyDetector
         private int $lookbackMinutes = self::DEFAULT_LOOKBACK_MINUTES,
         private int $minOverlapMinutes = self::DEFAULT_MIN_OVERLAP_MINUTES,
         private int $retentionDays = self::DEFAULT_RETENTION_DAYS,
+        private int $dualStackMaxRequestsPerHour = self::DEFAULT_DUAL_STACK_MAX_REQUESTS_PER_HOUR,
     ) {}
 
     /**
@@ -134,12 +149,16 @@ class TerminalAnomalyDetector
      * before the pairwise comparison runs, so the finding is about distinct
      * networks, not distinct strings.
      *
-     * This does not, and must not, collapse an IPv4 address with an IPv6
-     * address just because a legitimate dual-stack client could produce that
-     * exact pair: an attacker reachable only over IPv6 riding alongside a
-     * legitimate IPv4 session produces the identical shape. That case still
-     * alerts — {@see describeNetwork} only changes how a *rotating* address is
-     * labelled, never whether a genuine second network is reported.
+     * An IPv4 address and an IPv6 network can be one client too. A dual-stack
+     * host reaches the same server over either family and picks between them
+     * per connection (RFC 6724 / Happy Eyeballs), so on a consumer line that
+     * has both, one terminal routinely presents one of each for as long as it
+     * is switched on. By shape that pair is indistinguishable from an
+     * IPv6-only second device riding alongside a legitimate IPv4 session —
+     * which is why it used to alert — but by volume it is not:
+     * {@see isSingleDualStackClient} separates them on how much traffic the
+     * pair carries, because one terminal is one polling loop no matter how
+     * many families it speaks, while a second device brings a loop of its own.
      *
      * For a terminal with more than one network, the widest pairwise overlap
      * is the finding — reporting every pair would turn one evening of a
@@ -184,6 +203,18 @@ class TerminalAnomalyDetector
                 continue;
             }
 
+            // Only reached with a pair that would otherwise be reported, so
+            // the log line records a suppression rather than a passing thought.
+            if ($this->isSingleDualStackClient($networks)) {
+                $this->logger->debug('Concurrent addresses explained by one dual-stack client', [
+                    'terminal_id' => (string) $terminalId,
+                    'overlap_seconds' => $worst['overlap_seconds'],
+                    'ips' => array_map(fn(array $n) => self::describeNetwork($n)['ip_address'], $networks),
+                ]);
+
+                continue;
+            }
+
             $findings[] = [
                 'terminal_id' => (string) $terminalId,
                 'details' => [
@@ -198,6 +229,94 @@ class TerminalAnomalyDetector
         }
 
         return $findings;
+    }
+
+    /**
+     * Whether the networks seen for one terminal are one dual-stack client
+     * rather than two devices.
+     *
+     * Two conditions, and both have to hold.
+     *
+     * **One address of each family, and nothing else in the window.** Being
+     * dual-stack explains exactly one IPv4 address alongside one IPv6 network,
+     * never a third source — so a terminal showing two IPv4 addresses, two
+     * /64s, or any three networks is never exempted here, whatever the traffic
+     * looks like. This is what keeps the detector's reach: an intruder
+     * anywhere except "the one family the real till happens not to be using"
+     * still shows up as an unexplained network.
+     *
+     * **The traffic of one client, not two.** A terminal polls on a fixed
+     * 60-second cycle (ADR-0041 §1); switching address family redistributes
+     * those requests, it does not create more. Two devices each run that loop,
+     * so the pair's combined rate is the signal that separates one host with
+     * two addresses from two hosts with one each.
+     *
+     * The residual blind spot is stated rather than hidden: a v4-only till and
+     * a v6-only intruder, together staying inside one client's cadence, read
+     * as one dual-stack client and are not reported. That is the same trade
+     * ADR-0041 §6 already makes for a deployment behind a proxy — the cursor
+     * detectors carry that load — and it buys silence on the case that is
+     * overwhelmingly more common, where the "second device" is the same
+     * device answering on the other half of its own connection.
+     *
+     * @param list<array{ip_address: string, addresses: list<string>, first_seen_at: string, last_seen_at: string, request_count: int}> $networks
+     */
+    private function isSingleDualStackClient(array $networks): bool
+    {
+        if (count($networks) !== 2) {
+            return false;
+        }
+
+        [$a, $b] = $networks;
+        $familyA = self::family($a['ip_address']);
+        $familyB = self::family($b['ip_address']);
+
+        if ($familyA === null || $familyB === null || $familyA === $familyB) {
+            return false;
+        }
+
+        return $this->withinOneClientCadence($a, $b);
+    }
+
+    /**
+     * Whether two networks together carry no more traffic than one terminal.
+     *
+     * Measured over the span the pair was active at all — first sighting of
+     * either to last sighting of either — because that is the stretch of wall
+     * clock the terminal was running, and the question is how many polling
+     * loops were running inside it.
+     *
+     * Compared by cross-multiplication rather than by dividing into a rate:
+     * both sides are integers, and a span can be a handful of seconds when a
+     * scan catches a terminal that has just started.
+     *
+     * @param array{first_seen_at: string, last_seen_at: string, request_count: int} $a
+     * @param array{first_seen_at: string, last_seen_at: string, request_count: int} $b
+     */
+    private function withinOneClientCadence(array $a, array $b): bool
+    {
+        $from = min(strtotime($a['first_seen_at']), strtotime($b['first_seen_at']));
+        $to = max(strtotime($a['last_seen_at']), strtotime($b['last_seen_at']));
+        $span = max(1, $to - $from);
+        $requests = $a['request_count'] + $b['request_count'];
+
+        return $requests * 3600 <= $this->dualStackMaxRequestsPerHour * $span;
+    }
+
+    /**
+     * 4, 6, or null for a value that is neither — the same conservative
+     * fallback {@see networkKey} takes, so a malformed row can never be
+     * explained away as the other half of a dual-stack pair.
+     */
+    private static function family(string $ip): ?int
+    {
+        $packed = @inet_pton($ip);
+
+        if ($packed === false) {
+            return null;
+        }
+
+        return strlen($packed) === 4 ? 4 : 6;
     }
 
     /**
