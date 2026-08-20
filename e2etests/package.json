@@ -18,7 +18,7 @@
     "check:ci-lanes": "node scripts/check-ci-lanes.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0",
