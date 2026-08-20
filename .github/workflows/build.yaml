@@ -12,6 +12,27 @@ on:
 permissions:
   contents: write
 
+env:
+  # One Node for every job below. The floor is set by the admin frontend's
+  # dev dependencies rather than by taste: jsdom 30 declares
+  # `^22.22.2 || ^24.15.0 || >=26.0.0` and dies under Node 20 with
+  # `webidl.util.markAsUncloneable is not a function` — Node 20's bundled
+  # undici predates the function jsdom's CacheStorage calls (#619). orval had
+  # already moved past Node 20 too (`>=22.18.0`); nothing noticed because CI
+  # never runs the generator.
+  #
+  # Not 24, yet. Node 24 ships npm 11, which refuses both committed lockfiles:
+  #
+  #     npm error `npm ci` can only install packages when your package.json
+  #     npm error and package-lock.json ... are in sync.
+  #     npm error Missing: @rolldown/binding-darwin-x64@1.2.5 from lock file
+  #
+  # npm 11 records optional platform binaries npm 10 leaves out, so moving to
+  # 24 means regenerating both lockfiles with npm 11 — and every Dependabot
+  # pull request arrives with a lockfile written by *its* npm, which is 10.
+  # That is a change of its own, not a side effect of fixing jsdom.
+  NODE_VERSION: '22'
+
 # Superseded runs on the same branch are pointless — cancel them. main is
 # exempt because its runs deploy, and a half-finished deploy is worse than a
 # redundant one.
@@ -102,7 +123,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: admin-frontend/package-lock.json
 
@@ -277,7 +298,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: e2etests/package-lock.json
 
@@ -390,7 +411,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: admin-frontend/package-lock.json
 
@@ -457,7 +478,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: |
             admin-frontend/package-lock.json
@@ -673,7 +694,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: e2etests/package-lock.json
 
