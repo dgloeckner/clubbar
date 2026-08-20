@@ -30,7 +30,7 @@ on:
       - 'scripts/mirrored-images.txt'
       - 'scripts/mirror-images.sh'
       - '.github/workflows/mirror-images.yaml'
-  # Floating tags (mariadb:10.11, node:20-alpine) get rebuilt upstream for
+  # Floating tags (mariadb:10.11, node:22-alpine) get rebuilt upstream for
   # security fixes. Weekly keeps the mirror from drifting far behind.
   schedule:
     - cron: '17 4 * * 1'

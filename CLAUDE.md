@@ -945,6 +945,43 @@ Because of that instruction, the backend service also mounts `./scripts` at `/sc
 
 `up` is not enough on its own: `docker compose up -d` returns once containers are *created*, well before the backend answers HTTP. Readiness comes from compose healthchecks — `database` (`healthcheck.sh --connect`), `backend` (`/api/health`), `admin-frontend` (HTTP 200 on `/`). Note that `wait` does **not** use `docker compose up --wait`: that flag reports success for a container still inside its healthcheck `start_period`, which is exactly the window that matters here.
 
+### A container that installs packages needs the proxy's CA
+
+Outbound HTTPS from the *session* is intercepted by the agent proxy, which
+signs with a CA at `/root/.ccr/ca-bundle.crt`. The host trusts it; a container
+you start does not. So `npm install` inside `docker run` or a `docker build`
+hits the registry and fails — sometimes honestly:
+
+```
+npm error errno SELF_SIGNED_CERT_IN_CHAIN
+npm error request to https://registry.npmjs.org/... failed,
+npm error reason: self-signed certificate in certificate chain
+```
+
+and sometimes not, which is the part that wastes an hour. On a large install
+the same failure surfaces as npm's internal crash —
+
+```
+npm error Exit handler never called!
+npm error This is an error with npm itself.
+```
+
+— which reads like a broken lockfile or a bad base image, and reproduces on
+every Node version, so it is easy to blame whichever image you just changed.
+
+Mount the CA and pass the proxy through instead. Never disable TLS
+verification to get past it:
+
+```bash
+docker run --rm -v "$PWD":/app -w /app \
+  -v /root/.ccr/ca-bundle.crt:/ca.crt:ro -e NODE_EXTRA_CA_CERTS=/ca.crt \
+  -e HTTPS_PROXY="$HTTPS_PROXY" -e HTTP_PROXY="$HTTP_PROXY" -e NO_PROXY="$NO_PROXY" \
+  node:22-alpine npm ci
+```
+
+CI has no such proxy, so this is a sandbox-only step: nothing in the repo
+should carry it.
+
 ### Container registry and egress allowlist
 
 Image pulls and outbound HTTPS go through the environment's allowlist. **That allowlist is configured in the Claude Code cloud environment settings, not in this repo.** If a fetch fails with 403/407, it is fixed by an admin in the environment settings — do not work around it from code: no daemon mirror configuration, no registry rewriting, no insecure-registry entries, no vendored binaries.

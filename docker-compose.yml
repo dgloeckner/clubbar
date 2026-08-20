@@ -236,7 +236,7 @@ services:
   # Terminal Frontend - React + Vite (dev server for web preview)
   # =============================================================================
   terminal-frontend:
-    image: node:20-alpine
+    image: node:22-alpine
     container_name: clubbar-terminal
     working_dir: /app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"

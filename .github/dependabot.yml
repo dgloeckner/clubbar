@@ -26,7 +26,7 @@
 # tag in docker-compose.yml would silently leave the mirror pointing at a tag
 # that no longer exists, and the fallback is Docker Hub's rate limit. The tags
 # are floating minors (`mariadb:10.11`, `webdevops/php-apache:8.3`,
-# `node:20-alpine`, `httpd:2.4-alpine`) so upstream patches arrive on the next
+# `node:22-alpine`, `httpd:2.4-alpine`) so upstream patches arrive on the next
 # pull anyway. Enabling the `docker` and `docker-compose` ecosystems needs a
 # check that the mirror list still covers what the compose files reference.
 

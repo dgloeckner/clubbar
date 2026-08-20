@@ -27,8 +27,8 @@ webdevops/php-apache:8.3
 axllent/mailpit:v1.30
 
 # docker-compose.yml: terminal-frontend (profile: frontend)
-node:20-alpine
+node:22-alpine
 
-# docker/admin-frontend.Dockerfile: builder stage is node:20-alpine (above),
+# docker/admin-frontend.Dockerfile: builder stage is node:22-alpine (above),
 # serving stage is httpd
 httpd:2.4-alpine
