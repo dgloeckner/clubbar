@@ -1,27 +1,31 @@
 #!/usr/bin/env node
 /**
- * Two direct dependencies that cannot move apart must be in one Dependabot
- * group, or Dependabot writes a lockfile that will not install.
+ * Dependabot must never offer a bump whose companion bump it was not asked to
+ * make. This reads the manifests and the committed lockfiles and says so in
+ * two tenses.
  *
- * The failure this catches is not a failing test, it is a pull request with no
- * signal at all. `@testing-library/react@14` declares `"react": "^18.0.0"`;
- * react lived in the `react` group and testing-library in the `vite` group, so
- * the react 19 bump (#594) came alone and every npm job died before running a
+ * **Now.** `@testing-library/react@14` declares `"react": "^18.0.0"`; react
+ * lived in the `react` group and testing-library in the `vite` group, so the
+ * react 19 bump (#594) came alone and every npm job died before running a
  * line:
  *
  *     npm error ERESOLVE could not resolve
  *     npm error Found: react@19.2.8
  *     npm error peer react@"^18.0.0" from @testing-library/react@14.3.1
  *
- * Nothing in review fixes that. The bump testing-library needs was never
- * offered, so the branch is unmergeable until a human makes a second bump by
- * hand — which is the work Dependabot exists to do.
+ * Nothing in review fixes that: the testing-library bump that would resolve it
+ * was never on the branch. `unresolvablePeers` finds that tree in a second,
+ * off a checkout, and names the companion — where `npm ci` reports it four
+ * jobs and eight minutes later.
  *
- * The rule, then: **if A's peer range on B excludes B's next major, A and B
- * belong in the same group.** A wide peer range (`react: ">= 16.8.0"`,
- * recharts' `^16 || ^17 || ^18 || ^19` while react is 18) survives the bump on
- * its own and stays wherever it is; only a range that has run out of room
- * forces the grouping.
+ * **Next major.** A peer range that has run out of room — `^18.0.0` while
+ * react is 18 — is #594 waiting for its release date, so `splitLockedPeers`
+ * insists the pair be grouped *before* that happens. Ranges with room to spare
+ * (`react: ">= 16.8.0"`) are left where they are.
+ *
+ * That second tense is a forecast, and forecasts must be arguable: a pair can
+ * be left split by recording it in UNGROUPED_PEERS with a reason. Nothing
+ * silences the first tense, which is a fact about the tree in front of it.
  *
  * Peer ranges come from the committed lockfiles, so this needs no network and
  * no install. Run by the `lint-e2e` job in seconds, next to the CI lane check.
@@ -36,14 +40,22 @@ const REPO = resolve(HERE, '..', '..')
 const DEPENDABOT = resolve(REPO, '.github', 'dependabot.yml')
 
 /**
- * Peer edges that are locked and still deliberately left ungrouped, keyed
+ * Peer edges whose range has run out of room and that stay split anyway, keyed
  * `"<dependent> -> <dependency>"`, with the reason. An entry belongs here when
- * *not* grouping is the decision and someone has checked that the bump still
- * resolves — never to quiet this check.
+ * leaving the pair split is the decision — never to quiet a tree that is
+ * already broken, which `unresolvablePeers` reports and this cannot exempt.
  *
  * @type {Record<string, string>}
  */
-export const UNGROUPED_PEERS = {}
+export const UNGROUPED_PEERS = {
+  'i18next -> typescript':
+    'typescript is a type-support peer here, not a runtime one, and grouping is the wrong ' +
+    'instrument: the typescript group is two tooling packages, and pulling the i18n runtime ' +
+    'into it would put i18next releases in every weekly compiler bump. typescript 8 does not ' +
+    'exist yet; when it does, whichever lands first — a wider i18next range or the compiler — ' +
+    'unresolvablePeers reports the pair by name before npm ci does.',
+  'react-i18next -> typescript': 'Same peer, same package family — see i18next -> typescript.',
+}
 
 // --- a very small YAML reader -----------------------------------------------
 //
@@ -202,6 +214,118 @@ export function directDependencies(manifest, lockfile) {
   })
 }
 
+/** Every version the lockfile installs, keyed by its path in node_modules. */
+export function installedVersions(lockfile) {
+  return Object.fromEntries(
+    Object.entries(lockfile.packages ?? {})
+      .filter(([path, entry]) => path.startsWith('node_modules/') && entry.version)
+      .map(([path, entry]) => [path, entry.version]),
+  )
+}
+
+// --- semver, only as far as a peer range goes --------------------------------
+//
+// Peer ranges in the wild are unions of carets, tildes and bounds — `^18.0.0`,
+// `>= 16.8.0`, `^5 || ^6 || ^7`, `4.1.11`, `*`. That is the whole grammar this
+// needs, and it is smaller than the dependency it would otherwise cost.
+
+function parseVersion(text) {
+  const parts = String(text).split('-')[0].split('.')
+
+  return [0, 1, 2].map((index) => Number.parseInt(parts[index] ?? '0', 10) || 0)
+}
+
+function compare(left, right) {
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) return left[index] < right[index] ? -1 : 1
+  }
+
+  return 0
+}
+
+function satisfiesComparator(version, comparator) {
+  const text = comparator.trim()
+  if (text === '' || text === '*' || text.toLowerCase() === 'x') return true
+
+  const parsed = text.match(/^(\^|~|>=|<=|>|<|=)?\s*v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?/)
+  if (!parsed) return true // Unparsed: never invent a failure out of a grammar we do not read.
+
+  const [, operator = '=', major, minor, patch] = parsed
+  const open = (part) => part === undefined || part === 'x' || part === 'X' || part === '*'
+  const target = [Number(major), open(minor) ? 0 : Number(minor), open(patch) ? 0 : Number(patch)]
+  const order = compare(parseVersion(version), target)
+
+  switch (operator) {
+    case '>=':
+      return order >= 0
+    case '>':
+      return order > 0
+    case '<=':
+      return order <= 0
+    case '<':
+      return order < 0
+    case '^': {
+      // Caret pins the leftmost non-zero: ^0.2.3 stops at 0.3.0.
+      const ceiling =
+        target[0] !== 0 ? [target[0] + 1, 0, 0] : target[1] !== 0 ? [0, target[1] + 1, 0] : [0, 0, target[2] + 1]
+
+      return order >= 0 && compare(parseVersion(version), ceiling) < 0
+    }
+    case '~':
+      return order >= 0 && compare(parseVersion(version), [target[0], target[1] + 1, 0]) < 0
+    default: {
+      // A bare version is as precise as it is written: "18" means any 18.
+      const installed = parseVersion(version)
+      if (installed[0] !== target[0]) return false
+      if (!open(minor) && installed[1] !== target[1]) return false
+
+      return open(patch) || installed[2] === target[2]
+    }
+  }
+}
+
+/** Does `version` satisfy `range`? Unions of `||`, each a run of comparators. */
+export function satisfies(version, range) {
+  return String(range)
+    .split('||')
+    .some((group) =>
+      group
+        // `>= 16.8.0` is one comparator with a space in it, not two.
+        .replace(/(>=|<=|>|<|=|\^|~)\s+/g, '$1')
+        .trim()
+        .split(/\s+/)
+        .every((comparator) => satisfiesComparator(version, comparator)),
+    )
+}
+
+/**
+ * @returns {string[]} one line per peer range the committed tree already
+ * violates — the lockfile `npm ci` will refuse, with the companion bump that
+ * is missing from it named.
+ */
+export function unresolvablePeers(directs, installed) {
+  const problems = []
+
+  for (const dependent of directs) {
+    for (const [peerName, range] of Object.entries(dependent.peers)) {
+      // A nested copy is a resolution npm made on purpose; read that one.
+      const version =
+        installed[`node_modules/${dependent.name}/node_modules/${peerName}`] ?? installed[`node_modules/${peerName}`]
+
+      if (version === undefined) continue // Absent: an optional peer nobody installed.
+      if (satisfies(version, range)) continue
+
+      problems.push(
+        `${dependent.name}@${dependent.version} peers ${peerName}@"${range}", but the lockfile ` +
+          `installs ${peerName} ${version} — npm ci refuses this tree. It needs a ${dependent.name} ` +
+          `release that accepts ${peerName} ${version}, in the same pull request`,
+      )
+    }
+  }
+
+  return problems
+}
+
 /**
  * @returns {string[]} one line per peer edge that pins two direct dependencies
  * to each other while Dependabot would offer them in separate pull requests.
@@ -233,6 +357,29 @@ export function splitLockedPeers(directs, groups, exempt = UNGROUPED_PEERS) {
   }
 
   return problems
+}
+
+/**
+ * An exemption outlives the edge it was written for: the dependency is dropped
+ * or a release stops declaring that peer, and the reason stays behind as
+ * folklore.
+ *
+ * An entry for a pair that is not locked *yet* is not stale — writing the
+ * decision down before the range runs out is the point of the list.
+ *
+ * @returns {string[]} one line per exemption whose peer edge is gone.
+ */
+export function staleExemptions(directs, exempt = UNGROUPED_PEERS) {
+  const byName = new Map(directs.map((dependency) => [dependency.name, dependency]))
+
+  return Object.keys(exempt).filter((key) => {
+    const [dependentName, peerName] = key.split(' -> ')
+    const dependent = byName.get(dependentName)
+
+    // Absent here may mean present in the entry's other directory; only a
+    // dependent this manifest does declare can prove the edge is gone.
+    return dependent !== undefined && dependent.peers[peerName] === undefined
+  })
 }
 
 /**
@@ -270,40 +417,62 @@ function readJson(path) {
 
 function main() {
   const config = parseYaml(readFileSync(DEPENDABOT, 'utf8'))
-  const problems = []
+  const broken = []
+  const forecast = []
   let checked = 0
 
   for (const entry of npmEntries(config)) {
     for (const problem of catchAllDrift(entry.groups)) {
-      problems.push(`[.github/dependabot.yml] ${problem}`)
+      forecast.push(`[.github/dependabot.yml] ${problem}`)
     }
 
     for (const directory of entry.directories) {
       const root = resolve(REPO, `.${directory}`)
-      const directs = directDependencies(
-        readJson(resolve(root, 'package.json')),
-        readJson(resolve(root, 'package-lock.json')),
-      )
+      const lockfile = readJson(resolve(root, 'package-lock.json'))
+      const directs = directDependencies(readJson(resolve(root, 'package.json')), lockfile)
       checked += directs.length
 
+      for (const problem of unresolvablePeers(directs, installedVersions(lockfile))) {
+        broken.push(`[${directory}] ${problem}`)
+      }
+
       for (const problem of splitLockedPeers(directs, entry.groups)) {
-        problems.push(`[${directory}] ${problem}`)
+        forecast.push(`[${directory}] ${problem}`)
+      }
+
+      for (const key of staleExemptions(directs)) {
+        forecast.push(
+          `[${directory}] UNGROUPED_PEERS still exempts "${key}", but that pair is no longer ` +
+            `locked — delete the entry`,
+        )
       }
     }
   }
 
-  if (problems.length === 0) {
-    console.log(`[dependabot groups] ${checked} direct dependencies checked; no locked peer is split across groups.`)
-    return
+  if (broken.length > 0) {
+    console.error(
+      `This tree will not install — a bump arrived without the companion bump it needs (#594):\n\n` +
+        broken.map((problem) => `  - ${problem}`).join('\n') +
+        `\n\nGroup the two packages in .github/dependabot.yml so the next attempt carries both,\n` +
+        `and ask Dependabot to recreate this pull request.\n`,
+    )
   }
 
-  console.error(
-    `Dependabot would offer these updates in pull requests that cannot install:\n\n` +
-      problems.map((problem) => `  - ${problem}`).join('\n') +
-      `\n\nPut each pair in one group in .github/dependabot.yml, or record the pair in\n` +
-      `UNGROUPED_PEERS in this file with the reason the split is safe.\n`,
+  if (forecast.length > 0) {
+    console.error(
+      `${broken.length > 0 ? '\n' : ''}These pairs can only move together, and Dependabot would move them apart:\n\n` +
+        forecast.map((problem) => `  - ${problem}`).join('\n') +
+        `\n\nPut each pair in one group in .github/dependabot.yml, or record it in UNGROUPED_PEERS\n` +
+        `in this file with the reason the split is worth keeping.\n`,
+    )
+  }
+
+  if (broken.length > 0 || forecast.length > 0) process.exit(1)
+
+  console.log(
+    `[dependabot groups] ${checked} direct dependencies checked; every peer range resolves, ` +
+      `and no locked pair is split across groups.`,
   )
-  process.exit(1)
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
