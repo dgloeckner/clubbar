@@ -5,6 +5,24 @@ class MembersCache extends Table {
   TextColumn get cardUid => text().nullable().unique()();
   TextColumn get firstName => text().nullable()();
   TextColumn get lastName => text().nullable()();
+  /// The member's date of birth as `YYYY-MM-DD`, for the Jugendschutz check
+  /// (ADR-0045).
+  ///
+  /// The **raw date**, deliberately, and never an age in years: age changes on
+  /// a day the server cannot predict a sync for, so a cached number is wrong
+  /// from the member's next birthday until this terminal next reaches the
+  /// server — which may be weeks. The age is computed here, at checkout, from
+  /// this device's clock.
+  ///
+  /// Null means the member was **anonymized**, never "unknown": the field is
+  /// required when a member is created, so there is no third state and no
+  /// fail-open branch. An erasure arrives on the ordinary delta sync with this
+  /// nulled, which is what takes the date back off every kiosk.
+  ///
+  /// Never render it, and never derive a rendered age from it (rule 6) — the
+  /// screen is read by whoever is standing at the bar.
+  TextColumn get dateOfBirth => text().nullable()();
+
   TextColumn get preferredLanguage => text()();
   IntColumn get isActive => integer().withDefault(Constant(1))();
   IntColumn get isSepaValid => integer()();

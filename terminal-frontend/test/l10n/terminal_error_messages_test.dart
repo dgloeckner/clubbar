@@ -85,6 +85,11 @@ void main() {
           // step too.
           'you can still',
           'kannst du trotzdem',
+          // Jugendschutz (ADR-0045): the one refusal nobody at the bar can
+          // lift, so "see the bar staff" would be a false promise. Choosing a
+          // different drink is the only true next step.
+          'choose something else',
+          'wähle etwas anderes',
         ];
 
         for (final key in TerminalErrorKey.values) {

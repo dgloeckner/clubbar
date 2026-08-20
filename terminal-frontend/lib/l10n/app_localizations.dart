@@ -1022,6 +1022,24 @@ abstract class AppLocalizations {
   /// **'Dein Limit ist erreicht – bitte Artikel entfernen oder beim Bar-Team melden.'**
   String get errorBalanceLimitExceeded;
 
+  /// Greyed-out product tile note (ADR-0045). Names the age the PRODUCT requires, never the member's own.
+  ///
+  /// In de, this message translates to:
+  /// **'Erst ab {age} Jahren'**
+  String productAgeRestrictedNote(int age);
+
+  /// TerminalErrorKey.ageRestricted — the cart holds a product the member is too young for (ADR-0045). Names the age the PRODUCT requires; never the member's own age or birth date, because the terminal screen is read by whoever is at the bar.
+  ///
+  /// In de, this message translates to:
+  /// **'Dieses Getränk gibt es erst ab {age} Jahren – bitte wähle etwas anderes.'**
+  String errorAgeRestricted(int age);
+
+  /// TerminalErrorKey.ageRestricted without a known age — an unreachable fallback that avoids printing a placeholder number.
+  ///
+  /// In de, this message translates to:
+  /// **'Dieses Getränk ist für dich nicht freigegeben – bitte wähle etwas anderes.'**
+  String get errorAgeRestrictedUnknown;
+
   /// TerminalErrorKey.checkoutCancelled — member cancelled the checkout
   ///
   /// In de, this message translates to:

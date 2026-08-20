@@ -26,6 +26,7 @@ enum TerminalErrorKey {
   // Cart / checkout
   cartEmpty,
   balanceLimitExceeded,
+  ageRestricted,
   checkoutFailed,
   checkoutCancelled,
   transactionCreateFailed,
@@ -100,10 +101,19 @@ class TerminalError {
   /// reaches the UI — the full exception text stays in `error.log`.
   final int? httpStatusCode;
 
+  /// The age the refused product requires, for [TerminalErrorKey.ageRestricted].
+  ///
+  /// The **product's** age, never the member's own — the refusal is read by
+  /// whoever is standing at the bar (ADR-0045 rule 6). Carried here for the
+  /// same reason [httpStatusCode] is: a narrow, named value the copy needs,
+  /// rather than a general-purpose payload.
+  final int? requiredAge;
+
   const TerminalError({
     required this.key,
     required this.sequence,
     this.httpStatusCode,
+    this.requiredAge,
   });
 
   @override

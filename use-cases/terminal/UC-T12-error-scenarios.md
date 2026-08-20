@@ -333,9 +333,13 @@ Checkout is attempted with a cart containing at least one product whose `min_age
 | Icon | Warning icon |
 | Title (DE) | "Altersbeschränkung" |
 | Title (EN) | "Age restriction" |
-| Message (DE) | "Dieses Getränk ist erst ab {age} Jahren erhältlich." |
-| Message (EN) | "This drink is only available from age {age}." |
+| Message (DE) | "Dieses Getränk gibt es erst ab {age} Jahren – bitte wähle etwas anderes." |
+| Message (EN) | "This drink is only available from age {age} — please choose something else." |
 | Retry | **None** — see below |
+
+The copy names a next step, because every terminal error must: this is the one
+refusal nobody at the bar can lift, so "see the bar staff" would be a false
+promise and choosing a different drink is the only true answer.
 
 `{age}` is the **product's** required age. The message must never state the member's age or date of birth: the terminal screen is read by whoever is standing at the bar (`research/art9-rfid-display-retention.md`), and rule 6 of ADR-0045 makes this binding.
 
@@ -379,7 +383,7 @@ Refused, never allowed. A member row with no date of birth is an anonymized memb
 | E4 | Sync Pending | (Status indicator only, no blocking message) |
 | E5 | Session Timeout | "Session ending in X seconds. Tap to continue." |
 | E6 | SEPA Mandate Missing | "SEPA mandate missing or invalid. Please contact administration to set up your payment details." |
-| E7 | Age restriction | "This drink is only available from age {age}." |
+| E7 | Age restriction | "This drink is only available from age {age} — please choose something else." |
 
 ## Localization
 
