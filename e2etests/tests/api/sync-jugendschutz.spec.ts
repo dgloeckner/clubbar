@@ -188,21 +188,58 @@ test.describe('Jugendschutz over the terminal sync', () => {
   })
 
   /**
-   * The seeded fixtures are what the manual proof in the plan is run against,
-   * and what M6's terminal tests will read. If they lost their ages the whole
-   * kiosk-side check would silently have nothing to enforce.
+   * One payload distinguishes all three shapes at once.
+   *
+   * The per-product tests above each check a single value; this checks that a
+   * terminal reading **one** sync response can tell 16 from 18 from
+   * unrestricted — which is what its cache has to hold for the checkout rule to
+   * mean anything.
+   *
+   * The data is created here rather than read off the seeds. `reset_test_data.sql`
+   * does carry a beer at 16 and a Kräuterlikör at 18 (M3), and that is what the
+   * plan's manual proof and the dev stack use — but CI seeds from `db/seed.sql`,
+   * which contains no products at all. A test that asserted on those fixtures
+   * would pass locally and fail on a runner for a reason that has nothing to do
+   * with the code (E2E Pattern 001).
    */
-  test('the seeded drinks list carries both JuSchG thresholds', async ({
+  test('a single sync payload distinguishes 16, 18 and unrestricted', async ({
+    authenticatedRequest,
     authenticatedTerminalRequest,
   }) => {
+    const id = randomUUID().replace(/-/g, '').slice(0, 10)
+    const category = await authenticatedRequest.post(`${API_BASE}/admin/categories`, {
+      data: { names: { de: `Kat${id}`, en: `Cat${id}` } },
+    })
+    const categoryId = (await category.json()).id
+
+    const make = async (label: string, minAge: number | null) => {
+      const response = await authenticatedRequest.post(`${API_BASE}/admin/products`, {
+        data: {
+          names: { de: `${label} ${id}`, en: `${label} ${id}` },
+          category_id: categoryId,
+          price_cents: 300,
+          ...(minAge === null ? {} : { min_age: minAge }),
+        },
+      })
+      expect(response.status(), await response.text()).toBe(201)
+
+      return (await response.json()).id
+    }
+
+    const [beer, spirit, softDrink] = [
+      await make('Pils', 16),
+      await make('Korn', 18),
+      await make('Schorle', null),
+    ]
+
     const response = await authenticatedTerminalRequest.get(`${API_BASE}/sync/products`, {
       params: { since: 0 },
     })
     const products = (await response.json()).products
+    const byId = (wanted: string) => products.find((p: { id: string }) => p.id === wanted)
 
-    const ages = new Set(products.map((p: { min_age: number | null }) => p.min_age))
-    expect(ages.has(16), 'a beer at 16').toBe(true)
-    expect(ages.has(18), 'a spirit at 18').toBe(true)
-    expect(ages.has(null), 'something unrestricted').toBe(true)
+    expect(byId(beer)?.min_age, 'a beer at 16').toBe(16)
+    expect(byId(spirit)?.min_age, 'a spirit at 18').toBe(18)
+    expect(byId(softDrink)?.min_age, 'something unrestricted').toBeNull()
   })
 })
