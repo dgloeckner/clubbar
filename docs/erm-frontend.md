@@ -13,7 +13,7 @@ The terminal SQLite database serves three purposes:
 **Key Principles:**
 - Members, products, and categories are **read-only caches** (backend is authoritative)
 - Transactions are **append-only** (created locally, synced to backend)
-- **Data minimization**: Only operationally necessary fields are cached
+- **Data minimization**: Only operationally necessary fields are cached — including, since [ADR-0045](../adr/0045-age-restricted-products.md), the member's `date_of_birth`, because JuSchG § 9 has to be enforced offline
 - **Offline-first**: Full functionality without network connectivity
 
 ---
@@ -27,6 +27,7 @@ erDiagram
         TEXT card_uid UK "RFID/NFC identifier (hex)"
         TEXT first_name "Display name (optional)"
         TEXT last_name "Display name (optional)"
+        TEXT date_of_birth "YYYY-MM-DD, for the age gate; NULL = anonymized"
         TEXT preferred_language "ISO 639-1 code (de, en, etc.)"
         INTEGER is_active "1=active, 0=blocked"
         INTEGER is_sepa_valid "1=valid, 0=missing IBAN/mandate"
@@ -48,6 +49,7 @@ erDiagram
         TEXT descriptions "JSON: Multilingual (optional)"
         INTEGER price_cents "Price in cents (350 = 3.50 EUR)"
         INTEGER is_active "1=available, 0=unavailable"
+        INTEGER min_age "Minimum legal age; NULL = unrestricted"
         TEXT updated_at "Last sync timestamp (ISO 8601)"
     }
 
@@ -86,6 +88,7 @@ Read-only cache of member data synced from backend. Used for RFID card lookups.
 | `card_uid` | TEXT | UNIQUE, NULL | RFID/NFC card identifier (8-20 hex chars, uppercase); indexed |
 | `first_name` | TEXT | NULL | First name (for display) |
 | `last_name` | TEXT | NULL | Last name (for display) |
+| `date_of_birth` | TEXT | NULL | `YYYY-MM-DD`. The **raw date**, for the Jugendschutz check ([ADR-0045](../adr/0045-age-restricted-products.md)) — see below |
 | `preferred_language` | TEXT | NOT NULL | ISO 639-1 language code |
 | `is_active` | INTEGER | NOT NULL, DEFAULT 1 | 1=active, 0=blocked |
 | `is_sepa_valid` | INTEGER | NOT NULL | 1=valid SEPA data, 0=missing IBAN or mandate |
@@ -97,8 +100,40 @@ Read-only cache of member data synced from backend. Used for RFID card lookups.
 
 **Data NOT cached** (privacy/data minimization):
 - IBAN, mandate reference, mandate signature date (now `mandates` rows on the backend — see `erm-master.md`)
-- Contact details (email)
-- deleted_at (anonymized members are removed from cache)
+- Contact details (email, phone)
+- Postal address, account holder name
+
+**Cached, deliberately: `date_of_birth`.** This document used to say the terminal
+holds no sensitive personal data. That stopped being true with
+[ADR-0045](../adr/0045-age-restricted-products.md), and the trade is worth
+stating rather than glossing:
+
+- **Why the raw date and not an age.** JuSchG § 9 has to be enforced at the
+  moment the drink is handed over, at a kiosk that may not have reached the
+  server for weeks. An age in years computed server-side is wrong from the
+  member's next birthday until the next sync — silently, and in the direction
+  that serves a minor. The date is stable for life; the age is not.
+- **Why not a boolean.** Two thresholds (16 and 18) cannot be answered by one
+  flag, and a pair of flags is the same stale-derived-value problem twice.
+- **What limits the exposure.** One field, and only this one. No contact
+  details, no banking data, no address. The kiosk **never renders it** and never
+  renders an age derived from it (rule 6) — the screen is read by whoever is
+  standing at the bar, so a refusal names what the *drink* requires, never what
+  the member is.
+- **What takes it back off again.** Erasure rides the ordinary delta sync: an
+  anonymized member arrives on the normal cursor with `date_of_birth` nulled and
+  `deleted_at` set. There is no separate cache-busting mechanism to forget, and
+  no terminal that can keep a birth date the server has already erased — beyond
+  the length of one sync interval.
+- **NULL means anonymized, never unknown.** The field is required when a member
+  is created, so there is no third state. A member with no cached birth date is
+  refused any product carrying a `min_age`; there is no fail-open branch
+  (rule 3).
+
+**Tombstones, not deletion**: an anonymized member is **not** removed from the
+cache. `transactions_local.member_id` references the row, so deleting it fails
+the foreign key and wedges the sync cycle. `deleted_at` is set instead and the
+card scans as unknown.
 
 **SEPA Validation**: Banking data moved off `members` onto its own append-only `mandates` table ([#164](https://github.com/dgloeckner/ruderbar/issues/164)), so `is_sepa_valid` is now calculated by the backend during sync as *"does this member have an active mandate"* (a lookup, not an IBAN/reference presence check). Terminal blocks access if `is_sepa_valid = 0`.
 
@@ -137,6 +172,8 @@ Read-only cache of product catalog synced from backend.
 | `descriptions` | TEXT | NULL | JSON string: Multilingual descriptions (optional) |
 | `price_cents` | INTEGER | NOT NULL | Price in cents (350 = 3.50 EUR) |
 | `is_active` | INTEGER | NOT NULL, DEFAULT 1 | 1=available, 0=unavailable |
+| `requires_dispenser` | INTEGER | NOT NULL, DEFAULT 0 | 1=poured by a dispenser, 0=handed over |
+| `min_age` | INTEGER | NULL | Minimum legal age to buy this product ([ADR-0045](../adr/0045-age-restricted-products.md)); NULL — the ordinary state of most of a drinks list — means unrestricted |
 | `updated_at` | TEXT | NOT NULL | Last modification timestamp (ISO 8601) |
 
 **Indexes:**
@@ -145,6 +182,15 @@ Read-only cache of product catalog synced from backend.
 - `idx_products_cache_updated_at` on `updated_at` (for sync queries)
 
 **Note:** All translations are always synced. Terminal displays product name based on member's `preferred_language`.
+
+**Age gate**: `min_age` is compared against the age computed on this device from
+`members_cache.date_of_birth`, at checkout, with no network call
+([ADR-0045](../adr/0045-age-restricted-products.md)). `CartService` is the single
+authority; the product grid greying a tile out is a courtesy that shares the same
+`mayBuyAtAge` function so the two cannot disagree. A limit reached the terminal on
+the ordinary delta sync, so a kiosk that has not synced since the limit was set
+will still sell the drink — that gap is what the server-side
+`jugendschutz_violation` audit entry exists to catch.
 
 ---
 
@@ -319,82 +365,32 @@ flowchart TB
 
 ## SQL Schema
 
-```sql
--- Enable foreign keys
-PRAGMA foreign_keys = ON;
+**The schema is not duplicated here.** It lives in
+`terminal-frontend/lib/database/schema/*.dart` as Drift table definitions, and
+Drift generates the DDL and the migration steps from them
+(`terminal-frontend/lib/database/database.dart`). A second hand-written copy in
+this file went stale without anyone noticing — by the time
+[#590](https://github.com/dgloeckner/clubbar/issues/590) looked at it, it was
+missing `balance_cents`, both tombstone columns, `icon_name`,
+`requires_dispenser`, every quarantine and dispenser field, and the
+`dispenser_config` and `dispenser_operations` tables entirely. The tables above
+describe the *design*; the Dart files are the schema.
 
--- Members cache (read-only, synced from backend)
-CREATE TABLE IF NOT EXISTS members_cache (
-    id TEXT PRIMARY KEY,
-    card_uid TEXT UNIQUE,
-    first_name TEXT,
-    last_name TEXT,
-    preferred_language TEXT NOT NULL DEFAULT 'de',
-    is_active INTEGER NOT NULL DEFAULT 1,
-    is_sepa_valid INTEGER NOT NULL DEFAULT 0,
-    updated_at TEXT NOT NULL
-);
+| Table | Definition |
+|-------|-----------|
+| `members_cache` | `lib/database/schema/members_cache.dart` |
+| `categories_cache` | `lib/database/schema/categories_cache.dart` |
+| `products_cache` | `lib/database/schema/products_cache.dart` |
+| `transactions_local` | `lib/database/schema/transactions_local.dart` |
+| `sync_state` | `lib/database/schema/sync_state.dart` |
+| `dispenser_config` | `lib/database/schema/dispenser_config.dart` |
+| `dispenser_operations` | `lib/database/schema/dispenser_operations.dart` |
 
-CREATE INDEX IF NOT EXISTS idx_members_cache_card_uid ON members_cache(card_uid);
-CREATE INDEX IF NOT EXISTS idx_members_cache_updated_at ON members_cache(updated_at);
-
--- Categories cache (read-only, synced from backend)
-CREATE TABLE IF NOT EXISTS categories_cache (
-    id TEXT PRIMARY KEY,
-    names TEXT NOT NULL,
-    display_order INTEGER NOT NULL,
-    is_active INTEGER NOT NULL DEFAULT 1,
-    updated_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_categories_cache_display_order ON categories_cache(display_order);
-CREATE INDEX IF NOT EXISTS idx_categories_cache_is_active ON categories_cache(is_active);
-CREATE INDEX IF NOT EXISTS idx_categories_cache_updated_at ON categories_cache(updated_at);
-
--- Products cache (read-only, synced from backend)
-CREATE TABLE IF NOT EXISTS products_cache (
-    id TEXT PRIMARY KEY,
-    category_id TEXT NOT NULL REFERENCES categories_cache(id),
-    names TEXT NOT NULL,
-    descriptions TEXT,
-    price_cents INTEGER NOT NULL,
-    is_active INTEGER NOT NULL DEFAULT 1,
-    updated_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_products_cache_category_id ON products_cache(category_id);
-CREATE INDEX IF NOT EXISTS idx_products_cache_is_active ON products_cache(is_active);
-CREATE INDEX IF NOT EXISTS idx_products_cache_updated_at ON products_cache(updated_at);
-
--- Transactions (local write queue)
-CREATE TABLE IF NOT EXISTS transactions_local (
-    id TEXT PRIMARY KEY,
-    member_id TEXT NOT NULL REFERENCES members_cache(id),
-    product_id TEXT REFERENCES products_cache(id),
-    amount_cents INTEGER NOT NULL,
-    transaction_type TEXT NOT NULL DEFAULT 'purchase',
-    notes TEXT,
-    created_at TEXT NOT NULL,
-    synced INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE INDEX IF NOT EXISTS idx_transactions_synced ON transactions_local(synced);
-CREATE INDEX IF NOT EXISTS idx_transactions_member_id ON transactions_local(member_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions_local(created_at);
-
--- Sync state (metadata for delta sync)
-CREATE TABLE IF NOT EXISTS sync_state (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-
--- Initialize sync state rows
-INSERT OR IGNORE INTO sync_state (key, value) VALUES ('members_last_sync', '');
-INSERT OR IGNORE INTO sync_state (key, value) VALUES ('products_last_sync', '');
-INSERT OR IGNORE INTO sync_state (key, value) VALUES ('categories_last_sync', '');
-INSERT OR IGNORE INTO sync_state (key, value) VALUES ('last_sync_attempt', '');
-INSERT OR IGNORE INTO sync_state (key, value) VALUES ('last_sync_success', '');
-```
+Migrations are additive and idempotent: `database.dart` adds a column if the
+table does not already have it, so a terminal upgraded from any earlier version
+converges on the same shape. `date_of_birth` on `members_cache` and `min_age` on
+`products_cache` arrived that way — an existing kiosk gains both as nullable
+columns and fills them on its next sync.
 
 ---
 
@@ -407,3 +403,4 @@ INSERT OR IGNORE INTO sync_state (key, value) VALUES ('last_sync_success', '');
 - [ADR-0012](../adr/0012-eventual-consistency-frontend-caching.md): Eventual consistency and frontend caching
 - [ADR-0014](../adr/0014-rfid-scanning-integration.md): RFID scanning integration
 - [ADR-0020](../adr/0020-sepa-mandate-requirement-terminal-access.md): SEPA mandate requirement for terminal access
+- [ADR-0045](../adr/0045-age-restricted-products.md): Age-restricted products (Jugendschutz)

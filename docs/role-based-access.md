@@ -62,10 +62,21 @@ always made by a *different* admin.
 | SEPA configuration — read | ✅ | ❌ |
 | SEPA configuration — write | ❌ | ❌ |
 | Categories, products, pricing | ❌ | ✅ |
+| Product minimum legal age (`min_age`) | ❌ | ✅ ² |
 | Reports (revenue/consumption/transactions) | ✅ | ✅ ¹ |
 | Admin users, terminals, encryption keys, mail config, audit log | ❌ | ❌ |
 
 ¹ `group_by=member` is withheld from `getraenkewart` — see §4.
+
+² The Getränkewart sets, corrects and clears a drink's minimum legal age
+([ADR-0045](../adr/0045-age-restricted-products.md)). It is an attribute of the
+product, so it needs no new grant and no new route — the existing
+`PATCH /api/admin/products/{id}` carries it. **This gains them no member data.**
+The half of the Jugendschutz rule that concerns a person — the birth date, and
+whether any particular member is old enough — lives entirely on `members`, which
+still answers them 403. The stock keeper says what the drink requires; who may
+have it is decided at the terminal, and who breached it is read from the audit
+log by an `admin`.
 
 Nothing here is reachable by holding a lesser role a second way: the account
 either has the office or it doesn't. Areas with no ✅ at all in a row (member

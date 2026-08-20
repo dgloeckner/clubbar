@@ -906,7 +906,7 @@ class MembersRepositoryTest extends DatabaseTestCase
      * This is the load-bearing GDPR line of the whole Jugendschutz change. The
      * field is `required` on create so the terminal never has to reason about
      * an unknown age, and the column is NULL-able only so that this write can
-     * happen — `docs/legal-requirements-and-how-we-meet-them.md:58` already
+     * happen — `docs/legal-requirements-and-how-we-meet-them.md` §3.2 already
      * lists the date of birth among the erased fields (OLG Dresden 4 U 1278/21).
      *
      * The assertion is deliberately explicit rather than folded into the

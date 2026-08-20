@@ -34,6 +34,7 @@ Member accounts for the organization. Contains personal and payment data.
 | first_name | VARCHAR(100) | No | Given name | Display and identification; NULL after GDPR anonymization | Max 100 chars |
 | last_name | VARCHAR(100) | No | Family name | Display and identification; NULL after GDPR anonymization | Max 100 chars |
 | email | VARCHAR(255) | No | Contact email | Communication; not used for authentication | Valid email format |
+| date_of_birth | DATE | Yes* | Date of birth | Jugendschutz: the terminal refuses an age-restricted product to a member below its `min_age` | Valid date, strictly in the past |
 | preferred_language | VARCHAR(10) | Yes | ISO 639-1 language code | Terminal displays products in this language | From enabled_languages config; default: organization default |
 | iban | VARCHAR(34) | No* | Bank account for SEPA | Required for terminal access and SEPA collection; NULL only for legacy/anonymized members | ISO 13616 IBAN format + mod-97 checksum |
 | mandate_reference | VARCHAR(35) | No* | SEPA mandate identifier | Required for terminal access; default = UUID without hyphens; NULL only for legacy/anonymized members | SEPA charset: 0-9 a-z A-Z + ? / - : ( ) . , ' |
@@ -47,7 +48,9 @@ Member accounts for the organization. Contains personal and payment data.
 
 **\* SEPA Fields**: Nullable at database level (for GDPR anonymization and legacy data), but required at application level for member creation. Members without valid IBAN + mandate_reference cannot use the terminal. See [ADR-0020](../adr/0020-sepa-mandate-requirement-terminal-access.md).
 
-**GDPR Anonymization**: Sets first_name, last_name, email, iban, mandate_reference to NULL; card_uid to "ANONYMOUS-{uuid}"; is_active to false; deleted_at to timestamp.
+**\* date_of_birth**: Nullable at database level so GDPR erasure can empty it, but **required** when a member is created and on any write that names it. NULL therefore means *anonymized*, never *unknown* — which is what lets the terminal refuse rather than fail open ([ADR-0045](../adr/0045-age-restricted-products.md)).
+
+**GDPR Anonymization**: Sets first_name, last_name, email, phone, date_of_birth, account_holder_name, collection_hold_reason to NULL; card_uid to "ANON-{15 hex}"; is_active to false; deleted_at to timestamp. `preferred_language` is **not** nulled — it is `NOT NULL` and is a display setting, not personal data. Banking data lives on `mandates` and is not touched; the active mandate is ended instead.
 
 ---
 
@@ -63,12 +66,16 @@ Product catalog with multilingual names.
 | descriptions | JSON | No | Multilingual descriptions | Optional product details | Same structure as names |
 | price_cents | INT | Yes | Price in cents | Transaction amount calculation | > 0; max 999999 (€9,999.99) |
 | is_active | BOOLEAN | Yes | Availability status | Inactive products hidden on terminal | Default: true |
+| requires_dispenser | BOOLEAN | Yes | Poured by a dispenser | Terminal holds the sale until the pour is confirmed | Default: false |
+| min_age | TINYINT UNSIGNED | No | Minimum legal age to buy | Terminal refuses the sale to a member below it; NULL = unrestricted | Integer 1–99, or null |
 | created_at | DATETIME | Yes | Record creation | Audit trail | Auto-set |
 | updated_at | DATETIME | Yes | Last modification | Sync delta detection | Auto-updated |
 
-**Indexes**: `category_id`, `is_active`, `updated_at`
+**Indexes**: `category_id`, `is_active`, `requires_dispenser`, `updated_at`
 
 **Price Changes**: New price applies to new transactions only. Historical transactions retain original amount_cents.
+
+**Age Changes**: The same way — a new or cleared `min_age` reaches terminals on the next sync and does not reach backwards. A `jugendschutz_violation` already recorded against a past sale keeps the limit as it stood at the time ([ADR-0045](../adr/0045-age-restricted-products.md)).
 
 ---
 
@@ -285,6 +292,7 @@ Read-only cache of members. Minimal fields for terminal operation.
 | card_uid | TEXT | No | RFID/NFC identifier | Card scan lookup | 8-20 hex chars, uppercase; indexed |
 | first_name | TEXT | No | Given name | Display greeting | — |
 | last_name | TEXT | No | Family name | Display greeting | — |
+| date_of_birth | TEXT | No | `YYYY-MM-DD` from backend | The age gate runs on this device, offline; NULL = anonymized, and refuses anything restricted | — |
 | preferred_language | TEXT | Yes | ISO 639-1 code | Product name localization | — |
 | is_active | INTEGER | Yes | Account status | Reject inactive members | 0 or 1 |
 | is_sepa_valid | INTEGER | Yes | SEPA mandate status | Reject members without valid SEPA data | 0 or 1; derived from backend iban + mandate_reference |
@@ -292,7 +300,9 @@ Read-only cache of members. Minimal fields for terminal operation.
 
 **Indexes**: `card_uid`, `updated_at`
 
-**Not Cached**: email, iban, mandate_reference, mandate_signed_at (sensitive; backend-only).
+**Not Cached**: email, phone, IBAN, mandate reference, mandate signature date, postal address (sensitive; backend-only).
+
+**Cached deliberately**: `date_of_birth`. JuSchG § 9 has to be enforced at the moment the drink is handed over, on a kiosk that may not have reached the server for weeks — and a server-computed age in years is wrong from the member's next birthday until the next sync. The raw date is stable for life; the age is not ([ADR-0045](../adr/0045-age-restricted-products.md) decision 1). The terminal never renders it, and never renders an age derived from it: a refusal names what the *drink* requires, never what the member is. Erasure rides the ordinary delta sync, so an anonymized member arrives with the field nulled and no kiosk keeps a birth date the server has erased.
 
 **SEPA Validation**: `is_sepa_valid` is calculated by backend during sync as `(iban IS NOT NULL AND mandate_reference IS NOT NULL)`. Terminal blocks access if `is_sepa_valid = 0`. See [ADR-0020](../adr/0020-sepa-mandate-requirement-terminal-access.md).
 
@@ -310,9 +320,13 @@ Read-only cache of products.
 | descriptions | TEXT | No | JSON string | Optional details | Parse at display time |
 | price_cents | INTEGER | Yes | Price in cents | Transaction creation | — |
 | is_active | INTEGER | Yes | Availability | Hide inactive | 0 or 1 |
+| requires_dispenser | INTEGER | Yes | Poured by a dispenser | Checkout waits for the pour | 0 or 1 |
+| min_age | INTEGER | No | Minimum legal age | Compared at checkout against the age computed from `members_cache.date_of_birth`; NULL = unrestricted | Integer or null |
 | updated_at | TEXT | Yes | ISO 8601 timestamp | Delta sync comparison | — |
 
 **Indexes**: `category_id`, `is_active`, `updated_at`
+
+**Age Gate**: `CartService` is the single authority — the product grid greying a tile out shares the same `mayBuyAtAge` function so the two cannot disagree. A kiosk that has not synced since a limit was set will still sell the drink; that gap is what the server-side `jugendschutz_violation` audit entry exists to catch ([ADR-0045](../adr/0045-age-restricted-products.md)).
 
 ---
 

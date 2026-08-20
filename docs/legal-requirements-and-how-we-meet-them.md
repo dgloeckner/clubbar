@@ -1,6 +1,6 @@
 # Legal Requirements and How We Meet Them
 
-**Last reviewed:** 2026-08-07
+**Last reviewed:** 2026-08-20
 
 Every legal constraint established by research during the money-semantics work, and the specific mechanism that satisfies it. The constraints themselves live in [ADR-0028](../adr/0028-legal-constraints-on-money-handling.md) and [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md); this page is the **mapping**, so that a change to any mechanism can be traced back to what it was there for.
 
@@ -13,6 +13,7 @@ Every legal constraint established by research during the money-semantics work, 
 | `art9-rfid-display-retention.md` | Art. 9 and consumption data; RFID as personal data; screen display; retention classification |
 | `175-onboarding-form-datenschutz.md` | Art. 13 content; legal basis per purpose; mandate-vs-consent; Art. 30 / § 38 BDSG; form practice |
 | `credit-limit-precedents.md` | Credit-balance and refund precedents |
+| `juschg-age-limits.md` | JuSchG § 9's two thresholds; why the limit rides the product; why the terminal prevents and the server only records |
 
 ---
 
@@ -63,14 +64,39 @@ Every legal constraint established by research during the money-semantics work, 
 | 3.7 | A SEPA mandate is **not** a GDPR consent | § 675j Abs. 1 BGB | Separate signature on the mandate; the Datenschutzhinweis is never signed. ⚠️ Most real Verein forms get this **wrong** (Starnberg, LSB MV) — only the BSSB template is right |
 | 3.8 | **Art. 13(2)(f)** — declare whether profiling occurs | Art. 13(2)(f) DSGVO | Declaring "no profiling" is truthful **only while** the no-profiling control holds — which makes it a legal commitment, not an internal rule. → [#177](https://github.com/dgloeckner/ruderbar/issues/177) |
 | 3.9 | **Art. 30 Verzeichnis** required — the *nicht nur gelegentlich* exception bites | Art. 30(5) DSGVO | → [#181](https://github.com/dgloeckner/ruderbar/issues/181). A **DSB is not** required (§ 38 BDSG threshold 20; count 3–6) ⚠️ provided admin logins stay narrow |
+| 3.10 | A **further processing purpose** needs its own named legal basis in the notice | Art. 13(1)(c) DSGVO | Holding a member's date of birth is Art. 6(1)(b) — membership administration, `research/175-onboarding-form-datenschutz.md` §2.2 purpose 1. **Using it to gate alcohol sales is a different purpose on a different basis: Art. 6(1)(c) i.V.m. § 9 JuSchG.** The software enforces it from [ADR-0045](../adr/0045-age-restricted-products.md); the notice needs a new row even though the input field already exists → [#591](https://github.com/dgloeckner/clubbar/issues/591) |
+| 3.11 | **Data minimisation** — a terminal cache may hold only what its function needs | Art. 5(1)(c) DSGVO | The kiosk cache gains exactly one field, `date_of_birth`, and nothing else. It is never rendered, and no age derived from it is rendered — a refusal names what the *drink* requires, never what the member is. Erasure rides the ordinary delta sync, so no kiosk keeps a birth date the server has erased beyond one sync interval ([ADR-0045](../adr/0045-age-restricted-products.md), [`erm-frontend.md`](./erm-frontend.md)) |
 
 ⚠️ **No settled case law** holds that Art. 17(3)(b) covers § 147 AO. Universal supervisory view, never adjudicated head-on.
 
-⚠️ Address and date of birth are deletable **only because the club issues no invoices**. Issue one Rechnung with USt and § 14 Abs. 4 Nr. 1 UStG pulls the address onto a retained Beleg.
+⚠️ Address and date of birth are deletable **only because the club issues no invoices**. Issue one Rechnung with USt and § 14 Abs. 4 Nr. 1 UStG pulls the address onto a retained Beleg. Since [ADR-0045](../adr/0045-age-restricted-products.md) the date of birth is no longer hypothetical — it is a real column on `members`, mandatory at creation, nulled by erasure, and mirrored on every terminal cache.
 
 ---
 
-## 4. Gemeinnützigkeit — the open risk
+## 4. Jugendschutz
+
+| # | Requirement | Source | How we meet it |
+|---|---|---|---|
+| 4.1 | Beer, wine and sparkling wine may **not be handed to anyone under 16** | § 9 Abs. 1 Nr. 1 JuSchG | `products.min_age = 16` on those drinks. The number is data, not code — the club sets it per product |
+| 4.2 | Spirits — anything containing distilled alcohol — may **not be handed to anyone under 18** | § 9 Abs. 1 Nr. 2 JuSchG | `products.min_age = 18` |
+| 4.3 | The limit binds **at the moment the drink is handed over**, in a room that may have no network | § 9 Abs. 1 JuSchG | The terminal refuses **offline**. `members.date_of_birth` and `products.min_age` both ride the ordinary delta sync, and the terminal computes the age from its own clock at checkout — never from a number the server derived, which is wrong from the member's next birthday until the next sync ([ADR-0045](../adr/0045-age-restricted-products.md) decision 1) |
+| 4.4 | A missing age must not become a **permission** | § 9 Abs. 1 JuSchG | Date of birth is **mandatory** when a member is created, so there is no "unknown age" state. A cached NULL means *anonymized*, and an anonymized member is refused anything carrying a limit — there is no fail-open branch (decision 2, invariant 3) |
+| 4.5 | The limit must not be removable **by accident** | — | It sits on the **product**, not the category. Rearranging the grid — an ordinary shift-time action with no legal character — cannot un-restrict a drink; only deliberately clearing a number on that product can, and that is an audited write |
+| 4.6 | A sale that slipped through must become **known**, not disappear | § 9 JuSchG · § 146 Abs. 1 S. 1 AO (see 1.3) | A stale terminal can still sell. The server **stores the row and raises a `jugendschutz_violation` audit entry**; it never rejects. Rejecting would not un-serve the minor — it would delete the club's knowledge that it happened and trade a youth-protection incident for a bookkeeping one. Same two-layer split as [ADR-0020](../adr/0020-sepa-mandate-requirement-terminal-access.md): the terminal prevents, the server is the backstop |
+| 4.7 | The record must stay true **after the fact** | — | The violation stores `min_age` as it stood at the sale and the age at that moment, and does not clear when the drink is later un-restricted (invariant 4). Unlike the derived `ineligible_members` bucket, a past sale to a minor is a fact, not a recomputed state |
+| 4.8 | Enforcement must not **expose the member** to whoever is at the bar | Art. 5(1)(c) DSGVO · `research/art9-rfid-display-retention.md` (screen display) | The terminal never states a member's age or birth date. The refusal names what the *drink* requires — "ab 18" — never what the member is (invariant 6). The Getränkewart who sets the limit gains no member data at all: they can set, correct and clear `min_age` and still get 403 from the member roster ([`role-based-access.md`](./role-based-access.md)) |
+
+⚠️ **Not modelled here:**
+
+- **JuSchG § 3 Aushang** — Veranstalter and Gewerbetreibende must display the relevant provisions conspicuously on the premises. A physical obligation, not a software one, but somebody should check it.
+- **§ 28 Ordnungswidrigkeit exposure** for the club and the individual serving. The system's contribution is that a violation becomes *known*, not that it becomes harmless.
+- **Whether a Vereinsheim bar is a "Gaststätte"** for Abs. 1's purposes. It does not matter for the design: *"und sonst in der Öffentlichkeit"* catches it either way.
+
+Full working in `research/juschg-age-limits.md`.
+
+---
+
+## 5. Gemeinnützigkeit — the open risk
 
 ⚠️ **Selling at purchase price is a larger exposure than the tax classification ever was**, and it is **not a software question**.
 
