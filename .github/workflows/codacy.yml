@@ -39,7 +39,18 @@ jobs:
         uses: actions/checkout@v4
 
       # Execute Codacy Analysis CLI and generate a SARIF output with the security issues identified during the analysis
+      # The scan is scoped by .codacy.yaml in the repository root -- without a
+      # project token the CLI has no server-side configuration and would otherwise
+      # run every default tool over every file in the checkout.
       - name: Run Codacy Analysis CLI
+        id: codacy
+        # The CLI exits non-zero on its own internal errors as well as on findings.
+        # Most notably its SARIF writer reads back every file it reports an issue
+        # in and decodes it as UTF-8, so one finding in a file it cannot decode
+        # aborts the run after the analysis, leaving no report behind. A crash in a
+        # third-party scanner must not turn the branch red, so the step is allowed
+        # to fail and the upload below is guarded on a usable report instead.
+        continue-on-error: true
         uses: codacy/codacy-analysis-cli-action@d840f886c4bd4edc059706d09c6a1586111c540b
         with:
           # Check https://github.com/codacy/codacy-analysis-cli#project-token to get your project token from your Codacy repository
@@ -54,8 +65,23 @@ jobs:
           # This will handover control about PR rejection to the GitHub side
           max-allowed-issues: 2147483647
 
+      # A crashed or interrupted run leaves the output file empty, which the upload
+      # would reject as malformed SARIF. Report that as a warning instead.
+      - name: Check SARIF report
+        id: sarif
+        if: always()
+        run: |
+          if [ -s results.sarif ] && jq -e '.runs' results.sarif > /dev/null 2>&1; then
+            echo "usable=true" >> "$GITHUB_OUTPUT"
+            echo "Codacy reported $(jq '[.runs[].results | length] | add // 0' results.sarif) results."
+          else
+            echo "usable=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Codacy Analysis CLI produced no usable SARIF report - nothing to upload. See the analysis step above for the cause."
+          fi
+
       # Upload the SARIF file generated in the previous step
       - name: Upload SARIF results file
+        if: always() && steps.sarif.outputs.usable == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: results.sarif
