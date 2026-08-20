@@ -82,6 +82,11 @@ updates:
           - "@types/react"
           - "@types/react-dom"
           - "@testing-library/*"
+          # recharts renders with react and enumerates the majors it accepts
+          # (`^16 || ^17 || ^18 || ^19`), so from react 19 on it is in exactly
+          # the position testing-library was in: the next react cannot install
+          # without it.
+          - "recharts"
 
       # Kept out of the `react` group on purpose. Router majors are breaking on
       # their own schedule and get their own pull request; the two packages are
@@ -121,8 +126,19 @@ updates:
           - "playwright-core"
 
       # eslint core, its plugins and the typescript-eslint packages all gate on
-      # each other's majors (eslint 9 needs flat-config-aware plugins).
-      eslint:
+      # each other's majors (eslint 9 needs flat-config-aware plugins) — and
+      # the typescript-eslint packages gate on the compiler as well, with a
+      # bounded range rather than a caret: `typescript: ">=4.8.4 <6.1.0"`.
+      #
+      # That bound is why typescript is in here rather than in a group of its
+      # own. The compiler group jumped 5 -> 7 (#614) while @typescript-eslint
+      # still refused anything past 6.1, and the result was #594 again in
+      # /e2etests: a lockfile npm ci will not install, with the companion bump
+      # nowhere on the branch. One group means Dependabot either finds a
+      # typescript-eslint release that takes the new compiler and offers both,
+      # or offers neither — and "neither" is a Monday with no pull request,
+      # not a Monday with a dead one.
+      typescript-and-eslint:
         patterns:
           - "eslint"
           - "eslint-*"
@@ -130,9 +146,6 @@ updates:
           - "@typescript-eslint/*"
           - "prettier"
           - "prettier-*"
-
-      typescript:
-        patterns:
           - "typescript"
           - "@types/node"
 
@@ -161,6 +174,7 @@ updates:
           - "@types/react"
           - "@types/react-dom"
           - "@testing-library/*"
+          - "recharts"
           - "react-router"
           - "react-router-dom"
           - "i18next"
