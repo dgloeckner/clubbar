@@ -27,6 +27,13 @@
  * be left split by recording it in UNGROUPED_PEERS with a reason. Nothing
  * silences the first tense, which is a fact about the tree in front of it.
  *
+ * **The runtime.** npm treats `engines` as advice, so a dependency that has
+ * outgrown the Node CI runs installs perfectly and then fails somewhere with
+ * no mention of a version: jsdom 30 needs Node ^22.22.2 and, under Node 20,
+ * killed every vitest worker with `webidl.util.markAsUncloneable is not a
+ * function` (#619). `engineViolations` compares the engines of the installed
+ * tree against the Node the workflow sets up, and says the version out loud.
+ *
  * Peer ranges come from the committed lockfiles, so this needs no network and
  * no install. Run by the `lint-e2e` job in seconds, next to the CI lane check.
  */
@@ -38,6 +45,7 @@ import { fileURLToPath } from 'node:url'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = resolve(HERE, '..', '..')
 const DEPENDABOT = resolve(REPO, '.github', 'dependabot.yml')
+const WORKFLOW = resolve(REPO, '.github', 'workflows', 'build.yaml')
 
 /**
  * Peer edges whose range has run out of room and that stay split anyway, keyed
@@ -210,6 +218,7 @@ export function directDependencies(manifest, lockfile) {
       name,
       version: entry.version ?? '',
       peers: entry.peerDependencies ?? {},
+      engines: entry.engines?.node,
     }
   })
 }
@@ -360,6 +369,55 @@ export function splitLockedPeers(directs, groups, exempt = UNGROUPED_PEERS) {
 }
 
 /**
+ * Every Node version the build workflow sets up, resolved the way
+ * `actions/setup-node` resolves it: a bare major means the newest release of
+ * that major, so `'22'` reads as "any 22.x that exists".
+ *
+ * @returns {string[]} one version per distinct `node-version:` in the file.
+ */
+export function ciNodeVersions(workflowSource) {
+  const declared = new Set()
+  const literal = [...workflowSource.matchAll(/node-version:\s*'([\d.]+)'/g)].map((match) => match[1])
+  const viaEnv = /node-version:\s*\$\{\{\s*env\.([A-Z_]+)\s*\}\}/.test(workflowSource)
+
+  for (const version of literal) declared.add(version)
+
+  if (viaEnv) {
+    for (const [, name] of workflowSource.matchAll(/node-version:\s*\$\{\{\s*env\.([A-Z_]+)\s*\}\}/g)) {
+      const assigned = workflowSource.match(new RegExp(`${name}:\\s*'([\\d.]+)'`))
+      if (assigned) declared.add(assigned[1])
+    }
+  }
+
+  return [...declared].map((version) => (version.includes('.') ? version : `${version}.9999.9999`))
+}
+
+/**
+ * @returns {string[]} one line per direct dependency whose `engines.node`
+ * excludes a Node version CI runs. npm only warns about this — and only on
+ * install, where nobody reads it.
+ */
+export function engineViolations(directs, nodeVersions) {
+  const problems = []
+
+  for (const dependency of directs) {
+    const required = dependency.engines
+    if (!required) continue
+
+    for (const node of nodeVersions) {
+      if (satisfies(node, required)) continue
+
+      problems.push(
+        `${dependency.name}@${dependency.version} needs Node "${required}", and CI runs ` +
+          `${node.replace('.9999.9999', '.x')} — it installs and then fails at run time`,
+      )
+    }
+  }
+
+  return problems
+}
+
+/**
  * An exemption outlives the edge it was written for: the dependency is dropped
  * or a release stops declaring that peer, and the reason stays behind as
  * folklore.
@@ -436,6 +494,10 @@ function main() {
         broken.push(`[${directory}] ${problem}`)
       }
 
+      for (const problem of engineViolations(directs, ciNodeVersions(readFileSync(WORKFLOW, 'utf8')))) {
+        broken.push(`[${directory}] ${problem}`)
+      }
+
       for (const problem of splitLockedPeers(directs, entry.groups)) {
         forecast.push(`[${directory}] ${problem}`)
       }
@@ -451,10 +513,11 @@ function main() {
 
   if (broken.length > 0) {
     console.error(
-      `This tree will not install — a bump arrived without the companion bump it needs (#594):\n\n` +
+      `This tree will not run here — a dependency outgrew the rest of the branch (#594, #619):\n\n` +
         broken.map((problem) => `  - ${problem}`).join('\n') +
-        `\n\nGroup the two packages in .github/dependabot.yml so the next attempt carries both,\n` +
-        `and ask Dependabot to recreate this pull request.\n`,
+        `\n\nGroup the packages in .github/dependabot.yml so the next attempt carries both — or,\n` +
+        `for a Node floor, raise NODE_VERSION in .github/workflows/build.yaml — and ask\n` +
+        `Dependabot to recreate this pull request.\n`,
     )
   }
 
@@ -469,9 +532,13 @@ function main() {
 
   if (broken.length > 0 || forecast.length > 0) process.exit(1)
 
+  const node = ciNodeVersions(readFileSync(WORKFLOW, 'utf8'))
+    .map((version) => version.replace('.9999.9999', '.x'))
+    .join(', ')
+
   console.log(
     `[dependabot groups] ${checked} direct dependencies checked; every peer range resolves, ` +
-      `and no locked pair is split across groups.`,
+      `every engines floor fits Node ${node}, and no locked pair is split across groups.`,
   )
 }
 

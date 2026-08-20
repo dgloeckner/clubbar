@@ -15,6 +15,8 @@ import { fileURLToPath } from 'node:url'
 import {
   UNGROUPED_PEERS,
   catchAllDrift,
+  ciNodeVersions,
+  engineViolations,
   directDependencies,
   groupOf,
   installedVersions,
@@ -122,6 +124,44 @@ test('an exemption whose peer edge is gone is stale; one not yet locked is not',
   assert.deepEqual(staleExemptions(stillDeclared, exempt), [])
   assert.deepEqual(staleExemptions(dropped, exempt), ['i18next -> typescript'])
   assert.deepEqual(staleExemptions([], exempt), [])
+})
+
+// --- the runtime ------------------------------------------------------------
+
+test('#619: a dependency whose Node floor is above the one CI runs', () => {
+  const jsdom = { name: 'jsdom', version: '30.0.1', peers: {}, engines: '^22.22.2 || ^24.15.0 || >=26.0.0' }
+
+  assert.deepEqual(engineViolations([jsdom], ['22.9999.9999']), [])
+
+  const under20 = engineViolations([jsdom], ['20.9999.9999'])
+  assert.equal(under20.length, 1)
+  assert.match(under20[0], /jsdom@30\.0\.1 needs Node "\^22\.22\.2 \|\| \^24\.15\.0 \|\| >=26\.0\.0"/)
+  assert.match(under20[0], /CI runs 20\.x/)
+})
+
+test('a dependency that declares no engines makes no claim', () => {
+  assert.deepEqual(engineViolations([{ name: 'react', version: '18.3.1', peers: {} }], ['20.9999.9999']), [])
+})
+
+test('every Node the workflow sets up is checked, not just the first', () => {
+  const violations = engineViolations(
+    [{ name: 'orval', version: '8.24.0', peers: {}, engines: '>=22.18.0' }],
+    ['22.9999.9999', '20.9999.9999'],
+  )
+
+  assert.equal(violations.length, 1)
+  assert.match(violations[0], /CI runs 20\.x/)
+})
+
+test('ciNodeVersions reads both a literal pin and one held in env', () => {
+  assert.deepEqual(ciNodeVersions("      - uses: actions/setup-node@v7\n        with:\n          node-version: '20'"), [
+    '20.9999.9999',
+  ])
+  assert.deepEqual(
+    ciNodeVersions("env:\n  NODE_VERSION: '22'\n\n          node-version: ${{ env.NODE_VERSION }}"),
+    ['22.9999.9999'],
+  )
+  assert.deepEqual(ciNodeVersions("node-version: '22.22.2'"), ['22.22.2'])
 })
 
 // --- the pieces underneath --------------------------------------------------
@@ -248,6 +288,10 @@ test('the committed manifests and config agree — this is the check itself', ()
 
       assert.ok(directs.length > 0, `${directory} declares no direct dependencies`)
       assert.deepEqual(unresolvablePeers(directs, installedVersions(lockfile)), [])
+      assert.deepEqual(
+        engineViolations(directs, ciNodeVersions(readFileSync(resolve(REPO, '.github/workflows/build.yaml'), 'utf8'))),
+        [],
+      )
       assert.deepEqual(splitLockedPeers(directs, entry.groups), [])
       assert.deepEqual(staleExemptions(directs), [])
     }
