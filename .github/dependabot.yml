@@ -1,11 +1,232 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Dependabot version updates.
+#
+# Reference: https://docs.github.com/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+#
+# The shape of this file is "one group per framework, majors on their own".
+# Two things drive it:
+#
+#   * A group is a single pull request, so packages that must move together
+#     belong in one group — react/react-dom with their @types, eslint with its
+#     plugins and the typescript-eslint pair, vite with vitest. Bumping half a
+#     toolchain is how a green PR turns red on merge.
+#   * Everything a group does not claim falls into a catch-all that takes only
+#     minor and patch. A major of an unclaimed package therefore arrives as its
+#     own pull request, which is what a breaking change needs: react-router
+#     6 -> 7 (#578) is not something to review inside a ten-package diff.
+#
+# Docker images are deliberately absent. Every image the project pulls is also
+# listed by hand in `scripts/mirrored-images.txt` and copied to GHCR by
+# `scripts/mirror-images.sh`, and Dependabot cannot update that list — a bumped
+# tag in docker-compose.yml would silently leave the mirror pointing at a tag
+# that no longer exists, and the fallback is Docker Hub's rate limit. The tags
+# are floating minors (`mariadb:10.11`, `webdevops/php-apache:8.3`,
+# `node:20-alpine`, `httpd:2.4-alpine`) so upstream patches arrive on the next
+# pull anyway. Enabling the `docker` and `docker-compose` ecosystems needs a
+# check that the mirror list still covers what the compose files reference.
 
 version: 2
+
 updates:
-  - package-ecosystem: "" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # ---------------------------------------------------------------------------
+  # npm — the admin SPA and the Playwright suite.
+  #
+  # Both directories are handled by one entry so a group that matches in both
+  # produces one pull request "across 2 directories". That is the point for the
+  # shared toolchain: typescript, eslint and @playwright/test are pinned in
+  # each package.json separately and drifted apart before (typescript 5.2 vs
+  # 5.7, eslint 8 vs 9), which is how a spec passes in one directory and fails
+  # to compile in the other.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directories:
+      - "/admin-frontend"
+      - "/e2etests"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 10
+    groups:
+      # The runtime and its types are one unit: @types/react 19 against react 18
+      # does not type-check.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+
+      # Kept out of the `react` group on purpose. Router majors are breaking on
+      # their own schedule and get their own pull request; the two packages are
+      # grouped only with each other so they never split across versions.
+      react-router:
+        patterns:
+          - "react-router"
+          - "react-router-dom"
+
+      i18n:
+        patterns:
+          - "i18next"
+          - "i18next-*"
+          - "react-i18next"
+
+      # Vitest's supported vite range moves with its own major, so they ship
+      # together. jsdom and @testing-library are the environment those tests
+      # run in and break with them.
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+          - "vitest"
+          - "@vitest/*"
+          - "jsdom"
+          - "@testing-library/*"
+
+      # Spans both directories by design — the browser build a version wants is
+      # resolved from the installed @playwright/test, so a split between
+      # admin-frontend and e2etests means two browser downloads and one of them
+      # stale.
+      playwright:
+        patterns:
+          - "@playwright/test"
+          - "playwright"
+          - "playwright-core"
+
+      # eslint core, its plugins and the typescript-eslint packages all gate on
+      # each other's majors (eslint 9 needs flat-config-aware plugins).
+      eslint:
+        patterns:
+          - "eslint"
+          - "eslint-*"
+          - "@eslint/*"
+          - "@typescript-eslint/*"
+          - "prettier"
+          - "prettier-*"
+
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/node"
+
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "postcss"
+          - "autoprefixer"
+
+      # orval generates the API client and axios is what the generated code
+      # calls, so a regeneration and its HTTP client land together.
+      api-client:
+        patterns:
+          - "orval"
+          - "axios"
+
+      # Everything else, minor and patch only. The exclusions repeat the groups
+      # above so the assignment does not depend on the order of this file.
+      npm-minor-and-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+          - "react-router"
+          - "react-router-dom"
+          - "i18next"
+          - "i18next-*"
+          - "react-i18next"
+          - "vite"
+          - "@vitejs/*"
+          - "vitest"
+          - "@vitest/*"
+          - "jsdom"
+          - "@testing-library/*"
+          - "@playwright/test"
+          - "playwright"
+          - "playwright-core"
+          - "eslint"
+          - "eslint-*"
+          - "@eslint/*"
+          - "@typescript-eslint/*"
+          - "prettier"
+          - "prettier-*"
+          - "typescript"
+          - "@types/node"
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "postcss"
+          - "autoprefixer"
+          - "orval"
+          - "axios"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ---------------------------------------------------------------------------
+  # Composer — the Slim backend.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "composer"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    groups:
+      # symfony/mailer, symfony/mime and symfony/yaml are one release train and
+      # constrain each other; a lone component bump just fails to resolve.
+      symfony:
+        patterns:
+          - "symfony/*"
+
+      slim:
+        patterns:
+          - "slim/*"
+          - "psr/*"
+          - "nyholm/*"
+
+      phpunit:
+        patterns:
+          - "phpunit/*"
+          - "sebastian/*"
+          - "phar-io/*"
+
+      composer-minor-and-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "symfony/*"
+          - "slim/*"
+          - "psr/*"
+          - "nyholm/*"
+          - "phpunit/*"
+          - "sebastian/*"
+          - "phar-io/*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions — one pull request for the lot, majors included.
+  #
+  # Actions are pinned to major tags (`actions/checkout@v4`), so a major is the
+  # ordinary case rather than the exception, and splitting them out would mean
+  # a pull request per action for no added signal: the workflows are their own
+  # test, and a bad bump is red on this pull request.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
