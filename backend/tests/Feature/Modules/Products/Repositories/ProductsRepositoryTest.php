@@ -358,4 +358,92 @@ class ProductsRepositoryTest extends DatabaseTestCase
             'findById() should not resolve a soft-deleted product'
         );
     }
+
+    /**
+     * `min_age` survives the write and the read (epic #582 M3, ADR-0045).
+     *
+     * The number the Getränkewart sets is what the terminal compares a member's
+     * age against, so a value that silently fails to persist is a restricted
+     * drink that sells to anyone — with the admin panel reporting success.
+     */
+    public function test_create_persists_the_minimum_age(): void
+    {
+        $product = $this->createProductWithMinAge(18);
+
+        $this->assertSame(18, (int) $product['min_age']);
+        $this->assertSame(18, (int) $this->productsRepository->findById($product['id'])['min_age']);
+    }
+
+    /** The ordinary case: most of a drinks list carries no legal age. */
+    public function test_create_without_a_minimum_age_stores_null(): void
+    {
+        $product = $this->createProductWithMinAge(null);
+
+        $this->assertNull($product['min_age']);
+    }
+
+    public function test_updateById_sets_a_minimum_age(): void
+    {
+        $product = $this->createProductWithMinAge(null);
+
+        $updated = $this->productsRepository->updateById($product['id'], ['min_age' => 16]);
+
+        $this->assertSame(16, (int) $updated['min_age']);
+    }
+
+    /**
+     * Clearing has to reach the row. `min_age` is not a boolean-ish column the
+     * repository coerces, so a null must pass through as a null rather than
+     * being cast to 0 — which would read as a restriction nobody can satisfy.
+     */
+    public function test_updateById_clears_the_minimum_age(): void
+    {
+        $product = $this->createProductWithMinAge(18);
+
+        $updated = $this->productsRepository->updateById($product['id'], ['min_age' => null]);
+
+        $this->assertNull($updated['min_age']);
+    }
+
+    /**
+     * The terminal learns about a new restriction through the ordinary delta
+     * sync — there is no separate channel and no cache invalidation step.
+     */
+    public function test_a_restricted_product_rides_the_delta_sync(): void
+    {
+        $product = $this->createProductWithMinAge(null);
+        $before = time() - 1;
+
+        $this->productsRepository->updateById($product['id'], ['min_age' => 18]);
+
+        $rows = $this->productsRepository->findModifiedSince($before * 1000);
+        $synced = array_values(array_filter($rows, fn (array $r): bool => $r['id'] === $product['id']));
+
+        $this->assertCount(1, $synced, 'the restriction must ride the ordinary delta sync');
+        $this->assertSame(18, (int) $synced[0]['min_age']);
+    }
+
+    /** @return array<string, mixed> The created product row. */
+    private function createProductWithMinAge(?int $minAge): array
+    {
+        $categoryId = $this->generateUuid();
+        $this->testCategoryIds[] = $categoryId;
+        $this->categoriesRepository->create([
+            'id' => $categoryId,
+            'names' => ['de' => 'Getränke', 'en' => 'Drinks'],
+            'is_active' => true,
+        ]);
+
+        $productId = $this->generateUuid();
+        $this->testProductIds[] = $productId;
+
+        return $this->productsRepository->create([
+            'id' => $productId,
+            'category_id' => $categoryId,
+            'names' => ['de' => 'Testgetränk', 'en' => 'Test drink'],
+            'price_cents' => 220,
+            'is_active' => true,
+            'min_age' => $minAge,
+        ]);
+    }
 }

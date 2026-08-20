@@ -18,7 +18,9 @@
 -- Creates:
 --   - 1 admin user: admin@example.com / password123
 --   - 2 categories: Getränke, Sauna
---   - 13 products with nice icons (including Sauna-Token with dispenser)
+--   - 14 products with nice icons (including Sauna-Token with dispenser);
+--     the beers and the Aeppler carry min_age 16 and the Kraeuterlikoer 18
+--     (ADR-0045, Jugendschutz)
 --   - 8 members with nice names and valid SEPA data (2 with real card UIDs);
 --     every one carries a date of birth, and two are deliberately minors --
 --     Sabine Klein is 15, Julia Wagner is 17 (ADR-0045, Jugendschutz)
@@ -31,6 +33,18 @@
 -- ---------------------------------------------------------------------------
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- The mail queue is cleared with everything else, and it has to be: it is the
+-- one table nothing else deletes from at test time. `DrainService` prunes only
+-- *delivered* rows at 90 days, so a repeatedly-reset dev stack accumulates the
+-- pending and failed ones forever — tens of thousands of them — and the
+-- paginated Notifications page then shows a page-1 that a freshly queued row
+-- can no longer reach. That reads as a broken filter rather than as a fixture
+-- that never cleaned up after itself (#582 M3).
+--
+-- `settlement_announcements` goes with it: it is the address-free proof that a
+-- member was announced to, keyed on members this script is about to delete.
+DELETE FROM mail_outbox;
+DELETE FROM settlement_announcements;
 DELETE FROM settlement_items;
 DELETE FROM settlements;
 DELETE FROM transactions;
@@ -100,7 +114,7 @@ VALUES (
 -- 4. Create Products - Getränke
 -- ---------------------------------------------------------------------------
 -- Pils 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333331-3333-3333-3333-333333333331',
     '11111111-1111-1111-1111-111111111111',
@@ -108,13 +122,14 @@ VALUES (
     '{"de": "Frisches Pils vom Fass", "en": "Fresh draft pilsner"}',
     350,
     'beer-pils',
+    16,  -- min_age: Pils -- JuSchG Sec. 9(1): beer from 16
     1,
     NOW(),
     NOW()
 );
 
 -- Weizen 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333332-3333-3333-3333-333333333332',
     '11111111-1111-1111-1111-111111111111',
@@ -122,13 +137,14 @@ VALUES (
     '{"de": "Bayrisches Hefeweizen", "en": "Bavarian wheat beer"}',
     380,
     'beer-weizen',
+    16,  -- min_age: Weizen -- beer
     1,
     NOW(),
     NOW()
 );
 
 -- Radler 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333333-3333-3333-3333-333333333333',
     '11111111-1111-1111-1111-111111111111',
@@ -136,13 +152,14 @@ VALUES (
     '{"de": "Erfrischendes Radler", "en": "Refreshing beer lemonade mix"}',
     320,
     'beer-radler',
+    16,  -- min_age: Radler -- a beer mix is still beer
     1,
     NOW(),
     NOW()
 );
 
 -- Alkoholfrei 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333334-3333-3333-3333-333333333334',
     '11111111-1111-1111-1111-111111111111',
@@ -150,13 +167,14 @@ VALUES (
     '{"de": "Alkoholfreies Pils", "en": "Non-alcoholic pilsner"}',
     320,
     'beer-alcohol-free',
+    NULL,  -- min_age: no legal age applies
     1,
     NOW(),
     NOW()
 );
 
 -- Apfelschorle 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333335-3333-3333-3333-333333333335',
     '11111111-1111-1111-1111-111111111111',
@@ -164,13 +182,14 @@ VALUES (
     '{"de": "Apfelsaft mit Sprudel", "en": "Apple juice with sparkling water"}',
     280,
     'spritzer-apple',
+    NULL,  -- min_age: no legal age applies
     1,
     NOW(),
     NOW()
 );
 
 -- Wasser 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333336-3333-3333-3333-333333333336',
     '11111111-1111-1111-1111-111111111111',
@@ -178,13 +197,14 @@ VALUES (
     '{"de": "Stilles oder mit Kohlensäure", "en": "Still or sparkling"}',
     200,
     'water-large',
+    NULL,  -- min_age: no legal age applies
     1,
     NOW(),
     NOW()
 );
 
 -- Kaffee
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333337-3333-3333-3333-333333333337',
     '11111111-1111-1111-1111-111111111111',
@@ -192,13 +212,14 @@ VALUES (
     '{"de": "Frisch gebrühter Filterkaffee", "en": "Freshly brewed filter coffee"}',
     150,
     'coffee',
+    NULL,  -- min_age: no legal age applies
     1,
     NOW(),
     NOW()
 );
 
 -- Äppler 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333338-3333-3333-3333-333333333338',
     '11111111-1111-1111-1111-111111111111',
@@ -206,6 +227,7 @@ VALUES (
     '{"de": "Hessischer Apfelwein", "en": "Hessian apple cider"}',
     350,
     'cider-apfelwein',
+    16,  -- min_age: Aeppler -- wine
     1,
     NOW(),
     NOW()
@@ -213,6 +235,28 @@ VALUES (
 
 -- ---------------------------------------------------------------------------
 -- 5. Create Products - Sauna
+-- Kräuterlikör 2cl — the only spirit on the list, and the fixture that makes
+-- the 18 threshold real. JuSchG § 9 Abs. 1 Nr. 1: Branntwein and drinks
+-- containing it are 18+, with no accompanied-minor exception (Abs. 2 covers
+-- only the 16+ row). Every Jugendschutz test needs one product at each
+-- threshold, and without this the seed could only ever exercise 16.
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
+VALUES (
+    '33333339-3333-3333-3333-333333333339',
+    '11111111-1111-1111-1111-111111111111',
+    '{"de": "Kräuterlikör 2cl", "en": "Herbal Liqueur 2cl"}',
+    '{"de": "Kräuterlikör, eiskalt", "en": "Herbal liqueur, ice cold"}',
+    250,
+    -- The icon registry has no spirits glyph yet (docs/icon-registry.md);
+    -- `wine-red` is the nearest registered one, and a validator rejects
+    -- anything not on that list.
+    'wine-red',
+    18,  -- min_age: Branntwein -- JuSchG Sec. 9(1) no. 1: spirits from 18
+    1,
+    NOW(),
+    NOW()
+);
+
 -- ---------------------------------------------------------------------------
 -- Sauna Tageskarte
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
