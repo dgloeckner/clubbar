@@ -218,17 +218,36 @@ class TerminalAnomalyDetectorTest extends TestCase
     }
 
     /**
-     * A dual-stack IPv4/IPv6 pair from one device is indistinguishable, from
-     * server-side signals alone, from an IPv6-only attacker riding alongside a
-     * legitimate IPv4 session — so unlike same-/64 IPv6 rotation, this pair
-     * must keep alerting rather than being collapsed away.
+     * The reported false positive (a real alert, reproduced address for
+     * address): one terminal on a German consumer line, answering over IPv4
+     * for part of the evening and over IPv6 for the rest, spending the whole
+     * time inside a single 60-second polling cycle. Two addresses, one loop's
+     * worth of requests between them — one device.
      */
-    public function testIpv4AndIpv6FromTheSameWindowStillOverlap(): void
+    public function testDualStackPairAtOneClientsCadenceStaysQuiet(): void
     {
         $this->sightings = $this->createMock(TerminalIpSightingsRepository::class);
         $this->sightings->method('activeIntervalsSince')->willReturn([
-            $this->interval('93.223.99.144', '2026-08-15 18:00:00', '2026-08-15 19:00:00'),
-            $this->interval('2003:fb:6f09:c200::1', '2026-08-15 18:30:00', '2026-08-15 19:30:00'),
+            $this->interval('93.223.99.144', '2026-08-19 17:20:05', '2026-08-19 18:12:04', 150),
+            $this->interval('2003:fb:6f09:c200:8aa2:9eff:fe9c:afdc', '2026-08-19 17:26:04', '2026-08-19 18:14:04', 66),
+        ]);
+
+        $this->anomalies->expects($this->never())->method('open');
+
+        $this->assertSame(0, $this->detector()->run()->opened);
+    }
+
+    /**
+     * The same shape carrying two polling loops is the case the exemption must
+     * not swallow: a second device does not redistribute the terminal's
+     * traffic, it adds its own on top.
+     */
+    public function testDualStackPairCarryingTwoClientsWorthOfTrafficStillAlerts(): void
+    {
+        $this->sightings = $this->createMock(TerminalIpSightingsRepository::class);
+        $this->sightings->method('activeIntervalsSince')->willReturn([
+            $this->interval('93.223.99.144', '2026-08-19 17:20:05', '2026-08-19 18:12:04', 430),
+            $this->interval('2003:fb:6f09:c200:8aa2:9eff:fe9c:afdc', '2026-08-19 17:26:04', '2026-08-19 18:14:04', 420),
         ]);
 
         $this->anomalies->method('findOpen')->willReturn(null);
@@ -238,9 +257,55 @@ class TerminalAnomalyDetectorTest extends TestCase
                 $this->anything(),
                 'terminal-1',
                 TerminalAnomalyKind::CONCURRENT_IP,
-                $this->callback(fn(array $d) => $d['overlap_seconds'] === 1800 && $d['distinct_ips'] === 2),
+                $this->callback(fn(array $d) => $d['distinct_ips'] === 2),
                 $this->anything(),
             );
+
+        $this->assertSame(1, $this->detector()->run()->opened);
+    }
+
+    /**
+     * Being dual-stack explains one address of each family and no more. A
+     * third network is unexplained however quiet the traffic is, so the
+     * exemption does not apply and the terminal is reported.
+     */
+    public function testDualStackPairAlongsideAThirdNetworkStillAlerts(): void
+    {
+        $this->sightings = $this->createMock(TerminalIpSightingsRepository::class);
+        $this->sightings->method('activeIntervalsSince')->willReturn([
+            $this->interval('93.223.99.144', '2026-08-19 17:20:05', '2026-08-19 18:12:04', 100),
+            $this->interval('2003:fb:6f09:c200:8aa2:9eff:fe9c:afdc', '2026-08-19 17:26:04', '2026-08-19 18:14:04', 60),
+            $this->interval('198.51.100.7', '2026-08-19 17:30:00', '2026-08-19 18:14:00', 56),
+        ]);
+
+        $this->anomalies->method('findOpen')->willReturn(null);
+        $this->anomalies->expects($this->once())
+            ->method('open')
+            ->with(
+                $this->anything(),
+                'terminal-1',
+                TerminalAnomalyKind::CONCURRENT_IP,
+                $this->callback(fn(array $d) => $d['distinct_ips'] === 3),
+                $this->anything(),
+            );
+
+        $this->assertSame(1, $this->detector()->run()->opened);
+    }
+
+    /**
+     * Two addresses of the *same* family are two networks whatever the volume:
+     * nothing about one client explains them, so the cadence test never runs.
+     */
+    public function testTwoIpv4AddressesAreNotExemptedByLowVolume(): void
+    {
+        $this->sightings = $this->createMock(TerminalIpSightingsRepository::class);
+        $this->sightings->method('activeIntervalsSince')->willReturn([
+            $this->interval('203.0.113.10', '2026-08-19 17:20:00', '2026-08-19 18:12:00', 8),
+            $this->interval('198.51.100.7', '2026-08-19 17:26:00', '2026-08-19 18:14:00', 6),
+        ]);
+
+        $this->anomalies->method('findOpen')->willReturn(null);
+        $this->anomalies->expects($this->once())->method('open');
 
         $this->assertSame(1, $this->detector()->run()->opened);
     }

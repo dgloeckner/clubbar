@@ -92,6 +92,7 @@ final class ConfigFile
             'lookback_minutes' => 'TERMINAL_ANOMALY_LOOKBACK_MINUTES',
             'min_overlap_minutes' => 'TERMINAL_ANOMALY_MIN_OVERLAP_MINUTES',
             'ip_retention_days' => 'TERMINAL_IP_RETENTION_DAYS',
+            'dual_stack_max_requests_per_hour' => 'TERMINAL_ANOMALY_DUAL_STACK_MAX_REQUESTS_PER_HOUR',
         ] as $key => $envVar) {
             if (!empty($config['terminal_anomaly'][$key])) {
                 $_ENV[$envVar] = (string) $config['terminal_anomaly'][$key];
