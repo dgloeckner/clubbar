@@ -25,6 +25,22 @@ async function createCategoryViaApi(page: import('@playwright/test').Page, nameD
   return resp.json()
 }
 
+/**
+ * The product's `min_age` as the API reports it.
+ *
+ * Read through the list rather than a single-item GET, because that is the only
+ * shape the panel has: `listProducts()` returns full products and there is no
+ * `GET /admin/products/{id}`.
+ */
+async function minAgeOf(page: import('@playwright/test').Page, productId: string): Promise<number | null> {
+  const resp = await page.request.get(`${API_BASE}/admin/products`, { params: { per_page: 100 } })
+  expect(resp.status()).toBe(200)
+  const row = (await resp.json()).data.find((p: { id: string }) => p.id === productId)
+  expect(row, 'the product must be in the list').toBeTruthy()
+
+  return row.min_age ?? null
+}
+
 /** Helper: create a product via API, returns full product object */
 async function createProductViaApi(
   page: import('@playwright/test').Page,
@@ -247,6 +263,93 @@ test.describe('Admin Products Page', () => {
     expect(allMatching.length).toBeGreaterThanOrEqual(3)
   })
 
+
+  /**
+   * The Getränkewart's half of the Jugendschutz check (epic #582 M5, ADR-0045).
+   *
+   * One flow, because the states only mean anything relative to each other:
+   * unrestricted is the default a drinks list mostly sits in, a number is what
+   * makes a product refusable at the terminal, and **clearing it back to
+   * unrestricted has to actually reach the row** — that is the write that makes
+   * a product *more* available, so a form that silently kept the old age would
+   * leave a drink restricted with the UI claiming otherwise.
+   */
+  test('product minimum age: unrestricted by default, set, corrected, and cleared again', async ({
+    authenticatedProductsPage,
+    page,
+  }) => {
+    const ts = Date.now()
+    const prefix = `Age${ts}`
+
+    const cat = await createCategoryViaApi(page, `${prefix}Kat`, `${prefix}Cat`)
+    await authenticatedProductsPage.reloadPage()
+
+    // ── Default: the field is empty, and empty means unrestricted ──
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+    expect(await authenticatedProductsPage.getMinAgeValue()).toBe('')
+
+    const schorle = `${prefix}Schorle`
+    await authenticatedProductsPage.fillProductForm(schorle, '2.20')
+    await authenticatedProductsPage.selectCategory(cat.id)
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    await authenticatedProductsPage.search(schorle)
+    const schorleId = await authenticatedProductsPage.getProductIdByName(schorle)
+    expect(schorleId).not.toBeNull()
+    expect(await minAgeOf(page, schorleId!)).toBeNull()
+
+    // ── Set: a spirit at 18 ─────────────────────────────────────
+    const korn = `${prefix}Korn`
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+    await authenticatedProductsPage.fillProductForm(korn, '2.50')
+    await authenticatedProductsPage.selectCategory(cat.id)
+    await authenticatedProductsPage.setMinAge(18)
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    await authenticatedProductsPage.search(korn)
+    const kornId = await authenticatedProductsPage.getProductIdByName(korn)
+    expect(kornId).not.toBeNull()
+    expect(await minAgeOf(page, kornId!)).toBe(18)
+
+    // ── Prefill: the edit form shows the stored age ──────────────
+    // An admin who cannot see the number on file cannot notice a wrong one,
+    // and a wrong one reads as a lawful refusal at the bar.
+    await authenticatedProductsPage.clickEditButton(kornId!)
+    await authenticatedProductsPage.expectFormModalVisible()
+    expect(await authenticatedProductsPage.getMinAgeValue()).toBe('18')
+
+    // ── Correct: 18 → 16 ────────────────────────────────────────
+    await authenticatedProductsPage.setMinAge(16)
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    await authenticatedProductsPage.search(korn)
+    expect(await minAgeOf(page, kornId!)).toBe(16)
+
+    // ── Clear: back to unrestricted, and it must reach the row ──
+    await authenticatedProductsPage.clickEditButton(kornId!)
+    await authenticatedProductsPage.expectFormModalVisible()
+    expect(await authenticatedProductsPage.getMinAgeValue()).toBe('16')
+    await authenticatedProductsPage.setMinAge(null)
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    await authenticatedProductsPage.search(korn)
+    expect(
+      await minAgeOf(page, kornId!),
+      'clearing the field must clear the column, not leave the old age behind',
+    ).toBeNull()
+
+    // ── And the form agrees on reopening ────────────────────────
+    await authenticatedProductsPage.clickEditButton(kornId!)
+    await authenticatedProductsPage.expectFormModalVisible()
+    expect(await authenticatedProductsPage.getMinAgeValue()).toBe('')
+    await authenticatedProductsPage.cancelForm()
+  })
 
   test('product special features: icons, dispenser toggle, i18n translations', async ({
     authenticatedProductsPage,

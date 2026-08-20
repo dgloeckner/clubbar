@@ -110,6 +110,66 @@ test.describe('What each office can actually do (ADR-0044)', () => {
     expect(found, 'the product the Getränkewart created must be listed back to them').toBeTruthy()
     expect(found.price_cents).toBe(275)
   })
+
+  /**
+   * The Getränkewart sets a legal age, and still sees no member
+   * (ADR-0045 rule 5, ADR-0044).
+   *
+   * This is the half of that rule that has to be *granted* rather than denied:
+   * `min_age` is a property of a drink, and the office that owns the drinks
+   * list owns it. The other half — that the same credential reaches no member
+   * endpoint at all — is `role-access-matrix.spec.ts`, where every
+   * `/admin/members` route is Kassenwart-only.
+   *
+   * Worth stating together, because the field is the one place in this epic
+   * where a bar role touches something with a legal consequence, and the
+   * obvious wrong instinct would be to escalate it to the Kassenwart — who
+   * does not run the drinks list and would have to be asked every time a
+   * bottle changed.
+   */
+  test('a Getränkewart sets a legal age on a drink, still without seeing a member', async ({
+    getraenkewartRequest,
+  }) => {
+    const suffix = unique()
+
+    const category = await getraenkewartRequest.post(`${API_BASE}/admin/categories`, {
+      data: { names: { de: `Spirituosen ${suffix}`, en: `Spirits ${suffix}` }, icon_name: 'generic' },
+    })
+    expect(category.status()).toBe(201)
+    const categoryId = (await category.json()).id
+
+    const created = await getraenkewartRequest.post(`${API_BASE}/admin/products`, {
+      data: {
+        names: { de: `Korn ${suffix}`, en: `Grain spirit ${suffix}` },
+        price_cents: 250,
+        category_id: categoryId,
+        min_age: 18,
+      },
+    })
+    expect(created.status(), await created.text()).toBe(201)
+    const product = await created.json()
+    expect(product.min_age).toBe(18)
+
+    // Correcting it downwards is the same office doing the same job.
+    const corrected = await getraenkewartRequest.patch(`${API_BASE}/admin/products/${product.id}`, {
+      data: { min_age: 16 },
+    })
+    expect(corrected.status()).toBe(200)
+    expect((await corrected.json()).min_age).toBe(16)
+
+    // And clearing it — the write that makes a drink *more* available.
+    const cleared = await getraenkewartRequest.patch(`${API_BASE}/admin/products/${product.id}`, {
+      data: { min_age: null },
+    })
+    expect(cleared.status()).toBe(200)
+    expect((await cleared.json()).min_age).toBeNull()
+
+    // The member side stays shut. Named here rather than left to the matrix
+    // alone, because "who may set the age" and "who may see the ages" are the
+    // two halves of rule 5 and they are easier to keep true side by side.
+    const members = await getraenkewartRequest.get(`${API_BASE}/admin/members?per_page=1`)
+    expect(members.status(), 'a Getränkewart must not be able to read the roster').toBe(403)
+  })
 })
 
 test.describe('The three boundaries (ADR-0044)', () => {
