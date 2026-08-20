@@ -13,14 +13,14 @@
 
 name: Codacy Security Scan
 
+# The scan runs nightly against main, not on pushes or pull requests: a full
+# Codacy run costs several minutes and its findings are repository-wide rather
+# than diff-scoped, so it tells us nothing per-change that the nightly run does
+# not report. workflow_dispatch keeps a manual run available on demand.
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ "main" ]
   schedule:
-    - cron: '26 11 * * 5'
+    - cron: '26 2 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
