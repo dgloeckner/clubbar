@@ -39,7 +39,11 @@ final class JugendschutzViolationMail
             $t->t('jugendschutz.row.product') => $data->productName
                 ?? $t->t('jugendschutz.product_deleted'),
             $t->t('jugendschutz.row.required') => $age,
-            $t->t('jugendschutz.row.occurred') => $data->occurredAt,
+            // Through the formatter, not raw: the column holds UTC in the
+            // database's own format, and a committee member reading „Verkauft
+            // am 2026-08-21 14:29:57" about a sale they watched happen at half
+            // past four has no reason to believe it is the same one (#637).
+            $t->t('jugendschutz.row.occurred') => MailFormat::dateTime($data->occurredAt, $data->language),
             $t->t('jugendschutz.row.transaction') => $data->transactionId,
         ];
         if ($data->terminalName !== null) {

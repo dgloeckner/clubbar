@@ -84,6 +84,25 @@ async function waitForTheNotice(mail: MailpitClient, recipient: string) {
   return mail.message(id as string)
 }
 
+/**
+ * The sale as the club would write it: `21.08.2026, 16:29`.
+ *
+ * Deliberately computed here from the same instant the sale was booked with,
+ * rather than hard-coded — the assertion is that the mail states *the club's*
+ * clock, and Berlin is one hour ahead of UTC in winter and two in summer, so a
+ * fixed offset would make this spec pass or fail by the season (#637).
+ */
+const asTheClubWouldWriteIt = (instant: Date): string =>
+  new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(instant)
+
 /** A birth date making somebody exactly `years` old today. */
 const bornToBeAgedOn = (years: number): string => {
   const d = new Date()
@@ -161,6 +180,8 @@ test.describe('a violation reaches a mailbox', () => {
     const product = await productResponse.json()
 
     const transactionId = randomUUID()
+    const soldAt = new Date()
+    const soldAtUtc = soldAt.toISOString().replace(/\.\d{3}Z$/, 'Z')
     const sale = await authenticatedTerminalRequest.post(`${API_BASE}/sync/transactions`, {
       data: {
         transactions: [
@@ -170,7 +191,7 @@ test.describe('a violation reaches a mailbox', () => {
             product_id: product.id,
             amount_cents: 350,
             quantity: 1,
-            created_at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+            created_at: soldAtUtc,
           },
         ],
       },
@@ -191,12 +212,38 @@ test.describe('a violation reaches a mailbox', () => {
     expect(body).toContain('18')
     expect(body).toContain(transactionId)
 
+    // When it happened, on the club's clock (#637). The instant is stored in
+    // UTC and there is no browser at drain time to convert it, so before the
+    // fix this row carried the column verbatim — a German summer sale stated
+    // two hours early, in the database's own format.
+    expect(body).toContain(asTheClubWouldWriteIt(soldAt))
+    expect(body).not.toContain(soldAtUtc.replace('T', ' ').replace('Z', ''))
+
     // What it must never say. This is invariant 5 and rule 6 in the one channel
     // that cannot be taken back once sent.
     expect(body).not.toContain(dateOfBirth)
     expect(body).not.toContain(member.first_name)
     expect(body).not.toContain(member.last_name)
     expect(body).not.toContain(member.id)
-    expect(delivered.Text ?? '').not.toContain('15')
+
+    // The member's own age — 15 against a limit of 18 — checked against the
+    // text with the values that legitimately carry digits taken out first: the
+    // transaction id, the drink's random suffix, the address in the greeting
+    // (minted from Date.now()) and the sale's timestamp. Each is a hex, random
+    // or clock string that contains "15" by coincidence often enough to matter
+    // — a UUID does roughly one time in eight, and the timestamp does for a
+    // whole hour a day — and a leak check that fails on the clock teaches
+    // people to re-run it rather than read it.
+    const digitsThatBelongThere = [
+      transactionId,
+      suffix,
+      recipient,
+      asTheClubWouldWriteIt(soldAt),
+    ]
+    const scrubbed = digitsThatBelongThere.reduce(
+      (text, value) => text.replaceAll(value, ''),
+      delivered.Text ?? '',
+    )
+    expect(scrubbed).not.toContain('15')
   })
 })

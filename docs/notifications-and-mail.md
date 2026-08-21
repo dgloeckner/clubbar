@@ -219,6 +219,14 @@ sequenceDiagram
 | `drain_batch_size`, `drain_budget_seconds` | Settings → Mail | Budget defaults to 25s; lower it to fit a tighter external scheduler timeout |
 | Cron secret (for the URL trigger) | Settings → Mail | Rotatable from the panel without file access; a rotated secret supersedes any value in `config.php` |
 | SMTP transport (`mail.dsn`) | `backend/config.php` | **Not** admin-editable from the panel — same tier as the DB password, changing it is a file operation |
+| `CLUB_TIMEZONE` | `backend/.env` | The clock a mail's dates and times are written in. Defaults to `Europe/Berlin`; an unknown name falls back to it rather than failing a send |
+
+**Which clock a mail states.** Everything is stored and served in UTC (#365),
+and in the admin panel the *browser* converts that to the reader's own zone. A
+mail has no browser, so the server does it instead, in the one zone a club
+actually has — hence `CLUB_TIMEZONE` rather than anything per-recipient. Only
+instants are shifted: a due date, a statement boundary and a period range are
+calendar days and stay where they are, in every zone (#637).
 
 **Running the drain:**
 
