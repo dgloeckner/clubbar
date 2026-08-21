@@ -58,7 +58,16 @@ export class MembersPage extends BasePage {
   private readonly accountHolderNameInput = () => this.page.getByTestId('members-form-account-holder-name-input')
   private readonly mandateReferenceInput = () => this.page.getByTestId('members-form-mandate-reference-input')
   private readonly dateOfBirthInput = () => this.page.getByTestId('members-form-dob-input')
+  // `DateField` shows the date the way the admin's locale writes it and keeps
+  // the ISO value the API receives in a hidden input beside it. Assertions read
+  // the ISO one, so a spec does not have to know whether the panel is in
+  // German or English.
+  private readonly dateOfBirthValue = () => this.page.getByTestId('members-form-dob-input-value')
+  private readonly dateOfBirthHint = () => this.page.getByTestId('members-form-dob-input-hint')
+  private readonly dateOfBirthCalendarButton = () => this.page.getByTestId('members-form-dob-input-open-calendar')
+  private readonly dateOfBirthCalendar = () => this.page.getByTestId('members-form-dob-input-calendar')
   private readonly mandateDateInput = () => this.page.getByTestId('members-form-mandate-date-input')
+  private readonly mandateDateValue = () => this.page.getByTestId('members-form-mandate-date-input-value')
   private readonly languageSelect = () => this.page.getByTestId('members-form-language-select')
   private readonly formSubmitBtn = () => this.page.getByTestId('members-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('members-form-cancel-button')
@@ -334,9 +343,74 @@ export class MembersPage extends BasePage {
     await this.submitForm()
   }
 
-  /** What the form currently shows as the member's date of birth. */
+  /** The ISO date of birth the form would submit. */
   async getDateOfBirthValue(): Promise<string> {
+    return (await this.dateOfBirthValue().inputValue()) || ''
+  }
+
+  /** What the date-of-birth field shows, in the admin's locale format. */
+  async getDateOfBirthText(): Promise<string> {
     return (await this.dateOfBirthInput().inputValue()) || ''
+  }
+
+  /** The line under the field: the format hint, the age, or the error. */
+  async getDateOfBirthHint(): Promise<string> {
+    return (await this.dateOfBirthHint().textContent())?.trim() ?? ''
+  }
+
+  /** Type into the date of birth field as a person would, without the picker. */
+  async typeDateOfBirth(text: string) {
+    await this.dateOfBirthInput().click()
+    await this.dateOfBirthInput().fill('')
+    await this.dateOfBirthInput().pressSequentially(text)
+  }
+
+  async blurDateOfBirth() {
+    await this.dateOfBirthInput().blur()
+  }
+
+  async openDateOfBirthCalendar() {
+    await this.dateOfBirthCalendarButton().click()
+    await expect(this.dateOfBirthCalendar()).toBeVisible()
+  }
+
+  async expectDateOfBirthCalendarHidden() {
+    await expect(this.dateOfBirthCalendar()).toBeHidden()
+  }
+
+  /**
+   * Pick a date through the calendar the way the UI intends it: year block →
+   * year → month → day, which is what makes a birth date three taps instead of
+   * a chevron marathon.
+   */
+  async pickDateOfBirth(year: number, month: number, day: number) {
+    await this.openDateOfBirthCalendar()
+    // An empty birth-date field already opens on the year grid; one that holds
+    // a date opens on its month, so the year jump is a click away.
+    const yearRange = this.page.getByTestId('members-form-dob-input-calendar-year-range')
+    if (!(await yearRange.isVisible())) {
+      await this.page.getByTestId('members-form-dob-input-calendar-year-view-button').click()
+    }
+    await this.pageYearsUntilVisible(year)
+    await this.page.getByTestId(`members-form-dob-input-calendar-year-${year}`).click()
+    await this.page.getByTestId(`members-form-dob-input-calendar-month-${month}`).click()
+    const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    await this.page.getByTestId(`members-form-dob-input-calendar-day-${iso}`).click()
+  }
+
+  /** Page the year grid backwards until the wanted year is on screen. */
+  private async pageYearsUntilVisible(year: number) {
+    const target = this.page.getByTestId(`members-form-dob-input-calendar-year-${year}`)
+    for (let attempt = 0; attempt < 12; attempt++) {
+      if (await target.isVisible()) return
+      await this.page.getByTestId('members-form-dob-input-calendar-prev').click()
+    }
+    await expect(target).toBeVisible()
+  }
+
+  /** Whether a day cell is offered at all — a future birth date must not be. */
+  async isDateOfBirthDayDisabled(iso: string): Promise<boolean> {
+    return this.page.getByTestId(`members-form-dob-input-calendar-day-${iso}`).isDisabled()
   }
 
   /**
@@ -470,8 +544,13 @@ export class MembersPage extends BasePage {
     return await this.ibanInput().inputValue() || ''
   }
 
+  /**
+   * The ISO mandate date the form would submit — read from `DateField`'s hidden
+   * value input, not from the visible one, which renders in the admin's locale
+   * (`01.02.2025`).
+   */
   async getFormMandateDateValue(): Promise<string> {
-    return await this.mandateDateInput().inputValue() || ''
+    return await this.mandateDateValue().inputValue() || ''
   }
 
   async getFormAccountHolderNameValue(): Promise<string> {

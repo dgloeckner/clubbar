@@ -29,6 +29,7 @@ import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { Toggle } from '../components/common/Toggle'
 import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
+import { DateField } from '../components/forms/DateField'
 import { validateIban } from '../utils/iban'
 import { toIsoDate } from '../utils/dates'
 import { buildMemberSortBy, type MemberSortKey } from '../utils/memberSort'
@@ -59,6 +60,13 @@ const PER_PAGE = 20
  * the API anyway (#131).
  */
 const CARD_UID_PATTERN = /^[0-9A-F]{8,20}$/
+
+/**
+ * Floor for the birth-date field. Nobody in a rowing club was born in 1723, so
+ * the calendar's year view has somewhere to stop paging and a typo that turns
+ * 1979 into 179 is refused by the field rather than by the API.
+ */
+const EARLIEST_BIRTH_DATE = toIsoDate(new Date(new Date().getFullYear() - 120, 0, 1))
 
 /**
  * Name used to tell one row's actions apart from another's. Icon-only buttons
@@ -1604,25 +1612,19 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.dateOfBirth')} *
                 </label>
-                <input
-                  data-testid="members-form-dob-input"
-                  type="date"
+                <DateField
+                  testId="members-form-dob-input"
+                  mode="birthdate"
                   required
                   value={formData.date_of_birth}
-                  onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                  onChange={(iso) => setFormData({ ...formData, date_of_birth: iso })}
+                  min={EARLIEST_BIRTH_DATE}
                   max={toIsoDate(new Date())}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${formErrors.date_of_birth ? theme.colors.semantic.danger : theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
+                  invalid={Boolean(formErrors.date_of_birth)}
+                  describedBy={formErrors.date_of_birth ? 'members-form-dob-error' : undefined}
                 />
                 {formErrors.date_of_birth && (
-                  <p data-testid="members-form-dob-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                  <p id="members-form-dob-error" data-testid="members-form-dob-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
                     {formErrors.date_of_birth}
                   </p>
                 )}
@@ -1752,21 +1754,12 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.mandateSignedAt')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
                 </label>
-                <input
-                  data-testid="members-form-mandate-date-input"
-                  type="date"
+                <DateField
+                  testId="members-form-mandate-date-input"
+                  clearable
                   value={formData.mandate_signed_at}
-                  onChange={(e) => setFormData({ ...formData, mandate_signed_at: e.target.value })}
+                  onChange={(iso) => setFormData({ ...formData, mandate_signed_at: iso })}
                   max={toIsoDate(new Date())}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
                 />
               </div>
 

@@ -160,6 +160,10 @@ import {
   tableColors,
   tableSpacing,
 } from '../styles/tableTokens'
+import { DateField } from '../components/forms/DateField'
+
+/** Fixed width for the toolbar date fields, which have no intrinsic size. */
+const DATE_FILTER_WIDTH = 170
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -488,15 +492,6 @@ export function ReportsPage() {
     transition: `all ${theme.transitions.default}`,
   })
 
-  const inputStyle: React.CSSProperties = {
-    padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-    background: theme.colors.bg.secondary,
-    border: `1px solid ${theme.colors.border.light}`,
-    borderRadius: theme.borderRadius.md,
-    color: theme.colors.text.primary,
-    fontSize: theme.typography.fontSize.sm,
-  }
-
   const labelStyle: React.CSSProperties = {
     fontSize: theme.typography.fontSize.xs,
     color: theme.colors.text.secondary,
@@ -564,24 +559,26 @@ export function ReportsPage() {
         <div style={filterGroupStyle}>
           {/* Date row: side-by-side on mobile, inline on desktop */}
           <div style={isMobile ? { display: 'flex', gap: theme.spacing.sm } : { display: 'contents' }}>
-            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
+            <div style={isMobile ? { flex: 1, minWidth: 0 } : { width: DATE_FILTER_WIDTH }}>
               <label style={labelStyle}>{t('reports.dateFrom')}</label>
-              <input
-                type="date"
-                data-testid="report-filter-date-from"
+              <DateField
+                testId="report-filter-date-from"
+                variant="filter"
+                clearable
+                ariaLabel={t('reports.dateFrom')}
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
+                onChange={setDateFrom}
               />
             </div>
-            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
+            <div style={isMobile ? { flex: 1, minWidth: 0 } : { width: DATE_FILTER_WIDTH }}>
               <label style={labelStyle}>{t('reports.dateTo')}</label>
-              <input
-                type="date"
-                data-testid="report-filter-date-to"
+              <DateField
+                testId="report-filter-date-to"
+                variant="filter"
+                clearable
+                ariaLabel={t('reports.dateTo')}
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
+                onChange={setDateTo}
               />
             </div>
           </div>
@@ -787,24 +784,26 @@ export function ReportsPage() {
         <div style={filterGroupStyle}>
           {/* Date row: side-by-side on mobile, inline on desktop */}
           <div style={isMobile ? { display: 'flex', gap: theme.spacing.sm } : { display: 'contents' }}>
-            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
+            <div style={isMobile ? { flex: 1, minWidth: 0 } : { width: DATE_FILTER_WIDTH }}>
               <label style={labelStyle}>{t('reports.dateFrom')}</label>
-              <input
-                type="date"
-                data-testid="report-filter-date-from"
+              <DateField
+                testId="report-filter-date-from"
+                variant="filter"
+                clearable
+                ariaLabel={t('reports.dateFrom')}
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
+                onChange={setDateFrom}
               />
             </div>
-            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
+            <div style={isMobile ? { flex: 1, minWidth: 0 } : { width: DATE_FILTER_WIDTH }}>
               <label style={labelStyle}>{t('reports.dateTo')}</label>
-              <input
-                type="date"
-                data-testid="report-filter-date-to"
+              <DateField
+                testId="report-filter-date-to"
+                variant="filter"
+                clearable
+                ariaLabel={t('reports.dateTo')}
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
+                onChange={setDateTo}
               />
             </div>
           </div>

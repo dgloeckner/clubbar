@@ -24,6 +24,7 @@ import { useListQuery } from '../hooks/useListQuery'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { formatDateTime } from '../styles/design-system'
 import { getAuditLogSummary } from '../utils/auditLogSummary'
+import { DateField } from '../components/forms/DateField'
 
 /** Return a color pair for action badges */
 function getActionBadgeStyle(action: string): { backgroundColor: string; color: string } {
@@ -59,6 +60,9 @@ const selectStyle: React.CSSProperties = {
   backgroundSize: '12px',
   boxSizing: 'border-box' as const,
 }
+
+/** Fixed width for the toolbar date fields, which have no intrinsic size. */
+const DATE_FILTER_WIDTH = 170
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -175,24 +179,26 @@ export function AuditLogPage() {
       <div style={wrapperStyle}>
         {/* Date Range Filters */}
         <div style={stacked ? { display: 'flex', gap: theme.spacing.sm } : { display: 'flex', gap: theme.spacing.sm, alignItems: 'flex-end' }}>
-          <div style={stacked ? { flex: 1 } : undefined}>
+          <div style={stacked ? { flex: 1 } : { width: DATE_FILTER_WIDTH }}>
             <label style={labelStyle}>{t('auditLog.from')}</label>
-            <input
-              type="date"
+            <DateField
+              testId="audit-log-filter-date-from"
+              variant="filter"
+              clearable
+              ariaLabel={t('auditLog.from')}
               value={dateFrom}
-              onChange={(e) => list.setFilter('dateFrom', e.target.value)}
-              data-testid="audit-log-filter-date-from"
-              style={inputStyle}
+              onChange={(iso) => list.setFilter('dateFrom', iso)}
             />
           </div>
-          <div style={stacked ? { flex: 1 } : undefined}>
+          <div style={stacked ? { flex: 1 } : { width: DATE_FILTER_WIDTH }}>
             <label style={labelStyle}>{t('auditLog.to')}</label>
-            <input
-              type="date"
+            <DateField
+              testId="audit-log-filter-date-to"
+              variant="filter"
+              clearable
+              ariaLabel={t('auditLog.to')}
               value={dateTo}
-              onChange={(e) => list.setFilter('dateTo', e.target.value)}
-              data-testid="audit-log-filter-date-to"
-              style={inputStyle}
+              onChange={(iso) => list.setFilter('dateTo', iso)}
             />
           </div>
         </div>
