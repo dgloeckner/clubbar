@@ -73,6 +73,7 @@ import type {
   ListMembersWithoutMandate200,
   Member,
   MemberCreateRequest,
+  MemberDataCompleteness,
   MemberImportPreview,
   MemberUpdateRequest
 } from './..';
@@ -156,6 +157,30 @@ const listCollectionHolds = (
  options?: SecondParameter<typeof customInstance<ListCollectionHolds200>>,) => {
       return customInstance<ListCollectionHolds200>(
       {url: `/admin/members/collection-holds`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * The Datenqualität panel's figures (#629). The roster could always
+*filter* for a gap; nothing said how many there were or what each gap
+costs, so four capable filter pills answered a question nobody knew to
+ask.
+
+Counts, not members — each has a filter behind it on `GET /members`
+that returns exactly the members counted. One request rather than four
+`per_page=1` probes, so every figure comes from the same snapshot and
+the numbers cannot disagree with each other.
+
+Active members only, and anonymized members are excluded with the rest
+of the roster; see `MemberDataCompleteness`.
+
+ * @summary Count the active members missing each piece of mandatory data
+ */
+const getMemberDataCompleteness = (
+    
+ options?: SecondParameter<typeof customInstance<MemberDataCompleteness>>,) => {
+      return customInstance<MemberDataCompleteness>(
+      {url: `/admin/members/completeness`, method: 'GET'
     },
       options);
     }
@@ -351,11 +376,12 @@ const importMembersConfirm = (
     },
       options);
     }
-  return {listMembers,createMember,listCreditBalances,listCollectionHolds,listMembersWithoutMandate,clearCollectionHold,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm}};
+  return {listMembers,createMember,listCreditBalances,listCollectionHolds,getMemberDataCompleteness,listMembersWithoutMandate,clearCollectionHold,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm}};
 export type ListMembersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listMembers']>>>
 export type CreateMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['createMember']>>>
 export type ListCreditBalancesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listCreditBalances']>>>
 export type ListCollectionHoldsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listCollectionHolds']>>>
+export type GetMemberDataCompletenessResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['getMemberDataCompleteness']>>>
 export type ListMembersWithoutMandateResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listMembersWithoutMandate']>>>
 export type ClearCollectionHoldResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['clearCollectionHold']>>>
 export type GetMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['getMember']>>>

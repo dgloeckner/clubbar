@@ -450,9 +450,20 @@ class MembersRepository
         return (int) $this->db->query('SELECT COUNT(*) FROM members')->fetchColumn();
     }
 
+    /**
+     * Active members, as the roster defines them.
+     *
+     * `deleted_at IS NULL` is not decoration: anonymization sets `deleted_at`
+     * without necessarily clearing `is_active`, so this used to count members
+     * the roster can never show — the dashboard card read 1219 against a list
+     * holding 1197. Nobody noticed until #629 put a second, correctly scoped
+     * figure on the same screen and the two disagreed by 22.
+     */
     public function countActive(): int
     {
-        return (int) $this->db->query('SELECT COUNT(*) FROM members WHERE is_active = 1')->fetchColumn();
+        return (int) $this->db
+            ->query('SELECT COUNT(*) FROM members WHERE is_active = 1 AND deleted_at IS NULL')
+            ->fetchColumn();
     }
 
     public function exists(string $id): bool
@@ -517,6 +528,47 @@ class MembersRepository
         return true;
     }
 
+    /**
+     * How many active members are missing each piece of mandatory data (#629).
+     *
+     * One query rather than four `per_page=1` probes, and **active members
+     * only**: an inactive member cannot book at the terminal and is not
+     * collected from, so their gaps are not work anyone needs to do — and a
+     * headline figure that can never reach zero stops being read. Anonymized
+     * members carry `deleted_at` and are excluded by the same clause the
+     * roster uses, which is what keeps GDPR erasure from reading as a data
+     * quality problem.
+     *
+     * The four gaps are exactly the four the roster can filter on, so every
+     * count has a list behind it that holds precisely the members it counted.
+     *
+     * @return array{total:int, without_card_uid:int, without_email:int, without_date_of_birth:int, without_mandate:int, incomplete:int}
+     */
+    public function countDataGaps(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT COUNT(*) AS total,'
+            . ' COALESCE(SUM(m.card_uid IS NULL), 0) AS without_card_uid,'
+            . ' COALESCE(SUM(m.email IS NULL), 0) AS without_email,'
+            . ' COALESCE(SUM(m.date_of_birth IS NULL), 0) AS without_date_of_birth,'
+            . ' COALESCE(SUM(md.id IS NULL), 0) AS without_mandate,'
+            . ' COALESCE(SUM(m.card_uid IS NULL OR m.email IS NULL'
+            . ' OR m.date_of_birth IS NULL OR md.id IS NULL), 0) AS incomplete'
+            . ' FROM members m ' . self::MANDATE_JOIN
+            . ' WHERE m.deleted_at IS NULL AND m.is_active = 1',
+        );
+        $row = $stmt->fetch() ?: [];
+
+        return [
+            'total' => (int) ($row['total'] ?? 0),
+            'without_card_uid' => (int) ($row['without_card_uid'] ?? 0),
+            'without_email' => (int) ($row['without_email'] ?? 0),
+            'without_date_of_birth' => (int) ($row['without_date_of_birth'] ?? 0),
+            'without_mandate' => (int) ($row['without_mandate'] ?? 0),
+            'incomplete' => (int) ($row['incomplete'] ?? 0),
+        ];
+    }
+
     public function listPaginated(int $limit, int $offset, array $filters = [], string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $search = null): array
     {
         $where = ['m.deleted_at IS NULL'];
@@ -552,6 +604,24 @@ class MembersRepository
         // are NOT NULL on `mandates`.
         if (isset($filters['sepa_status'])) {
             $where[] = $filters['sepa_status'] === 'valid' ? 'md.id IS NOT NULL' : 'md.id IS NULL';
+        }
+        // Birth-date presence filter (#629). Not the date — the roster never
+        // carries one (ADR-0045) — only whether there is one, which is what
+        // makes the members the terminal will refuse every age-restricted
+        // product to findable at all.
+        if (isset($filters['has_date_of_birth'])) {
+            $where[] = $filters['has_date_of_birth']
+                ? 'm.date_of_birth IS NOT NULL'
+                : 'm.date_of_birth IS NULL';
+        }
+        // "Show me everyone with a gap" (#629), as one predicate rather than
+        // four requests intersected in the browser — an `OR` cannot be
+        // assembled out of the single-gap filters above, and a client-side
+        // union would be wrong the moment the result spans a page.
+        if (isset($filters['data_status'])) {
+            $incomplete = '(m.card_uid IS NULL OR m.email IS NULL'
+                . ' OR m.date_of_birth IS NULL OR md.id IS NULL)';
+            $where[] = $filters['data_status'] === 'incomplete' ? $incomplete : "NOT {$incomplete}";
         }
         if ($search) {
             $escaped = SafeQuery::escapeLike($search);

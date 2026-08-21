@@ -12,8 +12,9 @@
  *     value={selectedCategoryId}
  *     onChange={setSelectedCategoryId}
  *     testId="products-form-category-select"
- *     label="Category *"
- *     required
+ *     label={t('common.category')}
+ *     requirement="required"
+ *     satisfied={Boolean(selectedCategoryId)}
  *   />
  */
 
@@ -21,6 +22,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { tableColors } from '../../styles/tableTokens'
+import { FieldLabel, type FieldRequirement } from './FieldLabel'
 
 interface Category {
   id: string
@@ -34,7 +36,15 @@ interface CategorySelectProps {
   onChange: (categoryId: string) => void
   testId: string
   label?: string
-  required?: boolean
+  /**
+   * Which requirement tier the field is in (#629). The component used to take
+   * `required` and append its own `*`, while call sites appended one to the
+   * label string as well — which is how the product form came to read
+   * "Kategorie * *".
+   */
+  requirement?: FieldRequirement
+  /** `required`: whether a category is currently chosen. */
+  satisfied?: boolean
 }
 
 export function CategorySelect({
@@ -43,7 +53,8 @@ export function CategorySelect({
   onChange,
   testId,
   label,
-  required = false,
+  requirement = 'required',
+  satisfied = false,
 }: CategorySelectProps) {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
@@ -73,10 +84,12 @@ export function CategorySelect({
   return (
     <div ref={containerRef} style={{ position: 'relative', marginBottom: '16px' }}>
       {label && (
-        <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '500', color: tableColors.cellText }}>
-          {label}
-          {required && <span style={{ color: theme.colors.semantic.danger, marginLeft: '4px' }}>*</span>}
-        </label>
+        <FieldLabel
+          label={label}
+          requirement={requirement}
+          satisfied={satisfied}
+          testId={`${testId}-label`}
+        />
       )}
 
       {/* Trigger Button */}

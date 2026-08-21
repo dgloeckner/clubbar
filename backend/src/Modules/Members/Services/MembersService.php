@@ -93,9 +93,18 @@ class MembersService
         // opens, and the terminal gets it through the sync — so nothing is lost
         // by keeping it off the list. `MemberListItem` in `api/admin.yaml`
         // agrees.
+        //
+        // What replaces it is the *flag* (#629). A member with no birth date is
+        // refused every age-restricted product by the terminal, and until now
+        // there was no way to find them from the panel at all — the one gap in
+        // a member's data with a legal edge was the one gap invisible from the
+        // roster. `has_date_of_birth` says whether the date exists without
+        // putting the date itself on a list an admin scrolls, which is what
+        // ADR-0045 was protecting.
         $items = array_map(
             function ($row): array {
                 $member = MemberAdminDto::fromRow($row)->toArray();
+                $member['has_date_of_birth'] = $member['date_of_birth'] !== null;
                 unset($member['date_of_birth']);
 
                 return $member;
@@ -104,6 +113,22 @@ class MembersService
         );
 
         return new PaginatedResultDto(items: $items, total: $result['total'], limit: $limit, offset: $offset);
+    }
+
+    /**
+     * The Datenqualität panel's figures (#629): how many active members are
+     * missing each piece of mandatory data.
+     *
+     * A dedicated read rather than four filtered list calls with `per_page=1`,
+     * so the panel is one request and every count comes from the same snapshot
+     * — four probes can disagree with each other if a member is edited between
+     * them, and a panel whose numbers do not add up is worse than none.
+     *
+     * @return array{total:int, without_card_uid:int, without_email:int, without_date_of_birth:int, without_mandate:int, incomplete:int}
+     */
+    public function getDataCompleteness(): array
+    {
+        return $this->membersRepository->countDataGaps();
     }
 
     public function getMember(string $memberId): MemberAdminDto

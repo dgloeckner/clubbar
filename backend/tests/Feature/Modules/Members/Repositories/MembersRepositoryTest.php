@@ -1180,6 +1180,134 @@ class MembersRepositoryTest extends DatabaseTestCase
      * Same rule as E2E pattern 001: create data nothing else can collide with,
      * and ask for it by name.
      */
+    // ------------------------------------------------------------------
+    // Data completeness (#629): the roster could always filter for one gap at
+    // a time and could never say how many members had one — nor find the
+    // members with no birth date at all, which is the gap the terminal turns
+    // into a refused drink.
+    // ------------------------------------------------------------------
+
+    public function test_has_date_of_birth_filter_separates_the_two_groups(): void
+    {
+        $surname = $this->uniqueSurname('DobFilter');
+        $withDob = $this->createMemberWithData('HasDob', $surname);
+        $withoutDob = $this->createMemberWithData('NoDob', $surname, dateOfBirth: null);
+
+        $with = $this->membersRepository->listPaginated(50, 0, ['has_date_of_birth' => true], 'created_at', 'desc', $surname);
+        $this->assertSame([$withDob], array_column($with['items'], 'id'));
+
+        $without = $this->membersRepository->listPaginated(50, 0, ['has_date_of_birth' => false], 'created_at', 'desc', $surname);
+        $this->assertSame([$withoutDob], array_column($without['items'], 'id'));
+    }
+
+    public function test_data_status_incomplete_is_an_or_across_every_gap(): void
+    {
+        $surname = $this->uniqueSurname('DataStatus');
+
+        // Nothing missing: card, email, birth date and an active mandate.
+        $complete = $this->createMemberWithData('Whole', $surname, cardUid: 'AABBCCDD01', withMandate: true);
+
+        // One gap each — every one of them has to qualify on its own, which is
+        // what makes this an OR rather than the AND you get from intersecting
+        // the single-gap filters in a client.
+        $noCard = $this->createMemberWithData('NoCard', $surname, cardUid: null, withMandate: true);
+        $noEmail = $this->createMemberWithData('NoMail', $surname, cardUid: 'AABBCCDD02', email: null, withMandate: true);
+        $noDob = $this->createMemberWithData('NoBirth', $surname, cardUid: 'AABBCCDD03', dateOfBirth: null, withMandate: true);
+        $noMandate = $this->createMemberWithData('NoMandate', $surname, cardUid: 'AABBCCDD04', withMandate: false);
+
+        $incomplete = $this->membersRepository->listPaginated(50, 0, ['data_status' => 'incomplete'], 'created_at', 'desc', $surname);
+        $incompleteIds = array_column($incomplete['items'], 'id');
+
+        sort($incompleteIds);
+        $expected = [$noCard, $noEmail, $noDob, $noMandate];
+        sort($expected);
+        $this->assertSame($expected, $incompleteIds);
+        $this->assertNotContains($complete, $incompleteIds);
+
+        $completeOnly = $this->membersRepository->listPaginated(50, 0, ['data_status' => 'complete'], 'created_at', 'desc', $surname);
+        $this->assertSame([$complete], array_column($completeOnly['items'], 'id'));
+    }
+
+    public function test_data_status_counts_a_member_with_several_gaps_once(): void
+    {
+        $surname = $this->uniqueSurname('MultiGap');
+        $missingEverything = $this->createMemberWithData('Bare', $surname, cardUid: null, email: null, dateOfBirth: null);
+
+        $incomplete = $this->membersRepository->listPaginated(50, 0, ['data_status' => 'incomplete'], 'created_at', 'desc', $surname);
+
+        $this->assertSame([$missingEverything], array_column($incomplete['items'], 'id'));
+        $this->assertSame(1, $incomplete['total']);
+    }
+
+    public function test_countDataGaps_counts_each_gap_and_the_members_with_any(): void
+    {
+        $before = $this->membersRepository->countDataGaps();
+
+        $surname = $this->uniqueSurname('GapCount');
+        $this->createMemberWithData('Whole', $surname, cardUid: 'BBCCDDEE01', withMandate: true);
+        $this->createMemberWithData('NoCard', $surname, cardUid: null, withMandate: true);
+        $this->createMemberWithData('NoMail', $surname, cardUid: 'BBCCDDEE02', email: null, withMandate: true);
+        // Two gaps on one member: it lifts two of the per-gap counts but the
+        // headline only by one, which is the arithmetic the panel promises.
+        $this->createMemberWithData('NoBirthNoMandate', $surname, cardUid: 'BBCCDDEE03', dateOfBirth: null, withMandate: false);
+
+        $after = $this->membersRepository->countDataGaps();
+
+        $this->assertSame($before['total'] + 4, $after['total']);
+        $this->assertSame($before['without_card_uid'] + 1, $after['without_card_uid']);
+        $this->assertSame($before['without_email'] + 1, $after['without_email']);
+        $this->assertSame($before['without_date_of_birth'] + 1, $after['without_date_of_birth']);
+        $this->assertSame($before['without_mandate'] + 1, $after['without_mandate']);
+        $this->assertSame($before['incomplete'] + 3, $after['incomplete']);
+    }
+
+    public function test_countDataGaps_ignores_inactive_members(): void
+    {
+        $before = $this->membersRepository->countDataGaps();
+
+        $surname = $this->uniqueSurname('GapInactive');
+        // Missing everything, and switched off — so not work anyone needs to
+        // do, and deliberately not in the figure an admin is asked to act on.
+        $this->createMemberWithData('Dormant', $surname, cardUid: null, email: null, dateOfBirth: null, isActive: false);
+
+        $after = $this->membersRepository->countDataGaps();
+
+        $this->assertSame($before, $after);
+    }
+
+    public function test_countActive_excludes_soft_deleted_members(): void
+    {
+        $surname = $this->uniqueSurname('CountActive');
+        $memberId = $this->createMemberWithData('Erased', $surname);
+
+        $before = $this->membersRepository->countActive();
+
+        // Anonymization sets `deleted_at` and does not necessarily clear
+        // `is_active`, so a count that looks only at the flag reports members
+        // the roster will never show — the dashboard card said 1219 over a
+        // list of 1197 until #629 put a correctly scoped figure beside it.
+        $this->db->prepare('UPDATE members SET deleted_at = NOW() WHERE id = ?')->execute([$memberId]);
+
+        $this->assertSame($before - 1, $this->membersRepository->countActive());
+    }
+
+    public function test_countDataGaps_ignores_soft_deleted_members(): void
+    {
+        $surname = $this->uniqueSurname('GapDeleted');
+        $memberId = $this->createMemberWithData('Erased', $surname, cardUid: null, email: null, dateOfBirth: null);
+
+        $withMember = $this->membersRepository->countDataGaps();
+
+        // Anonymization sets `deleted_at`. Erasure emptying every column must
+        // not read back as a data-quality problem for somebody to go and fix.
+        $this->db->prepare('UPDATE members SET deleted_at = NOW() WHERE id = ?')->execute([$memberId]);
+
+        $afterErasure = $this->membersRepository->countDataGaps();
+
+        $this->assertSame($withMember['incomplete'] - 1, $afterErasure['incomplete']);
+        $this->assertSame($withMember['total'] - 1, $afterErasure['total']);
+    }
+
     private function uniqueSurname(string $prefix): string
     {
         return $prefix . substr(str_replace('-', '', $this->generateUuid()), 0, 8);
@@ -1194,6 +1322,61 @@ class MembersRepositoryTest extends DatabaseTestCase
             'INSERT INTO members (id, first_name, last_name, email, preferred_language, is_active) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$memberId, $firstName, $lastName, strtolower($firstName) . '-' . substr($memberId, 0, 8) . '@example.com', 'de', 1]);
+
+        return $memberId;
+    }
+
+    /**
+     * A member with exactly the gaps the caller asks for (#629).
+     *
+     * `createTestMember` above always produces an email and never a card UID,
+     * birth date or mandate, which is one specific corner of the four-gap
+     * space; the completeness rules have to be asserted across all of it.
+     */
+    private function createMemberWithData(
+        string $firstName,
+        string $lastName,
+        ?string $cardUid = null,
+        ?string $email = 'set',
+        ?string $dateOfBirth = '1985-06-15',
+        bool $withMandate = false,
+        bool $isActive = true,
+    ): string {
+        $memberId = $this->generateUuid();
+        $this->testMemberIds[] = $memberId;
+
+        $resolvedEmail = $email === 'set'
+            ? strtolower($firstName) . '-' . substr($memberId, 0, 8) . '@example.com'
+            : $email;
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO members (id, first_name, last_name, email, card_uid, date_of_birth, preferred_language, is_active)'
+            . ' VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $memberId,
+            $firstName,
+            $lastName,
+            $resolvedEmail,
+            $cardUid,
+            $dateOfBirth,
+            'de',
+            $isActive ? 1 : 0,
+        ]);
+
+        if ($withMandate) {
+            // The SEPA predicate is `md.id IS NOT NULL` over the active-mandate
+            // join, so the row only has to exist and be active.
+            $this->db->prepare(
+                'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_last4) VALUES (?, ?, ?, ?, ?)'
+            )->execute([
+                $this->generateUuid(),
+                $memberId,
+                $memberId,
+                'MREF' . substr(str_replace('-', '', $memberId), 0, 20),
+                '3000',
+            ]);
+        }
 
         return $memberId;
     }

@@ -726,7 +726,8 @@ export function CategoriesPage() {
                   onChange={setFormData}
                   label={t('categories.categoryName')}
                   placeholder={t('categories.categoryName')}
-                  required
+                  requirement="required"
+                  satisfied={Boolean(formData.de.trim() || formData.en.trim())}
                   testIdPrefix="categories-form-name"
                 />
               </div>
@@ -736,7 +737,8 @@ export function CategoriesPage() {
                 onChange={setSelectedIcon}
                 iconType="category"
                 testId="categories-form-icon-select"
-                label={`${t('products.icon')} (${t('common.optional')})`}
+                label={t('products.icon')}
+                requirement="optional"
               />
 
               {/* Buttons */}

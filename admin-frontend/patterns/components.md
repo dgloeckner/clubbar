@@ -516,6 +516,106 @@ export function CreditorForm({ creditorName }) {
 
 ---
 
+#### FieldLabel Component — the requirement marker
+
+**Every form label in the admin panel goes through this.** It is the answer to
+#629: mandatory fields used to be marked with a `*` appended to the label text,
+which is the same colour, size and weight as the label it hangs off. In a
+two-column grid where half the fields are optional there is nothing to scan
+for, and the convention had already drifted — `CategorySelect`, `IconSelect`
+and `LanguageTabsInput` each rendered their own `*` when `required` was set,
+while call sites *also* appended one to the label string, so the product form
+read `Kategorie * *` while its mandatory `Preis (€)` had no marker at all.
+
+**File**: `src/components/forms/FieldLabel.tsx`
+
+**Three requirement tiers**, and picking the right one is the whole point:
+
+| Tier | Marker | Use it when |
+|------|--------|-------------|
+| `required` | Pill: amber `! Pflicht` while the field is empty, green `✓ Pflicht` once filled | The API refuses the record without it |
+| `conditional` | Blue pill naming the capability, e.g. "erforderlich für Terminal-Zugang" | Optional to store, but a feature stays off until it is there — a card UID gates terminal access, IBAN + mandate gate SEPA collection (ADR-0020) |
+| `optional` | Muted grey text | Genuinely optional |
+
+The middle tier matters most. Calling a card UID "optional" is true of the
+database and false of the club: without one the member cannot buy a drink.
+Naming the capability says what the field is *for* in the space where
+"(optional)" used to say what it is not.
+
+**Props**:
+- `label` (string, required): The field name
+- `requirement` (`'required' | 'conditional' | 'optional'`, required)
+- `htmlFor` (string, optional): The control's `id` — set it wherever the control is a single input
+- `satisfied` (boolean, `required` tier): Whether the field currently holds a value; drives amber → green
+- `unlocks` (string, `conditional` tier): Translated marker text naming the capability
+- `optionalNote` (string, `optional` tier): Translated qualifier instead of the bare word, e.g. "SEPA, optional"
+- `children` (ReactNode, optional): Rendered after the marker — a `ValidationIndicator`, a lock, a stored-value note
+- `testId` (string, optional): The marker gets `${testId}-marker` and a `data-state` of `open` / `satisfied` / `conditional` / `optional`
+
+**Example**:
+```typescript
+import { FieldLabel } from '@/components/forms/FieldLabel'
+
+<FieldLabel
+  htmlFor="members-form-email-input"
+  label={t('members.email')}
+  requirement="required"
+  satisfied={Boolean(email.trim())}
+  testId="members-form-email-label"
+/>
+<input id="members-form-email-input" required aria-required value={email} … />
+```
+
+**Rules**:
+
+- **Never append `*` to a label string.** The marker is the component's job.
+  A `*` in a `label` prop is the bug this component replaces.
+- **Keep the marker inside the `<label>`.** It is part of the field's
+  accessible name; the leading glyph is `aria-hidden` because it is decoration.
+  Put `required` / `aria-required` on the control itself.
+- **`satisfied` must track live state**, not the initial value — the amber →
+  green switch is what lets an admin see at a glance which required field is
+  still empty.
+- Components that wrap a control (`CategorySelect`, `IconSelect`,
+  `LanguageTabsInput`) take `requirement` / `satisfied` and render `FieldLabel`
+  themselves. Do not add a `required` boolean back to them.
+
+**Not yet converted**: `LoginForm`, `ProfilePage` and the Settings tabs mark
+nothing at all today. They are consistent with each other, so they were left
+alone rather than half-migrated — convert a form when you next touch it.
+
+---
+
+#### MemberFormRequirements / ClearedValueNotice
+
+Two members-specific components that build on `FieldLabel`, and the pattern is
+worth copying to any form long enough to get lost in.
+
+**Files**: `src/components/members/MemberFormRequirements.tsx`,
+`src/components/members/ClearedValueNotice.tsx`
+
+`MemberFormRequirements` opens the modal with a progress line ("3 von 5
+Pflichtangaben ausgefüllt"), the missing fields as buttons that focus the field
+they name, and a count of stored values the save would delete. It is
+`role="status"` until a submit is actually refused and `role="alert"` after —
+announcing a running count on every keystroke is noise.
+
+Pair it with **`noValidate` on the `<form>`** and the required checks in the
+submit handler. Native validation surfaces one bubble at a time at the first
+offending field and says nothing about the rest; the point of the summary is
+that it names every gap at once.
+
+`ClearedValueNotice` is the other half, and the less obvious one. Where a blank
+input is sent to the API as an explicit `null` (#131), emptying a field on an
+edit is a **deletion** — of a card UID, and with it the member's terminal
+access. The notice names the value that is about to go and offers it back in
+one click. Any form with the same "blank means delete" semantics needs it; the
+rule for deciding which fields qualify lives in
+`src/utils/memberFormRequirements.ts`, including why the IBAN is deliberately
+excluded (a blank IBAN means *keep*, per #392).
+
+---
+
 #### ValidationIndicator Component
 
 Shows checkmark for valid fields, X for invalid fields.

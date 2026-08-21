@@ -2,13 +2,21 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { theme } from '../../styles/design-system';
 import { tableColors } from '../../styles/tableTokens';
+import { FieldLabel, type FieldRequirement } from './FieldLabel';
 
 interface LanguageTabsInputProps {
   values: { de: string; en: string };
   onChange: (values: { de: string; en: string }) => void;
   label: string;
   placeholder?: string;
-  required?: boolean;
+  /**
+   * Which requirement tier the field is in (#629), replacing a `required` flag
+   * that rendered its own `*` on top of whatever the call site had already
+   * appended to `label`.
+   */
+  requirement?: FieldRequirement;
+  /** `required`: whether at least one language carries a name. */
+  satisfied?: boolean;
   multiline?: boolean;
   testIdPrefix?: string;
 }
@@ -20,7 +28,8 @@ export function LanguageTabsInput({
   onChange,
   label,
   placeholder,
-  required = false,
+  requirement = 'required',
+  satisfied = false,
   multiline = false,
   testIdPrefix = 'lang-input',
 }: LanguageTabsInputProps) {
@@ -35,16 +44,12 @@ export function LanguageTabsInput({
 
   return (
     <div data-testid={`${testIdPrefix}-container`}>
-      <label style={{
-        display: 'block',
-        marginBottom: '6px',
-        color: tableColors.cellText,
-        fontSize: '14px',
-        fontWeight: '500',
-      }}>
-        {label}
-        {required && <span style={{ color: 'var(--color-danger)' }}> *</span>}
-      </label>
+      <FieldLabel
+        label={label}
+        requirement={requirement}
+        satisfied={satisfied}
+        testId={`${testIdPrefix}-label`}
+      />
 
       {/* Language Tabs */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>

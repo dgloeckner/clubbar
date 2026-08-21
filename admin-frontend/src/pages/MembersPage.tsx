@@ -3,7 +3,7 @@
  * Member management (list, create, edit, delete)
  */
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/common/StatCard'
 import { PageActionButton } from '../components/common/PageActionButton'
@@ -19,7 +19,7 @@ import { downloadBlob } from '../api/client'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
 import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
-import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, ListMembersHasEmail, MemberCreateRequest, MemberUpdateRequest } from '../api/generated'
+import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, ListMembersHasEmail, ListMembersHasDateOfBirth, ListMembersDataStatus, MemberCreateRequest, MemberUpdateRequest, MemberDataCompleteness } from '../api/generated'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { MobileFilterRow } from '../components/tables/MobileFilterRow'
@@ -37,6 +37,19 @@ import { getBalanceColor } from '../utils/transactions'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { useListQuery } from '../hooks/useListQuery'
 import { MemberIbanField } from '../components/members/MemberIbanField'
+import { ClearedValueNotice } from '../components/members/ClearedValueNotice'
+import { MemberDataQualityPanel } from '../components/members/MemberDataQualityPanel'
+import { MemberGapChips } from '../components/members/MemberGapChips'
+import { MemberFormRequirements } from '../components/members/MemberFormRequirements'
+import { FieldLabel } from '../components/forms/FieldLabel'
+import {
+  MEMBER_REQUIRED_FIELDS,
+  clearedFields,
+  isPlausibleEmail,
+  missingRequiredFields,
+  type MemberClearableField,
+  type MemberRequiredField,
+} from '../utils/memberFormRequirements'
 import { MemberMandateReferenceField } from '../components/members/MemberMandateReferenceField'
 import { deriveSepaFormStatus } from '../utils/sepaStatus'
 import { Alert } from '../components/common/Alert'
@@ -62,6 +75,33 @@ const PER_PAGE = 20
 const CARD_UID_PATTERN = /^[0-9A-F]{8,20}$/
 
 /**
+ * The member form's input styling, in one place because ten copies of it is
+ * how the danger border came to be applied to four of the fields and not the
+ * other six. `invalid` is what a field with a complaint under it looks like.
+ *
+ * The two date fields do not use it: they render through `DateField`, which
+ * owns its own styling and takes `invalid` as a prop (#631).
+ */
+function formInputStyle(invalid: boolean): React.CSSProperties {
+  return {
+    width: '100%',
+    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+    background: theme.colors.bg.input,
+    border: `1px solid ${invalid ? theme.colors.semantic.danger : theme.colors.border.light}`,
+    borderRadius: theme.borderRadius.md,
+    color: theme.colors.text.primary,
+    boxSizing: 'border-box',
+  }
+}
+
+const formFieldErrorStyle: React.CSSProperties = {
+  color: theme.colors.semantic.danger,
+  fontSize: theme.typography.fontSize.sm,
+  marginTop: theme.spacing.xs,
+  marginBottom: 0,
+}
+
+/**
  * Floor for the birth-date field. Nobody in a rowing club was born in 1723, so
  * the calendar's year view has somewhere to stop paging and a typo that turns
  * 1979 into 179 is refused by the field rather than by the API.
@@ -82,6 +122,23 @@ interface MemberFilters {
   cardUid: 'all' | 'with' | 'without'
   sepaStatus: 'all' | 'valid' | 'invalid'
   email: 'all' | 'with' | 'without'
+  /**
+   * The two filters the Datenqualität panel drives (#629). They have no pills
+   * of their own — the panel is their control surface, and "Filter
+   * zurücksetzen" clears them along with the rest.
+   */
+  dateOfBirth: 'all' | 'with' | 'without'
+  dataStatus: 'all' | 'complete' | 'incomplete'
+}
+
+/** Every filter back to "all" — the reset button and the panel both need it. */
+const NO_MEMBER_FILTERS: MemberFilters = {
+  status: 'all',
+  cardUid: 'all',
+  sepaStatus: 'all',
+  email: 'all',
+  dateOfBirth: 'all',
+  dataStatus: 'all',
 }
 
 export function MembersPage() {
@@ -93,6 +150,8 @@ export function MembersPage() {
   const metricsRequest = useLatestRequest()
   // The SEPA-Vorlage link is a third, independent stream for the same reason.
   const sepaConfigRequest = useLatestRequest()
+  // The Datenqualität panel's counts are a fourth (#629).
+  const completenessRequest = useLatestRequest()
   // The excluded tab's badge is the figure that makes the tab worth clicking,
   // so it has to be readable from the roster — a count only visible once you
   // are already on the page it advertises is no invitation at all. The hook
@@ -109,13 +168,16 @@ export function MembersPage() {
   // loading or genuinely unset — either way the button that opens it stays
   // disabled, since there's nothing to send an admin to.
   const [mandateTemplateUrl, setMandateTemplateUrl] = useState<string | null>(null)
+  // Null means "not known" — a failed load hides the panel rather than
+  // claiming every member is complete, which is the one wrong answer here.
+  const [completeness, setCompleteness] = useState<MemberDataCompleteness | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
 
   // One query, one fetch path: the loader effect and every post-mutation reload
   // go through the same state, so a reload can no longer drop the filters (#121).
   const list = useListQuery<MemberListItem, MemberFilters, MemberSortKey>({
-    initialFilters: { status: 'all', cardUid: 'all', sepaStatus: 'all', email: 'all' },
+    initialFilters: NO_MEMBER_FILTERS,
     initialSortKey: 'created_at',
     initialSortDirection: 'desc',
     initialPageSize: PER_PAGE,
@@ -130,6 +192,8 @@ export function MembersPage() {
       if (filters.sepaStatus !== 'all') params.sepa_status = filters.sepaStatus as ListMembersSepaStatus
       if (filters.cardUid !== 'all') params.has_card_uid = filters.cardUid as ListMembersHasCardUid
       if (filters.email !== 'all') params.has_email = filters.email as ListMembersHasEmail
+      if (filters.dateOfBirth !== 'all') params.has_date_of_birth = filters.dateOfBirth as ListMembersHasDateOfBirth
+      if (filters.dataStatus !== 'all') params.data_status = filters.dataStatus as ListMembersDataStatus
 
       const response = await getMembersFactory().listMembers(params, { signal })
       return { items: response.data ?? [], total: response.pagination?.total ?? 0 }
@@ -138,7 +202,7 @@ export function MembersPage() {
   })
 
   const { items: members, total: totalMembers, totalPages, loading, error, setError, search } = list
-  const { status: filterIsActive, cardUid: filterCardUid, sepaStatus: filterSepaStatus, email: filterEmail } = list.filters
+  const { status: filterIsActive, cardUid: filterCardUid, sepaStatus: filterSepaStatus, email: filterEmail, dateOfBirth: filterDateOfBirth, dataStatus: filterDataStatus } = list.filters
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -197,6 +261,81 @@ export function MembersPage() {
     setIsEnteringMandateReference(false)
   }
 
+  // ── What the form still needs, and what it would delete (#629) ───────────
+  //
+  // A `*` on five labels answered neither question. `submitAttempted` is what
+  // turns the summary from a running count into a refusal: until a save has
+  // actually been blocked, shouting about an empty field the admin has not
+  // reached yet is noise.
+  const [submitAttempted, setSubmitAttempted] = useState(false)
+
+  // Focus targets for the summary's "jump to the field" buttons. Callback refs
+  // rather than one ref per field: the map is keyed by the same field names the
+  // requirement rules use, so a new required field cannot be added to one and
+  // forgotten in the other.
+  const fieldRefs = useRef<Record<string, HTMLElement | null>>({})
+  const registerField = useCallback(
+    (field: string) => (element: HTMLElement | null) => {
+      fieldRefs.current[field] = element
+    },
+    [],
+  )
+
+  const jumpToField = useCallback((field: string) => {
+    const element = fieldRefs.current[field]
+    if (!element) return
+    element.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    // Most fields register the input itself. The two date fields register a
+    // wrapper instead, because `DateField` (#631) exposes neither an `id` nor
+    // a ref — so descend to the first thing that can actually take the caret.
+    const target = element.matches('input, select, textarea, button')
+      ? element
+      : element.querySelector<HTMLElement>('input, select, textarea, button')
+    ;(target ?? element).focus({ preventScroll: true })
+  }, [])
+
+  const requiredValues = useMemo(
+    () => ({
+      first_name: formData.first_name,
+      last_name: formData.last_name,
+      email: formData.email,
+      date_of_birth: formData.date_of_birth,
+      preferred_language: formData.preferred_language,
+    }),
+    [formData.first_name, formData.last_name, formData.email, formData.date_of_birth, formData.preferred_language],
+  )
+
+  const missingRequired = missingRequiredFields(requiredValues)
+  const isRequiredSatisfied = (field: MemberRequiredField) => !missingRequired.includes(field)
+
+  /** The label each field carries, so the summary names it the way the form does. */
+  const requiredFieldLabels: Record<MemberRequiredField, string> = {
+    first_name: t('members.firstName'),
+    last_name: t('members.lastName'),
+    email: t('members.email'),
+    date_of_birth: t('members.dateOfBirth'),
+    preferred_language: t('members.preferredLanguage'),
+  }
+
+  // Stored values this submit would delete. `editingMember` is the member as
+  // the API returned it, so this is a comparison against what is actually on
+  // file rather than against a copy that could drift.
+  const clearedStoredValues = clearedFields(editingMember, {
+    card_uid: formData.card_uid,
+    account_holder_name: formData.account_holder_name,
+    mandate_signed_at: formData.mandate_signed_at,
+  })
+  const clearedPrevious = Object.fromEntries(
+    clearedStoredValues.map((entry) => [entry.field, entry.previous]),
+  ) as Partial<Record<MemberClearableField, string>>
+
+  /** Puts a value the admin has just emptied back, from the notice under it. */
+  const restoreClearedValue = (field: MemberClearableField) => {
+    const previous = clearedPrevious[field]
+    if (previous === undefined) return
+    setFormData((prev) => ({ ...prev, [field]: previous }))
+  }
+
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -250,6 +389,26 @@ export function MembersPage() {
     return () => metricsRequest.abort()
   }, [loadDashboardMetrics, metricsRequest])
 
+  // The Datenqualität counts (#629). Reloaded after every mutation, because
+  // filling in a card UID is exactly the moment the headline should drop by
+  // one — a panel that keeps quoting a number the admin has just fixed is
+  // worse than one that is absent.
+  const loadCompleteness = useCallback(async (signal: AbortSignal) => {
+    try {
+      const summary = await getMembersFactory().getMemberDataCompleteness({ signal })
+      if (signal.aborted) return
+      setCompleteness(summary)
+    } catch {
+      if (signal.aborted) return
+      setCompleteness(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadCompleteness(completenessRequest.next())
+    return () => completenessRequest.abort()
+  }, [loadCompleteness, completenessRequest])
+
   // Load the SEPA-Vorlage link (#360/#456). Any failure — no config saved
   // yet, or a genuine error — leaves it null, which is exactly the state the
   // button already treats as "nothing to open".
@@ -292,10 +451,23 @@ export function MembersPage() {
       setFormErrors({})
 
       // Every client-side rule reports at once, so fixing the IBAN does not
-      // then reveal a card UID complaint that was true all along. Email has
-      // no entry here: it is `required` on the input itself (like first/last
-      // name), so the browser blocks submission before this handler runs.
+      // then reveal a card UID complaint that was true all along. Since #629
+      // the required fields are checked here too rather than by the browser:
+      // the form carries `noValidate`, because native validation surfaces one
+      // bubble at a time, at the first offending field, and says nothing at
+      // all about the other four. The inputs keep their `required` attribute
+      // for the semantics — it is what makes them required to a screen reader.
       const validationErrors: Record<string, string> = {}
+      const missing = missingRequiredFields(requiredValues)
+      for (const field of missing) {
+        validationErrors[field] = t('members.requirements.emptyRequired')
+      }
+      // Only worth saying about an address that is actually there; a blank one
+      // is already reported above, and two complaints about one field read as
+      // two problems.
+      if (missing.length === 0 && !isPlausibleEmail(formData.email)) {
+        validationErrors.email = t('members.requirements.invalidEmail')
+      }
       if (formData.iban && !validateIban(formData.iban)) {
         validationErrors.iban = t('members.validation.invalidIban')
       }
@@ -304,6 +476,10 @@ export function MembersPage() {
       }
       if (Object.keys(validationErrors).length > 0) {
         setFormErrors(validationErrors)
+        setSubmitAttempted(true)
+        // The summary at the top of the modal has just changed tone; put the
+        // caret in the first field it names so the fix can start immediately.
+        if (missing.length > 0) jumpToField(missing[0])
         return
       }
 
@@ -362,9 +538,11 @@ export function MembersPage() {
       setEditingMember(null)
       setFormData({ first_name: '', last_name: '', email: '', date_of_birth: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
       resetBankingFieldModes()
+      setSubmitAttempted(false)
 
       // Reload members list with the active filters still applied
       await list.reload()
+      await loadCompleteness(completenessRequest.next())
 
       setError(null)
     } catch (err: unknown) {
@@ -424,6 +602,7 @@ export function MembersPage() {
 
       // Reload members list with the active filters still applied
       await list.reload()
+      await loadCompleteness(completenessRequest.next())
 
       setError(null)
     } catch (err: unknown) {
@@ -446,6 +625,7 @@ export function MembersPage() {
 
       // Reload members list with the active filters still applied
       await list.reload()
+      await loadCompleteness(completenessRequest.next())
 
       setAnonymizeConfirm(null)
       setError(null)
@@ -472,6 +652,7 @@ export function MembersPage() {
       // (#131).
       setFormErrors({})
       resetBankingFieldModes()
+      setSubmitAttempted(false)
       setFormData({
         first_name: fullMember.first_name ?? '',
         last_name: fullMember.last_name ?? '',
@@ -542,6 +723,7 @@ export function MembersPage() {
                 setFormData({ first_name: '', last_name: '', email: '', date_of_birth: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
                 setFormErrors({})
                 resetBankingFieldModes()
+                setSubmitAttempted(false)
                 setShowModal(true)
               }}
               iconOnly={isMobile}
@@ -585,6 +767,33 @@ export function MembersPage() {
           color="blue"
         />
       </div>
+
+      {/*
+        Datenqualität (#629). Between the figures and the filter row, because
+        it is the bridge between them: the cards say how many members there
+        are, this says how many of them the club cannot actually serve, and
+        each of its buttons drives the filters below.
+      */}
+      <MemberDataQualityPanel
+        completeness={completeness}
+        isMobile={isMobile}
+        onShowGap={(gapFilters) => {
+          // `status: 'active'` on every one of these: the counts are over
+          // active members, so a list that also held inactive ones would not
+          // be the members the number just claimed.
+          list.setFilters({
+            ...NO_MEMBER_FILTERS,
+            status: 'active',
+            ...(gapFilters.cardUid ? { cardUid: gapFilters.cardUid } : {}),
+            ...(gapFilters.sepaStatus ? { sepaStatus: gapFilters.sepaStatus } : {}),
+            ...(gapFilters.email ? { email: gapFilters.email } : {}),
+            ...(gapFilters.dateOfBirth ? { dateOfBirth: gapFilters.dateOfBirth } : {}),
+          })
+        }}
+        onShowAllIncomplete={() => {
+          list.setFilters({ ...NO_MEMBER_FILTERS, status: 'active', dataStatus: 'incomplete' })
+        }}
+      />
 
       {/* Why the cards read "—". Without it the dashes are indistinguishable
           from a club that has never settled anything. */}
@@ -770,22 +979,19 @@ export function MembersPage() {
                       {formatters.formatPrice(member.balance_cents ?? 0)}
                     </span>
                   </div>
-                  {/* Row 2: SEPA + Card info */}
-                  <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '6px' }}>
-                    <span>
-                      SEPA: {member.is_sepa_valid ? (
-                        <span style={{ color: theme.colors.semantic.success }}>{t('members.sepaValid')}</span>
-                      ) : (
-                        <span style={{ color: theme.colors.text.muted }}>{t('members.sepaMissing')}</span>
-                      )}
-                    </span>
-                    {member.card_uid && <span>Card: {member.card_uid}</span>}
-                    {!member.email && (
-                      <span data-testid={`member-card-email-missing-${member.id}`} style={{ color: theme.colors.semantic.danger }}>
-                        {t('members.table.email')}: {t('members.missing')}
-                      </span>
-                    )}
+                  {/* Row 2: what this member is missing (#629). The card used
+                      to spell out SEPA and email separately and say nothing at
+                      all about a missing card UID or birth date; the chips are
+                      the same four gaps the desktop column and the panel
+                      above use. */}
+                  <div style={{ marginBottom: '6px' }}>
+                    <MemberGapChips member={member} />
                   </div>
+                  {member.card_uid && (
+                    <div style={{ fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '6px' }}>
+                      Card: {member.card_uid}
+                    </div>
+                  )}
                   {/* Row 3: member since */}
                   <div style={{ fontSize: '12px', color: theme.colors.text.muted, marginBottom: '10px' }}>
                     {t('members.memberSince')}: {member.created_at ? formatters.formatDate(member.created_at.split('T')[0]) : '—'}
@@ -1205,13 +1411,13 @@ export function MembersPage() {
         </div>
 
         {/* Clear filters */}
-        {((filterIsActive !== 'all') || (filterCardUid !== 'all') || (filterSepaStatus !== 'all') || (filterEmail !== 'all') || search) && (
+        {((filterIsActive !== 'all') || (filterCardUid !== 'all') || (filterSepaStatus !== 'all') || (filterEmail !== 'all') || (filterDateOfBirth !== 'all') || (filterDataStatus !== 'all') || search) && (
           <>
             <div style={{ flex: 1 }} />
             <button
               onClick={() => {
                 list.setSearch('')
-                list.setFilters({ status: 'all', cardUid: 'all', sepaStatus: 'all', email: 'all' })
+                list.setFilters(NO_MEMBER_FILTERS)
               }}
               data-testid="members-clear-filters"
               style={{
@@ -1261,8 +1467,16 @@ export function MembersPage() {
               <thead>
                 <tr style={headerRowStyle}>
                   <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>{t('common.status')}</th>
-                  <th style={{ ...headerCellBaseStyle, width: '100px', textAlign: 'center' }} data-testid="members-table-header-sepa">
-                    SEPA
+                  {/*
+                    Was a SEPA-only column. SEPA is one of four things a member
+                    can be missing, and the other three were invisible from the
+                    roster — so the column reports all four and the panel above
+                    counts the same four (#629). One definition of "incomplete",
+                    in both places: a count whose list holds different members
+                    teaches an admin to distrust the count.
+                  */}
+                  <th style={{ ...headerCellBaseStyle, width: '190px' }} data-testid="members-table-header-data">
+                    {t('members.completeness.column')}
                   </th>
                   <th style={headerCellBaseStyle}>
                     <SortableTableHeader
@@ -1321,20 +1535,8 @@ export function MembersPage() {
                       testId={`members-status-toggle-${member.id}`}
                       cellTestId={`members-table-cell-status-${member.id}`}
                     />
-                    <td style={{ textAlign: 'center' }} data-testid={`members-table-cell-sepa-${member.id}`}>
-                      <span
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: 4,
-                          fontSize: 12,
-                          fontWeight: 500,
-                          backgroundColor: member.is_sepa_valid ? theme.colors.semantic.success : theme.colors.semantic.danger,
-                          color: 'white',
-                          display: 'inline-block',
-                        }}
-                      >
-                        {member.is_sepa_valid ? t('members.valid') : t('members.missing')}
-                      </span>
+                    <td style={{ padding: tableSpacing.cellPadding }} data-testid={`members-table-cell-data-${member.id}`}>
+                      <MemberGapChips member={member} />
                     </td>
                     <TableCell testId={`members-table-cell-name-${member.id}`}>
                       {member.first_name} {member.last_name}
@@ -1481,6 +1683,20 @@ export function MembersPage() {
             </h2>
 
             {/*
+              What the form still needs, and what saving it would delete. It
+              opens the modal because those are the two things an admin wants
+              to know before reading a single field (#629).
+            */}
+            <MemberFormRequirements
+              satisfied={MEMBER_REQUIRED_FIELDS.length - missingRequired.length}
+              total={MEMBER_REQUIRED_FIELDS.length}
+              missing={missingRequired.map((field) => ({ field, label: requiredFieldLabels[field] }))}
+              clearingCount={clearedStoredValues.length}
+              blocked={submitAttempted && missingRequired.length > 0}
+              onJumpTo={jumpToField}
+            />
+
+            {/*
               SEPA status. It used to report `is_sepa_valid` as loaded, which
               left "SEPA-Mandat gültig" standing above the line announcing that
               the mandate is about to be revoked. It now previews what this
@@ -1525,80 +1741,89 @@ export function MembersPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
+            {/* `noValidate`: the required checks live in `handleSubmit`, which
+                reports every gap at once — see the comment there (#629). */}
+            <form onSubmit={handleSubmit} noValidate style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
               <div>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.firstName')} *
-                </label>
+                <FieldLabel
+                  htmlFor="members-form-first-name-input"
+                  label={t('members.firstName')}
+                  requirement="required"
+                  satisfied={isRequiredSatisfied('first_name')}
+                  testId="members-form-first-name-label"
+                />
                 <input
+                  id="members-form-first-name-input"
+                  ref={registerField('first_name')}
                   data-testid="members-form-first-name-input"
                   type="text"
                   required
+                  aria-invalid={Boolean(formErrors.first_name)}
                   value={formData.first_name}
                   onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                   placeholder="Max"
                   maxLength={100}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
+                  style={formInputStyle(Boolean(formErrors.first_name))}
                 />
+                {formErrors.first_name && (
+                  <p data-testid="members-form-first-name-error" style={formFieldErrorStyle}>
+                    {formErrors.first_name}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.lastName')} *
-                </label>
+                <FieldLabel
+                  htmlFor="members-form-last-name-input"
+                  label={t('members.lastName')}
+                  requirement="required"
+                  satisfied={isRequiredSatisfied('last_name')}
+                  testId="members-form-last-name-label"
+                />
                 <input
+                  id="members-form-last-name-input"
+                  ref={registerField('last_name')}
                   data-testid="members-form-last-name-input"
                   type="text"
                   required
+                  aria-invalid={Boolean(formErrors.last_name)}
                   value={formData.last_name}
                   onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                   placeholder="Mustermann"
                   maxLength={100}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
+                  style={formInputStyle(Boolean(formErrors.last_name))}
                 />
+                {formErrors.last_name && (
+                  <p data-testid="members-form-last-name-error" style={formFieldErrorStyle}>
+                    {formErrors.last_name}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.email')} *
-                </label>
+                <FieldLabel
+                  htmlFor="members-form-email-input"
+                  label={t('members.email')}
+                  requirement="required"
+                  satisfied={isRequiredSatisfied('email')}
+                  testId="members-form-email-label"
+                />
                 <input
+                  id="members-form-email-input"
+                  ref={registerField('email')}
                   data-testid="members-form-email-input"
                   type="email"
                   required
+                  aria-invalid={Boolean(formErrors.email)}
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="max@example.com"
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${formErrors.email ? theme.colors.semantic.danger : theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
+                  style={formInputStyle(Boolean(formErrors.email))}
                 />
                 {/* The API requires an email on create; without this the 422 it
                     answers with was mapped into formErrors and never rendered. */}
                 {formErrors.email && (
-                  <p data-testid="members-form-email-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                  <p data-testid="members-form-email-error" style={formFieldErrorStyle}>
                     {formErrors.email}
                   </p>
                 )}
@@ -1609,35 +1834,50 @@ export function MembersPage() {
                   refused offline. Required, and never in the future — the same
                   control and the same `max` guard as the mandate date below. */}
               <div>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.dateOfBirth')} *
-                </label>
-                <DateField
-                  testId="members-form-dob-input"
-                  mode="birthdate"
-                  required
-                  value={formData.date_of_birth}
-                  onChange={(iso) => setFormData({ ...formData, date_of_birth: iso })}
-                  min={EARLIEST_BIRTH_DATE}
-                  max={toIsoDate(new Date())}
-                  invalid={Boolean(formErrors.date_of_birth)}
-                  describedBy={formErrors.date_of_birth ? 'members-form-dob-error' : undefined}
+                {/* `DateField` (#631) owns the control; the marker is the
+                    label's job (#629). It exposes no `id`, so the wrapper is
+                    what `registerField` holds and `jumpToField` descends into
+                    to find the input. */}
+                <FieldLabel
+                  label={t('members.dateOfBirth')}
+                  requirement="required"
+                  satisfied={isRequiredSatisfied('date_of_birth')}
+                  testId="members-form-dob-label"
                 />
+                <div ref={registerField('date_of_birth')}>
+                  <DateField
+                    testId="members-form-dob-input"
+                    mode="birthdate"
+                    required
+                    value={formData.date_of_birth}
+                    onChange={(iso) => setFormData({ ...formData, date_of_birth: iso })}
+                    min={EARLIEST_BIRTH_DATE}
+                    max={toIsoDate(new Date())}
+                    invalid={Boolean(formErrors.date_of_birth)}
+                    describedBy={formErrors.date_of_birth ? 'members-form-dob-error' : undefined}
+                  />
+                </div>
                 {formErrors.date_of_birth && (
-                  <p id="members-form-dob-error" data-testid="members-form-dob-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                  <p id="members-form-dob-error" data-testid="members-form-dob-error" style={formFieldErrorStyle}>
                     {formErrors.date_of_birth}
                   </p>
                 )}
               </div>
 
+              {/* Not required to store, but nothing works at the till without
+                  it — so the marker names the capability instead of calling the
+                  field optional, which understates it (#629). */}
               <div>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.form.cardUid')}
-                  <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>
-                    ({t('common.requiredForTerminal')})
-                  </span>
-                </label>
+                <FieldLabel
+                  htmlFor="member-form-card-uid"
+                  label={t('members.form.cardUid')}
+                  requirement="conditional"
+                  unlocks={t('common.requiredForTerminal')}
+                  testId="members-form-card-uid-label"
+                />
                 <input
+                  id="member-form-card-uid"
+                  ref={registerField('card_uid')}
                   data-testid="member-form-card-uid"
                   type="text"
                   value={formData.card_uid}
@@ -1651,24 +1891,22 @@ export function MembersPage() {
                   }}
                   placeholder={t('members.form.cardUidPlaceholder')}
                   maxLength={20}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${formErrors.card_uid ? theme.colors.semantic.danger : theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                    fontFamily: 'monospace',
-                  }}
+                  style={{ ...formInputStyle(Boolean(formErrors.card_uid)), fontFamily: 'monospace' }}
                 />
+                {clearedPrevious.card_uid && (
+                  <ClearedValueNotice
+                    previous={clearedPrevious.card_uid}
+                    onRestore={() => restoreClearedValue('card_uid')}
+                    testId="members-form-card-uid-cleared"
+                  />
+                )}
                 {formData.card_uid && !CARD_UID_PATTERN.test(formData.card_uid) && (
-                  <p data-testid="member-form-card-uid-format-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                  <p data-testid="member-form-card-uid-format-error" style={formFieldErrorStyle}>
                     {t('members.validation.invalidCardUid')}
                   </p>
                 )}
                 {formErrors.card_uid && (
-                  <p data-testid="member-form-card-uid-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                  <p data-testid="member-form-card-uid-error" style={formFieldErrorStyle}>
                     {formErrors.card_uid}
                   </p>
                 )}
@@ -1704,27 +1942,32 @@ export function MembersPage() {
               />
 
               <div>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.accountHolderName')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
-                </label>
+                <FieldLabel
+                  htmlFor="members-form-account-holder-name-input"
+                  label={t('members.accountHolderName')}
+                  requirement="optional"
+                  optionalNote={`${t('common.sepa')}, ${t('common.optional')}`}
+                  testId="members-form-account-holder-label"
+                />
                 <input
+                  id="members-form-account-holder-name-input"
+                  ref={registerField('account_holder_name')}
                   data-testid="members-form-account-holder-name-input"
                   type="text"
                   value={formData.account_holder_name}
                   onChange={(e) => setFormData({ ...formData, account_holder_name: e.target.value })}
                   placeholder={t('members.accountHolderPlaceholder')}
                   maxLength={70}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
+                  style={formInputStyle(false)}
                 />
-                <span style={{ fontSize: '12px', color: theme.colors.text.secondary, marginTop: '4px', display: 'block' }}>
+                {clearedPrevious.account_holder_name && (
+                  <ClearedValueNotice
+                    previous={clearedPrevious.account_holder_name}
+                    onRestore={() => restoreClearedValue('account_holder_name')}
+                    testId="members-form-account-holder-cleared"
+                  />
+                )}
+                <span style={{ fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary, marginTop: theme.spacing.xs, display: 'block' }}>
                   {t('members.accountHolderHint')}
                 </span>
               </div>
@@ -1751,22 +1994,37 @@ export function MembersPage() {
               />
 
               <div>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.mandateSignedAt')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
-                </label>
-                <DateField
-                  testId="members-form-mandate-date-input"
-                  clearable
-                  value={formData.mandate_signed_at}
-                  onChange={(iso) => setFormData({ ...formData, mandate_signed_at: iso })}
-                  max={toIsoDate(new Date())}
+                <FieldLabel
+                  label={t('members.mandateSignedAt')}
+                  requirement="optional"
+                  optionalNote={`${t('common.sepa')}, ${t('common.optional')}`}
+                  testId="members-form-mandate-date-label"
                 />
+                <div ref={registerField('mandate_signed_at')}>
+                  <DateField
+                    testId="members-form-mandate-date-input"
+                    clearable
+                    value={formData.mandate_signed_at}
+                    onChange={(iso) => setFormData({ ...formData, mandate_signed_at: iso })}
+                    max={toIsoDate(new Date())}
+                  />
+                </div>
+                {clearedPrevious.mandate_signed_at && (
+                  <ClearedValueNotice
+                    previous={formatters.formatDate(clearedPrevious.mandate_signed_at)}
+                    onRestore={() => restoreClearedValue('mandate_signed_at')}
+                    testId="members-form-mandate-date-cleared"
+                  />
+                )}
               </div>
 
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.preferredLanguage')} *
-                </label>
+                <FieldLabel
+                  label={t('members.preferredLanguage')}
+                  requirement="required"
+                  satisfied={isRequiredSatisfied('preferred_language')}
+                  testId="members-form-language-label"
+                />
                 <LanguageSelector
                   value={formData.preferred_language as 'de' | 'en'}
                   onChange={(language) => setFormData({ ...formData, preferred_language: language })}
@@ -1806,7 +2064,7 @@ export function MembersPage() {
                   <button
                     data-testid="members-form-cancel-button"
                     type="button"
-                    onClick={() => { setShowModal(false); resetBankingFieldModes() }}
+                    onClick={() => { setShowModal(false); resetBankingFieldModes(); setSubmitAttempted(false) }}
                     style={{
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                       background: 'transparent',

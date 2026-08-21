@@ -238,6 +238,54 @@ class MembersServiceTest extends TestCase
         $this->assertSame('member-1', $result->items[0]['id']);
     }
 
+    /**
+     * The flag that replaces the date (#629).
+     *
+     * Dropping `date_of_birth` kept the roster minimal and made the one gap
+     * with a legal edge — a member the terminal refuses every age-restricted
+     * product to (ADR-0045) — impossible to find from the panel. The boolean
+     * restores the ability to find them without restoring the date.
+     */
+    public function test_listMembers_reports_whether_a_birth_date_exists(): void
+    {
+        $this->membersRepository
+            ->method('listPaginated')
+            ->willReturn([
+                'items' => [
+                    $this->member('has-dob', ['date_of_birth' => '1990-05-04']),
+                    $this->member('no-dob', ['date_of_birth' => null]),
+                ],
+                'total' => 2,
+            ]);
+
+        $result = $this->membersService->listMembers(20, 0);
+
+        $this->assertTrue($result->items[0]['has_date_of_birth']);
+        $this->assertFalse($result->items[1]['has_date_of_birth']);
+        // The flag replaces the date, it does not accompany it.
+        $this->assertArrayNotHasKey('date_of_birth', $result->items[0]);
+        $this->assertArrayNotHasKey('date_of_birth', $result->items[1]);
+    }
+
+    public function test_getDataCompleteness_passes_the_repository_counts_through(): void
+    {
+        $counts = [
+            'total' => 132,
+            'without_card_uid' => 9,
+            'without_email' => 2,
+            'without_date_of_birth' => 3,
+            'without_mandate' => 4,
+            'incomplete' => 14,
+        ];
+
+        $this->membersRepository
+            ->expects($this->once())
+            ->method('countDataGaps')
+            ->willReturn($counts);
+
+        $this->assertSame($counts, $this->membersService->getDataCompleteness());
+    }
+
     public function test_updateMember_converts_is_active_to_an_int(): void
     {
         // PDO turns a bound `false` into an empty string, which MariaDB then

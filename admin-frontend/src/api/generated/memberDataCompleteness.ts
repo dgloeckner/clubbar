@@ -57,66 +57,23 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { ListMembersBalance } from './listMembersBalance';
-import type { ListMembersDataStatus } from './listMembersDataStatus';
-import type { ListMembersHasCardUid } from './listMembersHasCardUid';
-import type { ListMembersHasDateOfBirth } from './listMembersHasDateOfBirth';
-import type { ListMembersHasEmail } from './listMembersHasEmail';
-import type { ListMembersSepaStatus } from './listMembersSepaStatus';
-import type { ListMembersSortBy } from './listMembersSortBy';
-import type { ListMembersStatus } from './listMembersStatus';
-import type { PageParameter } from './pageParameter';
-import type { PerPageParameter } from './perPageParameter';
 
-export type ListMembersParams = {
 /**
- * Page number (1-indexed)
- * @minimum 1
- */
-page?: PageParameter;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: PerPageParameter;
-/**
- * Filter by member status
- */
-status?: ListMembersStatus;
-/**
- * Filter by balance
- */
-balance?: ListMembersBalance;
-/**
- * Filter by SEPA data validity
- */
-sepa_status?: ListMembersSepaStatus;
-/**
- * Filter by card UID presence
- */
-has_card_uid?: ListMembersHasCardUid;
-/**
- * Filter by email presence — finds legacy members predating the required-email rule (#362) so they can be backfilled.
- */
-has_email?: ListMembersHasEmail;
-/**
- * Filter by birth-date presence (#629). `without` finds the members the terminal refuses every age-restricted product to (ADR-0045). The roster returns the flag, never the date.
- */
-has_date_of_birth?: ListMembersHasDateOfBirth;
-/**
- * Filter by overall data completeness (#629): `incomplete` is any member missing a card UID, an email, a birth date **or** a mandate. Expressed server-side because it is an `OR` — intersecting the single-gap filters in the client cannot produce it, and a union assembled there is wrong as soon as the result spans a page.
- */
-data_status?: ListMembersDataStatus;
-/**
- * Search in first name, last name, or card UID
- */
-search?: string;
-/**
- * Sort field and direction. `name` orders by last name then first
-name; `balance` orders by the unsettled balance; members without a
-card UID sort last in both `card_uid` directions.
+ * How many **active** members are missing each piece of mandatory data (#629). Inactive members are excluded: they cannot book and are not collected from, so their gaps are not work anyone needs to do, and a headline that can never reach zero stops being read. Anonymized members carry `deleted_at` and are excluded with the rest of the roster.
 
+Every count has a filter behind it on `GET /members` that returns exactly the members it counted — pair each with `status=active`.
  */
-sort_by?: ListMembersSortBy;
-};
+export interface MemberDataCompleteness {
+  /** Active members on the roster. */
+  total?: number;
+  /** Cannot book at the terminal. Filter -`has_card_uid=without`. */
+  without_card_uid?: number;
+  /** Reached by no announcement and no Deckelauszug. Filter -`has_email=without`. */
+  without_email?: number;
+  /** Refused every age-restricted product (ADR-0045). Filter -`has_date_of_birth=without`. */
+  without_date_of_birth?: number;
+  /** Deckel cannot be collected (ADR-0020). Filter -`sepa_status=invalid`. */
+  without_mandate?: number;
+  /** Missing at least one of the four. Not the sum of them — one member can be missing several. Filter -`data_status=incomplete`. */
+  incomplete?: number;
+}

@@ -57,66 +57,12 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { ListMembersBalance } from './listMembersBalance';
-import type { ListMembersDataStatus } from './listMembersDataStatus';
-import type { ListMembersHasCardUid } from './listMembersHasCardUid';
-import type { ListMembersHasDateOfBirth } from './listMembersHasDateOfBirth';
-import type { ListMembersHasEmail } from './listMembersHasEmail';
-import type { ListMembersSepaStatus } from './listMembersSepaStatus';
-import type { ListMembersSortBy } from './listMembersSortBy';
-import type { ListMembersStatus } from './listMembersStatus';
-import type { PageParameter } from './pageParameter';
-import type { PerPageParameter } from './perPageParameter';
 
-export type ListMembersParams = {
-/**
- * Page number (1-indexed)
- * @minimum 1
- */
-page?: PageParameter;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: PerPageParameter;
-/**
- * Filter by member status
- */
-status?: ListMembersStatus;
-/**
- * Filter by balance
- */
-balance?: ListMembersBalance;
-/**
- * Filter by SEPA data validity
- */
-sepa_status?: ListMembersSepaStatus;
-/**
- * Filter by card UID presence
- */
-has_card_uid?: ListMembersHasCardUid;
-/**
- * Filter by email presence — finds legacy members predating the required-email rule (#362) so they can be backfilled.
- */
-has_email?: ListMembersHasEmail;
-/**
- * Filter by birth-date presence (#629). `without` finds the members the terminal refuses every age-restricted product to (ADR-0045). The roster returns the flag, never the date.
- */
-has_date_of_birth?: ListMembersHasDateOfBirth;
-/**
- * Filter by overall data completeness (#629): `incomplete` is any member missing a card UID, an email, a birth date **or** a mandate. Expressed server-side because it is an `OR` — intersecting the single-gap filters in the client cannot produce it, and a union assembled there is wrong as soon as the result spans a page.
- */
-data_status?: ListMembersDataStatus;
-/**
- * Search in first name, last name, or card UID
- */
-search?: string;
-/**
- * Sort field and direction. `name` orders by last name then first
-name; `balance` orders by the unsettled balance; members without a
-card UID sort last in both `card_uid` directions.
+export type ListMembersHasDateOfBirth = typeof ListMembersHasDateOfBirth[keyof typeof ListMembersHasDateOfBirth];
 
- */
-sort_by?: ListMembersSortBy;
-};
+
+export const ListMembersHasDateOfBirth = {
+  all: 'all',
+  with: 'with',
+  without: 'without',
+} as const;

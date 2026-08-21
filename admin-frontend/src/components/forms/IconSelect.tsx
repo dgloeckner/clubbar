@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { getProductIcon, getCategoryIcon, PRODUCT_ICON_NAMES, CATEGORY_ICON_NAMES } from '../icons/IconRegistry'
 import { theme } from '../../styles/design-system'
 import { tableColors } from '../../styles/tableTokens'
+import { FieldLabel, type FieldRequirement } from './FieldLabel'
 
 interface IconSelectProps {
   value: string | null
@@ -29,7 +30,9 @@ interface IconSelectProps {
   iconType: 'product' | 'category'
   testId: string
   label?: string
-  required?: boolean
+  /** Requirement tier; the icon is optional everywhere it is used today (#629). */
+  requirement?: FieldRequirement
+  satisfied?: boolean
 }
 
 export function IconSelect({
@@ -38,7 +41,8 @@ export function IconSelect({
   iconType,
   testId,
   label,
-  required = false,
+  requirement = 'optional',
+  satisfied = false,
 }: IconSelectProps) {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
@@ -72,10 +76,12 @@ export function IconSelect({
   return (
     <div ref={containerRef} style={{ position: 'relative', marginBottom: '12px' }}>
       {label && (
-        <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '500', color: tableColors.cellText }}>
-          {label}
-          {required && <span style={{ color: theme.colors.semantic.danger, marginLeft: '4px' }}>*</span>}
-        </label>
+        <FieldLabel
+          label={label}
+          requirement={requirement}
+          satisfied={satisfied}
+          testId={`${testId}-label`}
+        />
       )}
 
       {/* Trigger Button */}
