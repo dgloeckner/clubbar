@@ -51,7 +51,10 @@ export function MemberFormRequirements({
   const { t } = useTranslation()
 
   const complete = missing.length === 0
-  const tone = blocked ? 'danger' : complete ? 'success' : 'warning'
+  // A deletion pending is never good news, so it keeps the panel amber even
+  // when every required field is filled — a green box announcing that a stored
+  // value is about to be deleted contradicts itself.
+  const tone = blocked ? 'danger' : complete && clearingCount === 0 ? 'success' : 'warning'
   const badge = theme.badges[tone]
 
   return (

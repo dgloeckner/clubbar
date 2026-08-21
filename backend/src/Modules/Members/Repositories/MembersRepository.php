@@ -450,9 +450,20 @@ class MembersRepository
         return (int) $this->db->query('SELECT COUNT(*) FROM members')->fetchColumn();
     }
 
+    /**
+     * Active members, as the roster defines them.
+     *
+     * `deleted_at IS NULL` is not decoration: anonymization sets `deleted_at`
+     * without necessarily clearing `is_active`, so this used to count members
+     * the roster can never show — the dashboard card read 1219 against a list
+     * holding 1197. Nobody noticed until #629 put a second, correctly scoped
+     * figure on the same screen and the two disagreed by 22.
+     */
     public function countActive(): int
     {
-        return (int) $this->db->query('SELECT COUNT(*) FROM members WHERE is_active = 1')->fetchColumn();
+        return (int) $this->db
+            ->query('SELECT COUNT(*) FROM members WHERE is_active = 1 AND deleted_at IS NULL')
+            ->fetchColumn();
     }
 
     public function exists(string $id): bool

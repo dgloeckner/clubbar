@@ -92,6 +92,81 @@ class AdminControllerCompletenessTest extends TestCase
         $this->assertSame(12, $body['total']);
     }
 
+    /**
+     * The two filters the Datenqualität panel drives (#629).
+     *
+     * They have no pill of their own — the panel *is* their control surface —
+     * so nothing else in the UI would notice if the controller stopped
+     * forwarding them, and the panel would quietly start opening lists that
+     * disagree with the count that opened them.
+     */
+    public function test_it_forwards_the_new_roster_filters_to_the_service(): void
+    {
+        $captured = null;
+        $this->membersService
+            ->expects($this->once())
+            ->method('listMembers')
+            ->willReturnCallback(function ($limit, $offset, $filters) use (&$captured) {
+                $captured = $filters;
+
+                return new \App\Shared\DTOs\PaginatedResultDto(items: [], total: 0, limit: $limit, offset: $offset);
+            });
+
+        $this->controller->index(
+            $this->listRequest(['has_date_of_birth' => 'without', 'data_status' => 'incomplete', 'status' => 'active']),
+            new Response(),
+        );
+
+        $this->assertSame(false, $captured['has_date_of_birth']);
+        $this->assertSame('incomplete', $captured['data_status']);
+        // The panel pins the status too, so the list holds exactly the active
+        // members the count was over.
+        $this->assertTrue($captured['is_active']);
+    }
+
+    public function test_has_date_of_birth_with_is_the_other_half_of_the_filter(): void
+    {
+        $captured = null;
+        $this->membersService
+            ->method('listMembers')
+            ->willReturnCallback(function ($limit, $offset, $filters) use (&$captured) {
+                $captured = $filters;
+
+                return new \App\Shared\DTOs\PaginatedResultDto(items: [], total: 0, limit: $limit, offset: $offset);
+            });
+
+        $this->controller->index($this->listRequest(['has_date_of_birth' => 'with']), new Response());
+
+        $this->assertSame(true, $captured['has_date_of_birth']);
+    }
+
+    public function test_a_nonsense_data_status_is_ignored_rather_than_passed_on(): void
+    {
+        $captured = null;
+        $this->membersService
+            ->method('listMembers')
+            ->willReturnCallback(function ($limit, $offset, $filters) use (&$captured) {
+                $captured = $filters;
+
+                return new \App\Shared\DTOs\PaginatedResultDto(items: [], total: 0, limit: $limit, offset: $offset);
+            });
+
+        $this->controller->index($this->listRequest(['data_status' => 'somewhat']), new Response());
+
+        // An unrecognised value must not reach the repository, where it would
+        // become the `complete` branch and silently invert the listing.
+        $this->assertArrayNotHasKey('data_status', $captured);
+    }
+
+    /** @param array<string, string> $query */
+    private function listRequest(array $query): ServerRequestInterface
+    {
+        return (new ServerRequestFactory())
+            ->createServerRequest('GET', '/api/admin/members')
+            ->withQueryParams($query)
+            ->withAttribute('admin_user_id', 'admin-1');
+    }
+
     private function request(): ServerRequestInterface
     {
         return (new ServerRequestFactory())
