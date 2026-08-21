@@ -690,11 +690,17 @@ export function ReportsPage() {
                         borderRadius: theme.borderRadius.md,
                         color: theme.colors.text.primary,
                       }}
-                      formatter={(value?: number, name?: string) => {
-                        if (name === 'revenue' && value != null)
-                          return [formatters.formatPrice(value * 100), t('reports.summaryRevenue')]
-                        if (name === 'count' && value != null)
-                          return [value, t('reports.summaryCount')]
+                      // Parameters are left to recharts to type: 3.10 widened
+                      // them to ValueType/NameType (string | number | array),
+                      // and annotating them `number` made the prop reject the
+                      // callback outright. The series this chart draws are
+                      // numeric, so a non-number is the fallback's business.
+                      formatter={(value, name) => {
+                        const amount = typeof value === 'number' ? value : undefined
+                        if (name === 'revenue' && amount != null)
+                          return [formatters.formatPrice(amount * 100), t('reports.summaryRevenue')]
+                        if (name === 'count' && amount != null)
+                          return [amount, t('reports.summaryCount')]
                         return [value ?? 0, name ?? '']
                       }}
                     />
