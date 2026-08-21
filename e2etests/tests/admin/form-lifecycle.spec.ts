@@ -328,9 +328,10 @@ test.describe('Form lifecycle: a member without SEPA data can be created (#131)'
     expect(memberId).not.toBeNull()
 
     // The list reports the missing bank details rather than the form refusing
-    // to create the member at all
-    const sepaBadge = await authenticatedMembersPage.getSepaBadgeTextForMember(memberId!)
-    expect(sepaBadge.toLowerCase()).toMatch(/(missing|fehlt)/)
+    // to create the member at all. Since #629 the roster's SEPA column is a
+    // Daten column reporting all four gaps, so the assertion is on the SEPA
+    // chip rather than on a "Fehlt" badge.
+    await authenticatedMembersPage.expectMemberGapVisible(memberId!, 'sepa')
 
     // And the member is reachable through the "SEPA: Missing" filter
     await authenticatedMembersPage.setSepaFilter('missing')

@@ -490,6 +490,28 @@ paths:
             type: string
             enum: [all, with, without]
             default: all
+        - name: has_date_of_birth
+          in: query
+          description: >-
+            Filter by birth-date presence (#629). `without` finds the members
+            the terminal refuses every age-restricted product to (ADR-0045).
+            The roster returns the flag, never the date.
+          schema:
+            type: string
+            enum: [all, with, without]
+            default: all
+        - name: data_status
+          in: query
+          description: >-
+            Filter by overall data completeness (#629): `incomplete` is any
+            member missing a card UID, an email, a birth date **or** a mandate.
+            Expressed server-side because it is an `OR` — intersecting the
+            single-gap filters in the client cannot produce it, and a union
+            assembled there is wrong as soon as the result spans a page.
+          schema:
+            type: string
+            enum: [all, complete, incomplete]
+            default: all
         - name: search
           in: query
           description: Search in first name, last name, or card UID
@@ -632,6 +654,36 @@ paths:
                   total_held_cents:
                     type: integer
                     description: Sum of what the held members owe.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/members/completeness:
+    get:
+      tags: [Members]
+      summary: Count the active members missing each piece of mandatory data
+      description: |
+        The Datenqualität panel's figures (#629). The roster could always
+        *filter* for a gap; nothing said how many there were or what each gap
+        costs, so four capable filter pills answered a question nobody knew to
+        ask.
+
+        Counts, not members — each has a filter behind it on `GET /members`
+        that returns exactly the members counted. One request rather than four
+        `per_page=1` probes, so every figure comes from the same snapshot and
+        the numbers cannot disagree with each other.
+
+        Active members only, and anonymized members are excluded with the rest
+        of the roster; see `MemberDataCompleteness`.
+      operationId: getMemberDataCompleteness
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Gap counts across the active roster
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberDataCompleteness'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -4990,6 +5042,9 @@ components:
         particular is **not** here ([ADR-0045](../../adr/0045-age-restricted-products.md)) —
         a list an admin scrolls needs names, balances and SEPA state, and the
         two consumers that need a birth date read one member at a time.
+        `has_date_of_birth` carries the *flag* instead (#629), so the members a
+        terminal will refuse every age-restricted product to can be found from
+        the roster without putting a birth date on every row.
       properties:
         id:
           type: string
@@ -5025,9 +5080,56 @@ components:
         is_sepa_valid:
           type: boolean
           description: Whether member has valid IBAN and mandate_reference
+        has_date_of_birth:
+          type: boolean
+          description: >-
+            Whether a birth date is on file — never the date itself
+            (ADR-0045). False means the terminal refuses this member every
+            age-restricted product, which is the one data gap with a legal
+            edge and, until #629, the one invisible from the roster.
         created_at:
           type: string
           format: date-time
+
+    MemberDataCompleteness:
+      type: object
+      description: >-
+        How many **active** members are missing each piece of mandatory data
+        (#629). Inactive members are excluded: they cannot book and are not
+        collected from, so their gaps are not work anyone needs to do, and a
+        headline that can never reach zero stops being read. Anonymized members
+        carry `deleted_at` and are excluded with the rest of the roster.
+
+
+        Every count has a filter behind it on `GET /members` that returns
+        exactly the members it counted — pair each with `status=active`.
+      properties:
+        total:
+          type: integer
+          description: Active members on the roster.
+        without_card_uid:
+          type: integer
+          description: Cannot book at the terminal. Filter -`has_card_uid=without`.
+        without_email:
+          type: integer
+          description: >-
+            Reached by no announcement and no Deckelauszug.
+            Filter -`has_email=without`.
+        without_date_of_birth:
+          type: integer
+          description: >-
+            Refused every age-restricted product (ADR-0045).
+            Filter -`has_date_of_birth=without`.
+        without_mandate:
+          type: integer
+          description: >-
+            Deckel cannot be collected (ADR-0020).
+            Filter -`sepa_status=invalid`.
+        incomplete:
+          type: integer
+          description: >-
+            Missing at least one of the four. Not the sum of them — one member
+            can be missing several. Filter -`data_status=incomplete`.
 
     SettlementReversal:
       type: object

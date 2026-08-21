@@ -72,7 +72,9 @@
     "newest": "Newest first",
     "oldest": "Oldest first",
     "filters": "Filters",
-    "retry": "Retry"
+    "retry": "Retry",
+    "mandatory": "Required",
+    "requiredForSepa": "required for SEPA collection"
   },
   "auth": {
     "email": "Email",
@@ -290,7 +292,42 @@
     "mandateReferenceCancelChange": "Cancel — {{reference}} stays as it is",
     "mandateReferenceChange": "Change",
     "mandateReferenceCopy": "Copy mandate reference",
-    "mandateReferenceAssignedNote": "Appears as the mandate reference on the bank statement."
+    "mandateReferenceAssignedNote": "Appears as the mandate reference on the bank statement.",
+    "requirements": {
+      "progress": "{{done}} of {{total}} required fields filled in",
+      "complete": "All required fields filled in",
+      "missingLabel": "Still missing:",
+      "jumpTo": "Jump to \"{{field}}\"",
+      "clearing_one": "1 stored value will be deleted when you save.",
+      "clearing_other": "{{count}} stored values will be deleted when you save.",
+      "willBeDeleted": "Stored: {{value}} — will be deleted when you save.",
+      "restore": "Restore",
+      "emptyRequired": "Required — this cannot be left empty.",
+      "invalidEmail": "Please enter a valid email address."
+    },
+    "completeness": {
+      "column": "Data",
+      "complete": "Complete",
+      "incomplete": "Incomplete",
+      "missing": "Missing: {{list}}",
+      "missingCardUid": "Card",
+      "missingEmail": "Email",
+      "missingSepa": "SEPA",
+      "missingDateOfBirth": "Date of birth",
+      "filterLabel": "Data",
+      "filterComplete": "Complete",
+      "filterIncomplete": "Incomplete",
+      "cardUidHint": "Without a card UID the member cannot book at the terminal.",
+      "emailHint": "Without an email address no announcement and no statement reaches the member.",
+      "sepaHint": "Without a valid SEPA mandate the balance cannot be collected.",
+      "dateOfBirthHint": "Without a date of birth the terminal refuses every age-restricted product.",
+      "headline": "{{count}} of {{total}} active members are missing data",
+      "allComplete_one": "All data complete ({{count}} active member)",
+      "allComplete_other": "All data complete ({{count}} active members)",
+      "show": "Show",
+      "showAll": "Show all",
+      "gapsTitle": "Missing data"
+    }
   },
   "products": {
     "title": "Products",

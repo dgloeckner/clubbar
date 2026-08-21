@@ -216,6 +216,9 @@ export const theme = {
     },
     warning: {
       bg: 'rgba(251, 146, 60, 0.1)',
+      // Border tint for warning pills/panels — mirrors theme.badges.danger.border,
+      // used by the form requirement markers (#629).
+      border: withAlpha('#f97316', 0.3),
       text: '#f97316',
       dot: '#f97316',
     },
@@ -235,11 +238,13 @@ export const theme = {
     },
     info: {
       bg: 'rgba(59, 130, 246, 0.1)',
+      border: withAlpha('#3b82f6', 0.3),
       text: '#3b82f6',
       dot: '#3b82f6',
     },
     neutral: {
       bg: 'rgba(107, 114, 128, 0.1)',
+      border: withAlpha('#6b7280', 0.3),
       text: '#64748b',
       dot: '#64748b',
     },

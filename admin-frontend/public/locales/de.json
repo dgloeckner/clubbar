@@ -72,7 +72,9 @@
     "newest": "Neueste zuerst",
     "oldest": "Alteste zuerst",
     "filters": "Filter",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "mandatory": "Pflicht",
+    "requiredForSepa": "erforderlich für SEPA-Einzug"
   },
   "auth": {
     "email": "E-Mail",
@@ -290,7 +292,42 @@
     "mandateReferenceCancelChange": "Abbrechen — {{reference}} bleibt bestehen",
     "mandateReferenceChange": "Ändern",
     "mandateReferenceCopy": "Mandatsreferenz kopieren",
-    "mandateReferenceAssignedNote": "Erscheint als Mandatsreferenz auf dem Kontoauszug."
+    "mandateReferenceAssignedNote": "Erscheint als Mandatsreferenz auf dem Kontoauszug.",
+    "requirements": {
+      "progress": "{{done}} von {{total}} Pflichtangaben ausgefüllt",
+      "complete": "Alle Pflichtangaben ausgefüllt",
+      "missingLabel": "Es fehlt noch:",
+      "jumpTo": "Zum Feld „{{field}}“ springen",
+      "clearing_one": "1 gespeicherte Angabe wird beim Speichern gelöscht.",
+      "clearing_other": "{{count}} gespeicherte Angaben werden beim Speichern gelöscht.",
+      "willBeDeleted": "Gespeichert: {{value}} — wird beim Speichern gelöscht.",
+      "restore": "Wiederherstellen",
+      "emptyRequired": "Pflichtangabe — darf nicht leer bleiben.",
+      "invalidEmail": "Bitte eine gültige E-Mail-Adresse eingeben."
+    },
+    "completeness": {
+      "column": "Daten",
+      "complete": "Vollständig",
+      "incomplete": "Unvollständig",
+      "missing": "Fehlt: {{list}}",
+      "missingCardUid": "Karte",
+      "missingEmail": "E-Mail",
+      "missingSepa": "SEPA",
+      "missingDateOfBirth": "Geburtsdatum",
+      "filterLabel": "Daten",
+      "filterComplete": "Vollständig",
+      "filterIncomplete": "Unvollständig",
+      "cardUidHint": "Ohne Karten-UID kann das Mitglied am Terminal nicht buchen.",
+      "emailHint": "Ohne E-Mail erreicht das Mitglied keine Ankündigung und kein Deckelauszug.",
+      "sepaHint": "Ohne gültiges SEPA-Mandat kann der Deckel nicht eingezogen werden.",
+      "dateOfBirthHint": "Ohne Geburtsdatum verweigert das Terminal jedes altersbeschränkte Produkt.",
+      "headline": "{{count}} von {{total}} aktiven Mitgliedern fehlen Angaben",
+      "allComplete_one": "Alle Angaben vollständig ({{count}} aktives Mitglied)",
+      "allComplete_other": "Alle Angaben vollständig ({{count}} aktive Mitglieder)",
+      "show": "Anzeigen",
+      "showAll": "Alle anzeigen",
+      "gapsTitle": "Fehlende Angaben"
+    }
   },
   "products": {
     "title": "Produkte",

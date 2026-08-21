@@ -129,6 +129,7 @@ return function (App $app): void {
         $group->get('/members/credit-balances', [MembersAdminController::class, 'creditBalances']);
         $group->get('/members/collection-holds', [MembersAdminController::class, 'collectionHolds']);
         $group->get('/members/mandate-missing', [MembersAdminController::class, 'mandateMissing']);
+        $group->get('/members/completeness', [MembersAdminController::class, 'completeness']);
         $group->get('/members/{memberId}', [MembersAdminController::class, 'show']);
         $group->patch('/members/{memberId}', [MembersAdminController::class, 'update']);
         $group->delete('/members/{memberId}', [MembersAdminController::class, 'destroy']);

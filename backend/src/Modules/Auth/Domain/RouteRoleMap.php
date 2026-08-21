@@ -99,6 +99,7 @@ final class RouteRoleMap
         'GET /api/admin/members/credit-balances' => self::TREASURY,
         'GET /api/admin/members/collection-holds' => self::TREASURY,
         'GET /api/admin/members/mandate-missing' => self::TREASURY,
+        'GET /api/admin/members/completeness' => self::TREASURY,
         'GET /api/admin/members/{memberId}' => self::TREASURY,
         'PATCH /api/admin/members/{memberId}' => self::TREASURY,
         'DELETE /api/admin/members/{memberId}' => self::ADMIN_ONLY,

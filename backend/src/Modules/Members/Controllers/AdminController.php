@@ -210,6 +210,22 @@ class AdminController
             $filters['sepa_status'] = $sepaParam;
         }
 
+        // Birth-date filter — OAS: has_date_of_birth=with|without (#629). The
+        // roster carries the flag, not the date (ADR-0045), and this is how the
+        // members the terminal refuses age-restricted products to are found.
+        $dobParam = $params['has_date_of_birth'] ?? $params['filters']['has_date_of_birth'] ?? null;
+        if ($dobParam === 'with' || $dobParam === 'true') {
+            $filters['has_date_of_birth'] = true;
+        } elseif ($dobParam === 'without' || $dobParam === 'false') {
+            $filters['has_date_of_birth'] = false;
+        }
+
+        // Any-gap filter — OAS: data_status=complete|incomplete (#629).
+        $dataStatusParam = $params['data_status'] ?? $params['filters']['data_status'] ?? null;
+        if ($dataStatusParam !== null && in_array($dataStatusParam, ['complete', 'incomplete'], true)) {
+            $filters['data_status'] = $dataStatusParam;
+        }
+
         $result = $this->membersService->listMembers(
             $query->perPage,
             $query->offset,
@@ -220,6 +236,19 @@ class AdminController
         );
 
         return $this->json($response, PaginatedResponse::fromQuery($result->items, $result->total, $query));
+    }
+
+    /**
+     * GET /api/admin/members/completeness — the Datenqualität panel (#629).
+     *
+     * Counts, not members: how many active members are missing a card UID, an
+     * email, a birth date or a mandate, and how many are missing at least one.
+     * Each figure has a filter behind it on the list endpoint that returns
+     * exactly those members.
+     */
+    public function completeness(Request $request, Response $response): Response
+    {
+        return $this->json($response, $this->membersService->getDataCompleteness());
     }
 
     public function store(Request $request, Response $response): Response

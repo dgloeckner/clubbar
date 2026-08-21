@@ -59,7 +59,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 
 /**
- * The roster row. Deliberately narrower than `Member`: `date_of_birth` in particular is **not** here ([ADR-0045](../../adr/0045-age-restricted-products.md)) — a list an admin scrolls needs names, balances and SEPA state, and the two consumers that need a birth date read one member at a time.
+ * The roster row. Deliberately narrower than `Member`: `date_of_birth` in particular is **not** here ([ADR-0045](../../adr/0045-age-restricted-products.md)) — a list an admin scrolls needs names, balances and SEPA state, and the two consumers that need a birth date read one member at a time. `has_date_of_birth` carries the *flag* instead (#629), so the members a terminal will refuse every age-restricted product to can be found from the roster without putting a birth date on every row.
  */
 export interface MemberListItem {
   id?: string;
@@ -87,5 +87,7 @@ the club; negative is a credit, which a payout leaves behind.
   is_active?: boolean;
   /** Whether member has valid IBAN and mandate_reference */
   is_sepa_valid?: boolean;
+  /** Whether a birth date is on file — never the date itself (ADR-0045). False means the terminal refuses this member every age-restricted product, which is the one data gap with a legal edge and, until #629, the one invisible from the roster. */
+  has_date_of_birth?: boolean;
   created_at?: string;
 }

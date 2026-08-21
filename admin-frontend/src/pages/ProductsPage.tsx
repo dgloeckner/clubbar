@@ -26,6 +26,7 @@ import type {
   ListProductsStatus,
 } from '../api/generated'
 import { CategorySelect } from '../components/forms/CategorySelect'
+import { FieldLabel } from '../components/forms/FieldLabel'
 import { IconSelect } from '../components/forms/IconSelect'
 import { LanguageTabsInput } from '../components/forms/LanguageTabsInput'
 import { ProductPreview } from '../components/forms/ProductPreview'
@@ -997,7 +998,8 @@ export function ProductsPage() {
                   onChange={(names) => setFormData({ ...formData, names })}
                   label={t('products.productName')}
                   placeholder={t('products.productName')}
-                  required
+                  requirement="required"
+                  satisfied={hasAnyName(formData.names)}
                   testIdPrefix="products-form-name"
                 />
               </div>
@@ -1007,8 +1009,9 @@ export function ProductsPage() {
                 value={selectedCategory}
                 onChange={setSelectedCategory}
                 testId="products-form-category-select"
-                label={`${t('common.category')} *`}
-                required
+                label={t('common.category')}
+                requirement="required"
+                satisfied={Boolean(selectedCategory)}
               />
 
               {/* The page banner is behind this overlay, and the select the
@@ -1028,18 +1031,15 @@ export function ProductsPage() {
               )}
 
               <div style={{ marginBottom: '20px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    color: tableColors.cellText,
-                    fontSize: '14px',
-                    fontWeight: '500',
-                  }}
-                >
-                  {t('common.price')} (€)
-                </label>
+                <FieldLabel
+                  htmlFor="products-form-price-input"
+                  label={`${t('common.price')} (€)`}
+                  requirement="required"
+                  satisfied={parsePriceToCents(formData.price) !== null}
+                  testId="products-form-price-label"
+                />
                 <input
+                  id="products-form-price-input"
                   data-testid="products-form-price-input"
                   type="number"
                   step="0.01"
@@ -1065,7 +1065,8 @@ export function ProductsPage() {
                 onChange={setSelectedIcon}
                 iconType="product"
                 testId="products-form-icon-select"
-                label={`${t('products.icon')} (${t('common.optional')})`}
+                label={t('products.icon')}
+                requirement="optional"
               />
 
               {/* Jugendschutz (ADR-0045): the legal age this drink requires.
@@ -1075,18 +1076,12 @@ export function ProductsPage() {
                   have to guess whether a blank field means "unrestricted" or
                   "not filled in yet". */}
               <div style={{ marginBottom: isMobile ? '12px' : '20px' }}>
-                <label
+                <FieldLabel
                   htmlFor="products-form-min-age-input"
-                  style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    color: tableColors.cellText,
-                    fontSize: '14px',
-                    fontWeight: '500',
-                  }}
-                >
-                  {t('products.minAge')} ({t('common.optional')})
-                </label>
+                  label={t('products.minAge')}
+                  requirement="optional"
+                  testId="products-form-min-age-label"
+                />
                 <input
                   id="products-form-min-age-input"
                   data-testid="products-form-min-age-input"

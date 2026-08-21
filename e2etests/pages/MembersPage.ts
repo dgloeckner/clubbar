@@ -100,6 +100,15 @@ export class MembersPage extends BasePage {
   // Filter controls
   private readonly clearFiltersBtn = () => this.page.getByTestId('members-clear-filters')
 
+  // Requirement markers and the form's requirement summary (#629)
+  private readonly requirementsPanel = () => this.page.getByTestId('members-form-requirements')
+  private readonly requirementsProgress = () => this.page.getByTestId('members-form-requirements-progress')
+  private readonly requirementsClearing = () => this.page.getByTestId('members-form-requirements-clearing')
+
+  // Datenqualität panel on the roster (#629)
+  private readonly dataQualityPanel = () => this.page.getByTestId('members-data-quality')
+  private readonly dataQualityHeadline = () => this.page.getByTestId('members-data-quality-headline')
+
   constructor(page: Page) {
     super(page)
   }
@@ -650,12 +659,135 @@ export class MembersPage extends BasePage {
   }
 
   /**
-   * The SEPA column for one member, as the list renders it: "Valid" or
-   * "Missing" (localised). A member created without bank details reads
-   * "Missing" — that is the supported state, not a failure (#131).
+   * The Daten column for one member. Since #629 it reports all four gaps
+   * rather than SEPA alone, so a member with no bank details reads "SEPA"
+   * (a gap chip) and a complete one reads "Vollständig".
+   *
+   * A member created without bank details showing a SEPA chip is the
+   * supported state, not a failure (#131).
    */
   async getSepaBadgeTextForMember(memberId: string): Promise<string> {
-    return (await this.page.getByTestId(`members-table-cell-sepa-${memberId}`).textContent()) || ''
+    return (await this.page.getByTestId(`members-table-cell-data-${memberId}`).textContent()) || ''
+  }
+
+  /** Whether the roster row reports this specific gap (#629). */
+  async expectMemberGapVisible(memberId: string, gap: 'card_uid' | 'sepa' | 'email' | 'date_of_birth') {
+    await expect(this.page.getByTestId(`members-table-cell-data-gap-${gap}-${memberId}`)).toBeVisible()
+  }
+
+  async expectMemberGapHidden(memberId: string, gap: 'card_uid' | 'sepa' | 'email' | 'date_of_birth') {
+    await expect(this.page.getByTestId(`members-table-cell-data-gap-${gap}-${memberId}`)).not.toBeVisible()
+  }
+
+  async expectMemberDataComplete(memberId: string) {
+    await expect(this.page.getByTestId(`members-table-cell-data-complete-${memberId}`)).toBeVisible()
+  }
+
+  // ── Form requirement markers (#629) ────────────────────────────────────
+
+  /**
+   * A field's requirement marker state: `open` (required, still empty),
+   * `satisfied` (required, filled), `conditional` (names a capability) or
+   * `optional`.
+   */
+  async getRequirementMarkerState(field: string): Promise<string | null> {
+    return this.page.getByTestId(`members-form-${field}-label-marker`).getAttribute('data-state')
+  }
+
+  async getRequirementsProgressText(): Promise<string> {
+    return (await this.requirementsProgress().textContent()) || ''
+  }
+
+  /** `incomplete`, `complete`, or `blocked` once a submit has been refused. */
+  async getRequirementsPanelState(): Promise<string | null> {
+    return this.requirementsPanel().getAttribute('data-state')
+  }
+
+  /** The summary's chip for a still-missing field; clicking it focuses the field. */
+  async jumpToMissingField(field: string) {
+    await this.page.getByTestId(`members-form-requirements-missing-${field}`).click()
+  }
+
+  async expectMissingFieldListed(field: string) {
+    await expect(this.page.getByTestId(`members-form-requirements-missing-${field}`)).toBeVisible()
+  }
+
+  async expectMissingFieldNotListed(field: string) {
+    await expect(this.page.getByTestId(`members-form-requirements-missing-${field}`)).not.toBeVisible()
+  }
+
+  /** Empties a required field, to prove an edit cannot silently blank it. */
+  async clearFirstName() {
+    await this.firstNameInput().clear()
+  }
+
+  /**
+   * The `data-testid` of whatever currently has focus.
+   *
+   * The page object keeps `page` private (Pattern 006), so a test cannot
+   * assert focus directly — and "the summary's chip moved the caret to the
+   * field it names" is precisely what needs asserting.
+   */
+  async getFocusedFieldTestId(): Promise<string | null> {
+    return this.page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null)
+  }
+
+  async expectRequiredFieldError(field: string) {
+    await expect(this.page.getByTestId(`members-form-${field}-error`)).toBeVisible()
+  }
+
+  async expectClearingSummaryVisible() {
+    await expect(this.requirementsClearing()).toBeVisible()
+  }
+
+  // ── "will be deleted on save" notices (#629) ───────────────────────────
+
+  async expectClearedNoticeVisible(field: 'card-uid' | 'account-holder' | 'mandate-date') {
+    await expect(this.page.getByTestId(`members-form-${field}-cleared`)).toBeVisible()
+  }
+
+  async expectClearedNoticeHidden(field: 'card-uid' | 'account-holder' | 'mandate-date') {
+    await expect(this.page.getByTestId(`members-form-${field}-cleared`)).not.toBeVisible()
+  }
+
+  async getClearedNoticeText(field: 'card-uid' | 'account-holder' | 'mandate-date'): Promise<string> {
+    return (await this.page.getByTestId(`members-form-${field}-cleared`).textContent()) || ''
+  }
+
+  async restoreClearedValue(field: 'card-uid' | 'account-holder' | 'mandate-date') {
+    await this.page.getByTestId(`members-form-${field}-cleared-restore`).click()
+  }
+
+  // ── Datenqualität panel (#629) ─────────────────────────────────────────
+
+  async expectDataQualityVisible() {
+    await expect(this.dataQualityPanel()).toBeVisible()
+  }
+
+  /** `incomplete` while any active member has a gap, else `complete`. */
+  async getDataQualityState(): Promise<string | null> {
+    return this.dataQualityPanel().getAttribute('data-state')
+  }
+
+  async getDataQualityHeadline(): Promise<string> {
+    return (await this.dataQualityHeadline().textContent()) || ''
+  }
+
+  /** The count the panel prints for one gap, as a number. */
+  async getDataQualityCount(gap: 'card_uid' | 'sepa' | 'email' | 'date_of_birth'): Promise<number> {
+    const text = await this.page.getByTestId(`members-data-quality-count-${gap}`).textContent()
+    return Number.parseInt(text ?? '0', 10)
+  }
+
+  /** Applies the filter behind one gap's count and waits for the list to settle. */
+  async showDataQualityGap(gap: 'card_uid' | 'sepa' | 'email' | 'date_of_birth') {
+    await this.page.getByTestId(`members-data-quality-show-${gap}`).click()
+    await this.page.locator('[data-testid="members-table"], [data-testid="members-empty-state"], [data-testid="members-mobile-cards"]').first().waitFor({ timeout: 5000 })
+  }
+
+  async showAllIncomplete() {
+    await this.page.getByTestId('members-data-quality-show-all').click()
+    await this.page.locator('[data-testid="members-table"], [data-testid="members-empty-state"], [data-testid="members-mobile-cards"]').first().waitFor({ timeout: 5000 })
   }
 
   // Bank name display (resolved from IBAN via BLZ lookup)
