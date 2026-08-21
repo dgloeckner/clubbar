@@ -73,6 +73,24 @@ export interface Product {
    * @nullable
    */
   icon_name?: string | null;
+  /** Whether buying this product releases a physical token from the dispenser. Present on the endpoint since #35; it was simply never written down here. */
+  requires_dispenser?: boolean;
+  /**
+   * The minimum age a member must have reached to buy this product
+([ADR-0045](../../adr/0045-age-restricted-products.md)). The
+terminal compares it against the member's age at checkout and
+refuses the sale offline.
+
+`null` means **unrestricted**, which is most of a drinks list — not
+"unknown". A free integer rather than a `{16, 18}` enum: JuSchG's
+thresholds are German law and this software is self-hosted, so
+another country's club sets its own numbers.
+
+   * @minimum 1
+   * @maximum 99
+   * @nullable
+   */
+  min_age?: number | null;
   created_at?: string;
   updated_at?: string;
 }

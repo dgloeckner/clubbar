@@ -57,6 +57,7 @@ export class ProductsPage extends BasePage {
   private readonly categorySelect = () => this.page.getByTestId('products-form-category-select')
   private readonly priceInput = () => this.page.getByTestId('products-form-price-input')
   private readonly requiresDispenserCheckbox = () => this.page.getByTestId('products-form-requires-dispenser-checkbox')
+  private readonly minAgeInput = () => this.page.getByTestId('products-form-min-age-input')
   private readonly iconSelectTrigger = () => this.page.getByTestId('products-form-icon-select-trigger')
   private readonly iconSelectDropdown = () => this.page.getByTestId('products-form-icon-select-dropdown')
   private readonly iconSelectOption = (iconName: string) =>
@@ -465,6 +466,22 @@ export class ProductsPage extends BasePage {
 
   async isRequiresDispenserChecked(): Promise<boolean> {
     return await this.requiresDispenserCheckbox().isChecked()
+  }
+
+  /**
+   * Set the product's Jugendschutz minimum age (ADR-0045).
+   *
+   * Pass `null` to clear it, which is what un-restricting a drink looks like
+   * from the form: an empty input, sent as an explicit null so the row is
+   * actually cleared rather than left alone.
+   */
+  async setMinAge(age: number | null) {
+    await this.minAgeInput().fill(age === null ? '' : String(age))
+  }
+
+  /** What the form currently shows as the minimum age; '' means unrestricted. */
+  async getMinAgeValue(): Promise<string> {
+    return (await this.minAgeInput().inputValue()) || ''
   }
 
   /**

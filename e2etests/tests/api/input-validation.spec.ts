@@ -25,6 +25,7 @@ const uniqueMemberBody = (overrides: Record<string, unknown> = {}) => {
     first_name: `Valid${id}`,
     last_name: `Member${id}`,
     email: `valid-${id}@example.com`,
+    date_of_birth: '1985-06-15',
     preferred_language: 'de',
     ...overrides,
   }

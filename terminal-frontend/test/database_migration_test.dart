@@ -8,6 +8,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/utils/age.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
@@ -163,6 +164,89 @@ void main() {
       expect(await repo.getUnsyncedTransactions(), isEmpty);
       expect((await repo.getQuarantinedTransactions()).single.quarantineReason,
           equals('unstorable'));
+      await db.close();
+    });
+  });
+
+  /// Jugendschutz (epic #582 M6, ADR-0045). Both columns land nullable with no
+  /// default, and for a cache written before the upgrade that is exactly right:
+  /// nothing already stored is known to carry an age limit, and no member's
+  /// birth date is known until the next delta sync delivers it.
+  ///
+  /// Which way that fails matters. A pre-upgrade product has `min_age` NULL —
+  /// unrestricted — so the grid does not go blank on first launch; a
+  /// pre-upgrade member has no birth date, so anything that *does* carry a
+  /// limit is refused until one sync cycle fills it in. Refusing is the safe
+  /// direction, and it is temporary.
+  group('schema 11: Jugendschutz columns', () {
+    test('adds them to both caches, defaulting to NULL', () async {
+      await seedAtSchemaVersion(10, {'member-1': 'ABCD1234'});
+      var db = openDatabase();
+      await db.into(db.categoriesCache).insert(
+            CategoriesCacheCompanion(
+              id: const Value('cat-1'),
+              names: const Value('{"de":"Getränke"}'),
+              isActive: const Value(1),
+              updatedAt: const Value('2025-02-01T10:00:00Z'),
+            ),
+          );
+      await db.into(db.productsCache).insert(
+            ProductsCacheCompanion(
+              id: const Value('prod-1'),
+              categoryId: const Value('cat-1'),
+              names: const Value('{"de":"Pils"}'),
+              priceCents: const Value(350),
+              isActive: const Value(1),
+              updatedAt: const Value('2025-02-01T10:00:00Z'),
+            ),
+          );
+      await db.customStatement('PRAGMA user_version = 10');
+      await db.close();
+
+      db = openDatabase();
+
+      expect((await db.select(db.membersCache).getSingle()).dateOfBirth, isNull);
+      expect((await db.select(db.productsCache).getSingle()).minAge, isNull);
+      await db.close();
+    });
+
+    /// The regression this guards: a NOT NULL default of 0 on `min_age` would
+    /// read as "requires age 0", which nobody satisfies — every drink on the
+    /// terminal would refuse every member after an upgrade.
+    test('a product cached before the upgrade is unrestricted, not age-zero',
+        () async {
+      await seedAtSchemaVersion(10, {'member-1': 'ABCD1234'});
+      var db = openDatabase();
+      await db.into(db.categoriesCache).insert(
+            CategoriesCacheCompanion(
+              id: const Value('cat-1'),
+              names: const Value('{"de":"Getränke"}'),
+              isActive: const Value(1),
+              updatedAt: const Value('2025-02-01T10:00:00Z'),
+            ),
+          );
+      await db.into(db.productsCache).insert(
+            ProductsCacheCompanion(
+              id: const Value('prod-1'),
+              categoryId: const Value('cat-1'),
+              names: const Value('{"de":"Pils"}'),
+              priceCents: const Value(350),
+              isActive: const Value(1),
+              updatedAt: const Value('2025-02-01T10:00:00Z'),
+            ),
+          );
+      await db.customStatement('PRAGMA user_version = 10');
+      await db.close();
+
+      db = openDatabase();
+      final product = await db.select(db.productsCache).getSingle();
+
+      expect(product.minAge, isNull);
+      expect(
+        mayBuyAtAge(null, product.minAge, DateTime.now()),
+        isTrue,
+        reason: 'an unrestricted drink stays buyable even with no birth date',
+      );
       await db.close();
     });
   });

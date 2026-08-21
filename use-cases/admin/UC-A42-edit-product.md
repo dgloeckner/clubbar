@@ -29,6 +29,7 @@ Admin clicks "Edit" on product
 | Descriptions | Multilingual descriptions (optional) |
 | Price | Price in cents |
 | Category | Product category assignment |
+| Minimum age | Legal minimum age for this product (Jugendschutz, [ADR-0045](../../adr/0045-age-restricted-products.md)). Empty = unrestricted; clearing it removes the restriction |
 | Status | Active / Inactive toggle |
 
 ## Status Toggle

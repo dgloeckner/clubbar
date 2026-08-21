@@ -197,12 +197,15 @@ test.describe('Admin Members List Endpoint', () => {
       const token = sortToken();
       const bravo = await createMember(authenticatedRequest, {
         first_name: 'Zoe', last_name: `${token}Bravo`, email: `${token}-zoe@test.com`,
+        date_of_birth: '1985-06-15',
       });
       const alphaBea = await createMember(authenticatedRequest, {
         first_name: 'Bea', last_name: `${token}Alpha`, email: `${token}-bea@test.com`,
+        date_of_birth: '1985-06-15',
       });
       const alphaAnn = await createMember(authenticatedRequest, {
         first_name: 'Ann', last_name: `${token}Alpha`, email: `${token}-ann@test.com`,
+        date_of_birth: '1985-06-15',
       });
 
       const ascending = await authenticatedRequest.get('/api/admin/members', {
@@ -224,13 +227,16 @@ test.describe('Admin Members List Endpoint', () => {
       const hex = Date.now().toString(16).toUpperCase().slice(-8);
       const withoutCard = await createMember(authenticatedRequest, {
         first_name: 'NoCard', last_name: token, email: `${token}-none@test.com`,
+        date_of_birth: '1985-06-15',
       });
       const highCard = await createMember(authenticatedRequest, {
         first_name: 'HighCard', last_name: token, email: `${token}-high@test.com`,
+        date_of_birth: '1985-06-15',
         card_uid: `FFFF${hex}`,
       });
       const lowCard = await createMember(authenticatedRequest, {
         first_name: 'LowCard', last_name: token, email: `${token}-low@test.com`,
+        date_of_birth: '1985-06-15',
         card_uid: `0000${hex}`,
       });
 
@@ -286,9 +292,11 @@ test.describe('Admin Members List Endpoint', () => {
       const token = sortToken();
       const underscore = await createMember(authenticatedRequest, {
         first_name: `Jean${token}_Luc`, last_name: 'Picard', email: `${token}-jl@test.com`,
+        date_of_birth: '1985-06-15',
       });
       const percent = await createMember(authenticatedRequest, {
         first_name: `Cent${token}100%`, last_name: 'Proof', email: `${token}-pct@test.com`,
+        date_of_birth: '1985-06-15',
       });
 
       const underscoreHit = await authenticatedRequest.get('/api/admin/members', {
@@ -312,9 +320,11 @@ test.describe('Admin Members List Endpoint', () => {
       const token = sortToken();
       const typed = await createMember(authenticatedRequest, {
         first_name: `Wild${token}_x`, last_name: 'Escape', email: `${token}-typed@test.com`,
+        date_of_birth: '1985-06-15',
       });
       await createMember(authenticatedRequest, {
         first_name: `Wild${token}Zx`, last_name: 'Escape', email: `${token}-decoy@test.com`,
+        date_of_birth: '1985-06-15',
       });
 
       const response = await authenticatedRequest.get('/api/admin/members', {

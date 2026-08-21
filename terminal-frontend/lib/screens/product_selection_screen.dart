@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
 import 'dart:convert';
 import 'package:clubbar_terminal/controllers/checkout_action.dart';
+import 'package:clubbar_terminal/utils/age.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
@@ -278,7 +279,8 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   ) {
     final l10n = AppLocalizations.of(context)!;
     // Get member's preferred language (needed for display)
-    final memberLang = context.read<MembersProvider>().selectedMember?.preferredLanguage ?? 'de';
+    final selectedMember = context.read<MembersProvider>().selectedMember;
+    final memberLang = selectedMember?.preferredLanguage ?? 'de';
     // Issue #31: ask the provider what is sellable rather than filtering by
     // category here — the raw list still contains dispenser-gated products on
     // terminals that have no dispenser at all.
@@ -330,14 +332,31 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
         // member find out at checkout (issue #31).
         final available = productsProvider.isProductAvailable(product);
 
+        // Jugendschutz (ADR-0045, UC-T12 E7). Same treatment, same reason: a
+        // drink this member may not buy stays visible and greyed out with the
+        // age on it, rather than vanishing from a grid they have used before or
+        // refusing them only at checkout.
+        //
+        // This is a **courtesy**, not the control. `CartService` is the
+        // authority (rule 1), and it is what a bypassed tile still runs into.
+        // The note names the age the drink requires, never the member's own
+        // (rule 6) — the screen is read by whoever is at the bar.
+        final tooYoung = selectedMember != null &&
+            !mayBuyAtAge(
+                selectedMember.dateOfBirth, product.minAge, DateTime.now());
+        final sellable = available && !tooYoung;
+
         return ProductCard(
           product: product,
           productName: name,
           locale: memberLang,
           quantity: quantity,
-          enabled: available,
-          unavailableNote:
-              available ? null : l10n.productUnavailableDispenserOffline,
+          enabled: sellable,
+          unavailableNote: sellable
+              ? null
+              : tooYoung
+                  ? l10n.productAgeRestrictedNote(product.minAge!)
+                  : l10n.productUnavailableDispenserOffline,
           onDecrement: quantity > 0
             ? () => cartProvider.decreaseItem(product.id)
             : null,
@@ -350,6 +369,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
               memberLang,
               iconName: product.iconName,
               requiresDispenser: product.requiresDispenser == 1,
+              minAge: product.minAge,
             );
           },
         );

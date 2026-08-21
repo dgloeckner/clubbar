@@ -96,6 +96,8 @@ class ProductsRepository {
           priceCents: Value(dto.priceCents),
           isActive: Value(dto.isActive ? 1 : 0),
           requiresDispenser: Value(dto.requiresDispenser == true ? 1 : 0),
+          // Null stays null: unrestricted, not "zero" (ADR-0045).
+          minAge: Value(dto.minAge),
           iconName: Value(dto.iconName),
           updatedAt: Value(dto.updatedAt.toIso8601String()),
           deletedAt: Value(dto.deletedAt?.toIso8601String()),

@@ -18,8 +18,12 @@
 -- Creates:
 --   - 1 admin user: admin@example.com / password123
 --   - 2 categories: Getränke, Sauna
---   - 13 products with nice icons (including Sauna-Token with dispenser)
---   - 8 members with nice names and valid SEPA data (2 with real card UIDs)
+--   - 14 products with nice icons (including Sauna-Token with dispenser);
+--     the beers and the Aeppler carry min_age 16 and the Kraeuterlikoer 18
+--     (ADR-0045, Jugendschutz)
+--   - 8 members with nice names and valid SEPA data (2 with real card UIDs);
+--     every one carries a date of birth, and two are deliberately minors --
+--     Sabine Klein is 15, Julia Wagner is 17 (ADR-0045, Jugendschutz)
 --   - 3 terminals with known test tokens (Bar + Sauna active, Terrace inactive)
 --   - 2 E2E terminals: the Playwright test terminal and one whose token expired
 -- =============================================================================
@@ -29,6 +33,18 @@
 -- ---------------------------------------------------------------------------
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- The mail queue is cleared with everything else, and it has to be: it is the
+-- one table nothing else deletes from at test time. `DrainService` prunes only
+-- *delivered* rows at 90 days, so a repeatedly-reset dev stack accumulates the
+-- pending and failed ones forever — tens of thousands of them — and the
+-- paginated Notifications page then shows a page-1 that a freshly queued row
+-- can no longer reach. That reads as a broken filter rather than as a fixture
+-- that never cleaned up after itself (#582 M3).
+--
+-- `settlement_announcements` goes with it: it is the address-free proof that a
+-- member was announced to, keyed on members this script is about to delete.
+DELETE FROM mail_outbox;
+DELETE FROM settlement_announcements;
 DELETE FROM settlement_items;
 DELETE FROM settlements;
 DELETE FROM transactions;
@@ -98,7 +114,7 @@ VALUES (
 -- 4. Create Products - Getränke
 -- ---------------------------------------------------------------------------
 -- Pils 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333331-3333-3333-3333-333333333331',
     '11111111-1111-1111-1111-111111111111',
@@ -106,13 +122,14 @@ VALUES (
     '{"de": "Frisches Pils vom Fass", "en": "Fresh draft pilsner"}',
     350,
     'beer-pils',
+    16,  -- min_age: Pils -- JuSchG Sec. 9(1): beer from 16
     1,
     NOW(),
     NOW()
 );
 
 -- Weizen 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333332-3333-3333-3333-333333333332',
     '11111111-1111-1111-1111-111111111111',
@@ -120,13 +137,14 @@ VALUES (
     '{"de": "Bayrisches Hefeweizen", "en": "Bavarian wheat beer"}',
     380,
     'beer-weizen',
+    16,  -- min_age: Weizen -- beer
     1,
     NOW(),
     NOW()
 );
 
 -- Radler 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333333-3333-3333-3333-333333333333',
     '11111111-1111-1111-1111-111111111111',
@@ -134,13 +152,14 @@ VALUES (
     '{"de": "Erfrischendes Radler", "en": "Refreshing beer lemonade mix"}',
     320,
     'beer-radler',
+    16,  -- min_age: Radler -- a beer mix is still beer
     1,
     NOW(),
     NOW()
 );
 
 -- Alkoholfrei 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333334-3333-3333-3333-333333333334',
     '11111111-1111-1111-1111-111111111111',
@@ -148,13 +167,14 @@ VALUES (
     '{"de": "Alkoholfreies Pils", "en": "Non-alcoholic pilsner"}',
     320,
     'beer-alcohol-free',
+    NULL,  -- min_age: no legal age applies
     1,
     NOW(),
     NOW()
 );
 
 -- Apfelschorle 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333335-3333-3333-3333-333333333335',
     '11111111-1111-1111-1111-111111111111',
@@ -162,13 +182,14 @@ VALUES (
     '{"de": "Apfelsaft mit Sprudel", "en": "Apple juice with sparkling water"}',
     280,
     'spritzer-apple',
+    NULL,  -- min_age: no legal age applies
     1,
     NOW(),
     NOW()
 );
 
 -- Wasser 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333336-3333-3333-3333-333333333336',
     '11111111-1111-1111-1111-111111111111',
@@ -176,13 +197,14 @@ VALUES (
     '{"de": "Stilles oder mit Kohlensäure", "en": "Still or sparkling"}',
     200,
     'water-large',
+    NULL,  -- min_age: no legal age applies
     1,
     NOW(),
     NOW()
 );
 
 -- Kaffee
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333337-3333-3333-3333-333333333337',
     '11111111-1111-1111-1111-111111111111',
@@ -190,13 +212,14 @@ VALUES (
     '{"de": "Frisch gebrühter Filterkaffee", "en": "Freshly brewed filter coffee"}',
     150,
     'coffee',
+    NULL,  -- min_age: no legal age applies
     1,
     NOW(),
     NOW()
 );
 
 -- Äppler 0.5L
-INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
 VALUES (
     '33333338-3333-3333-3333-333333333338',
     '11111111-1111-1111-1111-111111111111',
@@ -204,6 +227,7 @@ VALUES (
     '{"de": "Hessischer Apfelwein", "en": "Hessian apple cider"}',
     350,
     'cider-apfelwein',
+    16,  -- min_age: Aeppler -- wine
     1,
     NOW(),
     NOW()
@@ -211,6 +235,28 @@ VALUES (
 
 -- ---------------------------------------------------------------------------
 -- 5. Create Products - Sauna
+-- Kräuterlikör 2cl — the only spirit on the list, and the fixture that makes
+-- the 18 threshold real. JuSchG § 9 Abs. 1 Nr. 1: Branntwein and drinks
+-- containing it are 18+, with no accompanied-minor exception (Abs. 2 covers
+-- only the 16+ row). Every Jugendschutz test needs one product at each
+-- threshold, and without this the seed could only ever exercise 16.
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, min_age, is_active, created_at, updated_at)
+VALUES (
+    '33333339-3333-3333-3333-333333333339',
+    '11111111-1111-1111-1111-111111111111',
+    '{"de": "Kräuterlikör 2cl", "en": "Herbal Liqueur 2cl"}',
+    '{"de": "Kräuterlikör, eiskalt", "en": "Herbal liqueur, ice cold"}',
+    250,
+    -- The icon registry has no spirits glyph yet (docs/icon-registry.md);
+    -- `wine-red` is the nearest registered one, and a validator rejects
+    -- anything not on that list.
+    'wine-red',
+    18,  -- min_age: Branntwein -- JuSchG Sec. 9(1) no. 1: spirits from 18
+    1,
+    NOW(),
+    NOW()
+);
+
 -- ---------------------------------------------------------------------------
 -- Sauna Tageskarte
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
@@ -291,7 +337,7 @@ VALUES (
 -- DE02120300000000202051 - Another valid format
 
 -- Member 1: Hans Müller (active rower)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555551-5555-5555-5555-555555555551',
     '0003195661',
@@ -299,6 +345,7 @@ VALUES (
     'Müller',
     'hans.mueller@example.de',
     '+49 170 1234567',
+    '1978-03-14',  -- 40s
     'de',
     'Hans Müller',
     1,
@@ -307,7 +354,7 @@ VALUES (
 );
 
 -- Member 2: Maria Schmidt (team captain)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555552-5555-5555-5555-555555555552',
     '0013466849',
@@ -315,6 +362,7 @@ VALUES (
     'Schmidt',
     'maria.schmidt@example.de',
     '+49 171 2345678',
+    '1985-07-22',  -- 40
     'de',
     'Maria Schmidt',
     1,
@@ -323,7 +371,7 @@ VALUES (
 );
 
 -- Member 3: Thomas Weber (English preferred)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555553-5555-5555-5555-555555555553',
     'CARD003',
@@ -331,6 +379,7 @@ VALUES (
     'Weber',
     'thomas.weber@example.de',
     '+49 172 3456789',
+    '1992-11-02',  -- 30s
     'en',
     'Thomas Weber',
     1,
@@ -339,7 +388,7 @@ VALUES (
 );
 
 -- Member 4: Anna Fischer (sauna enthusiast)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555554-5555-5555-5555-555555555554',
     'CARD004',
@@ -347,6 +396,7 @@ VALUES (
     'Fischer',
     'anna.fischer@example.de',
     '+49 173 4567890',
+    '1969-01-30',  -- 50s
     'de',
     'Anna Fischer',
     1,
@@ -355,7 +405,7 @@ VALUES (
 );
 
 -- Member 5: Michael Bauer (veteran rower)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555555-5555-5555-5555-555555555555',
     'CARD005',
@@ -363,6 +413,7 @@ VALUES (
     'Bauer',
     'michael.bauer@example.de',
     '+49 174 5678901',
+    '1955-09-08',  -- 70
     'de',
     'Michael Bauer',
     1,
@@ -371,7 +422,7 @@ VALUES (
 );
 
 -- Member 6: Sabine Klein (new member)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555556-5555-5555-5555-555555555556',
     'CARD006',
@@ -379,6 +430,7 @@ VALUES (
     'Klein',
     'sabine.klein@example.de',
     '+49 175 6789012',
+    (CURDATE() - INTERVAL 15 YEAR),  -- under 16 -- Jugendschutz fixture
     'de',
     'Sabine Klein',
     1,
@@ -387,7 +439,7 @@ VALUES (
 );
 
 -- Member 7: Peter Hoffmann (board member)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555557-5555-5555-5555-555555555557',
     'CARD007',
@@ -395,6 +447,7 @@ VALUES (
     'Hoffmann',
     'peter.hoffmann@example.de',
     '+49 176 7890123',
+    '1974-05-19',  -- 50s
     'de',
     'Peter Hoffmann',
     1,
@@ -403,7 +456,7 @@ VALUES (
 );
 
 -- Member 8: Julia Wagner (youth coach)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555558-5555-5555-5555-555555555558',
     'CARD008',
@@ -411,6 +464,7 @@ VALUES (
     'Wagner',
     'julia.wagner@example.de',
     '+49 177 8901234',
+    (CURDATE() - INTERVAL 17 YEAR),  -- 16 or 17 -- Jugendschutz fixture
     'de',
     'Julia Wagner',
     1,

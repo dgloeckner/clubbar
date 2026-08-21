@@ -307,6 +307,19 @@ export class AuditLogPage extends BasePage {
     return await preElement.textContent() || ''
   }
 
+  /**
+   * Whether this entry renders a *before* side at all.
+   *
+   * Not every `update` row has one: a terminal toggle and an admin-user edit
+   * are both audited as `update` with `old_values` NULL, so the block simply is
+   * not in the DOM. A test looking for a row with before/after values has to
+   * ask rather than assume — the log is shared, and which `update` sits at the
+   * top depends on whichever specs are running beside it (Pattern 003).
+   */
+  async hasOldValues(entryId: number): Promise<boolean> {
+    return (await this.page.getByTestId(`audit-log-old-values-${entryId}`).count()) > 0
+  }
+
   async getNewValues(entryId: number): Promise<string> {
     const preElement = this.page.getByTestId(`audit-log-new-values-${entryId}`)
     return await preElement.textContent() || ''

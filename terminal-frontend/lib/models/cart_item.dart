@@ -7,6 +7,15 @@ class CartItem {
   final String? iconName;
   final bool requiresDispenser;
 
+  /// The minimum age this product requires, or null for unrestricted
+  /// (ADR-0045).
+  ///
+  /// Carried on the line rather than re-read from the products cache at
+  /// checkout, the same way `requiresDispenser` is: it keeps the cart
+  /// service's check synchronous, and it is the shape the rest of this class
+  /// already uses.
+  final int? minAge;
+
   CartItem({
     required this.productId,
     required this.productName,
@@ -15,6 +24,7 @@ class CartItem {
     required this.language,
     this.iconName,
     this.requiresDispenser = false,
+    this.minAge,
   });
 
   int get lineTotalCents => priceCents * quantity;

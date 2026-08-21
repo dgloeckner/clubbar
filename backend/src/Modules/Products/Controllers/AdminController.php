@@ -169,6 +169,13 @@ class AdminController
             'price_cents' => ['required', 'integer', 'gt:0'],
             'icon_name' => ['nullable', 'string', 'max:50'],
             'requires_dispenser' => ['nullable', 'boolean'],
+            // Jugendschutz (ADR-0045). A free integer rather than a {16, 18}
+            // enum: JuSchG's two thresholds are German law, and this software
+            // is self-hosted by whoever installs it. The bounds rule out
+            // nonsense, not other jurisdictions — 0 would read as "everyone"
+            // while sitting in the field that restricts. NULL is unrestricted,
+            // which is most of a drinks list and must stay frictionless.
+            'min_age' => ['nullable', 'integer', 'gte:1', 'lte:99'],
         ])) {
             return $this->validationFailed($response, $this->validator->errors());
         }
@@ -191,6 +198,13 @@ class AdminController
             if (isset($body['price_cents'])) $rules['price_cents'] = ['integer', 'gt:0'];
             if (isset($body['icon_name'])) $rules['icon_name'] = ['nullable', 'string', 'max:50'];
             if (isset($body['requires_dispenser'])) $rules['requires_dispenser'] = ['boolean'];
+            // `array_key_exists`, not `isset`: clearing the restriction is
+            // sent as an explicit null, and `isset` reads that as absent — the
+            // one write that makes a product *more* available would skip its
+            // own bounds check. The rule set is repeated rather than shared
+            // with `storeProduct()` because Products has no FIELD_RULES const;
+            // extracting one is tempting and out of scope here.
+            if (array_key_exists('min_age', $body)) $rules['min_age'] = ['nullable', 'integer', 'gte:1', 'lte:99'];
 
             if (!empty($rules) && !$this->validator->validate($body, $rules)) {
                 return $this->validationFailed($response, $this->validator->errors());

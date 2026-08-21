@@ -61,10 +61,16 @@ Future<void> runCheckout(BuildContext context) async {
     // Shown — drop it so the next failure signals afresh.
     cartProvider.clearError();
     if (!context.mounted) return;
-    // The credit limit is a standing condition, not a hiccup: retrying
-    // would refuse the exact same cart. The member's way out is the banner
-    // above and the remove buttons, so the modal offers no Retry.
-    final isRetryable = error.key != TerminalErrorKey.balanceLimitExceeded;
+    // A standing condition, not a hiccup: retrying changes nothing. The credit
+    // limit is fixed by the remove buttons; an age is not fixed at all — the
+    // member will not be older by the time they tap again (ADR-0045, UC-T12
+    // E7). Both get a modal with no Retry, so the button never invites a
+    // member to keep pressing it.
+    const standing = {
+      TerminalErrorKey.balanceLimitExceeded,
+      TerminalErrorKey.ageRestricted,
+    };
+    final isRetryable = !standing.contains(error.key);
     showErrorModal(
       context,
       error.message(AppLocalizations.of(context)!),

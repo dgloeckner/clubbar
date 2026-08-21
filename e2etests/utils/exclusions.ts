@@ -17,7 +17,7 @@
  */
 
 import { expect, type APIRequestContext } from '@playwright/test'
-import { generateUUID } from './transactions'
+import { ADULT_DATE_OF_BIRTH, generateUUID } from './transactions'
 import { FACTORY_IBAN, type CreatedSettlement, type SettlementFactory } from './settlements'
 import { exportSepaXml } from '../fixtures/encryption'
 
@@ -61,6 +61,7 @@ export async function seedMember(
       first_name: 'Run',
       last_name: lastName,
       email: `${prefix}-${tag}-${suffix}@test.example`.toLowerCase(),
+      date_of_birth: ADULT_DATE_OF_BIRTH,
       preferred_language: 'de',
       ...(withMandate ? { iban: FACTORY_IBAN, mandate_signed_at: '2024-01-01' } : {}),
     },

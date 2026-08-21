@@ -13,6 +13,7 @@ final readonly class MemberAdminDto
         public ?string $lastName,
         public ?string $email,
         public ?string $phone,
+        public ?string $dateOfBirth,
         public string $preferredLanguage,
         public bool $isActive,
         public bool $isSepaValid,
@@ -47,6 +48,7 @@ final readonly class MemberAdminDto
             firstName: $row['first_name'] ?? null,
             lastName: $row['last_name'] ?? null,
             email: $row['email'] ?? null,
+            dateOfBirth: $row['date_of_birth'] ?? null,
             phone: $row['phone'] ?? null,
             preferredLanguage: $row['preferred_language'],
             isActive: (bool) $row['is_active'],
@@ -73,6 +75,9 @@ final readonly class MemberAdminDto
             'last_name' => $this->lastName,
             'email' => $this->email,
             'phone' => $this->phone,
+            // DATE-only, like mandate_signed_at: no timezone to shift it a day.
+            // NULL means the member has been anonymized (ADR-0045 rule 3).
+            'date_of_birth' => $this->dateOfBirth,
             'preferred_language' => $this->preferredLanguage,
             'is_active' => $this->isActive,
             'is_sepa_valid' => $this->isSepaValid,

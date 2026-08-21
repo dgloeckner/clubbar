@@ -73,7 +73,13 @@ test.describe('Timestamp timezone contract', () => {
     const token = `Tz${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
     const created = await authenticatedRequest.post('/api/admin/members', {
-      data: { first_name: 'Timezone', last_name: token, email: `${token}@test.com`, preferred_language: 'de' },
+      data: {
+        first_name: 'Timezone',
+        last_name: token,
+        email: `${token}@test.com`,
+        date_of_birth: '1985-06-15',
+        preferred_language: 'de',
+      },
     });
     expect(created.status()).toBe(201);
     const memberId = (await created.json()).id;

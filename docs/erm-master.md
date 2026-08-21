@@ -14,6 +14,8 @@ erDiagram
         varchar_100 first_name "First name (nullable for GDPR)"
         varchar_100 last_name "Last name (nullable for GDPR)"
         varchar_255 email "Contact email"
+        varchar_20 phone "Contact phone number"
+        date date_of_birth "Jugendschutz (ADR-0045); NULL = anonymized"
         varchar_70 account_holder_name "If different from member (still on members)"
         varchar_10 preferred_language "ISO 639-1 (e.g., 'de', 'en')"
         boolean is_active "Active/blocked (TEMPORARY, e.g. lost card)"
@@ -46,7 +48,11 @@ erDiagram
         json descriptions "Multilingual descriptions"
         int price_cents "Price in cents"
         boolean is_active "Available for sale"
+        boolean requires_dispenser "Poured by a dispenser rather than handed over"
+        tinyint_unsigned min_age "Minimum legal age (ADR-0045); NULL = unrestricted"
         varchar_50 icon_name "Icon name (nullable)"
+        datetime deleted_at "Soft-deleted; hidden from the catalogue"
+        binary_16 deleted_by_admin_id FK "Admin who deleted it"
         datetime created_at "Record creation"
         datetime updated_at "Last modification"
     }
@@ -281,6 +287,7 @@ Stores all organization members with payment information.
 | last_name | VARCHAR(100) | NULL | Last name (nullable for GDPR anonymization) |
 | email | VARCHAR(255) | NULL | Contact email address |
 | phone | VARCHAR(20) | NULL | Contact phone number |
+| date_of_birth | DATE | NULL | Date of birth, for the Jugendschutz check ([ADR-0045](../adr/0045-age-restricted-products.md)). **Required when a member is created** and on any write that names it — the column is nullable only so that erasure can empty it, so NULL means *anonymized*, never *unknown*. Synced to terminals as the **raw date**, never an age in years: an age is wrong from the member's next birthday until the kiosk next reaches the server |
 | account_holder_name | VARCHAR(70) | NULL | Still on `members` — only banking fields moved to `mandates` ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md), amended) |
 | preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code for product display |
 | ~~iban~~ | — | — | **Moved to `mandates.iban`** ([#164](https://github.com/dgloeckner/ruderbar/issues/164)) |
@@ -294,6 +301,7 @@ Stores all organization members with payment information.
 | cleared_at | DATETIME | NULL | When the hold was lifted |
 | cleared_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who lifted the hold |
 | deleted_at | DATETIME | NULL | Offboarding completed; erasure done. This **is** "gone" |
+| deleted_by_admin_id | VARCHAR(36) | FK → admin_users.id, NULL | Admin who performed the erasure |
 | retention_expires_at | DATE | NULL | Stamped at offboarding: 31.12. of last transaction year + 10 years ([#173](https://github.com/dgloeckner/ruderbar/issues/173)). ⚠️ This is the **earliest** deletion may occur, not a due date — § 147 Abs. 3 S. 5 AO suspends expiry while the Festsetzungsfrist runs. Deletion is a **reviewed, deliberate act**, not an automated sweep ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
@@ -311,9 +319,10 @@ Stores all organization members with payment information.
 
 | Deleted | Retained (restricted) |
 |---|---|
-| `first_name`, `last_name`, `email`, `phone`, `preferred_language` | Per-transaction records incl. the member link |
-| `card_uid`, credentials, sessions | `mandates` rows: reference, IBAN, signature date |
-| Postal address, date of birth ⚠️ *(deletable only while the club issues no invoices)* | Settlement, payment, return and reversal records |
+| `first_name`, `last_name`, `email`, `phone` | Per-transaction records incl. the member link |
+| `date_of_birth`, `account_holder_name`, `collection_hold_reason` | `mandates` rows: reference, IBAN, signature date |
+| `card_uid`, credentials, sessions | Settlement, payment, return and reversal records |
+| Postal address ⚠️ *(deletable only while the club issues no invoices)* | `preferred_language` — a display setting, not personal data, and `NOT NULL` |
 
 Sets `deleted_at`, and stamps `retention_expires_at`. Restriction is enforced by **access** — restricted rows are not listed, searched, exported or synced — not by a flag each query must remember.
 
@@ -357,17 +366,26 @@ Product catalog with multilingual support.
 | descriptions | JSON | NULL | Multilingual descriptions |
 | price_cents | INT | NOT NULL | Price in cents (> 0; max 999999 = €9,999.99) |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Available for purchase |
+| requires_dispenser | BOOLEAN | NOT NULL, DEFAULT FALSE | Poured by a dispenser rather than handed over; the terminal holds the sale until the pour is confirmed |
+| min_age | TINYINT UNSIGNED | NULL | Minimum legal age to buy this product ([ADR-0045](../adr/0045-age-restricted-products.md)). NULL — the ordinary state of most of a drinks list — means unrestricted. A free integer between 1 and 99 rather than a `{16, 18}` enum: those two thresholds are JuSchG § 9, and a club running this elsewhere sets its own numbers |
 | icon_name | VARCHAR(50) | NULL | Icon component name (e.g., "PilsIcon"; NULL for default) |
+| deleted_at | DATETIME | NULL | Soft delete. The row survives because `transactions.product_id` references it and a sold drink must stay nameable |
+| deleted_by_admin_id | VARCHAR(36) | FK → admin_users.id, NULL | Admin who deleted it |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
 **Indexes:**
 - `category_id`
 - `is_active`
+- `requires_dispenser`
 - `icon_name`
+- `deleted_at`
+- `deleted_by_admin_id`
 - `updated_at`
 
 **Price Changes**: New price applies to new transactions only. Historical transactions retain original amount_cents.
+
+**Age Changes**: The same way. Raising or clearing `min_age` changes what the terminal refuses from the next sync onwards; it does not reach backwards. A Jugendschutz violation already recorded against a past sale keeps the limit as it stood at the time and does not clear when the drink is later un-restricted ([ADR-0045](../adr/0045-age-restricted-products.md) invariant 4).
 
 **Icon Display**: Terminal displays product icon based on `icon_name` field. If NULL, displays default PackageIcon.
 
@@ -776,6 +794,7 @@ Centralized audit trail for all master data changes.
 - `settlement_reverse` — Money that already moved has come back ([#196](https://github.com/dgloeckner/clubbar/issues/196))
 - `transaction_storno` — A booking reversed in full ([#169](https://github.com/dgloeckner/ruderbar/issues/169))
 - `transaction_price_divergence` — A synced sale claimed an amount other than the product's current price ([#204](https://github.com/dgloeckner/clubbar/issues/204)). Written by the sync path, so `admin_user_id` is NULL. The amount stands: it is what the member saw and accepted, possibly weeks earlier while offline — the entry records the disagreement rather than correcting it
+- `jugendschutz_violation` — A synced sale handed an age-restricted drink to a member who was under its `min_age` **at the moment of the sale** ([ADR-0045](../adr/0045-age-restricted-products.md), JuSchG § 9). Written by the sync path, so `admin_user_id` is NULL. Filed under the **transaction**, and the payload carries ids, `min_age` and `age_at_sale` — never the member's name and never their birth date, so a later erasure (which keys on the member's own `entity_id`) leaves nothing behind. Like the divergence entry it never rejects the row: the drink was already poured, and refusing the upload would trade a youth-protection incident for a § 146 Abs. 1 AO bookkeeping one
 - `collection_hold_placed` — A bank return stopped the next run re-debiting a member
 - `collection_hold_cleared` — An admin released that member back into the next run
 - `totp_enrolled` / `totp_reset` — Second factor enrolled or reset
@@ -967,10 +986,17 @@ When a member requests deletion (GDPR Art. 17):
 | last_name | "Mustermann" | NULL |
 | email | "max@example.com" | NULL |
 | phone | "+49 170 ..." | NULL |
-| preferred_language | "de" | NULL |
-| card_uid | "A1B2C3D4" | "ANONYMOUS-{uuid}" |
+| date_of_birth | "2009-03-04" | NULL |
+| account_holder_name | "Erika Mustermann" | NULL |
+| collection_hold_reason | "Rücklastschrift 03/2026" | NULL |
+| card_uid | "A1B2C3D4" | "ANON-{15 hex}" |
 | is_active | true | false |
 | deleted_at | NULL | {timestamp} |
+| deleted_by_admin_id | NULL | {admin uuid, or NULL for a self-service erasure} |
+
+`preferred_language` is **not** nulled — it is `NOT NULL` in the schema, so it could not be, and it is a display setting rather than personal data. This table claimed otherwise until [#590](https://github.com/dgloeckner/clubbar/issues/590); `MembersRepository::anonymize()` is the authority.
+
+`date_of_birth` is nulled here, and that is the compensating control for putting it on kiosks at all ([ADR-0045](../adr/0045-age-restricted-products.md) decision 1): the anonymized row travels the ordinary delta sync with the field emptied, so the erasure reaches every terminal cache with no separate mechanism. A member with no birth date is refused any product carrying a `min_age` — absent means *anonymized*, never *unknown*, so there is no fail-open branch.
 
 `iban` and `mandate_reference` no longer live on `members` at all — they moved to `mandates` in [#164](https://github.com/dgloeckner/ruderbar/issues/164)/[#165](https://github.com/dgloeckner/ruderbar/issues/165) and are **not** touched by member anonymization ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): both are Beleg-bearing, and nulling them would break matching a returned collection that arrives after the erasure request.
 

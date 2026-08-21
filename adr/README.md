@@ -68,6 +68,8 @@ Each ADR follows this structure:
 | [0041](./0041-terminal-credential-anomaly-detection.md) | Terminal Credential Anomaly Detection | Accepted | 2026-08-15 |
 | [0042](./0042-colour-semantics-for-monetary-values.md) | Colour Semantics for Monetary Values | Accepted | 2026-08-16 |
 | [0043](./0043-terminal-credential-issuance-is-announced.md) | Terminal Credential Issuance Is Announced, Not Gated Further | Accepted | 2026-08-16 |
+| [0044](./0044-tiered-admin-roles.md) | Tiered Admin Roles — `admin`, `Kassenwart`, `Getränkewart` | Accepted | 2026-08-17 |
+| [0045](./0045-age-restricted-products.md) | Age-Restricted Products — the Terminal Refuses, the Server Records | Accepted | 2026-08-20 |
 
 ## Creating a New ADR
 

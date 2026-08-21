@@ -538,7 +538,7 @@ paths:
 
         **Use Case**: UC-A11
 
-        **Required fields**: first_name, last_name, iban, mandate_signed_at, preferred_language
+        **Required fields**: first_name, last_name, email, date_of_birth, preferred_language
 
         **Auto-generated**:
         - `id`: UUID
@@ -1076,8 +1076,19 @@ paths:
         **Use Case**: UC-A16
         **Status**: Not implemented — nice to have (2026-03-07 audit)
 
-        **CSV columns** (required): first_name, last_name, iban, mandate_signed_at
-        **CSV columns** (optional): email, preferred_language
+        **CSV columns** (required): first_name, last_name, email, date_of_birth
+        **CSV columns** (optional): iban, mandate_signed_at, preferred_language, phone
+
+        The required set tracks `MemberCreateRequest`, which this endpoint would
+        have to satisfy row by row. Two corrections since it was written: `email`
+        became required (#362) and `date_of_birth` became required
+        ([ADR-0045](../../adr/0045-age-restricted-products.md)), while `iban` and
+        `mandate_signed_at` never were — a member with no bank details yet is a
+        state the panel already shows as "SEPA: Missing" (#131).
+
+        A CSV without a date of birth column therefore cannot import anybody, and
+        that is the intended behaviour: there is no "unknown age" member for the
+        terminal to reason about.
 
         Returns a preview of the import. Call `/members/import/confirm` to execute.
       operationId: importMembersPreview
@@ -4847,6 +4858,11 @@ components:
     # --------------------------------------------------------------------------
     MemberListItem:
       type: object
+      description: >-
+        The roster row. Deliberately narrower than `Member`: `date_of_birth` in
+        particular is **not** here ([ADR-0045](../../adr/0045-age-restricted-products.md)) —
+        a list an admin scrolls needs names, balances and SEPA state, and the
+        two consumers that need a birth date read one member at a time.
       properties:
         id:
           type: string
@@ -5179,6 +5195,21 @@ components:
           nullable: true
           maxLength: 70
           description: Account holder name if different from member. Used in SEPA XML.
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+          description: |
+            The member's date of birth, used by the terminal to enforce a
+            product's minimum age offline
+            ([ADR-0045](../../adr/0045-age-restricted-products.md)). The raw
+            date is what the terminal syncs — not an age in years, which is
+            wrong from the member's next birthday until the next sync.
+
+            `null` means the member has been **anonymized**, never "unknown".
+            The field is required on create and cannot be cleared through an
+            update; erasure nulls it through the anonymize endpoint.
+          example: '1985-06-15'
         mandate_reference:
           type: string
           nullable: true
@@ -5226,7 +5257,7 @@ components:
       # bank details is a supported state, and the backend has always accepted
       # `iban` and `mandate_signed_at` as nullable. The spec said otherwise,
       # which made the admin form refuse to save such a member at all (#131).
-      required: [first_name, last_name, email, preferred_language]
+      required: [first_name, last_name, email, date_of_birth, preferred_language]
       properties:
         first_name:
           type: string
@@ -5258,6 +5289,17 @@ components:
           type: string
           maxLength: 70
           description: Account holder name if different from member (for divergent payer)
+        date_of_birth:
+          type: string
+          format: date
+          description: >-
+            Required. Not in the future. Used by the terminal to enforce a
+            product's minimum age offline
+            ([ADR-0045](../../adr/0045-age-restricted-products.md)). Unlike the
+            other optional fields, a blank string is **not** read as "no
+            value" here — it is rejected, because a null birth date means an
+            anonymized member.
+          example: '1985-06-15'
         mandate_signed_at:
           type: string
           format: date
@@ -5307,6 +5349,15 @@ components:
           type: string
           maxLength: 20
           nullable: true
+        date_of_birth:
+          type: string
+          format: date
+          description: >-
+            May be **corrected** but not cleared: neither `""` nor `null` is
+            accepted, because a null birth date means an anonymized member
+            ([ADR-0045](../../adr/0045-age-restricted-products.md) rule 3) and
+            erasure is the anonymize endpoint's alone.
+          example: '1985-06-15'
         preferred_language:
           type: string
         iban:
@@ -5535,6 +5586,28 @@ components:
           maxLength: 50
           description: Name of the icon component to display
           example: "PilsIcon"
+        requires_dispenser:
+          type: boolean
+          description: >-
+            Whether buying this product releases a physical token from the
+            dispenser. Present on the endpoint since #35; it was simply never
+            written down here.
+        min_age:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 99
+          description: |
+            The minimum age a member must have reached to buy this product
+            ([ADR-0045](../../adr/0045-age-restricted-products.md)). The
+            terminal compares it against the member's age at checkout and
+            refuses the sale offline.
+
+            `null` means **unrestricted**, which is most of a drinks list — not
+            "unknown". A free integer rather than a `{16, 18}` enum: JuSchG's
+            thresholds are German law and this software is self-hosted, so
+            another country's club sets its own numbers.
+          example: 18
         created_at:
           type: string
           format: date-time
@@ -5563,6 +5636,22 @@ components:
           maxLength: 50
           description: Name of the icon component to display
           example: "PilsIcon"
+        requires_dispenser:
+          type: boolean
+          description: >-
+            Whether buying this product releases a physical token from the
+            dispenser. Present on the endpoint since #35; it was simply never
+            written down here.
+        min_age:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 99
+          description: >-
+            Optional. Omit or send `null` for an unrestricted product
+            ([ADR-0045](../../adr/0045-age-restricted-products.md)). On update,
+            an explicit `null` removes an existing restriction.
+          example: 18
 
     ProductUpdateRequest:
       type: object
@@ -5586,6 +5675,22 @@ components:
           maxLength: 50
           description: Name of the icon component to display
           example: "PilsIcon"
+        requires_dispenser:
+          type: boolean
+          description: >-
+            Whether buying this product releases a physical token from the
+            dispenser. Present on the endpoint since #35; it was simply never
+            written down here.
+        min_age:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 99
+          description: >-
+            Optional. Omit or send `null` for an unrestricted product
+            ([ADR-0045](../../adr/0045-age-restricted-products.md)). On update,
+            an explicit `null` removes an existing restriction.
+          example: 18
 
     Category:
       type: object

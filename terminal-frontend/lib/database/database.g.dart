@@ -52,6 +52,17 @@ class $MembersCacheTable extends MembersCache
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _dateOfBirthMeta = const VerificationMeta(
+    'dateOfBirth',
+  );
+  @override
+  late final GeneratedColumn<String> dateOfBirth = GeneratedColumn<String>(
+    'date_of_birth',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _preferredLanguageMeta = const VerificationMeta(
     'preferredLanguage',
   );
@@ -127,6 +138,7 @@ class $MembersCacheTable extends MembersCache
     cardUid,
     firstName,
     lastName,
+    dateOfBirth,
     preferredLanguage,
     isActive,
     isSepaValid,
@@ -167,6 +179,15 @@ class $MembersCacheTable extends MembersCache
       context.handle(
         _lastNameMeta,
         lastName.isAcceptableOrUnknown(data['last_name']!, _lastNameMeta),
+      );
+    }
+    if (data.containsKey('date_of_birth')) {
+      context.handle(
+        _dateOfBirthMeta,
+        dateOfBirth.isAcceptableOrUnknown(
+          data['date_of_birth']!,
+          _dateOfBirthMeta,
+        ),
       );
     }
     if (data.containsKey('preferred_language')) {
@@ -245,6 +266,10 @@ class $MembersCacheTable extends MembersCache
         DriftSqlType.string,
         data['${effectivePrefix}last_name'],
       ),
+      dateOfBirth: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}date_of_birth'],
+      ),
       preferredLanguage: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}preferred_language'],
@@ -284,6 +309,24 @@ class MembersCacheData extends DataClass
   final String? cardUid;
   final String? firstName;
   final String? lastName;
+
+  /// The member's date of birth as `YYYY-MM-DD`, for the Jugendschutz check
+  /// (ADR-0045).
+  ///
+  /// The **raw date**, deliberately, and never an age in years: age changes on
+  /// a day the server cannot predict a sync for, so a cached number is wrong
+  /// from the member's next birthday until this terminal next reaches the
+  /// server — which may be weeks. The age is computed here, at checkout, from
+  /// this device's clock.
+  ///
+  /// Null means the member was **anonymized**, never "unknown": the field is
+  /// required when a member is created, so there is no third state and no
+  /// fail-open branch. An erasure arrives on the ordinary delta sync with this
+  /// nulled, which is what takes the date back off every kiosk.
+  ///
+  /// Never render it, and never derive a rendered age from it (rule 6) — the
+  /// screen is read by whoever is standing at the bar.
+  final String? dateOfBirth;
   final String preferredLanguage;
   final int isActive;
   final int isSepaValid;
@@ -303,6 +346,7 @@ class MembersCacheData extends DataClass
     this.cardUid,
     this.firstName,
     this.lastName,
+    this.dateOfBirth,
     required this.preferredLanguage,
     required this.isActive,
     required this.isSepaValid,
@@ -322,6 +366,9 @@ class MembersCacheData extends DataClass
     }
     if (!nullToAbsent || lastName != null) {
       map['last_name'] = Variable<String>(lastName);
+    }
+    if (!nullToAbsent || dateOfBirth != null) {
+      map['date_of_birth'] = Variable<String>(dateOfBirth);
     }
     map['preferred_language'] = Variable<String>(preferredLanguage);
     map['is_active'] = Variable<int>(isActive);
@@ -346,6 +393,9 @@ class MembersCacheData extends DataClass
       lastName: lastName == null && nullToAbsent
           ? const Value.absent()
           : Value(lastName),
+      dateOfBirth: dateOfBirth == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dateOfBirth),
       preferredLanguage: Value(preferredLanguage),
       isActive: Value(isActive),
       isSepaValid: Value(isSepaValid),
@@ -367,6 +417,7 @@ class MembersCacheData extends DataClass
       cardUid: serializer.fromJson<String?>(json['cardUid']),
       firstName: serializer.fromJson<String?>(json['firstName']),
       lastName: serializer.fromJson<String?>(json['lastName']),
+      dateOfBirth: serializer.fromJson<String?>(json['dateOfBirth']),
       preferredLanguage: serializer.fromJson<String>(json['preferredLanguage']),
       isActive: serializer.fromJson<int>(json['isActive']),
       isSepaValid: serializer.fromJson<int>(json['isSepaValid']),
@@ -383,6 +434,7 @@ class MembersCacheData extends DataClass
       'cardUid': serializer.toJson<String?>(cardUid),
       'firstName': serializer.toJson<String?>(firstName),
       'lastName': serializer.toJson<String?>(lastName),
+      'dateOfBirth': serializer.toJson<String?>(dateOfBirth),
       'preferredLanguage': serializer.toJson<String>(preferredLanguage),
       'isActive': serializer.toJson<int>(isActive),
       'isSepaValid': serializer.toJson<int>(isSepaValid),
@@ -397,6 +449,7 @@ class MembersCacheData extends DataClass
     Value<String?> cardUid = const Value.absent(),
     Value<String?> firstName = const Value.absent(),
     Value<String?> lastName = const Value.absent(),
+    Value<String?> dateOfBirth = const Value.absent(),
     String? preferredLanguage,
     int? isActive,
     int? isSepaValid,
@@ -408,6 +461,7 @@ class MembersCacheData extends DataClass
     cardUid: cardUid.present ? cardUid.value : this.cardUid,
     firstName: firstName.present ? firstName.value : this.firstName,
     lastName: lastName.present ? lastName.value : this.lastName,
+    dateOfBirth: dateOfBirth.present ? dateOfBirth.value : this.dateOfBirth,
     preferredLanguage: preferredLanguage ?? this.preferredLanguage,
     isActive: isActive ?? this.isActive,
     isSepaValid: isSepaValid ?? this.isSepaValid,
@@ -421,6 +475,9 @@ class MembersCacheData extends DataClass
       cardUid: data.cardUid.present ? data.cardUid.value : this.cardUid,
       firstName: data.firstName.present ? data.firstName.value : this.firstName,
       lastName: data.lastName.present ? data.lastName.value : this.lastName,
+      dateOfBirth: data.dateOfBirth.present
+          ? data.dateOfBirth.value
+          : this.dateOfBirth,
       preferredLanguage: data.preferredLanguage.present
           ? data.preferredLanguage.value
           : this.preferredLanguage,
@@ -443,6 +500,7 @@ class MembersCacheData extends DataClass
           ..write('cardUid: $cardUid, ')
           ..write('firstName: $firstName, ')
           ..write('lastName: $lastName, ')
+          ..write('dateOfBirth: $dateOfBirth, ')
           ..write('preferredLanguage: $preferredLanguage, ')
           ..write('isActive: $isActive, ')
           ..write('isSepaValid: $isSepaValid, ')
@@ -459,6 +517,7 @@ class MembersCacheData extends DataClass
     cardUid,
     firstName,
     lastName,
+    dateOfBirth,
     preferredLanguage,
     isActive,
     isSepaValid,
@@ -474,6 +533,7 @@ class MembersCacheData extends DataClass
           other.cardUid == this.cardUid &&
           other.firstName == this.firstName &&
           other.lastName == this.lastName &&
+          other.dateOfBirth == this.dateOfBirth &&
           other.preferredLanguage == this.preferredLanguage &&
           other.isActive == this.isActive &&
           other.isSepaValid == this.isSepaValid &&
@@ -487,6 +547,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
   final Value<String?> cardUid;
   final Value<String?> firstName;
   final Value<String?> lastName;
+  final Value<String?> dateOfBirth;
   final Value<String> preferredLanguage;
   final Value<int> isActive;
   final Value<int> isSepaValid;
@@ -499,6 +560,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     this.cardUid = const Value.absent(),
     this.firstName = const Value.absent(),
     this.lastName = const Value.absent(),
+    this.dateOfBirth = const Value.absent(),
     this.preferredLanguage = const Value.absent(),
     this.isActive = const Value.absent(),
     this.isSepaValid = const Value.absent(),
@@ -512,6 +574,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     this.cardUid = const Value.absent(),
     this.firstName = const Value.absent(),
     this.lastName = const Value.absent(),
+    this.dateOfBirth = const Value.absent(),
     required String preferredLanguage,
     this.isActive = const Value.absent(),
     required int isSepaValid,
@@ -528,6 +591,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     Expression<String>? cardUid,
     Expression<String>? firstName,
     Expression<String>? lastName,
+    Expression<String>? dateOfBirth,
     Expression<String>? preferredLanguage,
     Expression<int>? isActive,
     Expression<int>? isSepaValid,
@@ -541,6 +605,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
       if (cardUid != null) 'card_uid': cardUid,
       if (firstName != null) 'first_name': firstName,
       if (lastName != null) 'last_name': lastName,
+      if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
       if (preferredLanguage != null) 'preferred_language': preferredLanguage,
       if (isActive != null) 'is_active': isActive,
       if (isSepaValid != null) 'is_sepa_valid': isSepaValid,
@@ -556,6 +621,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     Value<String?>? cardUid,
     Value<String?>? firstName,
     Value<String?>? lastName,
+    Value<String?>? dateOfBirth,
     Value<String>? preferredLanguage,
     Value<int>? isActive,
     Value<int>? isSepaValid,
@@ -569,6 +635,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
       cardUid: cardUid ?? this.cardUid,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       preferredLanguage: preferredLanguage ?? this.preferredLanguage,
       isActive: isActive ?? this.isActive,
       isSepaValid: isSepaValid ?? this.isSepaValid,
@@ -593,6 +660,9 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     }
     if (lastName.present) {
       map['last_name'] = Variable<String>(lastName.value);
+    }
+    if (dateOfBirth.present) {
+      map['date_of_birth'] = Variable<String>(dateOfBirth.value);
     }
     if (preferredLanguage.present) {
       map['preferred_language'] = Variable<String>(preferredLanguage.value);
@@ -625,6 +695,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
           ..write('cardUid: $cardUid, ')
           ..write('firstName: $firstName, ')
           ..write('lastName: $lastName, ')
+          ..write('dateOfBirth: $dateOfBirth, ')
           ..write('preferredLanguage: $preferredLanguage, ')
           ..write('isActive: $isActive, ')
           ..write('isSepaValid: $isSepaValid, ')
@@ -1137,6 +1208,15 @@ class $ProductsCacheTable extends ProductsCache
     requiredDuringInsert: false,
     defaultValue: Constant(0),
   );
+  static const VerificationMeta _minAgeMeta = const VerificationMeta('minAge');
+  @override
+  late final GeneratedColumn<int> minAge = GeneratedColumn<int>(
+    'min_age',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _iconNameMeta = const VerificationMeta(
     'iconName',
   );
@@ -1179,6 +1259,7 @@ class $ProductsCacheTable extends ProductsCache
     priceCents,
     isActive,
     requiresDispenser,
+    minAge,
     iconName,
     updatedAt,
     deletedAt,
@@ -1248,6 +1329,12 @@ class $ProductsCacheTable extends ProductsCache
         ),
       );
     }
+    if (data.containsKey('min_age')) {
+      context.handle(
+        _minAgeMeta,
+        minAge.isAcceptableOrUnknown(data['min_age']!, _minAgeMeta),
+      );
+    }
     if (data.containsKey('icon_name')) {
       context.handle(
         _iconNameMeta,
@@ -1305,6 +1392,10 @@ class $ProductsCacheTable extends ProductsCache
         DriftSqlType.int,
         data['${effectivePrefix}requires_dispenser'],
       )!,
+      minAge: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}min_age'],
+      ),
       iconName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}icon_name'],
@@ -1335,6 +1426,15 @@ class ProductsCacheData extends DataClass
   final int priceCents;
   final int isActive;
   final int requiresDispenser;
+
+  /// Minimum legal age to buy this product, or null for unrestricted
+  /// (ADR-0045). Compared against the age computed from the member's own
+  /// `date_of_birth` at checkout, offline.
+  ///
+  /// Null is the ordinary state of most of a drinks list. A free integer
+  /// rather than a `{16, 18}` enum: JuSchG's two thresholds are German law,
+  /// and a club running this elsewhere sets its own numbers.
+  final int? minAge;
   final String? iconName;
   final String updatedAt;
 
@@ -1355,6 +1455,7 @@ class ProductsCacheData extends DataClass
     required this.priceCents,
     required this.isActive,
     required this.requiresDispenser,
+    this.minAge,
     this.iconName,
     required this.updatedAt,
     this.deletedAt,
@@ -1371,6 +1472,9 @@ class ProductsCacheData extends DataClass
     map['price_cents'] = Variable<int>(priceCents);
     map['is_active'] = Variable<int>(isActive);
     map['requires_dispenser'] = Variable<int>(requiresDispenser);
+    if (!nullToAbsent || minAge != null) {
+      map['min_age'] = Variable<int>(minAge);
+    }
     if (!nullToAbsent || iconName != null) {
       map['icon_name'] = Variable<String>(iconName);
     }
@@ -1392,6 +1496,9 @@ class ProductsCacheData extends DataClass
       priceCents: Value(priceCents),
       isActive: Value(isActive),
       requiresDispenser: Value(requiresDispenser),
+      minAge: minAge == null && nullToAbsent
+          ? const Value.absent()
+          : Value(minAge),
       iconName: iconName == null && nullToAbsent
           ? const Value.absent()
           : Value(iconName),
@@ -1415,6 +1522,7 @@ class ProductsCacheData extends DataClass
       priceCents: serializer.fromJson<int>(json['priceCents']),
       isActive: serializer.fromJson<int>(json['isActive']),
       requiresDispenser: serializer.fromJson<int>(json['requiresDispenser']),
+      minAge: serializer.fromJson<int?>(json['minAge']),
       iconName: serializer.fromJson<String?>(json['iconName']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
       deletedAt: serializer.fromJson<String?>(json['deletedAt']),
@@ -1431,6 +1539,7 @@ class ProductsCacheData extends DataClass
       'priceCents': serializer.toJson<int>(priceCents),
       'isActive': serializer.toJson<int>(isActive),
       'requiresDispenser': serializer.toJson<int>(requiresDispenser),
+      'minAge': serializer.toJson<int?>(minAge),
       'iconName': serializer.toJson<String?>(iconName),
       'updatedAt': serializer.toJson<String>(updatedAt),
       'deletedAt': serializer.toJson<String?>(deletedAt),
@@ -1445,6 +1554,7 @@ class ProductsCacheData extends DataClass
     int? priceCents,
     int? isActive,
     int? requiresDispenser,
+    Value<int?> minAge = const Value.absent(),
     Value<String?> iconName = const Value.absent(),
     String? updatedAt,
     Value<String?> deletedAt = const Value.absent(),
@@ -1456,6 +1566,7 @@ class ProductsCacheData extends DataClass
     priceCents: priceCents ?? this.priceCents,
     isActive: isActive ?? this.isActive,
     requiresDispenser: requiresDispenser ?? this.requiresDispenser,
+    minAge: minAge.present ? minAge.value : this.minAge,
     iconName: iconName.present ? iconName.value : this.iconName,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -1477,6 +1588,7 @@ class ProductsCacheData extends DataClass
       requiresDispenser: data.requiresDispenser.present
           ? data.requiresDispenser.value
           : this.requiresDispenser,
+      minAge: data.minAge.present ? data.minAge.value : this.minAge,
       iconName: data.iconName.present ? data.iconName.value : this.iconName,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -1493,6 +1605,7 @@ class ProductsCacheData extends DataClass
           ..write('priceCents: $priceCents, ')
           ..write('isActive: $isActive, ')
           ..write('requiresDispenser: $requiresDispenser, ')
+          ..write('minAge: $minAge, ')
           ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -1509,6 +1622,7 @@ class ProductsCacheData extends DataClass
     priceCents,
     isActive,
     requiresDispenser,
+    minAge,
     iconName,
     updatedAt,
     deletedAt,
@@ -1524,6 +1638,7 @@ class ProductsCacheData extends DataClass
           other.priceCents == this.priceCents &&
           other.isActive == this.isActive &&
           other.requiresDispenser == this.requiresDispenser &&
+          other.minAge == this.minAge &&
           other.iconName == this.iconName &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -1537,6 +1652,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
   final Value<int> priceCents;
   final Value<int> isActive;
   final Value<int> requiresDispenser;
+  final Value<int?> minAge;
   final Value<String?> iconName;
   final Value<String> updatedAt;
   final Value<String?> deletedAt;
@@ -1549,6 +1665,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     this.priceCents = const Value.absent(),
     this.isActive = const Value.absent(),
     this.requiresDispenser = const Value.absent(),
+    this.minAge = const Value.absent(),
     this.iconName = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -1562,6 +1679,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     required int priceCents,
     this.isActive = const Value.absent(),
     this.requiresDispenser = const Value.absent(),
+    this.minAge = const Value.absent(),
     this.iconName = const Value.absent(),
     required String updatedAt,
     this.deletedAt = const Value.absent(),
@@ -1579,6 +1697,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     Expression<int>? priceCents,
     Expression<int>? isActive,
     Expression<int>? requiresDispenser,
+    Expression<int>? minAge,
     Expression<String>? iconName,
     Expression<String>? updatedAt,
     Expression<String>? deletedAt,
@@ -1592,6 +1711,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
       if (priceCents != null) 'price_cents': priceCents,
       if (isActive != null) 'is_active': isActive,
       if (requiresDispenser != null) 'requires_dispenser': requiresDispenser,
+      if (minAge != null) 'min_age': minAge,
       if (iconName != null) 'icon_name': iconName,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -1607,6 +1727,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     Value<int>? priceCents,
     Value<int>? isActive,
     Value<int>? requiresDispenser,
+    Value<int?>? minAge,
     Value<String?>? iconName,
     Value<String>? updatedAt,
     Value<String?>? deletedAt,
@@ -1620,6 +1741,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
       priceCents: priceCents ?? this.priceCents,
       isActive: isActive ?? this.isActive,
       requiresDispenser: requiresDispenser ?? this.requiresDispenser,
+      minAge: minAge ?? this.minAge,
       iconName: iconName ?? this.iconName,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -1651,6 +1773,9 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     if (requiresDispenser.present) {
       map['requires_dispenser'] = Variable<int>(requiresDispenser.value);
     }
+    if (minAge.present) {
+      map['min_age'] = Variable<int>(minAge.value);
+    }
     if (iconName.present) {
       map['icon_name'] = Variable<String>(iconName.value);
     }
@@ -1676,6 +1801,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
           ..write('priceCents: $priceCents, ')
           ..write('isActive: $isActive, ')
           ..write('requiresDispenser: $requiresDispenser, ')
+          ..write('minAge: $minAge, ')
           ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -3781,6 +3907,7 @@ typedef $$MembersCacheTableCreateCompanionBuilder =
       Value<String?> cardUid,
       Value<String?> firstName,
       Value<String?> lastName,
+      Value<String?> dateOfBirth,
       required String preferredLanguage,
       Value<int> isActive,
       required int isSepaValid,
@@ -3795,6 +3922,7 @@ typedef $$MembersCacheTableUpdateCompanionBuilder =
       Value<String?> cardUid,
       Value<String?> firstName,
       Value<String?> lastName,
+      Value<String?> dateOfBirth,
       Value<String> preferredLanguage,
       Value<int> isActive,
       Value<int> isSepaValid,
@@ -3867,6 +3995,11 @@ class $$MembersCacheTableFilterComposer
 
   ColumnFilters<String> get lastName => $composableBuilder(
     column: $table.lastName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dateOfBirth => $composableBuilder(
+    column: $table.dateOfBirth,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3955,6 +4088,11 @@ class $$MembersCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get dateOfBirth => $composableBuilder(
+    column: $table.dateOfBirth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get preferredLanguage => $composableBuilder(
     column: $table.preferredLanguage,
     builder: (column) => ColumnOrderings(column),
@@ -4006,6 +4144,11 @@ class $$MembersCacheTableAnnotationComposer
 
   GeneratedColumn<String> get lastName =>
       $composableBuilder(column: $table.lastName, builder: (column) => column);
+
+  GeneratedColumn<String> get dateOfBirth => $composableBuilder(
+    column: $table.dateOfBirth,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get preferredLanguage => $composableBuilder(
     column: $table.preferredLanguage,
@@ -4092,6 +4235,7 @@ class $$MembersCacheTableTableManager
                 Value<String?> cardUid = const Value.absent(),
                 Value<String?> firstName = const Value.absent(),
                 Value<String?> lastName = const Value.absent(),
+                Value<String?> dateOfBirth = const Value.absent(),
                 Value<String> preferredLanguage = const Value.absent(),
                 Value<int> isActive = const Value.absent(),
                 Value<int> isSepaValid = const Value.absent(),
@@ -4104,6 +4248,7 @@ class $$MembersCacheTableTableManager
                 cardUid: cardUid,
                 firstName: firstName,
                 lastName: lastName,
+                dateOfBirth: dateOfBirth,
                 preferredLanguage: preferredLanguage,
                 isActive: isActive,
                 isSepaValid: isSepaValid,
@@ -4118,6 +4263,7 @@ class $$MembersCacheTableTableManager
                 Value<String?> cardUid = const Value.absent(),
                 Value<String?> firstName = const Value.absent(),
                 Value<String?> lastName = const Value.absent(),
+                Value<String?> dateOfBirth = const Value.absent(),
                 required String preferredLanguage,
                 Value<int> isActive = const Value.absent(),
                 required int isSepaValid,
@@ -4130,6 +4276,7 @@ class $$MembersCacheTableTableManager
                 cardUid: cardUid,
                 firstName: firstName,
                 lastName: lastName,
+                dateOfBirth: dateOfBirth,
                 preferredLanguage: preferredLanguage,
                 isActive: isActive,
                 isSepaValid: isSepaValid,
@@ -4542,6 +4689,7 @@ typedef $$ProductsCacheTableCreateCompanionBuilder =
       required int priceCents,
       Value<int> isActive,
       Value<int> requiresDispenser,
+      Value<int?> minAge,
       Value<String?> iconName,
       required String updatedAt,
       Value<String?> deletedAt,
@@ -4556,6 +4704,7 @@ typedef $$ProductsCacheTableUpdateCompanionBuilder =
       Value<int> priceCents,
       Value<int> isActive,
       Value<int> requiresDispenser,
+      Value<int?> minAge,
       Value<String?> iconName,
       Value<String> updatedAt,
       Value<String?> deletedAt,
@@ -4664,6 +4813,11 @@ class $$ProductsCacheTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get minAge => $composableBuilder(
+    column: $table.minAge,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get iconName => $composableBuilder(
     column: $table.iconName,
     builder: (column) => ColumnFilters(column),
@@ -4767,6 +4921,11 @@ class $$ProductsCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get minAge => $composableBuilder(
+    column: $table.minAge,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get iconName => $composableBuilder(
     column: $table.iconName,
     builder: (column) => ColumnOrderings(column),
@@ -4838,6 +4997,9 @@ class $$ProductsCacheTableAnnotationComposer
     column: $table.requiresDispenser,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get minAge =>
+      $composableBuilder(column: $table.minAge, builder: (column) => column);
 
   GeneratedColumn<String> get iconName =>
       $composableBuilder(column: $table.iconName, builder: (column) => column);
@@ -4935,6 +5097,7 @@ class $$ProductsCacheTableTableManager
                 Value<int> priceCents = const Value.absent(),
                 Value<int> isActive = const Value.absent(),
                 Value<int> requiresDispenser = const Value.absent(),
+                Value<int?> minAge = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
                 Value<String?> deletedAt = const Value.absent(),
@@ -4947,6 +5110,7 @@ class $$ProductsCacheTableTableManager
                 priceCents: priceCents,
                 isActive: isActive,
                 requiresDispenser: requiresDispenser,
+                minAge: minAge,
                 iconName: iconName,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -4961,6 +5125,7 @@ class $$ProductsCacheTableTableManager
                 required int priceCents,
                 Value<int> isActive = const Value.absent(),
                 Value<int> requiresDispenser = const Value.absent(),
+                Value<int?> minAge = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 required String updatedAt,
                 Value<String?> deletedAt = const Value.absent(),
@@ -4973,6 +5138,7 @@ class $$ProductsCacheTableTableManager
                 priceCents: priceCents,
                 isActive: isActive,
                 requiresDispenser: requiresDispenser,
+                minAge: minAge,
                 iconName: iconName,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,

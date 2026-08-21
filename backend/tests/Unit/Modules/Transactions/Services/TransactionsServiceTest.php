@@ -772,6 +772,318 @@ class TransactionsServiceTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // processBatch — Jugendschutz (epic #582 M7, ADR-0045 §3, JuSchG § 9)
+    //
+    // The terminal is the only layer that can *prevent* an underage sale,
+    // because it is the only one present when the drink is poured. By the time
+    // a row reaches here the glass is empty, so the server's job is detection,
+    // and ADR-0020's amendment (#162) settles what it may do about it: store
+    // the transaction, raise the alarm, never drop the row. Rejecting would not
+    // un-serve the minor — it would delete the club's knowledge that it
+    // happened, and trade a youth-protection incident for a § 146 AO
+    // bookkeeping violation.
+    //
+    // Every test that raises a violation also asserts the row was accepted.
+    // That is the point: the whole risk of this flag is it quietly becoming a
+    // refusal, which #162 already built once and deliberately removed.
+    // ------------------------------------------------------------------
+
+    /**
+     * A sale moment recent enough not to trip the staleness flag.
+     *
+     * Anchored to the clock rather than written as a fixed date, because a
+     * literal drifts past `STALE_SALE_TOLERANCE_SECONDS` ninety days after
+     * somebody typed it and starts logging a second warning these tests would
+     * then be asserting the absence of. Backed off the end of the month so that
+     * subtracting whole years from it cannot land on a 29 February and move a
+     * birthday by a day.
+     */
+    private static function aRecentSaleMoment(): \DateTimeImmutable
+    {
+        $moment = (new \DateTimeImmutable('@' . time()))->setTime(12, 0)->modify('-20 days');
+
+        while ((int) $moment->format('d') > 28) {
+            $moment = $moment->modify('-1 day');
+        }
+
+        return $moment;
+    }
+
+    /** A birth date making somebody exactly $years old on $moment. */
+    private static function bornToBeAgedOn(int $years, \DateTimeImmutable $moment): string
+    {
+        return $moment->modify("-{$years} years")->format('Y-m-d');
+    }
+
+    /** @param array<string, mixed> $overrides */
+    private function restrictedSaleAt(\DateTimeImmutable $moment, array $overrides = []): array
+    {
+        return $overrides + [
+            'id' => 'tx-1',
+            'member_id' => 'member-1',
+            'product_id' => 'product-1',
+            'created_by_terminal_id' => 'terminal-1',
+            'amount_cents' => 350,
+            'created_at' => $moment->format('Y-m-d\TH:i:s\Z'),
+        ];
+    }
+
+    /**
+     * Accepts $tx for a member born on $dateOfBirth, buying a drink limited to
+     * $minAge.
+     *
+     * The catalogue price matches the claimed amount on purpose: a divergence
+     * would write an audit entry of its own, and these tests count entries.
+     *
+     * @param array<string, mixed> $tx
+     */
+    private function expectAcceptedSale(array $tx, ?string $dateOfBirth, ?int $minAge, bool $productExists = true): void
+    {
+        $this->membersRepository->method('findById')->willReturn(
+            ['date_of_birth' => $dateOfBirth] + $this->sepaValidMember('member-1'),
+        );
+        $this->transactionsRepository->method('insertTransaction')->willReturn($tx);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn($tx['amount_cents']);
+        $this->productsRepository->method('findById')->willReturn(
+            $productExists
+                ? ['id' => 'product-1', 'price_cents' => $tx['amount_cents'], 'min_age' => $minAge]
+                : null,
+        );
+    }
+
+    public function test_processBatch_records_a_violation_when_a_minor_is_served_a_restricted_drink(): void
+    {
+        $soldAt = self::aRecentSaleMoment();
+        $tx = $this->restrictedSaleAt($soldAt);
+        $this->expectAcceptedSale($tx, self::bornToBeAgedOn(15, $soldAt), 18);
+
+        $this->auditService->expects($this->once())
+            ->method('log')
+            ->with(
+                AuditAction::JUGENDSCHUTZ_VIOLATION,
+                EntityType::TRANSACTION,
+                'tx-1',
+                null,
+                $this->callback(fn (array $values) => $values['member_id'] === 'member-1'
+                    && $values['product_id'] === 'product-1'
+                    && $values['terminal_id'] === 'terminal-1'
+                    && $values['min_age'] === 18
+                    && $values['age_at_sale'] === 15
+                    && $values['occurred_at'] === $tx['created_at']),
+                // No actor: a terminal synced this, no admin acted.
+                null,
+            );
+
+        $result = $this->service->processBatch([$tx]);
+
+        // Stored, never refused. This is the assertion the feature lives or
+        // dies by.
+        $this->assertSame(['tx-1'], $result->acceptedIds);
+        $this->assertSame(0, $result->rejectedCount);
+        $this->assertSame([], $result->errors);
+    }
+
+    public function test_processBatch_records_no_personal_data_with_the_violation(): void
+    {
+        // The payload is filed under the *transaction*, so the anonymization
+        // scrub — which keys on the member's own entity_id — cannot reach
+        // inside it (ADR-0013 principle 8). A birth date recorded here would
+        // outlive the erasure that is supposed to remove it.
+        $soldAt = self::aRecentSaleMoment();
+        $dateOfBirth = self::bornToBeAgedOn(15, $soldAt);
+        $tx = $this->restrictedSaleAt($soldAt);
+        $this->expectAcceptedSale($tx, $dateOfBirth, 18);
+
+        $this->auditService->expects($this->once())
+            ->method('log')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->callback(function (array $values) use ($dateOfBirth) {
+                    $this->assertStringNotContainsString($dateOfBirth, json_encode($values));
+                    $this->assertSame(
+                        ['member_id', 'product_id', 'terminal_id', 'min_age', 'age_at_sale', 'occurred_at'],
+                        array_keys($values),
+                    );
+
+                    return true;
+                }),
+                $this->anything(),
+            );
+
+        $this->service->processBatch([$tx]);
+    }
+
+    public function test_processBatch_records_nothing_when_the_member_is_old_enough(): void
+    {
+        $soldAt = self::aRecentSaleMoment();
+        $tx = $this->restrictedSaleAt($soldAt);
+        $this->expectAcceptedSale($tx, self::bornToBeAgedOn(40, $soldAt), 18);
+
+        $this->auditService->expects($this->never())->method('log');
+        $this->logger->expects($this->never())->method('warning');
+
+        $this->assertSame(['tx-1'], $this->service->processBatch([$tx])->acceptedIds);
+    }
+
+    public function test_processBatch_records_nothing_for_a_sale_on_the_very_birthday(): void
+    {
+        // Somebody who turns 18 on the day of the sale may buy on that day.
+        // The boundary in both directions is where this class of bug lives: an
+        // off-by-one here either refuses a lawful drink at the terminal or
+        // invents a violation that did not happen.
+        $soldAt = self::aRecentSaleMoment();
+        $tx = $this->restrictedSaleAt($soldAt);
+        $this->expectAcceptedSale($tx, self::bornToBeAgedOn(18, $soldAt), 18);
+
+        $this->auditService->expects($this->never())->method('log');
+
+        $this->assertSame(['tx-1'], $this->service->processBatch([$tx])->acceptedIds);
+    }
+
+    public function test_processBatch_records_nothing_for_a_drink_carrying_no_legal_age(): void
+    {
+        // A minor buying an Apfelschorle is not an incident. Blocking terminal
+        // *access* on age is an explicit non-goal of ADR-0045.
+        $soldAt = self::aRecentSaleMoment();
+        $tx = $this->restrictedSaleAt($soldAt);
+        $this->expectAcceptedSale($tx, self::bornToBeAgedOn(14, $soldAt), null);
+
+        $this->auditService->expects($this->never())->method('log');
+        $this->logger->expects($this->never())->method('warning');
+
+        $this->assertSame(['tx-1'], $this->service->processBatch([$tx])->acceptedIds);
+    }
+
+    public function test_processBatch_records_nothing_for_a_product_deleted_since_the_sale(): void
+    {
+        // `findById` already excludes tombstones, so a deleted product reads as
+        // absent: there is no `min_age` left to have breached. The price flag
+        // treats it the same way, and the sale still happened (ruling #143).
+        $soldAt = self::aRecentSaleMoment();
+        $tx = $this->restrictedSaleAt($soldAt);
+        $this->expectAcceptedSale($tx, self::bornToBeAgedOn(14, $soldAt), 18, productExists: false);
+
+        $this->auditService->expects($this->never())->method('log');
+
+        $this->assertSame(['tx-1'], $this->service->processBatch([$tx])->acceptedIds);
+    }
+
+    public function test_processBatch_judges_the_age_when_the_sale_happened_not_when_the_batch_arrives(): void
+    {
+        // Rule 2, and the reason the check cannot read the clock. The member
+        // turned 16 four days ago; the sale is older than that, from when they
+        // were 15. A server asking "is this member old enough *now*" would find
+        // nothing wrong — which is exactly what a late-syncing till produces,
+        // and would let one launder the incident by waiting.
+        $soldAt = self::aRecentSaleMoment();
+        $birthday = (new \DateTimeImmutable('@' . time()))->setTime(12, 0)->modify('-4 days');
+        $tx = $this->restrictedSaleAt($soldAt);
+        $this->expectAcceptedSale($tx, self::bornToBeAgedOn(16, $birthday), 16);
+
+        $this->auditService->expects($this->once())
+            ->method('log')
+            ->with(
+                AuditAction::JUGENDSCHUTZ_VIOLATION,
+                EntityType::TRANSACTION,
+                'tx-1',
+                null,
+                $this->callback(fn (array $values) => $values['age_at_sale'] === 15 && $values['min_age'] === 16),
+                null,
+            );
+
+        $this->assertSame(['tx-1'], $this->service->processBatch([$tx])->acceptedIds);
+    }
+
+    public function test_processBatch_warns_but_records_nothing_when_the_age_cannot_be_established(): void
+    {
+        // In practice an anonymized member: the erasure nulls the birth date
+        // while the bookings stay (ADR-0013). Asserting a violation from a date
+        // the server cannot read would be inventing a legal finding out of
+        // missing data — so it is logged for a human and left at that.
+        //
+        // Not the terminal's rule 3 inverted. There the absence of a date means
+        // *refuse*, and refusing is safe because nothing has happened yet; here
+        // the sale is already a fact and the only question is what can honestly
+        // be recorded about it.
+        $tx = $this->restrictedSaleAt(self::aRecentSaleMoment());
+        $this->expectAcceptedSale($tx, null, 18);
+
+        $this->auditService->expects($this->never())->method('log');
+        $this->logger->expects($this->once())
+            ->method('warning')
+            ->with(
+                'Age-restricted product sold to a member whose age cannot be established',
+                $this->callback(fn (array $ctx) => $ctx['transaction_id'] === 'tx-1'
+                    && $ctx['member_id'] === 'member-1'
+                    && $ctx['product_id'] === 'product-1'
+                    && $ctx['min_age'] === 18),
+            );
+
+        $this->assertSame(['tx-1'], $this->service->processBatch([$tx])->acceptedIds);
+    }
+
+    public function test_processBatch_records_nothing_when_the_sale_time_cannot_be_read(): void
+    {
+        // Unreachable for a stored sale — the database refuses such a row and
+        // #82 reports it as unstorable — but the guard is what keeps an
+        // exception from escaping a flag and losing the whole batch behind it.
+        $tx = $this->restrictedSaleAt(self::aRecentSaleMoment(), ['created_at' => 'sometime after the match']);
+        $this->expectAcceptedSale($tx, self::bornToBeAgedOn(15, self::aRecentSaleMoment()), 18);
+
+        $this->auditService->expects($this->never())->method('log');
+
+        $this->assertSame(['tx-1'], $this->service->processBatch([$tx])->acceptedIds);
+    }
+
+    public function test_processBatch_records_no_violation_for_a_replayed_transaction(): void
+    {
+        // A null insert means the id was already stored. The record was written
+        // the first time round, and invariant 4 makes it permanent — writing it
+        // again on every retry would turn one incident into a pile of them.
+        $soldAt = self::aRecentSaleMoment();
+        $tx = $this->restrictedSaleAt($soldAt);
+
+        $this->membersRepository->method('findById')->willReturn(
+            ['date_of_birth' => self::bornToBeAgedOn(15, $soldAt)] + $this->sepaValidMember('member-1'),
+        );
+        $this->transactionsRepository->method('insertTransaction')->willReturn(null);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(350);
+        $this->productsRepository->method('findById')
+            ->willReturn(['id' => 'product-1', 'price_cents' => 350, 'min_age' => 18]);
+
+        $this->auditService->expects($this->never())->method('log');
+
+        // Still accepted: the transaction is on the server either way (ADR-0004).
+        $this->assertSame(['tx-1'], $this->service->processBatch([$tx])->acceptedIds);
+    }
+
+    public function test_processBatch_records_no_violation_for_a_row_the_database_refused(): void
+    {
+        // Naming a transaction that exists nowhere would be a lie in an
+        // append-only table.
+        $soldAt = self::aRecentSaleMoment();
+        $tx = $this->restrictedSaleAt($soldAt);
+
+        $this->membersRepository->method('findById')->willReturn(
+            ['date_of_birth' => self::bornToBeAgedOn(15, $soldAt)] + $this->sepaValidMember('member-1'),
+        );
+        $this->transactionsRepository->method('insertTransaction')
+            ->willThrowException(new TransactionNotStorableException('refused'));
+        $this->productsRepository->method('findById')
+            ->willReturn(['id' => 'product-1', 'price_cents' => 350, 'min_age' => 18]);
+
+        $this->auditService->expects($this->never())->method('log');
+
+        $result = $this->service->processBatch([$tx]);
+
+        $this->assertSame([], $result->acceptedIds);
+        $this->assertSame(1, $result->rejectedCount);
+    }
+
+    // ------------------------------------------------------------------
     // storno
     // ------------------------------------------------------------------
 

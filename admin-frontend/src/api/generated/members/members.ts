@@ -105,7 +105,7 @@ const listMembers = (
 
 **Use Case**: UC-A11
 
-**Required fields**: first_name, last_name, iban, mandate_signed_at, preferred_language
+**Required fields**: first_name, last_name, email, date_of_birth, preferred_language
 
 **Auto-generated**:
 - `id`: UUID
@@ -304,8 +304,19 @@ const anonymizeMember = (
 **Use Case**: UC-A16
 **Status**: Not implemented — nice to have (2026-03-07 audit)
 
-**CSV columns** (required): first_name, last_name, iban, mandate_signed_at
-**CSV columns** (optional): email, preferred_language
+**CSV columns** (required): first_name, last_name, email, date_of_birth
+**CSV columns** (optional): iban, mandate_signed_at, preferred_language, phone
+
+The required set tracks `MemberCreateRequest`, which this endpoint would
+have to satisfy row by row. Two corrections since it was written: `email`
+became required (#362) and `date_of_birth` became required
+([ADR-0045](../../adr/0045-age-restricted-products.md)), while `iban` and
+`mandate_signed_at` never were — a member with no bank details yet is a
+state the panel already shows as "SEPA: Missing" (#131).
+
+A CSV without a date of birth column therefore cannot import anybody, and
+that is the intended behaviour: there is no "unknown age" member for the
+terminal to reason about.
 
 Returns a preview of the import. Call `/members/import/confirm` to execute.
 

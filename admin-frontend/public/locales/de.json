@@ -155,6 +155,7 @@
     "lastName": "Nachname",
     "displayName": "Anzeigename",
     "email": "E-Mail",
+    "dateOfBirth": "Geburtsdatum",
     "iban": "IBAN",
     "bankName": "Bank",
     "bankNameLoading": "Wird gesucht…",
@@ -298,7 +299,8 @@
     "countFound_other": "{{count}} Produkte gefunden",
     "validation": {
       "priceRequired": "Ein gültiger Preis ist erforderlich",
-      "categoryRequired": "Kategorie ist erforderlich"
+      "categoryRequired": "Kategorie ist erforderlich",
+      "minAgeRange": "Mindestalter muss zwischen 1 und 99 liegen (leer = keine Altersbeschränkung)"
     },
     "errors": {
       "load": "Produkte konnten nicht geladen werden",
@@ -307,7 +309,10 @@
       "updateStatus": "Produktstatus konnte nicht geändert werden",
       "delete": "Produkt konnte nicht gelöscht werden",
       "loadCategories": "Die Kategorien konnten nicht geladen werden, daher lässt sich keine Kategorie auswählen. Ohne Kategorie kann kein Produkt gespeichert werden."
-    }
+    },
+    "minAge": "Mindestalter",
+    "minAgePlaceholder": "z. B. 16",
+    "minAgeHelp": "Leer lassen, wenn das Getränk keiner Altersbeschränkung unterliegt. Das Terminal verweigert den Kauf, wenn das Mitglied jünger ist."
   },
   "categories": {
     "title": "Kategorien",

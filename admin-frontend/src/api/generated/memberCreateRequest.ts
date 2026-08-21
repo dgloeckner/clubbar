@@ -86,6 +86,8 @@ export interface MemberCreateRequest {
    * @maxLength 70
    */
   account_holder_name?: string;
+  /** Required. Not in the future. Used by the terminal to enforce a product's minimum age offline ([ADR-0045](../../adr/0045-age-restricted-products.md)). Unlike the other optional fields, a blank string is **not** read as "no value" here — it is rejected, because a null birth date means an anonymized member. */
+  date_of_birth: string;
   /** Mandate signature date (not in future) */
   mandate_signed_at?: string;
   /**

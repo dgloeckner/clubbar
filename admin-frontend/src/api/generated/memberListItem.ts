@@ -58,6 +58,9 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * The roster row. Deliberately narrower than `Member`: `date_of_birth` in particular is **not** here ([ADR-0045](../../adr/0045-age-restricted-products.md)) — a list an admin scrolls needs names, balances and SEPA state, and the two consumers that need a birth date read one member at a time.
+ */
 export interface MemberListItem {
   id?: string;
   /** @nullable */

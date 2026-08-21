@@ -1116,6 +1116,7 @@ test.describe('Settlements API', () => {
           first_name: 'FilterPrev',
           last_name: `Test${testId}`,
           email: `filterprev-${testId}@test.example`,
+          date_of_birth: '1985-06-15',
           iban: 'DE89370400440532013000',
           mandate_signed_at: '2024-01-01',
           preferred_language: 'de',
@@ -1162,6 +1163,7 @@ test.describe('Settlements API', () => {
           first_name: 'SearchFilter',
           last_name: uniqueLastName,
           email: `srchprev-${testId}@test.example`,
+          date_of_birth: '1985-06-15',
           iban: 'DE89370400440532013000',
           mandate_signed_at: '2024-01-01',
           preferred_language: 'de',
@@ -1220,6 +1222,7 @@ test.describe('Settlements API', () => {
           first_name: 'SettleFilter',
           last_name: uniqueLastName,
           email: `settlefilter-${testId}@test.example`,
+          date_of_birth: '1985-06-15',
           iban: 'DE89370400440532013000',
           mandate_signed_at: '2024-01-01',
           preferred_language: 'de',
@@ -1426,6 +1429,7 @@ test.describe('Settlements API', () => {
         first_name: 'Credit',
         last_name: `Case${id}`,
         email: `credit-${id}@test.example`,
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
       };
       if (withMandate) {

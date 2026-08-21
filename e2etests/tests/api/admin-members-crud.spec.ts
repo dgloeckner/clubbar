@@ -22,6 +22,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'Test',
         last_name: 'Member',
         email: 'test@example.com',
+        date_of_birth: '1985-06-15',
         phone: '+41791234567',
         preferred_language: 'en',
       },
@@ -47,6 +48,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
     const response = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'Test',
+        date_of_birth: '1985-06-15',
         // missing last_name and email
         preferred_language: 'en',
       },
@@ -68,6 +70,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'Test',
         last_name: 'Member',
         email: 'invalid-email',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -84,6 +87,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'Test',
         last_name: 'Member',
         email: 'test@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'invalid',
       },
     });
@@ -100,6 +104,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'Test',
         last_name: 'Member',
         email: 'test@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
         // phone is optional
       },
@@ -119,6 +124,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'GetTest',
         last_name: 'Member',
         email: 'gettest@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -160,6 +166,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'PatchTest',
         last_name: 'Member',
         email: 'patchtest@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -208,6 +215,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'LanguageTest',
         last_name: 'Member',
         email: 'langtest@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -236,6 +244,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'ToDelete',
         last_name: 'Member',
         email: 'todelete@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'en',
       },
     });
@@ -266,6 +275,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'Anna',
         last_name: 'Klein',
         email: 'anna.klein@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
         iban: 'DE89370400440532013000',
         mandate_signed_at: '2025-01-15',
@@ -287,6 +297,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'Ben',
         last_name: 'Groß',
         email: 'ben.gross@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
       },
     });
@@ -304,6 +315,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'Chris',
         last_name: 'Müller',
         email: 'chris.mueller@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
       },
     });
@@ -336,6 +348,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'MaxLen',
         last_name: 'Test',
         email: 'maxlen@example.com',
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
         account_holder_name: 'A'.repeat(71), // 71 chars, exceeds 70 limit
       },
@@ -356,6 +369,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'BankChange',
         last_name: `Member${Date.now()}`,
         email: `bankchange-${Date.now()}@example.com`,
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
         iban: 'DE89370400440532013000',
         mandate_signed_at: '2025-01-15',
@@ -397,6 +411,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'RefHolder',
         last_name: `Member${stamp}`,
         email: `refholder-${stamp}@example.com`,
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
         iban: 'DE89370400440532013000',
         mandate_signed_at: '2025-01-15',
@@ -410,6 +425,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
         first_name: 'RefTaker',
         last_name: `Member${stamp}`,
         email: `reftaker-${stamp}@example.com`,
+        date_of_birth: '1985-06-15',
         preferred_language: 'de',
         iban: 'DE89370400440532013000',
         mandate_signed_at: '2025-01-15',
@@ -442,6 +458,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
       first_name: 'JsonTest',
       last_name: 'Member',
       email: 'jsontest@example.com',
+      date_of_birth: '1985-06-15',
       preferred_language: 'en',
     };
 

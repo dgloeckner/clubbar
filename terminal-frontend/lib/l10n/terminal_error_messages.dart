@@ -6,7 +6,10 @@ import 'package:clubbar_terminal/models/terminal_error.dart';
 /// The switch is exhaustive on purpose: adding a [TerminalErrorKey] without
 /// giving it copy is a compile error, not a raw key leaking onto the screen.
 extension TerminalErrorKeyL10n on TerminalErrorKey {
-  String message(AppLocalizations l10n) {
+  /// [requiredAge] is read only by [TerminalErrorKey.ageRestricted], which has
+  /// to name the age the *product* demands (ADR-0045 rule 6). Every other key
+  /// ignores it.
+  String message(AppLocalizations l10n, {int? requiredAge}) {
     switch (this) {
       case TerminalErrorKey.unknownCard:
         return l10n.rfidErrorUnknownCard;
@@ -28,6 +31,14 @@ extension TerminalErrorKeyL10n on TerminalErrorKey {
         return l10n.cartEmpty;
       case TerminalErrorKey.balanceLimitExceeded:
         return l10n.errorBalanceLimitExceeded;
+      case TerminalErrorKey.ageRestricted:
+        // The product's age, never the member's — and never their birth date.
+        // The fallback is unreachable in practice (the cart service always
+        // supplies the age it refused on); it exists so a future caller that
+        // forgets cannot print a "0".
+        return requiredAge == null
+            ? l10n.errorAgeRestrictedUnknown
+            : l10n.errorAgeRestricted(requiredAge);
       case TerminalErrorKey.checkoutFailed:
         return l10n.errorCheckoutFailed;
       case TerminalErrorKey.checkoutCancelled:
@@ -56,5 +67,6 @@ extension TerminalErrorKeyL10n on TerminalErrorKey {
 
 /// Convenience for the common "show the pending error, if any" case.
 extension TerminalErrorL10n on TerminalError {
-  String message(AppLocalizations l10n) => key.message(l10n);
+  String message(AppLocalizations l10n) =>
+      key.message(l10n, requiredAge: requiredAge);
 }
