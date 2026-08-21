@@ -135,16 +135,42 @@ saving genuinely removes it; a required field emptied on an edit blocks the save
 |---|---|
 | `admin-frontend` vitest | **394/394** |
 | `tsc --noEmit`, `eslint` | clean; 0 errors |
-| Backend PHPUnit | **2694/2695** — the one failure, `ServiceFactoryTest::test_getRateLimitMiddleware_is_active_by_default`, reproduces with this branch stashed and is an environment difference in the dev container, not this change |
-| `api-tests` | **690/690** |
-| `admin-chromium` | **335/335** |
-| `admin-mobile` | **51/51** |
+| Backend PHPUnit | **2776/2777** — the one failure, `ServiceFactoryTest::test_getRateLimitMiddleware_is_active_by_default`, reproduces with this branch stashed; [#638](https://github.com/dgloeckner/clubbar/pull/638) independently records it as red on `main` too (the dev container sets `DISABLE_TERMINAL_RATE_LIMITING`) |
+| `api-tests` | **697/697** |
+| `admin-chromium` | **340/340** |
+| `admin-mobile` | **54/54** |
+| `chain` lane (`E2E_LANE=chain`) | **31/31** |
 
 One spec needed updating rather than fixing: `form-lifecycle.spec.ts` asserted
 the SEPA column read "Fehlt". That column is now the Daten column, so it
 asserts the SEPA *chip* instead.
 
 ---
+
+## Rebased onto `main`
+
+Linear history, no merge commit. Two conflicts, both in files `main` and this
+branch each extended:
+
+- `MembersPage.tsx` — [#631](https://github.com/dgloeckner/clubbar/pull/631)
+  landed `DateField` on the two date fields this branch was relabelling. Both
+  kept: `DateField` owns the control, `FieldLabel` owns the marker. It exposes
+  neither an `id` nor a ref, so the label drops `htmlFor` there and
+  `registerField` holds the wrapper — `jumpToField` therefore descends to the
+  first focusable descendant, so "Geburtsdatum" in the missing-fields list
+  still puts the caret in the date input.
+- `plans/INDEX.md` — both sides prepended rows to the same table; all kept, and
+  `main`'s newer revision of a shared row wins over this branch's stale copy.
+
+**Two commits were dropped rather than replayed.** This branch had fixed two
+age-leak assertions in the Jugendschutz specs that also matched timestamps —
+red for the whole 15:00 hour, on the 15th of a month, and at minute or second
+15. [#638](https://github.com/dgloeckner/clubbar/pull/638) fixed both
+independently and better: the API check asserts the payload's whole *key
+shape*, which also catches a field a value-based check would let through, and
+the mail check strips the values that legitimately carry digits before looking
+for the age. `main`'s versions are taken verbatim; the two specs are now
+byte-identical to `main` on this branch.
 
 ## Follow-ups
 
