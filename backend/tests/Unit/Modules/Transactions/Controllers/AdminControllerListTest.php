@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Transactions\Controllers;
 
 use App\Modules\Transactions\Controllers\AdminController;
+use App\Modules\Transactions\Services\JugendschutzViolationService;
 use App\Modules\Transactions\Services\TransactionsService;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Exceptions\InvalidQueryParameterException;
@@ -31,7 +32,11 @@ class AdminControllerListTest extends TestCase
     protected function setUp(): void
     {
         $this->service = $this->createMock(TransactionsService::class);
-        $this->controller = new AdminController($this->service, new Validator($this->createMock(\PDO::class)));
+        $this->controller = new AdminController(
+            $this->service,
+            new Validator($this->createMock(\PDO::class)),
+            $this->createMock(JugendschutzViolationService::class),
+        );
     }
 
     private function expectList(int $limit, int $offset, array $filters, string $sortKey, string $sortOrder): void

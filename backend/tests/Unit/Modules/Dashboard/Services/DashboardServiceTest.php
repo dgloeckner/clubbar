@@ -12,6 +12,7 @@ use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
+use App\Modules\Transactions\Repositories\JugendschutzViolationsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use PHPUnit\Framework\TestCase;
@@ -35,6 +36,7 @@ class DashboardServiceTest extends TestCase
     private EncryptionKeysRepository $encryptionKeysRepository;
     private SepaConfigRepository $sepaConfigRepository;
     private TerminalAnomaliesRepository $terminalAnomaliesRepository;
+    private JugendschutzViolationsRepository $jugendschutzViolationsRepository;
     private DashboardService $service;
 
     protected function setUp(): void
@@ -47,6 +49,9 @@ class DashboardServiceTest extends TestCase
         $this->encryptionKeysRepository = $this->createMock(EncryptionKeysRepository::class);
         $this->sepaConfigRepository = $this->createMock(SepaConfigRepository::class);
         $this->terminalAnomaliesRepository = $this->createMock(TerminalAnomaliesRepository::class);
+        $this->jugendschutzViolationsRepository = $this->createMock(JugendschutzViolationsRepository::class);
+        $this->jugendschutzViolationsRepository->method('unacknowledgedSummary')
+            ->willReturn(['count' => 0, 'latest_occurred_at' => null]);
 
         $this->service = new DashboardService(
             $this->dashboardRepository,
@@ -57,7 +62,70 @@ class DashboardServiceTest extends TestCase
             $this->encryptionKeysRepository,
             $this->sepaConfigRepository,
             $this->terminalAnomaliesRepository,
+            $this->jugendschutzViolationsRepository,
         );
+    }
+
+    // ── Jugendschutz violations (#622, ADR-0045 §3) ─────────────────────────
+    //
+    // The audit entry M7 writes is the record, and it is `admin`-only. The
+    // dashboard is `TREASURY`, so this alert is what lets the **Kassenwart** —
+    // the office the epic names as the recipient — learn a violation happened
+    // at all. It counts only violations nobody has acknowledged: the record is
+    // permanent (invariant 4), the *alert* is what quietens.
+
+    public function test_no_unacknowledged_violations_is_silent(): void
+    {
+        $alert = DashboardService::jugendschutzViolationAlert(0, null);
+
+        $this->assertSame('none', $alert['severity']);
+        $this->assertSame(0, $alert['count']);
+        $this->assertNull($alert['latest_occurred_at']);
+    }
+
+    /**
+     * One is an error, not a warning.
+     *
+     * Every other alert here grades by volume, because they are about money or
+     * infrastructure drifting. This one is about a minor having been served
+     * alcohol, which is an incident at n=1 — § 28 JuSchG exposure does not
+     * soften because it only happened once.
+     */
+    public function test_a_single_unacknowledged_violation_reads_as_an_error(): void
+    {
+        $alert = DashboardService::jugendschutzViolationAlert(1, '2026-08-20 21:14:00');
+
+        $this->assertSame('error', $alert['severity']);
+        $this->assertSame(1, $alert['count']);
+        $this->assertSame('2026-08-20 21:14:00', $alert['latest_occurred_at']);
+    }
+
+    public function test_the_message_counts_them(): void
+    {
+        $alert = DashboardService::jugendschutzViolationAlert(3, '2026-08-20 21:14:00');
+
+        $this->assertSame(3, $alert['count']);
+        $this->assertStringContainsString('3', $alert['message']);
+        $this->assertSame('error', $alert['severity']);
+    }
+
+    /**
+     * The alert names nobody.
+     *
+     * It renders on a screen a Kassenwart may have open in the clubroom, and
+     * ADR-0045 rule 6 does not stop at the till. A count and a timestamp are
+     * enough to send somebody to the record; who it was is read there, by
+     * whoever is entitled to.
+     */
+    public function test_the_alert_carries_no_member_and_no_age(): void
+    {
+        $serialised = strtolower((string) json_encode(
+            DashboardService::jugendschutzViolationAlert(2, '2026-08-20 21:14:00')
+        ));
+
+        foreach (['member', 'birth', 'age_at_sale', 'geburt'] as $forbidden) {
+            $this->assertStringNotContainsString($forbidden, $serialised);
+        }
     }
 
     // ── Terminal credential anomalies (ADR-0041) ────────────────────────────

@@ -7,7 +7,16 @@ import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useFormatters } from '../hooks/useFormatters'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
+import { getTransactions as getTransactionsApi } from '../api/generated/transactions/transactions'
 import type { DashboardResponse } from '../api/generated'
+
+/** One row of the unacknowledged list. Member-free by construction. */
+interface JugendschutzViolation {
+  id: number
+  transaction_id: string
+  min_age: number
+  recorded_at: string
+}
 import { StatCard } from '../components/common/StatCard'
 import { UsersIcon, ReceiptIcon, BookIcon } from '../components/icons'
 import { HomeIcon } from '../components/icons/HomeIcon'
@@ -53,6 +62,48 @@ export function DashboardPage() {
     }
   }, [request, t])
 
+  /**
+   * The violations behind the Jugendschutz alert (#622).
+   *
+   * A second stream with its own slot, per the data-fetching pattern: the
+   * dashboard's own poll must not abort this list and vice versa. It is fetched
+   * only when the alert says there is something to fetch, so an installation
+   * that has never had a violation makes no request at all.
+   */
+  const violationsRequest = useLatestRequest()
+  const [violations, setViolations] = useState<JugendschutzViolation[]>([])
+  const [acknowledging, setAcknowledging] = useState<number | null>(null)
+  const [acknowledgeError, setAcknowledgeError] = useState<string | null>(null)
+
+  const fetchViolations = useCallback(async () => {
+    const signal = violationsRequest.next()
+    try {
+      const response = await getTransactionsApi().getJugendschutzViolations({ signal })
+      if (signal.aborted) return
+      setViolations((response.data ?? []) as JugendschutzViolation[])
+    } catch {
+      if (signal.aborted) return
+      setViolations([])
+    }
+  }, [violationsRequest])
+
+  const acknowledgeViolation = useCallback(async (id: number) => {
+    setAcknowledging(id)
+    setAcknowledgeError(null)
+    try {
+      await getTransactionsApi().acknowledgeJugendschutzViolation(id, {})
+      // Both, and in this order: the list is what the admin is looking at, the
+      // dashboard carries the count beside it. Refreshing one and not the other
+      // leaves a red badge over an empty list.
+      await fetchViolations()
+      await fetchDashboard(false)
+    } catch {
+      setAcknowledgeError(t('dashboard.jugendschutzAcknowledgeFailed'))
+    } finally {
+      setAcknowledging(null)
+    }
+  }, [fetchViolations, fetchDashboard, t])
+
   // Initial load + auto-refresh
   useEffect(() => {
     fetchDashboard()
@@ -62,6 +113,21 @@ export function DashboardPage() {
       request.abort()
     }
   }, [fetchDashboard, request])
+
+  // Read off `data` rather than the `alerts` binding below, which is derived
+  // after the loading guard and so is not in scope for an effect.
+  const unacknowledgedViolations = data?.alerts?.jugendschutz_violation?.count ?? 0
+
+  // Only when there is something to show, so an installation that has never had
+  // a violation never makes the request.
+  useEffect(() => {
+    if (unacknowledgedViolations > 0) {
+      void fetchViolations()
+    } else {
+      setViolations([])
+    }
+    return () => violationsRequest.abort()
+  }, [unacknowledgedViolations, fetchViolations, violationsRequest])
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
 
@@ -98,6 +164,15 @@ export function DashboardPage() {
   const encryptionKeySeverity = encryptionKeyAlert?.severity ?? 'none'
   const sepaConfigAlert = alerts.sepa_config
   const sepaConfigSeverity = sepaConfigAlert?.severity ?? 'none'
+  const jugendschutzAlert = alerts.jugendschutz_violation
+  const jugendschutzSeverity = jugendschutzAlert?.severity ?? 'none'
+  const jugendschutzCount = jugendschutzAlert?.count ?? 0
+  // Built here rather than shown from `alert.message`: the backend's string is
+  // always English, and this page renders in the admin's chosen language.
+  const jugendschutzMessage =
+    jugendschutzCount === 1
+      ? t('dashboard.jugendschutzOne')
+      : t('dashboard.jugendschutzMany', { count: jugendschutzCount })
   const terminalAnomalyAlert = alerts.terminal_anomaly
   const terminalAnomalySeverity = terminalAnomalyAlert?.severity ?? 'none'
   // Built here rather than shown from `alert.message`: the backend's string is
@@ -283,6 +358,98 @@ export function DashboardPage() {
           blocked as a result. The link goes to the terminals settings, which is
           where the credential can be rotated or revoked if the admin decides
           that is what this is. Silent while nothing is open. */}
+      {/* Jugendschutz (#622, ADR-0045 §3). Above the terminal-anomaly banner:
+          a minor having been served alcohol outranks a credential that looks
+          odd. Silent while nothing is unacknowledged.
+
+          It names no member. The dashboard reaches the Kassenwart, who may see
+          members elsewhere — but this renders on a screen that can be open in
+          the clubroom, and rule 6 does not stop at the till. The transaction id
+          is the handle into the journal. */}
+      {jugendschutzAlert && jugendschutzSeverity !== 'none' && (
+        <div
+          data-testid="dashboard-jugendschutz-warning"
+          data-severity={jugendschutzSeverity}
+          data-count={jugendschutzCount}
+          style={{
+            padding: theme.spacing.md,
+            marginBottom: theme.spacing.lg,
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: `1px solid ${severityColor(jugendschutzSeverity)}`,
+            borderRadius: theme.borderRadius.md,
+            color: severityColor(jugendschutzSeverity),
+            fontSize: theme.typography.fontSize.sm,
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: theme.spacing.xs }}>
+            {t('dashboard.jugendschutzTitle')}
+          </div>
+          <div data-testid="dashboard-jugendschutz-message">{jugendschutzMessage}</div>
+          <div style={{ marginTop: theme.spacing.xs, opacity: 0.85 }}>
+            {t('dashboard.jugendschutzIntro')}
+          </div>
+
+          {acknowledgeError && (
+            <div data-testid="dashboard-jugendschutz-error" style={{ marginTop: theme.spacing.sm, fontWeight: 600 }}>
+              {acknowledgeError}
+            </div>
+          )}
+
+          <ul
+            data-testid="dashboard-jugendschutz-list"
+            style={{ listStyle: 'none', margin: `${theme.spacing.md} 0 0`, padding: 0 }}
+          >
+            {violations.map((violation) => (
+              <li
+                key={violation.id}
+                data-testid="dashboard-jugendschutz-item"
+                data-violation-id={violation.id}
+                data-transaction-id={violation.transaction_id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: theme.spacing.md,
+                  flexWrap: 'wrap',
+                  padding: `${theme.spacing.sm} 0`,
+                  borderTop: `1px solid ${severityColor(jugendschutzSeverity)}33`,
+                }}
+              >
+                <span>
+                  <strong>{t('dashboard.jugendschutzRequiredAge', { age: violation.min_age })}</strong>
+                  {' · '}
+                  <code style={{ fontSize: '12px' }}>{violation.transaction_id}</code>
+                  {' · '}
+                  <span style={{ opacity: 0.85 }}>
+                    {t('dashboard.jugendschutzRecordedAt', { at: violation.recorded_at })}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  data-testid="dashboard-jugendschutz-acknowledge"
+                  disabled={acknowledging === violation.id}
+                  onClick={() => void acknowledgeViolation(violation.id)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: `1px solid ${severityColor(jugendschutzSeverity)}`,
+                    background: 'transparent',
+                    color: severityColor(jugendschutzSeverity),
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: acknowledging === violation.id ? 'wait' : 'pointer',
+                  }}
+                >
+                  {acknowledging === violation.id
+                    ? t('dashboard.jugendschutzAcknowledging')
+                    : t('dashboard.jugendschutzAcknowledge')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {terminalAnomalyAlert && terminalAnomalySeverity !== 'none' && (
         <div
           data-testid="dashboard-terminal-anomaly-warning"

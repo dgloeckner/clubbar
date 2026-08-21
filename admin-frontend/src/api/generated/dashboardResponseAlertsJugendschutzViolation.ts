@@ -57,36 +57,10 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { DashboardResponseAlertsEncryptionKey } from './dashboardResponseAlertsEncryptionKey';
-import type { DashboardResponseAlertsJugendschutzViolation } from './dashboardResponseAlertsJugendschutzViolation';
-import type { DashboardResponseAlertsSepaConfig } from './dashboardResponseAlertsSepaConfig';
-import type { DashboardResponseAlertsSepaIssues } from './dashboardResponseAlertsSepaIssues';
-import type { DashboardResponseAlertsTerminalAnomaly } from './dashboardResponseAlertsTerminalAnomaly';
+import type { DashboardResponseAlertsJugendschutzViolationSeverity } from './dashboardResponseAlertsJugendschutzViolationSeverity';
 
 /**
- * Admin alerts requiring attention
- */
-export type DashboardResponseAlerts = {
-  sepa_issues?: DashboardResponseAlertsSepaIssues;
-  /** Remaining lifetime of the ACTIVE IBAN encryption key
-([ADR-0036](../../adr/0036-iban-encryption-sealed-box.md)).
-
-Computed on every dashboard load rather than by a scheduler:
-shared hosting guarantees no cron (ADR-0031), and this is the
-warning an admin cannot miss. `missing` is the loudest state —
-until a key is activated, no member's bank details can be
-stored at all.
- */
-  encryption_key?: DashboardResponseAlertsEncryptionKey;
-  /** Whether SEPA is actually ready to collect: the creditor
-identity the bank needs, and the externally hosted mandate
-template URL a new member is sent to sign (#360/#456).
-`SepaExportService` refuses to export a settlement while
-either is missing — this is the same completeness check,
-surfaced before an admin hits that block.
- */
-  sepa_config?: DashboardResponseAlertsSepaConfig;
-  /** Underage sales that nobody has acknowledged yet (#622,
+ * Underage sales that nobody has acknowledged yet (#622,
 ADR-0045 §3). Raised at sync when a terminal working from a
 stale cache sold an age-restricted drink to a member who had not
 reached its `min_age` at the time.
@@ -101,18 +75,24 @@ audit entry is the record, this is the asking.
 Carries no member and no age. It renders on a screen that may be
 open in the clubroom, and ADR-0045 rule 6 does not stop at the
 till.
- */
-  jugendschutz_violation?: DashboardResponseAlertsJugendschutzViolation;
-  /** Terminals whose credential looks like it is in use on more than
-one device (ADR-0041). Raised by the cron tick from two signals
-recorded on ordinary terminal traffic: two source addresses
-active at the same time for a sustained period, or a delta sync
-cursor that does not continue the history this token has been
-building.
 
-Alert only. Nothing here has blocked, revoked or rate-limited
-anything — every kind has an innocent explanation, and the cost
-of acting on a false positive is a bar that cannot sell.
  */
-  terminal_anomaly?: DashboardResponseAlertsTerminalAnomaly;
+export type DashboardResponseAlertsJugendschutzViolation = {
+  /** Recorded violations with no acknowledgement */
+  count?: number;
+  /** - none: nothing unacknowledged
+- error: one or more. There is no `warning` tier — every
+  other alert here grades by volume because it is about
+  money or infrastructure drifting; this one is about a
+  minor having been served alcohol, which is an incident at
+  n=1
+ */
+  severity?: DashboardResponseAlertsJugendschutzViolationSeverity;
+  /** Human-readable alert message, naming no member */
+  message?: string;
+  /**
+   * When the most recent unacknowledged one was recorded
+   * @nullable
+   */
+  latest_occurred_at?: string | null;
 };

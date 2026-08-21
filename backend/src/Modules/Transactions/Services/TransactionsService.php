@@ -12,6 +12,8 @@ use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Modules\Transactions\Sync\TerminalTransactionValidator;
+use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\NotFoundException;
@@ -30,6 +32,7 @@ class TransactionsService
         private ProductsRepository $productsRepository,
         private AuditService $auditService,
         private Logger $logger,
+        private AdminNotifier $adminNotifier,
     ) {}
 
     /**
@@ -585,6 +588,40 @@ class TransactionsService
                 'occurred_at' => $occurredAt,
             ],
         );
+
+        $this->notify((string) $tx['id'], $minAge);
+    }
+
+    /**
+     * Tell a human, without letting the telling endanger the record (#622).
+     *
+     * The audit entry above is written by the time this runs and the sale is
+     * already stored, so a queue that cannot take the message must cost the
+     * notification and nothing else. Letting it propagate would reject a batch
+     * of good sales because a notification failed — the mistake ruling #143
+     * forbids, reached from a different direction. `TerminalAnomalyDetector`
+     * guards its own `mail()` the same way and for the same reason.
+     *
+     * The occasion is the age the drink required. `subject_id` is already the
+     * transaction and M7 flags once per inserted row, so nothing about *this*
+     * sale needs distinguishing — what the occasion buys instead is that the
+     * message keeps saying 18 after somebody clears the limit, which is
+     * invariant 4 applied to the notice as well as to the record.
+     */
+    private function notify(string $transactionId, int $minAge): void
+    {
+        try {
+            $this->adminNotifier->warnAdmins(
+                MailKind::JUGENDSCHUTZ_VIOLATION,
+                $transactionId,
+                'age:' . $minAge,
+            );
+        } catch (\Throwable $e) {
+            $this->logger->error('Could not queue a Jugendschutz violation notice', [
+                'transaction_id' => $transactionId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function hasActiveMandate(array $member): bool

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Transactions\Controllers;
 
+use App\Modules\Transactions\Services\JugendschutzViolationService;
 use App\Modules\Transactions\Services\TransactionsService;
 use App\Shared\Validation\Validator;
 use App\Shared\Http\JsonResponder;
@@ -20,7 +21,56 @@ class AdminController
     public function __construct(
         private TransactionsService $transactionsService,
         private Validator $validator,
+        private JugendschutzViolationService $jugendschutzViolationService,
     ) {}
+
+    /**
+     * The violations still waiting to be looked at (#622).
+     *
+     * `TREASURY`, and member-free: the transaction id is the handle into the
+     * journal, which a Kassenwart's role already permits.
+     */
+    public function getJugendschutzViolations(Request $request, Response $response): Response
+    {
+        return $this->json($response, [
+            'data' => $this->jugendschutzViolationService->listUnacknowledged(),
+        ]);
+    }
+
+    /**
+     * Mark a recorded Jugendschutz violation as dealt with (#622).
+     *
+     * `TREASURY`, not `ADMIN_ONLY`. The audit log that holds the record is
+     * admin-only, which is precisely the gap this closes: the **Kassenwart** is
+     * the office ADR-0045 names as the recipient, and an alert they can see but
+     * not clear would leave the dashboard permanently red for the one person
+     * most likely to be looking at it.
+     *
+     * No step-up gate, on the same reasoning as the terminal-anomaly
+     * acknowledgement beside it: this clears a notice and hands out nothing,
+     * and an alert that is awkward to dismiss is one that gets ignored.
+     */
+    public function acknowledgeJugendschutzViolation(Request $request, Response $response, array $args): Response
+    {
+        $body = (array) $request->getParsedBody();
+        $this->validator->validate($body, ['note' => ['nullable', 'string', 'max:500']]);
+
+        $newlyAcknowledged = $this->jugendschutzViolationService->acknowledge(
+            (int) $args['id'],
+            $request->getAttribute('admin_user_id'),
+            // A blank note is no note. Storing '' would make "did they write
+            // anything?" a question about string length at every read site.
+            trim((string) ($body['note'] ?? '')) ?: null,
+        );
+
+        // 200 either way. The second admin pressing the same dashboard button
+        // has not made a mistake, and answering 409 would turn the expected
+        // case into an error somebody has to interpret.
+        return $this->json($response, [
+            'message' => 'Jugendschutz violation acknowledged',
+            'newly_acknowledged' => $newlyAcknowledged,
+        ]);
+    }
 
     public function getTransactions(Request $request, Response $response): Response
     {

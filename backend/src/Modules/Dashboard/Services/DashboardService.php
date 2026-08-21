@@ -13,6 +13,7 @@ use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Enums\TerminalAnomalyKind;
 use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
+use App\Modules\Transactions\Repositories\JugendschutzViolationsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Security\CredentialLifecycle;
@@ -54,10 +55,12 @@ class DashboardService
         private EncryptionKeysRepository $encryptionKeysRepository,
         private SepaConfigRepository $sepaConfigRepository,
         private TerminalAnomaliesRepository $terminalAnomaliesRepository,
+        private JugendschutzViolationsRepository $jugendschutzViolationsRepository,
     ) {}
 
     public function getDashboard(): DashboardDto
     {
+        $jugendschutz = $this->jugendschutzViolationsRepository->unacknowledgedSummary();
         $totalMembers = $this->membersRepository->count();
         $activeMembers = $this->membersRepository->countActive();
         $recentTransactionCount = $this->transactionsRepository->countRecentTransactions(days: self::REVENUE_WINDOW_DAYS);
@@ -115,6 +118,10 @@ class DashboardService
                 'encryption_key' => self::encryptionKeyAlert($this->encryptionKeysRepository->findActive()),
                 'sepa_config' => self::sepaConfigAlert($this->sepaConfigRepository->getConfig()),
                 'terminal_anomaly' => self::terminalAnomalyAlert($this->terminalAnomaliesRepository->listOpen()),
+                'jugendschutz_violation' => self::jugendschutzViolationAlert(
+                    $jugendschutz['count'],
+                    $jugendschutz['latest_occurred_at'],
+                ),
             ],
             membersNearLimit: $this->membersNearLimit(),
         );
@@ -327,6 +334,57 @@ class DashboardService
      * @param list<array<string, mixed>> $openAnomalies rows from terminal_anomalies, unacknowledged
      * @return array{count: int, severity: string, kinds: list<string>, message: string, terminal_count: int, terminal_name: ?string}
      */
+    /**
+     * Underage sales nobody has looked at yet (#622, ADR-0045 §3).
+     *
+     * The `jugendschutz_violation` audit entry M7 writes is the **record**, and
+     * it is `admin`-only under ADR-0044. This dashboard is `TREASURY`, so this
+     * alert is the only surface on which the **Kassenwart** — the office the
+     * epic names as the recipient — can learn a violation happened at all.
+     *
+     * Counting *unacknowledged* violations rather than all of them is what
+     * resolves the tension the issue named: invariant 4 says a recorded
+     * violation never clears itself, but a red badge that can never be
+     * dismissed is one people stop seeing. The two are only in conflict if the
+     * record and the alert are the same object. They are not — the audit entry
+     * is immutable and untouched, and acknowledgement is an additive row beside
+     * it. The incident stays on file forever; the badge goes quiet once a human
+     * has dealt with it.
+     *
+     * **Severity is `error` from the first one.** Every other alert here grades
+     * by volume because it is about money or infrastructure drifting; this one
+     * is about a minor having been served alcohol, and § 28 JuSchG exposure
+     * does not soften because it only happened once.
+     *
+     * Carries a count and a timestamp and nothing else — no member, no age.
+     * This renders on a screen that may be open in the clubroom, and rule 6
+     * does not stop at the till.
+     *
+     * @return array{count: int, severity: string, message: string, latest_occurred_at: string|null}
+     */
+    public static function jugendschutzViolationAlert(int $unacknowledged, ?string $latestOccurredAt): array
+    {
+        if ($unacknowledged < 1) {
+            return [
+                'count' => 0,
+                'severity' => 'none',
+                'message' => 'No unacknowledged Jugendschutz violations',
+                'latest_occurred_at' => null,
+            ];
+        }
+
+        return [
+            'count' => $unacknowledged,
+            'severity' => 'error',
+            'message' => sprintf(
+                '%d age-restricted %s sold below the required age, not yet acknowledged',
+                $unacknowledged,
+                $unacknowledged === 1 ? 'drink was' : 'drinks were',
+            ),
+            'latest_occurred_at' => $latestOccurredAt,
+        ];
+    }
+
     public static function terminalAnomalyAlert(array $openAnomalies): array
     {
         if ($openAnomalies === []) {

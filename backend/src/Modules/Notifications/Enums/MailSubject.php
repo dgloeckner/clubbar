@@ -58,6 +58,25 @@ enum MailSubject: string
      * audit log's entity filter — the way anybody actually reads it — lie about
      * the second.
      */
+    /**
+     * One sale (#622, ADR-0045 §3).
+     *
+     * The first subject that is an *event* rather than a party or a piece of
+     * infrastructure. A Jugendschutz violation is about a transaction and
+     * nothing else: the member is who it happened to, the product is what was
+     * handed over, but the thing that occurred — and the thing the audit entry
+     * is filed under — is the sale.
+     *
+     * Filing it here rather than under {@see MEMBER} is deliberate and is what
+     * keeps the erasure scrub out of it. That scrub keys on the member's own
+     * `entity_id`, so a violation filed under the member would be reachable by
+     * it, and an erased member would either take the record of the incident
+     * with them or leave a scrubbed hole where it used to be. Under the
+     * transaction it is simply out of reach — which is the same reason M7 filed
+     * the audit entry there.
+     */
+    case TRANSACTION = 'transaction';
+
     public function auditEntityType(): EntityType
     {
         return match ($this) {
@@ -66,6 +85,7 @@ enum MailSubject: string
             self::TERMINAL => EntityType::TERMINAL,
             self::ADMIN_USER => EntityType::ADMIN_USER,
             self::MEMBER => EntityType::MEMBER,
+            self::TRANSACTION => EntityType::TRANSACTION,
         };
     }
 }

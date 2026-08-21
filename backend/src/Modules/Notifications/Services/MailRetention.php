@@ -118,7 +118,16 @@ final class MailRetention
             // the window in which either would still be asking whether they
             // were told.
             MailKind::ADMIN_ACCOUNT_CREATED,
-            MailKind::ADMIN_ROLE_CHANGED => self::DEFAULT_SENT_DAYS,
+            MailKind::ADMIN_ROLE_CHANGED,
+            // The Jugendschutz notice (#622) keeps the default, and the reason
+            // is worth stating because the instinct is to keep it for ten years
+            // beside the incident. It is not the incident. The durable record
+            // is the `jugendschutz_violation` audit entry, retained with the
+            // rest of the log and untouched here; this row is the *telling*,
+            // and once a human has been told, the copy holding their address
+            // has done its work. Keeping it longer would retain an address
+            // against a youth-protection matter for no added evidentiary value.
+            MailKind::JUGENDSCHUTZ_VIOLATION => self::DEFAULT_SENT_DAYS,
             MailKind::DECKEL_STATEMENT => self::STATEMENT_SENT_DAYS,
         };
     }
