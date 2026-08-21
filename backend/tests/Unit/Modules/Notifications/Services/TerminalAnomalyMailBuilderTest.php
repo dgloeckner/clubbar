@@ -271,4 +271,27 @@ class TerminalAnomalyMailBuilderTest extends TestCase
             $adminUsers,
         );
     }
+
+    /**
+     * The same guarantee, stated as a constraint (#633): the fan-out is
+     * narrowed by office, and this resolution is not. The row names who was
+     * written to; a role filter here would blank the greeting for an account
+     * whose roles have moved since — or for one an `admin`-only kind would not
+     * write to today.
+     */
+    public function testItResolvesTheRecipientsNameWithoutConsultingTheirRoles(): void
+    {
+        $this->terminals->method('findById')->willReturn(['id' => 'terminal-1', 'name' => 'Theke 1']);
+        $this->anomalies->method('listOpen')->willReturn([]);
+
+        $adminUsers = $this->createMock(AdminUsersRepository::class);
+        $adminUsers->expects($this->never())->method('findActiveRecipientsWithAnyRole');
+        $adminUsers->method('findActiveRecipients')->willReturn([
+            ['id' => 'admin-1', 'email' => 'a@example.org', 'locale' => 'de', 'display_name' => 'Vorstand Vera'],
+        ]);
+
+        $message = $this->rebuildWith($adminUsers)->build($this->outboxRow(), $this->mailConfig);
+
+        $this->assertStringContainsString('Vorstand Vera', $message->text);
+    }
 }

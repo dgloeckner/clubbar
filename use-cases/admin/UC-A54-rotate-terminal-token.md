@@ -23,9 +23,11 @@ Admin clicks "Rotate token" for a terminal on the Settings → Security & Creden
 5. System generates a new secure 64-character API token and stores it as a
    **pending** token alongside the current one (current token is untouched)
 6. System logs the rotation to the audit log (`terminal_token_rotated`)
-7. System emails every active admin a security notice that a new credential
-   was issued for this terminal (ADR-0043) — out of band from whichever
-   admin session performed the rotation
+7. System emails every active `admin` account a security notice that a new
+   credential was issued for this terminal (ADR-0043) — out of band from
+   whichever admin session performed the rotation. The lesser offices are not
+   written to: the terminal screen this notice is about is `admin`-only
+   (ADR-0044, #633)
 8. System displays the new token in the response (plaintext, one-time
    display)
 9. Both the current and the pending token authenticate the terminal from

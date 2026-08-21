@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\AdminUsers\Repositories;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Shared\Utils\Uuid;
 use PDO;
 use App\Shared\Logging\Logger;
@@ -31,14 +32,23 @@ class AdminUsersRepository
     }
 
     /**
-     * Everyone an operational warning should reach (#438).
+     * Every active admin account, whatever office it holds (#438).
      *
-     * Active admins only: a deactivated account is somebody who no longer runs
-     * the club, and mailing them about the club's expiring credentials is both
+     * Active only: a deactivated account is somebody who no longer runs the
+     * club, and mailing them about the club's expiring credentials is both
      * useless and a small disclosure.
      *
      * Deliberately narrow — id, address and locale, and no password hash or
      * TOTP column near a mail path.
+     *
+     * **This one stays unfiltered on purpose.** It reads like the fan-out list
+     * and is no longer used as one: #633 moved `AdminNotifier::warnAdmins()` to
+     * {@see findActiveRecipientsWithAnyRole()}. What is left are the two mail
+     * builders resolving a display name for the `admin_user_id` already written
+     * on an outbox row, and they must keep resolving whoever was actually
+     * written to — including an account whose roles have moved since, or one
+     * that would not be written to today. Adding a `WHERE` clause here would
+     * silently blank those names instead.
      *
      * @return list<array{id: string, email: string, locale: string, display_name: ?string}>
      */
@@ -47,6 +57,47 @@ class AdminUsersRepository
         return $this->db
             ->query('SELECT id, email, locale, display_name FROM admin_users WHERE is_active = 1 ORDER BY email ASC')
             ->fetchAll();
+    }
+
+    /**
+     * The same list, narrowed to the accounts holding at least one of `$roles`
+     * (#633, ADR-0044).
+     *
+     * The fan-out list. A notice about an encryption key or a terminal
+     * credential belongs to the office that can open the screen it is about,
+     * and until this existed the mail channel was the one place the role model
+     * did not apply — every notice reached every active account, a
+     * `getraenkewart` among them.
+     *
+     * Roles are additive and stored one row per role, so an account holding two
+     * of the roles asked for joins twice; `DISTINCT` is what keeps it one
+     * recipient rather than two identical messages. An empty `$roles` selects
+     * nobody rather than everybody — the same fail-closed reading ADR-0044 rule
+     * 1 gives an unclassified route.
+     *
+     * @param list<AdminRole> $roles
+     * @return list<array{id: string, email: string, locale: string, display_name: ?string}>
+     */
+    public function findActiveRecipientsWithAnyRole(array $roles): array
+    {
+        if ($roles === []) {
+            return [];
+        }
+
+        $values = AdminRole::toValues($roles);
+        $placeholders = implode(',', array_fill(0, count($values), '?'));
+
+        $stmt = $this->db->prepare(
+            'SELECT DISTINCT a.id, a.email, a.locale, a.display_name
+               FROM admin_users a
+               JOIN admin_user_roles r ON r.admin_user_id = a.id
+              WHERE a.is_active = 1
+                AND r.role IN (' . $placeholders . ')
+              ORDER BY a.email ASC'
+        );
+        $stmt->execute($values);
+
+        return $stmt->fetchAll();
     }
 
     public function create(array $data): array

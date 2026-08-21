@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\Enums;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailSubject;
 use App\Modules\Notifications\Services\MailRetention;
@@ -135,5 +136,88 @@ class MailKindTest extends TestCase
             MailRetention::STATEMENT_SENT_DAYS,
             MailRetention::sentDaysFor(MailKind::DECKEL_STATEMENT)
         );
+    }
+
+    /* ─────────────────── Which office a kind is for (#633) ─────────────────── */
+
+    /**
+     * Every kind states its offices, and the answer holds for kinds that do not
+     * exist yet: a `match` with no default means a new case fails to compile
+     * rather than quietly inheriting somebody else's audience. This is the same
+     * guard `addressesMember()` gets above, for the same reason — the failure it
+     * prevents is silent and is a message read by the wrong office.
+     */
+    public function test_every_admin_addressed_kind_names_the_offices_it_is_for(): void
+    {
+        foreach (MailKind::cases() as $kind) {
+            $roles = $kind->recipientRoles();
+
+            if ($kind->addressesMember()) {
+                $this->assertSame([], $roles, $kind->value . ' is not fanned out to any office');
+                continue;
+            }
+
+            $this->assertNotEmpty($roles, $kind->value . ' must name at least one office');
+            $this->assertContains(
+                AdminRole::ADMIN,
+                $roles,
+                $kind->value . ' — `admin` is the root of the ladder and receives whatever a lesser office does'
+            );
+        }
+    }
+
+    /**
+     * The rule the mapping follows: mirror the grant on the surface the mail
+     * points at. Keys, terminals and admin accounts are `admin`-only routes
+     * (ADR-0044), so their mail is `admin`-only — including for the Kassenwart,
+     * to whom a key fingerprint is as foreign as it is to the stock keeper.
+     */
+    public function test_operational_credential_mail_is_admin_only(): void
+    {
+        $adminOnly = [
+            MailKind::KEY_EXPIRY_WARNING,
+            MailKind::ENCRYPTION_KEY_REGISTERED,
+            MailKind::ENCRYPTION_KEY_ACTIVATED,
+            MailKind::ENCRYPTION_KEY_REVOKED,
+            MailKind::TERMINAL_TOKEN_EXPIRY_WARNING,
+            MailKind::TERMINAL_ANOMALY_WARNING,
+            MailKind::TERMINAL_TOKEN_ISSUED,
+            MailKind::ADMIN_EMAIL_CHANGED,
+            MailKind::ADMIN_ACCOUNT_CREATED,
+            MailKind::ADMIN_ROLE_CHANGED,
+        ];
+
+        foreach ($adminOnly as $kind) {
+            $this->assertSame([AdminRole::ADMIN], $kind->recipientRoles(), $kind->value);
+        }
+    }
+
+    /**
+     * The one kind whose surface is not `admin`-only. Its dashboard alert is
+     * `TREASURY` because ADR-0045 names the Kassenwart as the recipient, and
+     * the mail carries exactly that set — one rule, not two tables.
+     */
+    public function test_a_violation_notice_reaches_the_office_its_dashboard_alert_does(): void
+    {
+        $this->assertSame(
+            [AdminRole::ADMIN, AdminRole::KASSENWART],
+            MailKind::JUGENDSCHUTZ_VIOLATION->recipientRoles(),
+        );
+    }
+
+    /**
+     * The account holding only the bar stock is on no operational fan-out at
+     * all — the thing #633 is about, stated once over every kind rather than
+     * per kind.
+     */
+    public function test_the_getraenkewart_is_on_no_admin_fan_out(): void
+    {
+        foreach (MailKind::cases() as $kind) {
+            $this->assertNotContains(
+                AdminRole::GETRAENKEWART,
+                $kind->recipientRoles(),
+                $kind->value . ' must not reach an office that cannot open the screen it is about'
+            );
+        }
     }
 }

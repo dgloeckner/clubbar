@@ -207,7 +207,9 @@ sequenceDiagram
 ```
 
 - **Issuance is announced, never gated further** ([ADR-0043](../adr/0043-terminal-credential-issuance-is-announced.md)):
-  every mint or rotation emails every active admin. Four-eyes approval on
+  every mint or rotation emails every active `admin` account (the office that
+  can open the terminal screen — [#633](https://github.com/dgloeckner/clubbar/issues/633)).
+  Four-eyes approval on
   minting was rejected — it would make issuing a credential *harder* than
   revoking one, and recovery must never be harder than compromise.
 - **Anomaly detection alerts, it never enforces** ([ADR-0041](../adr/0041-terminal-credential-anomaly-detection.md)):

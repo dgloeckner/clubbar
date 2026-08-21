@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\AdminUsers\Repositories;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Shared\Logging\Logger;
 use PDO;
@@ -46,6 +47,17 @@ class AdminUsersRepositoryTest extends TestCase
                 totp_last_timestep BIGINT NULL,
                 created_at TIMESTAMP NULL,
                 updated_at TIMESTAMP NULL
+            )'
+        );
+
+        // The role table of migration 045, in the same hand-maintained spirit as
+        // the one above: `findActiveRecipientsWithAnyRole()` joins it, so a
+        // schema without it exercises nothing.
+        $this->db->exec(
+            'CREATE TABLE admin_user_roles (
+                admin_user_id CHAR(36) NOT NULL,
+                role VARCHAR(32) NOT NULL,
+                PRIMARY KEY (admin_user_id, role)
             )'
         );
 
@@ -137,5 +149,107 @@ class AdminUsersRepositoryTest extends TestCase
 
         $this->assertNotNull($this->repository->findById('admin-1')['credentials_changed_at']);
         $this->assertNull($this->repository->findById('admin-2')['credentials_changed_at']);
+    }
+
+    /* ─────────── The fan-out list, narrowed to an office (#633) ─────────── */
+
+    /**
+     * The query the admin fan-out runs. Operational mail is addressed to the
+     * office that can open the screen it is about (ADR-0044), so an account
+     * holding only `getraenkewart` is not on the list for an `admin` kind.
+     */
+    public function test_findActiveRecipientsWithAnyRole_returns_only_holders_of_the_offices_asked_for(): void
+    {
+        $this->givenAdmin('admin-2', 'kassenwart@example.com', ['kassenwart']);
+        $this->givenAdmin('admin-3', 'bar@example.com', ['getraenkewart']);
+        $this->grant('admin-1', 'admin');
+
+        $this->assertSame(
+            ['admin@example.com'],
+            $this->addressesFor([AdminRole::ADMIN]),
+        );
+        $this->assertSame(
+            ['admin@example.com', 'kassenwart@example.com'],
+            $this->addressesFor([AdminRole::ADMIN, AdminRole::KASSENWART]),
+            'ordered by address, as the unfiltered list is'
+        );
+    }
+
+    /**
+     * Roles are additive and stored one row per role, so an account holding two
+     * of the offices asked for joins twice. One recipient, not two identical
+     * messages.
+     */
+    public function test_findActiveRecipientsWithAnyRole_counts_a_two_office_account_once(): void
+    {
+        $this->givenAdmin('admin-2', 'both@example.com', ['kassenwart', 'getraenkewart']);
+
+        $this->assertSame(
+            ['both@example.com'],
+            $this->addressesFor([AdminRole::KASSENWART, AdminRole::GETRAENKEWART]),
+        );
+    }
+
+    /** A deactivated account no longer runs the club, whatever it still holds. */
+    public function test_findActiveRecipientsWithAnyRole_skips_a_deactivated_holder(): void
+    {
+        $this->givenAdmin('admin-2', 'former@example.com', ['admin'], active: false);
+        $this->grant('admin-1', 'admin');
+
+        $this->assertSame(['admin@example.com'], $this->addressesFor([AdminRole::ADMIN]));
+    }
+
+    /**
+     * An account carrying no role row at all holds no office, so it is on no
+     * fan-out — the fail-closed reading ADR-0044 rule 1 gives an unclassified
+     * route. Migration 045 backfills every pre-roles account to `admin`, so in
+     * a real installation this is a hand-edited row rather than an upgrade.
+     */
+    public function test_findActiveRecipientsWithAnyRole_skips_an_account_holding_nothing(): void
+    {
+        $this->assertSame([], $this->addressesFor([AdminRole::ADMIN]));
+        $this->assertSame(
+            ['admin@example.com'],
+            array_column($this->repository->findActiveRecipients(), 'email'),
+            'and is still resolvable by the mail builders, which name whoever a row was written to'
+        );
+    }
+
+    /** No offices asked for selects nobody, never everybody. */
+    public function test_findActiveRecipientsWithAnyRole_selects_nobody_for_an_empty_role_set(): void
+    {
+        $this->grant('admin-1', 'admin');
+
+        $this->assertSame([], $this->repository->findActiveRecipientsWithAnyRole([]));
+    }
+
+    /** @param list<string> $roles */
+    private function givenAdmin(string $id, string $email, array $roles, bool $active = true): void
+    {
+        $this->repository->create([
+            'id' => $id,
+            'email' => $email,
+            'password' => 'hashed',
+            'display_name' => $email,
+            'is_active' => $active,
+        ]);
+        foreach ($roles as $role) {
+            $this->grant($id, $role);
+        }
+    }
+
+    private function grant(string $id, string $role): void
+    {
+        $this->db->prepare('INSERT INTO admin_user_roles (admin_user_id, role) VALUES (?, ?)')
+            ->execute([$id, $role]);
+    }
+
+    /**
+     * @param list<AdminRole> $roles
+     * @return list<string>
+     */
+    private function addressesFor(array $roles): array
+    {
+        return array_column($this->repository->findActiveRecipientsWithAnyRole($roles), 'email');
     }
 }

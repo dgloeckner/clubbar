@@ -361,6 +361,27 @@ export default defineConfig({
       dependencies: ['mail-lifecycle'],
     },
 
+    // The role chain (#633): a notice queued for one office → bin/cron.php →
+    // that office's mailbox, and nothing in the others'.
+    //
+    // Its own project for the reason each of the six before it is: it asserts
+    // that two mailboxes stay **empty**, which is the assertion most easily
+    // broken by a file it never heard of. Its accounts hold the lesser offices,
+    // so nothing else in the suite writes to them by design — but a second file
+    // of this project running beside it on another worker would drain the queue
+    // between this one's finalize and its assertion, which is exactly what the
+    // fixed order buys everywhere else in the chain.
+    //
+    // Last, because its drains claim the whole queue like the rest, and
+    // `dependencies` makes that ordering structural rather than alphabetical
+    // luck.
+    {
+      name: 'mail-roles',
+      testDir: './tests/mail-roles',
+      fullyParallel: false,
+      dependencies: ['mail-jugendschutz'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',

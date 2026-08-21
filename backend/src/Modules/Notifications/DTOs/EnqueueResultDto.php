@@ -21,6 +21,11 @@ namespace App\Modules\Notifications\DTOs;
  * that finds the same credential in the same tier on every tick needs to be able
  * to say *"already done"* rather than *"nothing to do"* — the two look identical
  * in a count of zero and mean opposite things when a warning has not arrived.
+ *
+ * `nobodyEligible` is the third way of being zero (#633). Since the admin
+ * fan-out is filtered by office, a warning can now find that no active account
+ * holds one it is addressed to — and "nobody to tell" must not be reported as
+ * "nothing to tell", which is what the other two zeroes mean.
  */
 final readonly class EnqueueResultDto
 {
@@ -34,6 +39,12 @@ final readonly class EnqueueResultDto
         public array $withoutBalance = [],
         /** Recipients the unique index refused because this exact message already exists. */
         public int $alreadyQueued = 0,
+        /**
+         * No active admin account holds an office this kind is addressed to
+         * (#633). The notice was escalated to the club address if one is
+         * configured, and reached nobody if not — `queued` says which.
+         */
+        public bool $nobodyEligible = false,
     ) {}
 
     public static function empty(): self
@@ -48,6 +59,7 @@ final readonly class EnqueueResultDto
             'without_email' => $this->withoutEmail,
             'without_balance' => $this->withoutBalance,
             'already_queued' => $this->alreadyQueued,
+            'nobody_eligible' => $this->nobodyEligible,
         ];
     }
 }

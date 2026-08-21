@@ -84,16 +84,44 @@ flowchart TD
 | `sepa_prenotification` | Member | Settlement finalized (direct debit only) |
 | `cancellation_notice` | Member | Settlement cancelled after a pre-notification already sent |
 | `deckel_statement` | Member | Periodic balance statement, due period (§5) |
-| `terminal_token_issued` | Every active admin | A terminal token is minted or rotated ([ADR-0043](../adr/0043-terminal-credential-issuance-is-announced.md)) — never contains the token itself |
-| `terminal_anomaly_warning` | Every active admin | Terminal credential anomaly detection ([ADR-0041](../adr/0041-terminal-credential-anomaly-detection.md)) |
-| `key_expiry_warning`, `terminal_token_expiry_warning` | Every active admin | Encryption key / terminal token entering its expiry window |
-| `encryption_key_registered` / `_activated` / `_revoked` | Every active admin | Key lifecycle events ([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)) |
-| `admin_account_created`, `admin_role_changed` | Every active admin **+ configured club address** | Admin lifecycle events ([ADR-0044](../adr/0044-tiered-admin-roles.md)) — the club-address copy is what still fires when there's only one admin and they're the one being promoted |
+| `terminal_token_issued` | Active `admin` accounts | A terminal token is minted or rotated ([ADR-0043](../adr/0043-terminal-credential-issuance-is-announced.md)) — never contains the token itself |
+| `terminal_anomaly_warning` | Active `admin` accounts | Terminal credential anomaly detection ([ADR-0041](../adr/0041-terminal-credential-anomaly-detection.md)) |
+| `key_expiry_warning`, `terminal_token_expiry_warning` | Active `admin` accounts | Encryption key / terminal token entering its expiry window |
+| `encryption_key_registered` / `_activated` / `_revoked` | Active `admin` accounts | Key lifecycle events ([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)) |
+| `admin_account_created`, `admin_role_changed` | Active `admin` accounts **+ configured club address** | Admin lifecycle events ([ADR-0044](../adr/0044-tiered-admin-roles.md)) — the club-address copy is what still fires when there's only one admin and they're the one being promoted |
+| `jugendschutz_violation` | Active `admin` **and `kassenwart`** accounts **+ configured club address** | A sale served to a minor ([ADR-0045](../adr/0045-age-restricted-products.md) §3) — names the drink, the age it required and the transaction, never the member |
 | `admin_email_changed` | The *old* address | Own-profile email change — the channel a hijacker holding the new address can't suppress |
 
 `bank_transfer` and `write_off` settlements never enqueue anything — the
 money either already arrived or was never expected, so there's nothing to
 announce.
+
+### Who an admin-addressed kind actually reaches
+
+The audience column above is not prose: it is
+`MailKind::recipientRoles()`, and `AdminNotifier::warnAdmins()` fans out over
+exactly the accounts holding one of those offices
+([#633](https://github.com/dgloeckner/clubbar/issues/633)). Until that existed
+the fan-out was every active account whatever it was for, which made mail the
+one surface [ADR-0044](../adr/0044-tiered-admin-roles.md)'s role model did not
+cover — a Getränkewart was told the club's encryption-key fingerprint and which
+accounts had just been promoted.
+
+The rule is **mirror the grant on the surface the mail points at**, so there is
+one source of truth rather than a second table drifting alongside
+`RouteRoleMap`. Keys, terminals and admin accounts are `admin`-only routes, so
+their mail is `admin`-only — for the Kassenwart as much as for the
+Getränkewart. `jugendschutz_violation` is the one kind whose surface is not:
+its dashboard alert is `TREASURY`, and the mail carries the same set.
+
+**When no active account holds the office**, the notice is escalated to the
+configured club address rather than widened back to everybody — that widening
+is the leak, and it would arrive exactly when the installation is least able to
+notice. With no club address configured either, nothing is queued and a
+`WARNING` is logged naming the kind, the subject and the offices it was for; the
+enqueue result reports the same as `nobody_eligible`. Reaching that state takes
+a hand-edited database: `AdminUsersService` refuses to demote or deactivate the
+last `admin`.
 
 ---
 

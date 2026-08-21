@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Services;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\DTOs\EnqueueResultDto;
 use App\Modules\Notifications\DTOs\MailRequestDto;
@@ -12,6 +13,7 @@ use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Repositories\MailConfigRepository;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
 use App\Shared\Enums\AuditAction;
+use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
 
 /**
@@ -29,7 +31,9 @@ use App\Shared\Services\AuditService;
  * details anywhere near it.
  *
  * So what this class holds is exactly what admin-addressed mail needs: the
- * queue, the admin list, and the audit log. No member ever appears here.
+ * queue, the admin list, the club address, the audit log, and a logger for the
+ * one case none of those can record — a notice with nobody to send it to. No
+ * member ever appears here.
  *
  * Like everything on this side of ADR-0038 it **only queues**. It opens no
  * socket; the scheduler is the only sender (rule 3).
@@ -41,6 +45,7 @@ class AdminNotifier
         private AdminUsersRepository $adminUsersRepository,
         private AuditService $auditService,
         private MailConfigRepository $mailConfigRepository,
+        private Logger $logger,
     ) {}
 
     /**
@@ -64,8 +69,12 @@ class AdminNotifier
      * job either way: it answers "has this already been said?", and what
      * counts as "this" is the caller's to define.
      *
-     * Every active admin is written to, and each is deduplicated separately —
-     * one admin having already been warned must not silence the others.
+     * Every active admin **holding an office this kind is addressed to** is
+     * written to ({@see MailKind::recipientRoles()}), and each is deduplicated
+     * separately — one admin having already been warned must not silence the
+     * others. When nobody holds such an office the notice is escalated to the
+     * club address rather than widened back to everybody; see the comment at
+     * the fan-out below.
      *
      * The caller supplies the occasion and nothing else about timing. This
      * queues; it does not decide when anything is due, and it never sends
@@ -93,7 +102,14 @@ class AdminNotifier
         $alreadyQueued = 0;
         $withoutEmail = [];
 
-        foreach ($this->adminUsersRepository->findActiveRecipients() as $admin) {
+        // Only the offices this kind is for (#633). Before this, an account
+        // holding `getraenkewart` alone was told an encryption key's
+        // fingerprint and which accounts had been promoted — every one of them
+        // behind an `admin`-only route in the panel.
+        $roles = $kind->recipientRoles();
+        $recipients = $this->adminUsersRepository->findActiveRecipientsWithAnyRole($roles);
+
+        foreach ($recipients as $admin) {
             $email = trim((string) ($admin['email'] ?? ''));
             if ($email === '') {
                 $withoutEmail[] = (string) $admin['id'];
@@ -119,17 +135,33 @@ class AdminNotifier
             }
         }
 
-        // The club-level copy (ADR-0044 rule 3), for admin lifecycle kinds
-        // only. It is *additional* to the fan-out above, never instead of it:
-        // the point is a second pair of eyes, and with exactly one admin the
-        // first pair belongs to whoever just acted.
+        // Nobody holds an office this kind is for. `AdminUsersService` will not
+        // let the last `admin` be demoted or deactivated, so reaching this
+        // means something outside the application put the installation there —
+        // a hand-edited row, a restore from a partial dump — and the answer has
+        // to be a decision rather than whatever the filter happens to do.
+        //
+        // It is **not** "fall back to every active admin": that is the leak
+        // this issue is about, and it would arrive exactly when the
+        // installation is least able to notice. The notice is escalated to the
+        // club address instead — configured, `admin`-only to change, and
+        // already the second pair of eyes ADR-0044 rule 3 relies on — and
+        // reported as unreachable when there is no club address either, so a
+        // warning that reached nobody is visible instead of silent.
+        $nobodyEligible = $roles !== [] && $recipients === [];
+
+        // The club-level copy (ADR-0044 rule 3), for admin lifecycle kinds —
+        // plus, from #633, any kind whose own offices are unstaffed. It is
+        // *additional* to the fan-out above, never instead of it: the point is
+        // a second pair of eyes, and with exactly one admin the first pair
+        // belongs to whoever just acted.
         //
         // Read from `mail_config`, which the grant table keeps `admin`-only —
         // that placement is what stops a Kassenwart redirecting the channel
         // that would report their own promotion.
-        if ($kind->addressesClub()) {
-            $club = $this->clubAddress();
-            if ($club !== null && $this->mailOutboxRepository->enqueue(MailRequestDto::forClub(
+        $club = ($kind->addressesClub() || $nobodyEligible) ? $this->clubAddress() : null;
+        if ($club !== null) {
+            if ($this->mailOutboxRepository->enqueue(MailRequestDto::forClub(
                 kind: $kind,
                 subjectId: $subjectId,
                 recipient: $club,
@@ -144,7 +176,32 @@ class AdminNotifier
             }
         }
 
-        $result = new EnqueueResultDto($queued, $withoutEmail, alreadyQueued: $alreadyQueued);
+        $result = new EnqueueResultDto(
+            $queued,
+            $withoutEmail,
+            alreadyQueued: $alreadyQueued,
+            nobodyEligible: $nobodyEligible,
+        );
+
+        if ($nobodyEligible && $club === null) {
+            // No office to write to and no club address to escalate to, so this
+            // notice reached nobody at all. Keyed on the address rather than on
+            // `$queued`, because a club copy the unique index refused is still
+            // a message sitting in the queue — "already said" is not "said to
+            // nobody".
+            //
+            // Logged rather than audited: the audit entry below is written only
+            // when something was queued, and the repeating callers (#438) run
+            // off a request-time check — an audit row per admin page load would
+            // bury the one that matters. A broken installation is precisely
+            // what the log is for.
+            $this->logger->warning('Admin notice has no eligible recipient', [
+                'kind' => $kind->value,
+                'subject_id' => $subjectId,
+                'occasion' => $occasion,
+                'roles' => AdminRole::toValues($roles),
+            ]);
+        }
 
         // Audited only when something was actually queued: this runs off a
         // request-time check that fires on every admin page load, and an audit
