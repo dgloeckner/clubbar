@@ -448,6 +448,38 @@ card (issue #377).
 
 ### Form Components
 
+#### DateField Component
+
+The date control for every date input in the panel — `<input type="date">` is
+not used anywhere (see [Date Field Pattern](./date-field.md) for the reasoning
+and the full test-ID list).
+
+**File**: `src/components/forms/DateField.tsx` (calendar:
+`src/components/forms/DateCalendar.tsx`, logic: `src/utils/dateField.ts`)
+
+**Props**:
+- `value` (string, required): ISO `YYYY-MM-DD`, or `''`
+- `onChange` ((iso: string) => void, required): ISO, or `''` when empty/unreadable
+- `testId` (string, required): base for the field's test IDs
+- `min` / `max` (string, optional): ISO bounds, enforced in the field
+- `mode` (`'date' | 'birthdate'`, default `'date'`): birth-date mode opens the
+  year view and shows the resulting age
+- `variant` (`'form' | 'filter'`, default `'form'`): compact toolbar padding
+- `clearable` (boolean): offer Clear in the calendar footer
+- `required`, `disabled`, `invalid`, `describedBy`, `ariaLabel`, `name`
+
+**Example**:
+```typescript
+<DateField
+  testId="report-filter-date-from"
+  variant="filter"
+  clearable
+  ariaLabel={t('reports.dateFrom')}
+  value={dateFrom}
+  onChange={setDateFrom}
+/>
+```
+
 #### CharacterCounter Component
 
 Displays character count with color warning based on limit.

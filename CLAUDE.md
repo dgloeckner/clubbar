@@ -167,6 +167,12 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
   - `SECTION_ROLES` in `src/utils/adminRoles.ts` — section→roles, default-deny
   - Per-role landing, and the named `insufficient_role` refusal screen
   - A nav entry left unclassified fails the unit suite, not review
+- **Date Field Pattern**: one date control for desktop and mobile — `<input type="date">` is not used anywhere
+  - Typed entry first (`23111979` → `23.11.1979`), calendar second; month and year each one tap
+  - Popover on desktop, bottom sheet with 44px targets below 768px
+  - ISO `YYYY-MM-DD` on the wire, locale order on screen; `min`/`max` enforced in the field
+  - `mode="birthdate"` opens on the year view and shows the resulting age (ADR-0045)
+  - Assert on `{testId}-value` in E2E, never on the visible (locale-formatted) input
 - **Component Patterns**: Index of reusable UI components — check it before writing a new one
 
 **Important**: When building pages and components in the admin frontend, follow the test IDs pattern to ensure E2E tests are reliable and maintainable. See `admin-frontend/patterns/test-ids.md` for comprehensive guide and examples, and `admin-frontend/patterns/table-implementation.md` before touching a list page. Any page that fetches on a filter, search, sort, page or interval must follow `admin-frontend/patterns/data-fetching.md` — without it the page can render the results of a request it has already superseded.

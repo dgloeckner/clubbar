@@ -63,6 +63,27 @@ const list = useListQuery<Item, ItemFilters, ItemSortKey>({
 
 ---
 
+### [Date Field Pattern](./date-field.md)
+**Purpose**: one date control that works on a laptop and on a phone
+
+- ✅ Why `<input type="date">` is gone (three controls, all opening on today)
+- ✅ Typed entry first, calendar second; month and year each one tap
+- ✅ Popover on desktop, bottom sheet with 44px targets below 768px
+- ✅ ISO on the wire, locale on screen, `min`/`max` enforced in the field
+- ✅ `mode="birthdate"` — opens on the year view and shows the resulting age
+- ✅ The test IDs a page object may rely on
+
+**When to use**: any time a page needs a date
+
+**Quick Start**:
+```typescript
+<DateField testId="members-form-dob-input" mode="birthdate" required
+  value={formData.date_of_birth} onChange={(iso) => setFormData({ ...formData, date_of_birth: iso })}
+  min={EARLIEST_BIRTH_DATE} max={toIsoDate(new Date())} />
+```
+
+---
+
 ### [Component Patterns](./components.md)
 **Purpose**: Reference for the reusable UI components available to pages
 

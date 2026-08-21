@@ -140,6 +140,27 @@
     "yesterday": "Yesterday",
     "never": "Never"
   },
+  "dateField": {
+    "calendarLabel": "Calendar",
+    "openCalendar": "Open calendar",
+    "chooseMonth": "Choose month",
+    "chooseYear": "Choose year",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "previousYear": "Previous year",
+    "nextYear": "Next year",
+    "previousYears": "Previous years",
+    "nextYears": "Next years",
+    "today": "Today",
+    "clear": "Clear",
+    "dayLetters": "DD",
+    "monthLetters": "MM",
+    "yearLetters": "YYYY",
+    "invalidFormat": "Not a valid date – please use the format {{format}}",
+    "outOfRange": "Date is outside the allowed range",
+    "age_one": "{{count}} year old",
+    "age_other": "{{count}} years old"
+  },
   "members": {
     "title": "Members",
     "stats": {
