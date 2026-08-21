@@ -225,6 +225,25 @@ test.describe('a violation reaches a mailbox', () => {
     expect(body).not.toContain(member.first_name)
     expect(body).not.toContain(member.last_name)
     expect(body).not.toContain(member.id)
-    expect(delivered.Text ?? '').not.toContain('15')
+
+    // The member's own age — 15 against a limit of 18 — checked against the
+    // text with the values that legitimately carry digits taken out first: the
+    // transaction id, the drink's random suffix, the address in the greeting
+    // (minted from Date.now()) and the sale's timestamp. Each is a hex, random
+    // or clock string that contains "15" by coincidence often enough to matter
+    // — a UUID does roughly one time in eight, and the timestamp does for a
+    // whole hour a day — and a leak check that fails on the clock teaches
+    // people to re-run it rather than read it.
+    const digitsThatBelongThere = [
+      transactionId,
+      suffix,
+      recipient,
+      asTheClubWouldWriteIt(soldAt),
+    ]
+    const scrubbed = digitsThatBelongThere.reduce(
+      (text, value) => text.replaceAll(value, ''),
+      delivered.Text ?? '',
+    )
+    expect(scrubbed).not.toContain('15')
   })
 })

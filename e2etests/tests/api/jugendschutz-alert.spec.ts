@@ -113,10 +113,24 @@ test.describe('Jugendschutz violations reach a human', () => {
     expect(mine, 'the sale must be waiting to be looked at').toHaveLength(1)
     expect(mine[0].min_age).toBe(18)
 
-    // The list renders on a screen that may be open in the clubroom.
-    const serialised = JSON.stringify(mine[0])
-    expect(serialised).not.toContain('member')
-    expect(serialised).not.toContain('15')
+    // The list renders on a screen that may be open in the clubroom, so it
+    // carries no member and no age-at-sale. Asserted as the payload's whole
+    // shape rather than as a substring hunt over its JSON: `not.toContain('15')`
+    // was red for the entire 15:00 UTC hour — `recorded_at` is a timestamp —
+    // and again whenever the transaction's UUID happened to contain those two
+    // hex digits, roughly one sale in eight. A leak check that fails on the
+    // clock teaches people to re-run it.
+    //
+    // The shape is also the stronger claim: a `member_id`, a `first_name` or an
+    // `age_at_sale` added later fails this line whatever its value, including
+    // the values a substring search would have let through.
+    expect(Object.keys(mine[0]).sort()).toEqual([
+      'id',
+      'min_age',
+      'recorded_at',
+      'transaction_id',
+    ])
+    expect(mine[0].transaction_id).toBe(transactionId)
   })
 
   /**
