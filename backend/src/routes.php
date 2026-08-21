@@ -163,6 +163,12 @@ return function (App $app): void {
         // is no manual-purchase endpoint to replace them (UC-A21 rejected).
         $group->post('/transactions/{transactionId}/storno', [TransactionsAdminController::class, 'storno']);
 
+        // The acknowledgement half of #622. Keyed on the *audit entry's* id,
+        // because that entry is the violation — there is no separate violations
+        // table, deliberately (migration 051).
+        $group->get('/jugendschutz-violations', [TransactionsAdminController::class, 'getJugendschutzViolations']);
+        $group->post('/jugendschutz-violations/{id}/acknowledge', [TransactionsAdminController::class, 'acknowledgeJugendschutzViolation']);
+
         // Admin users
         $group->get('/admin-users', [AdminUsersAdminController::class, 'index']);
         $group->post('/admin-users', [AdminUsersAdminController::class, 'store'])->add($stepUpRateLimit);

@@ -135,6 +135,33 @@ enum MailKind: string
     case DECKEL_STATEMENT = 'deckel_statement';
 
     /**
+     * A sale slipped past a stale terminal and was served to a minor
+     * (#622, [ADR-0045](../../../adr/0045-age-restricted-products.md) §3).
+     *
+     * The audit entry M7 writes is the **record**; this is only how a human
+     * finds out about it. Without it the record is pull-only — somebody has to
+     * already suspect a violation to go and filter the audit log for one — and
+     * the log is `admin`-only under ADR-0044, so the Kassenwart, the office the
+     * epic names as the recipient, could not see it at all.
+     *
+     * **The message names no member.** `AdminNotifier` fans out to every active
+     * admin account regardless of role, which includes the Getränkewart — and
+     * ADR-0045 invariant 5 says they gain no member data. So the mail carries
+     * the drink, the age it required, the terminal and the transaction id, and
+     * the reader resolves the rest in a surface their own role permits. Rule 6
+     * binds here as much as at the till: name what the *drink* required, never
+     * what the member is.
+     *
+     * The **transaction id is the subject**, so the occasion only has to
+     * distinguish this violation from another about the same sale — which
+     * cannot happen, since M7 flags once per inserted row. It carries the
+     * required age instead, `age:18`, which pins the limit as it stood at the
+     * sale into the message and keeps invariant 4 true of the mail as well as
+     * of the record.
+     */
+    case JUGENDSCHUTZ_VIOLATION = 'jugendschutz_violation';
+
+    /**
      * A new admin account exists (ADR-0044 rule 3).
      *
      * ADR-0044 calls account creation the *loud* path — the one that fires
@@ -184,7 +211,13 @@ enum MailKind: string
     {
         return match ($this) {
             self::ADMIN_ACCOUNT_CREATED,
-            self::ADMIN_ROLE_CHANGED => true,
+            self::ADMIN_ROLE_CHANGED,
+            // Not an admin lifecycle event, and the one deliberate exception to
+            // the rule above. JuSchG § 28 exposure lands on the club and on
+            // whoever served, so the Vorstand is a party here rather than a
+            // bystander — and a violation should be rare enough never to become
+            // the noise this method otherwise guards against.
+            self::JUGENDSCHUTZ_VIOLATION => true,
             self::SEPA_PRENOTIFICATION,
             self::CANCELLATION_NOTICE,
             self::DECKEL_STATEMENT,
@@ -216,6 +249,7 @@ enum MailKind: string
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED => MailSubject::ADMIN_USER,
             self::DECKEL_STATEMENT => MailSubject::MEMBER,
+            self::JUGENDSCHUTZ_VIOLATION => MailSubject::TRANSACTION,
         };
     }
 
@@ -250,7 +284,8 @@ enum MailKind: string
             self::TERMINAL_TOKEN_ISSUED,
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
-            self::ADMIN_ROLE_CHANGED => false,
+            self::ADMIN_ROLE_CHANGED,
+            self::JUGENDSCHUTZ_VIOLATION => false,
         };
     }
 }

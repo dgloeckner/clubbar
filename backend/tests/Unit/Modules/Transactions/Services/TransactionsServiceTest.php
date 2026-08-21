@@ -13,6 +13,8 @@ use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Shared\DTOs\PaginatedResultDto;
+use App\Modules\Notifications\Enums\MailKind;
+use App\Modules\Notifications\Services\AdminNotifier;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\NotFoundException;
@@ -27,6 +29,7 @@ class TransactionsServiceTest extends TestCase
     private ProductsRepository $productsRepository;
     private AuditService $auditService;
     private Logger $logger;
+    private AdminNotifier $adminNotifier;
     private TransactionsService $service;
 
     protected function setUp(): void
@@ -39,12 +42,15 @@ class TransactionsServiceTest extends TestCase
         $this->auditService = $this->createMock(AuditService::class);
         $this->logger = $this->createMock(Logger::class);
 
+        $this->adminNotifier = $this->createMock(AdminNotifier::class);
+
         $this->service = new TransactionsService(
             $this->transactionsRepository,
             $this->membersRepository,
             $this->productsRepository,
             $this->auditService,
             $this->logger,
+            $this->adminNotifier,
         );
     }
 
@@ -849,6 +855,75 @@ class TransactionsServiceTest extends TestCase
                 ? ['id' => 'product-1', 'price_cents' => $tx['amount_cents'], 'min_age' => $minAge]
                 : null,
         );
+    }
+
+    /**
+     * The record is not the telling (#622).
+     *
+     * M7 wrote the audit entry and stopped there, which left the violation
+     * pull-only — somebody had to already suspect one to go and filter for it —
+     * and the audit log is `admin`-only, so the Kassenwart could not have found
+     * it even then. Queuing the notice is what makes a human learn about it.
+     */
+    public function test_processBatch_queues_a_notice_when_it_records_a_violation(): void
+    {
+        $soldAt = self::aRecentSaleMoment();
+        $tx = $this->restrictedSaleAt($soldAt);
+        $this->expectAcceptedSale($tx, self::bornToBeAgedOn(15, $soldAt), 18);
+
+        $this->adminNotifier->expects($this->once())
+            ->method('warnAdmins')
+            ->with(
+                MailKind::JUGENDSCHUTZ_VIOLATION,
+                // The transaction is the subject — the first kind for which
+                // that is true.
+                'tx-1',
+                // The occasion carries the age the drink required, so the
+                // message keeps saying 18 after somebody clears the limit
+                // (invariant 4).
+                'age:18',
+            );
+
+        $this->assertSame(['tx-1'], $this->service->processBatch([$tx])->acceptedIds);
+    }
+
+    public function test_processBatch_queues_no_notice_when_there_is_no_violation(): void
+    {
+        $soldAt = self::aRecentSaleMoment();
+        $tx = $this->restrictedSaleAt($soldAt);
+        $this->expectAcceptedSale($tx, self::bornToBeAgedOn(40, $soldAt), 18);
+
+        $this->adminNotifier->expects($this->never())->method('warnAdmins');
+
+        $this->service->processBatch([$tx]);
+    }
+
+    /**
+     * A queue that will not take the message must not lose the sale.
+     *
+     * The audit entry is already written by this point and the row is already
+     * stored. If a mail failure propagated, a batch of good sales would be
+     * rejected because a notification could not be queued — which is the same
+     * mistake ruling #143 forbids elsewhere, arrived at from a different
+     * direction. The detector's own `mail()` guards this way for the same
+     * reason.
+     */
+    public function test_processBatch_survives_a_notice_that_cannot_be_queued(): void
+    {
+        $soldAt = self::aRecentSaleMoment();
+        $tx = $this->restrictedSaleAt($soldAt);
+        $this->expectAcceptedSale($tx, self::bornToBeAgedOn(15, $soldAt), 18);
+
+        $this->adminNotifier->method('warnAdmins')
+            ->willThrowException(new \RuntimeException('outbox is unreachable'));
+
+        // The audit entry still goes in, and the sale is still accepted.
+        $this->auditService->expects($this->once())->method('log');
+
+        $result = $this->service->processBatch([$tx]);
+
+        $this->assertSame(['tx-1'], $result->acceptedIds);
+        $this->assertSame(0, $result->rejectedCount);
     }
 
     public function test_processBatch_records_a_violation_when_a_minor_is_served_a_restricted_drink(): void

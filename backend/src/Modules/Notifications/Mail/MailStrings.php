@@ -150,6 +150,29 @@ final class MailStrings
             // harmlose Erklärung, und eine Mail, die mit „Dein Terminal wurde
             // gestohlen" beginnt, wird so oft falsch liegen, dass sie beim
             // einen Mal, an dem sie recht hat, ignoriert wird.
+            'jugendschutz.subject'   => 'Jugendschutz: ein Verkauf muss geprüft werden',
+            'jugendschutz.preheader' => 'Ein altersbeschränktes Getränk wurde unter dem Mindestalter verkauft',
+            'jugendschutz.eyebrow'   => 'Jugendschutz',
+            'jugendschutz.title'     => 'Ein Verkauf unter dem Mindestalter',
+            'jugendschutz.lede'      => 'am Tresen wurde ein Getränk ausgegeben, das ein Mindestalter von '
+                . '<strong>{age} Jahren</strong> hat — an jemanden, der dieses Alter zu diesem Zeitpunkt '
+                . 'noch nicht erreicht hatte.',
+            'jugendschutz.lede_text' => 'am Tresen wurde ein Getränk ausgegeben, das ein Mindestalter von '
+                . '{age} Jahren hat — an jemanden, der dieses Alter zu diesem Zeitpunkt noch nicht erreicht hatte.',
+            'jugendschutz.why'       => 'Das Terminal weist solche Verkäufe normalerweise ab. Dieser hier ist '
+                . 'durchgekommen, weil das Terminal zum Verkaufszeitpunkt noch einen älteren Datenstand hatte.',
+            'jugendschutz.row.product'     => 'Getränk',
+            'jugendschutz.row.required'    => 'Mindestalter',
+            'jugendschutz.row.occurred'    => 'Verkauft am',
+            'jugendschutz.row.terminal'    => 'Terminal',
+            'jugendschutz.row.transaction' => 'Buchung',
+            'jugendschutz.product_deleted' => '(inzwischen gelöscht)',
+            'jugendschutz.years'     => '{age} Jahre',
+            'jugendschutz.next'      => 'Die Buchung bleibt bestehen — sie ist der Beleg dafür, dass der Verkauf '
+                . 'stattgefunden hat, und wird nicht storniert. Bitte im Vorstand klären, wie damit umgegangen wird, '
+                . 'und den Hinweis anschließend im Dashboard als erledigt markieren.',
+            'jugendschutz.no_member' => 'Wer das Getränk gekauft hat, steht bewusst nicht in dieser E-Mail. '
+                . 'Die Buchungsnummer oben führt zum Vorgang.',
             'terminal_anomaly.subject'   => 'Terminal „{terminal}“: bitte einmal prüfen',
             'terminal_anomaly.preheader' => 'Möglicherweise wird der Zugang von „{terminal}“ auf mehr als einem Gerät verwendet',
             'terminal_anomaly.eyebrow'   => 'Terminal-Zugang',
@@ -444,6 +467,28 @@ final class MailStrings
             'statement.line_storno'  => 'Reversal of {label}',
             'statement.line_storno_from' => '{label} (from settlement {period})',
 
+            'jugendschutz.subject'   => 'Youth protection: a sale needs review',
+            'jugendschutz.preheader' => 'An age-restricted drink was sold below its minimum age',
+            'jugendschutz.eyebrow'   => 'Youth protection',
+            'jugendschutz.title'     => 'A sale below the minimum age',
+            'jugendschutz.lede'      => 'a drink carrying a minimum age of <strong>{age}</strong> was handed over '
+                . 'at the bar — to somebody who had not reached that age at the time.',
+            'jugendschutz.lede_text' => 'a drink carrying a minimum age of {age} was handed over at the bar — '
+                . 'to somebody who had not reached that age at the time.',
+            'jugendschutz.why'       => 'The terminal normally refuses such a sale. This one went through because '
+                . 'the terminal was still working from an older sync when it happened.',
+            'jugendschutz.row.product'     => 'Drink',
+            'jugendschutz.row.required'    => 'Minimum age',
+            'jugendschutz.row.occurred'    => 'Sold at',
+            'jugendschutz.row.terminal'    => 'Terminal',
+            'jugendschutz.row.transaction' => 'Transaction',
+            'jugendschutz.product_deleted' => '(deleted since)',
+            'jugendschutz.years'     => '{age} years',
+            'jugendschutz.next'      => 'The booking stands — it is the record that the sale happened and is not '
+                . 'reversed. Please agree in the committee how to handle it, then mark the notice as dealt with on '
+                . 'the dashboard.',
+            'jugendschutz.no_member' => 'Who bought the drink is deliberately not in this email. The transaction '
+                . 'number above leads to the record.',
             'terminal_anomaly.subject'   => 'Terminal "{terminal}": worth a look',
             'terminal_anomaly.preheader' => 'The credential for "{terminal}" may be in use on more than one device',
             'terminal_anomaly.eyebrow'   => 'Terminal credential',

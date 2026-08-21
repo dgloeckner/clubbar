@@ -40,6 +40,8 @@ use App\Modules\Terminals\Repositories\TerminalAnomaliesRepository;
 use App\Modules\Terminals\Repositories\TerminalIpSightingsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Terminals\Repositories\TerminalSyncCursorsRepository;
+use App\Modules\Transactions\Repositories\JugendschutzViolationsRepository;
+use App\Modules\Transactions\Services\JugendschutzViolationService;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 
 // BankCodes
@@ -80,6 +82,7 @@ use App\Modules\Notifications\Services\PeriodicEnqueueService;
 use App\Modules\Notifications\Services\TestMailService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
+use App\Modules\Notifications\Services\JugendschutzViolationMailBuilder;
 use App\Modules\Notifications\Services\TerminalAnomalyMailBuilder;
 use App\Modules\Notifications\Services\TerminalTokenIssuedMailBuilder;
 use App\Modules\Notifications\Services\AdminSecurityMailBuilder;
@@ -188,6 +191,8 @@ class ServiceFactory implements ContainerInterface
         // Dashboard
         DashboardAdminController::class => 'getDashboardAdminController',
         DashboardService::class => 'getDashboardService',
+        JugendschutzViolationsRepository::class => 'getJugendschutzViolationsRepository',
+        JugendschutzViolationService::class => 'getJugendschutzViolationService',
 
         // Reports
         ReportsAdminController::class => 'getReportsAdminController',
@@ -570,6 +575,7 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(MailContentRegistry::class, fn() => new MailContentRegistry(
             $this->getSettlementMailBuilder(),
             $this->getTerminalAnomalyMailBuilder(),
+            $this->getJugendschutzViolationMailBuilder(),
             $this->getAdminSecurityMailBuilder(),
             $this->getDeckelStatementMailBuilder(),
             $this->getCredentialExpiryMailBuilder(),
@@ -667,6 +673,15 @@ class ServiceFactory implements ContainerInterface
      * to queue since #438, and until this was registered nothing could render
      * what it queued.
      */
+    public function getJugendschutzViolationMailBuilder(): JugendschutzViolationMailBuilder
+    {
+        return $this->resolve(JugendschutzViolationMailBuilder::class, fn() => new JugendschutzViolationMailBuilder(
+            $this->getTransactionsRepository(),
+            $this->getProductsRepository(),
+            $this->getAdminUsersRepository(),
+        ));
+    }
+
     public function getTerminalAnomalyMailBuilder(): TerminalAnomalyMailBuilder
     {
         return $this->resolve(TerminalAnomalyMailBuilder::class, fn() => new TerminalAnomalyMailBuilder(
@@ -902,7 +917,18 @@ class ServiceFactory implements ContainerInterface
 
     public function getTransactionsService(): TransactionsService
     {
-        return $this->resolve(TransactionsService::class, fn() => new TransactionsService($this->getTransactionsRepository(), $this->getMembersRepository(), $this->getProductsRepository(), $this->getAuditService(), $this->logger));
+        return $this->resolve(TransactionsService::class, fn() => new TransactionsService(
+            $this->getTransactionsRepository(),
+            $this->getMembersRepository(),
+            $this->getProductsRepository(),
+            $this->getAuditService(),
+            $this->logger,
+            // AdminNotifier rather than NotificationsService: that one drags in
+            // MembersRepository -> IbanSealedBox and a required
+            // IBAN_FINGERPRINT_KEY, which syncing a transaction has no business
+            // needing (the same coupling ADR-0043 split this class out over).
+            $this->getAdminNotifier(),
+        ));
     }
 
     public function getBankCodeService(): BankCodeService
@@ -1125,7 +1151,11 @@ class ServiceFactory implements ContainerInterface
 
     public function getTransactionsAdminController(): TransactionsAdminController
     {
-        return $this->resolve(TransactionsAdminController::class, fn() => new TransactionsAdminController($this->getTransactionsService(), $this->getValidator()));
+        return $this->resolve(TransactionsAdminController::class, fn() => new TransactionsAdminController(
+            $this->getTransactionsService(),
+            $this->getValidator(),
+            $this->getJugendschutzViolationService(),
+        ));
     }
 
     public function getTransactionsSyncController(): TransactionsSyncController
@@ -1270,6 +1300,20 @@ class ServiceFactory implements ContainerInterface
             $this->getEncryptionKeysRepository(),
             $this->getSepaConfigRepository(),
             $this->getTerminalAnomaliesRepository(),
+            $this->getJugendschutzViolationsRepository(),
+        ));
+    }
+
+    public function getJugendschutzViolationsRepository(): JugendschutzViolationsRepository
+    {
+        return $this->resolve(JugendschutzViolationsRepository::class, fn() => new JugendschutzViolationsRepository($this->pdo));
+    }
+
+    public function getJugendschutzViolationService(): JugendschutzViolationService
+    {
+        return $this->resolve(JugendschutzViolationService::class, fn() => new JugendschutzViolationService(
+            $this->getJugendschutzViolationsRepository(),
+            $this->getAuditService(),
         ));
     }
 

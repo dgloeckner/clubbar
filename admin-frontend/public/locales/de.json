@@ -1096,7 +1096,16 @@
     "reviewTerminals": "Terminals prüfen",
     "terminalAnomalySingle": "Der Zugang von Terminal „{{name}}“ wird möglicherweise auf mehr als einem Gerät verwendet — bitte prüfen",
     "terminalAnomalyUnnamed": "Der Zugang eines Terminals wird möglicherweise auf mehr als einem Gerät verwendet — bitte prüfen",
-    "terminalAnomalyMultiple": "Der Zugang von {{count}} Terminals wird möglicherweise auf mehr als einem Gerät verwendet — bitte prüfen"
+    "terminalAnomalyMultiple": "Der Zugang von {{count}} Terminals wird möglicherweise auf mehr als einem Gerät verwendet — bitte prüfen",
+    "jugendschutzTitle": "Jugendschutz: Verkauf unter dem Mindestalter",
+    "jugendschutzOne": "Ein altersbeschränktes Getränk wurde unter dem Mindestalter verkauft und ist noch nicht bestätigt.",
+    "jugendschutzMany": "{{count}} altersbeschränkte Getränke wurden unter dem Mindestalter verkauft und sind noch nicht bestätigt.",
+    "jugendschutzIntro": "Die Buchungen bleiben bestehen — sie sind der Beleg dafür, dass die Verkäufe stattgefunden haben, und werden nicht storniert. Wer gekauft hat, steht bewusst nicht hier; die Buchungsnummer führt zum Vorgang im Journal.",
+    "jugendschutzRequiredAge": "ab {{age}} Jahren",
+    "jugendschutzRecordedAt": "erfasst am {{at}}",
+    "jugendschutzAcknowledge": "Als erledigt markieren",
+    "jugendschutzAcknowledging": "Wird gespeichert …",
+    "jugendschutzAcknowledgeFailed": "Konnte nicht als erledigt markiert werden."
   },
   "pagination": {
     "firstPage": "Erste Seite",

@@ -761,6 +761,30 @@ Deployment-wide instance branding ([ADR-0034](../adr/0034-instance-branding-conf
 
 ---
 
+### jugendschutz_violation_acks
+
+Whether a human has dealt with a recorded underage sale ([#622](https://github.com/dgloeckner/clubbar/issues/622), [ADR-0045](../adr/0045-age-restricted-products.md) §3).
+
+**There is no `jugendschutz_violations` table, deliberately.** The violation *is* the `jugendschutz_violation` audit entry — one record, append-only, filed under the transaction. A second table mirroring its payload would be two records of one fact, free to drift apart. This table holds only the acknowledgement, keyed on the audit entry it concerns.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| audit_log_id | BIGINT UNSIGNED | PK, FK → audit_log.id ON DELETE CASCADE | The violation entry being acknowledged. A real foreign key, unlike `mail_outbox.subject_id` — this one points at exactly one table |
+| acknowledged_at | DATETIME | NOT NULL | When somebody dealt with it |
+| acknowledged_by_admin_id | CHAR(36) | FK → admin_users.id, NULL | Who. Nullable because an account can be removed and the acknowledgement still happened |
+| note | VARCHAR(500) | NULL | Optional free text — what was done. Never required: a mandatory field on a dismissal becomes "." and teaches people to write nothing true |
+| created_at | TIMESTAMP | NOT NULL | Row creation |
+
+**Indexes:** `acknowledged_at`
+
+**Does this break invariant 4?** No, and the distinction is the whole design. In `terminal_anomalies`, acknowledging mutates *the record itself* — one object, and closing it changes what the club can say happened. Here there are **two objects**: the audit entry is the record, immutable and untouched by anything in this table, and acknowledgement is state added beside it. A past sale to a minor stays true no matter what; what changes is only whether the dashboard is still asking somebody to look at it.
+
+That matters because the alternative is worse. An alert that can never be dismissed is one people learn to stop seeing — which would leave the *next* violation as invisible as the first.
+
+**Reads:** the dashboard alert counts `jugendschutz_violation` audit rows with no row here, using `idx_audit_created_action (action, created_at)`.
+
+---
+
 ### audit_log
 
 Centralized audit trail for all master data changes.
@@ -795,6 +819,7 @@ Centralized audit trail for all master data changes.
 - `transaction_storno` — A booking reversed in full ([#169](https://github.com/dgloeckner/ruderbar/issues/169))
 - `transaction_price_divergence` — A synced sale claimed an amount other than the product's current price ([#204](https://github.com/dgloeckner/clubbar/issues/204)). Written by the sync path, so `admin_user_id` is NULL. The amount stands: it is what the member saw and accepted, possibly weeks earlier while offline — the entry records the disagreement rather than correcting it
 - `jugendschutz_violation` — A synced sale handed an age-restricted drink to a member who was under its `min_age` **at the moment of the sale** ([ADR-0045](../adr/0045-age-restricted-products.md), JuSchG § 9). Written by the sync path, so `admin_user_id` is NULL. Filed under the **transaction**, and the payload carries ids, `min_age` and `age_at_sale` — never the member's name and never their birth date, so a later erasure (which keys on the member's own `entity_id`) leaves nothing behind. Like the divergence entry it never rejects the row: the drink was already poured, and refusing the upload would trade a youth-protection incident for a § 146 Abs. 1 AO bookkeeping one
+- `jugendschutz_violation_acknowledged` — An admin decided a recorded violation had been dealt with ([#622](https://github.com/dgloeckner/clubbar/issues/622)). Deliberately **not** an edit to the entry above: that one is the record and never moves ([ADR-0045](../adr/0045-age-restricted-products.md) invariant 4). This is a later, separate fact. Reading the pair tells a club what happened *and* how it was handled
 - `collection_hold_placed` — A bank return stopped the next run re-debiting a member
 - `collection_hold_cleared` — An admin released that member back into the next run
 - `totp_enrolled` / `totp_reset` — Second factor enrolled or reset

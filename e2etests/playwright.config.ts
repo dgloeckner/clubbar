@@ -345,6 +345,22 @@ export default defineConfig({
       dependencies: ['mail-issuance'],
     },
 
+    // The Jugendschutz chain (#622): an underage sale at sync → bin/cron.php →
+    // an admin's mailbox.
+    //
+    // Its own project for the reason each of the five before it is: the notice
+    // goes to **every active admin**, so while this file's admin exists its
+    // messages would land in the other files' mailboxes and theirs in this one,
+    // each failing on a count the other caused. Last, because its drain claims
+    // the whole queue like the rest, and `dependencies` makes that ordering
+    // structural rather than alphabetical luck.
+    {
+      name: 'mail-jugendschutz',
+      testDir: './tests/mail-jugendschutz',
+      fullyParallel: false,
+      dependencies: ['mail-lifecycle'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',

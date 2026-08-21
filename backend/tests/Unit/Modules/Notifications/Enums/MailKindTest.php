@@ -59,6 +59,60 @@ class MailKindTest extends TestCase
         $this->assertSame(EntityType::MEMBER, MailSubject::MEMBER->auditEntityType());
     }
 
+    // ------------------------------------------------------------------
+    // Jugendschutz violation (#622, ADR-0045 §3)
+    //
+    // The first kind whose subject is a **transaction**. Every kind before it
+    // was about a settlement, a member, a terminal, a key or an admin account —
+    // a violation is about one sale, and the sale is the only thing that
+    // identifies it.
+    // ------------------------------------------------------------------
+
+    public function test_a_violation_notice_is_about_the_transaction_it_names(): void
+    {
+        $this->assertSame(MailSubject::TRANSACTION, MailKind::JUGENDSCHUTZ_VIOLATION->subjectType());
+    }
+
+    public function test_a_violation_notice_is_filed_under_the_transaction(): void
+    {
+        // Filed under the sale rather than the member, which is what keeps the
+        // anonymization scrub — it keys on the member's own entity_id — from
+        // reaching inside it (ADR-0013 principle 8).
+        $this->assertSame(EntityType::TRANSACTION, MailSubject::TRANSACTION->auditEntityType());
+    }
+
+    /**
+     * Never to the member.
+     *
+     * The member in a Jugendschutz violation is the person it is *about*, and
+     * telling them the club has recorded an incident against them is neither
+     * the point nor safe: the mail reaches whoever runs the bar, so it must be
+     * addressed to them.
+     */
+    public function test_a_violation_notice_is_never_addressed_to_the_member(): void
+    {
+        $this->assertFalse(MailKind::JUGENDSCHUTZ_VIOLATION->addressesMember());
+    }
+
+    /**
+     * The club address gets a copy, unlike every other operational warning.
+     *
+     * `addressesClub()` is otherwise reserved for admin *lifecycle* events, on
+     * the reasoning that a Vorstand list has nothing to do about an expiring
+     * token and routing every warning there turns the one channel that must be
+     * read into one that is filtered.
+     *
+     * A youth-protection incident is the exception that reasoning allows for:
+     * JuSchG § 28 exposure lands on the club and on whoever served, so the
+     * Vorstand is not a bystander here — and unlike a token warning, this
+     * should be rare enough that it never becomes noise. If it is not rare,
+     * that is a bigger problem than an over-full inbox.
+     */
+    public function test_a_violation_notice_also_reaches_the_club_address(): void
+    {
+        $this->assertTrue(MailKind::JUGENDSCHUTZ_VIOLATION->addressesClub());
+    }
+
     /**
      * The existing kinds keep the audience they shipped with.
      *

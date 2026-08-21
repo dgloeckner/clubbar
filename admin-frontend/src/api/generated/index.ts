@@ -58,6 +58,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
+export * from './acknowledgeJugendschutzViolation200';
+export * from './acknowledgeJugendschutzViolationBody';
 export * from './acknowledgeTerminalAnomaly200';
 export * from './activateEncryptionKey200';
 export * from './activateEncryptionKeyBody';
@@ -100,6 +102,8 @@ export * from './dashboardResponseAlerts';
 export * from './dashboardResponseAlertsEncryptionKey';
 export * from './dashboardResponseAlertsEncryptionKeySeverity';
 export * from './dashboardResponseAlertsEncryptionKeyState';
+export * from './dashboardResponseAlertsJugendschutzViolation';
+export * from './dashboardResponseAlertsJugendschutzViolationSeverity';
 export * from './dashboardResponseAlertsSepaConfig';
 export * from './dashboardResponseAlertsSepaConfigSeverity';
 export * from './dashboardResponseAlertsSepaIssues';
@@ -138,6 +142,8 @@ export * from './gdprExportExportInfoExportType';
 export * from './gdprExportPersonalData';
 export * from './gdprExportSettlementsItem';
 export * from './gdprExportTransactionsItem';
+export * from './getJugendschutzViolations200';
+export * from './getJugendschutzViolations200DataItem';
 export * from './getMemberTransactionsParams';
 export * from './getMemberTransactionsType';
 export * from './getProfileResponse';

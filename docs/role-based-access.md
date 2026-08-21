@@ -63,10 +63,25 @@ always made by a *different* admin.
 | SEPA configuration — write | ❌ | ❌ |
 | Categories, products, pricing | ❌ | ✅ |
 | Product minimum legal age (`min_age`) | ❌ | ✅ ² |
+| Jugendschutz violations — see and acknowledge | ✅ ³ | ❌ |
 | Reports (revenue/consumption/transactions) | ✅ | ✅ ¹ |
 | Admin users, terminals, encryption keys, mail config, audit log | ❌ | ❌ |
 
 ¹ `group_by=member` is withheld from `getraenkewart` — see §4.
+
+³ Deliberately `TREASURY` rather than `admin`-only
+([#622](https://github.com/dgloeckner/clubbar/issues/622)). The violation itself
+is a `jugendschutz_violation` audit entry, and the audit log is `admin`-only —
+which was precisely the gap: [ADR-0045](../adr/0045-age-restricted-products.md)
+names the **Kassenwart** as the recipient, and before this they could not learn a
+violation had happened at all. The dashboard alert and its acknowledge action are
+the surface that reaches them.
+
+It carries the drink's required age and the transaction id and **no member**,
+because it renders on a screen that may be open in the clubroom (rule 6). The
+transaction id resolves in the journal, which their role already permits. The
+Getränkewart is excluded here as everywhere else: they set the number on the
+product and learn nothing about who bought it (invariant 5).
 
 ² The Getränkewart sets, corrects and clears a drink's minimum legal age
 ([ADR-0045](../adr/0045-age-restricted-products.md)). It is an attribute of the

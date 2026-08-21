@@ -2,7 +2,7 @@
 
 **Epic**: [#582](https://github.com/dgloeckner/clubbar/issues/582)
 **Design**: [ADR-0045](../adr/0045-age-restricted-products.md)
-**Status**: **M1–M9 implemented and verified.** Open as a stacked queue of PRs, each based on the
+**Status**: **M1–M10 implemented and verified.** Open as a stacked queue of PRs, each based on the
 milestone before it and retargeting automatically as the lower ones merge.
 **Branch**: one PR per milestone. This mirrors the Tiered Admin Roles plan, which stacked
 PRs #526–#536 into `feature/tiered-admin-roles`.
@@ -16,7 +16,8 @@ PRs #526–#536 into `feature/tiered-admin-roles`.
 | M6 — the terminal refuses, offline | [#616](https://github.com/dgloeckner/clubbar/pull/616) | `claude/jugendschutz-m6-terminal-gate` |
 | M7 — the server records and flags | [#621](https://github.com/dgloeckner/clubbar/pull/621) | `claude/jugendschutz-m7-violation` |
 | M8 — documentation, ERM and legal mapping | this plan | `claude/jugendschutz-m8-docs` |
-| M9 — the overview highlights restricted products | — | `claude/age-restricted-products-highlight-x6pluh` |
+| M9 — the overview highlights restricted products | [#630](https://github.com/dgloeckner/clubbar/pull/630) | `claude/age-restricted-products-highlight-x6pluh` |
+| M10 — a human is told a violation happened | — | `claude/jugendschutz-violation-alert` |
 
 M1 and M2 shipped together: M1 is documentation with no production code, and splitting the ADR
 from the first migration that obeys it would have put a decision on `main` with nothing
@@ -299,6 +300,58 @@ each one in turn. The overview is where a Getränkewart actually works.
 
 Not in scope: filtering or sorting the list by minimum age. Nothing asked for it, and a fourth
 filter earns its place only once a club has enough restricted products to need one.
+
+### M10 — Somebody is told, and can say they have dealt with it ✅
+
+[#622](https://github.com/dgloeckner/clubbar/issues/622). M7 recorded the violation and told
+nobody: finding one meant opening the audit log and filtering by action, which requires already
+suspecting it happened — and that log is `admin`-only under ADR-0044, so the **Kassenwart**, the
+office ADR-0045 names as the recipient, could not reach it at all. M7's own "Done when" says *"a
+human is told about it in a way that does not quietly go away"*, and until this that half was
+false.
+
+- [x] `jugendschutz_violation_acks` (migration `051` + rollback) — acknowledgement keyed on
+      `audit_log.id`, with a real foreign key. **No second violations table**: the audit entry is
+      the record, and a mirror of its payload would be two copies free to drift
+- [x] `DashboardService::jugendschutzViolationAlert()` — counts *unacknowledged* violations.
+      `error` from the first one: every other alert here grades by volume because it is about
+      money or infrastructure drifting; this is about a minor having been served alcohol, which is
+      an incident at n=1
+- [x] `GET /api/admin/jugendschutz-violations` and `POST …/{id}/acknowledge`, both **`TREASURY`** —
+      the whole point is that the Kassenwart can act. Idempotent: the second admin pressing the
+      same dashboard button gets 200, not a 409 they have to interpret
+- [x] `jugendschutz_violation_acknowledged` audit action, mirroring
+      `terminal_anomaly_acknowledged`
+- [x] `MailSubject::TRANSACTION` — the first subject that is an *event* rather than a party or a
+      piece of infrastructure. No migration needed: the subject type is derived from the kind, not
+      stored
+- [x] `MailKind::JUGENDSCHUTZ_VIOLATION`, already in the `mail_outbox` ENUM from migration 050.
+      `addressesClub()` is **true** — the one non-lifecycle kind for which it is, because § 28
+      JuSchG exposure lands on the club and on whoever served
+- [x] The notice itself: DTO, template, de/en strings, builder, registry
+- [x] Queued from `TransactionsService`, inside a `try` — a queue that will not take the message
+      must cost the notification and nothing else
+- [x] The dashboard card, with per-violation acknowledgement
+- [x] Tests: the alert arithmetic, the repository against a real database, the service, the
+      builder, the sync path, an API flow spec, a browser spec, and a **Mailpit delivery proof**
+      (Pattern 010) in its own `mail-jugendschutz` project
+
+> **The tension this milestone had to resolve.** Invariant 4 says a recorded violation never
+> clears itself; migration 050's own header rejected `terminal_anomalies` partly *because* it is
+> "built to be closed". Adding an acknowledgement looks like walking that back.
+>
+> It is not, because the record and the alert are **different objects**. In `terminal_anomalies`,
+> acknowledging mutates the row that *is* the anomaly. Here the audit entry is untouched and the
+> acknowledgement is a row beside it: the incident stays on file forever, and only the dashboard
+> stops asking. The alternative is worse — a badge that can never be dismissed is one people learn
+> to stop seeing, which would leave the next violation as invisible as the first.
+
+> **What the notice may say.** `AdminNotifier` fans out to every active admin account *regardless
+> of role*, so the mail reaches the Getränkewart, who gains no member data (invariant 5). It
+> therefore names the drink, the age it required, the terminal and the transaction id — and no
+> member, no birth date, no age-at-sale. The dashboard is `TREASURY` and so could carry more, but
+> does not: it renders on a screen that may be open in the clubroom, and rule 6 does not stop at
+> the till.
 
 ---
 

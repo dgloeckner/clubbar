@@ -126,6 +126,13 @@ final class RouteRoleMap
         'GET /api/admin/transactions/export' => self::TREASURY,
         'GET /api/admin/members/{memberId}/transactions' => self::TREASURY,
         'POST /api/admin/transactions/{transactionId}/storno' => self::TREASURY,
+        // TREASURY, not ADMIN_ONLY. The audit log holding the violation is
+        // admin-only, which is the gap #622 closes: the Kassenwart is the
+        // office ADR-0045 names as the recipient, and an alert they can see
+        // but not clear leaves the dashboard permanently red for exactly the
+        // person most likely to be looking at it.
+        'GET /api/admin/jugendschutz-violations' => self::TREASURY,
+        'POST /api/admin/jugendschutz-violations/{id}/acknowledge' => self::TREASURY,
 
         // ── accounts, the audit log, keys, mail: admin only ──────────────
         // A Kassenwart who cannot mint an account, mint a terminal token, install

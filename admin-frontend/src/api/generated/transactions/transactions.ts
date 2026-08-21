@@ -58,7 +58,10 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type {
+  AcknowledgeJugendschutzViolation200,
+  AcknowledgeJugendschutzViolationBody,
   ExportTransactionsParams,
+  GetJugendschutzViolations200,
   GetMemberTransactionsParams,
   ListTransactions200,
   ListTransactionsParams,
@@ -150,6 +153,67 @@ const exportTransactions = (
       options);
     }
   /**
+ * The violations the dashboard alert is counting (#622, ADR-0045 §3),
+newest first.
+
+**Deliberately narrow, and member-free.** Each row carries the
+acknowledgement key, the sale it names, the age that was breached and
+when it was recorded — no member and no age-at-sale. This feeds a screen
+that may be open in the clubroom, and ADR-0045 rule 6 does not stop at
+the till. The transaction id is the handle into the journal, which a
+Kassenwart's role already permits.
+
+`min_age` is read out of the recorded payload rather than from the
+product, so it keeps saying what the limit was **at the sale** after
+somebody clears it (invariant 4).
+
+ * @summary Recorded underage sales still waiting to be acknowledged
+ */
+const getJugendschutzViolations = (
+    
+ options?: SecondParameter<typeof customInstance<GetJugendschutzViolations200>>,) => {
+      return customInstance<GetJugendschutzViolations200>(
+      {url: `/admin/jugendschutz-violations`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * Marks a recorded underage sale as dealt with (#622, ADR-0045 §3). It
+clears the alert from the dashboard and changes **nothing** about the
+violation itself.
+
+That distinction is the design. The violation is a `jugendschutz_violation`
+audit entry, which is append-only and stays true no matter what happens
+afterwards (ADR-0045 invariant 4). Acknowledging writes a separate row
+beside it saying a human has looked. The incident stays on file forever;
+only the dashboard stops asking about it.
+
+**`id` is the audit entry's id**, not a transaction id — there is no
+separate violations table, deliberately, because a second copy of the
+incident would be free to drift from the first.
+
+Available to the **Kassenwart** as well as `admin`. The audit log that
+holds the record is admin-only, which is exactly the gap this closes:
+an alert the Kassenwart can see but not clear would leave the dashboard
+permanently red for the person most likely to be looking at it.
+
+No step-up gate: this hands out nothing, and an alert that is awkward to
+dismiss is an alert that gets ignored.
+
+ * @summary Acknowledge a recorded Jugendschutz violation
+ */
+const acknowledgeJugendschutzViolation = (
+    id: number,
+    acknowledgeJugendschutzViolationBody?: AcknowledgeJugendschutzViolationBody,
+ options?: SecondParameter<typeof customInstance<AcknowledgeJugendschutzViolation200>>,) => {
+      return customInstance<AcknowledgeJugendschutzViolation200>(
+      {url: `/admin/jugendschutz-violations/${id}/acknowledge`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: acknowledgeJugendschutzViolationBody
+    },
+      options);
+    }
+  /**
  * @summary List all transactions (global journal)
  */
 const listTransactions = (
@@ -161,8 +225,10 @@ const listTransactions = (
     },
       options);
     }
-  return {getMemberTransactions,stornoTransaction,exportTransactions,listTransactions}};
+  return {getMemberTransactions,stornoTransaction,exportTransactions,getJugendschutzViolations,acknowledgeJugendschutzViolation,listTransactions}};
 export type GetMemberTransactionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['getMemberTransactions']>>>
 export type StornoTransactionResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['stornoTransaction']>>>
 export type ExportTransactionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['exportTransactions']>>>
+export type GetJugendschutzViolationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['getJugendschutzViolations']>>>
+export type AcknowledgeJugendschutzViolationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['acknowledgeJugendschutzViolation']>>>
 export type ListTransactionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['listTransactions']>>>

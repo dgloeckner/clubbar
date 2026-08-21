@@ -1096,7 +1096,16 @@
     "reviewTerminals": "Review terminals",
     "terminalAnomalySingle": "Terminal \"{{name}}\" may be in use on more than one device — review it",
     "terminalAnomalyUnnamed": "A terminal may be in use on more than one device — review it",
-    "terminalAnomalyMultiple": "{{count}} terminals may be in use on more than one device — review them"
+    "terminalAnomalyMultiple": "{{count}} terminals may be in use on more than one device — review them",
+    "jugendschutzTitle": "Youth protection: a sale below the minimum age",
+    "jugendschutzOne": "An age-restricted drink was sold below the required age and has not been acknowledged.",
+    "jugendschutzMany": "{{count}} age-restricted drinks were sold below the required age and have not been acknowledged.",
+    "jugendschutzIntro": "The bookings stand — they are the record that the sales happened and are not reversed. Who bought is deliberately not shown here; the transaction number leads to the record in the journal.",
+    "jugendschutzRequiredAge": "{{age}}+",
+    "jugendschutzRecordedAt": "recorded {{at}}",
+    "jugendschutzAcknowledge": "Mark as dealt with",
+    "jugendschutzAcknowledging": "Saving …",
+    "jugendschutzAcknowledgeFailed": "Could not be marked as dealt with."
   },
   "pagination": {
     "firstPage": "First page",

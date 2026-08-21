@@ -86,6 +86,17 @@ enum AuditAction: string
      */
     case JUGENDSCHUTZ_VIOLATION = 'jugendschutz_violation';
 
+    /**
+     * An admin decided a recorded violation had been dealt with (#622).
+     *
+     * The mirror of `terminal_anomaly_acknowledged`, and deliberately **not**
+     * an edit to the violation entry above — that one is the record and never
+     * moves (ADR-0045 invariant 4). This is a separate, later fact: somebody
+     * looked, and the dashboard stopped asking. Both entries survive; reading
+     * the pair tells a club what happened and how it was handled.
+     */
+    case JUGENDSCHUTZ_VIOLATION_ACKNOWLEDGED = 'jugendschutz_violation_acknowledged';
+
     case ROLE_GRANTED = 'role_granted';
     case ROLE_REVOKED = 'role_revoked';
     case MANDATE_DOCUMENT_UPLOAD = 'mandate_document_upload';

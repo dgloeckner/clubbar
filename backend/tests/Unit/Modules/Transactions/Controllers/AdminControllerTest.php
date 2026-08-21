@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Transactions\Controllers;
 
 use App\Modules\Transactions\Controllers\AdminController;
+use App\Modules\Transactions\Services\JugendschutzViolationService;
 use App\Modules\Transactions\Services\TransactionsService;
 use App\Shared\Validation\Validator;
 use PHPUnit\Framework\TestCase;
@@ -23,6 +24,7 @@ use Slim\Psr7\Response;
 class AdminControllerTest extends TestCase
 {
     private TransactionsService $transactionsService;
+    private JugendschutzViolationService $jugendschutzViolationService;
     private AdminController $controller;
 
     protected function setUp(): void
@@ -31,7 +33,11 @@ class AdminControllerTest extends TestCase
         // The rules used here (required, string, max) never touch the database.
         $validator = new Validator($this->createMock(\PDO::class));
 
-        $this->controller = new AdminController($this->transactionsService, $validator);
+        $this->controller = new AdminController(
+            $this->transactionsService,
+            $validator,
+            $this->jugendschutzViolationService = $this->createMock(JugendschutzViolationService::class),
+        );
     }
 
     private function request(array $body, ?string $adminId = 'admin-1'): \Psr\Http\Message\ServerRequestInterface
