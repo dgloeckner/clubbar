@@ -30,6 +30,11 @@
 # pull anyway. Enabling the `docker` and `docker-compose` ecosystems needs a
 # check that the mirror list still covers what the compose files reference.
 
+# A pull request from this config can also fail for a reason no change here can fix:
+# a peer range only an unpublished release would satisfy (typescript 7 against
+# @typescript-eslint's `>=4.8.4 <6.1.0`, #620). Those are labelled `blocked-upstream`
+# and swept weekly rather than closed — see docs/agents/issue-tracker.md.
+
 version: 2
 
 updates:
