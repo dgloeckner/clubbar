@@ -194,12 +194,28 @@ test.describe('Jugendschutz violations reach a human', () => {
   test('an audit entry that is not a violation cannot be acknowledged', async ({
     authenticatedRequest,
   }) => {
-    const anyEntry = await authenticatedRequest.get(`${API_BASE}/admin/audit-log?action=login&per_page=1`)
-    const rows = (await anyEntry.json()).data
-    test.skip(rows.length === 0, 'no non-violation audit entry available to try')
+    // The non-violation entry is **created here** rather than searched for.
+    // Reading one off the log and skipping when the query came back empty
+    // would make this test quietly stop testing anything on a fresh database
+    // — the ruling on #146, which the repo's own lint rule enforces.
+    const id = randomUUID().replace(/-/g, '').slice(0, 10)
+    const category = await authenticatedRequest.post(`${API_BASE}/admin/categories`, {
+      data: { names: { de: `Nichtverstoß ${id}`, en: `Not a violation ${id}` } },
+    })
+    expect(category.status(), await category.text()).toBe(201)
+    const categoryId = (await category.json()).id
+
+    // Creating it audited a `create` against that id, so there is now exactly
+    // one entry that is certainly not a violation.
+    const audit = await authenticatedRequest.get(
+      `${API_BASE}/admin/audit-log?entity_id=${categoryId}`,
+    )
+    expect(audit.status(), await audit.text()).toBe(200)
+    const entries = (await audit.json()).data
+    expect(entries.length, 'creating a category must leave an audit entry').toBeGreaterThan(0)
 
     const response = await authenticatedRequest.post(
-      `${API_BASE}/admin/jugendschutz-violations/${rows[0].id}/acknowledge`,
+      `${API_BASE}/admin/jugendschutz-violations/${entries[0].id}/acknowledge`,
       { data: {} },
     )
     expect(response.status()).toBe(404)
