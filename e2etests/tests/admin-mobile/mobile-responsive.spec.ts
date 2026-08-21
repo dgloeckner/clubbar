@@ -44,17 +44,25 @@ async function createCategory(page: Page): Promise<string> {
   return (await response.json()).id as string
 }
 
-async function createProduct(page: Page, categoryId: string): Promise<void> {
+async function createProduct(
+  page: Page,
+  categoryId: string,
+  options: { minAge?: number | null; tag?: string } = {},
+): Promise<string> {
   const suffix = randomUUID().substring(0, 8)
+  const name = `${options.tag ?? 'Mobilprodukt'} ${suffix}`
   const response = await page.request.post(`${API_BASE}/admin/products`, {
     data: {
-      names: { de: `Mobilprodukt ${suffix}`, en: `Mobile product ${suffix}` },
+      names: { de: name, en: name },
       price_cents: 350,
       category_id: categoryId,
+      min_age: options.minAge ?? null,
     },
     headers: await csrfHeaders(page),
   })
   expect(response.status(), await response.text()).toBe(201)
+
+  return (await response.json()).id as string
 }
 
 test.describe('Mobile Responsive Layout', () => {
@@ -153,11 +161,30 @@ test.describe('Mobile Responsive Layout', () => {
       // CSRF token comes out of the app's own localStorage, which is not
       // readable until something has been loaded from the origin.
       await page.goto('/products')
-      await createProduct(page, await createCategory(page))
+      const categoryId = await createCategory(page)
+      // Both cards are asserted on, so both have to be on the page that is
+      // showing: the list is paginated and sorted by category, and this
+      // catalogue entry has no claim to the first page. The shared tag is what
+      // the search narrows the list down to.
+      const tag = `MobAge${randomUUID().substring(0, 8)}`
+      const plain = await createProduct(page, categoryId, { tag })
+      const restricted = await createProduct(page, categoryId, { tag, minAge: 18 })
       await page.reload()
 
       await page.getByTestId('products-mobile-cards').waitFor({ state: 'visible', timeout: 15000 })
       await expect(page.getByTestId('products-mobile-cards')).toBeVisible()
+
+      await page.getByTestId('products-search-input').fill(tag)
+      await expect(page.getByTestId(`product-card-${restricted}`)).toBeVisible()
+      await expect(page.getByTestId(`product-card-${plain}`)).toBeVisible()
+
+      // The Jugendschutz badge, on the card as well as in the desktop table
+      // (ADR-0045). On a phone the card *is* the product overview: a badge
+      // that renders only in the table would hide the restriction on the one
+      // screen the Getränkewart is most likely holding.
+      await expect(page.getByTestId(`products-list-min-age-badge-${restricted}`)).toBeVisible()
+      await expect(page.getByTestId(`products-list-min-age-badge-${restricted}`)).toContainText('18')
+      await expect(page.getByTestId(`products-list-min-age-badge-${plain}`)).toHaveCount(0)
     })
 
     test('should show mobile cards on Journal page', async ({ page }) => {

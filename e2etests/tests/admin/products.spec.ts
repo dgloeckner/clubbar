@@ -273,8 +273,13 @@ test.describe('Admin Products Page', () => {
    * unrestricted has to actually reach the row** — that is the write that makes
    * a product *more* available, so a form that silently kept the old age would
    * leave a drink restricted with the UI claiming otherwise.
+   *
+   * Each state is asserted twice: on the stored row, and on the badge the
+   * overview shows for it. The list is the only place an admin sees the age
+   * without opening a form, so a row whose badge disagrees with its column is
+   * a wrong answer given confidently.
    */
-  test('product minimum age: unrestricted by default, set, corrected, and cleared again', async ({
+  test('product minimum age: unrestricted by default, set, corrected, cleared again, and highlighted in the list', async ({
     authenticatedProductsPage,
     page,
   }) => {
@@ -299,6 +304,10 @@ test.describe('Admin Products Page', () => {
     const schorleId = await authenticatedProductsPage.getProductIdByName(schorle)
     expect(schorleId).not.toBeNull()
     expect(await minAgeOf(page, schorleId!)).toBeNull()
+    expect(
+      await authenticatedProductsPage.getMinAgeBadgeValue(schorleId!),
+      'an unrestricted drink must not be highlighted — a badge on every row says nothing',
+    ).toBeNull()
 
     // ── Set: a spirit at 18 ─────────────────────────────────────
     const korn = `${prefix}Korn`
@@ -314,6 +323,10 @@ test.describe('Admin Products Page', () => {
     const kornId = await authenticatedProductsPage.getProductIdByName(korn)
     expect(kornId).not.toBeNull()
     expect(await minAgeOf(page, kornId!)).toBe(18)
+    expect(
+      await authenticatedProductsPage.getMinAgeBadgeValue(kornId!),
+      'the list is where a Getränkewart sees which drinks the terminal refuses',
+    ).toBe(18)
 
     // ── Prefill: the edit form shows the stored age ──────────────
     // An admin who cannot see the number on file cannot notice a wrong one,
@@ -329,6 +342,10 @@ test.describe('Admin Products Page', () => {
 
     await authenticatedProductsPage.search(korn)
     expect(await minAgeOf(page, kornId!)).toBe(16)
+    expect(
+      await authenticatedProductsPage.getMinAgeBadgeValue(kornId!),
+      'a corrected age has to reach the badge; a stale 18 reads as a lawful refusal',
+    ).toBe(16)
 
     // ── Clear: back to unrestricted, and it must reach the row ──
     await authenticatedProductsPage.clickEditButton(kornId!)
@@ -342,6 +359,10 @@ test.describe('Admin Products Page', () => {
     expect(
       await minAgeOf(page, kornId!),
       'clearing the field must clear the column, not leave the old age behind',
+    ).toBeNull()
+    expect(
+      await authenticatedProductsPage.getMinAgeBadgeValue(kornId!),
+      'and the badge has to go with it',
     ).toBeNull()
 
     // ── And the form agrees on reopening ────────────────────────

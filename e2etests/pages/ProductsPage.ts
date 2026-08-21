@@ -485,6 +485,23 @@ export class ProductsPage extends BasePage {
   }
 
   /**
+   * The Jugendschutz age the list shows for a product (ADR-0045), or `null`
+   * when the row carries no badge at all.
+   *
+   * Returns the number rather than a boolean: a badge showing the wrong age is
+   * the failure that matters here — it reads as a lawful refusal at the bar.
+   * The label is language-dependent ("ab 16" / "16+"), so the digits are what
+   * gets asserted on.
+   */
+  async getMinAgeBadgeValue(productId: string): Promise<number | null> {
+    const badge = this.page.getByTestId(`products-list-min-age-badge-${productId}`)
+    if ((await badge.count()) === 0) return null
+    const text = (await badge.first().innerText()).trim()
+    const digits = text.match(/\d+/)
+    return digits ? Number(digits[0]) : null
+  }
+
+  /**
    * Get dispenser badge for a product in the list
    * Returns null if badge is not visible
    */

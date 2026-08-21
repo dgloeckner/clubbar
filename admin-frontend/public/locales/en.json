@@ -333,7 +333,8 @@
     },
     "minAge": "Minimum age",
     "minAgePlaceholder": "e.g. 16",
-    "minAgeHelp": "Leave empty if the drink carries no age restriction. The terminal refuses the purchase if the member is younger."
+    "minAgeHelp": "Leave empty if the drink carries no age restriction. The terminal refuses the purchase if the member is younger.",
+    "minAgeBadge": "{{age}}+"
   },
   "categories": {
     "title": "Categories",
