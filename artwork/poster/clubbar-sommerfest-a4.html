@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Clubbar – Sommerfest-Poster (A4)</title>
+<link rel="stylesheet" href="fonts/inter.css">
+<style>
+  /* ---------------------------------------------------------------
+     Club Bar — Sommerfest-Poster, A4 hoch (210 x 297 mm)
+     Rendern:  node artwork/poster/build-poster.mjs
+
+     Zwei Ausgaben aus einer Quelle. Jede Farbe steht als Token in
+     :root; `<html class="mono">` ueberschreibt genau diese Tokens mit
+     Grauwerten. Der Schwarzweissdruck bekommt dadurch echte Vektor-
+     schrift statt eines gerasterten CSS-Filters, und die Kontraste
+     sind bewusst gesetzt statt dem Zufall der Farbumrechnung ueber-
+     lassen: Farbe traegt hier nie eine Information allein, jeder
+     Akzent unterscheidet sich auch in der Helligkeit.
+  ---------------------------------------------------------------- */
+  :root {
+    /* Kopf- und Fussband */
+    --band-1:      #0C1425;
+    --band-2:      #162036;
+    --band-glow-a: rgba(52,211,153,.20);
+    --band-glow-b: rgba(6,182,212,.32);
+    --band-rule:   linear-gradient(90deg, #34D399, #06B6D4 48%, #F59E0B);
+    --on-band:     #FFFFFF;
+    --on-band-2:   rgba(255,255,255,.84);
+    --on-band-3:   rgba(255,255,255,.62);
+    --band-hair:   rgba(255,255,255,.22);
+    --kicker:      #5EEAD4;
+    --mark-ring:   rgba(255,255,255,.20);
+
+    /* Signal-Pille im Kopf */
+    --pill-bg:     rgba(252,211,77,.16);
+    --pill-bd:     rgba(252,211,77,.65);
+    --pill-fg:     #FDE68A;
+
+    /* Beruhigungs-Streifen */
+    --alert-bg:    #FEF3C7;
+    --alert-bd:    #B45309;
+    --alert-fg:    #713F12;
+    --alert-fg-2:  #8A5206;
+    --chip-bd:     #B45309;
+    --chip-fg:     #52300A;
+    --chip-ico:    #92400E;
+
+    /* Schrittzaehler */
+    --num-bg:      linear-gradient(135deg, #34D399, #06B6D4);
+    --num-fg:      #04222C;
+
+    /* Bestaetigungs-Zeilen und Icon-Kacheln */
+    --ok-fg:       #065F46;
+    --tile-bg:     #ECFDF5;
+    --tile-bd:     #6EE7B7;
+    --tile-ico:    #065F46;
+
+    /* Flaechen und Text */
+    --ink:         #0F172A;
+    --ink-2:       #3F4A5C;
+    --ink-3:       #5B6B85;
+    --line:        #CBD5E1;
+    --paper-2:     #F5F8FC;
+    --card-bd:     #162036;
+  }
+
+  html.mono {
+    --band-1:      #101115;
+    --band-2:      #2B2D33;
+    --band-glow-a: rgba(255,255,255,.10);
+    --band-glow-b: rgba(255,255,255,.17);
+    --band-rule:   linear-gradient(90deg, #FFFFFF, #9AA0A6 50%, #FFFFFF);
+    --on-band-2:   rgba(255,255,255,.88);
+    --on-band-3:   rgba(255,255,255,.70);
+    --band-hair:   rgba(255,255,255,.30);
+    --kicker:      #FFFFFF;
+    --mark-ring:   rgba(255,255,255,.55);
+
+    --pill-bg:     rgba(255,255,255,.16);
+    --pill-bd:     #FFFFFF;
+    --pill-fg:     #FFFFFF;
+
+    --alert-bg:    #ECECEC;
+    --alert-bd:    #111111;
+    --alert-fg:    #000000;
+    --alert-fg-2:  #2B2B2B;
+    --chip-bd:     #111111;
+    --chip-fg:     #000000;
+    --chip-ico:    #000000;
+
+    --num-bg:      #111111;
+    --num-fg:      #FFFFFF;
+
+    --ok-fg:       #000000;
+    --tile-bg:     #E8E8E8;
+    --tile-bd:     #4A4A4A;
+    --tile-ico:    #000000;
+
+    --ink:         #000000;
+    --ink-2:       #2E2E2E;
+    --ink-3:       #4A4A4A;
+    --line:        #A9A9A9;
+    --paper-2:     #F2F2F2;
+    --card-bd:     #111111;
+  }
+
+  @page { size: A4 portrait; margin: 0; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 210mm;
+    height: 297mm;
+    font-family: 'Inter', 'Liberation Sans', Arial, sans-serif;
+    color: var(--ink);
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .page {
+    width: 210mm; height: 297mm;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ============================== Kopfband ============================== */
+  .band {
+    position: relative;
+    padding: 8mm 13mm 7.5mm;
+    color: var(--on-band);
+    background:
+      radial-gradient(120% 150% at 88% -25%, var(--band-glow-b) 0%, transparent 55%),
+      radial-gradient(90% 130% at 0% 0%, var(--band-glow-a) 0%, transparent 52%),
+      linear-gradient(135deg, var(--band-1) 0%, var(--band-2) 100%);
+  }
+  .band::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5mm;
+    background: var(--band-rule);
+  }
+
+  .band-top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 6mm; margin-bottom: 5.5mm;
+  }
+  .crest { display: flex; align-items: center; gap: 3.2mm; }
+  .crest > svg, .crest > img { height: 12mm; width: auto; display: block; }
+  .crest-fallback {
+    font-size: 6mm; font-weight: 800; letter-spacing: .07em; line-height: 1;
+    border: .5mm solid var(--band-hair); border-radius: 1.8mm; padding: 1.5mm 2.8mm;
+  }
+  .crest-sub {
+    font-size: 2.8mm; font-weight: 700; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--on-band-3); line-height: 1.4;
+  }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 2.2mm; white-space: nowrap;
+    font-size: 3.2mm; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+    padding: 2.2mm 4.2mm; border-radius: 20mm;
+    background: var(--pill-bg); border: .4mm solid var(--pill-bd); color: var(--pill-fg);
+  }
+  .pill .dot { width: 2mm; height: 2mm; border-radius: 50%; background: currentColor; }
+
+  .title-row { display: flex; align-items: center; gap: 5.5mm; }
+  .mark { flex: 0 0 auto; }
+  .mark svg {
+    width: 21mm; height: 21mm; display: block;
+    border-radius: 4.5mm; box-shadow: 0 0 0 .45mm var(--mark-ring);
+  }
+  .kicker {
+    font-size: 3.2mm; font-weight: 800; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--kicker); margin-bottom: 1.2mm;
+  }
+  h1 { font-size: 16mm; font-weight: 900; line-height: .9; letter-spacing: -.04em; }
+  .lead {
+    margin-top: 3.2mm; max-width: 158mm;
+    font-size: 4.1mm; line-height: 1.42; color: var(--on-band-2);
+  }
+  .lead b { color: var(--on-band); font-weight: 800; }
+
+  /* ======================= Beruhigungs-Streifen ========================= */
+  .reassure {
+    display: flex; align-items: center; gap: 5mm;
+    padding: 4mm 13mm;
+    background: var(--alert-bg);
+    border-bottom: .5mm solid var(--alert-bd);
+  }
+  .reassure-head { flex: 1 1 auto; min-width: 0; }
+  .reassure-head b {
+    display: block; font-size: 5mm; font-weight: 900; letter-spacing: -.02em;
+    color: var(--alert-fg); line-height: 1.1;
+  }
+  .reassure-head span {
+    display: block; margin-top: .8mm;
+    font-size: 3.1mm; font-weight: 600; color: var(--alert-fg-2);
+  }
+  .chips { display: flex; flex-wrap: nowrap; gap: 2mm; flex: 0 0 auto; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 1.6mm; white-space: nowrap;
+    background: #fff; border: .4mm solid var(--chip-bd); border-radius: 20mm;
+    padding: 1.8mm 3mm; font-size: 3.05mm; font-weight: 800; color: var(--chip-fg);
+  }
+  .chip svg { width: 3.2mm; height: 3.2mm; flex: 0 0 auto; color: var(--chip-ico); }
+
+  /* ============================== Hauptteil ============================= */
+  main {
+    flex: 1; padding: 6mm 13mm 0;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 5mm;
+  }
+
+  .sec-head { display: flex; align-items: baseline; gap: 3.2mm; margin-bottom: 3.4mm; }
+  .sec-head h2 {
+    font-size: 5.6mm; font-weight: 900; letter-spacing: -.025em; white-space: nowrap;
+  }
+  .sec-head .rule { flex: 1; height: .4mm; background: var(--line); }
+  .sec-head .note { font-size: 3.2mm; font-weight: 700; color: var(--ink-3); white-space: nowrap; }
+
+  /* Drei Schritte */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+  .step {
+    position: relative; padding: 4.6mm 4.4mm 4.4mm;
+    border: .4mm solid var(--line); border-radius: 3mm; background: var(--paper-2);
+  }
+  .step-num {
+    position: absolute; top: -3.6mm; left: 4.4mm;
+    width: 7.2mm; height: 7.2mm; border-radius: 50%;
+    background: var(--num-bg); color: var(--num-fg);
+    font-size: 3.9mm; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step .ico { width: 7mm; height: 7mm; color: var(--ink); margin: .8mm 0 2.4mm; display: block; }
+  .step h3 { font-size: 4.2mm; font-weight: 800; letter-spacing: -.015em; margin-bottom: 1.4mm; }
+  .step p { font-size: 3.35mm; line-height: 1.4; color: var(--ink-2); }
+
+  /* Zwei grosse Karten */
+  .try { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  .try-card {
+    border: .5mm solid var(--card-bd); border-radius: 3mm; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .try-card .hd {
+    display: flex; align-items: center; gap: 2.8mm;
+    background: var(--band-2); color: #fff; padding: 3mm 4.4mm;
+  }
+  .try-card .hd svg { width: 5.4mm; height: 5.4mm; color: var(--pill-fg); flex: 0 0 auto; }
+  .try-card .hd h3 { font-size: 4.3mm; font-weight: 800; letter-spacing: -.015em; }
+  .try-card .bd { padding: 3.8mm 4.4mm 4mm; flex: 1; display: flex; flex-direction: column; }
+  .try-card .bd p { font-size: 3.4mm; line-height: 1.45; color: var(--ink-2); }
+  .try-card .bd .hint {
+    margin-top: auto; padding-top: 2.8mm; border-top: .4mm dashed var(--line);
+    font-size: 3.2mm; font-weight: 800; color: var(--ok-fg);
+    display: flex; align-items: center; gap: 1.8mm;
+  }
+  .try-card .bd .hint svg { width: 3.6mm; height: 3.6mm; flex: 0 0 auto; }
+
+  /* Ausblick */
+  .later { display: grid; grid-template-columns: 1fr 1fr; gap: 3.2mm 5.5mm; }
+  .later-item { display: flex; gap: 3mm; }
+  .later-item .ic {
+    flex: 0 0 auto; width: 7.4mm; height: 7.4mm; border-radius: 2mm;
+    background: var(--tile-bg); border: .4mm solid var(--tile-bd);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .later-item .ic svg { width: 4.2mm; height: 4.2mm; color: var(--tile-ico); }
+  .later-item h4 { font-size: 3.7mm; font-weight: 800; letter-spacing: -.01em; margin-bottom: .8mm; }
+  .later-item p { font-size: 3.2mm; line-height: 1.38; color: var(--ink-2); }
+
+  /* ============================== Fussband ============================== */
+  footer {
+    margin-top: auto; position: relative;
+    padding: 5.5mm 13mm 5mm;
+    color: #fff;
+    background: linear-gradient(135deg, var(--band-1) 0%, var(--band-2) 100%);
+    display: flex; align-items: center; gap: 7mm;
+  }
+  footer::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.3mm;
+    background: var(--band-rule);
+  }
+  footer .ask { flex: 1; }
+  footer .ask b {
+    display: block; font-size: 5.2mm; font-weight: 900; letter-spacing: -.02em;
+    line-height: 1.15; margin-bottom: 1.4mm;
+  }
+  footer .ask span { font-size: 3.2mm; line-height: 1.4; color: var(--on-band-2); }
+  footer .oss {
+    flex: 0 0 56mm; border-left: .4mm solid var(--band-hair); padding-left: 5.5mm;
+    font-size: 3.05mm; line-height: 1.4; color: var(--on-band-2);
+  }
+  footer .oss b {
+    display: block; color: var(--kicker); font-weight: 800; font-size: 3.1mm;
+    margin-bottom: 1mm; letter-spacing: .1em; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ============================== Kopf ============================== -->
+  <section class="band">
+    <div class="band-top">
+      <div class="crest">
+        <!--FRGS_LOGO-->
+        <span class="crest-sub">Sommerfest<br>im Bootshaus</span>
+      </div>
+      <span class="pill"><span class="dot"></span>Heute zum Ausprobieren</span>
+    </div>
+
+    <div class="title-row">
+      <div class="mark"><!--CLUBBAR_LOGO--></div>
+      <div>
+        <div class="kicker">Neu bei uns im Verein</div>
+        <h1>Clubbar</h1>
+      </div>
+    </div>
+
+    <p class="lead">
+      Karte auflegen, Getränk wählen, fertig. Der Deckel läuft digital —
+      <b>ohne Zettel, ohne Strichliste, ohne Rechnerei am Ende des Abends.</b>
+    </p>
+  </section>
+
+  <!-- ========================== Beruhigung ============================ -->
+  <section class="reassure">
+    <div class="reassure-head">
+      <b>Heute ist alles nur Test.</b>
+      <span>Erfundene Daten — nichts davon zählt.</span>
+    </div>
+    <div class="chips">
+      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Keine Kosten</span>
+      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Keine Abbuchung</span>
+      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Kein Risiko</span>
+    </div>
+  </section>
+
+  <main>
+
+    <!-- ========================= So geht's =========================== -->
+    <section>
+      <div class="sec-head">
+        <h2>So geht&rsquo;s an der Theke</h2>
+        <span class="rule"></span>
+        <span class="note">Drei Handgriffe, keine Anmeldung</span>
+      </div>
+      <div class="steps">
+
+        <div class="step">
+          <span class="step-num">1</span>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="6" width="13" height="12" rx="2.5"/>
+            <path d="M2 10.5h13"/>
+            <path d="M18 9.2a4.2 4.2 0 0 1 0 5.6"/>
+            <path d="M20.8 6.6a8 8 0 0 1 0 10.8"/>
+          </svg>
+          <h3>Karte auflegen</h3>
+          <p>Mitgliedskarte an den Leser halten. Das Terminal begrüßt dich mit deinem Namen — mehr braucht es nicht.</p>
+        </div>
+
+        <div class="step">
+          <span class="step-num">2</span>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5.5 8h13l-1.1 9.3a2 2 0 0 1-2 1.7H8.6a2 2 0 0 1-2-1.7Z"/>
+            <path d="M9 8V5.8A2.3 2.3 0 0 1 11.3 3.5h1.4A2.3 2.3 0 0 1 15 5.8V8"/>
+            <path d="M9.8 12.4h4.4M12 10.2v4.4"/>
+          </svg>
+          <h3>Getränk wählen</h3>
+          <p>Antippen, was du möchtest — auch mehreres auf einmal. Alles landet erst im Warenkorb.</p>
+        </div>
+
+        <div class="step">
+          <span class="step-num">3</span>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 5.5h16v13H4z"/>
+            <path d="M4 9.5h16"/>
+            <path d="M7.5 13.2h5"/>
+            <path d="M7.5 15.9h3"/>
+            <circle cx="16.6" cy="14.8" r="2.6"/>
+            <path d="m15.5 14.8.8.8 1.7-1.7"/>
+          </svg>
+          <h3>Auf den Deckel</h3>
+          <p>Bestätigen und fertig. Was seit der letzten Abrechnung aufgelaufen ist, steht sofort auf dem Bildschirm.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ====================== Heute ausprobieren ====================== -->
+    <section>
+      <div class="sec-head">
+        <h2>Was hier steht — und was du damit tun darfst</h2>
+        <span class="rule"></span>
+      </div>
+      <div class="try">
+
+        <div class="try-card">
+          <div class="hd">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3.5" width="18" height="13" rx="2"/>
+              <path d="M8 20.5h8M12 16.5v4"/>
+            </svg>
+            <h3>Das Terminal</h3>
+          </div>
+          <div class="bd">
+            <p>Genau der Bildschirm, der später an der Theke stehen würde. Test-Karten liegen bereit: auflegen, durchklicken, „kassieren“ — so oft du magst.</p>
+            <div class="hint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              Kaputtmachen kannst du hier nichts.
+            </div>
+          </div>
+        </div>
+
+        <div class="try-card">
+          <div class="hd">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2.5" y="4" width="19" height="12.5" rx="1.8"/>
+              <path d="M1 20h22"/>
+              <path d="M6.5 12.8V9.4M10.5 12.8V7.2M14.5 12.8v-2M18 12.8V8"/>
+            </svg>
+            <h3>Das Adminpanel</h3>
+          </div>
+          <div class="bd">
+            <p>Der Blick hinter die Theke: Mitglieder, Getränkeliste, Preise, offene Deckel und die Abrechnung. Sprich uns an — wir zeigen es dir am Laptop.</p>
+            <div class="hint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              Fragen sind ausdrücklich erwünscht.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================== Ausblick ============================ -->
+    <section>
+      <div class="sec-head">
+        <h2>Und wenn es wirklich läuft?</h2>
+        <span class="rule"></span>
+        <span class="note">Der Plan — entschieden ist noch nichts</span>
+      </div>
+      <div class="later">
+
+        <div class="later-item">
+          <div class="ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>
+          </div>
+          <div>
+            <h4>Dein Deckel, jederzeit einsehbar</h4>
+            <p>Am Terminal siehst du auf einen Blick, was seit der letzten Abrechnung offen ist.</p>
+          </div>
+        </div>
+
+        <div class="later-item">
+          <div class="ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+          </div>
+          <div>
+            <h4>Deckelauszug per Mail</h4>
+            <p>Regelmäßig eine Übersicht, was offen ist und woraus es sich zusammensetzt — keine Mahnung.</p>
+          </div>
+        </div>
+
+        <div class="later-item">
+          <div class="ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M2.5 10.5h19"/><path d="M7 15h4"/></svg>
+          </div>
+          <div>
+            <h4>Abrechnung per SEPA-Lastschrift</h4>
+            <p>Immer vorher angekündigt — mit Betrag und Datum, mindestens sieben Tage im Voraus.</p>
+          </div>
+        </div>
+
+        <div class="later-item">
+          <div class="ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="9.5" rx="2"/><path d="M8 10.5V7.6a4 4 0 0 1 8 0v2.9"/><path d="M12 14v2.5"/></svg>
+          </div>
+          <div>
+            <h4>Bankdaten verschlüsselt</h4>
+            <p>IBANs liegen verschlüsselt auf dem Server. Auskunft und Löschung sind von Anfang an vorgesehen.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================== Fuss ============================== -->
+  <footer>
+    <div class="ask">
+      <b>Neugierig? Sprich uns einfach an.</b>
+      <span>Wir stehen daneben, erklären alles in zwei Minuten und freuen uns über jede Frage — auch über die kritischen.</span>
+    </div>
+    <div class="oss">
+      <b>Wem gehört das?</b>
+      Clubbar ist ein freies Open-Source-Projekt. Keine Abo-Gebühren, keine fremde Cloud — die Daten bleiben im Verein.
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
