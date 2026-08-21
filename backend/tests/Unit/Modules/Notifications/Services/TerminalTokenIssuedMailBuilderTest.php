@@ -136,8 +136,10 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
         foreach ([$message->html, $message->text] as $part) {
             $this->assertStringContainsString('BAR-MAIN-001', $part);
             // The issuance moment to the minute — read back out of the stamp,
-            // which is the only place it is recorded.
-            $this->assertStringContainsString('16.08.2026, 14:23', $part);
+            // which is the only place it is recorded, and stated in the club's
+            // zone rather than the UTC it is stored in (#637): 14:23 UTC on a
+            // day in August is 16:23 in Berlin.
+            $this->assertStringContainsString('16.08.2026, 16:23', $part);
             // …and the expiry of the credential that was just minted.
             $this->assertStringContainsString('16.08.2027', $part);
         }
@@ -206,8 +208,9 @@ class TerminalTokenIssuedMailBuilderTest extends TestCase
 
         $this->assertStringContainsString('Theke', $message->subject);
         $this->assertStringNotContainsString('Gültig bis', $message->text);
-        // What happened, and when, survive — they come from the key.
-        $this->assertStringContainsString('16.08.2026, 14:23', $message->text);
+        // What happened, and when, survive — they come from the key, and the
+        // key holds UTC, so the message states 16:23 Berlin time (#637).
+        $this->assertStringContainsString('16.08.2026, 16:23', $message->text);
     }
 
     /**

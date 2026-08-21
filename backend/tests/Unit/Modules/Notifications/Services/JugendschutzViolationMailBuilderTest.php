@@ -129,6 +129,27 @@ class JugendschutzViolationMailBuilderTest extends TestCase
     }
 
     /**
+     * The sale is stated in the club's time, not in the UTC it is stored in
+     * (#637).
+     *
+     * The instant here is 21:14 UTC, which is 23:14 in Berlin in August. The
+     * message used to print the column verbatim — `2026-08-20 21:14:00` — so a
+     * committee member reading it about a sale they watched happen at quarter
+     * past eleven had two hours and a database format between them and
+     * recognising it.
+     */
+    public function test_the_sale_is_stated_in_the_clubs_time(): void
+    {
+        $this->aSale();
+
+        $mail = $this->builder->build($this->outboxRow(), $this->mailConfig);
+
+        $this->assertStringContainsString('20.08.2026, 23:14', $mail->text);
+        $this->assertStringNotContainsString('2026-08-20 21:14:00', $mail->text);
+        $this->assertStringNotContainsString('2026-08-20 21:14:00', $mail->html);
+    }
+
+    /**
      * The required age comes from the occasion, not from the product.
      *
      * Invariant 4 again: un-restricting the drink afterwards must not rewrite

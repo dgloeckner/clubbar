@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\Mail;
 
 use App\Modules\Notifications\Enums\MailLanguage;
+use App\Shared\Time\ClubTimeZone;
 
 /**
  * Money and dates, written the way each language writes them.
@@ -40,6 +41,12 @@ final class MailFormat
     /**
      * `2026-08-21` (or a full datetime) → `21.08.2026` / `21 August 2026`.
      *
+     * A stored instant is read in the club's zone first ({@see ClubTimeZone}),
+     * so the day printed is the day the club had: a sale at `2026-08-21
+     * 23:30:00Z` is listed under the 22nd in Berlin, which is when whoever
+     * bought it was standing at the till. A date-only value is a calendar day
+     * and is left where it is.
+     *
      * An unparseable value comes back verbatim rather than as an empty string:
      * a due date is the one field a member checks against their account, and a
      * blank where it belongs is worse than a raw one.
@@ -50,16 +57,16 @@ final class MailFormat
             return '';
         }
 
-        $timestamp = strtotime($date);
-        if ($timestamp === false) {
+        $moment = ClubTimeZone::moment($date);
+        if ($moment === null) {
             return $date;
         }
 
         if ($language === MailLanguage::German) {
-            return date('d.m.Y', $timestamp);
+            return $moment->format('d.m.Y');
         }
 
-        return date('j', $timestamp) . ' ' . self::MONTHS_EN[(int) date('n', $timestamp)] . ' ' . date('Y', $timestamp);
+        return $moment->format('j') . ' ' . self::MONTHS_EN[(int) $moment->format('n')] . ' ' . $moment->format('Y');
     }
 
     /**
@@ -71,7 +78,10 @@ final class MailFormat
      * matched against a memory of pressing a button after lunch while
      * "21.08.2026, 14:05" can.
      *
-     * The clock is the server's, like every other timestamp the club sees.
+     * The clock is the club's — `CLUB_TIMEZONE`, Europe/Berlin unless a
+     * deployment says otherwise — and not the UTC the instant is stored in.
+     * The two differ by an hour or two in Germany, which is enough for
+     * "was that me?" to get the wrong answer (#637).
      */
     public static function dateTime(?string $moment, MailLanguage $language): string
     {
@@ -80,12 +90,12 @@ final class MailFormat
             return '';
         }
 
-        $timestamp = strtotime((string) $moment);
-        if ($timestamp === false) {
+        $local = ClubTimeZone::moment($moment);
+        if ($local === null) {
             return $formatted;
         }
 
-        return $formatted . ', ' . date('H:i', $timestamp);
+        return $formatted . ', ' . $local->format('H:i');
     }
 
     /**
