@@ -35,6 +35,17 @@
 # @typescript-eslint's `>=4.8.4 <6.1.0`, #620). Those are labelled `blocked-upstream`
 # and swept weekly rather than closed — see docs/agents/issue-tracker.md.
 
+# A *security* alert has a third outcome, which is neither a version bump nor
+# `blocked-upstream`: the vulnerable package is a transitive dependency its
+# parent pins to an exact version, so no bump Dependabot can offer reaches it.
+# `@typescript-eslint/typescript-estree@6.21.0` depends on `minimatch` at
+# literally `9.0.3` — not `^9.0.3` — so the three minimatch ReDoS advisories
+# stayed open through every eslint pull request, and the only bump that would
+# have cleared them is the typescript-eslint 8 major sitting behind #620.
+# `admin-frontend/package.json` therefore carries an `overrides` entry lifting
+# that one dependency to `^9.0.9`, which is a patch release of the version the
+# parent already asked for. Drop the override when typescript-eslint 8 lands.
+
 version: 2
 
 updates:
