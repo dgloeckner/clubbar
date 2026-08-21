@@ -21,5 +21,8 @@ These five describe **where an issue is in the triage pipeline**. They sit along
 - **Type**: `bug`, `enhancement`, `documentation`, `question`, `tech-debt`
 - **Priority**: `priority: critical`, `priority: high`, `priority: medium`, `priority: low`
 - **Area**: `terminal-frontend`, `ux`, `accessibility`, `i18n`
+- **Dependency pull requests**: `blocked-upstream` — a Dependabot bump that cannot be
+  made green from this repository because the release it needs has not been published.
+  Reviewed weekly; see `issue-tracker.md`.
 
 A triaged issue normally carries one triage label plus a type, a priority, and an area. `wontfix` is shared between the two vocabularies — it is both a triage outcome and this repo's existing "will not be worked on" label.

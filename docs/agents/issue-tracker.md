@@ -21,8 +21,48 @@ Reuse this repo's existing label vocabulary when creating or editing issues; don
 - **Priority**: `priority: critical` (money-wrong or data-loss; fix first), `priority: high`, `priority: medium`, `priority: low`
 - **Area**: `terminal-frontend` (Flutter POS terminal app), `ux`, `accessibility`, `i18n`
 - **State**: `in progress`, `wontfix`, `duplicate`, `invalid`, `help wanted`, `good first issue`
+- **Dependency pull requests**: `dependencies` and `javascript` are Dependabot's own;
+  `blocked-upstream` is ours — see below.
 
 New issues should carry at least a type label, a priority label, and an area label.
+
+## `blocked-upstream`: a dependency PR nothing here can fix
+
+Most red Dependabot pull requests are ordinary work: react 19 (#618) failed on one
+tooltip callback whose types recharts had widened, and a commit fixed it. Some are
+not. #620 raised typescript to 7 while `@typescript-eslint` 8.67.0 — the newest
+published release — still declares `"typescript": ">=4.8.4 <6.1.0"`, so npm refuses
+the tree and no combination of versions in the group resolves. The release that
+would fix it has not been published by anyone.
+
+That is what `blocked-upstream` marks: **the branch cannot be made green from this
+repository, and the thing it waits for is someone else's release.** A bump that
+merely needs a code change here does not get the label; it gets the code change.
+
+Closing such a pull request loses the reasoning and Dependabot opens it again on the
+next run. Labelling keeps one pull request as the standing record, with a comment
+naming the exact constraint and the condition that clears it.
+
+**Review the label weekly**, after Dependabot's Monday run:
+
+```bash
+gh pr list --state open --label blocked-upstream \
+  --json number,title,updatedAt,url --jq '.[] | "\(.number)  \(.title)"'
+```
+
+For each one, check whether the blocker has shipped — for a peer range that is one
+query, e.g. `npm view @typescript-eslint/parser peerDependencies.typescript` — and
+then either:
+
+- **it shipped**: drop the label, comment `@dependabot recreate`, and treat the pull
+  request as ordinary work again;
+- **it has not**: leave the label, and add a dated line to the comment only if the
+  situation changed. Silence is the normal outcome of this sweep.
+
+A pull request that is still blocked after several sweeps is worth a second look at
+the constraint itself: pinning the dependency back, or an `ignore` entry in
+`.github/dependabot.yml` naming the condition for its removal, may serve better than
+a pull request that reopens forever.
 
 ## Pull requests as a triage surface
 
