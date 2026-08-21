@@ -58,6 +58,7 @@ import {
   headerRowStyle,
   getRowStyle,
 } from '../styles/tableTokens'
+import { ageRestrictionOf } from '../utils/ageRestriction'
 import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { parsePriceToCents } from '../utils/price'
 import { useFormatters } from '../hooks/useFormatters'
@@ -594,6 +595,7 @@ export function ProductsPage() {
               {products.map((product) => {
                 const category = categories.find((c) => c.id === product.category_id)
                 const categoryName = category ? getLocalizedName(category.names as Record<string, string>, i18n.language) : ''
+                const minAge = ageRestrictionOf(product.min_age)
                 return (
                   <div
                     key={product.id}
@@ -620,10 +622,24 @@ export function ProductsPage() {
                         {formatPrice(product.price_cents ?? 0)}
                       </span>
                     </div>
-                    {/* Row 2: category */}
-                    {categoryName && (
-                      <div style={{ fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '10px', paddingLeft: '46px' }}>
-                        {categoryName}
+                    {/* Row 2: category, and the Jugendschutz age beside it —
+                        the card is the whole overview on a phone, so the badge
+                        cannot live only in the desktop table (ADR-0045). */}
+                    {(categoryName || minAge !== null) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', paddingLeft: '46px' }}>
+                        {categoryName && (
+                          <span style={{ fontSize: '12px', color: theme.colors.text.secondary }}>
+                            {categoryName}
+                          </span>
+                        )}
+                        {minAge !== null && (
+                          <Badge
+                            label={t('products.minAgeBadge', { age: minAge })}
+                            variant="warning"
+                            showDot={false}
+                            testId={`products-list-min-age-badge-${product.id}`}
+                          />
+                        )}
                       </div>
                     )}
                     {/* Row 3: actions */}
@@ -844,6 +860,20 @@ export function ProductsPage() {
                       testId={`products-list-dispenser-badge-${product.id}`}
                     />
                   )}
+                  {/* Jugendschutz (ADR-0045): the age lives on the row, not
+                      only inside the edit form, so a Getränkewart can see at a
+                      glance which drinks the terminal will refuse. */}
+                  {(() => {
+                    const minAge = ageRestrictionOf(product.min_age)
+                    return minAge === null ? null : (
+                      <Badge
+                        label={t('products.minAgeBadge', { age: minAge })}
+                        variant="warning"
+                        showDot={false}
+                        testId={`products-list-min-age-badge-${product.id}`}
+                      />
+                    )
+                  })()}
                 </td>
                 <PriceCell
                   priceCents={product.price_cents ?? 0}

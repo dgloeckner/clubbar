@@ -2,7 +2,7 @@
 
 **Epic**: [#582](https://github.com/dgloeckner/clubbar/issues/582)
 **Design**: [ADR-0045](../adr/0045-age-restricted-products.md)
-**Status**: **M1–M8 implemented and verified.** Open as a stacked queue of PRs, each based on the
+**Status**: **M1–M9 implemented and verified.** Open as a stacked queue of PRs, each based on the
 milestone before it and retargeting automatically as the lower ones merge.
 **Branch**: one PR per milestone. This mirrors the Tiered Admin Roles plan, which stacked
 PRs #526–#536 into `feature/tiered-admin-roles`.
@@ -16,6 +16,7 @@ PRs #526–#536 into `feature/tiered-admin-roles`.
 | M6 — the terminal refuses, offline | [#616](https://github.com/dgloeckner/clubbar/pull/616) | `claude/jugendschutz-m6-terminal-gate` |
 | M7 — the server records and flags | [#621](https://github.com/dgloeckner/clubbar/pull/621) | `claude/jugendschutz-m7-violation` |
 | M8 — documentation, ERM and legal mapping | this plan | `claude/jugendschutz-m8-docs` |
+| M9 — the overview highlights restricted products | — | `claude/age-restricted-products-highlight-x6pluh` |
 
 M1 and M2 shipped together: M1 is documentation with no production code, and splitting the ADR
 from the first migration that obeys it would have put a decision on `main` with nothing
@@ -272,6 +273,32 @@ The transaction is stored; the violation is raised.
       [#591](https://github.com/dgloeckner/clubbar/issues/591)
 - [x] `docs/role-based-access.md` — the Getränkewart sets a legal age and still sees no member
 - [x] This plan and `plans/INDEX.md`
+
+### M9 — The product list says which drinks are restricted ✅
+
+M5 put the age on the *form*. That left the number invisible from the list, so the only way to
+learn whether a drink was restricted — or to spot a wrong age among fifty products — was to open
+each one in turn. The overview is where a Getränkewart actually works.
+
+- [x] `admin-frontend/src/utils/ageRestriction.ts` — `ageRestrictionOf()`, with the unit test.
+      Not an inline `product.min_age && …`: `min_age` is a number, and a truthiness test reads a
+      stored 0 as unrestricted. The column cannot hold 0 today, which is exactly why the inline
+      version would look correct until the bound moved
+- [x] `ProductsPage.tsx` — a `warning`-variant `Badge` beside the product name, matching the
+      existing `requires_dispenser` badge. Orange rather than the dispenser badge's blue: the two
+      appear on the same row and mean different things
+- [x] The **mobile card too**, beside the category — on a phone the card *is* the overview, so a
+      desktop-only badge would hide the restriction on the smaller screen
+- [x] `products.minAgeBadge` in `de.json` / `en.json` — "ab 16" and "16+", the two idioms; the
+      digits, not the wording, are what the test asserts on
+- [x] Tests: the existing `product minimum age` flow now asserts the badge at each of its four
+      states (default, set, corrected, cleared) alongside the stored row — a badge that disagrees
+      with the column is a wrong answer given confidently
+- [x] `use-cases/admin/UC-A40-list-products.md` — the badge in the columns table and in the test
+      derivation
+
+Not in scope: filtering or sorting the list by minimum age. Nothing asked for it, and a fourth
+filter earns its place only once a club has enough restricted products to need one.
 
 ---
 

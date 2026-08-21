@@ -312,7 +312,8 @@
     },
     "minAge": "Mindestalter",
     "minAgePlaceholder": "z. B. 16",
-    "minAgeHelp": "Leer lassen, wenn das Getränk keiner Altersbeschränkung unterliegt. Das Terminal verweigert den Kauf, wenn das Mitglied jünger ist."
+    "minAgeHelp": "Leer lassen, wenn das Getränk keiner Altersbeschränkung unterliegt. Das Terminal verweigert den Kauf, wenn das Mitglied jünger ist.",
+    "minAgeBadge": "ab {{age}}"
   },
   "categories": {
     "title": "Kategorien",

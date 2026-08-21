@@ -19,12 +19,13 @@ Admin opens Products section
    - Price
    - Category
    - Status (active/inactive)
+   - Minimum age, when the product carries one (Jugendschutz, ADR-0045)
 
 ## List Columns
 
 | Column | Content |
 |--------|---------|
-| Name | Product name |
+| Name | Product name, with a minimum-age badge when the product is age-restricted |
 | Price | Price in € |
 | Category | Category name |
 | Status | Active/Inactive badge |
@@ -54,3 +55,5 @@ Admin opens Products section
 - Search by name: partial match works
 - Sorting: order correct
 - Empty state: "No products found"
+- Age-restricted product: the badge names the stored minimum age
+- Unrestricted product: no age badge at all
