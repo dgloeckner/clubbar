@@ -89,14 +89,21 @@ export interface MailConfig {
 that also receives **admin lifecycle mail**: an account being
 created, and an account's roles changing (ADR-0044 rule 3).
 
-*In addition to* every active admin, never instead of them. The
-point is a second pair of eyes: with exactly one admin, a notice
-about account creation otherwise travels from the person who acted
-to the same person, about something they just did — and is silent
-in precisely the case where that one account is the compromised one.
+*In addition to* every active `admin` account, never instead of
+them. The point is a second pair of eyes: with exactly one admin, a
+notice about account creation otherwise travels from the person who
+acted to the same person, about something they just did — and is
+silent in precisely the case where that one account is the
+compromised one.
 
-`null` means unset, which is the previous behaviour exactly: active
-admins only, no error.
+It is also where an **unstaffed office's** mail goes (#633). Admin
+mail is addressed to the office that can open the screen it is
+about, and if no active account holds that office the notice is
+escalated here rather than widened back to every account. With this
+unset, such a notice reaches nobody and is logged as unreachable.
+
+`null` means unset, which is the previous behaviour exactly: the
+offices a kind is addressed to, no error.
 
 It lives here, on an `admin`-only endpoint, deliberately: a
 `kassenwart` must not be able to redirect the channel that would

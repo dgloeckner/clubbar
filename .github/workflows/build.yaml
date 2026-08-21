@@ -464,7 +464,7 @@ jobs:
           - { lane: ui, id: ui-1, shard: 1/2, browsers: chromium webkit, browser_key: chromium-webkit, projects: --project=admin-chromium --project=admin-mobile }
           - { lane: ui, id: ui-2, shard: 2/2, browsers: chromium webkit, browser_key: chromium-webkit, projects: --project=admin-chromium --project=admin-mobile }
           # One job, no shard: every project in it is deliberately serial.
-          - { lane: chain, id: chain, shard: 1/1, browsers: chromium, browser_key: chromium, projects: --project=api-ordered --project=api-rotation --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance --project=mail-lifecycle --project=mail-jugendschutz }
+          - { lane: chain, id: chain, shard: 1/1, browsers: chromium, browser_key: chromium, projects: --project=api-ordered --project=api-rotation --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance --project=mail-lifecycle --project=mail-jugendschutz --project=mail-roles }
 
     steps:
       - uses: actions/checkout@v7

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Enums;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
+
 /**
  * What a queued message is (ADR-0038).
  *
@@ -12,10 +14,12 @@ namespace App\Modules\Notifications\Enums;
  * both an announcement and, later, a cancellation notice for the same member
  * without either displacing the other.
  *
- * A kind also decides two things about its row that are therefore not columns:
- * what `subject_id` points at ({@see subjectType()}), and whether the message
- * is addressed to a member or to an admin ({@see addressesMember()}). Both live
- * here so there is one place to be right.
+ * A kind also decides three things about its row that are therefore not
+ * columns: what `subject_id` points at ({@see subjectType()}), whether the
+ * message is addressed to a member or to an admin ({@see addressesMember()}),
+ * and — when it is addressed to an admin — which offices it is for
+ * ({@see recipientRoles()}). All of them live here so there is one place to be
+ * right.
  *
  * **There is no `payment_request`.** It was reserved for #410 — a mail asking a
  * member to transfer their Deckel when SEPA could not collect it — and removed
@@ -94,11 +98,11 @@ enum MailKind: string
      * something and told nobody, and the audit entry it left is *pull* —
      * somebody has to decide to go and look.
      *
-     * Sent to every active admin, including whoever performed it. Its value is
-     * that it is out of band with respect to the credential that would be
-     * compromised: an attacker holding one admin's session, password and TOTP
-     * code clears the step-up on the mint path and still cannot reach the other
-     * admins' inboxes.
+     * Sent to every active `admin` account ({@see recipientRoles()}), including
+     * whoever performed it. Its value is that it is out of band with respect to
+     * the credential that would be compromised: an attacker holding one admin's
+     * session, password and TOTP code clears the step-up on the mint path and
+     * still cannot reach the other admins' inboxes.
      *
      * The **event and the token's generation** live in the `dedup_key`, as
      * `enrolled:<stamp>` or `rotated:<stamp>` — an occasion rather than a tier,
@@ -144,9 +148,14 @@ enum MailKind: string
      * the log is `admin`-only under ADR-0044, so the Kassenwart, the office the
      * epic names as the recipient, could not see it at all.
      *
-     * **The message names no member.** `AdminNotifier` fans out to every active
-     * admin account regardless of role, which includes the Getränkewart — and
-     * ADR-0045 invariant 5 says they gain no member data. So the mail carries
+     * **The message names no member.** That was originally forced: the fan-out
+     * reached every active account regardless of role, including the
+     * Getränkewart, and ADR-0045 invariant 5 says they gain no member data.
+     * #633 removed the constraint — this kind is now addressed to `admin` and
+     * `kassenwart`, mirroring the `TREASURY` route its dashboard alert sits on
+     * ({@see recipientRoles()}) — and the design stayed, because it was never
+     * only about the Getränkewart: {@see addressesClub()} sends a copy to the
+     * club address, a list belonging to no account at all. So the mail carries
      * the drink, the age it required, the terminal and the transaction id, and
      * the reader resolves the rest in a surface their own role permits. Rule 6
      * binds here as much as at the till: name what the *drink* required, never
@@ -229,6 +238,71 @@ enum MailKind: string
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
             self::ADMIN_EMAIL_CHANGED => false,
+        };
+    }
+
+    /**
+     * Which offices this kind's fan-out is addressed to (#633, ADR-0044).
+     *
+     * `AdminNotifier::warnAdmins()` used to write to **every active account**,
+     * whatever it was for. That made the mail channel the one surface the role
+     * model did not reach: an account holding only `getraenkewart` was told an
+     * encryption key's fingerprint, which terminal credentials had just been
+     * minted, and who had been promoted — every one of them behind an
+     * `admin`-only route in the panel.
+     *
+     * The rule here is **mirror the grant on the surface the mail points at**,
+     * so there is one source of truth about who may know a thing rather than a
+     * second table of who-hears-what drifting alongside `RouteRoleMap`. Keys,
+     * terminals and admin accounts are `admin`-only routes, so their mail is
+     * `admin`-only. The Jugendschutz notice is the one that is not: its
+     * dashboard alert is `TREASURY` ([#622](https://github.com/dgloeckner/clubbar/issues/622)),
+     * because ADR-0045 names the Kassenwart as its recipient, and the mail
+     * carries the same set.
+     *
+     * The Kassenwart is narrowed by the same rule rather than left where they
+     * were: a terminal token's expiry and an encryption key's fingerprint are
+     * as far outside a treasurer's remit as a stock keeper's.
+     *
+     * A member-addressed kind answers `[]` — nobody is fanned out to, because
+     * the fan-out is not how it is sent. {@see \App\Modules\Notifications\Services\AdminNotifier::warnAdmins()}
+     * refuses those kinds outright, before this is consulted.
+     *
+     * An explicit `match`, like the two methods around it: a kind added later
+     * has to answer the question rather than inherit whichever answer the shape
+     * of the existing ones happens to give it. Here the silent failure being
+     * guarded against is a notice that reaches an office it was never meant
+     * for, in the one channel that cannot be taken back.
+     *
+     * @return list<AdminRole>
+     */
+    public function recipientRoles(): array
+    {
+        return match ($this) {
+            self::KEY_EXPIRY_WARNING,
+            self::ENCRYPTION_KEY_REGISTERED,
+            self::ENCRYPTION_KEY_ACTIVATED,
+            self::ENCRYPTION_KEY_REVOKED,
+            self::TERMINAL_TOKEN_EXPIRY_WARNING,
+            self::TERMINAL_ANOMALY_WARNING,
+            self::TERMINAL_TOKEN_ISSUED,
+            self::ADMIN_ACCOUNT_CREATED,
+            self::ADMIN_ROLE_CHANGED,
+            // Never actually fanned out — it goes to one address, the one the
+            // account was moved *away* from, taken from the outbox row's
+            // snapshot rather than from `admin_users`. The answer is stated
+            // anyway, because "which offices would this be for" has an answer
+            // for it, and a kind whose delivery path changes must not silently
+            // acquire a wider audience than the one somebody chose for it.
+            self::ADMIN_EMAIL_CHANGED => [AdminRole::ADMIN],
+
+            // The one kind whose surface is not `admin`-only, and it is not a
+            // special case: it is the same rule applied to a different route.
+            self::JUGENDSCHUTZ_VIOLATION => [AdminRole::ADMIN, AdminRole::KASSENWART],
+
+            self::SEPA_PRENOTIFICATION,
+            self::CANCELLATION_NOTICE,
+            self::DECKEL_STATEMENT => [],
         };
     }
 

@@ -67,6 +67,15 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
             'Key Notice Recipient',
             'de',
         ]);
+        // …and the office that receives key mail (#633). The fan-out asks for
+        // role holders now, not for every active row, so an account inserted
+        // straight into `admin_users` holds nothing and is written to by
+        // nothing — the same fail-closed reading ADR-0044 rule 1 gives an
+        // unclassified route. Migration 045 grants this to every account that
+        // existed before roles did; a test that writes its own row grants it
+        // the same way.
+        $this->db->prepare('INSERT INTO admin_user_roles (admin_user_id, role) VALUES (?, ?)')
+            ->execute([$this->adminId, 'admin']);
         $outbox = new MailOutboxRepository($this->db, $this->logger);
 
         $this->service = new EncryptionKeyService(
@@ -83,6 +92,7 @@ class EncryptionKeyEventNoticeTest extends DatabaseTestCase
                 // consulted here — it is supplied because the notifier needs
                 // one, not because this suite has an opinion about it.
                 new MailConfigRepository($this->db, $this->logger),
+                $this->logger,
             ),
             $this->logger,
         );

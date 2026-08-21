@@ -15,10 +15,15 @@ use PHPUnit\Framework\TestCase;
 /**
  * The message that tells a human a minor was served (#622, ADR-0045 §3).
  *
- * The whole risk of this builder is what it *includes*. `AdminNotifier` fans
- * out to every active admin account regardless of role, so this message reaches
- * the **Getränkewart** too — and invariant 5 says they gain no member data. The
- * negative assertions below are therefore the point of the file, not padding.
+ * The whole risk of this builder is what it *includes*. The message goes to the
+ * Kassenwart and to the club address — a list belonging to no account at all —
+ * so rule 6 binds it exactly as it binds the terminal screen: name what the
+ * *drink* required, never what the member is. The negative assertions below are
+ * therefore the point of the file, not padding.
+ *
+ * (Until #633 it also reached the **Getränkewart**, because the fan-out ignored
+ * roles entirely. It no longer does, and the design did not change: the club
+ * copy is reason enough on its own.)
  */
 class JugendschutzViolationMailBuilderTest extends TestCase
 {
@@ -177,5 +182,37 @@ class JugendschutzViolationMailBuilderTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
         $this->builder->build($this->outboxRow(), $this->mailConfig);
+    }
+
+    /**
+     * The name in the greeting comes from the **unfiltered** account list, and
+     * must keep doing so (#633).
+     *
+     * Narrowing the fan-out was a change to `AdminNotifier`, not to this: the
+     * row already names the admin it was written to, and re-resolving that id
+     * through a role filter would blank the greeting for anyone whose roles
+     * moved after the row was queued — or, before the notice is even sent, for
+     * an account the filter would not write to today.
+     */
+    public function testItGreetsTheAdminTheRowWasWrittenToWithoutConsultingTheirRoles(): void
+    {
+        $this->aSale();
+
+        $adminUsers = $this->createMock(AdminUsersRepository::class);
+        $adminUsers->expects($this->never())->method('findActiveRecipientsWithAnyRole');
+        $adminUsers->method('findActiveRecipients')->willReturn([
+            ['id' => 'admin-1', 'email' => 'kassenwart@example.com', 'locale' => 'de', 'display_name' => 'Kassenwart Klaus'],
+        ]);
+
+        $builder = new JugendschutzViolationMailBuilder(
+            $this->transactionsRepository,
+            $this->productsRepository,
+            $adminUsers,
+        );
+
+        $message = $builder->build($this->outboxRow(), $this->mailConfig);
+
+        $this->assertStringContainsString('Kassenwart Klaus', $message->text);
+        $this->assertSame('kassenwart@example.com', $message->to);
     }
 }

@@ -100,6 +100,53 @@ what else the account holds.
 
 ---
 
+## 2a. What each office is *mailed*
+
+Access is not only what a session can open. Operational mail is a second
+surface, and it is the one an office does not have to log in to receive — so it
+follows the same table rather than a looser one of its own
+([#633](https://github.com/dgloeckner/clubbar/issues/633)).
+
+| Kind | `admin` | `kassenwart` | `getraenkewart` |
+|---|:---:|:---:|:---:|
+| Encryption key registered / activated / revoked, key expiry | ✅ | ❌ | ❌ |
+| Terminal token issued, token expiry, terminal anomaly | ✅ | ❌ | ❌ |
+| Admin account created, admin roles changed | ✅ ⁴ | ❌ | ❌ |
+| Admin login address changed | the former address only | — | — |
+| Jugendschutz violation | ✅ ⁴ | ✅ | ❌ |
+| SEPA pre-notification, cancellation notice, Deckelauszug | — addressed to the member — | | |
+
+⁴ Plus the configured club address, which belongs to no account
+([ADR-0044](../adr/0044-tiered-admin-roles.md) rule 3).
+
+The rule generating this table is **mirror the grant on the surface the mail
+points at**. Keys, terminals and admin accounts are `admin`-only routes in §2,
+so their mail is `admin`-only — including for the Kassenwart, to whom a key
+fingerprint is as foreign as it is to the stock keeper. The Jugendschutz notice
+is the one kind whose surface is not `admin`-only: its dashboard alert is
+`TREASURY` because ADR-0045 names the Kassenwart as its recipient, so the mail
+carries that same set. One source of truth, not two.
+
+It lives in the code as `MailKind::recipientRoles()`, next to
+`addressesMember()` and `addressesClub()` — a `match` with no default, so a
+kind added later fails to compile until somebody answers the question for it.
+
+**An unstaffed office does not silently swallow a warning.** If no active
+account holds the office a kind is for, the notice goes to the club address
+instead; with no club address configured, nothing is queued and a `WARNING` is
+logged naming the kind and the offices it was for. It is deliberately *not*
+"fall back to every active admin" — that is the leak this closes, arriving
+exactly when the installation is least able to notice. Getting there takes a
+hand-edited database: the last `admin` can be neither demoted nor deactivated.
+
+One thing is deliberately **not** filtered: the display name in a message's
+greeting. `TerminalAnomalyMailBuilder` and `JugendschutzViolationMailBuilder`
+resolve it from the unfiltered account list, because the outbox row already
+names who it was written to — and a filtered lookup would blank the greeting
+for an account whose roles moved after the row was queued.
+
+---
+
 ## 3. How a request is authorized
 
 Two independent axes decide whether a request succeeds: **which credential**
@@ -254,6 +301,9 @@ change its own role set.
 | The whole grant table, as data, over HTTP, per office | `e2etests/tests/api/role-access-matrix.spec.ts` |
 | Each office's actual job, run to completion | `e2etests/tests/api/role-flows.spec.ts` |
 | The panel hides what it cannot reach, names the refusal | `e2etests/tests/admin/role-navigation.spec.ts` |
+| Which offices each mail kind is for | `backend/tests/Unit/Modules/Notifications/Enums/MailKindTest.php` |
+| The fan-out narrows to those offices, and the unstaffed case | `backend/tests/Unit/Modules/Notifications/Services/AdminNotifierTest.php`, `backend/tests/Feature/Modules/Notifications/AdminNoticeRolesTest.php` |
+| A Getränkewart's mailbox stays empty through a real drain | `e2etests/tests/mail-roles/office-mail.spec.ts` |
 | The frontend table's own completeness | `admin-frontend/src/utils/adminRoles.test.ts` |
 
 ---

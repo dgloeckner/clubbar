@@ -523,6 +523,7 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminUsersRepository(),
             $this->getAuditService(),
             $this->getMailConfigRepository(),
+            $this->logger,
         ));
     }
 

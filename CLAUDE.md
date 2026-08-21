@@ -415,7 +415,7 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    |------|----------|-------|
    | `api` | `api-tests` | 2 shards, 318/318 — homogeneous, so count-balancing is time-balancing |
    | `ui` | `admin-chromium`, `admin-mobile` | 2 shards |
-   | `chain` | `api-ordered`, `api-rotation`, `mail-chain`, `mail-statement`, `mail-credentials`, `mail-issuance` | 1 job, no shard: every project in it is deliberately serial |
+   | `chain` | `api-ordered`, `api-rotation`, `mail-chain`, `mail-statement`, `mail-credentials`, `mail-issuance`, `mail-lifecycle`, `mail-jugendschutz`, `mail-roles` | 1 job, no shard: every project in it is deliberately serial |
 
    Those dependencies are about **one shared database**, not about data, so a
    job of its own satisfies them. `E2E_LANE=chain` is what says so, and it is
@@ -425,7 +425,8 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    ```bash
    cd e2etests
    E2E_LANE=chain npx playwright test --project=api-ordered --project=api-rotation \
-     --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance
+     --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance \
+     --project=mail-lifecycle --project=mail-jugendschutz --project=mail-roles
    npx playwright test --project=api-tests --shard=1/2
    ```
 

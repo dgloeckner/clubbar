@@ -63,6 +63,7 @@ class AdminLifecycleNoticeTest extends DatabaseTestCase
                 $admins,
                 $this->createMock(AuditService::class),
                 $this->mailConfig,
+                $this->logger,
             ),
         );
     }
