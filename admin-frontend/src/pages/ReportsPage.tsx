@@ -20,6 +20,7 @@ import {
 import { getReports } from '../api/generated/reports/reports'
 import type { GetReportGroupBy } from '../api/generated'
 import { toIsoDate } from '../utils/dates'
+import { reportDimensionLabel } from '../utils/reportDimensions'
 
 // ─── Local Types (UI-facing, mapped from generated API types) ─────────────────
 
@@ -33,7 +34,10 @@ interface ReportParams {
 }
 
 interface ReportRow {
-  dimension: string
+  /** Null when the group has no name — see `utils/reportDimensions`. */
+  dimension: string | null
+  /** The product/category/member the row groups on; null for date groupings. */
+  dimension_id: string | null
   revenue_cents: number
   count: number
   percentage: number
@@ -109,7 +113,10 @@ async function getReport(reportType: ReportType, params: ReportParams = {}, sign
       report_type: reportType,
     },
     rows: (raw.data ?? []).map((row) => ({
-      dimension: row.dimension ?? '',
+      // `?? null`, never `?? ''`: an unnamed group is labelled at render time,
+      // in the reader's language, and an empty string would erase the fact.
+      dimension: row.dimension ?? null,
+      dimension_id: row.dimension_id ?? null,
       revenue_cents: row.revenue_cents ?? 0,
       count: row.count ?? 0,
       percentage: row.percent_of_total ?? 0,
@@ -546,9 +553,14 @@ export function ReportsPage() {
   const renderStandardReport = () => {
     const locale = formatters.intlLocale
     const isConsumption = activeTab === 'consumption'
+    // The grouping the *response* was built for, not the picker's current
+    // value: the two differ while a reload is in flight, and a row must never
+    // be named as a product because the picker has already moved on.
+    const rowLabel = (row: ReportRow) =>
+      reportDimensionLabel(row, reportData?.metadata.group_by ?? groupBy, t)
     const chartData =
       reportData?.rows.map((row) => ({
-        label: row.dimension,
+        label: rowLabel(row),
         revenue: row.revenue_cents / 100,
         count: row.count,
       })) ?? []
@@ -728,14 +740,19 @@ export function ReportsPage() {
                     <tbody>
                       {reportData.rows.map((row, index) => (
                         <tr
-                          key={`${row.dimension}-${index}`}
+                          key={`${row.dimension_id ?? row.dimension ?? ''}-${index}`}
                           data-testid={`report-row-${index}`}
                           style={{
                             borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
                             color: tableColors.cellText,
                           }}
                         >
-                          <td style={{ padding: tableSpacing.cellPadding, fontWeight: 500 }}>{row.dimension}</td>
+                          <td
+                            data-testid={`report-row-${index}-dimension`}
+                            style={{ padding: tableSpacing.cellPadding, fontWeight: 500 }}
+                          >
+                            {rowLabel(row)}
+                          </td>
                           <td
                             style={{
                               padding: tableSpacing.cellPadding,

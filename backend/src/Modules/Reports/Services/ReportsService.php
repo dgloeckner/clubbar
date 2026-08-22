@@ -63,6 +63,7 @@ class ReportsService
 
         $data = array_map(static fn(array $row): ReportRowDto => new ReportRowDto(
             dimension: $row['dimension'],
+            dimensionId: $row['dimension_id'],
             revenueCents: $row['revenue_cents'],
             count: $row['count'],
             percentOfTotal: $totalRevenueCents > 0 ? ($row['revenue_cents'] / $totalRevenueCents) * 100 : 0,
