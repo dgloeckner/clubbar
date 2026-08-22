@@ -155,6 +155,140 @@ class ReportsRepositoryTest extends DatabaseTestCase
         $this->assertSame(1, $rows[0]['count']);
     }
 
+    /**
+     * @return list<array{string, ?string}>
+     */
+    public static function dimensionIdProvider(): array
+    {
+        return [
+            'by category' => ['category', 'category'],
+            'by product' => ['product', 'product'],
+            'by member' => ['member', 'member'],
+            'by day' => ['day', null],
+            'by week' => ['week', null],
+            'by month' => ['month', null],
+            'by year' => ['year', null],
+        ];
+    }
+
+    /**
+     * The entity groupings identify themselves; the date ones have no entity to
+     * identify. The id is what lets the panel tell two nameless rows apart.
+     */
+    #[DataProvider('dimensionIdProvider')]
+    public function test_a_grouping_reports_the_id_it_keys_on(string $groupBy, ?string $expected): void
+    {
+        $member = $this->createMember('Anna', 'Meier');
+        $category = $this->createCategory('Getränke');
+        $product = $this->createProduct($category, 'Bier', 350);
+        $this->createTransaction($member, 350, '2019-03-05 10:00:00', 'purchase', $product);
+
+        $rows = $this->repository->fetchGrouped($this->window(), $groupBy, 'revenue', 25, 0);
+
+        $ids = ['category' => $category, 'product' => $product, 'member' => $member];
+        $this->assertSame($expected === null ? null : $ids[$expected], $rows[0]['dimension_id']);
+    }
+
+    // ── Sales whose product no longer resolves (ADR-0033 §1) ────────────────
+
+    /**
+     * The bug this whole group exists for.
+     *
+     * A terminal may upload a sale naming a `product_id` the server has never
+     * seen — the drink was poured against a cached catalogue, and ADR-0033 §1
+     * stores the row rather than losing the record of a sale that happened.
+     * Grouping on `p.id` then folded *every* such sale into a single NULL
+     * group, whatever product it named: one fabricated row that summed
+     * unrelated products and, being the sum of many, sorted to the top of the
+     * chart. Keying on `t.product_id` keeps them apart.
+     */
+    public function test_sales_naming_different_missing_products_stay_different_rows(): void
+    {
+        $member = $this->createMember();
+        $gone = $this->generateUuid();
+        $alsoGone = $this->generateUuid();
+
+        $this->createTransaction($member, 500, '2019-03-05 10:00:00', 'purchase', $gone);
+        $this->createTransaction($member, 300, '2019-03-05 11:00:00', 'purchase', $alsoGone);
+
+        $rows = $this->repository->fetchGrouped($this->window(), 'product', 'revenue', 25, 0);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame([500, 300], array_column($rows, 'revenue_cents'));
+        $this->assertSame([$gone, $alsoGone], array_column($rows, 'dimension_id'));
+        $this->assertSame(2, $this->repository->countGroups($this->window(), 'product'));
+    }
+
+    /**
+     * The other half of the same bug: the group used to be *named* — with the
+     * English literal 'Unknown', which a German panel printed untranslated
+     * between its own product names. There is no name to give, so the query
+     * says so and leaves the labelling to the client.
+     */
+    public function test_a_sale_whose_product_is_missing_has_no_name(): void
+    {
+        $member = $this->createMember();
+        $gone = $this->generateUuid();
+        $this->createTransaction($member, 500, '2019-03-05 10:00:00', 'purchase', $gone);
+
+        $rows = $this->repository->fetchGrouped($this->window(), 'product', 'revenue', 25, 0);
+
+        $this->assertNull($rows[0]['dimension']);
+        $this->assertSame($gone, $rows[0]['dimension_id']);
+    }
+
+    public function test_a_sale_carrying_no_product_at_all_has_neither_name_nor_id(): void
+    {
+        $member = $this->createMember();
+        $this->createTransaction($member, 500, '2019-03-05 10:00:00');
+
+        $rows = $this->repository->fetchGrouped($this->window(), 'product', 'revenue', 25, 0);
+
+        $this->assertCount(1, $rows);
+        $this->assertNull($rows[0]['dimension']);
+        $this->assertNull($rows[0]['dimension_id']);
+    }
+
+    /**
+     * A category is reached *through* the product, so a missing product takes
+     * the category with it. One nameless bucket is right here — unlike the
+     * product grouping, there is no id left to tell the sales apart by.
+     */
+    public function test_a_missing_product_leaves_the_category_grouping_nameless(): void
+    {
+        $member = $this->createMember();
+        $category = $this->createCategory('Getränke');
+        $beer = $this->createProduct($category, 'Bier', 350);
+        $this->createTransaction($member, 350, '2019-03-05 10:00:00', 'purchase', $beer);
+        $this->createTransaction($member, 500, '2019-03-05 11:00:00', 'purchase', $this->generateUuid());
+
+        $rows = $this->repository->fetchGrouped($this->window(), 'category', 'revenue', 25, 0);
+
+        $this->assertCount(2, $rows);
+        $this->assertNull($rows[0]['dimension']);
+        $this->assertNull($rows[0]['dimension_id']);
+        $this->assertSame('Getränke', $rows[1]['dimension']);
+        $this->assertSame($category, $rows[1]['dimension_id']);
+    }
+
+    /**
+     * A deleted product is not a missing one: the delete is soft precisely so
+     * the sales that reference it keep resolving their name (UC-A43).
+     */
+    public function test_a_soft_deleted_product_still_names_its_sales(): void
+    {
+        $member = $this->createMember();
+        $category = $this->createCategory();
+        $product = $this->createProduct($category, 'Bier', 350);
+        $this->createTransaction($member, 350, '2019-03-05 10:00:00', 'purchase', $product);
+        $this->db->prepare('UPDATE products SET deleted_at = NOW() WHERE id = ?')->execute([$product]);
+
+        $rows = $this->repository->fetchGrouped($this->window(), 'product', 'revenue', 25, 0);
+
+        $this->assertSame('Bier', $rows[0]['dimension']);
+        $this->assertSame($product, $rows[0]['dimension_id']);
+    }
+
     public function test_grouping_by_revenue_puts_the_biggest_first(): void
     {
         $member = $this->createMember();

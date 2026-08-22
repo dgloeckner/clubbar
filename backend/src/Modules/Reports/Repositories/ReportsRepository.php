@@ -17,31 +17,62 @@ use PDO;
  */
 class ReportsRepository
 {
-    /** group_by value → [dimension SELECT, GROUP BY clause, extra JOINs] */
+    /**
+     * group_by value → the SQL that names a group, identifies it, groups on it
+     * and reaches the tables it needs.
+     *
+     * Two rules hold across every entry:
+     *
+     * - **`group` keys on a column of `transactions` wherever the transaction
+     *   carries one**, never on the join's output. ADR-0033 §1 deliberately
+     *   accepts a sale whose `product_id` resolves to nothing — the drink was
+     *   poured against a cached catalogue, and refusing the row would lose the
+     *   record of a sale that happened. Grouping on `p.id` collapsed every such
+     *   sale, whatever product it named, into one NULL group: a fabricated row
+     *   that summed unrelated products and sorted straight to the top of the
+     *   chart. `t.product_id` keeps them apart.
+     * - **`dimension` is NULL when no name can be resolved**, rather than a
+     *   literal. It used to be the English word 'Unknown', which a German admin
+     *   read untranslated between their own product names. Naming the row is
+     *   the frontend's business — the API is language-agnostic — so what the
+     *   API owes here is the fact that there is no name, plus the `id` that
+     *   had none, which is what tells two dead products apart on screen.
+     *
+     * @var array<string, array{dimension: string, id: string, group: string, joins: string}>
+     */
     private const GROUP_BY_SQL = [
         'category' => [
-            "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(c.names, '$.de')), JSON_UNQUOTE(JSON_EXTRACT(c.names, '$.en')), 'Unknown')",
-            'p.category_id',
-            'LEFT JOIN categories c ON p.category_id = c.id',
+            'dimension' => "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(c.names, '$.de')), JSON_UNQUOTE(JSON_EXTRACT(c.names, '$.en')))",
+            'id' => 'p.category_id',
+            'group' => 'p.category_id',
+            'joins' => 'LEFT JOIN categories c ON p.category_id = c.id',
         ],
         'product' => [
-            "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(p.names, '$.de')), JSON_UNQUOTE(JSON_EXTRACT(p.names, '$.en')), 'Unknown')",
-            'p.id',
-            '',
+            'dimension' => "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(p.names, '$.de')), JSON_UNQUOTE(JSON_EXTRACT(p.names, '$.en')))",
+            'id' => 't.product_id',
+            'group' => 't.product_id',
+            'joins' => '',
         ],
         'member' => [
-            "CONCAT(m.first_name, ' ', m.last_name)",
-            'm.id',
-            'LEFT JOIN members m ON t.member_id = m.id',
+            'dimension' => "CONCAT(m.first_name, ' ', m.last_name)",
+            'id' => 't.member_id',
+            'group' => 't.member_id',
+            'joins' => 'LEFT JOIN members m ON t.member_id = m.id',
         ],
-        'day' => ['DATE(t.occurred_at)', 'DATE(t.occurred_at)', ''],
+        'day' => ['dimension' => 'DATE(t.occurred_at)', 'id' => 'NULL', 'group' => 'DATE(t.occurred_at)', 'joins' => ''],
         'week' => [
-            "CONCAT(YEAR(t.occurred_at), '-W', LPAD(WEEK(t.occurred_at, 1), 2, '0'))",
-            'YEAR(t.occurred_at), WEEK(t.occurred_at, 1)',
-            '',
+            'dimension' => "CONCAT(YEAR(t.occurred_at), '-W', LPAD(WEEK(t.occurred_at, 1), 2, '0'))",
+            'id' => 'NULL',
+            'group' => 'YEAR(t.occurred_at), WEEK(t.occurred_at, 1)',
+            'joins' => '',
         ],
-        'month' => ["DATE_FORMAT(t.occurred_at, '%Y-%m')", "DATE_FORMAT(t.occurred_at, '%Y-%m')", ''],
-        'year' => ['YEAR(t.occurred_at)', 'YEAR(t.occurred_at)', ''],
+        'month' => [
+            'dimension' => "DATE_FORMAT(t.occurred_at, '%Y-%m')",
+            'id' => 'NULL',
+            'group' => "DATE_FORMAT(t.occurred_at, '%Y-%m')",
+            'joins' => '',
+        ],
+        'year' => ['dimension' => 'YEAR(t.occurred_at)', 'id' => 'NULL', 'group' => 'YEAR(t.occurred_at)', 'joins' => ''],
     ];
 
     /** Sort keys the grouped query accepts, mapped to their ORDER BY clause. */
@@ -85,16 +116,16 @@ class ReportsRepository
     public function countGroups(ReportFilters $filters, string $groupBy): int
     {
         [$where, $params] = $this->purchaseConditions($filters);
-        [, $groupByClause, $joins] = $this->groupBySql($groupBy);
+        $grouping = $this->groupBySql($groupBy);
 
         $stmt = $this->db->prepare(
             "SELECT COUNT(*) FROM (
                 SELECT 1
                 FROM transactions t
                 LEFT JOIN products p ON t.product_id = p.id
-                {$joins}
+                {$grouping['joins']}
                 WHERE {$where}
-                GROUP BY {$groupByClause}
+                GROUP BY {$grouping['group']}
             ) as grouped"
         );
         $stmt->execute($params);
@@ -106,7 +137,7 @@ class ReportsRepository
      * One page of grouped rows.
      *
      * @param 'revenue'|'count' $orderBy
-     * @return list<array{dimension: string, revenue_cents: int, count: int}>
+     * @return list<array{dimension: ?string, dimension_id: ?string, revenue_cents: int, count: int}>
      */
     public function fetchGrouped(
         ReportFilters $filters,
@@ -116,26 +147,30 @@ class ReportsRepository
         int $offset,
     ): array {
         [$where, $params] = $this->purchaseConditions($filters);
-        [$dimensionSelect, $groupByClause, $joins] = $this->groupBySql($groupBy);
+        $grouping = $this->groupBySql($groupBy);
         $orderByClause = self::ORDER_BY_SQL[$orderBy] ?? self::ORDER_BY_SQL['revenue'];
         $bounds = $this->limitOffset($limit, $offset);
 
         $stmt = $this->db->prepare(
-            "SELECT {$dimensionSelect} as dimension,
+            "SELECT {$grouping['dimension']} as dimension,
+                    {$grouping['id']} as dimension_id,
                     SUM(t.amount_cents) as revenue_cents,
                     COUNT(DISTINCT t.id) as count
              FROM transactions t
              LEFT JOIN products p ON t.product_id = p.id
-             {$joins}
+             {$grouping['joins']}
              WHERE {$where}
-             GROUP BY {$groupByClause}
+             GROUP BY {$grouping['group']}
              ORDER BY {$orderByClause}
              {$bounds}"
         );
         $stmt->execute($params);
 
         return array_map(static fn(array $row): array => [
-            'dimension' => (string) $row['dimension'],
+            // Deliberately not cast to string: a null dimension is the report
+            // saying "this group has no name", and '' would read as one.
+            'dimension' => $row['dimension'] === null ? null : (string) $row['dimension'],
+            'dimension_id' => $row['dimension_id'] === null ? null : (string) $row['dimension_id'],
             'revenue_cents' => (int) $row['revenue_cents'],
             'count' => (int) $row['count'],
         ], $stmt->fetchAll());
@@ -225,7 +260,7 @@ class ReportsRepository
     }
 
     /**
-     * @return array{string, string, string}
+     * @return array{dimension: string, id: string, group: string, joins: string}
      */
     private function groupBySql(string $groupBy): array
     {

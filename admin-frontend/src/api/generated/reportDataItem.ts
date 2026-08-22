@@ -59,7 +59,32 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 
 export type ReportDataItem = {
-  dimension?: string;
+  /**
+     * The group's name — a product, a category, a member, or the
+     * date bucket itself.
+     *
+     * **Null when the group has no name.** A terminal may upload a
+     * sale whose `product_id` resolves to nothing (ADR-0033 §1: the
+     * drink was poured against a cached catalogue, and refusing the
+     * row would lose the record of a sale that happened), and such a
+     * sale still belongs in the revenue it produced. The API does
+     * not invent a placeholder word for it: it is language-agnostic,
+     * so the label an admin reads is the client's to choose.
+     * @nullable
+     */
+  dimension?: string | null;
+  /**
+     * The id this group keys on — the product, category or member.
+     * Null for the date groupings (`day`, `week`, `month`, `year`),
+     * which key on a derived value rather than an entity.
+     *
+     * Present even when `dimension` is null, and that is the point:
+     * it is what tells two nameless groups apart. Rows are grouped
+     * by this id, so two sales naming different missing products
+     * stay two rows rather than merging into one.
+     * @nullable
+     */
+  dimension_id?: string | null;
   revenue_cents?: number;
   count?: number;
   percent_of_total?: number;

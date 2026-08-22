@@ -136,8 +136,8 @@ class ReportsServiceTest extends TestCase
     {
         $this->stubSummary(['total_revenue_cents' => 1000, 'transaction_count' => 4]);
         $this->repository->method('fetchGrouped')->willReturn([
-            ['dimension' => 'Bier', 'revenue_cents' => 750, 'count' => 3],
-            ['dimension' => 'Wein', 'revenue_cents' => 250, 'count' => 1],
+            ['dimension' => 'Bier', 'dimension_id' => 'p-1', 'revenue_cents' => 750, 'count' => 3],
+            ['dimension' => 'Wein', 'dimension_id' => 'p-2', 'revenue_cents' => 250, 'count' => 1],
         ]);
 
         $report = $this->service->getReport('revenue', null, null);
@@ -150,13 +150,33 @@ class ReportsServiceTest extends TestCase
     {
         $this->stubSummary();
         $this->repository->method('fetchGrouped')->willReturn([
-            ['dimension' => 'Bier', 'revenue_cents' => 0, 'count' => 0],
+            ['dimension' => 'Bier', 'dimension_id' => 'p-1', 'revenue_cents' => 0, 'count' => 0],
         ]);
 
         $report = $this->service->getReport('revenue', null, null);
 
         $this->assertSame(0, $report->avgTransactionCents);
         $this->assertEqualsWithDelta(0.0, $report->data[0]->percentOfTotal, 0.0001);
+    }
+
+    /**
+     * A group the repository could not name reaches the client unnamed, with
+     * the id it keys on. The service must not substitute a word of its own:
+     * naming the row is the panel's job, in the reader's language.
+     */
+    public function test_a_nameless_group_keeps_its_id_and_gains_no_label(): void
+    {
+        $this->stubSummary(['total_revenue_cents' => 500, 'transaction_count' => 1]);
+        $this->repository->method('fetchGrouped')->willReturn([
+            ['dimension' => null, 'dimension_id' => 'gone-product', 'revenue_cents' => 500, 'count' => 1],
+        ]);
+
+        $row = $this->service->getReport('revenue', null, null, 'product')->data[0];
+
+        $this->assertNull($row->dimension);
+        $this->assertSame('gone-product', $row->dimensionId);
+        $this->assertNull($row->toArray()['dimension']);
+        $this->assertSame('gone-product', $row->toArray()['dimension_id']);
     }
 
     public function test_the_average_transaction_is_the_total_over_the_count(): void
