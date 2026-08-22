@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,7 @@ import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/locale_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/utils/kiosk_touch.dart';
 
 /// The routed [MaterialApp] of the terminal.
 ///
@@ -58,6 +60,19 @@ class _TerminalMaterialAppState extends State<TerminalMaterialApp> {
     return MaterialApp.router(
       title: AppConfig.appName,
       scrollBehavior: widget.scrollBehavior,
+      // Raise the touch slop for every route, dialog and sheet below. The
+      // engine reports the platform's own slop through `gestureSettings`
+      // (Linux desktop reports none, so recognizers fall back to the 18 px
+      // `kTouchSlop`); overriding it here is what the drag recognizers of the
+      // product grid and the cart list actually read.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          gestureSettings: const DeviceGestureSettings(
+            touchSlop: kKioskTouchSlop,
+          ),
+        ),
+        child: child ?? const SizedBox.shrink(),
+      ),
       theme: buildTerminalTheme(),
       localizationsDelegates: const [
         AppLocalizations.delegate,

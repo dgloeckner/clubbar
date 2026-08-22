@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +12,7 @@ import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/quarantine_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/app/kiosk_scroll_behavior.dart';
 import 'package:clubbar_terminal/app/terminal_material_app.dart';
 import 'package:clubbar_terminal/providers/locale_provider.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
@@ -403,22 +403,6 @@ void main() async {
   ));
 }
 
-/// Scroll behaviour for touchscreen kiosk use:
-/// - Enables finger-drag scrolling on Linux (not included in the Flutter
-///   desktop default which only covers mouse/trackpad).
-/// - Uses BouncingScrollPhysics for a natural overscroll feel.
-class _KioskScrollBehavior extends MaterialScrollBehavior {
-  @override
-  Set<PointerDeviceKind> get dragDevices => const {
-    PointerDeviceKind.touch,
-    PointerDeviceKind.mouse,
-  };
-
-  @override
-  ScrollPhysics getScrollPhysics(BuildContext context) =>
-      const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
-}
-
 class ClubBarTerminalApp extends StatelessWidget {
   final ClubBarDatabase database;
   final LocaleProvider localeProvider;
@@ -481,7 +465,7 @@ class ClubBarTerminalApp extends StatelessWidget {
       ],
       child: TerminalMaterialApp(
         configService: configService,
-        scrollBehavior: _KioskScrollBehavior(),
+        scrollBehavior: KioskScrollBehavior(),
       ),
     );
   }
