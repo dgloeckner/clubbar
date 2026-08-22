@@ -185,6 +185,29 @@ test.describe('Mobile Responsive Layout', () => {
       await expect(page.getByTestId(`products-list-min-age-badge-${restricted}`)).toBeVisible()
       await expect(page.getByTestId(`products-list-min-age-badge-${restricted}`)).toContainText('18')
       await expect(page.getByTestId(`products-list-min-age-badge-${plain}`)).toHaveCount(0)
+
+      // ...and it sits where the member card's chips sit: flush with the card's
+      // own left padding, on a metadata row of its own above the actions. The
+      // badge used to be indented under the name and rendered as a filled
+      // block, which put it at the weight of the action buttons and left the
+      // card reading as two things competing for the eye.
+      const card = await page.getByTestId(`product-card-${restricted}`).boundingBox()
+      const categoryLabel = await page.getByTestId(`product-card-category-${restricted}`).boundingBox()
+      const badge = await page.getByTestId(`products-list-min-age-badge-${restricted}`).boundingBox()
+      const editButton = await page.getByTestId(`products-edit-button-${restricted}`).boundingBox()
+      const deleteButton = await page.getByTestId(`products-delete-button-${restricted}`).boundingBox()
+      expect(card && categoryLabel && badge && editButton && deleteButton).toBeTruthy()
+      // The metadata row starts at the card's own 16px padding — it used to be
+      // indented a further 46px, under the name rather than under the card.
+      expect(categoryLabel!.x - card!.x).toBeLessThan(24)
+      // The badge belongs to that row, beside the category it qualifies.
+      expect(badge!.y).toBeLessThan(categoryLabel!.y + categoryLabel!.height)
+      // The actions are their own row below, not a neighbour of the badge.
+      expect(editButton!.y).toBeGreaterThan(badge!.y + badge!.height)
+      // And they are right-aligned, as on every other card list — the last
+      // button in the row ends where the card's padding does.
+      const actionsRightGap = card!.x + card!.width - (deleteButton!.x + deleteButton!.width)
+      expect(actionsRightGap).toBeLessThan(24)
     })
 
     test('should show mobile cards on Journal page', async ({ page }) => {

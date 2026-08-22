@@ -31,6 +31,7 @@ export { PlusIcon } from './PlusIcon'
 // Table action icons
 export { EditIcon } from './EditIcon'
 export { TrashIcon } from './TrashIcon'
+export { UndoIcon } from './UndoIcon'
 
 // Utility icons
 export { CalendarIcon } from './CalendarIcon'

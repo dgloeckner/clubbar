@@ -608,7 +608,11 @@ export function ProductsPage() {
                       padding: '14px 16px',
                     }}
                   >
-                    {/* Row 1: toggle + name + price */}
+                    {/* Row 1: toggle + name + price. Same shape as the member
+                        card's headline: minWidth 0 lets a long product name
+                        ellipsize instead of pushing the price off the card,
+                        and the price gets the card grammar's figure slot —
+                        tabular monospace, so prices line up down the list. */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                       <Toggle
                         isEnabled={product.is_active ?? false}
@@ -616,20 +620,37 @@ export function ProductsPage() {
                         size="small"
                         testId={`products-status-toggle-${product.id}`}
                       />
-                      <span style={{ flex: 1, fontWeight: 600, color: tableColors.cellText, fontSize: '14px' }}>
+                      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, color: tableColors.cellText, fontSize: '14px' }}>
                         {getLocalizedName(product.names as Record<string, string>, i18n.language)}
                       </span>
-                      <span style={{ fontWeight: 600, color: tableColors.cellText, fontSize: '14px', whiteSpace: 'nowrap' }}>
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          whiteSpace: 'nowrap',
+                          fontFamily: 'JetBrains Mono, monospace',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          fontVariantNumeric: 'tabular-nums',
+                          color: tableColors.cellText,
+                        }}
+                      >
                         {formatPrice(product.price_cents ?? 0)}
                       </span>
                     </div>
                     {/* Row 2: category, and the Jugendschutz age beside it —
                         the card is the whole overview on a phone, so the badge
-                        cannot live only in the desktop table (ADR-0045). */}
+                        cannot live only in the desktop table (ADR-0045).
+                        Flush left like the member card's metadata, and the
+                        badge is `compact`: a filled block here sat at the same
+                        weight as the action buttons below and the two fought
+                        for the eye. */}
                     {(categoryName || minAge !== null) && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', paddingLeft: '46px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                         {categoryName && (
-                          <span style={{ fontSize: '12px', color: theme.colors.text.secondary }}>
+                          <span
+                            data-testid={`product-card-category-${product.id}`}
+                            style={{ fontSize: '12px', color: theme.colors.text.secondary }}
+                          >
                             {categoryName}
                           </span>
                         )}
@@ -638,6 +659,7 @@ export function ProductsPage() {
                             label={t('products.minAgeBadge', { age: minAge })}
                             variant="warning"
                             showDot={false}
+                            compact
                             testId={`products-list-min-age-badge-${product.id}`}
                           />
                         )}

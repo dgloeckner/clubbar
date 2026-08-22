@@ -10,9 +10,16 @@ export interface BadgeProps {
   variant?: 'success' | 'warning' | 'danger' | 'info' | 'neutral'
   showDot?: boolean
   testId?: string
+  /**
+   * Pill shape, tighter type and a tinted border instead of a filled block —
+   * for the mobile cards, where a filled badge sat at the same visual weight
+   * as the row's action buttons and the two competed. Same shape as
+   * `MemberGapChips`, so a card's chips read as one family.
+   */
+  compact?: boolean
 }
 
-export function Badge({ label, variant = 'neutral', showDot = true, testId }: BadgeProps) {
+export function Badge({ label, variant = 'neutral', showDot = true, testId, compact = false }: BadgeProps) {
   const style = theme.badges[variant]
 
   return (
@@ -21,13 +28,15 @@ export function Badge({ label, variant = 'neutral', showDot = true, testId }: Ba
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: theme.spacing.sm,
-        padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+        gap: compact ? theme.spacing.xs : theme.spacing.sm,
+        padding: compact ? `2px ${theme.spacing.sm}` : `${theme.spacing.sm} ${theme.spacing.md}`,
         background: style.bg,
         color: style.text,
-        borderRadius: theme.borderRadius.sm,
+        border: compact ? `1px solid ${style.border}` : undefined,
+        borderRadius: compact ? theme.borderRadius.full : theme.borderRadius.sm,
         fontSize: theme.typography.fontSize.xs,
         fontWeight: theme.typography.fontWeight.semibold,
+        whiteSpace: compact ? 'nowrap' : undefined,
       }}
     >
       {showDot && (

@@ -58,6 +58,11 @@ Status badge with colored dot indicator.
 - `variant` ('success' | 'warning' | 'danger' | 'info' | 'neutral', default: 'neutral'): Color variant
 - `showDot` (boolean, default: true): Show colored dot indicator
 - `testId` (string, optional): Test ID for E2E testing
+- `compact` (boolean, default: false): pill shape, tighter type, a tinted
+  border instead of a filled block — for the **mobile cards**. A filled badge
+  on a card sat at the same visual weight as the row's action buttons and the
+  two competed for the eye; compact is the same shape `MemberGapChips` uses,
+  so everything on a card reads as one family.
 
 **Example**:
 ```typescript
@@ -1046,6 +1051,33 @@ theme.mobileCard = {
   }}
 >
 ```
+
+#### The card's row grammar
+
+The cards also share a **layout**, and it is worth keeping: a phone shows one
+card at a time, so a list only scans if every card puts the same thing in the
+same place. Members is the reference; products, categories and the journal
+were brought onto it.
+
+| Row | Contents | Rules |
+|-----|----------|-------|
+| Headline | the row's control (`Toggle`, if it has one), its name, and **its one figure** — balance, price, amount | Name gets `flex: 1, minWidth: 0` plus `overflow: hidden` and `textOverflow: ellipsis`, so a long name ellipsizes instead of pushing the figure off the card. The figure gets `flexShrink: 0`, `JetBrains Mono`, 13px/700 and `fontVariantNumeric: 'tabular-nums'`, so figures line up down the list |
+| Metadata | category, card UID, member-since, gap chips, counts | **Flush left** with the card's own 16px padding — not indented to line up under the name. Badges here are `compact` |
+| Actions | `Bearbeiten`, `Löschen`, `Anonymisieren`, `Storno` … | Their **own row**, `justifyContent: 'flex-end'`, icon + label, `padding: '6px 12px'`, `borderRadius: '6px'`, tinted background from `theme.badges.*.bg`, 12px text. Never mixed into a metadata row, and never on the left |
+
+Two failure modes this replaces, both from the same cause — a card row doing
+two jobs at once:
+
+- **A tag beside the buttons.** The products card indented its metadata by
+  46px and rendered the Jugendschutz age as a filled badge, which put an
+  orange block at button weight one row above two more coloured blocks.
+- **An action on the left.** The journal card ran `space-between` with
+  `Storno` on the left and the amount on the right, so the one card list an
+  admin uses most had its action on the opposite side from every other.
+
+Assertions in `tests/admin-mobile/mobile-responsive.spec.ts` pin the products
+card's version of this (metadata flush left, badge on that row, actions on a
+right-aligned row below).
 
 ### Faint Surface Fill
 
