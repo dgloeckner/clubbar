@@ -283,6 +283,10 @@
   "@logout": {
     "description": "Logout button label"
   },
+  "backToProducts": "Zurück",
+  "@backToProducts": {
+    "description": "Accessible name for the member bar's back arrow. The button shows the arrow only — a left arrow is understood without a visible label, unlike the logout icon it sits next to."
+  },
 
   "@_ERROR_MODAL": {},
   "errorTitle": "Fehler",

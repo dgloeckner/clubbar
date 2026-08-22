@@ -203,6 +203,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get logout => 'Log out';
 
   @override
+  String get backToProducts => 'Back';
+
+  @override
   String get errorTitle => 'Error';
 
   @override

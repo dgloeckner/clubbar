@@ -392,6 +392,12 @@ abstract class AppLocalizations {
   /// **'Abmelden'**
   String get logout;
 
+  /// Accessible name for the member bar's back arrow. The button shows the arrow only — a left arrow is understood without a visible label, unlike the logout icon it sits next to.
+  ///
+  /// In de, this message translates to:
+  /// **'Zurück'**
+  String get backToProducts;
+
   /// Error modal title
   ///
   /// In de, this message translates to:

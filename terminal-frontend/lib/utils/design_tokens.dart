@@ -86,6 +86,18 @@ class AppColors {
   /// Muted secondary border — inactive tabs, disabled dots, quiet dividers.
   static const Color borderMuted = Color(0xff475569);
 
+  /// Border for a control that has to be *found*, not merely recognised once
+  /// found.
+  ///
+  /// WCAG 1.4.11 asks 3:1 of the boundary of an interactive element against
+  /// what is behind it. [borderMuted] is 2.0:1 on the member bar and
+  /// [borderLight] is 1.5:1 — fine for a divider between things the eye is
+  /// already resting on, not enough to advertise a button. The logout control
+  /// sat inside both and members reported not finding it at all.
+  ///
+  /// 3.2:1 on the member bar. `test/utils/contrast_test.dart` holds the floor.
+  static const Color borderStrong = Color(0xff64748b);
+
   /// Cart quantity "−" button fill (#41 — white glyph, not red-on-red).
   static const Color cartRemoveFill = Color(0xff7f1d1d);
 

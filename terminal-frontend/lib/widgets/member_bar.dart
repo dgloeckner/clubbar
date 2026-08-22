@@ -60,10 +60,7 @@ class MemberBar extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: const Color(0xcc1e293b),
-        border: Border.all(
-          color: const Color(0x66475569),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0x66475569), width: 1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -73,79 +70,93 @@ class MemberBar extends StatelessWidget {
           // Member info on left — a single tappable cluster (#39): one
           // InkWell for avatar + name/balance + chevron, so the ripple and
           // the "tap for details" cue cover the whole area, not just part.
-          Material(
-            key: const Key('member-bar-details'),
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => showMemberDetailsModal(context),
-              borderRadius: BorderRadius.circular(12),
-              // No vertical padding around this cluster (#369): the
-              // name/balance column is already two `lg` lines — ~48 px, over
-              // the 44 px touch minimum on its own — so the 4 px that used to
-              // wrap it only made the cluster the tallest thing in the row.
-              child: Semantics(
-                button: true,
-                label: l10n.viewDetails,
-                child: Row(
-                  children: [
-                    // Avatar with initials — gradient keyed off the member
-                    // id so the same member always gets the same colours
-                    // across every surface that shows their avatar (#302).
-                    Container(
-                      width: 43,
-                      height: 43,
-                      decoration: BoxDecoration(
-                        gradient: avatarGradientFor(member.id),
-                        borderRadius: BorderRadius.circular(AppBorderRadius.full),
-                      ),
-                      child: Center(
-                        child: Text(
-                          initials,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: AppFontSizes.base,
-                            fontWeight: FontWeight.w600,
+          //
+          // Flexible, so the row's fixed-width right-hand controls always get
+          // their space and this cluster yields instead. It used to be rigid,
+          // which held while the only control was a 52 px square and stopped
+          // holding the moment the logout button got its label — but a long
+          // enough member name would have overflowed it either way.
+          Flexible(
+            child: Material(
+              key: const Key('member-bar-details'),
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => showMemberDetailsModal(context),
+                borderRadius: BorderRadius.circular(12),
+                // No vertical padding around this cluster (#369): the
+                // name/balance column is already two `lg` lines — ~48 px, over
+                // the 44 px touch minimum on its own — so the 4 px that used to
+                // wrap it only made the cluster the tallest thing in the row.
+                child: Semantics(
+                  button: true,
+                  label: l10n.viewDetails,
+                  child: Row(
+                    children: [
+                      // Avatar with initials — gradient keyed off the member
+                      // id so the same member always gets the same colours
+                      // across every surface that shows their avatar (#302).
+                      Container(
+                        width: 43,
+                        height: 43,
+                        decoration: BoxDecoration(
+                          gradient: avatarGradientFor(member.id),
+                          borderRadius: BorderRadius.circular(
+                            AppBorderRadius.full,
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Member name and balance
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '$firstName $lastName',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: AppFontSizes.lg,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          formatBalance(
-                            deckelCents ?? member.balanceCents,
-                            l10n,
-                            locale,
-                          ),
-                          style: TextStyle(
-                            color: balanceColor(
-                              deckelCents ?? member.balanceCents,
+                        child: Center(
+                          child: Text(
+                            initials,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: AppFontSizes.base,
+                              fontWeight: FontWeight.w600,
                             ),
-                            fontSize: AppFontSizes.lg,
-                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textMuted,
-                      size: 22,
-                    ),
-                  ],
+                      ),
+                      const SizedBox(width: 10),
+                      // Member name and balance
+                      Flexible(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$firstName $lastName',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: AppFontSizes.lg,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              formatBalance(
+                                deckelCents ?? member.balanceCents,
+                                l10n,
+                                locale,
+                              ),
+                              style: TextStyle(
+                                color: balanceColor(
+                                  deckelCents ?? member.balanceCents,
+                                ),
+                                fontSize: AppFontSizes.lg,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.chevron_right,
+                        color: AppColors.textMuted,
+                        size: 22,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -154,36 +165,72 @@ class MemberBar extends StatelessWidget {
           Row(
             children: [
               if (showBackButton) ...[
-                _buildBackButton(blocked: navigationBlocked),
+                _buildBackButton(l10n, blocked: navigationBlocked),
                 const SizedBox(width: 8),
               ],
               // Logout button — disabled while a checkout/dispense runs.
-              // Sized to match _actionButtonSize: on screens without a back
-              // button this is the only control in the row, and it alone
-              // must keep setting the bar's height, not shrink it.
+              //
+              // Labelled, not icon-only. Members reported not finding this
+              // control at all, and the icon-only square was three problems
+              // at once: `Icons.exit_to_app` is the arrow pointing *into* a
+              // bracket and reads as "log in"; the chip's own boundary was
+              // 1.5:1 (fill) and 2.0:1 (border) against the bar, under the
+              // 3:1 WCAG 1.4.11 asks of a control's edge; and nothing said
+              // what it did, in a row where the back button next to it is a
+              // white glyph at 5.3:1 and wins the eye every time. The
+              // `logout` string existed in both locales and was wired to
+              // nothing.
+              //
+              // Height stays at _actionButtonSize: on screens without a back
+              // button this is the only control in the row, and it alone must
+              // keep setting the bar's height (#369 measured that band). Only
+              // the width grows.
               Material(
                 key: const Key('member-bar-logout'),
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: navigationBlocked ? null : onLogoutPressed,
-                  borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.md),
                   child: Opacity(
                     opacity: navigationBlocked ? 0.4 : 1.0,
-                    child: Container(
-                      width: _actionButtonSize,
-                      height: _actionButtonSize,
-                      decoration: BoxDecoration(
-                        color: AppColors.borderLight,
-                        borderRadius: BorderRadius.circular(AppBorderRadius.md),
-                        border: Border.all(
-                          color: AppColors.borderMuted,
-                          width: 1,
+                    // `button: true` but deliberately no `label:` — InkWell
+                    // does not set the flag on its own, while the visible
+                    // text already is the accessible name. Labelling it as
+                    // well made a screen reader read "Abmelden Abmelden".
+                    child: Semantics(
+                      button: true,
+                      child: Container(
+                        height: _actionButtonSize,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: AppColors.borderLight,
+                          borderRadius: BorderRadius.circular(
+                            AppBorderRadius.md,
+                          ),
+                          border: Border.all(
+                            color: AppColors.borderStrong,
+                            width: 1,
+                          ),
                         ),
-                      ),
-                      child: const Icon(
-                        Icons.exit_to_app,
-                        color: AppColors.textSecondary,
-                        size: 26,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.logout,
+                              color: AppColors.textPrimary,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              l10n.logout,
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: AppFontSizes.base,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -196,7 +243,15 @@ class MemberBar extends StatelessWidget {
     );
   }
 
-  Widget _buildBackButton({required bool blocked}) {
+  /// The back arrow, shown on the cart screen only (`showBackButton`).
+  ///
+  /// Stays icon-only where the logout button next to it got a label. That
+  /// asymmetry is the point: logout is the way out of the session and has to
+  /// be *found*, while a left arrow is one of the few glyphs that is read
+  /// correctly without help — unlike `Icons.exit_to_app`, which members were
+  /// reading as "log in". [AppLocalizations.backToProducts] is its accessible
+  /// name, not a caption.
+  Widget _buildBackButton(AppLocalizations l10n, {required bool blocked}) {
     return Material(
       key: const Key('member-bar-back'),
       color: Colors.transparent,
@@ -205,24 +260,25 @@ class MemberBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: Opacity(
           opacity: blocked ? 0.4 : 1.0,
-          child: Container(
-            width: _actionButtonSize,
-            height: _actionButtonSize,
-            decoration: BoxDecoration(
-              color: const Color(0x333b82f6),
-              border: Border.all(
-                color: const Color(0x663b82f6),
-                width: 1,
+          child: Semantics(
+            button: true,
+            label: l10n.backToProducts,
+            child: Container(
+              width: _actionButtonSize,
+              height: _actionButtonSize,
+              decoration: BoxDecoration(
+                color: const Color(0x333b82f6),
+                // borderStrong, not the 40% blue this used: that measured
+                // 1.8:1 against the bar, under the 3:1 WCAG 1.4.11 asks of a
+                // control's edge — the same invisible boundary the logout
+                // button had. Only the white glyph inside was carrying it.
+                border: Border.all(color: AppColors.borderStrong, width: 1),
+                borderRadius: BorderRadius.circular(12),
               ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(
-              child: Opacity(
-                opacity: 0.6,
-                child: Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                  size: 31,
+              child: const Center(
+                child: Opacity(
+                  opacity: 0.6,
+                  child: Icon(Icons.arrow_back, color: Colors.white, size: 31),
                 ),
               ),
             ),
