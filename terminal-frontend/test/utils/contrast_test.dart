@@ -180,6 +180,48 @@ void main() {
     });
   });
 
+  group('what members reported after #41', () {
+    test('the logout button has an edge a member can find', () {
+      // Members reported not finding the logout control at all. It was an
+      // unlabelled grey chip on the grey member bar: WCAG 1.4.11 asks 3:1 of
+      // an interactive element's boundary against what is behind it, and both
+      // colours it used were far under.
+      final bar = _over(
+        const Color(0xcc1e293b), // MemberBar's own background
+        AppColors.bgPrimary,
+      );
+
+      // Both controls in the bar's action row use it — the logout chip and
+      // the back arrow, whose 40% blue edge measured 1.8:1.
+      _expectGlyph(AppColors.borderStrong, bar,
+          why: 'action button border on the member bar');
+
+      expect(
+        contrastRatio(_over(const Color(0x663b82f6), bar), bar),
+        lessThan(kGlyphContrastFloor),
+        reason: 'the back arrow\'s old 40% blue edge is why it moved too',
+      );
+
+      // The two it used to use, kept as the reason borderStrong exists. If
+      // either ever clears 3:1, this token can be collapsed back.
+      for (final old in <String, Color>{
+        'borderLight (the old fill)': AppColors.borderLight,
+        'borderMuted (the old border)': AppColors.borderMuted,
+      }.entries) {
+        expect(
+          contrastRatio(old.value, bar),
+          lessThan(kGlyphContrastFloor),
+          reason: '${old.key} is why the logout button was invisible',
+        );
+      }
+
+      // The label and glyph inside the chip are text, so hold them to 4.5:1
+      // on the fill the chip actually renders.
+      _expectText(AppColors.textPrimary, AppColors.borderLight,
+          why: 'logout label on the chip fill');
+    });
+  });
+
   group('the kiosk type scale', () {
     // Reset between tests: AppFontSizes is mutable static state that
     // applyConfig writes to, and a leaked override would make the floors below

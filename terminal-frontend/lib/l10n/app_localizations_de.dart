@@ -204,6 +204,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get logout => 'Abmelden';
 
   @override
+  String get backToProducts => 'Zurück';
+
+  @override
   String get errorTitle => 'Fehler';
 
   @override
