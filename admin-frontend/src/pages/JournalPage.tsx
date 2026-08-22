@@ -37,6 +37,7 @@ import { getCurrentLanguage } from '../i18n/config'
 import { getLocalizedName } from '../utils/i18n-helpers'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
 import { StornoConfirmDialog } from '../components/modals/StornoConfirmDialog'
+import { UndoIcon } from '../components/icons'
 import type { GlobalTransaction } from '../api/generated'
 import { theme } from '../styles/design-system'
 import {
@@ -421,9 +422,28 @@ export function JournalPage() {
                         {t(`journal.types.${tx.type}`, tx.type)}
                       </span>
                     </div>
-                    {/* Row 2: member name */}
-                    <div style={{ fontWeight: 600, fontSize: '14px', color: theme.colors.text.primary, marginBottom: '4px' }}>
-                      {tx.member_name}
+                    {/* Row 2: member name + amount. The amount rides on the
+                        name row rather than down beside the action, the same
+                        headline shape the member and product cards use: the
+                        figure is what the eye comes for, and the bottom row is
+                        left to the action alone. */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, fontSize: '14px', color: theme.colors.text.primary }}>
+                        {tx.member_name}
+                      </span>
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          whiteSpace: 'nowrap',
+                          fontFamily: 'JetBrains Mono, monospace',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          fontVariantNumeric: 'tabular-nums',
+                          color: getTransactionAmountColor(tx.amount_cents),
+                        }}
+                      >
+                        {formatPrice(tx.amount_cents)}
+                      </span>
                     </div>
                     {/* Row 3: product name + description */}
                     {(tx.product_name || tx.description) && (
@@ -454,35 +474,31 @@ export function JournalPage() {
                         {t('journal.stornoedBadge')}
                       </div>
                     )}
-                    {/* Row 4: amount (right-aligned) + storno action */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                      {tx.type !== 'storno' ? (
+                    {/* Row 4: actions, right-aligned — where every other card
+                        list in the admin keeps them. A storno transaction has
+                        no action of its own, so it gets no row at all rather
+                        than an empty one. */}
+                    {tx.type !== 'storno' && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                         <button
                           data-testid={`journal-storno-btn-${tx.id}`}
                           onClick={() => handleOpenStorno(tx)}
                           disabled={!!tx.stornoed_by_transaction_id}
                           title={tx.stornoed_by_transaction_id ? t('journal.stornoedBadge') : undefined}
                           style={{
-                            padding: '4px 10px',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            background: 'transparent',
-                            border: `1px solid ${theme.colors.border.light}`,
-                            borderRadius: theme.borderRadius.sm,
+                            display: 'flex', alignItems: 'center', gap: '4px',
+                            padding: '6px 12px', borderRadius: '6px', border: 'none',
+                            background: tx.stornoed_by_transaction_id ? theme.badges.neutral.bg : theme.badges.danger.bg,
                             color: tx.stornoed_by_transaction_id ? theme.colors.text.secondary : theme.colors.semantic.danger,
+                            fontSize: '12px',
                             cursor: tx.stornoed_by_transaction_id ? 'not-allowed' : 'pointer',
                             opacity: tx.stornoed_by_transaction_id ? 0.5 : 1,
                           }}
                         >
-                          {t('journal.stornoAction')}
+                          <UndoIcon size={14} /> {t('journal.stornoAction')}
                         </button>
-                      ) : (
-                        <span />
-                      )}
-                      <div style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', color: getTransactionAmountColor(tx.amount_cents) }}>
-                        {formatPrice(tx.amount_cents)}
                       </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>

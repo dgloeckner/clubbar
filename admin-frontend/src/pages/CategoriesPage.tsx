@@ -418,55 +418,54 @@ export function CategoriesPage() {
                         {getLocalizedName(category.names as Record<string, string>, i18n.language)}
                       </span>
                     </div>
-                    {/* Row 2: product count + actions */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: '46px' }}>
-                      <span
-                        data-testid={`categories-table-cell-product-count-${category.id}`}
-                        style={{ fontSize: '12px', color: theme.colors.text.secondary }}
-                      >
+                    {/* Row 2: product count, flush left like the member and
+                        product cards' metadata. */}
+                    <div style={{ fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '10px' }}>
+                      <span data-testid={`categories-table-cell-product-count-${category.id}`}>
                         {category.product_count} {t('categories.productCount')}
                       </span>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          data-testid={`categories-table-action-edit-${category.id}`}
-                          onClick={() => openEditModal(category)}
-                          aria-label={t('categories.editCategoryNamed', {
-                            name: getLocalizedName(category.names as Record<string, string>, i18n.language),
-                          })}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '4px',
-                            padding: '6px 12px', borderRadius: '6px', border: 'none',
-                            background: theme.badges.info.bg, color: theme.colors.semantic.primary,
-                            fontSize: '12px', cursor: 'pointer',
-                          }}
-                        >
-                          <EditIcon size={14} /> {t('common.edit')}
-                        </button>
-                        <button
-                          data-testid={`categories-table-action-delete-${category.id}`}
-                          onClick={() => handleDelete(category)}
-                          disabled={category.product_count > 0}
-                          title={
-                            category.product_count > 0
-                              ? t('categories.cannotDeleteWithProducts', { count: category.product_count })
-                              : undefined
-                          }
-                          aria-label={t('categories.deleteCategoryNamed', {
-                            name: getLocalizedName(category.names as Record<string, string>, i18n.language),
-                          })}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '4px',
-                            padding: '6px 12px', borderRadius: '6px', border: 'none',
-                            background: category.product_count > 0 ? 'rgba(107,114,128,0.1)' : theme.badges.danger.bg,
-                            color: category.product_count > 0 ? theme.colors.semantic.neutral : theme.colors.semantic.danger,
-                            fontSize: '12px',
-                            cursor: category.product_count > 0 ? 'not-allowed' : 'pointer',
-                            opacity: category.product_count > 0 ? 0.5 : 1,
-                          }}
-                        >
-                          <TrashIcon size={14} /> {t('common.delete')}
-                        </button>
-                      </div>
+                    </div>
+                    {/* Row 3: actions, right-aligned on their own row. */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                      <button
+                        data-testid={`categories-table-action-edit-${category.id}`}
+                        onClick={() => openEditModal(category)}
+                        aria-label={t('categories.editCategoryNamed', {
+                          name: getLocalizedName(category.names as Record<string, string>, i18n.language),
+                        })}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '4px',
+                          padding: '6px 12px', borderRadius: '6px', border: 'none',
+                          background: theme.badges.info.bg, color: theme.colors.semantic.primary,
+                          fontSize: '12px', cursor: 'pointer',
+                        }}
+                      >
+                        <EditIcon size={14} /> {t('common.edit')}
+                      </button>
+                      <button
+                        data-testid={`categories-table-action-delete-${category.id}`}
+                        onClick={() => handleDelete(category)}
+                        disabled={category.product_count > 0}
+                        title={
+                          category.product_count > 0
+                            ? t('categories.cannotDeleteWithProducts', { count: category.product_count })
+                            : undefined
+                        }
+                        aria-label={t('categories.deleteCategoryNamed', {
+                          name: getLocalizedName(category.names as Record<string, string>, i18n.language),
+                        })}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '4px',
+                          padding: '6px 12px', borderRadius: '6px', border: 'none',
+                          background: category.product_count > 0 ? 'rgba(107,114,128,0.1)' : theme.badges.danger.bg,
+                          color: category.product_count > 0 ? theme.colors.semantic.neutral : theme.colors.semantic.danger,
+                          fontSize: '12px',
+                          cursor: category.product_count > 0 ? 'not-allowed' : 'pointer',
+                          opacity: category.product_count > 0 ? 0.5 : 1,
+                        }}
+                      >
+                        <TrashIcon size={14} /> {t('common.delete')}
+                      </button>
                     </div>
                   </div>
                 )
