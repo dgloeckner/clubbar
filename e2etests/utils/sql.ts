@@ -93,12 +93,32 @@ export function execSql(statement: string): string {
  *
  * The one call this module exists for. A negative value backdates it, which is
  * how the "already expired, so no advance warning" case is produced.
+ *
+ * Returns the deadline that was actually written, as the UTC instant the column
+ * holds (#365). A caller asserting on the date a mail prints must compare
+ * against *this*, not against `Date.now() + days`: the interval is added to the
+ * database's clock, not the runner's, and the mail renders the result in the
+ * club's zone rather than in UTC.
+ *
+ * @returns `2026-08-27T22:46:03Z`.
  */
-export function setTerminalTokenExpiry(terminalId: string, days: number): void {
+export function setTerminalTokenExpiry(terminalId: string, days: number): string {
+  const id = terminalId.replace(/'/g, '')
+
   execSql(
     `UPDATE terminals SET token_expires_at = NOW() + INTERVAL ${Number(days)} DAY ` +
-      `WHERE id = '${terminalId.replace(/'/g, '')}'`,
+      `WHERE id = '${id}'`,
   )
+
+  const output = execSql(
+    `SELECT DATE_FORMAT(token_expires_at, '%Y-%m-%dT%H:%i:%sZ') FROM terminals WHERE id = '${id}'`,
+  )
+  const written = output.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+  if (written === null) {
+    throw new Error(`No token_expires_at readable back for terminal ${id}:\n${output}`)
+  }
+
+  return written[0]
 }
 
 /**

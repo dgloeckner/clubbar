@@ -44,6 +44,7 @@ import {
 } from '../../utils/mailpit'
 import { drainMailQueue } from '../../utils/drain'
 import { createIsolatedAdmin } from '../../utils/isolatedAdmin'
+import { clubDateTime } from '../../utils/dates'
 
 const API_BASE = 'http://localhost:8080/api'
 const MAIL_CONFIG = '/api/admin/mail-config'
@@ -87,21 +88,12 @@ async function waitForTheNotice(mail: MailpitClient, recipient: string) {
 /**
  * The sale as the club would write it: `21.08.2026, 16:29`.
  *
- * Deliberately computed here from the same instant the sale was booked with,
- * rather than hard-coded — the assertion is that the mail states *the club's*
- * clock, and Berlin is one hour ahead of UTC in winter and two in summer, so a
- * fixed offset would make this spec pass or fail by the season (#637).
+ * Deliberately computed from the same instant the sale was booked with, rather
+ * than hard-coded — the assertion is that the mail states *the club's* clock,
+ * and Berlin is one hour ahead of UTC in winter and two in summer, so a fixed
+ * offset would make this spec pass or fail by the season (#637).
  */
-const asTheClubWouldWriteIt = (instant: Date): string =>
-  new Intl.DateTimeFormat('de-DE', {
-    timeZone: 'Europe/Berlin',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(instant)
+const asTheClubWouldWriteIt = clubDateTime
 
 /** A birth date making somebody exactly `years` old today. */
 const bornToBeAgedOn = (years: number): string => {

@@ -43,6 +43,7 @@ import {
 } from '../../utils/mailpit'
 import { drainMailQueue } from '../../utils/drain'
 import { setTerminalTokenExpiry } from '../../utils/sql'
+import { clubDate } from '../../utils/dates'
 import { stepUp } from '../../fixtures/stepUp'
 
 const MAIL_CONFIG = '/api/admin/mail-config'
@@ -84,12 +85,6 @@ function htmlAsText(html: string): string {
 /** Both parts of a message, each flattened to comparable text. */
 function parts(message: MailpitMessage): { html: string; text: string } {
   return { html: htmlAsText(message.HTML), text: message.Text }
-}
-
-/** `2026-08-21T…` → `21.08.2026`, as `MailFormat::date()` writes it in German. */
-function germanDate(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
 
 test.describe('Credential expiry warnings — scan, cron, delivered mail', () => {
@@ -162,9 +157,12 @@ test.describe('Credential expiry warnings — scan, cron, delivered mail', () =>
    */
   test('warns an admin who never opened the panel, once per tier', async () => {
     const expiresIn = 5
-    setTerminalTokenExpiry(terminalId, expiresIn)
-
-    const deadline = new Date(Date.now() + expiresIn * 24 * 60 * 60 * 1000)
+    // The deadline the database actually wrote, not `Date.now() + 5 days`: the
+    // interval is added to the database's clock, and the date the mail prints
+    // is that instant in the *club's* zone. Recomputing it from the runner's
+    // clock agreed with the mail for 22 hours a day and disagreed for the two
+    // before midnight UTC, which is when this ran and went red (#637).
+    const deadline = setTerminalTokenExpiry(terminalId, expiresIn)
 
     // The run's own output, asserted before the mailbox: a tick that never
     // reached the scan would otherwise surface as "expected 1 message,
@@ -184,7 +182,7 @@ test.describe('Credential expiry warnings — scan, cron, delivered mail', () =>
     const { html, text } = parts(message)
     for (const part of [html, text]) {
       // …by when…
-      expect(part).toContain(germanDate(deadline))
+      expect(part).toContain(clubDate(deadline))
       // …what happens if nobody acts…
       expect(part).toContain('kann sich das Terminal nicht mehr anmelden')
       // …and what to do, named as the admin panel labels it.

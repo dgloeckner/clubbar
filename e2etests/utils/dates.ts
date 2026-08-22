@@ -2,12 +2,16 @@ import type { APIRequestContext } from '@playwright/test'
 import type { ApiRequestLike } from './request-context'
 
 /**
- * Date helpers for settlement tests.
+ * Date helpers: the bank's calendar, and the club's clock.
  *
  * A SEPA execution_date must be a TARGET2 business day (issue #11). Tests that
  * derive it from `today + 7` would fail on roughly two weekdays in seven, and
  * more around Easter and Christmas, so they ask the backend instead of
  * reimplementing the rule here.
+ *
+ * The `club*` helpers at the bottom are the other half of the same problem: a
+ * server-rendered date is written in the club's zone, and the runner's is not
+ * it.
  */
 
 /** Format a Date as YYYY-MM-DD using local calendar components. */
@@ -166,4 +170,50 @@ export function tuesdayAfterNextEaster(from: string = new Date().toISOString().s
   }
 
   throw new Error(`No Easter Tuesday found after ${from}`)
+}
+
+/**
+ * The zone the backend *reads* in — `CLUB_TIMEZONE`, Europe/Berlin unless a
+ * deployment says otherwise (`App\Shared\Time\ClubTimeZone`, #637).
+ *
+ * Hard-coded rather than read from `process.env`: the value the backend uses
+ * comes from `backend/.env` inside the container, which the Playwright process
+ * cannot see, so an env var here would describe the runner and claim to
+ * describe the server. The stack under test runs the default.
+ */
+export const CLUB_TIME_ZONE = 'Europe/Berlin'
+
+/**
+ * A stored instant as a German-language mail prints it: `28.08.2026`.
+ *
+ * The counterpart of `MailFormat::date()`. It matters that this is a *zone
+ * conversion* and not a reformat: everything is stored in UTC (#365) and
+ * rendered in the club's zone, so an instant at `2026-08-27 22:46Z` is the 28th
+ * to the person reading the mail. Computing the same date from the runner's
+ * clock agrees for 22 hours a day and is off by one for the other two.
+ *
+ * Only ever pass an **instant**. A calendar day — a settlement's due date, a
+ * birth date — carries no time to convert and must be formatted verbatim;
+ * shifting one is how a deadline silently moves a day.
+ */
+export function clubDate(instant: Date | string): string {
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: CLUB_TIME_ZONE,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(instant))
+}
+
+/** The same instant to the minute, as `MailFormat::dateTime()` writes it. */
+export function clubDateTime(instant: Date | string): string {
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: CLUB_TIME_ZONE,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(instant))
 }
