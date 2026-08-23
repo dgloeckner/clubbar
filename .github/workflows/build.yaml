@@ -9,8 +9,14 @@ on:
   release:
     types: [created]
 
+# Read-only by default. Every job here runs third-party install and build code
+# — `npm ci` resolves ~470 packages of which 26 run install lifecycle scripts,
+# `composer install` and `flutter pub get`/`build_runner` do the equivalent —
+# so a workflow-wide write grant would hand a compromised release of any of
+# them a token that can push to this repository. Only the two jobs that attach
+# artifacts to a GitHub release need to write, and they ask for it themselves.
 permissions:
-  contents: write
+  contents: read
 
 env:
   # One Node for every job below. The floor is set by the admin frontend's
@@ -678,6 +684,9 @@ jobs:
       && needs['test-e2e'].result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Needed only by the "Upload to release" step below.
+    permissions:
+      contents: write
     outputs:
       artifact: ${{ steps.package.outputs.artifact }}
 
@@ -889,6 +898,9 @@ jobs:
     if: needs.changes.outputs.full == 'true' || needs.changes.outputs.terminal == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
+    # Needed only by the "Upload to release" step below.
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v7
