@@ -1,6 +1,10 @@
 # Club Bar Terminal
 
-Flutter-based POS terminal for the Club Bar system. Supports offline-capable transaction processing with RFID/NFC member identification.
+The kiosk POS: a member taps an RFID card, picks products, checks out. Flutter
+on Linux/macOS, Drift (SQLite) for the local cache, fully operational offline —
+it syncs when it can and never blocks a sale on the network.
+
+Deployment on a Raspberry Pi is covered in [INSTALL.md](./INSTALL.md).
 
 ## Terminal Onboarding
 
@@ -107,21 +111,34 @@ Note: `fontSizes` cannot be set via environment variables.
 
 ## Development
 
+These are the commands CI runs, in order:
+
 ```bash
-# Install dependencies
 flutter pub get
-
-# Run in development mode
-flutter run
-
-# Run unit tests
-flutter test
-
-# Run integration tests (requires display — use xvfb-run on headless Linux)
-flutter test integration_test/
-
-# Run specific test file
-flutter test test/services/config_service_test.dart
+flutter pub run build_runner build --delete-conflicting-outputs   # Drift + generated code
+flutter analyze
+flutter test                                                       # unit tests
+xvfb-run flutter test integration_test/ --exclude-tags=walkthrough # needs a display
+flutter run                                                        # the app
 ```
 
-For local development, create a `config.json` with `seedTestData: true` and `demoMode: true` to get mock data and a simulated RFID scan button without needing hardware or a running backend.
+`scripts/reset-db.sh` reloads the backend with mock data;
+`scripts/run-tests.sh` is the same test run with a bounded timeout, which is
+worth using locally because a hung Flutter test otherwise waits forever.
+A `Makefile` wraps some of these, but nothing in CI or the docs depends on it.
+
+For local development, create a `config.json` with `seedTestData: true` and
+`demoMode: true` to get mock data and a simulated RFID scan button without
+needing hardware or a running backend.
+
+## More
+
+- [INSTALL.md](./INSTALL.md) — deployment on Raspberry Pi, including the optional token dispenser
+- [RFID_IMPLEMENTATION.md](./RFID_IMPLEMENTATION.md) — how card scanning works
+- [docs/](./docs/) — audio setup, font sizing, state-management design
+- [../adr/](../adr/) — binding architectural decisions ([0033](../adr/0033-terminal-sync-contract.md) sync,
+  [0045](../adr/0045-age-restricted-products.md) Jugendschutz, [0047](../adr/0047-configurable-credit-limits.md) limits)
+
+## License
+
+Apache-2.0 (see the root [LICENSE](../LICENSE)).
