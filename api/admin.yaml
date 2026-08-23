@@ -2829,18 +2829,49 @@ paths:
         print the same command. `drain_url` is `null` when `cron.secret` is
         unset — the route is not mounted then, and offering the URL would be
         instructions for something that is not there.
+
+        ### The response depends on the caller's role (#677)
+
+        `admin` and `kassenwart` may both call this. They do not get the same
+        body, and a client must not assume the operator half is present:
+
+        | Role | Body |
+        |---|---|
+        | `admin` | Every field below |
+        | `kassenwart` | `verified` and `setup.recommended_interval_minutes`, nothing else |
+        | `getraenkewart` | `403 insufficient_role` |
+
+        The grant is wider than the payload on purpose. The gate this reports
+        on refuses the *treasurer's* button — finalizing a direct debit is
+        blocked until a run has been observed, and every settlement route
+        belongs to the Kassenwart — so the warning has to reach that office.
+        The operator half describes the deployment rather than the club:
+        `setup.cli_command` names this installation's document root,
+        `drain_url` names its trigger endpoint, and `php_version`,
+        `missing_extensions` and the interval pair are the self-check's reading
+        of a host no club office can reach. That stays behind `admin`
+        (ADR-0031).
+
+        A `getraenkewart` is out of the grant deliberately rather than by
+        omission: nothing they can do is blocked by the gate. The panel does
+        not call this for them either, so the `403` is what a bookmark gets,
+        not something a session fires on every page.
       operationId: getSchedulerStatus
       security:
         - sessionAuth: []
       responses:
         '200':
-          description: Scheduler status
+          description: |
+            Scheduler status — every field for `admin`, and `verified` plus
+            `setup.recommended_interval_minutes` alone for `kassenwart`.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SchedulerStatus'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
 
   /admin/notifications:
     get:
@@ -7182,11 +7213,17 @@ components:
 
     SchedulerStatus:
       type: object
+      description: |
+        What a `kassenwart` receives is `verified` and
+        `setup.recommended_interval_minutes` only — every other field here is
+        `admin`-only and simply absent from their response (#677). Nothing is
+        marked required for that reason; read defensively.
       properties:
         verified:
           type: boolean
           description: |
             Has a drain run ever been recorded? Once true it stays true.
+            The one field every role granted this route receives.
         last_run_at:
           type: string
           format: date-time
@@ -7247,16 +7284,22 @@ components:
           properties:
             cli_command:
               type: string
-              description: The line to paste into a hosting panel's cron form.
+              description: |
+                The line to paste into a hosting panel's cron form.
+                `admin` only — it names this installation's document root.
               example: php /var/www/htdocs/backend/bin/cron.php
             drain_url:
               type: string
               nullable: true
               description: |
                 The URL trigger, or `null` when `cron.secret` is unset and the
-                route is therefore not mounted.
+                route is therefore not mounted. `admin` only.
             recommended_interval_minutes:
               type: integer
+              description: |
+                How often the setup instructions ask for the drain to run.
+                Sent to every role granted this route, so a banner without the
+                command can still say how often the missing task has to fire.
               example: 15
 
     MailConfig:

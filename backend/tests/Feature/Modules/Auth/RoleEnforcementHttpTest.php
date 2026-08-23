@@ -71,10 +71,32 @@ class RoleEnforcementHttpTest extends HttpTestCase
             '/api/admin/terminals',
             '/api/admin/mail-config',
             '/api/admin/security-check',
-            '/api/admin/scheduler',
         ] as $path) {
             $this->assertRefused('GET', $path);
         }
+    }
+
+    /**
+     * The exception to the row above, and the one grant wider than its payload
+     * (#677). `/scheduler` reports the gate that refuses the *treasurer's*
+     * finalize button, so refusing the treasurer the answer meant every page
+     * they opened fired a guaranteed 403 and the warning never arrived. They
+     * reach it now; what they receive is redacted, which is
+     * `SchedulerGateHttpTest`'s and `SchedulerStatusDtoTest`'s to assert.
+     */
+    public function test_a_kassenwart_reaches_the_scheduler_status(): void
+    {
+        $this->signInHolding(AdminRole::KASSENWART);
+
+        $this->assertNotRefused('GET', '/api/admin/scheduler');
+    }
+
+    /** And the office the gate never blocks is still refused it. */
+    public function test_a_getraenkewart_cannot_reach_the_scheduler_status(): void
+    {
+        $this->signInHolding(AdminRole::GETRAENKEWART);
+
+        $this->assertRefused('GET', '/api/admin/scheduler');
     }
 
     /**

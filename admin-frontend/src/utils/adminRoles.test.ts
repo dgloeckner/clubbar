@@ -11,7 +11,9 @@ import {
   landingPath,
   toggleRole,
   sameRoleSet,
+  holdsAnyRole,
   SECTION_ROLES,
+  SCHEDULER_BANNER_ROLES,
   SETTINGS_TAB_ROLES,
   settingsTabsFor,
   maySeeSettingsTab,
@@ -315,4 +317,38 @@ describe('every navigable section is classified', () => {
       }
     })
   }
+})
+
+/**
+ * The scheduler banner's audience (#677).
+ *
+ * This is what decides whether `SchedulerBanner` fetches at all, so it is the
+ * client half of two separate promises: the Kassenwart is warned before the
+ * finalize button refuses them, and no office fires a request whose only
+ * possible answer is 403.
+ */
+describe('SCHEDULER_BANNER_ROLES', () => {
+  it('includes the office the scheduler gate actually blocks', () => {
+    expect(holdsAnyRole(['kassenwart'], SCHEDULER_BANNER_ROLES)).toBe(true)
+    expect(holdsAnyRole(['admin'], SCHEDULER_BANNER_ROLES)).toBe(true)
+  })
+
+  /**
+   * Deliberate, not an oversight: the gate blocks nothing a Getränkewart can
+   * do, and the route refuses them — so asking would be a guaranteed 403 on
+   * every page they open, which is the second half of what #677 was about.
+   */
+  it('leaves out the office the gate never blocks', () => {
+    expect(holdsAnyRole(['getraenkewart'], SCHEDULER_BANNER_ROLES)).toBe(false)
+  })
+
+  /** Grants are additive, so covering both lesser offices includes it. */
+  it('follows the union when both lesser offices are held', () => {
+    expect(holdsAnyRole(['kassenwart', 'getraenkewart'], SCHEDULER_BANNER_ROLES)).toBe(true)
+  })
+
+  /** A session whose profile has not loaded holds nothing, and asks nothing. */
+  it('grants nothing to a session holding no role', () => {
+    expect(holdsAnyRole([], SCHEDULER_BANNER_ROLES)).toBe(false)
+  })
 })

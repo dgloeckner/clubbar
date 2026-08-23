@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Notifications;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Settlements\Domain\SettlementLeadTime;
 use Tests\Feature\HttpTestCase;
@@ -17,6 +18,11 @@ use Tests\Feature\HttpTestCase;
  * `scheduler_not_verified`, not the generic 422 the frontend would have to
  * parse prose out of.
  *
+ * A third since #677: which *office* gets which half of that shape. The
+ * redaction itself is `SchedulerStatusDtoTest`'s; what is asserted here is that
+ * the real stack applies it to the roles `AdminSessionAuth` resolved, and that
+ * the Getränkewart is still refused at the middleware.
+ *
  * `cron_heartbeat` is a singleton, so this suite snapshots it in setUp and
  * restores it in tearDown rather than creating its own — the singleton
  * equivalent of Pattern 001's isolation rule. Restoring matters more than
@@ -27,6 +33,8 @@ class SchedulerGateHttpTest extends HttpTestCase
     private const PASSWORD_HASH = '$2y$12$Pp5DqCBrNhBDThRmWYwPlegkBrYSDKxoGguH1K2XnUlVzQxoUPygG';
 
     private string $adminId;
+    /** @var list<string> Accounts minted mid-test for the per-office reads. */
+    private array $extraAdminIds = [];
     private array $originalHeartbeat = [];
     private string $csrfToken;
 
@@ -58,6 +66,9 @@ class SchedulerGateHttpTest extends HttpTestCase
         $this->restoreHeartbeat();
 
         $this->db->prepare('DELETE FROM admin_users WHERE id = ?')->execute([$this->adminId]);
+        foreach ($this->extraAdminIds as $id) {
+            $this->db->prepare('DELETE FROM admin_users WHERE id = ?')->execute([$id]);
+        }
 
         parent::tearDown();
     }
@@ -191,5 +202,92 @@ class SchedulerGateHttpTest extends HttpTestCase
         ], headers: ['X-CSRF-Token' => $this->csrfToken]);
 
         $this->assertNotSame('scheduler_not_verified', $this->decode($response)['error'] ?? null);
+    }
+
+    /**
+     * Sign this request context in as a fresh account holding `$roles`.
+     *
+     * A second account rather than a re-grant on the first: `admin_user_roles`
+     * has no "replace" and stripping `admin` off the fixture mid-test would
+     * make the assertions depend on the order they run in.
+     */
+    private function actAs(AdminRole ...$roles): void
+    {
+        $id = $this->uuid();
+        $this->db->prepare(
+            'INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, totp_enabled, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 1, 0, NOW(), NOW())'
+        )->execute([$id, "scheduler-office-{$id}@example.test", self::PASSWORD_HASH, 'Office', 'de']);
+        $this->grantRoles($id, ...$roles);
+        $this->extraAdminIds[] = $id;
+
+        $_SESSION['admin_user_id'] = $id;
+    }
+
+    /**
+     * The whole point of #677: the office the gate actually blocks can read
+     * whether the gate is closed. Before this, every page a Kassenwart opened
+     * fired a request that could only answer 403, and the warning meant to
+     * pre-empt their own refusal was the one thing they could not load.
+     */
+    public function test_a_kassenwart_reads_the_flag_the_banner_needs(): void
+    {
+        $this->clearHeartbeat();
+        $this->actAs(AdminRole::KASSENWART);
+
+        $response = $this->request('GET', '/api/admin/scheduler');
+        $this->assertSame(200, $response->getStatusCode());
+
+        $body = $this->decode($response);
+        $this->assertFalse($body['verified']);
+        $this->assertSame(
+            SchedulerStatusService::RECOMMENDED_INTERVAL_MINUTES,
+            $body['setup']['recommended_interval_minutes'],
+        );
+    }
+
+    /**
+     * And reads nothing else. The grant widened, the payload did not: the CLI
+     * command names this installation's document root and the drain URL names
+     * its trigger endpoint, which is the operator detail ADR-0031 keeps behind
+     * the operator's session.
+     */
+    public function test_a_kassenwart_reads_no_operator_detail(): void
+    {
+        $this->clearHeartbeat();
+        $this->actAs(AdminRole::KASSENWART);
+
+        $body = $this->decode($this->request('GET', '/api/admin/scheduler'));
+
+        $this->assertSame(['verified', 'setup'], array_keys($body));
+        $this->assertSame(['recommended_interval_minutes'], array_keys($body['setup']));
+    }
+
+    /** The same session, on the same route, still gets the whole thing as admin. */
+    public function test_an_admin_still_reads_the_setup_command(): void
+    {
+        $this->clearHeartbeat();
+
+        $body = $this->decode($this->request('GET', '/api/admin/scheduler'));
+
+        $this->assertStringEndsWith('/backend/bin/cron.php', $body['setup']['cli_command']);
+        $this->assertArrayHasKey('php_version', $body);
+    }
+
+    /**
+     * The Getränkewart is refused at the middleware, deliberately and not by
+     * omission: nothing they can do is blocked by the scheduler gate, so a
+     * banner about it would warn them of a refusal they will never meet. The
+     * panel does not ask on their behalf either — which is what keeps this 403
+     * a bookmark's answer rather than something on every page load.
+     */
+    public function test_a_getraenkewart_is_refused_by_name(): void
+    {
+        $this->actAs(AdminRole::GETRAENKEWART);
+
+        $response = $this->request('GET', '/api/admin/scheduler');
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertSame('insufficient_role', $this->decode($response)['error']);
     }
 }

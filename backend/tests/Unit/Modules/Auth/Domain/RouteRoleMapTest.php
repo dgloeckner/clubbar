@@ -131,8 +131,29 @@ class RouteRoleMapTest extends TestCase
         $this->assertFalse(RouteRoleMap::permits($kassenwart, 'PATCH', '/api/admin/mail-config'));
         $this->assertFalse(RouteRoleMap::permits($kassenwart, 'POST', '/api/admin/mail-config/cron-secret/rotate'));
         $this->assertFalse(RouteRoleMap::permits($kassenwart, 'GET', '/api/admin/security-check'));
-        $this->assertFalse(RouteRoleMap::permits($kassenwart, 'GET', '/api/admin/scheduler'));
         $this->assertFalse(RouteRoleMap::permits($kassenwart, 'PATCH', '/api/admin/instance-config'));
+    }
+
+    /**
+     * The one grant that is wider than its payload (#677).
+     *
+     * The scheduler gate refuses the *treasurer's* finalize button, so the
+     * warning has to reach the treasurer — while the response's operator half
+     * (the cron command naming this installation's document root, the URL
+     * trigger, the drain's PHP build) stays `admin`-only. The route says who
+     * may knock; `SchedulerStatusDto::toOfficeArray()` says what they hear,
+     * and `SchedulerStatusDtoTest` is where that half is asserted.
+     *
+     * The Getränkewart is out: nothing they can do is blocked by the gate, so
+     * a banner about it would be a warning they can neither act on nor be hurt
+     * by — and leaving them out is what stops a request that could only ever
+     * answer 403.
+     */
+    public function test_the_scheduler_status_reaches_the_kassenwart_and_stops_there(): void
+    {
+        $this->assertTrue(RouteRoleMap::permits([AdminRole::KASSENWART], 'GET', '/api/admin/scheduler'));
+        $this->assertTrue(RouteRoleMap::permits([AdminRole::ADMIN], 'GET', '/api/admin/scheduler'));
+        $this->assertFalse(RouteRoleMap::permits([AdminRole::GETRAENKEWART], 'GET', '/api/admin/scheduler'));
     }
 
     /** Settlement work is the office, SEPA export included. */

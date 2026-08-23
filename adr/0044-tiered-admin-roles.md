@@ -59,7 +59,8 @@ Read-only surfaces are grouped with their module unless noted.
 
 | Surface | `admin` | `kassenwart` | `getraenkewart` |
 |---|:--:|:--:|:--:|
-| `/security-check`, `/scheduler`, `PATCH /instance-config` | ✅ | — | — |
+| `/security-check`, `PATCH /instance-config` | ✅ | — | — |
+| `GET /scheduler` | ✅ | ✅ ᵇ | — |
 | `/admin-users/*` — create, edit, delete, reactivate, reset-password | ✅ | — | — |
 | `/audit-log` | ✅ | — | — |
 | `/encryption-keys/*` | ✅ | — | — |
@@ -82,9 +83,19 @@ Read-only surfaces are grouped with their module unless noted.
 
 ᵃ `group_by` restricted to an allow-list for `getraenkewart` — see §"Fail closed".
 
+ᵇ The response is split rather than the route (#677): a `kassenwart` receives `verified` and the recommended interval, and the operator half — `setup.cli_command`, `drain_url`, the drain's PHP build and the interval pair — stays `admin`-only. See §"The scheduler status is granted to the office it blocks".
+
 ### Why the boundary falls where it does
 
 **The Kassenwart does not get the whole member module.** `anonymize`, `delete` and the GDPR subject-access export are none of them settlement work — you never need to erase a member to run a collection, so gating them costs the office nothing. The first two are irreversible: an accidental erasure is not recoverable by a storno or a re-run, and irreversible-plus-rare is exactly where a second pair of eyes is cheap. The third is the single cleanest "download everything about one named person" action in the system; gating the browsing surface while leaving that button beside it would be theatre.
+
+**The scheduler status is granted to the office it blocks.** `GET /scheduler` reports whether a scheduled run of the mail drain has ever been observed — and until one has, finalizing a direct debit is *refused*. Every settlement route is the Kassenwart's, so the Kassenwart is precisely who meets that refusal, and from the day roles shipped the banner meant to warn them ahead of it was the one request their session could not make (#677). A warning that reaches only the office it does not concern is not a warning.
+
+The grant widened; the payload did not. What a Kassenwart reads is the `verified` flag and the interval the setup instructions recommend — enough to say *a scheduled task is missing and collections are blocked until somebody adds it*. What stays behind `admin` is everything describing the deployment: `setup.cli_command` names this installation's document root, `drain_url` names its trigger endpoint, and `php_version`, `missing_extensions` and the declared/observed interval pair are the self-check's reading of the host. That is the same detail ADR-0031 keeps behind the operator's session, and none of it is actionable by an office with no hosting panel — so the banner they see names the remedy they *do* have: ask whoever holds the server.
+
+This is the only row where the grant is wider than the body, and it is a route-level grant plus a **payload allow-list**, following the rule §"Fail closed" states for `group_by`: a field added to that response next year is `admin`-only until a human writes it into the office view.
+
+**And the Getränkewart is left out of that grant deliberately.** Nothing they can do is blocked by the scheduler gate, so the banner would warn them of a refusal they will never meet — and the panel does not fetch on their behalf, which is what keeps a request that could only answer 403 off every page they open.
 
 **The Kassenwart reads SEPA configuration but does not write it.** They need to verify the Gläubiger-Identifikationsnummer on screen against what the bank holds before submitting a batch. Writing it is a once-in-years act whose blast radius is a rejected collection run and a Vorabankündigung the club already sent that no longer matches what happened — the same class as encryption keys and terminal tokens.
 
@@ -104,7 +115,9 @@ This also makes the whole model testable as a single fact: enumerate every route
 
 The two behave identically today and diverge the first time somebody adds a `group_by` value. Under a deny-list the new dimension is visible from the moment it merges and nobody is reminded; under an allow-list it is invisible until somebody adds it, in a diff a reviewer sees.
 
-**The general rule: wherever a role boundary lands on a parameter rather than a route, it is an allow-list.**
+**Payloads.** `GET /scheduler` is the same shape one rung further in (#677): the route is granted to the Kassenwart, and the *fields* of the response are the boundary. Same rule — the office view is an allow-list naming `verified` and the recommended interval, not the full response with the operator fields removed. A deny-list there would hand a club office whatever field somebody adds to that DTO next year, on the day it merges.
+
+**The general rule: wherever a role boundary lands on a parameter or on a field rather than on a route, it is an allow-list.**
 
 ### Granting a role is minting authority
 
