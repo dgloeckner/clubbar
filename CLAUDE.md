@@ -191,6 +191,91 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
 
 **Downloads**: route every file download through `src/api/client.ts` — `downloadFile(url, fallback)` when you have a URL (it goes through the API client and honours `Content-Disposition`), `downloadBlob(blob, filename)` when a generated endpoint already returned the blob. Do not build `<a download>` elements in pages.
 
+### Branch & PR Workflow
+
+**Never commit directly to `main`. All work happens on a feature branch and lands
+through a pull request.** That is what makes the work reviewable and — where an
+issue is involved — what links the code back to the requirement that motivated it.
+
+1. **Refresh `main`, then branch off it, before the first commit**, so the branch
+   does not carry a stale history into review:
+
+   ```bash
+   git checkout main && git pull origin main
+   git checkout -b feat/57-terminal-error-plumbing
+   ```
+
+   Name the branch after the issue where there is one: `feat/<issue>-<slug>`,
+   `fix/<issue>-<slug>`, `docs/<slug>`.
+
+   If `git pull` reports local commits on `main` that are not on the remote, stop
+   and surface it rather than merging past it — it usually means earlier work was
+   committed to `main` by mistake. To rescue it: `git branch <feature-branch>` at
+   the current HEAD, `git checkout <feature-branch>`, then
+   `git branch -f main origin/main`.
+
+   If the branch is long-lived and `main` moves underneath it, refresh again
+   before opening the PR (`git fetch origin && git merge origin/main`) so CI
+   tests the real merge result.
+2. **Verify before pushing.** The Test Verification Policy below is not waived by
+   the existence of CI — tests must be green locally first.
+3. **Open the PR with the issue linked** using a closing keyword (`Closes #57`),
+   so merging closes the issue. State what changed, call out anything
+   deliberately left out of scope, and record the local verification result.
+4. **Watch the PR until it is green.** On failure: read the job logs, classify
+   the root cause, fix, push to the same branch, re-check. **A PR is not done
+   when it is open — it is done when its checks pass.**
+
+Branching, pushing a feature branch and opening a PR are the expected path and
+need no separate approval once the work has been asked for. **Merging**,
+force-pushing and deleting branches are not — confirm those.
+
+### Destructive Test Cleanup (CRITICAL)
+
+**A `tearDown()` that deletes must never be able to point at a path the test did
+not create.**
+
+This rule exists because of a real incident. `DeployRequestScriptTest::setUp()`
+called `markTestSkipped()` — `jq` is not installed in the backend container —
+*before* assigning `$this->docRoot`. PHPUnit runs `tearDown()` for a skipped test
+anyway, so cleanup ran with the property still at its `''` default:
+
+```php
+private string $docRoot = '';                       // never assigned when setUp skips
+
+foreach (glob($this->docRoot . '/*') ?: [] as $f) { // glob('/*') — the ROOT directory
+    unlink($f);                                     // unlink() removes symlinks without complaint
+}
+```
+
+`/bin`, `/lib`, `/lib64`, `/sbin` and `/entrypoint` are symlinks at `/` on a
+merged-usr image, so all five were deleted. **Losing `/lib64` removes the ELF
+interpreter**, after which every dynamically linked binary in that container
+fails to exec with `no such file or directory` — including the healthcheck, so
+the container reads `Up (unhealthy)` while the already-running php-fpm keeps
+serving HTTP. Nothing in the failure names a test; it reads as a broken image.
+CI never saw it, because the CI image has `jq` and `setUp()` completes.
+
+1. **Use `Tests\Support\TempTree`** (`backend/tests/Support/TempTree.php`) —
+   `makeTempTree()` to create, `removeTempTree()` to delete. It refuses an empty
+   path, a non-existent path, and anything not resolving *under* the system temp
+   directory. `TempTreeTest` is its regression test.
+2. **Never concatenate a path onto a possibly-unset property** and hand the
+   result to `glob()`, `unlink()`, `rmdir()` or `rm -rf`. `'' . '/*'` is `/`.
+3. **Assign the path before any `markTestSkipped()`** — better, do not depend on
+   ordering at all, per rule 1.
+4. **A skip is not a "no cleanup" signal.** `tearDown()` runs for skipped,
+   errored and incomplete tests alike.
+5. **`unlink()` deletes symlinks**, so "delete only files, not directories" is
+   not a safety property at `/`. Every dangerous entry in a root directory is a
+   symlink.
+6. **No destructive cleanup outside `sys_get_temp_dir()`.** Fixtures that must
+   live in the repo are removed by naming the exact files, never by globbing.
+
+When reviewing or writing a test that deletes anything, ask the two questions the
+incident answers: *what is this path when `setUp()` did not finish?* and *what is
+in that directory if the answer is `/`?*
+
 ### Development Approach
 - **Prefer a planned approach with milestones** over tackling all issues at once
 - **Break work into phases** — plan before implementing
