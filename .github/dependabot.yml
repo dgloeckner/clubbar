@@ -165,13 +165,6 @@ updates:
           - "typescript"
           - "@types/node"
 
-      tailwind:
-        patterns:
-          - "tailwindcss"
-          - "@tailwindcss/*"
-          - "postcss"
-          - "autoprefixer"
-
       # orval generates the API client and axios is what the generated code
       # calls, so a regeneration and its HTTP client land together.
       api-client:
@@ -212,10 +205,6 @@ updates:
           - "prettier-*"
           - "typescript"
           - "@types/node"
-          - "tailwindcss"
-          - "@tailwindcss/*"
-          - "postcss"
-          - "autoprefixer"
           - "orval"
           - "axios"
         update-types:
