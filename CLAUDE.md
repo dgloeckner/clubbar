@@ -11,9 +11,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Flexible deployment on modest infrastructure
 
 **System Components:**
-- **Terminal App**: Electron-based POS for RFID/NFC member identification, product selection, and checkout
+- **Terminal App**: Flutter/Dart kiosk POS for RFID/NFC member identification, product selection, and checkout
 - **Admin Panel**: React SPA for member/product management, accounting, and compliance workflows
-- **Backend**: PHP/MariaDB REST API for synchronization and data persistence
+- **Backend**: PHP 8.3 (Slim 4) / MariaDB REST API for synchronization and data persistence
 
 **Core Design Principles:**
 - **Offline-first**: Terminal operates fully offline; syncs periodically when connected
@@ -23,7 +23,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **User privacy**: Personal data anonymizable (GDPR Art. 17); booking history retained separately
 - **Idempotent APIs**: Client-generated UUIDs ensure safe retry semantics
 
-**Status**: Architecture and specifications complete. Implementation ready for contribution.
+**Status**: In production use. All three components are implemented, covered by unit/API/E2E suites,
+and shipped as a self-hosting package (see [`docs/deployment.md`](./docs/deployment.md)).
 
 ---
 
@@ -39,9 +40,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Technology Choices
 - **Technology stacks are documented in `technologies.md`** for each sub-project:
-  - `terminal/technologies.md` — Terminal App (Electron)
+  - `terminal-frontend/technologies.md` — Terminal App (Flutter/Dart)
   - `admin-frontend/technologies.md` — Admin Panel (React SPA)
-  - `backend/technologies.md` — Backend (Laravel)
+  - `backend/technologies.md` — Backend (PHP 8.3, Slim 4)
 - **Follow documented patterns** — do not introduce new frameworks or libraries without updating the spec
 
 ### Use Cases
@@ -77,7 +78,17 @@ Reference backend code patterns in `backend/patterns/` directory:
 - **Pattern 005**: Repository Interface — abstract data access to enable testing and flexibility
 - **Pattern 006**: Thin Controllers — controllers route HTTP requests to services (no business logic)
 - **Pattern 007**: Centralized Exception Handling — consistent error response format and logging
-- **Pattern 008**: Service Provider Bindings — dependency injection configuration and lifecycle management
+- **Pattern 008**: ServiceFactory for Dependency Injection — container wiring and service lifetimes
+- **Pattern 009**: Module Structure & Organization — the per-module layout ADR-0018 prescribes
+- **Pattern 010**: Shared Base Service — the behaviour every module service inherits
+- **Pattern 011**: Shared Base Repository — the query helpers every repository inherits
+- **Pattern 012**: Terminal API Token Authentication — bearer tokens on the terminal surface
+- **Pattern 013**: Admin Session Authentication — session cookies and CSRF on the admin surface
+- **Pattern 014**: RFID Member Identification (Not Authentication) — a card names a member, it does not prove one
+- **Pattern 015**: Authorization & Access Control — default-deny role checks on every route (ADR-0044)
+- **Pattern 016**: Audit Logging — what gets an audit row and what it must carry
+- **Pattern 017**: Shared HTTP Layer — one envelope, one parser, one responder
+- **Pattern 018**: Custom Domain Exceptions — typed exceptions instead of parsing exception messages
 
 **Important**: All backend work must follow these patterns for consistency with ADR-0018 (Modular Architecture) and to maintain code quality across modules.
 
@@ -94,6 +105,7 @@ Reference E2E testing patterns in `e2etests/patterns/` directory (see **`README.
 - **Pattern 008**: Playwright Assertions & Auto-Waiting — use `expect()` instead of try-catch visibility checks for clear error messages
 - **Pattern 009**: User-Flow-Based Tests — chain related operations into flow tests instead of one assertion per test
 - **Pattern 010**: Asserting on Delivered Mail — read the message a real drain delivered to Mailpit, never the outbox row that claims it sent one
+- **Pattern 011**: Testing a Role You Are Not — role fixtures for asserting what each admin office can and cannot reach
 
 **Critical**: Pattern 008 fixes a common anti-pattern. Never use `try-catch` for visibility checks. Always use `await expect(locator).toBeVisible()` — Playwright's error messages are far superior and help debug failures immediately.
 
@@ -252,7 +264,7 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    - Common issues:
      - `302 Found` → Redirect (often CSRF middleware or route not matching)
      - `404` → Route not found or path parameter mismatched
-     - `500` → Application error (check Laravel logs)
+     - `500` → Application error (check the JSON application log, step 1)
      - `422` → Validation error (check request body format)
    - Compare expected vs actual status codes from logs
 
@@ -469,7 +481,7 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    ```
 
    **Common Issues:**
-   - ❌ `Target page closed` → API error caused app crash, check Laravel logs
+   - ❌ `Target page closed` → API error caused app crash, check the JSON application log
    - ❌ `Test timeout` → Backend not responding, check health endpoint
    - ❌ `422 validation error` → API validation failed, check request format matches OpenAPI spec
    - ❌ `401 Unauthorized` → Auth token expired or invalid, check auth.setup.ts
@@ -518,8 +530,8 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    # For new/modified E2E tests
    cd e2etests && npm test -- tests/api/filename.spec.ts --workers=4
 
-   # For new/modified PHP tests
-   cd backend && php artisan test tests/Feature/FeatureName
+   # For new/modified PHP tests (must run inside the container — the host has no bcmath)
+   docker compose exec -w /app backend ./vendor/bin/phpunit --filter FeatureName
 
    # For entire test suite
    cd e2etests && npm test -- --workers=4
@@ -638,7 +650,10 @@ cat results.json | jq '.suites[].tests[] | select(.status=="fail")'
 
 #### Core Principles
 
-- **Plans are stored in `plans/`** — each plan is a markdown file with clear milestones
+- **Plans are stored in `plans/`** — each plan is a markdown file with clear milestones.
+  New plans go here. Three other directories hold historical plans and are **read-only
+  context, not places to add to**: `docs/plans/` and `docs/superpowers/` (earlier tooling
+  wrote there) and `terminal-frontend/docs/plans/` (terminal-local design notes)
 - **Actionable items with testable results** — every task must have a verifiable outcome
 - **Progress evaluated by tests** — success is determined by passing tests, not subjective assessment
 - **Clear success/failure tracking**:
@@ -685,20 +700,24 @@ cat results.json | jq '.suites[].tests[] | select(.status=="fail")'
 
 | Directory | Purpose |
 |-----------|---------|
-| `admin-frontend/` | Admin Panel technology decisions and architecture |
+| `admin-frontend/` | Admin Panel (React SPA) — source, technology decisions, architecture |
 | `admin-frontend/patterns/` | **Design patterns and best practices for admin frontend development** |
-| `adr/` | Architecture Decision Records (22 ADRs documenting key decisions) |
+| `adr/` | Architecture Decision Records — see `adr/README.md` for the index |
 | `api/` | OpenAPI 3.0 specifications for Admin and Terminal APIs |
-| `backend/` | Backend technology decisions and architecture |
+| `artwork/` | Logo and brand assets |
+| `backend/` | Backend (PHP 8.3, Slim 4) — source, technology decisions, architecture |
 | `backend/patterns/` | **Code patterns and architectural patterns for backend quality** |
 | `docker/` | Docker Compose configuration for local development |
-| `docs/` | Entity-Relationship Models and data documentation |
+| `docs/` | Data model, flows, security, legal and operations docs — see `docs/README.md` |
 | `e2etests/` | Playwright API and E2E tests |
 | `e2etests/patterns/` | **E2E testing patterns for robust, isolated, parallel-safe tests** |
-| `plans/` | Implementation plans with testable milestones |
-| `prototypes/` | Interactive UI prototypes (React JSX + standalone HTML) |
-| `terminal/` | Terminal App technology decisions and architecture |
-| `use-cases/` | Functional requirements organized by domain |
+| `package/` | The self-hosting release package (web installer, upgrade script, sample config) |
+| `plans/` | Implementation plans with testable milestones — see `plans/INDEX.md` |
+| `research/` | Background research behind legal and regulatory decisions |
+| `scripts/` | Developer and CI shell scripts (`dev-setup.sh`, `dev-stack.sh`, image mirroring) |
+| `terminal-frontend/` | Terminal App (Flutter/Dart) — source, install guide, architecture |
+| `tools/` | Standalone browser tools (e.g. the encryption keypair generator) |
+| `use-cases/` | Functional requirements organized by domain — see `use-cases/README.md` |
 
 ---
 
@@ -769,14 +788,14 @@ This project is designed for self-hosting and open-source community contribution
 
 ### Repository Structure
 
-See the **Repository Index** section at the top of this file for the complete directory structure.
+See **Directory Purposes** above for the complete directory structure.
 
 **Key directories for contributors:**
 - `adr/` — Architecture Decision Records (read before making architectural changes)
 - `api/` — OpenAPI specs (update when adding/changing endpoints)
 - `use-cases/` — Functional requirements (reference when implementing features)
 - `docs/` — Data models and ERMs (reference for database work)
-- `prototypes/` — UI prototypes (reference for frontend styling)
+- `admin-frontend/patterns/` — UI patterns and the component index (reference before building a page)
 
 ### Getting Started with Contributions
 
@@ -873,7 +892,7 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail")'
 ### Licensing & Attribution
 
 - **License**: Apache-2.0
-- **Attribution**: All contributors credited in CONTRIBUTORS.md
+- **Attribution**: Contributors are credited through the git history and the GitHub contributors list
 - **DCO**: Contributions must include sign-off (e.g., `git commit -s`)
 
 ## Cloud sessions

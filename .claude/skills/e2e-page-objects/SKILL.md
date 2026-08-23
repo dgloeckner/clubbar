@@ -4,7 +4,7 @@
 
 Use this when creating page objects, writing UI tests with `data-testid` selectors, or setting up Playwright fixtures for E2E tests.
 
-Source: `e2etests/patterns/` (Patterns 005-test-ids, 005-POM, 006-fixtures).
+Source: `e2etests/patterns/` (Patterns 005 test-ids, 006 page-object-model, 007 page-object-fixtures).
 
 ---
 

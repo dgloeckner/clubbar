@@ -1,4 +1,4 @@
-# E2E Testing Pattern 005: Page Object Model
+# Pattern 006: Page Object Model
 
 ## Overview
 
@@ -367,7 +367,7 @@ e2etests/
 │   └── api/
 │       └── health.spec.ts
 └── patterns/
-    └── 005-page-object-model.md (this file)
+    └── pattern-006-page-object-model.md (this file)
 ```
 
 ## Benefits Summary

@@ -475,7 +475,7 @@ docker compose exec database mysql -u clubbar -p clubbar -e "SHOW TABLES; SELECT
 1. **Read project patterns first**:
    ```bash
    cat e2etests/patterns/README.md
-   cat e2etests/patterns/008-playwright-assertions.md
+   cat e2etests/patterns/pattern-008-playwright-assertions.md
    ```
 
 2. **Query Context7 for up-to-date Playwright docs** (if needed):
@@ -609,7 +609,7 @@ docker compose exec database mysql -u clubbar -p clubbar -e "SHOW TABLES; SELECT
 **Step 1: Read project patterns**
 ```bash
 cat e2etests/patterns/README.md
-cat e2etests/patterns/008-playwright-assertions.md
+cat e2etests/patterns/pattern-008-playwright-assertions.md
 ```
 
 **Step 2: Query Context7 for Playwright best practices**

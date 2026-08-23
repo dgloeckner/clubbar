@@ -268,6 +268,8 @@ The transaction is stored; the violation is raised.
       true; `products_cache`; and the stale duplicate SQL block, replaced by a pointer to the
       Drift schema that generates it
 - [x] `docs/datamodel.md` — `members`, `products`, `members_cache`, `products_cache`
+      (that file has since been removed as a stale duplicate; `docs/erm-master.md` and
+      `docs/erm-frontend.md` are the data model)
 - [x] `docs/legal-requirements-and-how-we-meet-them.md` — new **§4 Jugendschutz** (eight rows,
       JuSchG § 9 to the audit entry), Gemeinnützigkeit renumbered to §5, and rows 3.10 and 3.11
       for the new processing purpose and the kiosk-cache minimisation, cross-linked to

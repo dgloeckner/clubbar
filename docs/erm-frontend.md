@@ -301,7 +301,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-    subgraph Terminal["Terminal (Electron + SQLite)"]
+    subgraph Terminal["Terminal (Flutter + SQLite)"]
         subgraph RO["Read-Only Caches"]
             MC[members_cache]
             CC[categories_cache]

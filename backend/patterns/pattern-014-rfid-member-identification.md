@@ -95,7 +95,7 @@ The card UID is stored as plaintext in the database because:
 ## Terminal: Scanning RFID Card
 
 ```php
-// Terminal Application Flow (Electron/JavaScript)
+// Terminal Application Flow (Flutter/Dart — shown as pseudo-code)
 // This runs on the unattended POS terminal, NOT in backend
 
 // When member scans card:

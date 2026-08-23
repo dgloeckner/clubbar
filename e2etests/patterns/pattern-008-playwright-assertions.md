@@ -1,4 +1,4 @@
-# E2E Testing Pattern 008: Playwright Assertions & Auto-Waiting
+# Pattern 008: Playwright Assertions & Auto-Waiting
 
 ## Overview
 
@@ -574,6 +574,6 @@ test('members page loads', async ({ page, membersPage }) => {
 
 - [Playwright: Assertions](https://playwright.dev/docs/test-assertions)
 - [Playwright: Locators](https://playwright.dev/docs/locators)
-- [Pattern 005: Test IDs](005-test-ids.md) - Reliable selectors for assertions
-- [Pattern 006: Page Object Model](005-page-object-model.md) - Structure page objects properly
-- [Pattern 007: Page Object Fixtures](006-page-object-fixtures.md) - Inject page objects cleanly
+- [Pattern 005: Test IDs](pattern-005-test-ids.md) - Reliable selectors for assertions
+- [Pattern 006: Page Object Model](pattern-006-page-object-model.md) - Structure page objects properly
+- [Pattern 007: Page Object Fixtures](pattern-007-page-object-fixtures.md) - Inject page objects cleanly
