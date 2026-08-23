@@ -110,6 +110,10 @@ jobs:
               - 'admin-frontend/package-lock.json'
               - 'e2etests/package.json'
               - 'e2etests/package-lock.json'
+              # The group check reads this one too, since pub joined the
+              # config (#649): a package added here and claimed by no group
+              # has to make lint-e2e run to be told so.
+              - 'terminal-frontend/pubspec.yaml'
 
       - name: Decide whether to run everything
         id: full
@@ -133,6 +137,63 @@ jobs:
           else
             echo "value=false" >> "$GITHUB_OUTPUT"
           fi
+
+  # A known advisory is a build failure, not a notification.
+  #
+  # Before this job, advisory detection rested entirely on Dependabot alerts,
+  # which are a repository setting rather than a file — invisible in review,
+  # unable to gate a merge, and blind to `pub` altogether, which is half of
+  # why #649 matters. This runs the two commands that read the committed
+  # lockfiles and says the answer on the pull request that introduces it.
+  #
+  # Deliberately ungated. Every other job here is gated on paths, and this one
+  # must not be: an advisory is published by a researcher, not by a push, so
+  # the lockfile that was clean on Friday is vulnerable on Monday with nothing
+  # in the diff to show for it.
+  #
+  # Nothing is installed. `npm audit` resolves the committed
+  # package-lock.json and `composer audit --locked` reads composer.lock, so
+  # the whole job is a checkout, a toolchain and three registry queries.
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # `high` fails on high and critical and leaves a low-severity advisory
+      # in a dev-only transitive package with no fix available — the shape of
+      # the minimatch ReDoS trio described in .github/dependabot.yml — off the
+      # critical path. Tolerating a *specific* advisory is a recorded
+      # `--exclude`, never a lower threshold for everything.
+      - name: npm audit (admin-frontend)
+        run: npm audit --audit-level=high
+        working-directory: admin-frontend
+
+      - name: npm audit (e2etests)
+        run: npm audit --audit-level=high
+        working-directory: e2etests
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          tools: composer
+
+      # `--abandoned=report` is Composer 2.8's default and Composer 3's is
+      # `fail`. Stated rather than inherited: an abandoned package is a
+      # maintenance question, and this job answers a security one — a
+      # toolchain bump should not turn the two into the same red build.
+      - name: composer audit (backend)
+        run: composer audit --locked --abandoned=report
+        working-directory: backend
+
+      # pub has no audit command, which is why the terminal's only advisory
+      # signal is a Dependabot version bump (#649).
 
   lint:
     needs: [changes]
