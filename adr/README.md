@@ -70,6 +70,7 @@ Each ADR follows this structure:
 | [0043](./0043-terminal-credential-issuance-is-announced.md) | Terminal Credential Issuance Is Announced, Not Gated Further | Accepted | 2026-08-16 |
 | [0044](./0044-tiered-admin-roles.md) | Tiered Admin Roles — `admin`, `Kassenwart`, `Getränkewart` | Accepted | 2026-08-17 |
 | [0045](./0045-age-restricted-products.md) | Age-Restricted Products — the Terminal Refuses, the Server Records | Accepted | 2026-08-20 |
+| [0046](./0046-configurable-credit-limits.md) | Configurable Credit Limits — a Club Default, a Per-Member Override | Accepted | 2026-08-23 |
 
 ## Creating a New ADR
 
