@@ -3,6 +3,8 @@
 
   "idleTitle": "Thirsty?",
   "idleSubtitle": "Hold your token to the scanner",
+  "loginWelcome": "Hi {firstName}!",
+  "loginWelcomeNoName": "Hi!",
   "demoScanCard": "Demo: Scan Token",
   "readerDisconnectedTitle": "Scanner not connected",
   "readerDisconnectedSubtitle": "Please inform the staff",

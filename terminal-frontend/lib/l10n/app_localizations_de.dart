@@ -15,6 +15,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get idleSubtitle => 'Halte deinen Chip an den Scanner';
 
   @override
+  String loginWelcome(String firstName) {
+    return 'Hi $firstName!';
+  }
+
+  @override
+  String get loginWelcomeNoName => 'Hi!';
+
+  @override
   String get demoScanCard => 'Demo: Chip scannen';
 
   @override

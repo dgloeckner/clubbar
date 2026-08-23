@@ -165,13 +165,6 @@ updates:
           - "typescript"
           - "@types/node"
 
-      tailwind:
-        patterns:
-          - "tailwindcss"
-          - "@tailwindcss/*"
-          - "postcss"
-          - "autoprefixer"
-
       # orval generates the API client and axios is what the generated code
       # calls, so a regeneration and its HTTP client land together.
       api-client:
@@ -212,10 +205,6 @@ updates:
           - "prettier-*"
           - "typescript"
           - "@types/node"
-          - "tailwindcss"
-          - "@tailwindcss/*"
-          - "postcss"
-          - "autoprefixer"
           - "orval"
           - "axios"
         update-types:
@@ -270,10 +259,20 @@ updates:
   # ---------------------------------------------------------------------------
   # GitHub Actions — one pull request for the lot, majors included.
   #
-  # Actions are pinned to major tags (`actions/checkout@v4`), so a major is the
-  # ordinary case rather than the exception, and splitting them out would mean
-  # a pull request per action for no added signal: the workflows are their own
-  # test, and a bad bump is red on this pull request.
+  # Actions are pinned to full commit SHAs with the version in a trailing
+  # comment (`actions/checkout@3d3c42e... # v7.0.1`). A tag is mutable: whoever
+  # controls the action's repository can repoint `@v7` at any commit, which is
+  # how `tj-actions/changed-files` was compromised in March 2025. A SHA cannot
+  # be repointed, so every bump has to arrive as a reviewable diff — which is
+  # what this entry produces. Dependabot understands the pin and rewrites both
+  # the SHA and the comment, so pinning costs no maintenance.
+  #
+  # Majors stay in the group rather than splitting out: a pull request per
+  # action adds no signal, because the workflows are their own test and a bad
+  # bump is red on this pull request.
+  #
+  # Keep new `uses:` lines pinned the same way. Resolve a tag with
+  # `git ls-remote https://github.com/<owner>/<repo> 'refs/tags/<tag>^{}'`.
   # ---------------------------------------------------------------------------
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -287,3 +286,97 @@ updates:
       github-actions:
         patterns:
           - "*"
+
+  # ---------------------------------------------------------------------------
+  # pub — the Flutter POS terminal.
+  #
+  # Added last and scheduled last, which keeps this file ordered by slot
+  # (04:00 npm, 05:00 composer, 06:00 actions, 07:00 pub): four ecosystems
+  # resolving at once is four concurrent runs against one repository, for no
+  # gain.
+  #
+  # Dependabot offers **no security updates for pub** — only version updates.
+  # That is an argument for enabling them, not against: `pub` has no `npm
+  # audit` or `composer audit` equivalent either (#650), so a version bump is
+  # the only signal this ecosystem can ever produce. Before this entry the
+  # whole terminal — 31 direct and 137 total packages, the tree that compiles
+  # into the binary handed to a club — sat outside the update process, and 62
+  # of those packages had gone stale unnoticed (#651).
+  #
+  # Grouped on the same rule as the entries above: packages that must move
+  # together are one pull request. For pub that is mostly generator/annotation
+  # pairs, which break apart — `drift_dev` generates against `drift`'s runtime,
+  # `chopper_generator` against `chopper`, `json_serializable` against
+  # `json_annotation`. `build_runner` drives all of them.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "pub"
+    directory: "/terminal-frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    groups:
+      # drift's runtime, its generator and its SQLite bindings. `drift_dev`
+      # declares a narrow range on `drift` and the generated `.g.dart` is
+      # written by one against the other, so a lone bump either fails to
+      # resolve or regenerates into a mismatch. `sqlite3` and `sqlparser` are
+      # transitive today — drift's own dependencies — and named anyway so that
+      # a direct pin, which is how #651 found the 3.2.0 -> 3.5.2 gap, lands
+      # here rather than in the catch-all.
+      drift:
+        patterns:
+          - "drift"
+          - "drift_dev"
+          - "sqlite3"
+          - "sqlparser"
+
+      # Code generation, annotations and the clients they generate. Every pair
+      # here is a build-time package and a runtime package that have to agree
+      # on the shape they write and read.
+      codegen:
+        patterns:
+          - "build_runner"
+          - "build*"
+          - "source_gen"
+          - "json_serializable"
+          - "json_annotation"
+          - "chopper"
+          - "chopper_generator"
+          - "swagger_dart_code_generator"
+
+      # Published by flutter.dev and released against the SDK rather than
+      # against each other — they move when FLUTTER_VERSION does (#648).
+      flutter-sdk-packages:
+        patterns:
+          - "go_router"
+          - "flutter_svg"
+          - "path_provider*"
+          - "flutter_lints"
+
+      # Everything else, minor and patch only, so a major arrives as its own
+      # reviewable pull request.
+      pub-minor-and-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "drift"
+          - "drift_dev"
+          - "sqlite3"
+          - "sqlparser"
+          - "build_runner"
+          - "build*"
+          - "source_gen"
+          - "json_serializable"
+          - "json_annotation"
+          - "chopper"
+          - "chopper_generator"
+          - "swagger_dart_code_generator"
+          - "go_router"
+          - "flutter_svg"
+          - "path_provider*"
+          - "flutter_lints"
+        update-types:
+          - "minor"
+          - "patch"

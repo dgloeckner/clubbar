@@ -3,7 +3,6 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'schema/members_cache.dart';
 import 'schema/categories_cache.dart';
@@ -208,11 +207,6 @@ class ClubBarDatabase extends _$ClubBarDatabase {
       );
 
   static QueryExecutor _openConnection() {
-    // Initialize sqlite3 for FFI (macOS/Linux)
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      sqfliteFfiInit();
-    }
-
     // Use LazyDatabase for async path resolution
     return LazyDatabase(() async {
       // Get the app support directory for persistent storage

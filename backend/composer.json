@@ -1,22 +1,21 @@
 {
-    "name": "frgs/clubbar-backend",
+    "name": "clubbar/backend",
     "description": "Club Bar POS Backend - Slim 4",
     "type": "project",
-    "license": "AGPL-3.0-or-later",
+    "license": "Apache-2.0",
     "require": {
         "php": ">=8.3",
         "ext-fileinfo": "*",
         "chillerlan/php-qrcode": "^6.0",
         "digitick/sepa-xml": "^3.1",
-        "league/openapi-psr7-validator": "^0.24",
         "robthree/twofactorauth": "^3.0",
         "slim/psr7": "^1.0",
         "slim/slim": "^4.0",
         "symfony/mailer": "^7.4",
-        "symfony/mime": "^7.4",
-        "symfony/yaml": "^7.0"
+        "symfony/mime": "^7.4"
     },
     "require-dev": {
+        "league/openapi-psr7-validator": "^0.24",
         "phpunit/phpunit": "^11.0"
     },
     "autoload": {

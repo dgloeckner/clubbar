@@ -170,6 +170,99 @@ export function npmEntries(config) {
     }))
 }
 
+/** Every pub update entry in the config, with its directory and groups. */
+export function pubEntries(config) {
+  return (config.updates ?? [])
+    .filter((entry) => entry['package-ecosystem'] === 'pub')
+    .map((entry) => ({
+      directories: entry.directories ?? [entry.directory],
+      groups: Object.entries(entry.groups ?? {}).map(([name, group]) => ({
+        name,
+        patterns: group.patterns ?? [],
+        exclude: group['exclude-patterns'] ?? [],
+      })),
+    }))
+}
+
+/**
+ * Direct dependencies declared in a `pubspec.yaml`, both tenses of the file.
+ *
+ * Read with a reader of its own rather than through `parseYaml`: a pubspec
+ * carries an `assets:` list, a `fonts:` tree and a `version: 1.0.0+1` that the
+ * config reader above has no reason to learn. Only two blocks matter here.
+ *
+ * Packages sourced from the SDK — `flutter`, `flutter_test`,
+ * `integration_test`, `flutter_localizations` — are excluded: they arrive with
+ * FLUTTER_VERSION (#648) and there is no pub release for Dependabot to offer.
+ *
+ * @returns {string[]} package names, in declaration order.
+ */
+export function pubDirectDependencies(source) {
+  const lines = source.split('\n')
+  const names = []
+  let inBlock = false
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+    if (line.trim() === '' || line.trimStart().startsWith('#')) continue
+
+    if (/^(dependencies|dev_dependencies):\s*$/.test(line)) {
+      inBlock = true
+      continue
+    }
+
+    if (indentOf(line) === 0) {
+      inBlock = false
+      continue
+    }
+
+    if (!inBlock || indentOf(line) !== 2) continue
+
+    const declared = line.trim().match(/^([A-Za-z0-9_]+):(.*)$/)
+    if (!declared) continue
+
+    const [, name, constraint] = declared
+
+    // `foo:` with a nested `sdk: flutter` is shipped with the SDK, not pub.
+    if (constraint.trim() === '' && /^\s+sdk:/.test(lines[index + 1] ?? '')) continue
+
+    names.push(name)
+  }
+
+  return names
+}
+
+/**
+ * @returns {string[]} one line per direct pub dependency no group claims, or
+ * that two groups claim at once — either way Dependabot's choice of pull
+ * request stops being the one this file describes.
+ */
+export function pubGroupCoverage(directs, groups) {
+  const problems = []
+
+  for (const name of directs) {
+    const claiming = [
+      ...new Set(
+        groups
+          .filter(
+            (group) =>
+              group.patterns.some((pattern) => matches(pattern, name)) &&
+              !group.exclude.some((pattern) => matches(pattern, name)),
+          )
+          .map((group) => group.name),
+      ),
+    ]
+
+    if (claiming.length === 0) {
+      problems.push(`${name} is claimed by no group — add it to one, or to the catch-all's reach`)
+    } else if (claiming.length > 1) {
+      problems.push(`${name} is claimed by ${claiming.length} groups (${claiming.join(', ')}) — exactly one may`)
+    }
+  }
+
+  return problems
+}
+
 function matches(pattern, name) {
   const expression = pattern.split('*').map(escapeRegExp).join('.*')
 
@@ -511,6 +604,25 @@ function main() {
     }
   }
 
+  // pub has no lockfile peer graph to read and no audit command to run, so the
+  // one thing that can be checked off a checkout is the one thing that decides
+  // what Dependabot opens: every direct dependency claimed by exactly one
+  // group (#649).
+  for (const entry of pubEntries(config)) {
+    for (const problem of catchAllDrift(entry.groups)) {
+      forecast.push(`[.github/dependabot.yml] ${problem}`)
+    }
+
+    for (const directory of entry.directories) {
+      const directs = pubDirectDependencies(readFileSync(resolve(REPO, `.${directory}`, 'pubspec.yaml'), 'utf8'))
+      checked += directs.length
+
+      for (const problem of pubGroupCoverage(directs, entry.groups)) {
+        forecast.push(`[${directory}] ${problem}`)
+      }
+    }
+  }
+
   if (broken.length > 0) {
     console.error(
       `This tree will not run here — a dependency outgrew the rest of the branch (#594, #619):\n\n` +
@@ -538,7 +650,8 @@ function main() {
 
   console.log(
     `[dependabot groups] ${checked} direct dependencies checked; every peer range resolves, ` +
-      `every engines floor fits Node ${node}, and no locked pair is split across groups.`,
+      `every engines floor fits Node ${node}, no locked pair is split across groups, and ` +
+      `every pub package is claimed by exactly one group.`,
   )
 }
 

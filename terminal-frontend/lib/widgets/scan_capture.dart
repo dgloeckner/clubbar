@@ -12,6 +12,7 @@ import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/services/scan_log.dart';
 import 'package:clubbar_terminal/utils/card_uid.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/widgets/login_success_overlay.dart';
 
 /// App-shell wrapper that captures RFID scans on **every** route and shows what
 /// the terminal made of them.
@@ -229,6 +230,10 @@ class _ScanCaptureState extends State<ScanCapture> {
       children: [
         widget.child,
         if (showFeedback) const _ScanFeedbackBanner(),
+        // On every route, like the capture itself: a login can start from the
+        // idle screen or take the terminal over from the confirmation screen
+        // (ADR-0027 rule 9), and both deserve the same welcome.
+        const LoginSuccessOverlay(),
       ],
     );
   }

@@ -59,6 +59,15 @@ class AppColors {
   /// Teal secondary glow colour for the RFID detector button.
   static const Color accentTeal = Color(0xff14b8a6);
 
+  /// Brand accent cyan from the club bar logo (`artwork/clubbar-logo.svg`):
+  /// the logo's signature gradient runs [semanticSuccessLight] → this.
+  /// Decorative brand surfaces only — not a text colour.
+  static const Color brandCyan = Color(0xff06b6d4);
+
+  /// Beer gold from the logo's mug, the light end of its pour gradient
+  /// (`#FCD34D` → [semanticPending]). Decorative brand surfaces only.
+  static const Color brandBeerGold = Color(0xfffcd34d);
+
   // Text colors — every one of these clears WCAG AA (4.5:1) on every
   // background token above; `test/utils/contrast_test.dart` enforces it.
   static const Color textPrimary = Color(0xfff1f5f9); // Primary text

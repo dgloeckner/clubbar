@@ -110,6 +110,18 @@ abstract class AppLocalizations {
   /// **'Halte deinen Chip an den Scanner'**
   String get idleSubtitle;
 
+  /// Greeting shown by the login success animation right after a card scan
+  ///
+  /// In de, this message translates to:
+  /// **'Hi {firstName}!'**
+  String loginWelcome(String firstName);
+
+  /// Login success greeting for a member record without a first name
+  ///
+  /// In de, this message translates to:
+  /// **'Hi!'**
+  String get loginWelcomeNoName;
+
   /// Demo button to simulate card scan
   ///
   /// In de, this message translates to:

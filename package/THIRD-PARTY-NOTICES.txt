@@ -1,0 +1,36 @@
+Club Bar — Third-Party Notices
+===============================
+
+Club Bar is licensed under the Apache License, Version 2.0 (see LICENSE).
+It bundles the following third-party component, whose license terms must
+be reproduced alongside any distributed copy of this package.
+
+-------------------------------------------------------------------------
+
+Package:    digitick/sepa-xml
+Version:    3.1.0
+Homepage:   https://github.com/php-sepa-xml/php-sepa-xml
+License:    GNU Lesser General Public License v3.0 or later (LGPL-3.0-or-later)
+Full text:  https://www.gnu.org/licenses/lgpl-3.0.txt
+
+Copyright holders:
+  Ianare Sevi
+  Digitick, SA <info@digitick.net>
+  Soren Rohweder (monofone) <s.rohweder@blage.net>
+  Borislav Sabev (Borkata) <contact@borkata.mailer.me>
+
+Used unmodified as a Composer dependency (vendor/digitick/sepa-xml) by
+backend/src/Modules/Settlements/Services/SepaExportService.php to generate
+SEPA direct debit XML for settlement payouts. Club Bar does not modify this
+package's source; the vendored copy under vendor/digitick/sepa-xml carries
+its own LICENSE file unchanged.
+
+See adr/0046-project-license-apache-2-0.md for the licensing decision this
+notice supports.
+
+-------------------------------------------------------------------------
+
+All other production dependencies of this package are licensed under MIT,
+BSD-3-Clause, or Apache-2.0 — permissive licenses that place no additional
+notice obligations beyond retaining their own copyright headers, which
+Composer preserves unchanged in vendor/.
