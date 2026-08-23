@@ -10,7 +10,8 @@ namespace App\Modules\Members\DTOs;
  * Deliberately narrower than `MemberAdminDto`: no contact details, no banking
  * data, no Deckel. The kiosk needs to recognize a card, greet a person, decide
  * whether they may transact at all, and — since ADR-0045 — whether they are old
- * enough for what is in the cart.
+ * enough for what is in the cart. Since ADR-0046 it also carries the ceiling
+ * that member was given, where they were given one.
  */
 final readonly class MemberDto
 {
@@ -21,6 +22,7 @@ final readonly class MemberDto
         public ?string $lastName,
         public ?string $dateOfBirth,
         public string $preferredLanguage,
+        public ?int $creditLimitCents,
         public bool $isActive,
         public bool $isSepaValid,
         public ?string $deletedAt,
@@ -37,6 +39,7 @@ final readonly class MemberDto
             dateOfBirth: $row['date_of_birth'] ?? null,
             lastName: $row['last_name'] ?? null,
             preferredLanguage: $row['preferred_language'],
+            creditLimitCents: isset($row['credit_limit_cents']) ? (int) $row['credit_limit_cents'] : null,
             isActive: (bool) $row['is_active'],
             isSepaValid: !empty($row['has_iban']) && !empty($row['mandate_reference']),
             deletedAt: $row['deleted_at'] ?? null,
@@ -64,6 +67,16 @@ final readonly class MemberDto
             // cursor, with no new mechanism.
             'date_of_birth' => $this->dateOfBirth,
             'preferred_language' => $this->preferredLanguage,
+            // The member's **override**, never a resolved ceiling (ADR-0046
+            // decision 1). `null` means they follow the club default, which the
+            // terminal has from `/sync/config`; `0` means no ceiling for them.
+            //
+            // Resolving it here would look tidier and be wrong: this payload is
+            // a delta on `updated_at`, and a club setting touches no member row,
+            // so the figure would go stale on every terminal until each member
+            // changed for some unrelated reason. The terminal coalesces the two
+            // itself, offline, in one line.
+            'credit_limit_cents' => $this->creditLimitCents,
             'is_active' => $this->isActive,
             'is_sepa_valid' => $this->isSepaValid,
             'deleted_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->deletedAt),

@@ -16,6 +16,7 @@ use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminContr
 use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\CreditLimits\Controllers\CreditLimitConfigController;
+use App\Modules\CreditLimits\Controllers\SyncController as CreditLimitSyncController;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
@@ -98,6 +99,10 @@ return function (App $app): void {
         $group->get('/categories', [ProductsSyncController::class, 'categories']);
         $group->get('/products', [ProductsSyncController::class, 'products']);
         $group->post('/transactions', [TransactionsSyncController::class, 'processBatch']);
+        // The club's credit policy (ADR-0046). Inside this group on purpose:
+        // it is what a terminal caches *after* it can authenticate, unlike
+        // /health, which carries only what it needs before that.
+        $group->get('/config', [CreditLimitSyncController::class, 'config']);
     })->add(TerminalTokenAuth::class)->add($terminalRateLimit);
 
     $app->get('/api/terminal/transactions/{memberId}', [TransactionsSyncController::class, 'transactionHistory'])

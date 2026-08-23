@@ -114,6 +114,7 @@ use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminContr
 use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\CreditLimits\Controllers\CreditLimitConfigController;
+use App\Modules\CreditLimits\Controllers\SyncController as CreditLimitSyncController;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
@@ -174,6 +175,7 @@ class ServiceFactory implements ContainerInterface
         SepaConfigController::class => 'getSepaConfigController',
         InstanceConfigController::class => 'getInstanceConfigController',
         CreditLimitConfigController::class => 'getCreditLimitConfigController',
+        CreditLimitSyncController::class => 'getCreditLimitSyncController',
 
         // Notifications
         MailConfigController::class => 'getMailConfigController',
@@ -1277,6 +1279,14 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(CreditLimitConfigController::class, fn() => new CreditLimitConfigController(
             $this->getCreditLimitConfigService(),
             $this->getValidator(),
+        ));
+    }
+
+    /** The club policy a terminal caches, on GET /api/sync/config (ADR-0046). */
+    public function getCreditLimitSyncController(): CreditLimitSyncController
+    {
+        return $this->resolve(CreditLimitSyncController::class, fn() => new CreditLimitSyncController(
+            $this->getCreditLimitConfigService(),
         ));
     }
 
