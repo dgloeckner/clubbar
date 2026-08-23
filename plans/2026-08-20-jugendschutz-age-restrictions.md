@@ -63,7 +63,7 @@ any form of identity verification. The system trusts the birth date on file.
 
 An earlier draft of this plan had the server reject underage transactions. Reading
 [ADR-0020](../adr/0020-sepa-mandate-requirement-terminal-access.md) in full showed that exact
-rejection was **already tried and deliberately removed** ([#162](https://github.com/dgloeckner/ruderbar/issues/162)):
+rejection was **already tried and deliberately removed** ([#162](https://github.com/dgloeckner/clubbar/issues/162)):
 
 > "The server must therefore store and flag such transactions, never reject them. Rejecting at
 > sync destroys the record of a sale that actually happened — revenue lost silently,

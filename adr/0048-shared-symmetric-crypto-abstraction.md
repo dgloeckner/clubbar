@@ -1,4 +1,4 @@
-# ADR-0038: Shared Symmetric Crypto Abstraction for TOTP Secrets
+# ADR-0048: Shared Symmetric Crypto Abstraction for TOTP Secrets
 
 **Status**: Accepted
 

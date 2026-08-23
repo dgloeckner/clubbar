@@ -6,7 +6,7 @@ How a member's Deckel becomes money, and what happens when it doesn't.
 
 ## 1. What a settlement contains
 
-Not "the transactions in a date window" — **every unsettled transaction of each included member** ([#141](https://github.com/dgloeckner/ruderbar/issues/141) §1–§2).
+Not "the transactions in a date window" — **every unsettled transaction of each included member** ([#141](https://github.com/dgloeckner/clubbar/issues/141) §1–§2).
 
 ```mermaid
 flowchart TD
@@ -38,7 +38,7 @@ flowchart TD
 
 ## 2. Settlement methods
 
-One field. Only `direct_debit` produces a file, and **only `direct_debit` may be exported** — which is what stops a settlement recorded as already-paid being sent to the bank ([#163](https://github.com/dgloeckner/ruderbar/issues/163)).
+One field. Only `direct_debit` produces a file, and **only `direct_debit` may be exported** — which is what stops a settlement recorded as already-paid being sent to the bank ([#163](https://github.com/dgloeckner/clubbar/issues/163)).
 
 ```mermaid
 flowchart LR

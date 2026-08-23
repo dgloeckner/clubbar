@@ -353,8 +353,9 @@ Patterns should be:
 
 ## References
 
-- [TESTING_SETUP.md](../TESTING_SETUP.md) - Setup and execution guide
-- [TEST_ANALYSIS.md](../TEST_ANALYSIS.md) - Analysis of issues and fixes
+- [../README.md](../README.md) - Running the suite, reading a red run, layout
+- [authentication-fixture.md](./authentication-fixture.md) - The `authenticatedRequest` fixture
+- [../../DEV_SETUP.md](../../DEV_SETUP.md) - Bringing up the stack the tests need
 - [Playwright Documentation](https://playwright.dev/docs/intro)
 - [Test Automation Best Practices](https://playwright.dev/docs/best-practices)
 

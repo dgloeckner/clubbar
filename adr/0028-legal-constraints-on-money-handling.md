@@ -5,19 +5,19 @@
 
 ## Context
 
-Money-semantics decisions for this system were locked on [map #139](https://github.com/dgloeckner/ruderbar/issues/139). Three of those tickets were **research** rather than design: they established facts about German law and SEPA scheme rules that constrain the design rather than following from it.
+Money-semantics decisions for this system were locked on [map #139](https://github.com/dgloeckner/clubbar/issues/139). Three of those tickets were **research** rather than design: they established facts about German law and SEPA scheme rules that constrain the design rather than following from it.
 
 Those facts kept being rediscovered. One ruling — "members should never end a period in net credit, prevent it at entry" — was made, implemented in two places, and then overturned by research showing it was not tenable. The same prevent-at-entry shape then reappeared in a second code path nobody had re-read.
 
 This ADR records the constraints themselves, separately from the design decisions that respond to them. **They are stable**: they do not change when we change our minds about schema or workflow. Design rulings live on their map tickets and may be revised; this document may only be revised if the law or the scheme rulebook changes.
 
-Sources: [#140](https://github.com/dgloeckner/ruderbar/issues/140) (refund obligation), [#149](https://github.com/dgloeckner/ruderbar/issues/149) (bank return reporting), [#159](https://github.com/dgloeckner/ruderbar/issues/159) (correction bookkeeping). Full working in `research/`.
+Sources: [#140](https://github.com/dgloeckner/clubbar/issues/140) (refund obligation), [#149](https://github.com/dgloeckner/clubbar/issues/149) (bank return reporting), [#159](https://github.com/dgloeckner/clubbar/issues/159) (correction bookkeeping). Full working in `research/`.
 
 > ⚠️ **Not legal advice.** Points marked ⚠️ need confirmation from the club's Steuerberater or bank. They are flagged where the research found no authority, not smoothed over.
 
 > ### ✅ Premise established (2026-08-07)
 >
-> This ADR's applicability was originally **assumed** — the research ticket behind it was handed the premise in its own body. It has since been tested directly ([#174](https://github.com/dgloeckner/ruderbar/issues/174)) and **it holds**:
+> This ADR's applicability was originally **assumed** — the research ticket behind it was handed the premise in its own body. It has since been tested directly ([#174](https://github.com/dgloeckner/clubbar/issues/174)) and **it holds**:
 >
 > - **[AEAO zu § 67a Nr. 10](https://ao.bundesfinanzministerium.de/ao/2020/Abgabenordnung/Zweiter-Teil/Dritter-Abschnitt/Paragraf-67a/ae-67a.html)** — a Vereinsgaststätte is a taxable wirtschaftlicher Geschäftsbetrieb *„auch wenn diese Einrichtungen ihr Angebot nur an Mitglieder richten"*. Members-only is refused by name.
 > - **BFH I R 13/13** — the Wettbewerbsgedanke is not an element of § 14 AO at all. "We don't compete with pubs" does not reach the classification.
@@ -71,7 +71,7 @@ A BMF circular binds the tax administration rather than the courts, but it resta
 
 **Two operations, not one.** A goodwill credit is a *new* Geschäftsvorfall, not a Stornobuchung — Rz. 64 never reaches it. Reversing a specific booking and adjusting a balance are legally distinct acts, and only the first requires linkage. A single optional foreign key cannot express this distinction.
 
-> **Resolved differently than this implies.** The distinction was removed rather than modelled: the standalone adjustment is not a supported operation at all, so `related_transaction_id` is simply mandatory. See [#158](https://github.com/dgloeckner/ruderbar/issues/158) and [#170](https://github.com/dgloeckner/ruderbar/issues/170) — every real goodwill case turned out to be a storno or a drink never booked.
+> **Resolved differently than this implies.** The distinction was removed rather than modelled: the standalone adjustment is not a supported operation at all, so `related_transaction_id` is simply mandatory. See [#158](https://github.com/dgloeckner/clubbar/issues/158) and [#170](https://github.com/dgloeckner/clubbar/issues/170) — every real goodwill case turned out to be a storno or a drink never booked.
 
 ### 5. Payouts require a document trail, not a second signature
 
@@ -105,7 +105,7 @@ flowchart TD
 
 § 1 Abs. 1 KassenSichV and AEAO zu § 146a Nr. 1.2 require *at least partly* **baren** Zahlungsvorgängen. This system takes no cash, so: no TSE, no DSFinV-K, no Belegausgabepflicht, no Kassenbuch, no Kassensturzfähigkeit.
 
-**"No cash" is a policy, not an observation.** The bar is unstaffed and self-service: members scan a card and pour their own drink, so there is no cash handling at the point of sale *by construction*. Payment happens later, between the member and the treasurer, away from the bar — and only by direct debit or, after a returned collection, bank transfer. `cash` is deliberately absent from the settlement reasons the system accepts ([#170](https://github.com/dgloeckner/ruderbar/issues/170)).
+**"No cash" is a policy, not an observation.** The bar is unstaffed and self-service: members scan a card and pour their own drink, so there is no cash handling at the point of sale *by construction*. Payment happens later, between the member and the treasurer, away from the bar — and only by direct debit or, after a returned collection, bank transfer. `cash` is deliberately absent from the settlement reasons the system accepts ([#170](https://github.com/dgloeckner/clubbar/issues/170)).
 
 This matters because the exemption depends on it. Accepting cash anywhere in the payment process — even a member handing the Kassenwart notes for their tab — would reopen this analysis. Treat re-admitting cash as an ADR change, not a feature.
 
@@ -180,5 +180,5 @@ Mechanically this is **Art. 17(3)(b) DSGVO** — the erasure obligation simply n
 
 - [ADR-0004](./0004-immutable-transaction-storage.md) — immutable transactions, corrections as reverse transactions. §4 here bears directly on its "Optional" `related_transaction_id`.
 - [ADR-0009](./0009-settlement-lead-times-bank-working-days.md) — settlement lead times and bank working days. §3's return windows begin from the execution date it governs.
-- [Map #139](https://github.com/dgloeckner/ruderbar/issues/139) — the design rulings responding to these constraints.
+- [Map #139](https://github.com/dgloeckner/clubbar/issues/139) — the design rulings responding to these constraints.
 - `research/correction-bookkeeping-law.md`, `research/credit-limit-precedents.md` — full working, quoted sources.

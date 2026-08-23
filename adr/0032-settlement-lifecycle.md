@@ -14,10 +14,10 @@ That gap was filled ticket by ticket during the critical remediation, and the se
 
 | Ruling | Established |
 |---|---|
-| [Exclude-and-flag](https://github.com/dgloeckner/ruderbar/issues/141) | who takes part in a run, and what happens to a member in credit |
-| [Settlement cancellation](https://github.com/dgloeckner/ruderbar/issues/142) | how late a run can be called off, and what survives calling it off |
-| [Settlement reversal](https://github.com/dgloeckner/ruderbar/issues/148) | what happens when the bank undoes a collection the club considered final |
-| [Manual settlements](https://github.com/dgloeckner/ruderbar/issues/163) | that direct debit is one of three settlement methods, not the only one |
+| [Exclude-and-flag](https://github.com/dgloeckner/clubbar/issues/141) | who takes part in a run, and what happens to a member in credit |
+| [Settlement cancellation](https://github.com/dgloeckner/clubbar/issues/142) | how late a run can be called off, and what survives calling it off |
+| [Settlement reversal](https://github.com/dgloeckner/clubbar/issues/148) | what happens when the bank undoes a collection the club considered final |
+| [Manual settlements](https://github.com/dgloeckner/clubbar/issues/163) | that direct debit is one of three settlement methods, not the only one |
 
 Three external facts drive all four. § 675x BGB and the EPC SDD Core Rulebook § 4.3 give the payer eight weeks to demand an unconditional refund of an authorised direct debit — thirteen months where no valid mandate existed — so a collection is never final on the club's say-so. § 812 BGB makes an over-collected amount a debt the club owes, so a member in credit must be representable rather than rejected. And [ADR-0028](./0028-legal-constraints-on-money-handling.md) records the GoBD requirement that a correction be traceable to what it corrects, which rules out fixing a settlement by editing it.
 

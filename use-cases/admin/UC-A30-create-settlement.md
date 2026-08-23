@@ -17,7 +17,7 @@ Admin opens Settlements → New Settlement
 
 > ### Reshaped 2026-08-07 — selection picks **members**, not transactions
 >
-> [Exclude-and-flag](https://github.com/dgloeckner/ruderbar/issues/141) §1–§2 changed what a settlement contains. A settlement sweeps **every unsettled transaction of each included member**, ignoring the date window and any hand-picked subset. The selection chooses *which members take part*; each included member then settles their **whole position**.
+> [Exclude-and-flag](https://github.com/dgloeckner/clubbar/issues/141) §1–§2 changed what a settlement contains. A settlement sweeps **every unsettled transaction of each included member**, ignoring the date window and any hand-picked subset. The selection chooses *which members take part*; each included member then settles their **whole position**.
 >
 > Why: testing eligibility on a windowed slice while settling only that slice lets an old credit strand outside the run. Overcharged €20 in January, drinks €5 in February — settling February alone debits €5 the member does not owe and leaves the €20 invisible.
 >
@@ -25,7 +25,7 @@ Admin opens Settlements → New Settlement
 >
 > Also: a member in **net credit** is excluded entirely, and a member at **exactly zero** is settled (closing the rows out) but generates no line in the file.
 >
-> **The screen's shape was settled in [ADR-0030](../../adr/0030-settlement-selection-is-a-member-picker.md)** (2026-08-08): the admin selects members on a dedicated New Settlement screen, and the Journal no longer carries settlement selection at all. This use case describes that screen. The interim transaction-picker in the Journal — and its cross-page selection bug, [#128](https://github.com/dgloeckner/ruderbar/issues/128) — is gone.
+> **The screen's shape was settled in [ADR-0030](../../adr/0030-settlement-selection-is-a-member-picker.md)** (2026-08-08): the admin selects members on a dedicated New Settlement screen, and the Journal no longer carries settlement selection at all. This use case describes that screen. The interim transaction-picker in the Journal — and its cross-page selection bug, [#128](https://github.com/dgloeckner/clubbar/issues/128) — is gone.
 
 Creates a SEPA Direct Debit settlement. Selection determines which **members** take part; each included member settles their entire unsettled position.
 

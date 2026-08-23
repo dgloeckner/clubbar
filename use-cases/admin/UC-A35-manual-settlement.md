@@ -82,7 +82,7 @@ Works on a list of selected transactions. Admin can settle any combination of tr
 
 ## Settlement Reasons
 
-> **Rewritten 2026-08-07** ([#163](https://github.com/dgloeckner/ruderbar/issues/163)). `settlement_type` + `manual_reason` are replaced by a **single method field**, and four of the seven reasons below are removed.
+> **Rewritten 2026-08-07** ([#163](https://github.com/dgloeckner/clubbar/issues/163)). `settlement_type` + `manual_reason` are replaced by a **single method field**, and four of the seven reasons below are removed.
 
 A settlement carries one **method**:
 
@@ -99,7 +99,7 @@ A settlement carries one **method**:
 | Removed | Why |
 |---|---|
 | `cash_payment` | The club takes **no cash**, as policy — this is what holds up the KassenSichV position in [ADR-0028 §6](../../adr/0028-legal-constraints-on-money-handling.md) |
-| `goodwill` | Ruled out entirely ([#170](https://github.com/dgloeckner/ruderbar/issues/170)) — it was value from nothing, with no linked event. Never existed in the backend; it was spec drift |
+| `goodwill` | Ruled out entirely ([#170](https://github.com/dgloeckner/clubbar/issues/170)) — it was value from nothing, with no linked event. Never existed in the backend; it was spec drift |
 | `correction` | Corrections are stornos on individual transactions ([UC-A23](./UC-A23-storno.md)), never settlements |
 | `other_payment`, `other` | With cash gone and SEPA-only, there is no fourth way money moves. Needing `other` would mean something is undesigned |
 
@@ -115,7 +115,7 @@ Cancellation follows one rule — **a settlement can be cancelled while no money
 | `bank_transfer` | **never** — the money already arrived |
 | `write_off` | yes |
 
-⚠️ **`write_off` is reachable only through member offboarding** ([#173](https://github.com/dgloeckner/ruderbar/issues/173)). It cannot be initiated standalone: under SEPA-only a member who cannot pay is locked out of the bar, so their debt stops growing and does not need forgiving while they remain a member.
+⚠️ **`write_off` is reachable only through member offboarding** ([#173](https://github.com/dgloeckner/clubbar/issues/173)). It cannot be initiated standalone: under SEPA-only a member who cannot pay is locked out of the bar, so their debt stops growing and does not need forgiving while they remain a member.
 
 ## Comment Requirements
 

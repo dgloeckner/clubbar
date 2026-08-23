@@ -32,7 +32,7 @@ Each ADR follows this structure:
 | [0005](./0005-iban-storage-and-validation.md) | IBAN Storage and Validation | Accepted (amended by 0036: at-rest encryption rejection revoked) | 2025-01-23 |
 | [0006](./0006-sepa-mandate-reference-strategy.md) | SEPA Mandate Reference Strategy | Accepted | 2025-01-23 |
 | [0007](./0007-organization-sepa-configuration-storage.md) | Organization-Level SEPA Configuration Storage | Accepted | 2025-01-23 |
-| [0008](./0008-sepa-xml-export-format-selection.md) | SEPA XML Export Format Selection (pain.008.001.02) | Accepted | 2025-01-23 |
+| [0008](./0008-sepa-xml-export-format-selection.md) | SEPA XML Export Format Selection (pain.008.001.08) | Accepted (amended 2026-08-04: raised from pain.008.001.02; 2026-08-05: IBAN-only agents as `NOTPROVIDED`) | 2025-01-23 |
 | [0009](./0009-settlement-lead-times-bank-working-days.md) | Settlement Lead Times and Bank Working Days | Accepted | 2025-01-23 |
 | [0010](./0010-mandate-lifecycle-and-retention.md) | Mandate Lifecycle and Retention | Superseded | 2025-01-23 |
 | [0011](./0011-sepa-configuration-management-admin-frontend.md) | SEPA Configuration Management in Admin Frontend | Accepted | 2025-01-23 |
@@ -72,6 +72,7 @@ Each ADR follows this structure:
 | [0045](./0045-age-restricted-products.md) | Age-Restricted Products — the Terminal Refuses, the Server Records | Accepted | 2026-08-20 |
 | [0046](./0046-project-license-apache-2-0.md) | Project License is Apache-2.0, Not AGPL-3.0 | Accepted | 2026-08-23 |
 | [0047](./0047-configurable-credit-limits.md) | Configurable Credit Limits — a Club Default, a Per-Member Override | Accepted | 2026-08-23 |
+| [0048](./0048-shared-symmetric-crypto-abstraction.md) | Shared Symmetric Crypto Abstraction for TOTP Secrets | Accepted (amends 0036) | 2026-08-14 |
 
 ## Creating a New ADR
 
@@ -98,7 +99,7 @@ File naming: `NNNN-short-title.md`
 ## Guidelines
 
 - Keep ADRs concise but complete (aim for 2-5 pages)
-- Use code examples to illustrate implementation
+- Avoid code examples — ADRs record decisions, not implementations. Pseudo-code is fine to illustrate a concept; use Mermaid diagrams for flows and tables for data structures
 - Include real consequences, not just rosy predictions
 - Be honest about trade-offs; every decision has downsides
 - Link to related ADRs and external references

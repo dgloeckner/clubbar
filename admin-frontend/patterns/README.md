@@ -149,10 +149,10 @@ When creating new patterns:
 
 ## Related Resources
 
-- **[CLAUDE.md](../../../CLAUDE.md)** — Project instructions and overview
+- **[CLAUDE.md](../../CLAUDE.md)** — Project instructions and overview
 - **[technologies.md](../technologies.md)** — Tech stack and dependencies
-- **[E2E Testing Patterns](../../../e2etests/patterns/)** — Backend/API testing patterns
-- **[Backend Patterns](../../../backend/patterns/)** — Server-side code patterns
+- **[E2E Testing Patterns](../../e2etests/patterns/)** — Backend/API testing patterns
+- **[Backend Patterns](../../backend/patterns/)** — Server-side code patterns
 
 ---
 
@@ -176,3 +176,5 @@ To add a new pattern:
 | [Table Implementation](./table-implementation.md) | 2.0 | Active | 2026-01-26 |
 | [Components](./components.md) | 1.0 | Active | 2026-01-26 |
 | [Data Fetching](./data-fetching.md) | 1.0 | Active | 2026-08-08 |
+| [Role-Aware Navigation](./role-visibility.md) | 1.0 | Active | 2026-08-19 |
+| [Date Field](./date-field.md) | 1.0 | Active | 2026-08-21 |

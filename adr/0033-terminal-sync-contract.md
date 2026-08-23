@@ -16,7 +16,7 @@ The terminal sells a drink against a cache it last synced hours or days ago, and
 - The spec said "**All fields required**: id, member_id, product_id, amount_cents, created_at". Nothing enforced it, and the controller omitted `id` — the key the whole idempotency guarantee rests on.
 - The whole payload was handed to the repository, which read `transaction_type`, `related_transaction_id` and `created_by_admin_id` straight out of it. A terminal token could forge a storno.
 
-Two rulings settled it: [Sync accept/reject contract](https://github.com/dgloeckner/ruderbar/issues/143) and [Timestamp authority](https://github.com/dgloeckner/ruderbar/issues/144). This ADR records them.
+Two rulings settled it: [Sync accept/reject contract](https://github.com/dgloeckner/clubbar/issues/143) and [Timestamp authority](https://github.com/dgloeckner/clubbar/issues/144). This ADR records them.
 
 ## Decision
 

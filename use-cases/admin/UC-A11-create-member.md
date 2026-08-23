@@ -17,7 +17,7 @@ Creates a new member account.
 
 > ### ⚠️ Amended 2026-08-07 — creating a member does **not** create a mandate
 >
-> A member is created **without** a mandate and cannot use the bar until one exists ([ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md), [#164](https://github.com/dgloeckner/ruderbar/issues/164)). The mandate is a separate record created when the signed paper is recorded — see [#175](https://github.com/dgloeckner/ruderbar/issues/175) for the onboarding form.
+> A member is created **without** a mandate and cannot use the bar until one exists ([ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md), [#164](https://github.com/dgloeckner/clubbar/issues/164)). The mandate is a separate record created when the signed paper is recorded — see [#175](https://github.com/dgloeckner/clubbar/issues/175) for the onboarding form.
 >
 > Step 7 below ("System generates mandate reference") moves to mandate creation. The claim `is_sepa_valid = TRUE (IBAN is required)` is **wrong**: an IBAN alone never made a mandate, it only made the old predicate return true.
 >

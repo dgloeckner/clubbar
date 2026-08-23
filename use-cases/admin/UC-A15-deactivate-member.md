@@ -25,9 +25,9 @@ Admin clicks "Deactivate" on member
 ## Postconditions
 - Member marked inactive
 - Member cannot authenticate at terminal
-- ⚠️ ~~Member excluded from settlements~~ — **wrong, corrected 2026-08-07.** Deactivation is **temporary** (a technical issue such as a lost card), and it must **not** suppress collection of debt the member genuinely owes. Excluding them strands a real receivable and hides it from every report. `previewSettlement()` currently gates eligibility on `is_active`; that is a live bug, tracked in [#161](https://github.com/dgloeckner/ruderbar/issues/161).
+- ⚠️ ~~Member excluded from settlements~~ — **wrong, corrected 2026-08-07.** Deactivation is **temporary** (a technical issue such as a lost card), and it must **not** suppress collection of debt the member genuinely owes. Excluding them strands a real receivable and hides it from every report. `previewSettlement()` currently gates eligibility on `is_active`; that is a live bug, tracked in [#161](https://github.com/dgloeckner/clubbar/issues/161).
 
-> **Deactivation is not leaving.** `is_active = false` is reversible and operational. Leaving is [offboarding](https://github.com/dgloeckner/ruderbar/issues/173), which resolves the final balance and erases — and `deleted_at` is what means "gone".
+> **Deactivation is not leaving.** `is_active = false` is reversible and operational. Leaving is [offboarding](https://github.com/dgloeckner/clubbar/issues/173), which resolves the final balance and erases — and `deleted_at` is what means "gone".
 - Transaction history preserved
 - Member can be reactivated
 

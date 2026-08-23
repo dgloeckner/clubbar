@@ -1,12 +1,12 @@
 # Settlement Selection Becomes a Member Picker
 
-**Issue**: [#128](https://github.com/dgloeckner/ruderbar/issues/128) (the arithmetic half, shipped in [#228](https://github.com/dgloeckner/clubbar/pull/228)) — this plan is the design half
+**Issue**: [#128](https://github.com/dgloeckner/clubbar/issues/128) (the arithmetic half, shipped in [#228](https://github.com/dgloeckner/clubbar/pull/228)) — this plan is the design half
 **Decision**: [ADR-0030](../adr/0030-settlement-selection-is-a-member-picker.md)
 **Use case**: [UC-A30](../use-cases/admin/UC-A30-create-settlement.md)
 
 ## Why
 
-[#161](https://github.com/dgloeckner/ruderbar/issues/161) made a settlement sweep each included member's **whole** unsettled position. The screen kept asking the admin to tick **transactions**, in a paginated journal, under a date filter the run ignores.
+[#161](https://github.com/dgloeckner/clubbar/issues/161) made a settlement sweep each included member's **whole** unsettled position. The screen kept asking the admin to tick **transactions**, in a paginated journal, under a date filter the run ignores.
 
 Fixing #128's cross-page bug made the numbers honest — the confirmation now states what the run contains — but the admin still learns that selection is per-member by watching a number jump at the last step: tick one row, the modal says 47 transactions. Three things stay invisible while choosing:
 

@@ -107,7 +107,7 @@
 - **Spec update needed**: UC-A20 should be updated to reflect Journal-based approach.
 
 ### UC-A21: ~~Manual Booking (Correction Transaction)~~ — SUPERSEDED, THEN REJECTED
-- **Status**: The free-amount correction audited here was removed by [#158](https://github.com/dgloeckner/ruderbar/issues/158)/[#169](https://github.com/dgloeckner/ruderbar/issues/169); the endpoint, the Journal form and their tests are gone. UC-A21 was briefly renarrowed to "manual purchase" and then **rejected outright 2026-08-08** — see the tombstone at [UC-A21](../use-cases/admin/UC-A21-manual-purchase.md).
+- **Status**: The free-amount correction audited here was removed by [#158](https://github.com/dgloeckner/clubbar/issues/158)/[#169](https://github.com/dgloeckner/clubbar/issues/169); the endpoint, the Journal form and their tests are gone. UC-A21 was briefly renarrowed to "manual purchase" and then **rejected outright 2026-08-08** — see the tombstone at [UC-A21](../use-cases/admin/UC-A21-manual-purchase.md).
 - Corrections are now [UC-A23: Storno](../use-cases/admin/UC-A23-storno.md) only: `POST /api/admin/transactions/{id}/storno`, amount derived, no typed amount anywhere.
 
 ### UC-A22: Export Transactions — ACCEPTED DIVERGENCE

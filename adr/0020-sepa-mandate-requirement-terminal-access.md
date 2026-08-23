@@ -40,15 +40,15 @@ The organization requires that **all members have valid SEPA data before they ca
 >
 > The terminal decides from its **last synced state**, so a member whose SEPA data is cleared after that sync is still served until the terminal next syncs. Those drinks are real and already consumed.
 >
-> **The server must therefore store and flag such transactions, never reject them.** Rejecting at sync destroys the record of a sale that actually happened — revenue lost silently, unrecoverable, because the beer is gone either way. `TransactionsService::processBatch` rejected them (`sepa_invalid`) until [#162](https://github.com/dgloeckner/ruderbar/issues/162); that rejection is removed — the row is stored and accepted, and the member is flagged by surfacing in the settlement preview's `ineligible_members` bucket ([#161](https://github.com/dgloeckner/ruderbar/issues/161) §3). The flag is derived, not stored, so it clears by itself once the member supplies their IBAN.
+> **The server must therefore store and flag such transactions, never reject them.** Rejecting at sync destroys the record of a sale that actually happened — revenue lost silently, unrecoverable, because the beer is gone either way. `TransactionsService::processBatch` rejected them (`sepa_invalid`) until [#162](https://github.com/dgloeckner/clubbar/issues/162); that rejection is removed — the row is stored and accepted, and the member is flagged by surfacing in the settlement preview's `ineligible_members` bucket ([#161](https://github.com/dgloeckner/clubbar/issues/161) §3). The flag is derived, not stored, so it clears by itself once the member supplies their IBAN.
 >
-> Two layers, deliberately: **terminal blocks (preventive, costs nothing — the drink is not yet poured); server stores and flags (backstop, because by then it is).** See [#143](https://github.com/dgloeckner/ruderbar/issues/143) and [#171](https://github.com/dgloeckner/ruderbar/issues/171).
+> Two layers, deliberately: **terminal blocks (preventive, costs nothing — the drink is not yet poured); server stores and flags (backstop, because by then it is).** See [#143](https://github.com/dgloeckner/clubbar/issues/143) and [#171](https://github.com/dgloeckner/clubbar/issues/171).
 >
-> Note also that this ADR's principle 1 defines validity as `iban IS NOT NULL AND mandate_reference IS NOT NULL`, which — via [ADR-0006](./0006-sepa-mandate-reference-strategy.md)'s auto-generated reference — is satisfied by typing an IBAN alone. Whether that is strong enough to gate bar access is open on [#164](https://github.com/dgloeckner/ruderbar/issues/164).
+> Note also that this ADR's principle 1 defines validity as `iban IS NOT NULL AND mandate_reference IS NOT NULL`, which — via [ADR-0006](./0006-sepa-mandate-reference-strategy.md)'s auto-generated reference — is satisfied by typing an IBAN alone. Whether that is strong enough to gate bar access is open on [#164](https://github.com/dgloeckner/clubbar/issues/164).
 
 ### Core Principles
 
-1. **SEPA status is derived, not stored**: ~~Calculated from `iban IS NOT NULL AND mandate_reference IS NOT NULL`~~ — **amended 2026-08-07**: derived from *whether the member has an active mandate*. Still derived rather than stored; the source changed. See [#164](https://github.com/dgloeckner/ruderbar/issues/164).
+1. **SEPA status is derived, not stored**: ~~Calculated from `iban IS NOT NULL AND mandate_reference IS NOT NULL`~~ — **amended 2026-08-07**: derived from *whether the member has an active mandate*. Still derived rather than stored; the source changed. See [#164](https://github.com/dgloeckner/clubbar/issues/164).
 2. **Terminal validates at login**: Card scan triggers SEPA check before showing products
 3. **Clear error message**: Member sees specific message directing them to admin
 4. **No grace period**: SEPA data required from day one (part of onboarding)
@@ -71,7 +71,7 @@ The check is now:
 is_sepa_valid = member has an active mandate
 ```
 
-where a mandate is a single record carrying reference, IBAN **and signature date** ([#164](https://github.com/dgloeckner/ruderbar/issues/164)). Still derived, still no stored status field — but now derived from something that reflects a real-world event: a member actually signed.
+where a mandate is a single record carrying reference, IBAN **and signature date** ([#164](https://github.com/dgloeckner/clubbar/issues/164)). Still derived, still no stored status field — but now derived from something that reflects a real-world event: a member actually signed.
 
 This also removes a divergence this ADR's phrasing helped create. `Dashboard`'s raw SQL implemented the check as `iban IS NULL OR mandate_reference IS NULL`, while `MemberDto`, `previewSettlement()`, `SepaExportService` and `processBatch()` all used `empty()`. A member with `iban = ''` therefore counted as **valid** on the dashboard and **invalid** everywhere else. One lookup replaces four expressions.
 
