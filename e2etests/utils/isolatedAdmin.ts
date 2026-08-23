@@ -36,8 +36,22 @@ const API_BASE = 'http://localhost:8080/api'
 /** The roles an account may hold (ADR-0044). */
 export type AdminRoleName = 'admin' | 'kassenwart' | 'getraenkewart'
 
+/**
+ * A throwaway address nobody else in the run will mint.
+ *
+ * `crypto.randomUUID()` rather than `Math.random()` — not because uniqueness
+ * needs a CSPRNG (it does not; the timestamp does most of that work), but
+ * because CodeQL traces the value into `createIsolatedAdmin`'s
+ * `{ email, password }` return and reports every call site as *Insecure
+ * randomness — used in a security context*. That failed the PR that added two
+ * new callers (#677), and would fail the next one the same way. The same
+ * global is already how `utils/settlements.ts` mints ids.
+ *
+ * The timestamp stays: it is what makes a leftover account in the database
+ * traceable to the run that created it.
+ */
 export function uniqueTestEmail(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}@test.example`
+  return `${prefix}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}@test.example`
 }
 
 /**
