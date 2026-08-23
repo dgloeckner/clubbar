@@ -61,7 +61,7 @@ class DeckelStatementMailTest extends TestCase
             ],
             'omittedLines' => 0,
             'creditLimitCents' => CreditLimitPolicy::DEFAULT_LIMIT_CENTS,
-            'creditStatus' => CreditLimitStatus::OK->value,
+            'creditStatus' => CreditLimitStatus::OK,
             'treasurerEmail' => 'kasse@example.org',
         ];
 
@@ -175,7 +175,7 @@ class DeckelStatementMailTest extends TestCase
         $message = $this->render($language, [
             'totalCents' => -750,
             'lines' => [new StatementLineDto('Storno Bier 0,5 l', '2026-07-20 19:00:00', -750)],
-            'creditStatus' => CreditLimitStatus::OK->value,
+            'creditStatus' => CreditLimitStatus::OK,
         ]);
 
         $creditLabel = $language === MailLanguage::German ? 'Guthaben' : 'In credit';
@@ -205,7 +205,7 @@ class DeckelStatementMailTest extends TestCase
     {
         $message = $this->render($language, [
             'totalCents' => 12_500,
-            'creditStatus' => CreditLimitStatus::EXCEEDED->value,
+            'creditStatus' => CreditLimitStatus::EXCEEDED,
         ]);
 
         $limit = $language === MailLanguage::German ? '100,00 €' : 'EUR 100.00';
@@ -223,7 +223,7 @@ class DeckelStatementMailTest extends TestCase
     {
         $message = $this->render($language, [
             'totalCents' => 8_500,
-            'creditStatus' => CreditLimitStatus::APPROACHING->value,
+            'creditStatus' => CreditLimitStatus::APPROACHING,
         ]);
 
         $expected = $language === MailLanguage::German ? 'näherst Dich' : 'approaching it';
@@ -295,7 +295,7 @@ class DeckelStatementMailTest extends TestCase
     #[DataProvider('languages')]
     public function test_no_placeholder_survives_rendering(MailLanguage $language): void
     {
-        $message = $this->render($language, ['omittedLines' => 3, 'creditStatus' => CreditLimitStatus::APPROACHING->value]);
+        $message = $this->render($language, ['omittedLines' => 3, 'creditStatus' => CreditLimitStatus::APPROACHING]);
 
         foreach ([$message->subject, $message->html, $message->text] as $part) {
             $this->assertDoesNotMatchRegularExpression('/\{[a-z_]+\}/', $part);

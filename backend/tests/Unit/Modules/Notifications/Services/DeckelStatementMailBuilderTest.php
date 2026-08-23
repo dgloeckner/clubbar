@@ -146,7 +146,7 @@ class DeckelStatementMailBuilderTest extends TestCase
             boundaryDate: '2026-08-01',
             totalCents: 0,
             creditLimitCents: CreditLimitPolicy::DEFAULT_LIMIT_CENTS,
-            creditStatus: CreditLimitStatus::OK->value,
+            creditStatus: CreditLimitStatus::OK,
         );
     }
 }

@@ -85,8 +85,12 @@ class DeckelStatementService
         // courtesy.
         $member = $this->membersRepository->findMailRecipients([$memberId])[$memberId] ?? null;
         $mailConfig = $this->mailConfigService->getConfig();
-        // The club's ceiling; the member's own reaches this statement in #559.
-        $creditLimit = $this->creditLimitConfigService->policy()->clubDefault();
+        // This member's own ceiling where they have one, the club default where
+        // they do not (ADR-0046). A statement naming the club figure while the
+        // terminal enforces another tells the member a number nobody is using.
+        $creditLimit = $this->creditLimitConfigService->policy()->forMember(
+            isset($member['credit_limit_cents']) ? (int) $member['credit_limit_cents'] : null,
+        );
 
         return new DeckelStatementDataDto(
             language: $language,
@@ -101,7 +105,7 @@ class DeckelStatementService
             lines: $lines,
             omittedLines: $omitted,
             creditLimitCents: $creditLimit->limitCents,
-            creditStatus: $creditLimit->status($totalCents)->value,
+            creditStatus: $creditLimit->status($totalCents),
             treasurerEmail: $mailConfig->replyToAddress,
         );
     }
