@@ -273,7 +273,6 @@ class AdminControllerReverseTest extends TestCase
             executionDate: '2026-01-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 1500,
             memberCount: 1,
             isCancelled: false,

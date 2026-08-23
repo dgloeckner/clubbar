@@ -72,7 +72,18 @@ final class PreNotificationMail
 
     /**
      * The two-column block. Order is the order a member checks it in: who is
-     * collecting, under which authority, how much, and when.
+     * collecting, under which authority, how much, when — and finally, what to
+     * quote if they want to ask about it.
+     *
+     * The reference comes last because it is the only row that is not about the
+     * collection itself. It is the same string the member will find in the
+     * Verwendungszweck on their bank statement, which is what makes a question
+     * answerable: before it existed, a member could describe a debit only by
+     * its amount and date, and so could the Kassenwart looking for it.
+     *
+     * Both the HTML and the plain-text renderer walk this array, so a row added
+     * here appears in both parts — which is what {@see \App\Shared\Mail\MailMessage}
+     * requires of every message.
      *
      * @return array<string,string> Blank values are dropped by the layout.
      */
@@ -91,6 +102,7 @@ final class PreNotificationMail
             $t->t('pre.label_amount') => $amount,
             $t->t('pre.label_due_date') => $dueDate,
             $t->t('pre.label_account') => MailFormat::maskedAccount($data->accountLast4),
+            $t->t('pre.label_reference') => $data->settlementReference,
         ];
     }
 

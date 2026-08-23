@@ -23,6 +23,8 @@ use PHPUnit\Framework\TestCase;
  */
 class CancellationNoticeMailTest extends TestCase
 {
+    private const SETTLEMENT_REFERENCE = '3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f';
+
     private function render(MailLanguage $language, array $overrides = []): MailMessage
     {
         return CancellationNoticeMail::render(new CancellationNoticeDataDto(...array_merge([
@@ -36,6 +38,7 @@ class CancellationNoticeMailTest extends TestCase
             ),
             'amountCents' => 1234,
             'dueDate' => '2026-08-21',
+            'settlementReference' => self::SETTLEMENT_REFERENCE,
             'treasurerEmail' => 'kasse@example.org',
         ], $overrides)));
     }
@@ -54,7 +57,9 @@ class CancellationNoticeMailTest extends TestCase
     {
         $message = $this->render($language);
 
-        foreach ([$amount, $date] as $required) {
+        // The reference is what still identifies the retracted announcement
+        // when a member has been announced this amount before.
+        foreach ([$amount, $date, self::SETTLEMENT_REFERENCE] as $required) {
             $this->assertStringContainsString($required, $message->html);
             $this->assertStringContainsString($required, $message->text);
         }

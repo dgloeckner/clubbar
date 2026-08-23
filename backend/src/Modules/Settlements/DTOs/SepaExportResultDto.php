@@ -34,6 +34,11 @@ final readonly class SepaExportResultDto
      *        i.e. how many IBANs the export had to decrypt (ADR-0036). The
      *        SEPA_EXPORT audit entry records this count and nothing else about
      *        the accounts themselves.
+     * @param string $downloadName What the file is called when it is handed to
+     *        the treasurer. It belongs to the result rather than the caller
+     *        because it names *what was exported* — the run's date and its
+     *        canonical reference — and the export is the only place that has
+     *        both without a second read.
      */
     public function __construct(
         public string $xml,
@@ -41,6 +46,7 @@ final readonly class SepaExportResultDto
         public int $collectedAmountCents = 0,
         public int $settlementAmountCents = 0,
         public int $collectedMemberCount = 0,
+        public string $downloadName = 'sepa.xml',
     ) {}
 
     /** @return list<ExcludedMemberDto> */

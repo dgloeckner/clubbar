@@ -23,7 +23,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: '2026-08-01',
             periodEnd: '2026-08-07',
-            sepaMessageId: 'msg-123',
             totalAmountCents: 50000,
             memberCount: 5,
             isCancelled: false,
@@ -43,7 +42,6 @@ class SettlementDtoTest extends TestCase
         $this->assertSame('2026-08-10', $dto->executionDate);
         $this->assertSame('2026-08-01', $dto->periodStart);
         $this->assertSame('2026-08-07', $dto->periodEnd);
-        $this->assertSame('msg-123', $dto->sepaMessageId);
         $this->assertSame(50000, $dto->totalAmountCents);
         $this->assertSame(5, $dto->memberCount);
         $this->assertFalse($dto->isCancelled);
@@ -66,7 +64,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 10000,
             memberCount: 2,
             isCancelled: false,
@@ -97,7 +94,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 10000,
             memberCount: 2,
             isCancelled: false,
@@ -129,7 +125,6 @@ class SettlementDtoTest extends TestCase
             'execution_date' => '2026-08-10',
             'period_start' => '2026-08-01',
             'period_end' => '2026-08-07',
-            'sepa_message_id' => 'msg-123',
             'total_amount_cents' => 50000,
             'member_count' => 5,
             'is_cancelled' => 0,
@@ -156,7 +151,6 @@ class SettlementDtoTest extends TestCase
         $this->assertSame('2026-08-10', $dto->executionDate);
         $this->assertSame('2026-08-01', $dto->periodStart);
         $this->assertSame('2026-08-07', $dto->periodEnd);
-        $this->assertSame('msg-123', $dto->sepaMessageId);
         $this->assertSame(50000, $dto->totalAmountCents);
         $this->assertSame(5, $dto->memberCount);
         $this->assertFalse($dto->isCancelled);
@@ -199,7 +193,6 @@ class SettlementDtoTest extends TestCase
         $this->assertSame('2026-08-10', $dto->executionDate);
         $this->assertNull($dto->periodStart);
         $this->assertNull($dto->periodEnd);
-        $this->assertNull($dto->sepaMessageId);
         $this->assertSame(10000, $dto->totalAmountCents);
         $this->assertSame(2, $dto->memberCount);
         $this->assertTrue($dto->isCancelled);
@@ -320,7 +313,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: '2026-08-01',
             periodEnd: '2026-08-07',
-            sepaMessageId: 'msg-123',
             totalAmountCents: 50000,
             memberCount: 5,
             isCancelled: false,
@@ -347,7 +339,7 @@ class SettlementDtoTest extends TestCase
             'execution_date',
             'period_start',
             'period_end',
-            'sepa_message_id',
+            'reference',
             'total_amount_cents',
             'total_amount_eur',
             'member_count',
@@ -381,7 +373,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 123456,
             memberCount: 1,
             isCancelled: false,
@@ -412,7 +403,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 0,
             memberCount: 0,
             isCancelled: false,
@@ -443,7 +433,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: -50000,
             memberCount: 1,
             isCancelled: false,
@@ -486,7 +475,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 2500,
             memberCount: 1,
             isCancelled: false,
@@ -519,7 +507,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 1000,
             memberCount: 1,
             isCancelled: false,
@@ -558,7 +545,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 5000,
             memberCount: 1,
             isCancelled: true,
@@ -589,7 +575,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: 'msg-123',
             totalAmountCents: 5000,
             memberCount: 1,
             isCancelled: false,
@@ -607,7 +592,10 @@ class SettlementDtoTest extends TestCase
 
         // Assert
         $this->assertNotNull($array['exported_at']);
-        $this->assertSame('msg-123', $array['sepa_message_id']);
+        // The canonical reference is derived from the id, never stored:
+        // one string names this settlement in the pain.008, the mail, the
+        // CSV and here.
+        $this->assertSame('settlement123', $array['reference']);
     }
 
     public function test_to_array_preserves_method(): void
@@ -620,7 +608,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 5000,
             memberCount: 1,
             isCancelled: false,
@@ -650,7 +637,6 @@ class SettlementDtoTest extends TestCase
             executionDate: '2026-08-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 5000,
             memberCount: 1,
             isCancelled: false,

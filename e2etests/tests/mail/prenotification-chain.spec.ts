@@ -443,6 +443,12 @@ test.describe('SEPA pre-notification — finalize, drain, delivered mail', () =>
       expect(html).toContain(germanMoney(line.amountCents))
     }
 
+    // Which collection this is. The same string is the pain.008 MsgId and sits
+    // in the Verwendungszweck the member reads on their own bank statement, so
+    // the question "what was this debit?" has an answer both sides can quote.
+    // Before it, the mail identified the run by amount and date alone.
+    expect(html).toContain(announced.settlementId.replaceAll('-', '').toLowerCase())
+
     // A reply goes to the Kassenwart, not to the mailbox nobody reads.
     expect(message.ReplyTo.map((address) => address.Address)).toContain(KASSENWART)
     expect(message.From?.Address).toBe(SENDER_ADDRESS)

@@ -319,12 +319,23 @@ test.describe('Journal & Settlements', () => {
     // names the rung rather than lumping every live run under "Aktiv".
     expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Entwurf')
 
+    // The run's canonical reference: the settlement's id with the hyphens
+    // stripped. The same string is the pain.008 MsgId and the Verwendungszweck
+    // the member reads, which is what makes a member's question answerable —
+    // asserted further down against the exported file itself.
+    const reference = settlementId.replaceAll('-', '').toLowerCase()
+    await settlementsPage.expectSettlementReference(settlementId, reference)
+
     // ── Export summary CSV (via UI button) ───────────────────────────
     const csvSummary = await settlementsPage.clickExportCsv(settlementId)
     expect(csvSummary.headers()['content-type']).toContain('csv')
     const csvText = await csvSummary.text()
     const csvLines = csvText.trim().split('\n')
-    expect(csvLines[0]).toBe('Member Name;Email;IBAN;Amount EUR')
+    // Every row names the run, so a member line still says which settlement it
+    // belongs to once it is pasted next to another one's.
+    expect(csvLines[0]).toBe('Settlement;Member Name;Email;IBAN;Amount EUR')
+    expect(csvSummary.headers()['content-disposition']).toContain(`-${reference}.csv`)
+    expect(csvLines[1]).toContain(reference)
     expect(csvLines.length).toBe(3) // header + 2 member rows
     expect(csvText).toContain('Ruderer')
     expect(csvText).toContain('Steuermann')

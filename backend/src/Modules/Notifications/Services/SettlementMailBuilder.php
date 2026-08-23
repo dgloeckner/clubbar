@@ -15,6 +15,7 @@ use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailSubject;
 use App\Modules\Notifications\Mail\CancellationNoticeMail;
 use App\Modules\Notifications\Mail\PreNotificationMail;
+use App\Modules\Settlements\Domain\SettlementReference;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Shared\Exceptions\NotFoundException;
@@ -115,6 +116,7 @@ class SettlementMailBuilder implements MailContentBuilder
                 creditorId: self::nullIfBlank($sepa['creditor_id'] ?? null),
                 mandateReference: $member['mandate_reference'] ?? null,
                 accountLast4: $member['iban_last4'] ?? null,
+                settlementReference: SettlementReference::of($settlementId),
                 lines: self::statementLines($items),
                 periodStart: $settlement['period_start'] ?? null,
                 periodEnd: $settlement['period_end'] ?? null,
@@ -129,6 +131,7 @@ class SettlementMailBuilder implements MailContentBuilder
                 branding: $branding,
                 amountCents: $amountCents,
                 dueDate: (string) $settlement['execution_date'],
+                settlementReference: SettlementReference::of($settlementId),
                 treasurerEmail: $mailConfig->replyToAddress,
             )),
         };

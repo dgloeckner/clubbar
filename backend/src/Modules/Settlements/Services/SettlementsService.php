@@ -365,8 +365,6 @@ class SettlementsService
                 );
             }
 
-            $sepaMessageId = $this->settlementsRepository->getNextSepaMessageId();
-
             $settlement = $this->settlementsRepository->create([
                 'method' => $method->value,
                 // The server's clock, never the caller's (issue #113).
@@ -374,7 +372,6 @@ class SettlementsService
                 'execution_date' => $executionDate,
                 'period_start' => $periodStart,
                 'period_end' => $periodEnd,
-                'sepa_message_id' => $sepaMessageId,
                 'total_amount_cents' => $totalAmount,
                 'member_count' => count($memberIds),
                 'notes' => $notes,

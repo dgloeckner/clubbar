@@ -35,6 +35,15 @@ namespace App\Modules\Settlements\Domain;
  *
  * A collection line covers *all* of a member's items in the run (the export
  * aggregates by member), so every one of those rows stores this same value.
+ *
+ * **This is the one identifier that is not {@see SettlementReference}**, and
+ * deliberately so. Every other field naming a settlement — `MsgId`,
+ * `PmtInfId`, the Verwendungszweck, the mail, the UI — carries the canonical
+ * 32-character reference. This field cannot: it has to name a *member* as well
+ * as a run and still fit 35 characters, and two canonical references are 64.
+ * So both halves are truncated, and the value is persisted rather than
+ * recomputed at read time, because a return arriving months later resolves
+ * against exactly this string.
  */
 final class EndToEndId
 {

@@ -65,6 +65,17 @@ import type { SettlementReversal } from './settlementReversal';
 
 export interface SettlementListItem {
   id?: string;
+  /**
+   * The canonical, human-quotable name of this settlement: its id with
+the hyphens removed, 32 lowercase hex digits. The same string is the
+pain.008 `MsgId` and `PmtInfId`, appears in the Verwendungszweck the
+member reads on their bank statement, and is shown in the
+Vorabankündigung — so a member can quote it and the Kassenwart can
+look it up. Derived server-side from `id`; never stored, never
+recomputed by a client.
+
+   */
+  reference?: string;
   /** How this settlement's balance is collected. Replaces the old
 `settlement_type`/`manual_reason` pair (ruling #163). Only
 `direct_debit` settlements can be exported to SEPA.
