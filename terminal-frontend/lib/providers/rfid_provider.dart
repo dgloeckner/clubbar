@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/login_moment.dart';
 import 'package:clubbar_terminal/models/scan_hint.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/error_signal.dart';
@@ -29,6 +30,8 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
   BuildContext? _context;
   ScanHint? _hint;
   int _hintSequence = 0;
+  LoginMoment? _loginMoment;
+  int _loginMomentSequence = 0;
 
   /// Supplies the route a scan is being handled on, for the per-route policy of
   /// ADR-0027 amendment 2.
@@ -52,6 +55,13 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
   /// than a failure (ADR-0027 rules 3, 4 and 7). Like [error], each occurrence
   /// is a distinct event.
   ScanHint? get hint => _hint;
+
+  /// The most recent scan that actually started a session, or null before the
+  /// first one. Like [error] and [hint], each occurrence is a distinct event
+  /// (see [LoginMoment.sequence]); the login success animation plays once per
+  /// occurrence. A re-tap, a refused foreign card or a failed lookup never
+  /// updates this — only `SessionStartResult.started` does.
+  LoginMoment? get loginMoment => _loginMoment;
 
   /// The receipt screen is the one place where a valid card may take the
   /// terminal over (ADR-0027 rule 9).
@@ -197,6 +207,8 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
       case SessionStartResult.started:
         _detectedMember = member;
         resetError();
+        _loginMoment =
+            LoginMoment(member: member, sequence: ++_loginMomentSequence);
         _soundService.play(SoundEvent.scanSuccess);
         return true;
     }

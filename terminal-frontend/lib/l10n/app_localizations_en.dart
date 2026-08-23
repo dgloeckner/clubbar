@@ -15,6 +15,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get idleSubtitle => 'Hold your token to the scanner';
 
   @override
+  String loginWelcome(String firstName) {
+    return 'Hi $firstName!';
+  }
+
+  @override
+  String get loginWelcomeNoName => 'Hi!';
+
+  @override
   String get demoScanCard => 'Demo: Scan Token';
 
   @override
