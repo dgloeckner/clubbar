@@ -259,10 +259,20 @@ updates:
   # ---------------------------------------------------------------------------
   # GitHub Actions — one pull request for the lot, majors included.
   #
-  # Actions are pinned to major tags (`actions/checkout@v4`), so a major is the
-  # ordinary case rather than the exception, and splitting them out would mean
-  # a pull request per action for no added signal: the workflows are their own
-  # test, and a bad bump is red on this pull request.
+  # Actions are pinned to full commit SHAs with the version in a trailing
+  # comment (`actions/checkout@3d3c42e... # v7.0.1`). A tag is mutable: whoever
+  # controls the action's repository can repoint `@v7` at any commit, which is
+  # how `tj-actions/changed-files` was compromised in March 2025. A SHA cannot
+  # be repointed, so every bump has to arrive as a reviewable diff — which is
+  # what this entry produces. Dependabot understands the pin and rewrites both
+  # the SHA and the comment, so pinning costs no maintenance.
+  #
+  # Majors stay in the group rather than splitting out: a pull request per
+  # action adds no signal, because the workflows are their own test and a bad
+  # bump is red on this pull request.
+  #
+  # Keep new `uses:` lines pinned the same way. Resolve a tag with
+  # `git ls-remote https://github.com/<owner>/<repo> 'refs/tags/<tag>^{}'`.
   # ---------------------------------------------------------------------------
   - package-ecosystem: "github-actions"
     directory: "/"
