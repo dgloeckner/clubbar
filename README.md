@@ -24,6 +24,8 @@ Club Bar is a complete point-of-sale solution designed for sports clubs, communi
 | Expensive POS hardware | **Commodity hardware** — Runs on any tablet or Raspberry Pi with a USB RFID reader |
 | Recurring SaaS fees | **Self-hosted & free** — No subscriptions, no vendor lock-in, your data stays yours |
 | Complex software requirements | **Simple deployment** — PHP backend, MariaDB |
+| Serving alcohol to a minor | **Jugendschutz enforced at the tap** — the terminal refuses, offline, from the member's date of birth |
+| A tab that quietly runs away | **Deckel limits** — a club default plus a per-member override, checked at checkout |
 
 ---
 
@@ -108,20 +110,28 @@ mail reliably.
 
 ### For Members
 - **Tap & Go** — RFID/NFC card identification
-- **Personal tab** — View outstanding balance anytime
+- **Personal tab** — the *Deckel*, viewable at the terminal any time
 - **Multilingual** — UI in member's preferred language
+- **Periodic Deckelauszug** — a statement of the open tab, emailed on a fixed calendar boundary ([ADR-0039](./adr/0039-periodic-deckel-statement.md))
 
 ### For Administrators
 - **Member management** — CRUD, RFID assignment, GDPR export/anonymization
 - **Role-based access** — `admin`, `Kassenwart` (treasurer), and `Getränkewart` (bar steward) accounts each see only the office they hold. See [Role-Based Admin Access](./docs/role-based-access.md)
-- **Product catalog** — Categories, multilingual names, prices in cents
-- **Settlement workflow** — Preview, finalize, export SEPA XML or CSV
+- **Product catalog** — Categories, multilingual names, prices in cents, and a per-product minimum age
+- **Credit limits** — one club-wide ceiling on a member's Deckel, overridable per member; empty means *follow the club*, `0` means *no ceiling* ([ADR-0047](./adr/0047-configurable-credit-limits.md))
+- **Settlement workflow** — Preview, finalize, export SEPA XML or CSV. A settlement records what actually happened to the money: `direct_debit`, `bank_transfer` (the member already paid) or `write_off`
+- **Corrections are Stornos** — a booking is never edited or deleted; it is negated by a storno that names it, and no money amount is ever typed in anywhere ([ADR-0028](./adr/0028-legal-constraints-on-money-handling.md))
+- **Instance branding** — club name, logo and colours, configured per installation ([ADR-0034](./adr/0034-instance-branding-configuration.md))
+- **Dashboard & reports** — live KPIs, terminal status and system alerts; revenue by period, member ranking and terminal activity, each exportable as CSV
+- **Journal** — the full transaction ledger, searchable and filterable, with storno from the row
+- **Excluded from collection** — a standing view of who SEPA cannot collect from (credit balance, collection hold after a bank return, or no mandate) so the Kassenwart can contact them directly
 - **Audit trail** — Complete history of all administrative actions
 - **Reliable email notifications** — SEPA pre-notifications, cancellations, the periodic Deckelauszug, and security alerts, queued and retried so a slow host or a timed-out request never loses one. See [Notifications & the Mail Outbox](./docs/notifications-and-mail.md)
 
 ### Technical Highlights
 - **Offline-first architecture** — Terminal caches data locally, syncs when connected
-- **Immutable transactions** — Append-only ledger, corrections via reverse entries
+- **Immutable transactions** — Append-only ledger; corrections are stornos, never edits ([ADR-0004](./adr/0004-immutable-transaction-storage.md))
+- **Jugendschutz offline** — the age limit lives on the product, the birth date on the member, and the refusal happens at checkout with no network ([ADR-0045](./adr/0045-age-restricted-products.md))
 - **Idempotent sync** — Client-generated UUIDs prevent duplicates
 - **SEPA Direct Debit** — pain.008.001.08 XML generation with mandate handling
 - **Tiered admin roles** — Default-deny, fail-closed authorization enforced on every backend route ([ADR-0044](./adr/0044-tiered-admin-roles.md))
@@ -147,8 +157,8 @@ Products that require dispensing are flagged with `requires_dispenser` in the pr
 | Document | Description |
 |----------|-------------|
 | [CLAUDE.md](./CLAUDE.md) | Developer guide and project conventions |
-| [ADRs](./adr/) | Architecture Decision Records (22 decisions) |
-| [Use Cases](./use-cases/README.md) | Functional requirements by domain (64 use cases with status) |
+| [ADRs](./adr/) | Architecture Decision Records (47 decisions) |
+| [Use Cases](./use-cases/README.md) | Functional requirements by domain (67 use cases with status) |
 | [API Specs](./api/) | OpenAPI 3.0 specifications |
 | [Data Model](./docs/) | Entity-Relationship diagrams |
 | [Role-Based Admin Access](./docs/role-based-access.md) | `admin` / `Kassenwart` / `Getränkewart` roles, authorization flow, diagrams |

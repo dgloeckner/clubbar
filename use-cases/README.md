@@ -30,7 +30,7 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A13 | Assign RFID Card | Implemented (diverges) | [UC-A13](./admin/UC-A13-assign-rfid-card.md) |
 | UC-A14 | Remove RFID Card | Implemented (diverges) | [UC-A14](./admin/UC-A14-remove-rfid-card.md) |
 | UC-A15 | Deactivate Member | Implemented | [UC-A15](./admin/UC-A15-deactivate-member.md) |
-| UC-A16 | Import Members (CSV) | Not implemented — nice to have | [UC-A16](./admin/UC-A16-import-members.md) |
+| UC-A16 | Import Members (CSV) | Not implemented — nice to have | _no document yet_ |
 
 ### Tab Management
 
@@ -95,8 +95,8 @@ Complete index of all use cases across domains, with implementation status.
 
 | ID | Name | Status | Link |
 |----|------|--------|------|
-| UC-A70 | Unassigned Cards | Not implemented — deferred | [UC-A70](./admin/UC-A70-unassigned-cards.md) |
-| UC-A71 | Block Card | Not implemented — deferred | [UC-A71](./admin/UC-A71-block-card.md) |
+| UC-A70 | Unassigned Cards | Not implemented — deferred | _no document yet_ |
+| UC-A71 | Block Card | Not implemented — deferred | _no document yet_ |
 
 ### System
 
@@ -145,12 +145,14 @@ Complete index of all use cases across domains, with implementation status.
 
 ## Summary
 
-| Domain | Total | Implemented | Diverges | Partial | Not Impl. |
-|--------|-------|-------------|----------|---------|-----------|
-| Admin Panel | 44 | 33 | 5 | 4 | 7 |
-| Terminal | 7 | 4 | 3 | 0 | 0 |
-| GDPR | 6 | 3 | 1 | 2 | 0 |
-| SEPA | 9 | 7 | 2 | 0 | 0 |
-| **Total** | **66** | **47** | **11** | **6** | **7** |
+| Domain | Total | Implemented | Diverges | Partial | Not Impl. | Closed |
+|--------|-------|-------------|----------|---------|-----------|--------|
+| Admin Panel | 45 | 31 | 5 | 2 | 5 | 2 |
+| Terminal | 7 | 4 | 3 | 0 | 0 | 0 |
+| GDPR | 6 | 3 | 1 | 2 | 0 | 0 |
+| SEPA | 9 | 7 | 2 | 0 | 0 | 0 |
+| **Total** | **67** | **45** | **11** | **4** | **5** | **2** |
+
+"Closed" is UC-A21 (rejected, kept as a tombstone) and UC-A51 (removed).
 
 Action items for partially/not implemented use cases are tracked in [plans/action-items-use-cases.md](../plans/action-items-use-cases.md).
