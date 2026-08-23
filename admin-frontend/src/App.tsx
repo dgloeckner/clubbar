@@ -3,7 +3,7 @@
  * Sets up routing and renders pages
  */
 
-import React, { useEffect } from 'react'
+import React, { Suspense, lazy, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -20,7 +20,6 @@ import { CategoriesPage } from './pages/CategoriesPage'
 import { JournalPage } from './pages/JournalPage'
 import { SettlementsPage } from './pages/SettlementsPage'
 import { NewSettlementPage } from './pages/NewSettlementPage'
-import { ReportsPage } from './pages/ReportsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AuditLogPage } from './pages/AuditLogPage'
 import { NotificationsPage } from './pages/NotificationsPage'
@@ -28,9 +27,47 @@ import { ProfilePage } from './pages/ProfilePage'
 import { DashboardPage } from './pages/DashboardPage'
 import { InsufficientRolePage } from './pages/InsufficientRolePage'
 
+// Reports is the only page that imports Recharts, and Recharts arrives with a
+// complete Redux stack of its own (@reduxjs/toolkit, react-redux, redux,
+// redux-thunk, reselect, immer) plus a dozen d3 packages — 103 KB gzipped,
+// 29% of the bundle, on roughly half the production dependency tree. In one
+// chunk that was downloaded and parsed by every admin on every page, for a
+// page most of them never open (#655).
+//
+// Split at the route rather than by a manual chunk rule: the router already
+// draws this boundary, and React.lazy makes the fetch follow the navigation
+// instead of the build config.
+const ReportsPage = lazy(() =>
+  import('./pages/ReportsPage').then((module) => ({ default: module.ReportsPage })),
+)
+
 // Layout
 import { MainLayout } from './components/layout/MainLayout'
 import { landingPath, permitsPath } from './utils/adminRoles'
+
+/**
+ * Fallback for a route whose chunk is still in flight (#655).
+ *
+ * Rendered inside MainLayout, so the sidebar and header stay put and only the
+ * content area waits — and it reuses `common.loading`, the same string every
+ * other pending view in the panel shows.
+ */
+function PageLoading() {
+  const { t } = useTranslation()
+
+  return (
+    <div
+      data-testid="page-loading"
+      style={{
+        textAlign: 'center',
+        color: theme.colors.text.secondary,
+        padding: theme.spacing.xl,
+      }}
+    >
+      {t('common.loading')}
+    </div>
+  )
+}
 
 /**
  * Protected Route Component
@@ -174,7 +211,9 @@ function AppRoutes() {
         path="/reports"
         element={
           <ProtectedRoute>
-            <ReportsPage />
+            <Suspense fallback={<PageLoading />}>
+              <ReportsPage />
+            </Suspense>
           </ProtectedRoute>
         }
       />

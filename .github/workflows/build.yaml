@@ -39,6 +39,21 @@ env:
   # That is a change of its own, not a side effect of fixing jsdom.
   NODE_VERSION: '22'
 
+  # The SDK that compiles the POS binary shipped to clubs. Pinned to an
+  # explicit tag, like NODE_VERSION above and `php-version` below — it used to
+  # clone `-b stable`, so the compiler was whatever Flutter had released that
+  # morning and nothing recorded which SDK produced a given artifact.
+  #
+  # `terminal-frontend/pubspec.lock` sets the floor:
+  #
+  #     sdks:
+  #       dart: ">=3.12.0 <4.0.0"
+  #       flutter: ">=3.44.0"
+  #
+  # Bump this deliberately, in its own pull request, and read the release
+  # notes — it is the one input here that changes what the binary *is*.
+  FLUTTER_VERSION: '3.47.1'
+
 # Superseded runs on the same branch are pointless — cancel them. main is
 # exempt because its runs deploy, and a half-finished deploy is worse than a
 # redundant one.
@@ -95,6 +110,10 @@ jobs:
               - 'admin-frontend/package-lock.json'
               - 'e2etests/package.json'
               - 'e2etests/package-lock.json'
+              # The group check reads this one too, since pub joined the
+              # config (#649): a package added here and claimed by no group
+              # has to make lint-e2e run to be told so.
+              - 'terminal-frontend/pubspec.yaml'
 
       - name: Decide whether to run everything
         id: full
@@ -118,6 +137,63 @@ jobs:
           else
             echo "value=false" >> "$GITHUB_OUTPUT"
           fi
+
+  # A known advisory is a build failure, not a notification.
+  #
+  # Before this job, advisory detection rested entirely on Dependabot alerts,
+  # which are a repository setting rather than a file — invisible in review,
+  # unable to gate a merge, and blind to `pub` altogether, which is half of
+  # why #649 matters. This runs the two commands that read the committed
+  # lockfiles and says the answer on the pull request that introduces it.
+  #
+  # Deliberately ungated. Every other job here is gated on paths, and this one
+  # must not be: an advisory is published by a researcher, not by a push, so
+  # the lockfile that was clean on Friday is vulnerable on Monday with nothing
+  # in the diff to show for it.
+  #
+  # Nothing is installed. `npm audit` resolves the committed
+  # package-lock.json and `composer audit --locked` reads composer.lock, so
+  # the whole job is a checkout, a toolchain and three registry queries.
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # `high` fails on high and critical and leaves a low-severity advisory
+      # in a dev-only transitive package with no fix available — the shape of
+      # the minimatch ReDoS trio described in .github/dependabot.yml — off the
+      # critical path. Tolerating a *specific* advisory is a recorded
+      # `--exclude`, never a lower threshold for everything.
+      - name: npm audit (admin-frontend)
+        run: npm audit --audit-level=high
+        working-directory: admin-frontend
+
+      - name: npm audit (e2etests)
+        run: npm audit --audit-level=high
+        working-directory: e2etests
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          tools: composer
+
+      # `--abandoned=report` is Composer 2.8's default and Composer 3's is
+      # `fail`. Stated rather than inherited: an abandoned package is a
+      # maintenance question, and this job answers a security one — a
+      # toolchain bump should not turn the two into the same red build.
+      - name: composer audit (backend)
+        run: composer audit --locked --abandoned=report
+        working-directory: backend
+
+      # pub has no audit command, which is why the terminal's only advisory
+      # signal is a Dependabot version bump (#649).
 
   lint:
     needs: [changes]
@@ -918,15 +994,33 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/flutter
-          key: flutter-arm64-stable-${{ hashFiles('terminal-frontend/pubspec.lock') }}
-          restore-keys: flutter-arm64-stable-
+          # Keyed on the SDK version and nothing else. The old key hashed
+          # `pubspec.lock` and fell back to a `flutter-arm64-stable-`
+          # restore-key, which had it backwards on both counts: the cached SDK
+          # does not depend on pubspec.lock, so a dependency bump evicted it
+          # and re-cloned whatever `stable` pointed at that day, while the
+          # restore-key quietly served a stale SDK the rest of the time. Now
+          # the SDK changes when, and only when, FLUTTER_VERSION changes.
+          key: flutter-arm64-${{ env.FLUTTER_VERSION }}
 
       - name: Setup Flutter
         run: |
           if [ ! -d ~/flutter ]; then
-            git clone https://github.com/flutter/flutter.git --depth 1 -b stable ~/flutter
+            git clone https://github.com/flutter/flutter.git --depth 1 \
+              -b "$FLUTTER_VERSION" ~/flutter
           fi
           echo "$HOME/flutter/bin" >> $GITHUB_PATH
+
+      - name: Report Flutter version
+        run: |
+          flutter --version
+          # A cache restored under a stale key, or a tag moved upstream, would
+          # otherwise be invisible. Fail loudly instead of building with an
+          # SDK nobody asked for.
+          flutter --version | grep -q "Flutter $FLUTTER_VERSION " || {
+            echo "::error::Expected Flutter $FLUTTER_VERSION, got the above."
+            exit 1
+          }
 
       - name: Enable Linux desktop
         run: flutter config --enable-linux-desktop
