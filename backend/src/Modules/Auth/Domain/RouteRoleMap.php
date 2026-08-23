@@ -74,11 +74,24 @@ final class RouteRoleMap
         'POST /api/auth/2fa/reset' => self::EVERY_ROLE,
 
         // ── the installation itself: admin only ──────────────────────────
-        // The report names this installation's weak points; the scheduler and
-        // the branding are operator surfaces, not club offices.
+        // The report names this installation's weak points, and the branding
+        // is an operator surface rather than a club office.
         'GET /api/admin/security-check' => self::ADMIN_ONLY,
-        'GET /api/admin/scheduler' => self::ADMIN_ONLY,
         'PATCH /api/admin/instance-config' => self::ADMIN_ONLY,
+        // The one row where the grant is wider than the payload (#677).
+        // `SchedulerController` redacts the operator half — the cron command
+        // naming this installation's document root, the URL trigger, the
+        // drain's PHP build, the observed interval — for anyone who is not
+        // `admin`, so what a Kassenwart reads here is the bare `verified` flag
+        // and the interval the setup instructions recommend.
+        //
+        // Widened because the scheduler gate refuses *their* button:
+        // finalizing a direct debit is blocked until a drain run has been
+        // observed, every settlement route is TREASURY, and the banner meant
+        // to warn them ahead of that refusal was the one request their session
+        // could not make. `SchedulerStatusDtoTest` is what holds the redaction
+        // to its promise.
+        'GET /api/admin/scheduler' => self::TREASURY,
 
         // ── the club's financial position ────────────────────────────────
         // Not aggregates: `recent_transactions` carries member names,

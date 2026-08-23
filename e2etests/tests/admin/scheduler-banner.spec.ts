@@ -1,4 +1,5 @@
-import { test, expect } from '../../fixtures/auth.fixture'
+import { test, expect } from '../../fixtures/pageObjects'
+import { createIsolatedAdmin, signInAndEnroll } from '../../utils/isolatedAdmin'
 
 /**
  * The scheduler banner (#405).
@@ -23,7 +24,22 @@ import { test, expect } from '../../fixtures/auth.fixture'
  * is asserted where it lives, over a real database, in
  * `SchedulerGateHttpTest`; the end-to-end chain through a real drain run is
  * #409's.
+ *
+ * ### The second describe block: which office sees it (#677)
+ *
+ * The banner is the panel's half of a promise that only matters to the office
+ * the gate blocks. The route responds differently per role and the component
+ * decides per role whether to ask at all, so the interception below stands in
+ * for the server's answer — and the Getränkewart case asserts that the request
+ * is never made, which no fulfilled route could show. The payload split itself
+ * is `tests/api/scheduler-payload-split.spec.ts`'s.
  */
+
+/** What the server sends an office outside `admin` — no command, no host detail. */
+function officeStatusBody(verified: boolean) {
+  return { verified, setup: { recommended_interval_minutes: 15 } }
+}
+
 test.describe('Scheduler banner', () => {
   const CLI_COMMAND = 'php /srv/htdocs/backend/bin/cron.php'
 
@@ -83,5 +99,76 @@ test.describe('Scheduler banner', () => {
 
     await expect(page.getByTestId('members-page')).toBeVisible()
     await expect(page.getByTestId('scheduler-banner')).toBeHidden()
+  })
+})
+
+/**
+ * Per-office visibility (#677).
+ *
+ * Each test signs in as the office it is about (Patterns 001 and 002: a fresh
+ * account per test, never the shared seeded admin), because the component reads
+ * the session's roles to decide whether to fetch at all.
+ */
+test.describe('Scheduler banner per office', () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+
+  /**
+   * The bug #677 names: every settlement route is the Kassenwart's, so the
+   * Kassenwart is exactly who the finalize block lands on — and from the day
+   * roles shipped, the warning meant to pre-empt it was the one request their
+   * session could not make. It renders now, and it renders the wording addressed to them: the
+   * command is absent from their response because scheduling a cron is not
+   * their job, so the body asks for whoever administers the installation.
+   */
+  test('a Kassenwart sees the banner, addressed to whoever holds the server', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    await page.route('**/api/admin/scheduler', (route) =>
+      route.fulfill({ json: officeStatusBody(false) }),
+    )
+
+    const { email, password } = await createIsolatedAdmin(playwright, 'sched-treasury', ['kassenwart'])
+    await signInAndEnroll(loginPage, page, email, password)
+
+    await expect(page.getByTestId('scheduler-banner')).toBeVisible()
+    // No command: printing this installation's document root to a club office
+    // is exactly what the payload split exists to prevent.
+    await expect(page.getByTestId('scheduler-banner-command')).toBeHidden()
+    // A warning with no remedy at all would be worse than none, so the body has
+    // to name the remedy it *can* offer — asking the operator.
+    await expect(page.getByTestId('scheduler-banner-body')).toContainText(/administers|betreut/i)
+  })
+
+  /**
+   * The other half: an office the gate never blocks is not warned about it, and
+   * — the part that was noise in the access log — does not ask. Asserting the
+   * request count rather than the banner's absence is deliberate: a fetch that
+   * 403s and is swallowed also renders nothing, and looks identical on screen.
+   */
+  test('a Getränkewart neither sees the banner nor asks for it', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    let asked = 0
+    await page.route('**/api/admin/scheduler', (route) => {
+      asked += 1
+      return route.fulfill({ json: officeStatusBody(false) })
+    })
+
+    const { email, password } = await createIsolatedAdmin(playwright, 'sched-bar', ['getraenkewart'])
+    await signInAndEnroll(loginPage, page, email, password, '/products')
+
+    await expect(page.getByTestId('products-page')).toBeVisible()
+    await expect(page.getByTestId('scheduler-banner')).toBeHidden()
+
+    // A navigation too: the banner re-reads on every mount, so one page proves
+    // less than two.
+    await page.goto('/reports')
+    await expect(page.getByTestId('scheduler-banner')).toBeHidden()
+
+    expect(asked, 'a request whose only possible outcome is 403 must never be made').toBe(0)
   })
 })

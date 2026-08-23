@@ -72,6 +72,7 @@ final readonly class SchedulerStatusDto
         public bool $intervalDisagrees = false,
     ) {}
 
+    /** Everything, for the office that holds the server. */
     public function toArray(): array
     {
         return [
@@ -88,6 +89,38 @@ final readonly class SchedulerStatusDto
             'setup' => [
                 'cli_command' => $this->cliCommand,
                 'drain_url' => $this->drainUrl,
+                'recommended_interval_minutes' => $this->recommendedIntervalMinutes,
+            ],
+        ];
+    }
+
+    /**
+     * The half a club office may read (#677).
+     *
+     * An allow-list, not a copy of `toArray()` with keys unset: a field added
+     * to this DTO next year must not reach a Kassenwart because somebody
+     * forgot a second `unset`. Whatever is added is admin-only until a human
+     * writes it into this method.
+     *
+     * What survives is the answer to one question — *is a scheduled run
+     * missing, and how often should it fire* — which is exactly what the
+     * banner needs to warn the treasurer before the finalize button refuses
+     * them. What does not survive is every field that describes the
+     * deployment: the CLI command carries this installation's document root,
+     * the drain URL names the trigger endpoint, and `php_version`,
+     * `missing_extensions` and the interval pair are the self-check's reading
+     * of the host. None of it is actionable by an office that cannot reach a
+     * hosting panel, and all of it is the class of detail ADR-0031 keeps
+     * behind the operator's session.
+     *
+     * `setup` stays an object with one key rather than flattening, so the
+     * banner reads the same path whichever office it renders for.
+     */
+    public function toOfficeArray(): array
+    {
+        return [
+            'verified' => $this->verified,
+            'setup' => [
                 'recommended_interval_minutes' => $this->recommendedIntervalMinutes,
             ],
         ];
