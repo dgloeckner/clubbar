@@ -8,15 +8,14 @@
         "ext-fileinfo": "*",
         "chillerlan/php-qrcode": "^6.0",
         "digitick/sepa-xml": "^3.1",
-        "league/openapi-psr7-validator": "^0.24",
         "robthree/twofactorauth": "^3.0",
         "slim/psr7": "^1.0",
         "slim/slim": "^4.0",
         "symfony/mailer": "^7.4",
-        "symfony/mime": "^7.4",
-        "symfony/yaml": "^7.0"
+        "symfony/mime": "^7.4"
     },
     "require-dev": {
+        "league/openapi-psr7-validator": "^0.24",
         "phpunit/phpunit": "^11.0"
     },
     "autoload": {
