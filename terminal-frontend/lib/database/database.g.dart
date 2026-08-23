@@ -3948,10 +3948,7 @@ final class $$MembersCacheTableReferences
   _transactionsLocalRefsTable(_$ClubBarDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.transactionsLocal,
-        aliasName: $_aliasNameGenerator(
-          db.membersCache.id,
-          db.transactionsLocal.memberId,
-        ),
+        aliasName: 'members_cache__id__transactions_local__member_id',
       );
 
   $$TransactionsLocalTableProcessedTableManager get transactionsLocalRefs {
@@ -4381,10 +4378,7 @@ final class $$CategoriesCacheTableReferences
   _productsCacheRefsTable(_$ClubBarDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.productsCache,
-        aliasName: $_aliasNameGenerator(
-          db.categoriesCache.id,
-          db.productsCache.categoryId,
-        ),
+        aliasName: 'categories_cache__id__products_cache__category_id',
       );
 
   $$ProductsCacheTableProcessedTableManager get productsCacheRefs {
@@ -4724,13 +4718,9 @@ final class $$ProductsCacheTableReferences
     super.$_typedResult,
   );
 
-  static $CategoriesCacheTable _categoryIdTable(_$ClubBarDatabase db) =>
-      db.categoriesCache.createAlias(
-        $_aliasNameGenerator(
-          db.productsCache.categoryId,
-          db.categoriesCache.id,
-        ),
-      );
+  static $CategoriesCacheTable _categoryIdTable(_$ClubBarDatabase db) => db
+      .categoriesCache
+      .createAlias('products_cache__category_id__categories_cache__id');
 
   $$CategoriesCacheTableProcessedTableManager get categoryId {
     final $_column = $_itemColumn<String>('category_id')!;
@@ -4753,10 +4743,7 @@ final class $$ProductsCacheTableReferences
   _transactionsLocalRefsTable(_$ClubBarDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.transactionsLocal,
-        aliasName: $_aliasNameGenerator(
-          db.productsCache.id,
-          db.transactionsLocal.productId,
-        ),
+        aliasName: 'products_cache__id__transactions_local__product_id',
       );
 
   $$TransactionsLocalTableProcessedTableManager get transactionsLocalRefs {
@@ -5290,10 +5277,9 @@ final class $$TransactionsLocalTableReferences
     super.$_typedResult,
   );
 
-  static $MembersCacheTable _memberIdTable(_$ClubBarDatabase db) =>
-      db.membersCache.createAlias(
-        $_aliasNameGenerator(db.transactionsLocal.memberId, db.membersCache.id),
-      );
+  static $MembersCacheTable _memberIdTable(_$ClubBarDatabase db) => db
+      .membersCache
+      .createAlias('transactions_local__member_id__members_cache__id');
 
   $$MembersCacheTableProcessedTableManager get memberId {
     final $_column = $_itemColumn<String>('member_id')!;
@@ -5309,13 +5295,9 @@ final class $$TransactionsLocalTableReferences
     );
   }
 
-  static $ProductsCacheTable _productIdTable(_$ClubBarDatabase db) =>
-      db.productsCache.createAlias(
-        $_aliasNameGenerator(
-          db.transactionsLocal.productId,
-          db.productsCache.id,
-        ),
-      );
+  static $ProductsCacheTable _productIdTable(_$ClubBarDatabase db) => db
+      .productsCache
+      .createAlias('transactions_local__product_id__products_cache__id');
 
   $$ProductsCacheTableProcessedTableManager? get productId {
     final $_column = $_itemColumn<String>('product_id');
