@@ -162,7 +162,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      l10n.memberDetails,
+                      l10n.myPurchases,
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: AppFontSizes.xxl,
@@ -230,34 +230,6 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 ),
               ),
 
-              // Language Section
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.preferredLanguage,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: AppFontSizes.base,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _languageButton('de', 'Deutsch', locale == 'de'),
-                        const SizedBox(width: 8),
-                        _languageButton('en', 'English', locale == 'en'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
               // Transactions Section Header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -291,9 +263,56 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
               Expanded(
                 child: _buildTransactionsList(l10n, locale),
               ),
+
+              _languageFooter(l10n, locale),
             ],
           ),
         ),
+    );
+  }
+
+  /// Language, under the list rather than over it.
+  ///
+  /// This used to sit between the member's name and their bookings, on the
+  /// reading that "language switching is why the sheet gets opened" (#294).
+  /// That was true while the sheet was reachable only by guessing, because
+  /// the few who found it had been sent. Now the member bar names the
+  /// bookings and sends people here for them, and a setting most members
+  /// touch once was holding the top half of a sheet that is 75 % of the
+  /// screen — the list, the reason for the visit, started below the fold.
+  ///
+  /// Still one tap and still without scrolling: the list takes the space
+  /// between, and this stays pinned to the bottom edge. The label moves
+  /// inline beside the buttons rather than stacked above them, which is the
+  /// two lines the list gets back.
+  Widget _languageFooter(AppLocalizations l10n, String locale) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: AppColors.borderMuted.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              l10n.preferredLanguage,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: AppFontSizes.base,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          _languageButton('de', 'Deutsch', locale == 'de'),
+          const SizedBox(width: 8),
+          _languageButton('en', 'English', locale == 'en'),
+        ],
+      ),
     );
   }
 
@@ -568,7 +587,12 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
 
   Widget _languageButton(String code, String label, bool isSelected) {
     return InkWell(
-      onTap: () => _updateLanguage(code),
+      // A successful switch pops the sheet, which is right when the member
+      // asked for a different language and wrong when they tapped the one
+      // already in force: that wrote the value it already had and closed the
+      // bookings they were part-way through reading. Selecting the current
+      // language is now the no-op it looks like.
+      onTap: isSelected ? null : () => _updateLanguage(code),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

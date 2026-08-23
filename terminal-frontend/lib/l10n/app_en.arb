@@ -43,7 +43,7 @@
   "checkoutDone": "Done",
   "redirectingIn": "Redirecting in {seconds} {seconds, plural, =1{second} other{seconds}}...",
 
-  "memberDetails": "Member Details",
+  "myPurchases": "My purchases",
   "firstName": "First Name",
   "lastName": "Last Name",
   "accountStatus": "Account Status",
@@ -54,6 +54,7 @@
   "balanceCredit": "Credit: {amount}",
   "balanceSettled": "No open tab",
   "viewDetails": "Details",
+  "purchases": "Purchases",
   "logout": "Log out",
   "backToProducts": "Back",
 

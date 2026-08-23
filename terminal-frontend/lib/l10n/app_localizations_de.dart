@@ -167,7 +167,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get memberDetails => 'Mitgliedsdetails';
+  String get myPurchases => 'Meine Buchungen';
 
   @override
   String get firstName => 'Vorname';
@@ -199,6 +199,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get viewDetails => 'Details';
+
+  @override
+  String get purchases => 'Buchungen';
 
   @override
   String get logout => 'Abmelden';

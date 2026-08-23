@@ -312,5 +312,38 @@ void main() {
 
       expect(find.byType(MemberDetailsModal), findsOneWidget);
     });
+
+    testWidgets('tapping the language already in force changes nothing',
+        (WidgetTester tester) async {
+      await pumpOpenModal(tester);
+      expect(find.byType(MemberDetailsModal), findsOneWidget);
+
+      // The member is on 'de'. Tapping 'Deutsch' used to write the value it
+      // already had and then dismiss the sheet on success — closing the
+      // bookings the member was part-way through reading, for no change.
+      await tester.tap(find.text('Deutsch'));
+      await tester.pumpAndSettle();
+
+      verifyNever(() => mockMembersProvider.updateSelectedMemberLanguage(any()));
+      expect(find.byType(MemberDetailsModal), findsOneWidget);
+    });
+
+    testWidgets('the sheet is named for the bookings, above the language row',
+        (WidgetTester tester) async {
+      await pumpOpenModal(tester);
+
+      // "Mitgliedsdetails" named the container; members were looking for
+      // their bookings, and the member bar's button now uses this word too,
+      // so the tap confirms itself.
+      expect(find.text('Meine Buchungen'), findsOneWidget);
+
+      // Language used to sit between the member's name and their bookings,
+      // which on a 75%-height sheet started the list below the fold. It is
+      // now a footer under the list — still one tap, still no scrolling.
+      final listHeader = tester.getTopLeft(find.text('Letzte Transaktionen'));
+      final languageLabel = tester.getTopLeft(find.text('Bevorzugte Sprache'));
+      expect(listHeader.dy, lessThan(languageLabel.dy),
+          reason: 'the reason for the visit comes before the setting');
+    });
   });
 }

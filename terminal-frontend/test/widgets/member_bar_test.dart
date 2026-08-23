@@ -137,6 +137,162 @@ void main() {
     });
   });
 
+  group('MemberBar purchases button is findable (member feedback)', () {
+    // The booking history was always one tap away, behind the member cluster
+    // on the left. #39 called that undiscoverable and answered it with a
+    // chevron and a ripple, and members still could not find it — a chevron
+    // only helps someone who already suspects there is something there.
+    //
+    // Meanwhile #551 took the cart icon out of this row and #642 gave the
+    // logout a label and an edge, which between them left the bar with
+    // exactly one thing shaped like a button: the way out of the session.
+    // These tests hold the row to having a second one, for the way *in*.
+
+    Finder purchasesChip() => find.descendant(
+          of: find.byKey(const Key('member-bar-purchases')),
+          matching: find.byType(Container),
+        );
+
+    testWidgets('says what it opens, in the member language', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('member-bar-purchases')),
+          matching: find.text('Buchungen'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('carries the bar tab it opens, not a bare arrow',
+        (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('member-bar-purchases')),
+          matching: find.byIcon(Icons.receipt_long),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('is on the product screen too, not only beside a back arrow',
+        (tester) async {
+      // buildTestWidget passes no showBackButton — this is the product grid,
+      // where a member spends almost the whole session.
+      await tester.pumpWidget(buildTestWidget());
+
+      expect(find.byKey(const Key('member-bar-purchases')), findsOneWidget);
+    });
+
+    testWidgets('has a boundary that clears WCAG 1.4.11 despite its fill',
+        (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+
+      final decoration =
+          tester.widget<Container>(purchasesChip().first).decoration
+              as BoxDecoration;
+      // Blue where the logout is grey, so the two do not read as one pair.
+      expect(decoration.color, AppColors.semanticPrimaryStrong);
+      // The fill alone is 2.98:1 on this bar — just under the floor #642 set
+      // here — so the lighter blue draws the edge. contrast_test.dart holds
+      // both ratios; this pins that the button reaches for the right tokens.
+      expect((decoration.border! as Border).top.color,
+          AppColors.semanticPrimaryLight);
+    });
+
+    testWidgets('is one bar tall, and wide enough to be read', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+
+      final size = tester.getSize(purchasesChip().first);
+      // Same edge as the row's other controls: #369 measured this band, and
+      // the logout still has to be able to set it on its own.
+      expect(size.height, 52.0);
+      // The label is the whole point; a square would mean it is gone again.
+      expect(size.width, greaterThan(100.0));
+    });
+
+    testWidgets('announces itself once, as a button', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(buildTestWidget());
+
+      final node = tester.getSemantics(
+        find.descendant(
+          of: find.byKey(const Key('member-bar-purchases')),
+          matching: find.byType(InkWell),
+        ),
+      );
+      expect(node.flagsCollection.isButton, isTrue,
+          reason: 'InkWell does not set this on its own');
+      // Once, not twice: the visible label is already the accessible name.
+      expect(node.label, 'Buchungen');
+      handle.dispose();
+    });
+
+    testWidgets('stays available while a checkout runs', (tester) async {
+      when(() => session.isCriticalOperationInFlight).thenReturn(true);
+
+      await tester.pumpWidget(buildTestWidget(onLogoutPressed: () {}));
+
+      final inkWell = tester.widget<InkWell>(
+        find.descendant(
+          of: find.byKey(const Key('member-bar-purchases')),
+          matching: find.byType(InkWell),
+        ),
+      );
+      // Deliberately unlike the back and logout controls beside it. Those are
+      // refused mid-checkout because leaving the screen unmounts the context
+      // the checkout is awaiting (#34); a bottom sheet is laid over that
+      // screen rather than replacing it. The member cluster, which opens the
+      // same sheet, has never been blocked either.
+      expect(inkWell.onTap, isNotNull);
+    });
+
+    testWidgets('survives a long name alongside every other control',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('de'),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en'), Locale('de')],
+          home: ChangeNotifierProvider<SessionController>.value(
+            value: session,
+            child: Scaffold(
+              body: MemberBar(
+                member: MembersCacheData(
+                  id: 'member-3',
+                  cardUid: 'card-789',
+                  firstName: 'Maximiliane-Charlotte',
+                  lastName: 'von Hohenberg-Lichtenstein',
+                  preferredLanguage: 'de',
+                  isActive: 1,
+                  isSepaValid: 1,
+                  balanceCents: 0,
+                  updatedAt: '2025-02-01T10:00:00Z',
+                ),
+                onBackPressed: () {},
+                onLogoutPressed: () {},
+                // The widest the row ever gets: cluster + all three controls.
+                showBackButton: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // The name yields; the buttons do not.
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(purchasesChip().first).width, greaterThan(100.0));
+    });
+  });
+
   group('MemberBar logout button is findable (member feedback)', () {
     // Members reported not finding the logout control, and calling it too
     // small. It was 52x52 — over the 44 px minimum — so the size was never
