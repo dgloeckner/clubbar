@@ -925,6 +925,23 @@
         "test": "The test mail could not be sent.",
         "rotateCronSecret": "The secret could not be rotated."
       }
+    },
+    "limits": {
+      "tab": "Limits",
+      "label": "Club default limit",
+      "helper": "The highest a tab may reach before the terminal refuses the next purchase. Applies to every member without a limit of their own — raising it lifts all of them at once. **0 means no limit.**",
+      "warnLabel": "Warning threshold",
+      "warnHelper": "The share of the limit from which the terminal warns but keeps serving the member (1–100%). Club-wide: a member's own limit sets the ceiling, never the threshold.",
+      "warnAtLabel": "Warning starts at",
+      "warnAtHelper": "Derived from the limit and the threshold. The terminal uses exactly this amount.",
+      "unlimited": "No limit — the tab is not capped.",
+      "loading": "Loading limit configuration...",
+      "saved": "Limits saved successfully",
+      "errors": {
+        "load": "Could not load the limit configuration",
+        "save": "Could not save the limits. Please try again.",
+        "validation": "Please correct the highlighted fields"
+      }
     }
   },
   "auditLog": {
