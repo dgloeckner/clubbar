@@ -75,6 +75,17 @@ class $MembersCacheTable extends MembersCache
         type: DriftSqlType.string,
         requiredDuringInsert: true,
       );
+  static const VerificationMeta _creditLimitCentsMeta = const VerificationMeta(
+    'creditLimitCents',
+  );
+  @override
+  late final GeneratedColumn<int> creditLimitCents = GeneratedColumn<int>(
+    'credit_limit_cents',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isActiveMeta = const VerificationMeta(
     'isActive',
   );
@@ -140,6 +151,7 @@ class $MembersCacheTable extends MembersCache
     lastName,
     dateOfBirth,
     preferredLanguage,
+    creditLimitCents,
     isActive,
     isSepaValid,
     balanceCents,
@@ -200,6 +212,15 @@ class $MembersCacheTable extends MembersCache
       );
     } else if (isInserting) {
       context.missing(_preferredLanguageMeta);
+    }
+    if (data.containsKey('credit_limit_cents')) {
+      context.handle(
+        _creditLimitCentsMeta,
+        creditLimitCents.isAcceptableOrUnknown(
+          data['credit_limit_cents']!,
+          _creditLimitCentsMeta,
+        ),
+      );
     }
     if (data.containsKey('is_active')) {
       context.handle(
@@ -274,6 +295,10 @@ class $MembersCacheTable extends MembersCache
         DriftSqlType.string,
         data['${effectivePrefix}preferred_language'],
       )!,
+      creditLimitCents: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}credit_limit_cents'],
+      ),
       isActive: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}is_active'],
@@ -328,6 +353,19 @@ class MembersCacheData extends DataClass
   /// screen is read by whoever is standing at the bar.
   final String? dateOfBirth;
   final String preferredLanguage;
+
+  /// This member's **own** credit ceiling in cents, or null (ADR-0046).
+  ///
+  /// An override, never an effective ceiling. Null means "follow the club
+  /// default", which arrives separately on `GET /sync/config` and is cached in
+  /// `config.json`; zero means a deliberate "no ceiling for this member". The
+  /// two are different answers and must never be normalised into one another.
+  ///
+  /// Resolved at checkout by `CreditLimitPolicy.forMember()` — the terminal
+  /// coalesces because it decides in front of the member with nothing
+  /// reachable, and because a figure the backend resolved would go stale here
+  /// the moment the club changed its default without touching this row.
+  final int? creditLimitCents;
   final int isActive;
   final int isSepaValid;
   final int balanceCents;
@@ -348,6 +386,7 @@ class MembersCacheData extends DataClass
     this.lastName,
     this.dateOfBirth,
     required this.preferredLanguage,
+    this.creditLimitCents,
     required this.isActive,
     required this.isSepaValid,
     required this.balanceCents,
@@ -371,6 +410,9 @@ class MembersCacheData extends DataClass
       map['date_of_birth'] = Variable<String>(dateOfBirth);
     }
     map['preferred_language'] = Variable<String>(preferredLanguage);
+    if (!nullToAbsent || creditLimitCents != null) {
+      map['credit_limit_cents'] = Variable<int>(creditLimitCents);
+    }
     map['is_active'] = Variable<int>(isActive);
     map['is_sepa_valid'] = Variable<int>(isSepaValid);
     map['balance_cents'] = Variable<int>(balanceCents);
@@ -397,6 +439,9 @@ class MembersCacheData extends DataClass
           ? const Value.absent()
           : Value(dateOfBirth),
       preferredLanguage: Value(preferredLanguage),
+      creditLimitCents: creditLimitCents == null && nullToAbsent
+          ? const Value.absent()
+          : Value(creditLimitCents),
       isActive: Value(isActive),
       isSepaValid: Value(isSepaValid),
       balanceCents: Value(balanceCents),
@@ -419,6 +464,7 @@ class MembersCacheData extends DataClass
       lastName: serializer.fromJson<String?>(json['lastName']),
       dateOfBirth: serializer.fromJson<String?>(json['dateOfBirth']),
       preferredLanguage: serializer.fromJson<String>(json['preferredLanguage']),
+      creditLimitCents: serializer.fromJson<int?>(json['creditLimitCents']),
       isActive: serializer.fromJson<int>(json['isActive']),
       isSepaValid: serializer.fromJson<int>(json['isSepaValid']),
       balanceCents: serializer.fromJson<int>(json['balanceCents']),
@@ -436,6 +482,7 @@ class MembersCacheData extends DataClass
       'lastName': serializer.toJson<String?>(lastName),
       'dateOfBirth': serializer.toJson<String?>(dateOfBirth),
       'preferredLanguage': serializer.toJson<String>(preferredLanguage),
+      'creditLimitCents': serializer.toJson<int?>(creditLimitCents),
       'isActive': serializer.toJson<int>(isActive),
       'isSepaValid': serializer.toJson<int>(isSepaValid),
       'balanceCents': serializer.toJson<int>(balanceCents),
@@ -451,6 +498,7 @@ class MembersCacheData extends DataClass
     Value<String?> lastName = const Value.absent(),
     Value<String?> dateOfBirth = const Value.absent(),
     String? preferredLanguage,
+    Value<int?> creditLimitCents = const Value.absent(),
     int? isActive,
     int? isSepaValid,
     int? balanceCents,
@@ -463,6 +511,9 @@ class MembersCacheData extends DataClass
     lastName: lastName.present ? lastName.value : this.lastName,
     dateOfBirth: dateOfBirth.present ? dateOfBirth.value : this.dateOfBirth,
     preferredLanguage: preferredLanguage ?? this.preferredLanguage,
+    creditLimitCents: creditLimitCents.present
+        ? creditLimitCents.value
+        : this.creditLimitCents,
     isActive: isActive ?? this.isActive,
     isSepaValid: isSepaValid ?? this.isSepaValid,
     balanceCents: balanceCents ?? this.balanceCents,
@@ -481,6 +532,9 @@ class MembersCacheData extends DataClass
       preferredLanguage: data.preferredLanguage.present
           ? data.preferredLanguage.value
           : this.preferredLanguage,
+      creditLimitCents: data.creditLimitCents.present
+          ? data.creditLimitCents.value
+          : this.creditLimitCents,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       isSepaValid: data.isSepaValid.present
           ? data.isSepaValid.value
@@ -502,6 +556,7 @@ class MembersCacheData extends DataClass
           ..write('lastName: $lastName, ')
           ..write('dateOfBirth: $dateOfBirth, ')
           ..write('preferredLanguage: $preferredLanguage, ')
+          ..write('creditLimitCents: $creditLimitCents, ')
           ..write('isActive: $isActive, ')
           ..write('isSepaValid: $isSepaValid, ')
           ..write('balanceCents: $balanceCents, ')
@@ -519,6 +574,7 @@ class MembersCacheData extends DataClass
     lastName,
     dateOfBirth,
     preferredLanguage,
+    creditLimitCents,
     isActive,
     isSepaValid,
     balanceCents,
@@ -535,6 +591,7 @@ class MembersCacheData extends DataClass
           other.lastName == this.lastName &&
           other.dateOfBirth == this.dateOfBirth &&
           other.preferredLanguage == this.preferredLanguage &&
+          other.creditLimitCents == this.creditLimitCents &&
           other.isActive == this.isActive &&
           other.isSepaValid == this.isSepaValid &&
           other.balanceCents == this.balanceCents &&
@@ -549,6 +606,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
   final Value<String?> lastName;
   final Value<String?> dateOfBirth;
   final Value<String> preferredLanguage;
+  final Value<int?> creditLimitCents;
   final Value<int> isActive;
   final Value<int> isSepaValid;
   final Value<int> balanceCents;
@@ -562,6 +620,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     this.lastName = const Value.absent(),
     this.dateOfBirth = const Value.absent(),
     this.preferredLanguage = const Value.absent(),
+    this.creditLimitCents = const Value.absent(),
     this.isActive = const Value.absent(),
     this.isSepaValid = const Value.absent(),
     this.balanceCents = const Value.absent(),
@@ -576,6 +635,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     this.lastName = const Value.absent(),
     this.dateOfBirth = const Value.absent(),
     required String preferredLanguage,
+    this.creditLimitCents = const Value.absent(),
     this.isActive = const Value.absent(),
     required int isSepaValid,
     this.balanceCents = const Value.absent(),
@@ -593,6 +653,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     Expression<String>? lastName,
     Expression<String>? dateOfBirth,
     Expression<String>? preferredLanguage,
+    Expression<int>? creditLimitCents,
     Expression<int>? isActive,
     Expression<int>? isSepaValid,
     Expression<int>? balanceCents,
@@ -607,6 +668,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
       if (lastName != null) 'last_name': lastName,
       if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
       if (preferredLanguage != null) 'preferred_language': preferredLanguage,
+      if (creditLimitCents != null) 'credit_limit_cents': creditLimitCents,
       if (isActive != null) 'is_active': isActive,
       if (isSepaValid != null) 'is_sepa_valid': isSepaValid,
       if (balanceCents != null) 'balance_cents': balanceCents,
@@ -623,6 +685,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     Value<String?>? lastName,
     Value<String?>? dateOfBirth,
     Value<String>? preferredLanguage,
+    Value<int?>? creditLimitCents,
     Value<int>? isActive,
     Value<int>? isSepaValid,
     Value<int>? balanceCents,
@@ -637,6 +700,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
       lastName: lastName ?? this.lastName,
       dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       preferredLanguage: preferredLanguage ?? this.preferredLanguage,
+      creditLimitCents: creditLimitCents ?? this.creditLimitCents,
       isActive: isActive ?? this.isActive,
       isSepaValid: isSepaValid ?? this.isSepaValid,
       balanceCents: balanceCents ?? this.balanceCents,
@@ -666,6 +730,9 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     }
     if (preferredLanguage.present) {
       map['preferred_language'] = Variable<String>(preferredLanguage.value);
+    }
+    if (creditLimitCents.present) {
+      map['credit_limit_cents'] = Variable<int>(creditLimitCents.value);
     }
     if (isActive.present) {
       map['is_active'] = Variable<int>(isActive.value);
@@ -697,6 +764,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
           ..write('lastName: $lastName, ')
           ..write('dateOfBirth: $dateOfBirth, ')
           ..write('preferredLanguage: $preferredLanguage, ')
+          ..write('creditLimitCents: $creditLimitCents, ')
           ..write('isActive: $isActive, ')
           ..write('isSepaValid: $isSepaValid, ')
           ..write('balanceCents: $balanceCents, ')
@@ -3909,6 +3977,7 @@ typedef $$MembersCacheTableCreateCompanionBuilder =
       Value<String?> lastName,
       Value<String?> dateOfBirth,
       required String preferredLanguage,
+      Value<int?> creditLimitCents,
       Value<int> isActive,
       required int isSepaValid,
       Value<int> balanceCents,
@@ -3924,6 +3993,7 @@ typedef $$MembersCacheTableUpdateCompanionBuilder =
       Value<String?> lastName,
       Value<String?> dateOfBirth,
       Value<String> preferredLanguage,
+      Value<int?> creditLimitCents,
       Value<int> isActive,
       Value<int> isSepaValid,
       Value<int> balanceCents,
@@ -4005,6 +4075,11 @@ class $$MembersCacheTableFilterComposer
 
   ColumnFilters<String> get preferredLanguage => $composableBuilder(
     column: $table.preferredLanguage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get creditLimitCents => $composableBuilder(
+    column: $table.creditLimitCents,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4098,6 +4173,11 @@ class $$MembersCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get creditLimitCents => $composableBuilder(
+    column: $table.creditLimitCents,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get isActive => $composableBuilder(
     column: $table.isActive,
     builder: (column) => ColumnOrderings(column),
@@ -4152,6 +4232,11 @@ class $$MembersCacheTableAnnotationComposer
 
   GeneratedColumn<String> get preferredLanguage => $composableBuilder(
     column: $table.preferredLanguage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get creditLimitCents => $composableBuilder(
+    column: $table.creditLimitCents,
     builder: (column) => column,
   );
 
@@ -4237,6 +4322,7 @@ class $$MembersCacheTableTableManager
                 Value<String?> lastName = const Value.absent(),
                 Value<String?> dateOfBirth = const Value.absent(),
                 Value<String> preferredLanguage = const Value.absent(),
+                Value<int?> creditLimitCents = const Value.absent(),
                 Value<int> isActive = const Value.absent(),
                 Value<int> isSepaValid = const Value.absent(),
                 Value<int> balanceCents = const Value.absent(),
@@ -4250,6 +4336,7 @@ class $$MembersCacheTableTableManager
                 lastName: lastName,
                 dateOfBirth: dateOfBirth,
                 preferredLanguage: preferredLanguage,
+                creditLimitCents: creditLimitCents,
                 isActive: isActive,
                 isSepaValid: isSepaValid,
                 balanceCents: balanceCents,
@@ -4265,6 +4352,7 @@ class $$MembersCacheTableTableManager
                 Value<String?> lastName = const Value.absent(),
                 Value<String?> dateOfBirth = const Value.absent(),
                 required String preferredLanguage,
+                Value<int?> creditLimitCents = const Value.absent(),
                 Value<int> isActive = const Value.absent(),
                 required int isSepaValid,
                 Value<int> balanceCents = const Value.absent(),
@@ -4278,6 +4366,7 @@ class $$MembersCacheTableTableManager
                 lastName: lastName,
                 dateOfBirth: dateOfBirth,
                 preferredLanguage: preferredLanguage,
+                creditLimitCents: creditLimitCents,
                 isActive: isActive,
                 isSepaValid: isSepaValid,
                 balanceCents: balanceCents,

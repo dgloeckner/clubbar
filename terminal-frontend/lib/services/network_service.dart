@@ -241,6 +241,36 @@ class NetworkService {
   }
 
   // ---------------------------------------------------------------------------
+  // Club policy
+  // ---------------------------------------------------------------------------
+
+  /// The club's credit ceiling and warning band (ADR-0046).
+  ///
+  /// No cursor and no delta: the document is one row, re-read whole each
+  /// cycle. It is bearer-authenticated like the rest of `/sync/*` — club
+  /// policy is not something `/health` carries, because `/health` answers
+  /// before a terminal can authenticate at all.
+  Future<SyncConfigResponse?> syncConfig() async {
+    try {
+      final response = await _api.syncConfigGet();
+      _logger.i('GET /sync/config -> HTTP ${response.statusCode}');
+
+      if (!response.isSuccessful) {
+        throw NetworkException(
+          'Sync config failed: HTTP ${response.statusCode}',
+          statusCode: response.statusCode,
+          errorCode: backendErrorCode(response.error),
+        );
+      }
+
+      return response.body;
+    } catch (e) {
+      if (e is NetworkException) rethrow;
+      throw NetworkException('Sync config failed: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Delta sync — categories
   // ---------------------------------------------------------------------------
 

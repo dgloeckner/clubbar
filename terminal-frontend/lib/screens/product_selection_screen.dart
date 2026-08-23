@@ -10,6 +10,7 @@ import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/models/credit_limit.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
@@ -114,10 +115,12 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
         // sees the ceiling while they can still choose, not after they have
         // picked a round for the table. Adding stays allowed — only checkout
         // is blocked, here and on the cart screen alike.
-        final limitCheck = CreditLimitCheck.evaluate(
-          currentBalanceCents: membersProvider.memberDeckel ?? 0,
-          cartTotalCents: cartProvider.total,
-        );
+        final limitCheck =
+            context.read<ConfigService>().creditLimitPolicy.evaluate(
+                  memberLimitCents: selectedMember?.creditLimitCents,
+                  currentBalanceCents: membersProvider.memberDeckel ?? 0,
+                  cartTotalCents: cartProvider.total,
+                );
 
         // While a checkout runs the cart must not be edited or re-submitted —
         // it can now be started from this screen too (#34).

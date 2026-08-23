@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:clubbar_terminal/config/app_config.dart';
+import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 
 void main() {
@@ -559,6 +561,97 @@ void main() {
         expect(configService.rfidReaderMonitoringEnabled, isFalse);
         expect(configService.rfidReaderIdentity.isSpecified, isFalse);
         expect(configService.rfidReaderPollIntervalSeconds, 5);
+      });
+    });
+
+    /// The club's credit policy, cached (ADR-0046).
+    ///
+    /// Cached rather than fetched on demand because the terminal blocks a
+    /// checkout in front of the member with no backend reachable — and
+    /// *persisted* because it has to still be there after the terminal is
+    /// switched off and on again with the network still down. That restart is
+    /// the case these tests exist for.
+    group('credit limit policy', () {
+      test('a fresh install enforces the shipped seed values', () async {
+        await configService.load();
+
+        expect(configService.creditLimitPolicy.defaultLimitCents,
+            AppConfig.balanceLimitCents);
+        expect(configService.creditLimitPolicy.warnThresholdPercent,
+            AppConfig.balanceWarnThresholdPercent);
+      });
+
+      test('a synced policy survives a restart with no backend', () async {
+        await configService.setCreditLimitPolicy(
+          const CreditLimitPolicy(
+            defaultLimitCents: 25000,
+            warnThresholdPercent: 60,
+          ),
+        );
+
+        // A second service over the same directory is this terminal booting
+        // again — with nothing reachable, since nothing here is asked for.
+        final rebooted = ConfigService(configDir: tempDir.path);
+        await rebooted.load();
+
+        expect(rebooted.creditLimitPolicy.defaultLimitCents, 25000);
+        expect(rebooted.creditLimitPolicy.warnThresholdPercent, 60);
+      });
+
+      test('a club that caps nobody persists as zero, not as absent', () async {
+        await configService.setCreditLimitPolicy(
+          const CreditLimitPolicy(
+            defaultLimitCents: 0,
+            warnThresholdPercent: 80,
+          ),
+        );
+
+        final rebooted = ConfigService(configDir: tempDir.path);
+        await rebooted.load();
+
+        expect(rebooted.creditLimitPolicy.defaultLimitCents, 0);
+      });
+
+      /// `config.json` holds this terminal's credentials. Writing a cache value
+      /// into it must not be able to lose them.
+      test('writing the policy leaves the rest of the file untouched',
+          () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'terminal-1',
+          'apiUrl': 'https://bar.example.org/api',
+          'apiToken': 'secret-token',
+          'displayName': 'Ruderbar',
+        }));
+        await configService.load();
+
+        await configService.setCreditLimitPolicy(
+          const CreditLimitPolicy(
+            defaultLimitCents: 12000,
+            warnThresholdPercent: 75,
+          ),
+        );
+
+        final rebooted = ConfigService(configDir: tempDir.path);
+        await rebooted.load();
+
+        expect(rebooted.apiToken, 'secret-token');
+        expect(rebooted.terminalId, 'terminal-1');
+        expect(rebooted.displayName, 'Ruderbar');
+        expect(rebooted.creditLimitPolicy.defaultLimitCents, 12000);
+      });
+
+      test('clear takes the cached policy back to the seed', () async {
+        await configService.setCreditLimitPolicy(
+          const CreditLimitPolicy(
+            defaultLimitCents: 25000,
+            warnThresholdPercent: 60,
+          ),
+        );
+
+        await configService.clear();
+
+        expect(configService.creditLimitPolicy, CreditLimitPolicy.shipped);
       });
     });
   });

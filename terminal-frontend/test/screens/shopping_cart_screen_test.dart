@@ -13,6 +13,7 @@ import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
@@ -134,6 +135,7 @@ void main() {
             ),
             ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
             Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
           ],
           child: child ?? const Scaffold(body: ShoppingCartScreen()),
         ),
@@ -193,6 +195,7 @@ void main() {
                 ),
                 ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
             Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(
                 body: ShoppingCartScreen(),
@@ -752,6 +755,7 @@ void main() {
                 ),
                 ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
             Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ShoppingCartScreen()),
             ),
