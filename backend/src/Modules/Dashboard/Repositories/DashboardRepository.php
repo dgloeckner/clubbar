@@ -38,18 +38,43 @@ class DashboardRepository
     private const REVENUE_FILTER = "transaction_type = 'purchase'";
 
     /**
-     * Whose tab the credit-limit list is about, and what the tab is (#385).
+     * Whose tab the credit-limit list is about, and what the tab is (#385),
+     * now measured against each member's *own* ceiling (ADR-0047).
      *
      * One tab per active, undeleted member, summed over their unsettled
      * transactions. Shared by the list and its count because the two must
      * describe the same set of members: a count taken over a wider set would
      * promise names the list can never show.
+     *
+     * The threshold used to be one number the service worked out and passed in.
+     * With per-member ceilings it is one per row, so the resolution moves into
+     * the query: `COALESCE(m.credit_limit_cents, :default_limit)` is the same
+     * rule `CreditLimitPolicy::forMember()` expresses in PHP, and
+     * `m.credit_limit_cents` is functionally dependent on the `GROUP BY m.id`,
+     * so selecting it and testing it in `HAVING` is legal under
+     * `ONLY_FULL_GROUP_BY`.
+     *
+     * **`DIV`, not `/`.** Integer division, matching `intdiv()` in
+     * `CreditLimit::warnAtCents()`. A decimal would move the boundary cent —
+     * 70 % of 3,333 is 2,333.1 — and put a member on this panel whom the
+     * terminal has not warned yet, which is the one figure this list must never
+     * produce.
+     *
+     * A ceiling of `0` is dropped: that member is unlimited, so no tab is ever
+     * near it and there is no denominator to rank them by. This is the same
+     * exclusion the terminal applies, written as SQL.
      */
-    private const NEAR_LIMIT_SOURCE =
-        'FROM members m
-         JOIN transactions t ON t.member_id = m.id AND ' . UnsettledTransactions::UNSETTLED . '
+    private const NEAR_LIMIT_ROWS =
+        // CONCAT_WS, not CONCAT: either name column may be NULL, and CONCAT
+        // would turn the whole label into NULL rather than the half we have.
+        "SELECT m.id, CONCAT_WS(' ', m.first_name, m.last_name) as name,
+                COALESCE(SUM(t.amount_cents), 0) as balance_cents,
+                COALESCE(m.credit_limit_cents, :default_limit) as limit_cents
+         FROM members m
+         JOIN transactions t ON t.member_id = m.id AND " . UnsettledTransactions::UNSETTLED . '
         WHERE m.deleted_at IS NULL AND m.is_active = 1
-        GROUP BY m.id';
+        GROUP BY m.id
+        HAVING limit_cents > 0 AND balance_cents >= limit_cents * :warn_percent DIV 100';
 
     public function __construct(private PDO $db) {}
 
@@ -123,19 +148,17 @@ class DashboardRepository
      *
      * @return list<array<string, mixed>>
      */
-    public function findMembersNearCreditLimit(int $thresholdCents, int $limit): array
+    public function findMembersNearCreditLimit(int $defaultLimitCents, int $warnThresholdPercent, int $limit): array
     {
         $stmt = $this->db->prepare(
-            // CONCAT_WS, not CONCAT: either name column may be NULL, and CONCAT
-            // would turn the whole label into NULL rather than the half we have.
-            "SELECT m.id, CONCAT_WS(' ', m.first_name, m.last_name) as name,
-                    COALESCE(SUM(t.amount_cents), 0) as balance_cents
-             " . self::NEAR_LIMIT_SOURCE . '
-             HAVING balance_cents >= :threshold
-             ORDER BY balance_cents DESC, m.id ASC
+            'SELECT * FROM (' . self::NEAR_LIMIT_ROWS . ') near_limit
+             ORDER BY near_limit.balance_cents * 100.0 / near_limit.limit_cents DESC,
+                      near_limit.balance_cents DESC,
+                      near_limit.id ASC
              LIMIT :limit'
         );
-        $stmt->bindValue('threshold', $thresholdCents, PDO::PARAM_INT);
+        $stmt->bindValue('default_limit', $defaultLimitCents, PDO::PARAM_INT);
+        $stmt->bindValue('warn_percent', $warnThresholdPercent, PDO::PARAM_INT);
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
 
@@ -147,16 +170,11 @@ class DashboardRepository
      * cap — what the list needs to admit that it is showing only the top of a
      * longer one.
      */
-    public function countMembersNearCreditLimit(int $thresholdCents): int
+    public function countMembersNearCreditLimit(int $defaultLimitCents, int $warnThresholdPercent): int
     {
-        $stmt = $this->db->prepare(
-            'SELECT COUNT(*) FROM (
-                SELECT m.id, COALESCE(SUM(t.amount_cents), 0) as balance_cents
-                ' . self::NEAR_LIMIT_SOURCE . '
-                HAVING balance_cents >= :threshold
-             ) near_limit'
-        );
-        $stmt->bindValue('threshold', $thresholdCents, PDO::PARAM_INT);
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM (' . self::NEAR_LIMIT_ROWS . ') near_limit');
+        $stmt->bindValue('default_limit', $defaultLimitCents, PDO::PARAM_INT);
+        $stmt->bindValue('warn_percent', $warnThresholdPercent, PDO::PARAM_INT);
         $stmt->execute();
 
         return (int) $stmt->fetchColumn();

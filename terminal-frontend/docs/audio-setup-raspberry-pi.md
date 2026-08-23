@@ -1,5 +1,10 @@
 # Audio Setup on Raspberry Pi (HDMI Touchscreen)
 
+> Setting audio up for the first time is what follows. If audio *used to*
+> work on this terminal and stopped by itself, that is a different fault —
+> see [The terminal went silent by itself](audio-dropout-debugging.md), and
+> capture the evidence before rebooting.
+
 The Flutter `audioplayers` package requires GStreamer on Linux. By default, audio may not route to the correct HDMI output.
 
 ## 1. Identify the Correct Audio Device

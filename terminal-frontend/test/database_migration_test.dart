@@ -168,6 +168,99 @@ void main() {
     });
   });
 
+  /// The per-member credit ceiling (ADR-0047, #561).
+  ///
+  /// The riskiest upgrade in the epic, because terminals upgrade in place while
+  /// holding sales that have never reached the backend. Two things therefore
+  /// have to hold: the column arrives NULL — "follow the club default", so
+  /// every cached member keeps behaving exactly as they did — and nothing in
+  /// `transactions_local` is touched on the way.
+  ///
+  /// A `NOT NULL DEFAULT 0` would have read as "no ceiling for this member" and
+  /// quietly granted the whole membership unlimited credit on first launch,
+  /// which is the mirror image of the `min_age` trap schema 11 guards against.
+  group('schema 12: the per-member credit ceiling', () {
+    test('lands NULL, so every cached member follows the club', () async {
+      await seedAtSchemaVersion(11, {'member-1': 'ABCD1234'});
+
+      final db = openDatabase();
+
+      expect(
+        (await db.select(db.membersCache).getSingle()).creditLimitCents,
+        isNull,
+      );
+      await db.close();
+    });
+
+    test('an upgrade preserves transactions this terminal has not uploaded',
+        () async {
+      await seedAtSchemaVersion(11, {'member-1': 'ABCD1234'});
+      var db = openDatabase();
+      await db.into(db.transactionsLocal).insert(
+            TransactionsLocalCompanion(
+              id: const Value('txn-unsynced-1'),
+              memberId: const Value('member-1'),
+              amountCents: const Value(350),
+              transactionType: const Value('purchase'),
+              createdAt: const Value('2026-08-20T19:00:00Z'),
+              synced: const Value(0),
+            ),
+          );
+      await db.customStatement('PRAGMA user_version = 11');
+      await db.close();
+
+      db = openDatabase();
+      final repo = TransactionsRepository(db);
+      final unsynced = await repo.getUnsyncedTransactions();
+
+      expect(
+        unsynced.map((t) => t.id),
+        contains('txn-unsynced-1'),
+        reason: 'a sale rung before the upgrade must still be uploadable after it',
+      );
+      expect(unsynced.single.amountCents, equals(350));
+      await db.close();
+    });
+
+    /// Zero has to survive a round trip through the cache, because it is a
+    /// value and not an absence: a member deliberately left uncapped must not
+    /// come back reading as "follow the club default".
+    test('stores zero and null as the different answers they are', () async {
+      final db = openDatabase();
+      await db.into(db.membersCache).insert(
+            MembersCacheCompanion(
+              id: const Value('member-uncapped'),
+              preferredLanguage: const Value('de'),
+              isActive: const Value(1),
+              isSepaValid: const Value(1),
+              updatedAt: const Value('2026-08-20T10:00:00Z'),
+              creditLimitCents: const Value(0),
+            ),
+          );
+      await db.into(db.membersCache).insert(
+            MembersCacheCompanion(
+              id: const Value('member-inherits'),
+              preferredLanguage: const Value('de'),
+              isActive: const Value(1),
+              isSepaValid: const Value(1),
+              updatedAt: const Value('2026-08-20T10:00:00Z'),
+            ),
+          );
+
+      final rows = await db.select(db.membersCache).get();
+
+      expect(
+        rows.firstWhere((m) => m.id == 'member-uncapped').creditLimitCents,
+        equals(0),
+      );
+      expect(
+        rows.firstWhere((m) => m.id == 'member-inherits').creditLimitCents,
+        isNull,
+      );
+      await db.close();
+    });
+  });
+
   /// Jugendschutz (epic #582 M6, ADR-0045). Both columns land nullable with no
   /// default, and for a cache written before the upgrade that is exactly right:
   /// nothing already stored is known to carry an age limit, and no member's

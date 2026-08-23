@@ -58,8 +58,16 @@ Member
 
 ### Preconditions
 - Member has valid RFID card
-- Member's current tab balance is at or near configured maximum
-- Maximum balance configured in backend (synced to terminal)
+- Member's current tab balance is at or near the maximum that applies to them
+- Maximum balance configured in the backend and synced to the terminal
+  ([ADR-0047](../../adr/0047-configurable-credit-limits.md)). Two values make
+  it up, and they travel separately:
+  - the **club default**, from `GET /api/sync/config`, cached in `config.json`
+    so a terminal that boots offline still enforces what the club last said
+  - the member's **own ceiling**, on their row in `/sync/members` — an
+    override, never a resolved figure
+  The terminal coalesces them at checkout: `override ?? club default`. `0`
+  means no ceiling for that member, and nothing is refused on Deckel grounds.
 
 ### Trigger
 Member attempts to add items that would exceed maximum balance
@@ -88,7 +96,7 @@ Member attempts to add items that would exceed maximum balance
 | Message | "Balance limit reached. Remove items to continue." |
 | Current | "Current balance: €XX.XX" |
 | Cart | "Cart total: €XX.XX" |
-| Limit | "Maximum allowed: €XX.XX" |
+| Limit | "Maximum allowed: €XX.XX" — **the member's own ceiling** where they have one, the club default otherwise |
 
 ### Checkout Blocked Display
 

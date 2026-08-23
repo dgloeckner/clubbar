@@ -69,6 +69,11 @@ export class MembersPage extends BasePage {
   private readonly mandateDateInput = () => this.page.getByTestId('members-form-mandate-date-input')
   private readonly mandateDateValue = () => this.page.getByTestId('members-form-mandate-date-input-value')
   private readonly languageSelect = () => this.page.getByTestId('members-form-language-select')
+  // The member's own credit ceiling (ADR-0047, #563). Empty means "follow the
+  // club default"; a typed 0 means "no ceiling for this member".
+  private readonly creditLimitInput = () => this.page.getByTestId('members-form-credit-limit-input')
+  private readonly creditLimitHelper = () => this.page.getByTestId('members-form-credit-limit-helper')
+  private readonly creditLimitError = () => this.page.getByTestId('members-form-credit-limit-error')
   private readonly formSubmitBtn = () => this.page.getByTestId('members-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('members-form-cancel-button')
   private readonly formExportBtn = () => this.page.getByTestId('members-form-export-button')
@@ -312,6 +317,41 @@ export class MembersPage extends BasePage {
     if (language) {
       await this.selectLanguage(language)
     }
+  }
+
+  // ── The member's own credit ceiling (ADR-0047, #563) ────────────────────
+
+  /**
+   * Type an amount in euros, or clear the field.
+   *
+   * Clearing is the case worth having a method for: it must reach the API as
+   * `null` — "follow the club default" — and never as `0`, which would grant
+   * this member unlimited credit.
+   */
+  async setCreditLimit(euros: string) {
+    await this.creditLimitInput().fill(euros)
+  }
+
+  async getCreditLimit(): Promise<string> {
+    return await this.creditLimitInput().inputValue()
+  }
+
+  /** What the field's placeholder offers — the club figure this member inherits. */
+  async getCreditLimitPlaceholder(): Promise<string> {
+    return (await this.creditLimitInput().getAttribute('placeholder')) ?? ''
+  }
+
+  /** The helper line, which says which of the three states the field is in. */
+  async getCreditLimitHelperText(): Promise<string> {
+    return (await this.creditLimitHelper().textContent()) ?? ''
+  }
+
+  /**
+   * The field's error line, which the form renders only once a submit has been
+   * attempted — so call this after `submitForm()`, not straight after typing.
+   */
+  async expectCreditLimitRejected() {
+    await expect(this.creditLimitError()).toBeVisible()
   }
 
   /**

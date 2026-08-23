@@ -69,6 +69,7 @@ class MemberDtoTest extends TestCase
         $this->assertSame([
             'card_uid',
             'created_at',
+            'credit_limit_cents',
             'date_of_birth',
             'deleted_at',
             'first_name',
@@ -83,6 +84,36 @@ class MemberDtoTest extends TestCase
         foreach (['email', 'phone', 'iban', 'iban_last4', 'mandate_reference', 'balance_cents', 'account_holder_name'] as $withheld) {
             $this->assertArrayNotHasKey($withheld, $payload, "{$withheld} must not reach a terminal");
         }
+    }
+
+    /**
+     * The **override**, not a resolved ceiling (ADR-0047 decision 1). The
+     * terminal coalesces it with the club default from `/sync/config`, and it
+     * has to, because this payload is a delta on `updated_at`: a club setting
+     * touches no member row, so a figure resolved here would go stale on every
+     * terminal until each member changed for some unrelated reason.
+     */
+    public function test_the_terminal_receives_the_members_own_ceiling_where_they_have_one(): void
+    {
+        $payload = MemberDto::fromRow(self::row(['credit_limit_cents' => 5_000]))->toArray();
+
+        $this->assertSame(5_000, $payload['credit_limit_cents']);
+    }
+
+    public function test_a_member_who_follows_the_club_default_syncs_a_null(): void
+    {
+        $payload = MemberDto::fromRow(self::row(['credit_limit_cents' => null]))->toArray();
+
+        // Not the club's number, and not zero: null is what "follow the club"
+        // is written as, and zero means "no ceiling for this member".
+        $this->assertNull($payload['credit_limit_cents']);
+    }
+
+    public function test_a_deliberately_uncapped_member_syncs_a_zero(): void
+    {
+        $payload = MemberDto::fromRow(self::row(['credit_limit_cents' => 0]))->toArray();
+
+        $this->assertSame(0, $payload['credit_limit_cents']);
     }
 
     /**

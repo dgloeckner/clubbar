@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Members\Controllers;
 
 use App\Modules\Members\Services\MembersService;
+use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Shared\Validation\Validator;
 use App\Modules\Settlements\Services\CollectionHoldService;
@@ -54,6 +55,14 @@ class AdminController
         // mandate recorded as signed next month is the same mistake on a date
         // that decides whether a collection is covered.
         'mandate_signed_at' => ['nullable', 'date', 'past_date'],
+        // This member's own ceiling (ADR-0047). Never `required`, on either
+        // path: NULL is the ordinary case and means "follow the club default",
+        // which is what lets raising that default lift everybody who has not
+        // been deliberately excepted. `0` is a different answer — no ceiling
+        // for this member — and a negative is refused rather than read as
+        // unlimited, which is what it would become at the `<= 0` test. The
+        // upper bound is the club rule's, shared so the two cannot drift.
+        'credit_limit_cents' => ['nullable', 'integer', 'gte:0', 'lte:' . CreditLimitPolicy::MAX_LIMIT_CENTS],
     ];
 
     /**
@@ -94,6 +103,9 @@ class AdminController
         'iban',
         'account_holder_name',
         'mandate_signed_at',
+        // Without this a cleared ceiling field reaches the `integer` rule as
+        // `""` and 422s, so an override could be given but never taken away.
+        'credit_limit_cents',
         // A blank email is only reachable at all for an inactive member —
         // MembersService::updateMember() rejects it outright for an active one
         // (#362) — so normalizing it to null here rather than storing "" keeps
@@ -284,6 +296,7 @@ class AdminController
             mandateReference: $body['mandate_reference'] ?? null,
             mandateSignedAt: $body['mandate_signed_at'] ?? null,
             dateOfBirth: $body['date_of_birth'],
+            creditLimitCents: isset($body['credit_limit_cents']) ? (int) $body['credit_limit_cents'] : null,
             adminUserId: $adminId,
         );
 

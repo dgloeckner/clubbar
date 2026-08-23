@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/models/credit_limit.dart';
 
 void main() {
@@ -80,13 +81,102 @@ void main() {
       });
     });
 
-    test('defaults come from AppConfig when not overridden', () {
-      final result = CreditLimitCheck.evaluate(
-        currentBalanceCents: 0,
-        cartTotalCents: 10001,
+  });
+
+  /// The one place the override-or-default rule is expressed on this side
+  /// (ADR-0047 rule 1). Its twin is `CreditLimitPolicy::forMember()` in PHP,
+  /// and the cases below are the same ones its unit test pins — deliberately,
+  /// because keeping the two comparable is what makes duplicating the rule
+  /// safe for a terminal that has to decide with nothing reachable.
+  group('CreditLimitPolicy.forMember', () {
+    const policy = CreditLimitPolicy(
+      defaultLimitCents: 10000,
+      warnThresholdPercent: 80,
+    );
+
+    test('a member without an override follows the club', () {
+      expect(policy.forMember(null), 10000);
+    });
+
+    test('raising the club default lifts a member who inherits', () {
+      const raised = CreditLimitPolicy(
+        defaultLimitCents: 15000,
+        warnThresholdPercent: 80,
       );
-      expect(result.limitCents, 10000);
-      expect(result.blocksCheckout, isTrue);
+      expect(raised.forMember(null), 15000);
+    });
+
+    test('an override wins over the club default', () {
+      expect(policy.forMember(5000), 5000);
+      expect(policy.forMember(20000), 20000);
+    });
+
+    /// The failure this feature most needs to avoid: an emptied field arriving
+    /// as 0 would read as "unlimited", not as "back to the club default".
+    test('zero and null are different answers', () {
+      expect(policy.forMember(0), 0, reason: '0 means unlimited');
+      expect(policy.forMember(null), 10000, reason: 'null means follow the club');
+    });
+
+    test('a member with an override is capped even when the club is not', () {
+      const uncappedClub = CreditLimitPolicy(
+        defaultLimitCents: 0,
+        warnThresholdPercent: 80,
+      );
+      expect(uncappedClub.forMember(5000), 5000);
+      expect(uncappedClub.forMember(null), 0);
+    });
+
+    test('the shipped policy is the constant it replaces', () {
+      expect(CreditLimitPolicy.shipped.defaultLimitCents,
+          AppConfig.balanceLimitCents);
+      expect(CreditLimitPolicy.shipped.warnThresholdPercent,
+          AppConfig.balanceWarnThresholdPercent);
+    });
+  });
+
+  /// End to end through the seam: a resolved ceiling decides the verdict, and
+  /// the band is always the club's share of whatever ceiling the member ends
+  /// up with (ADR-0047 decision 4).
+  group('a member checked against their own ceiling', () {
+    const policy = CreditLimitPolicy(
+      defaultLimitCents: 10000,
+      warnThresholdPercent: 80,
+    );
+
+    CreditLimitCheck evaluate(int balance, int cart, int? override) =>
+        CreditLimitCheck.evaluate(
+          currentBalanceCents: balance,
+          cartTotalCents: cart,
+          limitCents: policy.forMember(override),
+          warnThresholdPercent: policy.warnThresholdPercent,
+        );
+
+    test('a raised override lets them buy past the club default', () {
+      expect(evaluate(9900, 500, 20000).blocksCheckout, isFalse);
+      expect(evaluate(9900, 500, null).blocksCheckout, isTrue);
+    });
+
+    test('a lowered override blocks them below the club default', () {
+      expect(evaluate(4900, 200, 5000).blocksCheckout, isTrue);
+      expect(evaluate(4900, 200, null).blocksCheckout, isFalse);
+    });
+
+    test('a member with no ceiling is never blocked', () {
+      expect(evaluate(500000, 100000, 0).blocksCheckout, isFalse);
+      expect(evaluate(500000, 100000, 0).warnsMember, isFalse);
+    });
+
+    test('landing exactly on their own ceiling is still allowed', () {
+      final result = evaluate(4800, 200, 5000);
+      expect(result.projectedBalanceCents, 5000);
+      expect(result.blocksCheckout, isFalse);
+      expect(result.status, CreditLimitStatus.approaching);
+    });
+
+    test('the warning band is the club share of their own ceiling', () {
+      expect(evaluate(0, 0, 5000).warnAtCents, 4000);
+      expect(evaluate(0, 0, 20000).warnAtCents, 16000);
     });
   });
 }

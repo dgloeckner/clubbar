@@ -196,6 +196,17 @@ final class RouteRoleMap
         'PUT /api/admin/sepa-config' => self::ADMIN_ONLY,
         'PATCH /api/admin/sepa-config' => self::ADMIN_ONLY,
 
+        // ── credit limits: both verbs for the office ─────────────────────
+        // Deliberately *not* the sepa-config shape. That asymmetry buys
+        // protection from a blast radius this setting does not have: a wrong
+        // Gläubiger-ID means a rejected collection run and a Vorabankündigung
+        // that no longer matches what happened, while a wrong ceiling mints no
+        // credential, exports no data, and is undone by typing the right
+        // number. Deciding what members may run up on their Deckel is the
+        // Kassenwart's own job (ADR-0047 decision 5).
+        'GET /api/admin/credit-limit-config' => self::TREASURY,
+        'PATCH /api/admin/credit-limit-config' => self::TREASURY,
+
         // ── mail: admin only, and load-bearing ───────────────────────────
         // Every other detection in this design depends on a Kassenwart being
         // unable to redirect the alert channel to themselves.

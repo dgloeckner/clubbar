@@ -31,7 +31,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use App\Modules\Dashboard\Domain\CreditLimit;
+use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
 use App\Modules\Notifications\DTOs\CancellationNoticeDataDto;
 use App\Modules\Notifications\DTOs\DeckelStatementDataDto;
 use App\Modules\Notifications\DTOs\PreNotificationDataDto;
@@ -148,7 +148,7 @@ function statementVariants(MailBranding $branding): array
         'salutationName' => 'Erika',
         'branding' => $branding,
         'boundaryDate' => '2026-08-01',
-        'creditLimitCents' => CreditLimit::LIMIT_CENTS,
+        'creditLimitCents' => CreditLimitPolicy::shipped()->clubDefault()->limitCents,
         'treasurerEmail' => 'kasse@beispiel-ruderverein.de',
     ];
 
@@ -189,7 +189,7 @@ function statementVariants(MailBranding $branding): array
         $out[$name] = $common + [
             'totalCents' => $total,
             'lines' => $set,
-            'creditStatus' => CreditLimit::status($total),
+            'creditStatus' => CreditLimitPolicy::shipped()->clubDefault()->status($total),
         ];
     }
 
@@ -200,7 +200,7 @@ function statementVariants(MailBranding $branding): array
         'totalCents' => $cappedTotal,
         'lines' => $many,
         'omittedLines' => 43,
-        'creditStatus' => CreditLimit::status($cappedTotal),
+        'creditStatus' => CreditLimitPolicy::shipped()->clubDefault()->status($cappedTotal),
     ];
 
     return $out;

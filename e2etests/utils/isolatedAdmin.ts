@@ -19,6 +19,7 @@
  * throwaway account nobody else touches.
  */
 
+import { randomUUID } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
 import { generateTotp } from './totp'
@@ -37,21 +38,16 @@ const API_BASE = 'http://localhost:8080/api'
 export type AdminRoleName = 'admin' | 'kassenwart' | 'getraenkewart'
 
 /**
- * A throwaway address nobody else in the run will mint.
+ * A local part nothing else in the run will produce.
  *
- * `crypto.randomUUID()` rather than `Math.random()` — not because uniqueness
- * needs a CSPRNG (it does not; the timestamp does most of that work), but
- * because CodeQL traces the value into `createIsolatedAdmin`'s
- * `{ email, password }` return and reports every call site as *Insecure
- * randomness — used in a security context*. That failed the PR that added two
- * new callers (#677), and would fail the next one the same way. The same
- * global is already how `utils/settlements.ts` mints ids.
- *
- * The timestamp stays: it is what makes a leftover account in the database
- * traceable to the run that created it.
+ * `randomUUID` rather than `Math.random`: this address is the identity a test
+ * then logs in as, and CodeQL reads a weak PRNG feeding a credential flow as a
+ * finding whether or not the account is a throwaway (#678). It is also simply
+ * the better generator for the job — four workers minting accounts in the same
+ * millisecond are exactly the collision `Math.random` makes thinkable.
  */
 export function uniqueTestEmail(prefix: string): string {
-  return `${prefix}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}@test.example`
+  return `${prefix}-${randomUUID()}@test.example`
 }
 
 /**

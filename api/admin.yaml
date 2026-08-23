@@ -79,6 +79,8 @@ tags:
     description: Organization-level SEPA settings
   - name: Instance Branding
     description: Deployment-wide instance name shown in the admin UI, Terminal, and TOTP enrollment
+  - name: Credit Limits
+    description: The club's default Deckel ceiling and warning band; a member's own ceiling lives on the member
   - name: Mail Settings
     description: Sender, reply-to and layout for outgoing mail; the SMTP DSN itself stays in config.php
   - name: Scheduler
@@ -2604,6 +2606,76 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # CREDIT LIMITS
+  # ============================================================================
+  /admin/credit-limit-config:
+    get:
+      tags: [Credit Limits]
+      summary: Get the club's credit limit configuration
+      description: |
+        The club-wide ceiling a member's Deckel may reach, and the share of it
+        from which they are warned but still served.
+
+        **Use Case**: UC-A65
+
+        `admin` and `kassenwart` (ADR-0047 decision 5) — deliberately unlike
+        `sepa-config`, whose writes are `admin`-only. A wrong ceiling mints no
+        credential and exports no data; it is undone by typing the right
+        number.
+
+        This is the club *default*. A member may carry an override, in which
+        case theirs applies; the terminal resolves the two locally, offline,
+        which is why they travel separately (ADR-0047 decision 1).
+      operationId: getCreditLimitConfig
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Credit limit configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditLimitConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+
+    patch:
+      tags: [Credit Limits]
+      summary: Update the club's credit limit configuration
+      description: |
+        Set the club-wide ceiling and warning band.
+
+        **Use Case**: UC-A65
+
+        `admin` and `kassenwart`. Takes effect on a terminal at its next
+        `/sync/config` poll, and on every member who carries no override of
+        their own — which is what a club-level default is for.
+      operationId: updateCreditLimitConfig
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditLimitConfigUpdateRequest'
+      responses:
+        '200':
+          description: Credit limit configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditLimitConfig'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
 
   # ============================================================================
   # MAIL SETTINGS
@@ -5450,6 +5522,17 @@ components:
           type: string
           nullable: true
           description: '`iban_last4` in the established display shape, e.g. ****3000'
+        credit_limit_cents:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 10000000
+          description: >-
+            This member's own Deckel ceiling in cents
+            ([ADR-0047](../../adr/0047-configurable-credit-limits.md)). `null`
+            means they follow the club default and move with it; `0` means a
+            deliberate "no ceiling for this member". The two are different
+            answers, not synonyms.
         account_holder_name:
           type: string
           nullable: true
@@ -5549,6 +5632,17 @@ components:
           type: string
           maxLength: 70
           description: Account holder name if different from member (for divergent payer)
+        credit_limit_cents:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 10000000
+          description: >-
+            Optional, and **never required**: omitting it is the ordinary case
+            and means this member follows the club default
+            ([ADR-0047](../../adr/0047-configurable-credit-limits.md)). `0`
+            means no ceiling for them. A negative value is refused rather than
+            read as unlimited.
         date_of_birth:
           type: string
           format: date
@@ -5609,6 +5703,21 @@ components:
           type: string
           maxLength: 20
           nullable: true
+        credit_limit_cents:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 10000000
+          description: >-
+            Three request shapes, three meanings
+            ([ADR-0047](../../adr/0047-configurable-credit-limits.md)):
+            **omitting** the field leaves the override exactly as it is;
+            `null` or `""` clears it, so the member goes back to the club
+            default; `0` stores a deliberate "no ceiling for this member".
+
+            `0` is **not** a way to clear the field. A form that serialises an
+            emptied input to `0` grants that member unlimited credit — send
+            `null` or `""` for a cleared input.
         date_of_birth:
           type: string
           format: date
@@ -6878,6 +6987,46 @@ components:
           minLength: 1
           maxLength: 100
           example: FRGS Ruderbar
+
+    CreditLimitConfig:
+      type: object
+      properties:
+        default_limit_cents:
+          type: integer
+          minimum: 0
+          maximum: 10000000
+          description: |
+            The club-wide ceiling in cents. `0` means no ceiling is enforced —
+            the convention the terminal's `CreditLimitCheck` and the
+            Deckelauszug already use (ADR-0047 decision 3).
+          example: 10000
+        warn_threshold_percent:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: |
+            Share of the *effective* ceiling from which a member is warned but
+            still served. Club-wide: a member's override sets their ceiling,
+            never their band (ADR-0047 decision 4).
+          example: 80
+
+    CreditLimitConfigUpdateRequest:
+      type: object
+      required: [default_limit_cents, warn_threshold_percent]
+      properties:
+        default_limit_cents:
+          type: integer
+          minimum: 0
+          maximum: 10000000
+          description: |
+            `0` sets "no ceiling". A negative value is rejected rather than
+            read as unlimited — it would pass the same `<= 0` test by accident.
+          example: 15000
+        warn_threshold_percent:
+          type: integer
+          minimum: 1
+          maximum: 100
+          example: 80
 
     MailKind:
       type: string
@@ -8305,33 +8454,47 @@ components:
         members_near_limit:
           type: object
           description: |
-            Active members whose Deckel has reached the terminal's warning band,
-            biggest tab first — who the bar is about to have to turn away.
+            Active members whose Deckel has reached the warning band of **their
+            own** ceiling — who the bar is about to have to turn away.
 
             The band and the ceiling are the terminal's own (UC-T11 E3, UC-T12):
             a member appears here exactly when the terminal has started warning
             them, and carries `status: exceeded` once it refuses their next
             checkout. Members who are deactivated or deleted are left out — the
             terminal serves neither, so there is nothing to warn about.
+
+            **Ordered by share of ceiling, not by amount**
+            ([ADR-0047](../../adr/0047-configurable-credit-limits.md)). Once
+            ceilings differ per member, the raw amount stops ranking urgency: a
+            member €10 past a €50 ceiling is already being refused, while one at
+            €170 of €200 is merely being warned.
+
+            A member whose effective ceiling is `0` is unlimited and never
+            appears, however large their tab.
           required: [limit_cents, warn_at_cents, total, members]
           properties:
             limit_cents:
               type: integer
-              description: The ceiling a tab may reach, in cents. Zero means no limit is enforced.
+              description: >-
+                The **club default** ceiling in cents. Zero means the club
+                enforces no ceiling — members with a ceiling of their own can
+                still appear in `members`.
             warn_at_cents:
               type: integer
-              description: Tab from which a member counts as close to their limit, in cents
+              description: >-
+                The club default's warning threshold in cents. A member with an
+                override is measured against their own, reported per row.
             total:
               type: integer
               description: >-
-                How many members are at or above `warn_at_cents` in total. `members`
-                is capped, so this can be larger than its length.
+                How many members are inside their own warning band in total.
+                `members` is capped, so this can be larger than its length.
             members:
               type: array
-              description: The biggest tabs at or above `warn_at_cents`, capped
+              description: The most pressing tabs, by share of their own ceiling, capped
               items:
                 type: object
-                required: [id, name, balance_cents, percent_of_limit, status]
+                required: [id, name, balance_cents, limit_cents, percent_of_limit, status]
                 properties:
                   id:
                     type: string
@@ -8342,14 +8505,22 @@ components:
                   balance_cents:
                     type: integer
                     description: The member's unsettled balance in cents — the same figure their own page shows
+                  limit_cents:
+                    type: integer
+                    description: >-
+                      The ceiling **this member** was measured against: their own
+                      override where they have one, the club default where they
+                      do not. Always greater than zero — an unlimited member is
+                      not listed.
                   percent_of_limit:
                     type: integer
                     description: >-
-                      Share of `limit_cents` the tab uses, as a whole percentage.
-                      Not clamped: a tab past the limit reports more than 100.
+                      Share of this row's `limit_cents` the tab uses, as a whole
+                      percentage. Not clamped: a tab past the ceiling reports
+                      more than 100.
                   status:
                     type: string
                     enum: [approaching, exceeded]
                     description: |
                       - approaching: inside the warning band, still served
-                      - exceeded: past the limit, the terminal refuses the next checkout
+                      - exceeded: past the ceiling, the terminal refuses the next checkout
