@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\DTOs;
 
+use App\Modules\CreditLimits\Domain\CreditLimitStatus;
+
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Shared\Mail\MailBranding;
 
@@ -47,8 +49,10 @@ final readonly class DeckelStatementDataDto
      *                              day it was sent.
      * @param list<StatementLineDto> $lines Already netted, already capped.
      * @param int $omittedLines     Netted lines the cap dropped; 0 when all fit.
-     * @param string $creditStatus  One of {@see \App\Modules\Dashboard\Domain\CreditLimit}'s
-     *                              STATUS_* values, computed over `totalCents`.
+     * @param CreditLimitStatus $creditStatus Computed over `totalCents` against
+     *                              the ceiling that applies to *this* member —
+     *                              their own where they have one, the club
+     *                              default where they do not (ADR-0047).
      */
     public function __construct(
         public MailLanguage $language,
@@ -61,7 +65,7 @@ final readonly class DeckelStatementDataDto
         public array $lines = [],
         public int $omittedLines = 0,
         public int $creditLimitCents = 0,
-        public string $creditStatus = '',
+        public CreditLimitStatus $creditStatus = CreditLimitStatus::OK,
         public ?string $treasurerEmail = null,
     ) {}
 }

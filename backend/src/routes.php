@@ -15,6 +15,8 @@ use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncContr
 use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
 use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
+use App\Modules\CreditLimits\Controllers\CreditLimitConfigController;
+use App\Modules\CreditLimits\Controllers\SyncController as CreditLimitSyncController;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
@@ -97,6 +99,10 @@ return function (App $app): void {
         $group->get('/categories', [ProductsSyncController::class, 'categories']);
         $group->get('/products', [ProductsSyncController::class, 'products']);
         $group->post('/transactions', [TransactionsSyncController::class, 'processBatch']);
+        // The club's credit policy (ADR-0047). Inside this group on purpose:
+        // it is what a terminal caches *after* it can authenticate, unlike
+        // /health, which carries only what it needs before that.
+        $group->get('/config', [CreditLimitSyncController::class, 'config']);
     })->add(TerminalTokenAuth::class)->add($terminalRateLimit);
 
     $app->get('/api/terminal/transactions/{memberId}', [TransactionsSyncController::class, 'transactionHistory'])
@@ -239,6 +245,13 @@ return function (App $app): void {
 
         // Instance branding
         $group->patch('/instance-config', [InstanceConfigController::class, 'update']);
+
+        // Credit limits (ADR-0047). Both verbs are TREASURY, unlike
+        // sepa-config: setting what members may run up on their Deckel is the
+        // Kassenwart's own job, and a wrong number is undone by typing the
+        // right one.
+        $group->get('/credit-limit-config', [CreditLimitConfigController::class, 'show']);
+        $group->patch('/credit-limit-config', [CreditLimitConfigController::class, 'update']);
 
         // Mail settings (ADR-0038). The SMTP DSN is not here on purpose — it is
         // a secret in config.php; these are the club-editable fields only.

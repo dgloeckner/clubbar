@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Notifications;
 
-use App\Modules\Dashboard\Domain\CreditLimit;
+use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
+use App\Modules\CreditLimits\Domain\CreditLimitStatus;
+use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Notifications\DTOs\DeckelStatementDataDto;
@@ -67,6 +69,11 @@ class DeckelStatementDataTest extends DatabaseTestCase
             logoUrl: null,
         ));
 
+        // The club's ceiling is configuration now (ADR-0047); the shipped
+        // defaults are the constants the statement used to name.
+        $creditLimits = $this->createMock(CreditLimitConfigService::class);
+        $creditLimits->method('policy')->willReturn(CreditLimitPolicy::shipped());
+
         $this->service = new DeckelStatementService(
             new DeckelStatementRepository($this->db),
             new MembersRepository(
@@ -76,6 +83,7 @@ class DeckelStatementDataTest extends DatabaseTestCase
                 new EncryptionKeysRepository($this->db, $this->logger),
             ),
             $mailConfig,
+            $creditLimits,
         );
     }
 
@@ -187,7 +195,7 @@ class DeckelStatementDataTest extends DatabaseTestCase
         $this->assertSame([], $statement->lines);
         $this->assertSame(0, $statement->totalCents);
         $this->assertSame(0, $statement->omittedLines);
-        $this->assertSame(CreditLimit::STATUS_OK, $statement->creditStatus);
+        $this->assertSame(CreditLimitStatus::OK, $statement->creditStatus);
     }
 
     /** A member in credit gets a negative total, stated as such by the renderer. */
@@ -199,7 +207,7 @@ class DeckelStatementDataTest extends DatabaseTestCase
         $statement = $this->statementFor($member);
 
         $this->assertSame(-1_500, $statement->totalCents);
-        $this->assertSame(CreditLimit::STATUS_OK, $statement->creditStatus, 'credit never uses up a limit');
+        $this->assertSame(CreditLimitStatus::OK, $statement->creditStatus, 'credit never uses up a limit');
     }
 
     /**
@@ -266,8 +274,44 @@ class DeckelStatementDataTest extends DatabaseTestCase
 
         $statement = $this->statementFor($member);
 
-        $this->assertSame(CreditLimit::STATUS_EXCEEDED, $statement->creditStatus);
-        $this->assertSame(CreditLimit::LIMIT_CENTS, $statement->creditLimitCents);
+        $this->assertSame(CreditLimitStatus::EXCEEDED, $statement->creditStatus);
+        $this->assertSame(CreditLimitPolicy::DEFAULT_LIMIT_CENTS, $statement->creditLimitCents);
+    }
+
+    /**
+     * A member with a ceiling of their own is told about **theirs** (ADR-0047).
+     * A statement naming the club default while the terminal enforces something
+     * else tells the member a number nobody is using.
+     */
+    public function test_a_statement_names_the_members_own_ceiling(): void
+    {
+        $member = $this->member();
+        $this->db->prepare('UPDATE members SET credit_limit_cents = 5000 WHERE id = ?')->execute([$member]);
+        $this->purchase($member, 4_800, '2026-07-20 19:00:00', 'Runde');
+
+        $statement = $this->statementFor($member);
+
+        $this->assertSame(5_000, $statement->creditLimitCents);
+        // 4,800 is inside a 5,000 ceiling but past its 80 % band; against the
+        // club's 10,000 it would have been silent.
+        $this->assertSame(CreditLimitStatus::APPROACHING, $statement->creditStatus);
+    }
+
+    /**
+     * `0` is the member with no ceiling, and the mail drops its limit sentence
+     * on exactly that value — so the statement must carry the zero rather than
+     * quietly substituting the club default.
+     */
+    public function test_an_uncapped_member_gets_no_ceiling_to_state(): void
+    {
+        $member = $this->member();
+        $this->db->prepare('UPDATE members SET credit_limit_cents = 0 WHERE id = ?')->execute([$member]);
+        $this->purchase($member, 50_000, '2026-07-20 19:00:00', 'Grosse Runde');
+
+        $statement = $this->statementFor($member);
+
+        $this->assertSame(0, $statement->creditLimitCents);
+        $this->assertSame(CreditLimitStatus::OK, $statement->creditStatus);
     }
 
     /** A product with no translation for the member's language falls back rather than blanking. */

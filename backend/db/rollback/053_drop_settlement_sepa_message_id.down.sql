@@ -1,4 +1,4 @@
--- Rollback for 052_drop_settlement_sepa_message_id.sql
+-- Rollback for 053_drop_settlement_sepa_message_id.sql
 --
 -- Restores the column, empty. The original values are not recoverable and are
 -- not worth recovering: each was a random string with no relationship to the

@@ -12,10 +12,15 @@ import '../test_helpers.dart';
 /// noticed it was 91 px tall for two lines that fit on one, and nothing would
 /// have noticed its amounts line wrapping without bound at a large type scale.
 void main() {
+  /// The club's shipped policy — €100.00 with an 80 % band — which is what a
+  /// terminal enforces before its first `/sync/config` poll (ADR-0047).
+  const policy = CreditLimitPolicy.shipped;
+
   Future<void> pumpBanner(
     WidgetTester tester, {
     required int balanceCents,
     required int cartCents,
+    int? memberLimitCents,
     Size surface = const Size(1280, 400),
     String locale = 'de',
   }) async {
@@ -29,7 +34,8 @@ void main() {
           body: Column(
             children: [
               CreditLimitBanner(
-                check: CreditLimitCheck.evaluate(
+                check: policy.evaluate(
+                  memberLimitCents: memberLimitCents,
                   currentBalanceCents: balanceCents,
                   cartTotalCents: cartCents,
                 ),
@@ -192,6 +198,51 @@ void main() {
       );
 
       expect(find.textContaining('€82.10'), findsOneWidget);
+    });
+  });
+
+  /// The banner is measured against the member's *own* ceiling, so it says the
+  /// same thing the checkout button and the service-side refusal say
+  /// (ADR-0047). A banner reading from the club default while the service
+  /// enforced an override would warn the wrong member — or worse, warn nobody
+  /// and then refuse at the till.
+  group('a member with a ceiling of their own', () {
+    testWidgets('is warned inside their own band, not the club one',
+        (tester) async {
+      // 4,200 of 5,000 is past their 80 % band; against the club's 10,000 it
+      // would be silent.
+      await pumpBanner(
+        tester,
+        balanceCents: 4000,
+        cartCents: 200,
+        memberLimitCents: 5000,
+      );
+
+      expect(banner(), findsOneWidget);
+    });
+
+    testWidgets('is left alone below their own band', (tester) async {
+      await pumpBanner(
+        tester,
+        balanceCents: 9000,
+        cartCents: 500,
+        memberLimitCents: 20000,
+      );
+
+      expect(banner(), findsNothing,
+          reason: 'their ceiling is 200 €, so a 95 € tab is nowhere near it');
+    });
+
+    testWidgets('says nothing at all to a member with no ceiling',
+        (tester) async {
+      await pumpBanner(
+        tester,
+        balanceCents: 500000,
+        cartCents: 100000,
+        memberLimitCents: 0,
+      );
+
+      expect(banner(), findsNothing);
     });
   });
 }

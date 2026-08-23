@@ -310,6 +310,7 @@ Future<Widget> buildTestApp(
       CartService(
         database: database,
         repository: transactionsRepo,
+        configService: configService,
       );
 
   final logger = Logger(level: Level.off);
@@ -318,6 +319,7 @@ Future<Widget> buildTestApp(
     membersRepo: membersRepo,
     productsRepo: productsRepo,
     transactionsRepo: transactionsRepo,
+    configService: configService,
     syncRepo: syncRepo,
     logger: logger,
     failedTransactionsPath: failedTxnsPath,

@@ -233,7 +233,8 @@
     },
     "validation": {
       "invalidCardUid": "Ungültiges Karten-UID-Format (8-20 Hex-Zeichen erforderlich)",
-      "invalidIban": "Ungültige IBAN (Ländercode und Ziffern prüfen)"
+      "invalidIban": "Ungültige IBAN (Ländercode und Ziffern prüfen)",
+      "invalidCreditLimit": "Bitte einen Betrag zwischen 0 und {{max}} € eingeben"
     },
     "errors": {
       "cardUidInUse": "Diese Karten-UID ist bereits einem anderen Mitglied zugewiesen",
@@ -327,7 +328,12 @@
       "show": "Anzeigen",
       "showAll": "Alle anzeigen",
       "gapsTitle": "Fehlende Angaben"
-    }
+    },
+    "creditLimit": "Eigenes Limit",
+    "creditLimitInheritedPlaceholder": "Vereinsstandard: {{amount}}",
+    "creditLimitInheritedHelper": "Leer: Es gilt der Vereinsstandard von {{amount}} — wird dieser geändert, gilt das auch für dieses Mitglied.",
+    "creditLimitZeroHelper": "0 bedeutet: kein Limit für dieses Mitglied. Das Terminal lehnt keine Buchung wegen des Deckels ab.",
+    "creditLimitHelper": "Höchststand des Deckels für dieses Mitglied. Leer lassen für den Vereinsstandard; 0 bedeutet kein Limit."
   },
   "products": {
     "title": "Produkte",
@@ -928,6 +934,23 @@
         "test": "Die Testmail konnte nicht versendet werden.",
         "rotateCronSecret": "Das Geheimnis konnte nicht erneuert werden."
       }
+    },
+    "limits": {
+      "tab": "Limits",
+      "label": "Standard-Limit des Vereins",
+      "helper": "Höchststand, den ein Deckel erreichen darf, bevor das Terminal die nächste Buchung ablehnt. Gilt für alle Mitglieder ohne eigenes Limit — wird dieser Wert erhöht, gilt das sofort für sie alle. **0 bedeutet: kein Limit.**",
+      "warnLabel": "Warnschwelle",
+      "warnHelper": "Ab welchem Anteil des Limits das Terminal warnt, das Mitglied aber weiter bedient (1–100 %). Gilt vereinsweit — ein eigenes Limit setzt die Höhe, nie die Warnschwelle.",
+      "warnAtLabel": "Gewarnt wird ab",
+      "warnAtHelper": "Errechnet aus Limit und Warnschwelle. Genau diesen Betrag verwendet auch das Terminal.",
+      "unlimited": "Kein Limit — der Deckel wird nicht begrenzt.",
+      "loading": "Limit-Konfiguration wird geladen...",
+      "saved": "Limits erfolgreich gespeichert",
+      "errors": {
+        "load": "Limit-Konfiguration konnte nicht geladen werden",
+        "save": "Limits konnten nicht gespeichert werden. Bitte erneut versuchen.",
+        "validation": "Bitte korrigieren Sie die markierten Felder"
+      }
     }
   },
   "auditLog": {
@@ -1121,7 +1144,6 @@
     "lastSync": "Letzte Sync",
     "allSepaValid": "Alle SEPA-Daten vollständig",
     "membersNearLimit": "Nahe am Limit",
-    "creditLimitOf": "Limit: {{amount}}",
     "noMembersNearLimit": "Kein Mitglied ist nahe an seinem Limit",
     "limitApproaching": "{{percent}} % des Limits erreicht",
     "limitExceeded": "Limit überschritten – {{percent}} %",
@@ -1149,7 +1171,9 @@
     "jugendschutzRecordedAt": "erfasst am {{at}}",
     "jugendschutzAcknowledge": "Als erledigt markieren",
     "jugendschutzAcknowledging": "Wird gespeichert …",
-    "jugendschutzAcknowledgeFailed": "Konnte nicht als erledigt markiert werden."
+    "jugendschutzAcknowledgeFailed": "Konnte nicht als erledigt markiert werden.",
+    "creditLimitClubDefault": "Vereinsstandard: {{amount}} — gemessen wird jedes Mitglied an seinem eigenen Limit",
+    "balanceOfLimit": "{{balance}} von {{limit}}"
   },
   "pagination": {
     "firstPage": "Erste Seite",

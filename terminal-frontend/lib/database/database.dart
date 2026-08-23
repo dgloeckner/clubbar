@@ -44,7 +44,7 @@ class ClubBarDatabase extends _$ClubBarDatabase {
   ClubBarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -185,6 +185,23 @@ class ClubBarDatabase extends _$ClubBarDatabase {
                 m, 'members_cache', 'date_of_birth', 'TEXT');
             await _addColumnIfNotExists(
                 m, 'products_cache', 'min_age', 'INTEGER');
+          }
+          if (from < 12) {
+            // The per-member credit ceiling (ADR-0047).
+            //
+            // Nullable with no default, and for a cache written before this
+            // upgrade that is exactly right: null means "follow the club
+            // default", so every member already stored keeps behaving the way
+            // they did until a delta sync says otherwise. A `NOT NULL DEFAULT
+            // 0` would read as "no ceiling for this member" and quietly grant
+            // the whole membership unlimited credit on first launch.
+            //
+            // The column is added in place, beside the unsynced transactions
+            // this terminal may be holding: nothing here rewrites or moves a
+            // row in `transactions_local`, so a sale rung before the upgrade is
+            // still there to be uploaded after it.
+            await _addColumnIfNotExists(
+                m, 'members_cache', 'credit_limit_cents', 'INTEGER');
           }
         },
       );

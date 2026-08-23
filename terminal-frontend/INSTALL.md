@@ -561,3 +561,4 @@ wherever the mock is running) to test the full checkout flow.
 | Reader dies unnoticed — screen keeps inviting scans | Reader monitoring is off: describe the reader under `rfidReader` in `config.json`, see [Reader health monitoring](#reader-health-monitoring) |
 | A registered chip is sometimes not recognised — no sound, nothing on screen | Open the status modal and read **Letzte Chip-Erkennungen**, see [What the terminal saw](#what-the-terminal-saw-of-a-card-tap) |
 | No sound / audio not working | See [Audio setup on Raspberry Pi](docs/audio-setup-raspberry-pi.md) for GStreamer and ALSA configuration |
+| Sound worked, nothing was changed, sound is gone — a reboot brings it back | **Do not reboot yet.** Run `/opt/clubbar-terminal/scripts/audio-diagnose.sh` while it is silent, then follow [The terminal went silent by itself](docs/audio-dropout-debugging.md) |

@@ -326,6 +326,7 @@ void main() async {
   final cartService = CartService(
     database: database,
     repository: transactionsRepo,
+    configService: configService,
   );
   final syncService = SyncService(
     networkService: networkService,
@@ -333,6 +334,7 @@ void main() async {
     productsRepo: productsRepo,
     transactionsRepo: transactionsRepo,
     syncRepo: syncRepo,
+    configService: configService,
     logger: logger,
     failedTransactionsPath: failedTxnsPath,
   );

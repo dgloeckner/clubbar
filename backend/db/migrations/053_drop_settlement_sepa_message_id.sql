@@ -1,5 +1,5 @@
 -- =============================================================================
--- 052_drop_settlement_sepa_message_id.sql — one identifier per settlement
+-- 053_drop_settlement_sepa_message_id.sql — one identifier per settlement
 -- =============================================================================
 -- A settlement used to be named four different ways, and this column was the
 -- worst of them: `SEPA-<12 hex>` from a *fresh random UUID*, generated at

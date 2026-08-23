@@ -95,6 +95,10 @@ class MembersRepository {
             // across a day boundary on the device.
             dateOfBirth: Value(_dayOrNull(dto.dateOfBirth)),
             preferredLanguage: Value(dto.preferredLanguage),
+            // The member's own ceiling, or null for "follow the club default"
+            // (ADR-0047). Passed through exactly as sent: zero is a real value
+            // here and must not be collapsed into null.
+            creditLimitCents: Value(dto.creditLimitCents),
             isActive: Value(dto.isActive ? 1 : 0),
             isSepaValid: Value(dto.isSepaValid ? 1 : 0),
             updatedAt: Value(dto.updatedAt.toIso8601String()),

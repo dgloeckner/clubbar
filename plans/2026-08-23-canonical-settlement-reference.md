@@ -62,7 +62,7 @@ later resolves against the exact string that was sent (ADR-0032 §8, #150).
   sanitised, with a 70-character cap, and the result was never capped at all.
   *Verified*: `phpunit --filter SepaExport` — 26/26; `api-tests` F7.
 
-- [x] **M3 — `sepa_message_id` dropped.** Migration `052` + rollback. The
+- [x] **M3 — `sepa_message_id` dropped.** Migration `053` + rollback. The
   column stored a value derivable from the primary key — the duplication
   ADR-0032 §1 refuses for `status` — and was the last place a divergent form
   could reappear. `SettlementDto::toArray()` emits `reference` in its place, so
