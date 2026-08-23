@@ -22,6 +22,9 @@ import {
   installedVersions,
   npmEntries,
   parseYaml,
+  pubDirectDependencies,
+  pubEntries,
+  pubGroupCoverage,
   peerRangeIsExhausted,
   satisfies,
   splitLockedPeers,
@@ -266,6 +269,57 @@ test('every exemption carries a reason worth reading', () => {
   }
 })
 
+test('a pubspec yields its direct dependencies and not the SDK’s', () => {
+  const pubspec = [
+    'name: clubbar_terminal',
+    'version: 1.0.0+1',
+    '',
+    'environment:',
+    '  sdk: ^3.10.8',
+    '',
+    'dependencies:',
+    '  flutter:',
+    '    sdk: flutter',
+    '  # Database & ORM',
+    '  drift: ^2.32.0',
+    '  collection: any',
+    '',
+    'dev_dependencies:',
+    '  flutter_test:',
+    '    sdk: flutter',
+    '  build_runner: ^2.13.1',
+    '',
+    'flutter:',
+    '  uses-material-design: true',
+    '  assets:',
+    '    - assets/icons/products/',
+    '  fonts:',
+    '    - family: JetBrains Mono',
+    '      fonts:',
+    '        - asset: assets/fonts/JetBrainsMono-Medium.ttf',
+  ].join('\n')
+
+  // `flutter` and `flutter_test` come with the SDK, and `environment.sdk`,
+  // the asset list and the font tree are not dependencies at all.
+  assert.deepEqual(pubDirectDependencies(pubspec), ['drift', 'collection', 'build_runner'])
+})
+
+test('a pub package every group misses, and one two groups claim, are both reported', () => {
+  const groups = [
+    { name: 'drift', patterns: ['drift', 'drift_dev'], exclude: [] },
+    { name: 'codegen', patterns: ['drift*'], exclude: [] },
+    { name: 'catch-all', patterns: ['*'], exclude: ['drift', 'drift_dev', 'drift*'] },
+  ]
+
+  assert.deepEqual(pubGroupCoverage(['http'], groups), [])
+  assert.deepEqual(pubGroupCoverage(['drift'], groups), [
+    'drift is claimed by 2 groups (drift, codegen) — exactly one may',
+  ])
+  assert.deepEqual(pubGroupCoverage(['logger'], [{ name: 'drift', patterns: ['drift'], exclude: [] }]), [
+    "logger is claimed by no group — add it to one, or to the catch-all's reach",
+  ])
+})
+
 test('the committed config parses into the entries the check needs', () => {
   const config = parseYaml(readFileSync(resolve(REPO, '.github', 'dependabot.yml'), 'utf8'))
   const entries = npmEntries(config)
@@ -294,6 +348,25 @@ test('the committed manifests and config agree — this is the check itself', ()
       )
       assert.deepEqual(splitLockedPeers(directs, entry.groups), [])
       assert.deepEqual(staleExemptions(directs), [])
+    }
+  }
+
+  // #649: the terminal had no entry at all, so 62 of its packages went stale
+  // unseen. Assert the entry exists as well as that it covers the tree —
+  // deleting it would otherwise make this loop vacuously green.
+  const pub = pubEntries(config)
+
+  assert.equal(pub.length, 1)
+  assert.deepEqual(pub[0].directories, ['/terminal-frontend'])
+
+  for (const entry of pub) {
+    assert.deepEqual(catchAllDrift(entry.groups), [])
+
+    for (const directory of entry.directories) {
+      const directs = pubDirectDependencies(readFileSync(resolve(REPO, `.${directory}`, 'pubspec.yaml'), 'utf8'))
+
+      assert.ok(directs.length > 0, `${directory} declares no direct dependencies`)
+      assert.deepEqual(pubGroupCoverage(directs, entry.groups), [])
     }
   }
 })
