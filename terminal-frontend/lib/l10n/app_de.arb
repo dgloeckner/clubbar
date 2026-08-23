@@ -10,6 +10,20 @@
   "@idleSubtitle": {
     "description": "Instruction to scan RFID card"
   },
+  "loginWelcome": "Hi {firstName}!",
+  "@loginWelcome": {
+    "description": "Greeting shown by the login success animation right after a card scan",
+    "placeholders": {
+      "firstName": {
+        "type": "String",
+        "example": "Anna"
+      }
+    }
+  },
+  "loginWelcomeNoName": "Hi!",
+  "@loginWelcomeNoName": {
+    "description": "Login success greeting for a member record without a first name"
+  },
   "demoScanCard": "Demo: Chip scannen",
   "@demoScanCard": {
     "description": "Demo button to simulate card scan"

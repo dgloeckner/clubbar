@@ -354,4 +354,67 @@ void main() {
       expect(event.detail, ScanHintKey.transactionInProgress.name);
     });
   });
+
+  // The trigger for the login success animation: exactly one LoginMoment per
+  // scan that actually started a session, and none for anything else.
+  group('RfidProvider login moment', () {
+    test('a scan that starts a session emits a LoginMoment for that member',
+        () async {
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (member('member-a'), null));
+
+      expect(provider.loginMoment, isNull);
+      await provider.handleCardScan('card-member-a');
+
+      expect(provider.loginMoment, isNotNull);
+      expect(provider.loginMoment!.member.id, 'member-a');
+      expect(provider.loginMoment!.sequence, 1);
+    });
+
+    test('each successful login is a distinct occurrence', () async {
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (member('member-a'), null));
+
+      await provider.handleCardScan('card-member-a');
+      final first = provider.loginMoment!;
+      await provider.handleCardScan('card-member-a');
+
+      expect(provider.loginMoment, isNot(equals(first)));
+      expect(provider.loginMoment!.sequence, first.sequence + 1);
+    });
+
+    test('a foreign card refused by an active session does not emit',
+        () async {
+      when(() => sessionController.startSession(any()))
+          .thenAnswer((_) async => SessionStartResult.rejectedActiveSession);
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (member('member-b'), null));
+
+      await provider.handleCardScan('card-member-b');
+
+      expect(provider.loginMoment, isNull);
+    });
+
+    test('the active member re-tapping their own card does not emit',
+        () async {
+      when(() => sessionController.startSession(any()))
+          .thenAnswer((_) async => SessionStartResult.sameMemberNoOp);
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (member('member-a'), null));
+
+      await provider.handleCardScan('card-member-a');
+
+      expect(provider.loginMoment, isNull);
+    });
+
+    test('an unknown card does not emit', () async {
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (null, TerminalErrorKey.unknownCard));
+      when(() => membersProvider.setError(any())).thenReturn(null);
+
+      await provider.handleCardScan('unknown');
+
+      expect(provider.loginMoment, isNull);
+    });
+  });
 }

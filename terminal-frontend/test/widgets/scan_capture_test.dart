@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:clubbar_terminal/models/login_moment.dart';
 import 'package:clubbar_terminal/models/scan_hint.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
@@ -28,6 +29,9 @@ class FakeRfidProvider extends ChangeNotifier implements RfidProvider {
 
   @override
   ScanHint? get hint => _hint;
+
+  @override
+  LoginMoment? get loginMoment => null;
 
   @override
   bool get isScanning => false;
