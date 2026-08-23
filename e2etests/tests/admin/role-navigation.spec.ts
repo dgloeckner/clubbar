@@ -122,18 +122,52 @@ test.describe('Role-aware navigation', () => {
     const layout = new MainLayoutPage(page)
     const nav = await layout.getVisibleNavTestIds()
 
+    // Settings is on this list since ADR-0046: the club's credit ceiling is the
+    // treasurer's own setting, so the section opened to them — and the tab
+    // filtering below is what keeps the operator surfaces on it shut.
     expect(nav).toEqual([
       'nav-dashboard',
       'nav-members',
       'nav-journal',
       'nav-settlements',
       'nav-reports',
+      'nav-settings',
       'nav-notifications',
     ])
 
     await page.goto('/audit-log')
     await layout.expectInsufficientRoleScreen()
   })
+
+  /**
+   * The page change ADR-0046 needed (#562). `/settings` is one screen carrying
+   * admin accounts, terminal tokens, encryption keys and mail configuration —
+   * all `admin`-only on the server — plus the club's credit limits, which are
+   * the Kassenwart's. Opening the section to them therefore moves the boundary
+   * one level in rather than removing it, and this is where that is checked.
+   */
+  test('a Kassenwart opening Settings lands on Limits and finds nothing else there', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    const { email, password } = await createIsolatedAdmin(playwright, 'role-treasury-settings', [
+      'kassenwart',
+    ])
+    await signInAndEnroll(loginPage, page, email, password)
+
+    await page.goto('/settings')
+    await expect(page.locator('[data-testid="settings-page"]')).toBeVisible()
+
+    // The tab they may use is the one they land on, without a click.
+    await expect(page.locator('[data-testid="settings-limits-form"]')).toBeVisible()
+
+    const tabs = await page.locator('[data-testid^="settings-tab-"]').evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('data-testid')),
+    )
+    expect(tabs).toEqual(['settings-tab-limits'])
+  })
+
 
   /**
    * Grants are additive (ADR-0044 rule 2). Somebody covering both lesser
@@ -156,7 +190,9 @@ test.describe('Role-aware navigation', () => {
 
     expect(nav).toContain('nav-products')
     expect(nav).toContain('nav-members')
-    expect(nav).not.toContain('nav-settings')
+    // Settings comes with the treasurer's half of the union (ADR-0046); the
+    // audit log is still nobody's but the admin's.
+    expect(nav).toContain('nav-settings')
     expect(nav).not.toContain('nav-audit-log')
   })
 
@@ -212,5 +248,35 @@ test.describe('Role-aware navigation', () => {
       'nav-notifications',
       'nav-audit-log',
     ])
+  })
+})
+
+/**
+ * The other half of the Settings split (ADR-0046, #562), as the seeded admin —
+ * outside the logged-out describe above, because this one is about the office
+ * that loses nothing to it.
+ */
+test.describe('Settings tabs for an admin', () => {
+  test('an admin still sees every tab and lands on Administrators', async ({ page }) => {
+    await page.goto('/settings')
+    await expect(page.locator('[data-testid="settings-page"]')).toBeVisible()
+
+    const tabs = await page.locator('[data-testid^="settings-tab-"]').evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('data-testid')),
+    )
+
+    expect(tabs).toEqual([
+      'settings-tab-admin-users',
+      'settings-tab-sepa',
+      'settings-tab-terminals',
+      'settings-tab-security',
+      'settings-tab-credentials',
+      'settings-tab-instance',
+      'settings-tab-mail',
+      'settings-tab-limits',
+    ])
+
+    // Landing tab unchanged for the office that could always open all of them.
+    await expect(page.locator('[data-testid="settings-admin-users-table"], [data-testid="settings-admin-users"]').first()).toBeVisible()
   })
 })

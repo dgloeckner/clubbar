@@ -3,7 +3,7 @@
  * Configuration management for system settings (SEPA configuration, admin users)
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
@@ -13,8 +13,11 @@ import { getAdminUsers } from '../api/generated/admin-users/admin-users'
 import { getTerminals } from '../api/generated/terminals/terminals'
 import { getAuthentication } from '../api/generated/authentication/authentication'
 import { getInstanceBranding } from '../api/generated/instance-branding/instance-branding'
+import { getCreditLimits } from '../api/generated/credit-limits/credit-limits'
 import { getProfile } from '../auth/session'
 import { useInstanceConfig } from '../context/InstanceConfigContext'
+import { useAuth } from '../context/AuthContext'
+import { settingsTabsFor, firstSettingsTab } from '../utils/adminRoles'
 import type { SepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
 import { AdminRole } from '../api/generated/adminRole'
 
@@ -35,6 +38,11 @@ import { SecurityCheckTab } from '../components/settings/SecurityCheckTab'
 import { CredentialsTab } from '../components/settings/CredentialsTab'
 import { InstanceBrandingTab } from '../components/settings/InstanceBrandingTab'
 import { MailSettingsTab } from '../components/settings/MailSettingsTab'
+import {
+  CreditLimitsTab,
+  centsToEuros,
+  eurosToCents,
+} from '../components/settings/CreditLimitsTab'
 import { CreateTerminalModal } from '../components/modals/CreateTerminalModal'
 import { EditTerminalModal } from '../components/modals/EditTerminalModal'
 import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
@@ -48,6 +56,17 @@ import {
   type SepaConfigFormData,
 } from '../utils/sepaConfig'
 
+/** The Settings tabs, named as `SETTINGS_TAB_ROLES` and the test IDs name them. */
+type SettingsTab =
+  | 'admin-users'
+  | 'sepa'
+  | 'terminals'
+  | 'security'
+  | 'credentials'
+  | 'instance'
+  | 'mail'
+  | 'limits'
+
 export function SettingsPage() {
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
@@ -55,7 +74,20 @@ export function SettingsPage() {
   const { refetch: refetchInstanceConfig } = useInstanceConfig()
 
   // State management
-  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals' | 'security' | 'credentials' | 'instance' | 'mail'>('admin-users')
+  // Which tabs this caller may see (ADR-0046, #562). `/settings` is TREASURY
+  // now, and the boundary moved one level down: a Kassenwart reaches the page
+  // for the Limits tab and finds nothing else on it. Default-deny lives in
+  // SETTINGS_TAB_ROLES, so a tab added without a classification is invisible
+  // to the lesser roles until somebody grants it in a diff a reviewer sees.
+  const { roles } = useAuth()
+  const visibleTabs = useMemo(() => settingsTabsFor(roles) as SettingsTab[], [roles])
+
+  // Null until the roles are known: the landing tab is the first one the
+  // caller may actually open, not a hardcoded default that answers 403 for
+  // everybody but `admin`. Every tab-keyed load below is therefore also held
+  // until then, which is what keeps a Kassenwart from firing an admin-only
+  // request on mount.
+  const [activeTab, setActiveTab] = useState<SettingsTab | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   // Page-level failure, rendered above the tab content. A modal covers that
@@ -175,6 +207,17 @@ export function SettingsPage() {
   // success message (#136).
   const instanceSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Credit limits (ADR-0046 / UC-A65) — the club's ceiling and warning band,
+  // the Kassenwart's own slice of this page. Held as the strings the inputs
+  // carry; the euro/cent conversion is the tab's, so a half-typed amount is
+  // not rounded under the treasurer's cursor.
+  const [limitsForm, setLimitsForm] = useState({ limitEuros: '', warnPercent: '' })
+  const [limitsOriginal, setLimitsOriginal] = useState({ limitEuros: '', warnPercent: '' })
+  const [limitsLoading, setLimitsLoading] = useState(false)
+  const [limitsSuccess, setLimitsSuccess] = useState<string | null>(null)
+  const [limitsFieldErrors, setLimitsFieldErrors] = useState<Record<string, string>>({})
+  const limitsSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Load SEPA config on mount
   useEffect(() => {
     const loadConfig = async () => {
@@ -231,8 +274,26 @@ export function SettingsPage() {
     return () => {
       if (successMessageTimeoutRef.current) clearTimeout(successMessageTimeoutRef.current)
       if (instanceSuccessTimeoutRef.current) clearTimeout(instanceSuccessTimeoutRef.current)
+      if (limitsSuccessTimeoutRef.current) clearTimeout(limitsSuccessTimeoutRef.current)
     }
   }, [])
+
+  // The tab the caller lands on, once the roles are known. Also the correction
+  // when a role change takes the open tab away — leaving it selected would
+  // render a panel whose requests the server refuses.
+  useEffect(() => {
+    if (visibleTabs.length === 0) return
+    if (activeTab === null || !visibleTabs.includes(activeTab)) {
+      setActiveTab((firstSettingsTab(roles) as SettingsTab) ?? null)
+    }
+  }, [visibleTabs, activeTab, roles])
+
+  // Load the club's credit limits when the Limits tab is active
+  useEffect(() => {
+    if (activeTab === 'limits') {
+      loadCreditLimits()
+    }
+  }, [activeTab])
 
   // Load admin users when admin-users tab is active
   useEffect(() => {
@@ -302,7 +363,7 @@ export function SettingsPage() {
     setModalFieldErrors({})
   }
 
-  const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals' | 'security' | 'credentials' | 'instance' | 'mail') => {
+  const switchTab = (tab: SettingsTab) => {
     // The banner reports what failed on the tab that is being left behind.
     setError(null)
     setActionSuccess(null)
@@ -336,6 +397,64 @@ export function SettingsPage() {
       reportError(err, 'settings.errors.loadTerminals')
     } finally {
       setTerminalsLoading(false)
+    }
+  }
+
+  const loadCreditLimits = async () => {
+    try {
+      setLimitsLoading(true)
+      const config = await getCreditLimits().getCreditLimitConfig()
+      const loaded = {
+        limitEuros: centsToEuros(config.default_limit_cents ?? 0),
+        warnPercent: String(config.warn_threshold_percent ?? 80),
+      }
+      setLimitsForm(loaded)
+      setLimitsOriginal(loaded)
+      setLimitsFieldErrors({})
+    } catch (err: unknown) {
+      reportError(err, 'settings.limits.errors.load')
+    } finally {
+      setLimitsLoading(false)
+    }
+  }
+
+  const handleSaveCreditLimits = async () => {
+    const cents = eurosToCents(limitsForm.limitEuros)
+    const percent = Number(limitsForm.warnPercent)
+
+    // Shape checked here, bounds left to the server: it owns the rule (a
+    // negative ceiling is refused rather than read as unlimited), and its
+    // message is what the field then shows.
+    const localErrors: Record<string, string> = {}
+    if (!Number.isFinite(cents)) localErrors.default_limit_cents = t('settings.limits.errors.validation')
+    if (!Number.isInteger(percent)) localErrors.warn_threshold_percent = t('settings.limits.errors.validation')
+    if (Object.keys(localErrors).length > 0) {
+      setLimitsFieldErrors(localErrors)
+      return
+    }
+
+    try {
+      setSaving(true)
+      const saved = await getCreditLimits().updateCreditLimitConfig({
+        default_limit_cents: cents,
+        warn_threshold_percent: percent,
+      })
+      const applied = {
+        limitEuros: centsToEuros(saved.default_limit_cents ?? cents),
+        warnPercent: String(saved.warn_threshold_percent ?? percent),
+      }
+      setLimitsForm(applied)
+      setLimitsOriginal(applied)
+      setLimitsFieldErrors({})
+      setError(null)
+      setLimitsSuccess(t('settings.limits.saved'))
+      if (limitsSuccessTimeoutRef.current) clearTimeout(limitsSuccessTimeoutRef.current)
+      limitsSuccessTimeoutRef.current = setTimeout(() => setLimitsSuccess(null), 5000)
+    } catch (err: unknown) {
+      setLimitsFieldErrors(getApiFieldErrors(err))
+      reportError(err, 'settings.limits.errors.save')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -827,100 +946,130 @@ export function SettingsPage() {
           data-testid="settings-tabs"
           style={tabContainerStyle}
         >
-          <button
-            data-testid="settings-tab-admin-users"
-            onClick={() => switchTab('admin-users')}
-            style={tabStyle(activeTab === 'admin-users') as any}
-          >
-            {!isMobile && (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="8.5" cy="7" r="4" />
-                <circle cx="18.5" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              </svg>
-            )}
-            {t('settings.adminUsers')}
-          </button>
-          <button
-            data-testid="settings-tab-sepa"
-            onClick={() => switchTab('sepa')}
-            style={tabStyle(activeTab === 'sepa') as any}
-          >
-            {!isMobile && (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="2" y="5" width="20" height="14" rx="2" />
-                <line x1="2" y1="10" x2="22" y2="10" />
-              </svg>
-            )}
-            {isMobile ? 'SEPA' : t('settings.sepaConfig')}
-          </button>
-          <button
-            data-testid="settings-tab-terminals"
-            onClick={() => switchTab('terminals')}
-            style={tabStyle(activeTab === 'terminals') as any}
-          >
-            {!isMobile && (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-              </svg>
-            )}
-            {t('settings.terminals')}
-          </button>
-          <button
-            data-testid="settings-tab-security"
-            onClick={() => switchTab('security')}
-            style={tabStyle(activeTab === 'security') as any}
-          >
-            {!isMobile && (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-            )}
-            {t('settings.security.tab')}
-          </button>
-          <button
-            data-testid="settings-tab-credentials"
-            onClick={() => switchTab('credentials')}
-            style={tabStyle(activeTab === 'credentials') as any}
-          >
-            {!isMobile && (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 2l-2 2m-3.5 3.5a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78z" />
-                <path d="M15.5 7.5L19 4l3 3-3.5 3.5" />
-              </svg>
-            )}
-            {t('settings.credentials.tab')}
-          </button>
-          <button
-            data-testid="settings-tab-instance"
-            onClick={() => switchTab('instance')}
-            style={tabStyle(activeTab === 'instance') as any}
-          >
-            {!isMobile && (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 4h16v4H4z" />
-                <path d="M9 8v12" />
-                <path d="M15 8v12" />
-              </svg>
-            )}
-            {t('settings.instance.tab')}
-          </button>
-          <button
-            data-testid="settings-tab-mail"
-            onClick={() => switchTab('mail')}
-            style={tabStyle(activeTab === 'mail') as any}
-          >
-            {!isMobile && (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <polyline points="2 7 12 14 22 7" />
-              </svg>
-            )}
-            {t('settings.mail.tab')}
-          </button>
+          {visibleTabs.includes('admin-users') && (
+            <button
+              data-testid="settings-tab-admin-users"
+              onClick={() => switchTab('admin-users')}
+              style={tabStyle(activeTab === 'admin-users') as any}
+            >
+              {!isMobile && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="8.5" cy="7" r="4" />
+                  <circle cx="18.5" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                </svg>
+              )}
+              {t('settings.adminUsers')}
+            </button>
+          )}
+          {visibleTabs.includes('sepa') && (
+            <button
+              data-testid="settings-tab-sepa"
+              onClick={() => switchTab('sepa')}
+              style={tabStyle(activeTab === 'sepa') as any}
+            >
+              {!isMobile && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="2" y="5" width="20" height="14" rx="2" />
+                  <line x1="2" y1="10" x2="22" y2="10" />
+                </svg>
+              )}
+              {isMobile ? 'SEPA' : t('settings.sepaConfig')}
+            </button>
+          )}
+          {visibleTabs.includes('terminals') && (
+            <button
+              data-testid="settings-tab-terminals"
+              onClick={() => switchTab('terminals')}
+              style={tabStyle(activeTab === 'terminals') as any}
+            >
+              {!isMobile && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                  <line x1="8" y1="21" x2="16" y2="21" />
+                  <line x1="12" y1="17" x2="12" y2="21" />
+                </svg>
+              )}
+              {t('settings.terminals')}
+            </button>
+          )}
+          {visibleTabs.includes('security') && (
+            <button
+              data-testid="settings-tab-security"
+              onClick={() => switchTab('security')}
+              style={tabStyle(activeTab === 'security') as any}
+            >
+              {!isMobile && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+              )}
+              {t('settings.security.tab')}
+            </button>
+          )}
+          {visibleTabs.includes('credentials') && (
+            <button
+              data-testid="settings-tab-credentials"
+              onClick={() => switchTab('credentials')}
+              style={tabStyle(activeTab === 'credentials') as any}
+            >
+              {!isMobile && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 2l-2 2m-3.5 3.5a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78z" />
+                  <path d="M15.5 7.5L19 4l3 3-3.5 3.5" />
+                </svg>
+              )}
+              {t('settings.credentials.tab')}
+            </button>
+          )}
+          {visibleTabs.includes('instance') && (
+            <button
+              data-testid="settings-tab-instance"
+              onClick={() => switchTab('instance')}
+              style={tabStyle(activeTab === 'instance') as any}
+            >
+              {!isMobile && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 4h16v4H4z" />
+                  <path d="M9 8v12" />
+                  <path d="M15 8v12" />
+                </svg>
+              )}
+              {t('settings.instance.tab')}
+            </button>
+          )}
+          {visibleTabs.includes('mail') && (
+            <button
+              data-testid="settings-tab-mail"
+              onClick={() => switchTab('mail')}
+              style={tabStyle(activeTab === 'mail') as any}
+            >
+              {!isMobile && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <polyline points="2 7 12 14 22 7" />
+                </svg>
+              )}
+              {t('settings.mail.tab')}
+            </button>
+          )}
+          {visibleTabs.includes('limits') && (
+            <button
+              data-testid="settings-tab-limits"
+              onClick={() => switchTab('limits')}
+              style={tabStyle(activeTab === 'limits') as any}
+            >
+              {!isMobile && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2v20" />
+                  <path d="M5 7h9a3 3 0 0 1 0 6H5" />
+                  <path d="M19 17H8" />
+                </svg>
+              )}
+              {t('settings.limits.tab')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1031,6 +1180,25 @@ export function SettingsPage() {
           callerTotpEnabled is threaded through for the cron-secret rotate
           dialog (#473), same as CredentialsTab below. */}
       {activeTab === 'mail' && <MailSettingsTab callerTotpEnabled={callerTotpEnabled} />}
+
+      {/* Credit Limits Tab (ADR-0046, UC-A65) */}
+      {activeTab === 'limits' && (
+        <CreditLimitsTab
+          loading={limitsLoading}
+          saving={saving}
+          successMessage={limitsSuccess}
+          limitEuros={limitsForm.limitEuros}
+          warnPercent={limitsForm.warnPercent}
+          fieldErrors={limitsFieldErrors}
+          onLimitChange={(limitEuros) => setLimitsForm((form) => ({ ...form, limitEuros }))}
+          onWarnPercentChange={(warnPercent) => setLimitsForm((form) => ({ ...form, warnPercent }))}
+          onSave={handleSaveCreditLimits}
+          onCancel={() => {
+            setLimitsForm(limitsOriginal)
+            setLimitsFieldErrors({})
+          }}
+        />
+      )}
 
       {/* Modals */}
       <CreateAdminModal

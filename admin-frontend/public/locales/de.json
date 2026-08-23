@@ -925,6 +925,23 @@
         "test": "Die Testmail konnte nicht versendet werden.",
         "rotateCronSecret": "Das Geheimnis konnte nicht erneuert werden."
       }
+    },
+    "limits": {
+      "tab": "Limits",
+      "label": "Standard-Limit des Vereins",
+      "helper": "Höchststand, den ein Deckel erreichen darf, bevor das Terminal die nächste Buchung ablehnt. Gilt für alle Mitglieder ohne eigenes Limit — wird dieser Wert erhöht, gilt das sofort für sie alle. **0 bedeutet: kein Limit.**",
+      "warnLabel": "Warnschwelle",
+      "warnHelper": "Ab welchem Anteil des Limits das Terminal warnt, das Mitglied aber weiter bedient (1–100 %). Gilt vereinsweit — ein eigenes Limit setzt die Höhe, nie die Warnschwelle.",
+      "warnAtLabel": "Gewarnt wird ab",
+      "warnAtHelper": "Errechnet aus Limit und Warnschwelle. Genau diesen Betrag verwendet auch das Terminal.",
+      "unlimited": "Kein Limit — der Deckel wird nicht begrenzt.",
+      "loading": "Limit-Konfiguration wird geladen...",
+      "saved": "Limits erfolgreich gespeichert",
+      "errors": {
+        "load": "Limit-Konfiguration konnte nicht geladen werden",
+        "save": "Limits konnten nicht gespeichert werden. Bitte erneut versuchen.",
+        "validation": "Bitte korrigieren Sie die markierten Felder"
+      }
     }
   },
   "auditLog": {
