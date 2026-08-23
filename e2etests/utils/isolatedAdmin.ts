@@ -19,6 +19,7 @@
  * throwaway account nobody else touches.
  */
 
+import { randomUUID } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
 import { generateTotp } from './totp'
@@ -36,8 +37,17 @@ const API_BASE = 'http://localhost:8080/api'
 /** The roles an account may hold (ADR-0044). */
 export type AdminRoleName = 'admin' | 'kassenwart' | 'getraenkewart'
 
+/**
+ * A local part nothing else in the run will produce.
+ *
+ * `randomUUID` rather than `Math.random`: this address is the identity a test
+ * then logs in as, and CodeQL reads a weak PRNG feeding a credential flow as a
+ * finding whether or not the account is a throwaway (#678). It is also simply
+ * the better generator for the job — four workers minting accounts in the same
+ * millisecond are exactly the collision `Math.random` makes thinkable.
+ */
 export function uniqueTestEmail(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}@test.example`
+  return `${prefix}-${randomUUID()}@test.example`
 }
 
 /**
