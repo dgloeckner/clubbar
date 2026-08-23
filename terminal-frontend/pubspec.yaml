@@ -13,7 +13,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  # Database & ORM (compatible versions - drift_dev requires older sqlite3)
+  # Database & ORM
   drift: ^2.32.0
 
   # Networking
