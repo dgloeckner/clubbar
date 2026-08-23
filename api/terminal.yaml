@@ -196,6 +196,46 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /sync/config:
+    get:
+      tags:
+        - Synchronization
+      summary: Download the club's credit policy
+      description: |
+        The club-wide credit ceiling and warning band the terminal enforces
+        between syncs ([ADR-0046](../../adr/0046-configurable-credit-limits.md)).
+
+        **Why this is not on `/health`.** `/health` carries only what a terminal
+        needs *before* it can authenticate — reachability, and the
+        [ADR-0035](../../adr/0035-terminal-backend-instance-pairing.md) pairing
+        identity that decides whether it may sync at all. By the time a ceiling
+        matters the terminal is bearer authenticated and already polling
+        `/sync/*`, so club policy belongs here.
+
+        **Why the club default and the per-member override travel separately.**
+        `/sync/members` is a delta on `updated_at`. A club setting touches no
+        member row, so a backend-resolved per-member ceiling would go stale on
+        every terminal until each member happened to change for some unrelated
+        reason. The terminal coalesces
+        `member.credit_limit_cents ?? default_limit_cents` itself.
+
+        No cursor and no delta: the document is one row, re-read whole on each
+        sync cycle.
+      operationId: syncConfig
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: The club's credit policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncConfigResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
   /sync/categories:
     get:
       tags:
@@ -742,6 +782,48 @@ components:
     # ============================================================================
     # Member Schema
     # ============================================================================
+    SyncConfigResponse:
+      type: object
+      description: |
+        Club-wide settings a terminal caches. Named as a container rather than
+        as one setting so the next terminal-relevant club setting can join it
+        without another endpoint.
+      required: [credit_limit]
+      properties:
+        credit_limit:
+          type: object
+          required: [default_limit_cents, warn_threshold_percent, warn_at_cents]
+          properties:
+            default_limit_cents:
+              type: integer
+              minimum: 0
+              description: |
+                The club's default ceiling in cents, applying to every member
+                whose own `credit_limit_cents` is `null`. `0` means the club
+                enforces no ceiling — a member with an override of their own
+                still has one.
+              example: 10000
+            warn_threshold_percent:
+              type: integer
+              minimum: 1
+              maximum: 100
+              description: |
+                Share of the **effective** ceiling from which a member is warned
+                but still served. Club-wide: an override sets a member's
+                ceiling, never their band.
+              example: 80
+            warn_at_cents:
+              type: integer
+              minimum: 0
+              description: |
+                `default_limit_cents * warn_threshold_percent / 100`, by
+                **integer division**, sent so the terminal never has to
+                reproduce the rounding rule. A member with an override applies
+                the same percentage to their own ceiling. `0` when no ceiling is
+                enforced, which keeps "is this member in the band?" false for
+                every tab.
+              example: 8000
+
     Member:
       type: object
       description: |
@@ -811,6 +893,30 @@ components:
             Never render this value, and never derive a rendered age from it
             (rule 6).
           example: '1985-06-15'
+        credit_limit_cents:
+          type: integer
+          nullable: true
+          minimum: 0
+          description: |
+            **This member's own ceiling — an override, never a resolved
+            ceiling** ([ADR-0046](../../adr/0046-configurable-credit-limits.md)).
+
+            | Value | Meaning |
+            |---|---|
+            | `null` | Follow the club default from `GET /sync/config` |
+            | `0` | No ceiling for this member |
+            | *n* | This member's ceiling, in cents |
+
+            The terminal resolves `credit_limit_cents ?? default_limit_cents`
+            locally, at checkout, offline. **Do not "simplify" this into an
+            effective ceiling computed by the backend.** This payload is a delta
+            on `updated_at`, and changing a club setting touches no member row —
+            a resolved figure would therefore reach each terminal one member at
+            a time, whenever those members next changed for some unrelated
+            reason, and every other member would keep enforcing the old ceiling
+            indefinitely. The club default travels on its own channel for
+            exactly that reason.
+          example: 5000
         preferred_language:
           type: string
           pattern: '^[a-z]{2}(-[A-Z]{2})?$'
