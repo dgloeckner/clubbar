@@ -22,6 +22,7 @@
 import { test, expect } from '../../fixtures/pageObjects'
 import { createIsolatedAdmin, signInAndEnroll } from '../../utils/isolatedAdmin'
 import { MainLayoutPage } from '../../pages/MainLayoutPage'
+import { SettingsPage } from '../../pages/SettingsPage'
 import { loginAs } from '../../utils/csrf'
 import { stepUp } from '../../fixtures/stepUp'
 import { TEST_CREDENTIALS } from '../../config/test-credentials'
@@ -160,12 +161,10 @@ test.describe('Role-aware navigation', () => {
     await expect(page.locator('[data-testid="settings-page"]')).toBeVisible()
 
     // The tab they may use is the one they land on, without a click.
-    await expect(page.locator('[data-testid="settings-limits-form"]')).toBeVisible()
+    const settings = new SettingsPage(page)
+    await settings.expectLimitsFormVisible()
 
-    const tabs = await page.locator('[data-testid^="settings-tab-"]').evaluateAll((nodes) =>
-      nodes.map((node) => node.getAttribute('data-testid')),
-    )
-    expect(tabs).toEqual(['settings-tab-limits'])
+    expect(await settings.getVisibleTabTestIds()).toEqual(['settings-tab-limits'])
   })
 
 
@@ -261,9 +260,7 @@ test.describe('Settings tabs for an admin', () => {
     await page.goto('/settings')
     await expect(page.locator('[data-testid="settings-page"]')).toBeVisible()
 
-    const tabs = await page.locator('[data-testid^="settings-tab-"]').evaluateAll((nodes) =>
-      nodes.map((node) => node.getAttribute('data-testid')),
-    )
+    const tabs = await new SettingsPage(page).getVisibleTabTestIds()
 
     expect(tabs).toEqual([
       'settings-tab-admin-users',

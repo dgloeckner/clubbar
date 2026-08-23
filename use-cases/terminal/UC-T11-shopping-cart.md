@@ -46,8 +46,8 @@ to review items before purchase
 | Cart total | Sum of all line items |
 | Current balance | Member's existing tab balance |
 | New balance | Current + cart total (preview) |
-| Balance limit | Maximum allowed balance (from config) |
-| Limit warning | Shown if new balance would exceed limit |
+| Balance limit | The member's own ceiling where they have one, the club default otherwise (see [ADR-0046](../../adr/0046-configurable-credit-limits.md)) |
+| Limit warning | Shown if new balance would exceed that ceiling |
 | Back button | Return to product view |
 | Buy button | Confirm purchase (disabled if over limit) |
 
@@ -132,7 +132,10 @@ to review items before purchase
 - Transactions queued for sync
 
 ### E3: Balance Limit Exceeded
-- New balance (current + cart) exceeds configured maximum
+- New balance (current + cart) exceeds the member's ceiling
+- The ceiling is the member's `credit_limit_cents` where it is set, and the club
+  default from `GET /api/sync/config` where it is `NULL`. A ceiling of `0` means
+  unlimited, so this case never triggers for that member
 - Warning banner displayed at top of cart
 - "Buy" button disabled with tooltip "Balance would exceed limit"
 - User must remove items to proceed
@@ -152,3 +155,5 @@ to review items before purchase
 - Balance limit warning: exceed limit, verify warning banner shown
 - Buy disabled at limit: exceed limit, verify "Buy" button disabled
 - Remove to enable: exceed limit, remove items below limit, verify "Buy" enabled
+- Member override wins: member with an own ceiling below the club default, verify the warning follows the member's value
+- Unlimited member: member with ceiling `0`, verify no warning and "Buy" stays enabled at any total

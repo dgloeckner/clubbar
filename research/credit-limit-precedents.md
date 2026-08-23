@@ -11,6 +11,8 @@ All citations are against the repo at commit `aa31186` unless noted otherwise.
 
 **Direct answer: Yes — the terminal use cases already specify the limit behavior in detail: a single global maximum balance, configured in the backend and synced to the terminal, with warn-on-add-to-cart and hard-block-on-checkout. No ADR and no data-model doc defines a limit, no per-member limit exists anywhere, and no concrete threshold value is specified (all messages use `€XX.XX` placeholders).**
 
+*(Superseded on 2026-08-23 by [ADR-0046](../adr/0046-configurable-credit-limits.md), epic [#555](https://github.com/dgloeckner/clubbar/issues/555). There is now an ADR, a data-model definition on both sides (`credit_limit_config` and `members.credit_limit_cents` in `docs/erm-master.md`, `members_cache.credit_limit_cents` in `docs/erm-frontend.md`), an admin use case ([UC-A65](../use-cases/admin/UC-A65-configure-credit-limits.md)), and a per-member limit. The threshold value is no longer absent-by-omission but absent **by design** — it is club configuration, seeded at the 10000 / 80 this note found hard-coded. The rest of this section still reads true: the two check points and their wording are what shipped.)*
+
 ### Evidence
 
 **UC-T12 "E2: Maximum Balance Exceeded" is the primary spec** (`use-cases/terminal/UC-T12-error-scenarios.md:54-105`):
@@ -44,6 +46,8 @@ All citations are against the repo at commit `aa31186` unless noted otherwise.
 ## 2. Does the backend/API already carry a per-member limit field?
 
 **Direct answer: No. Neither API spec, nor the backend members table, nor the terminal sync payload carries any limit field — and there is no backend config/settings transport for a global limit either, despite UC-T12 requiring "configured in backend (synced to terminal)". The unused constant `balanceLimitCents` in `terminal-frontend/lib/config/app_config.dart:17` is the single trace of a limit in the entire implementation.**
+
+*(Superseded on 2026-08-23 by [ADR-0046](../adr/0046-configurable-credit-limits.md), epic [#555](https://github.com/dgloeckner/clubbar/issues/555). All four gaps this section names are now closed: `members.credit_limit_cents` exists (migration 052) and rides both API specs; `credit_limit_config` is the settings table, edited by the Kassenwart through `/api/admin/credit-limit-config`; the missing transport is `GET /api/sync/config`, added because `/sync/members` is a delta on `updated_at` and a club-level setting touches no member row; and `balanceLimitCents` stopped being the limit — it is now only a seed the terminal uses until its first successful config sync. The finding that made all of it necessary — one declared-and-never-referenced constant — is exactly what [#24](https://github.com/dgloeckner/clubbar/issues/24) fixed and this epic then made configurable.)*
 
 ### Evidence
 

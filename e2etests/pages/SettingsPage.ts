@@ -29,6 +29,16 @@ export class SettingsPage {
   private readonly successMessage: Locator
   private readonly loadingIndicator: Locator
   private readonly ibanValidationIndicator: Locator
+  // Credit limits (ADR-0046, UC-A65) — the treasurer's own tab on this page.
+  private readonly limitsTab: Locator
+  private readonly limitsForm: Locator
+  private readonly limitsDefaultInput: Locator
+  private readonly limitsWarnInput: Locator
+  private readonly limitsWarnAtValue: Locator
+  private readonly limitsHelper: Locator
+  private readonly limitsSaveButton: Locator
+  private readonly limitsSuccessMessage: Locator
+  private readonly limitsDefaultError: Locator
 
   constructor(page: Page) {
     this.page = page
@@ -53,6 +63,88 @@ export class SettingsPage {
     this.successMessage = page.getByTestId('settings-sepa-success-message')
     this.loadingIndicator = page.getByTestId('settings-page-loading')
     this.ibanValidationIndicator = page.getByTestId('settings-sepa-validation-creditor_iban')
+    this.limitsTab = page.getByTestId('settings-tab-limits')
+    this.limitsForm = page.getByTestId('settings-limits-form')
+    this.limitsDefaultInput = page.getByTestId('settings-limits-input-default')
+    this.limitsWarnInput = page.getByTestId('settings-limits-input-warn')
+    this.limitsWarnAtValue = page.getByTestId('settings-limits-warn-at')
+    this.limitsHelper = page.getByTestId('settings-limits-helper-default')
+    this.limitsSaveButton = page.getByTestId('settings-limits-save-button')
+    this.limitsSuccessMessage = page.getByTestId('settings-limits-success-message')
+    this.limitsDefaultError = page.getByTestId('settings-limits-error-default')
+  }
+
+  // ── Credit limits tab (ADR-0046, UC-A65) ─────────────────────────────────
+
+  /** Open the Limits tab. For a Kassenwart it is already open — see #562. */
+  async openLimitsTab() {
+    await this.limitsTab.click()
+    await expect(this.limitsForm).toBeVisible()
+  }
+
+  /** The tabs this caller can actually see, in the order they are rendered. */
+  async getVisibleTabTestIds(): Promise<string[]> {
+    return await this.page
+      .locator('[data-testid^="settings-tab-"]')
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-testid') ?? ''))
+  }
+
+  async expectLimitsFormVisible() {
+    await expect(this.limitsForm).toBeVisible()
+  }
+
+  async getClubDefaultLimit(): Promise<string> {
+    return await this.limitsDefaultInput.inputValue()
+  }
+
+  async getWarnThresholdPercent(): Promise<string> {
+    return await this.limitsWarnInput.inputValue()
+  }
+
+  /** The derived figure the tab shows, so the treasurer need not compute it. */
+  async getWarnAtText(): Promise<string> {
+    return (await this.limitsWarnAtValue.textContent()) ?? ''
+  }
+
+  async getLimitsHelperText(): Promise<string> {
+    return (await this.limitsHelper.textContent()) ?? ''
+  }
+
+  /**
+   * Set both numbers and save, waiting for the PATCH so the caller can read
+   * back what was stored without racing the request.
+   */
+  async setCreditLimits(defaultEuros: string, warnPercent: string) {
+    await this.limitsDefaultInput.fill(defaultEuros)
+    await this.limitsWarnInput.fill(warnPercent)
+    await Promise.all([
+      this.page.waitForResponse(
+        (response) =>
+          response.url().includes('/api/admin/credit-limit-config') &&
+          response.request().method() === 'PATCH',
+      ),
+      this.limitsSaveButton.click(),
+    ])
+  }
+
+  /**
+   * Type both numbers and click save without waiting for a request.
+   *
+   * For the values the form itself refuses: no PATCH is sent, so the waiting
+   * form of this would sit out its timeout before the assertion that matters.
+   */
+  async setCreditLimitsExpectingRefusal(defaultEuros: string, warnPercent: string) {
+    await this.limitsDefaultInput.fill(defaultEuros)
+    await this.limitsWarnInput.fill(warnPercent)
+    await this.limitsSaveButton.click()
+  }
+
+  async expectLimitsSaved() {
+    await expect(this.limitsSuccessMessage).toBeVisible()
+  }
+
+  async expectLimitsRejected() {
+    await expect(this.limitsDefaultError).toBeVisible()
   }
 
   /**

@@ -34,6 +34,14 @@ The refusal to sell a product to a member who is too young for it. The limit bel
 It is a standing condition, not a transient failure: nothing about it will be different if the member tries again, so the refusal offers no Retry. The message names the age the product requires and never the member's own — the terminal screen is read by whoever is at the bar. See [ADR-0045](./adr/0045-age-restricted-products.md).
 _Avoid_: age check, age gate, 18+, adult verification, ID check (the system verifies no identity — it trusts the birth date on file)
 
+**Limit**:
+The ceiling a member's **Deckel** may reach. One number, in cents, and it is always *that member's*: their own where the club has set one for them, the club's default otherwise. Set by the Kassenwart — the club default in Einstellungen → Limits, an individual one on the member — and never computed by the system from tenure, arrears or anything else.
+
+Two values that look alike mean opposite things and both are deliberate: **empty** on a member means *follow the club*, so raising the club's ceiling lifts them too, while **0** means *no ceiling for this member*. A negative one is refused rather than stored, because `<= 0` already reads as "not enforced".
+
+Enforced at **checkout**, offline, like Jugendschutz — with a warning band below it, a club-wide share of whatever ceiling the member ended up with. Unlike Jugendschutz it is about money, not law: a sale a stale terminal let through is still recorded. See [ADR-0046](./adr/0046-configurable-credit-limits.md).
+_Avoid_: credit limit (the member is not being lent anything — the club is deciding how large a tab it will carry), balance limit, max balance, Kreditrahmen, overdraft
+
 ### Accounting
 
 **Transaction**:
@@ -83,13 +91,13 @@ _Avoid_: superadmin, owner, root, administrator
 **Kassenwart**:
 The elected treasurer. Members, settlements, SEPA collection, Storno, and the notifications that go with them. Holds a copy of the encryption private key because collecting by SEPA is impossible without it — so a Kassenwart legitimately sees every member's IBAN. That is the office, not a leak.
 
-Cannot create accounts, mint terminal credentials, manage encryption keys, change mail configuration, or read the audit log. Cannot erase a member: erasure is irreversible and stays with the Admin.
+Cannot create accounts, mint terminal credentials, manage encryption keys, change mail configuration, or read the audit log. Cannot erase a member: erasure is irreversible and stays with the Admin. Sets the club's **Limit** and any member's own — a money decision, so it sits with the office that makes money decisions.
 _Avoid_: treasurer (the club says Kassenwart), finance admin, accountant
 
 **Getränkewart**:
 Whoever looks after the bar stock: the drinks list, prices, availability, and what actually sells. Holds no encryption key and therefore *cannot* decrypt any IBAN — the only role whose exclusion from member banking data is cryptographic rather than a matter of which pages they can open.
 
-Sees no member: no names, no Deckel, no transaction rows, no dashboard. Product and terminal figures only. Sets a product's **Jugendschutz** age — a legal number on a drink — and still sees no member and no birth date.
+Sees no member: no names, no Deckel, no transaction rows, no dashboard. Product and terminal figures only. Sets a product's **Jugendschutz** age — a legal number on a drink — and still sees no member and no birth date. Sets no **Limit**: a ceiling is about a member's money, and this office sees no member.
 _Avoid_: bar operator, bar manager, Barwart, product admin
 
 ### Notifications

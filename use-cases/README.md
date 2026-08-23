@@ -89,6 +89,7 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A61 | Manage Admins | Implemented | [UC-A61](./admin/UC-A61-manage-admins.md) |
 | UC-A62 | Create Admin | Implemented | [UC-A62](./admin/UC-A62-create-admin.md) |
 | UC-A63 | Reset Admin Password | Implemented | [UC-A63](./admin/UC-A63-reset-admin-password.md) |
+| UC-A65 | Configure Credit Limits | Implemented | [UC-A65](./admin/UC-A65-configure-credit-limits.md) |
 
 ### RFID Management
 
@@ -146,10 +147,10 @@ Complete index of all use cases across domains, with implementation status.
 
 | Domain | Total | Implemented | Diverges | Partial | Not Impl. |
 |--------|-------|-------------|----------|---------|-----------|
-| Admin Panel | 43 | 32 | 5 | 4 | 7 |
+| Admin Panel | 44 | 33 | 5 | 4 | 7 |
 | Terminal | 7 | 4 | 3 | 0 | 0 |
 | GDPR | 6 | 3 | 1 | 2 | 0 |
 | SEPA | 9 | 7 | 2 | 0 | 0 |
-| **Total** | **65** | **46** | **11** | **6** | **7** |
+| **Total** | **66** | **47** | **11** | **6** | **7** |
 
 Action items for partially/not implemented use cases are tracked in [plans/action-items-use-cases.md](../plans/action-items-use-cases.md).
