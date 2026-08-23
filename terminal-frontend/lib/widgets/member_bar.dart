@@ -164,6 +164,13 @@ class MemberBar extends StatelessWidget {
           // Action buttons on right
           Row(
             children: [
+              // Purchases — the signposted route to the booking history.
+              //
+              // Leftmost in the action group, so it sits next to the member
+              // cluster it acts on and the session's exit stays pinned at the
+              // far edge, away from a mis-tap.
+              _buildPurchasesButton(context, l10n),
+              const SizedBox(width: 8),
               if (showBackButton) ...[
                 _buildBackButton(l10n, blocked: navigationBlocked),
                 const SizedBox(width: 8),
@@ -239,6 +246,88 @@ class MemberBar extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// The way to the booking history that a member can actually see.
+  ///
+  /// The history has always been one tap away — behind the member cluster on
+  /// the left — and members kept not finding it. Issue #39 diagnosed that as
+  /// a missing affordance and answered it with a chevron and a ripple; the
+  /// complaint came back from the floor anyway, because a chevron is a hint
+  /// for people who already suspect there is something there.
+  ///
+  /// What changed around it is the other half. #551 took the cart icon out of
+  /// this row and #642 gave the logout its label, its edge and the arrow that
+  /// points the right way — both correct on their own, and together they left
+  /// the row with exactly one thing shaped like a button, which was the way
+  /// out of the session. The two faults #642 named for the logout — it did not
+  /// say what it did, and it had no visible edge — described the member
+  /// cluster exactly, and it was the only route to the history.
+  ///
+  /// So this says the word. `Icons.receipt_long` is the bar tab it opens, and
+  /// [AppLocalizations.purchases] is the same word as the sheet's own title,
+  /// so the tap confirms itself rather than landing on "Mitgliedsdetails".
+  ///
+  /// Blue where the logout is grey: this is the thing members are failing to
+  /// find, and the two must not read as one pair of buttons. The fill alone
+  /// would not carry the boundary — `semanticPrimaryStrong` is 2.98:1 against
+  /// this bar, just under the 3:1 WCAG 1.4.11 floor #642 set here — so
+  /// `semanticPrimaryLight` draws the edge at 6.1:1, the same fill/border
+  /// pairing the sheet's own selected language button uses. White on the fill
+  /// is 5.2:1.
+  ///
+  /// Not disabled mid-checkout, unlike the two controls beside it. Those are
+  /// refused because leaving the screen unmounts the context the checkout is
+  /// waiting on (#34); a bottom sheet is laid over that screen rather than
+  /// replacing it, and shows nothing a member may not read while their round
+  /// is pouring. The member cluster, which opens the same sheet, has never
+  /// been blocked either — one route disabled and the other live would be
+  /// worse than either rule applied consistently.
+  Widget _buildPurchasesButton(BuildContext context, AppLocalizations l10n) {
+    return Material(
+      key: const Key('member-bar-purchases'),
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => showMemberDetailsModal(context),
+        borderRadius: BorderRadius.circular(AppBorderRadius.md),
+        // `button: true` but no `label:` — the visible text is already the
+        // accessible name, and setting both made a screen reader say it twice.
+        child: Semantics(
+          button: true,
+          child: Container(
+            height: _actionButtonSize,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: AppColors.semanticPrimaryStrong,
+              borderRadius: BorderRadius.circular(AppBorderRadius.md),
+              border: Border.all(
+                color: AppColors.semanticPrimaryLight,
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.receipt_long,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.purchases,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: AppFontSizes.base,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

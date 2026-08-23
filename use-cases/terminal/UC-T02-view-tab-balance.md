@@ -1,7 +1,9 @@
 # UC-T02: View Tab Balance and Transaction History
 
 **Implementation Status**: Implemented (diverges from spec)
-**Divergence**: Balance is displayed in the terminal header bar. The scrollable 90-day transaction history is not implemented — balance display alone confirmed sufficient by stakeholder.
+**Divergence**: Balance is displayed on the member bar. The transaction history exists and opens from a labelled **"Buchungen"** button on that bar — not from the balance itself, as main-flow step 5 describes. It opens as a bottom sheet rather than the balance detail *screen* below, and the list is flat: no date-group headers, no explicit 90-day window, no lazy loading, and no "last settlement" line.
+
+The note that stood here until 2026-08-23 — *"the scrollable transaction history is not implemented — balance display alone confirmed sufficient by stakeholder"* — was overtaken by the field. The history was in fact implemented, and members could not find it: its only route was an unlabelled tap on the member cluster ([#39](https://github.com/dgloeckner/clubbar/issues/39) added a chevron, which was not enough). Both this use case and [UC-T13](./UC-T13-fetch-recent-transactions.md) assume a control that *says* what it opens, and that assumption turned out to be the load-bearing part of the spec.
 
 ## Actor
 Member

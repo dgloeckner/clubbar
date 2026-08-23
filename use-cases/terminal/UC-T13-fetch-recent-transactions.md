@@ -1,7 +1,9 @@
 # UC-T13: Fetch and Display Recent Transaction History On-Demand
 
 **Implementation Status**: Implemented (diverges from spec)
-**Divergence**: Backend endpoint exists and is called. Transaction list UI on terminal is minimal — balance display confirmed sufficient by stakeholder.
+**Divergence**: Backend endpoint exists and is called. The trigger this use case describes — a control reading "View Transactions" or "Transaction History" — now exists as the member bar's **"Buchungen"** button; until 2026-08-23 the only route was an unlabelled tap on the member cluster, and members were not finding it.
+
+The list itself remains minimal: flat rather than grouped by date, and shown in a bottom sheet rather than a screen of its own. **V1 differs deliberately**: offline, the sheet shows the purchases this terminal recorded locally instead of refusing outright, because the balance above them already counts those same purchases (see [#32](https://github.com/dgloeckner/clubbar/issues/32)).
 
 ## Actor
 Member / Terminal Operator

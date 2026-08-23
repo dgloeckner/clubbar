@@ -166,7 +166,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get memberDetails => 'Member Details';
+  String get myPurchases => 'My purchases';
 
   @override
   String get firstName => 'First Name';
@@ -198,6 +198,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get viewDetails => 'Details';
+
+  @override
+  String get purchases => 'Purchases';
 
   @override
   String get logout => 'Log out';

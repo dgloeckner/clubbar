@@ -326,11 +326,11 @@ abstract class AppLocalizations {
   /// **'Weiterleitung in {seconds} {seconds, plural, =1{Sekunde} other{Sekunden}}...'**
   String redirectingIn(int seconds);
 
-  /// Member details screen title
+  /// Title of the sheet the member bar's purchases button opens. Deliberately built on the same word as the button label, so that the tap confirms itself. Replaced "Mitgliedsdetails", which named the container rather than the thing members came for.
   ///
   /// In de, this message translates to:
-  /// **'Mitgliedsdetails'**
-  String get memberDetails;
+  /// **'Meine Buchungen'**
+  String get myPurchases;
 
   /// Label for first name
   ///
@@ -380,11 +380,17 @@ abstract class AppLocalizations {
   /// **'Nichts offen'**
   String get balanceSettled;
 
-  /// Button to view member details
+  /// Accessible name for the member bar's member-info cluster, which opens the same sheet as the purchases button. A secondary route, so it stays a screen-reader name rather than a visible caption.
   ///
   /// In de, this message translates to:
   /// **'Details'**
   String get viewDetails;
+
+  /// Member bar button opening the member's booking history. Labelled rather than a chevron: members could not find the transaction list behind the unlabelled member cluster.
+  ///
+  /// In de, this message translates to:
+  /// **'Buchungen'**
+  String get purchases;
 
   /// Logout button label
   ///

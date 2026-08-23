@@ -222,6 +222,64 @@ void main() {
     });
   });
 
+  group('the purchases button members can find', () {
+    // Same complaint as the logout above, one control to the left: the route
+    // to the booking history was unlabelled and unbordered, so members did
+    // not find it. It is now a filled blue chip, which raises a boundary
+    // question the grey chip did not have to answer.
+    final bar = _over(
+      const Color(0xcc1e293b), // MemberBar's own background
+      AppColors.bgPrimary,
+    );
+
+    test('its fill alone would not clear WCAG 1.4.11 — hence the border', () {
+      // 2.98:1. Close enough to look fine and still under the floor, which is
+      // exactly the kind of near-miss #642 was cleaning up. If a future
+      // palette change lifts this over 3:1 the border becomes optional, and
+      // this test is where that will be noticed.
+      expect(
+        contrastRatio(AppColors.semanticPrimaryStrong, bar),
+        lessThan(kGlyphContrastFloor),
+        reason: 'the fill is why the button needs an explicit edge',
+      );
+    });
+
+    test('its border is the edge that carries the 3:1', () {
+      _expectGlyph(AppColors.semanticPrimaryLight, bar,
+          why: 'purchases button border on the member bar');
+    });
+
+    test('its label and glyph clear AA on the fill', () {
+      // White, not textPrimary: on this fill white is 5.2:1 where textPrimary
+      // is 4.7:1, and the chip is read across a room.
+      _expectText(const Color(0xffffffff), AppColors.semanticPrimaryStrong,
+          why: 'purchases label on the chip fill');
+    });
+
+    test('colour is not what tells it apart from the logout beside it', () {
+      // The two chips sit side by side and do very different things — one
+      // opens a read-only sheet, the other ends the session — and the blue
+      // reads as clearly distinct from the grey to anyone who sees hue.
+      //
+      // In luminance they are 2.0:1 apart, which is not a distinction at all
+      // for a member who does not. That is allowed: WCAG 1.4.11 governs a
+      // control against its background, not two controls against each other,
+      // and 1.4.1 is satisfied because each chip carries its own word and its
+      // own glyph. This test exists to record that the labels are load-
+      // bearing rather than decorative: if the row is ever "tidied" back to
+      // icon-only chips distinguished by colour, the distinction is gone.
+      // member_bar_test.dart holds the labels and the icons themselves.
+      expect(
+        contrastRatio(
+          AppColors.semanticPrimaryStrong, // purchases fill
+          AppColors.borderLight, // logout fill
+        ),
+        lessThan(kGlyphContrastFloor),
+        reason: 'if this ever clears 3:1 the note above can be revisited',
+      );
+    });
+  });
+
   group('the kiosk type scale', () {
     // Reset between tests: AppFontSizes is mutable static state that
     // applyConfig writes to, and a leaked override would make the floors below

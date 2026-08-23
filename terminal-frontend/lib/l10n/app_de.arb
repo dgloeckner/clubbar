@@ -225,9 +225,9 @@
   },
 
   "@_MEMBER_DETAILS": {},
-  "memberDetails": "Mitgliedsdetails",
-  "@memberDetails": {
-    "description": "Member details screen title"
+  "myPurchases": "Meine Buchungen",
+  "@myPurchases": {
+    "description": "Title of the sheet the member bar's purchases button opens. Deliberately built on the same word as the button label, so that the tap confirms itself. Replaced \"Mitgliedsdetails\", which named the container rather than the thing members came for."
   },
   "firstName": "Vorname",
   "@firstName": {
@@ -277,7 +277,11 @@
   },
   "viewDetails": "Details",
   "@viewDetails": {
-    "description": "Button to view member details"
+    "description": "Accessible name for the member bar's member-info cluster, which opens the same sheet as the purchases button. A secondary route, so it stays a screen-reader name rather than a visible caption."
+  },
+  "purchases": "Buchungen",
+  "@purchases": {
+    "description": "Member bar button opening the member's booking history. Labelled rather than a chevron: members could not find the transaction list behind the unlabelled member cluster."
   },
   "logout": "Abmelden",
   "@logout": {
