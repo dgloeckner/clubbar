@@ -339,7 +339,7 @@ const settlement = data[0];           // whose? nobody knows
 
 Wrap the setup in a factory fixture instead, so the test still owns its data
 and can assert against amounts and names it chose (ruling
-[#146](https://github.com/dgloeckner/ruderbar/issues/146)):
+[#146](https://github.com/dgloeckner/clubbar/issues/146)):
 
 ```typescript
 // ✅ CORRECT: this test's settlement, this test's amount

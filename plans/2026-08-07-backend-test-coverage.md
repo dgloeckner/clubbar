@@ -127,7 +127,7 @@ Target: these files ≥85%. Projected total: **~29%**.
 - [ ] **2.1** `AuthService` + `TokenService` — constant-time credential comparison (regression guard for C1 in `2026-03-17-security-critical-fixes.md`), inactive-admin rejection.
 - [ ] **2.2** `TotpService` (20 stmt, 0%) — `generateSecret` entropy/format, `verifyCode` accept/reject inside and outside the time window, `encrypt`/`decrypt` round-trip, and `decrypt` returning `false` on a tampered ciphertext.
 - [ ] **2.3** `AdminUsersService` (111 stmt, 0%) + `AdminUsersRepository` (65) + `AdminUserDto` (23) — password hashing never round-trips plaintext; **self-deactivation refused**; `resetAdminPassword` clearing the TOTP secret; `verifyCurrentPassword` on wrong password; duplicate-email handling.
-- [ ] **2.4** Middleware: `AdminSessionAuth` (27), `TerminalTokenAuth` (26), `CsrfMiddleware` (13), ~~`RateLimitMiddleware`~~ — unauthenticated → 401, bad CSRF → 403. **Task 6.1's harness now exists** (shipped with #78). `RateLimitMiddleware` is done: ruling [#145](https://github.com/dgloeckner/ruderbar/issues/145) replaced the IP-only limiter this task was written against, and #78 pinned the replacement in `tests/Unit/Shared/Middleware/RateLimitMiddlewareTest.php` (both counting dimensions, the 429 shape, the disabled flag) plus the route wiring in `AuthRouteRateLimitTest`.
+- [ ] **2.4** Middleware: `AdminSessionAuth` (27), `TerminalTokenAuth` (26), `CsrfMiddleware` (13), ~~`RateLimitMiddleware`~~ — unauthenticated → 401, bad CSRF → 403. **Task 6.1's harness now exists** (shipped with #78). `RateLimitMiddleware` is done: ruling [#145](https://github.com/dgloeckner/clubbar/issues/145) replaced the IP-only limiter this task was written against, and #78 pinned the replacement in `tests/Unit/Shared/Middleware/RateLimitMiddlewareTest.php` (both counting dimensions, the 429 shape, the disabled flag) plus the route wiring in `AuthRouteRateLimitTest`.
 
 ### Milestone 3 — Privacy: Members & mandate documents
 
@@ -163,7 +163,7 @@ Target: ≥80% each. Projected total: **~54%**.
 
 Target: **~80% total**.
 
-- [x] **6.1** `tests/Feature/HttpTestCase.php` — boots the real Slim app from `bootstrap.php` against the test DB and dispatches PSR-7 requests in-process. This single harness is what makes Tasks 2.4 and 6.2 cheap. **Shipped with [#78](https://github.com/dgloeckner/ruderbar/issues/78)**, which owned it: the bug there was a route with no middleware, which nothing below the HTTP layer can see. Verified by `tests/Feature/Modules/Auth/AuthRouteRateLimitTest.php` (6/6), including the per-account dimension, which needs a caller-chosen `REMOTE_ADDR` and so cannot be tested from the single-host E2E suite. Session-state and terminal-token helpers are **not** built yet — add them with 2.4/6.2 when the first test needs them.
+- [x] **6.1** `tests/Feature/HttpTestCase.php` — boots the real Slim app from `bootstrap.php` against the test DB and dispatches PSR-7 requests in-process. This single harness is what makes Tasks 2.4 and 6.2 cheap. **Shipped with [#78](https://github.com/dgloeckner/clubbar/issues/78)**, which owned it: the bug there was a route with no middleware, which nothing below the HTTP layer can see. Verified by `tests/Feature/Modules/Auth/AuthRouteRateLimitTest.php` (6/6), including the per-account dimension, which needs a caller-chosen `REMOTE_ADDR` and so cannot be tested from the single-host E2E suite. Session-state and terminal-token helpers are **not** built yet — add them with 2.4/6.2 when the first test needs them.
 - [ ] **6.2** One controller test class per module (Settlements 178, Dashboard 176, Products 132, Members 126, Transactions 124, AdminUsers 88, Terminals 83, Auth 201, Reports 53, Sync 49+17+11, AuditLog 45, MandateDocument 44, Extraction 36, SepaConfig 21, BankCodes 23, Health 4). Focus on the **error branches** Playwright does not exercise: 400/401/403/404/422 shapes, malformed bodies, missing params. Happy paths stay Playwright's job — do not re-litigate them here.
 - [ ] **6.3** `ErrorHandler` (41), `CorsMiddleware` (15), `JsonBodyParser` (14), `TerminalOasValidator` (8) — exercised through the harness.
 - [ ] **6.4** `routes.php` (94) and `ServiceFactory` (122) fall out of 6.1–6.3 for free; add a smoke test asserting every registered route resolves and every factory method constructs.
@@ -192,32 +192,32 @@ These are rough estimates assuming ~85% coverage of each file listed, kept for p
 
 ## Ruled surfaces — do not pin
 
-A row means the surface is governed by a ruling on [map #139](https://github.com/dgloeckner/ruderbar/issues/139), so coverage work must **not** pin its current behaviour there. A missing row means "pin", which is today's behaviour — the table degrades safely. Keep it current as rulings close.
+A row means the surface is governed by a ruling on [map #139](https://github.com/dgloeckner/clubbar/issues/139), so coverage work must **not** pin its current behaviour there. A missing row means "pin", which is today's behaviour — the table degrades safely. Keep it current as rulings close.
 
 Two treatments: **fix-first** — the ruling is decided and its fix is unblocked, so fix the code first, then cover the fixed behaviour. **skip** — the ruling is open or blocked, so skip the unit with a named declarative skip: `markTestSkipped('ruled by #NNN; see map #139')`.
 
 | Surface | Ruling | Treatment |
 |---|---|---|
-| `RateLimitMiddleware`, login/MFA attempt counting (M2.4) | [#145](https://github.com/dgloeckner/ruderbar/issues/145) → fix [#78](https://github.com/dgloeckner/ruderbar/issues/78) | fix-first |
-| `MembersService::createMember` mandate auto-generation (M3.1) | [#164](https://github.com/dgloeckner/ruderbar/issues/164) *(open)* | skip |
-| `MembersService::anonymizeMember` (M3.1) | [#165](https://github.com/dgloeckner/ruderbar/issues/165) *(open)* | skip |
-| `MembersRepository` sort-key whitelist (M3.2) | [#112](https://github.com/dgloeckner/ruderbar/issues/112) | fix-first |
-| `ReportsService` revenue aggregation (M4) | [#116](https://github.com/dgloeckner/ruderbar/issues/116), plus the `payout` type from [#141](https://github.com/dgloeckner/ruderbar/issues/141) §4 | skip |
-| `TransactionsService::recordCorrection` (M6.2) | [#158](https://github.com/dgloeckner/ruderbar/issues/158) *(open)* | skip |
-| `TransactionsService::processBatch` sync gate (M6.2) | [#143](https://github.com/dgloeckner/ruderbar/issues/143) → fix [#162](https://github.com/dgloeckner/ruderbar/issues/162) | fix-first |
-| ~~`SettlementsService` create/preview~~ | [#141](https://github.com/dgloeckner/ruderbar/issues/141) → [#161](https://github.com/dgloeckner/ruderbar/issues/161) | **fixed** — exclude-and-flag is implemented and covered; pin freely |
-| `SettlementsService::cancelSettlement` | [#142](https://github.com/dgloeckner/ruderbar/issues/142) → [#81](https://github.com/dgloeckner/ruderbar/issues/81)/[#86](https://github.com/dgloeckner/ruderbar/issues/86) | fix-first |
+| `RateLimitMiddleware`, login/MFA attempt counting (M2.4) | [#145](https://github.com/dgloeckner/clubbar/issues/145) → fix [#78](https://github.com/dgloeckner/clubbar/issues/78) | fix-first |
+| `MembersService::createMember` mandate auto-generation (M3.1) | [#164](https://github.com/dgloeckner/clubbar/issues/164) *(open)* | skip |
+| `MembersService::anonymizeMember` (M3.1) | [#165](https://github.com/dgloeckner/clubbar/issues/165) *(open)* | skip |
+| `MembersRepository` sort-key whitelist (M3.2) | [#112](https://github.com/dgloeckner/clubbar/issues/112) | fix-first |
+| `ReportsService` revenue aggregation (M4) | [#116](https://github.com/dgloeckner/clubbar/issues/116), plus the `payout` type from [#141](https://github.com/dgloeckner/clubbar/issues/141) §4 | skip |
+| `TransactionsService::recordCorrection` (M6.2) | [#158](https://github.com/dgloeckner/clubbar/issues/158) *(open)* | skip |
+| `TransactionsService::processBatch` sync gate (M6.2) | [#143](https://github.com/dgloeckner/clubbar/issues/143) → fix [#162](https://github.com/dgloeckner/clubbar/issues/162) | fix-first |
+| ~~`SettlementsService` create/preview~~ | [#141](https://github.com/dgloeckner/clubbar/issues/141) → [#161](https://github.com/dgloeckner/clubbar/issues/161) | **fixed** — exclude-and-flag is implemented and covered; pin freely |
+| `SettlementsService::cancelSettlement` | [#142](https://github.com/dgloeckner/clubbar/issues/142) → [#81](https://github.com/dgloeckner/clubbar/issues/81)/[#86](https://github.com/dgloeckner/clubbar/issues/86) | fix-first |
 
 ## Coverage/ruling mechanism (landed in #168)
 
 - **`backend/.coverage-floor`** — the checked-in never-decrease floor. `backend/scripts/check-coverage.php` reads it when no explicit percentage is passed on the command line, so the floor lives in one file instead of a workflow argument. It is raised only by the PR that earns it; a drop shows up as a diff, not a silent CI change.
 - **Patch coverage** — 80% of changed lines, blocking, run against the PR merge-base by `scripts/check-patch-coverage.php`, gating backend and admin-frontend together from their clover reports. Its scope **inherits each project's declared measurement scope**: backend all of `src`; frontend `src/utils/**` + `src/hooks/**`. It is deliberately **not** extended over frontend pages/components — see the `vite.config.ts` comment and Milestone-0-adjacent scope decision above.
-- **Skip lint** — `e2etests/eslint-rules/no-data-dependent-skip.js` ([#146](https://github.com/dgloeckner/ruderbar/issues/146)) bans data-dependent `test.skip()`. Declarative/environmental skips stay legal but must carry a reason, per the `markTestSkipped('ruled by #NNN; ...')` convention above.
+- **Skip lint** — `e2etests/eslint-rules/no-data-dependent-skip.js` ([#146](https://github.com/dgloeckner/clubbar/issues/146)) bans data-dependent `test.skip()`. Declarative/environmental skips stay legal but must carry a reason, per the `markTestSkipped('ruled by #NNN; ...')` convention above.
 - **Frontend and backend coverage numbers measure different scopes and are not comparable.** Backend counts all of `src`; frontend counts only `utils`/`hooks`, with pages/components delegated to Playwright. They must never be averaged or given a shared target.
 
 ## Conventions for every task
 
-> ⚠️ **Before pinning any behaviour, check whether it is already ruled.** [Map #139](https://github.com/dgloeckner/ruderbar/issues/139) holds nine money-semantics rulings, and M2–M6 run straight through the code they govern. Pinning ruled behaviour writes a test that must later be deleted — and reads to a future maintainer as deliberate specification. The protocol is decided in [#166](https://github.com/dgloeckner/ruderbar/issues/166): **no ruling → pin as usual; ruling decided and its fix unblocked → fix first, then cover; ruling decided but blocked, or still open → skip the unit with a named declarative skip** (`markTestSkipped('ruled by #164; see map #139')`). The "Ruled surfaces — do not pin" table and the scheduled-ratchet removal landed in [#168](https://github.com/dgloeckner/ruderbar/issues/168); **M2.4 collides with [#145](https://github.com/dgloeckner/ruderbar/issues/145) today.**
+> ⚠️ **Before pinning any behaviour, check whether it is already ruled.** [Map #139](https://github.com/dgloeckner/clubbar/issues/139) holds nine money-semantics rulings, and M2–M6 run straight through the code they govern. Pinning ruled behaviour writes a test that must later be deleted — and reads to a future maintainer as deliberate specification. The protocol is decided in [#166](https://github.com/dgloeckner/clubbar/issues/166): **no ruling → pin as usual; ruling decided and its fix unblocked → fix first, then cover; ruling decided but blocked, or still open → skip the unit with a named declarative skip** (`markTestSkipped('ruled by #164; see map #139')`). The "Ruled surfaces — do not pin" table and the scheduled-ratchet removal landed in [#168](https://github.com/dgloeckner/clubbar/issues/168); **M2.4 collides with [#145](https://github.com/dgloeckner/clubbar/issues/145) today.**
 
 
 - **TDD** per CLAUDE.md — write the test first; a test that passes before the assertion exists is proving nothing.
@@ -243,7 +243,7 @@ Verified as **not** defects, having been checked directly against the source:
 
 ## References
 
-- [Map #139: money-semantics rulings](https://github.com/dgloeckner/ruderbar/issues/139) — binding on M2–M6; see #166 for the protocol
+- [Map #139: money-semantics rulings](https://github.com/dgloeckner/clubbar/issues/139) — binding on M2–M6; see #166 for the protocol
 - [ADR-0022: Test Strategy and Automation](../adr/0022-test-strategy-and-automation.md) — pyramid, 80% line / 70% branch targets
 - [ADR-0004: Immutable Transaction Storage](../adr/0004-immutable-transaction-storage.md) — why corrections are reverse transactions
 - `backend/patterns/` — Patterns 003 (DTOs), 004 (Service Layer), 005 (Repository Interface) define the seams these tests exploit

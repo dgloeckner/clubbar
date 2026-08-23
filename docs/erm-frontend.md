@@ -137,7 +137,7 @@ cache. `transactions_local.member_id` references the row, so deleting it fails
 the foreign key and wedges the sync cycle. `deleted_at` is set instead and the
 card scans as unknown.
 
-**SEPA Validation**: Banking data moved off `members` onto its own append-only `mandates` table ([#164](https://github.com/dgloeckner/ruderbar/issues/164)), so `is_sepa_valid` is now calculated by the backend during sync as *"does this member have an active mandate"* (a lookup, not an IBAN/reference presence check). Terminal blocks access if `is_sepa_valid = 0`.
+**SEPA Validation**: Banking data moved off `members` onto its own append-only `mandates` table ([#164](https://github.com/dgloeckner/clubbar/issues/164)), so `is_sepa_valid` is now calculated by the backend during sync as *"does this member have an active mandate"* (a lookup, not an IBAN/reference presence check). Terminal blocks access if `is_sepa_valid = 0`.
 
 ---
 
@@ -301,7 +301,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-    subgraph Terminal["Terminal (Electron + SQLite)"]
+    subgraph Terminal["Terminal (Flutter + SQLite)"]
         subgraph RO["Read-Only Caches"]
             MC[members_cache]
             CC[categories_cache]
@@ -371,7 +371,7 @@ flowchart TB
 |----------|----------|
 | Network unreachable | Continue local operation; transactions queued |
 | Sync interrupted | Retry in next cycle; partial sync acceptable |
-| Duplicate transaction sent | Backend deduplicates via UUID (duplicate-key error caught; see [#82](https://github.com/dgloeckner/ruderbar/issues/82)) |
+| Duplicate transaction sent | Backend deduplicates via UUID (duplicate-key error caught; see [#82](https://github.com/dgloeckner/clubbar/issues/82)) |
 | Response lost after upload | Terminal resends; backend ignores duplicate |
 | Terminal restart | Sync state persisted; resumes cleanly |
 | Unknown card scanned | Display "Unknown member" message |

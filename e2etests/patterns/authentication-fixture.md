@@ -251,5 +251,5 @@ Session timeout is set to 120 minutes, so this shouldn't happen. If it does:
 ## Related Documentation
 
 - [Admin API Spec](../../api/admin.yaml)
-- [Pattern 013: Admin Session Authentication](../../adr/0013-admin-session-authentication.md)
+- [Pattern 013: Admin Session Authentication](../../backend/patterns/pattern-013-admin-session-authentication.md)
 - [Playwright Testing Guide](https://playwright.dev/docs/intro)

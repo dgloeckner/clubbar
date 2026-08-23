@@ -55,7 +55,7 @@ export abstract class BasePage {
   // - getElementCount() → Use: await locator.count() in tests or page objects
   // - getElementText() → Use: await locator.textContent() in tests or page objects
   //
-  // See: e2etests/patterns/008-playwright-assertions.md
+  // See: e2etests/patterns/pattern-008-playwright-assertions.md
   // Why: These helpers swallow errors and provide silent failures.
   // Solution: Use Playwright's built-in expect() API with auto-waiting and clear error messages.
 }

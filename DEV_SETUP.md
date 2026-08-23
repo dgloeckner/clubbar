@@ -3,22 +3,36 @@
 ## Quick Start
 
 ```bash
+# Does everything below in one go, and every step is idempotent
+scripts/dev-setup.sh                  # API + backend tests
+scripts/dev-setup.sh --with-frontend  # also builds and serves the admin UI on :5173
+
+cd e2etests && npm test
+```
+
+What that script does, if you would rather run the steps yourself:
+
+```bash
 # 1. Install backend dependencies
 cd backend && composer install && cd ..
 
 # 2. Start Docker containers (no build needed - code is mounted)
-docker compose up -d
+scripts/dev-stack.sh up && scripts/dev-stack.sh wait
 
 # 3. Migrate database and seed test data
 curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"
 curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=seed"
 
-# 4. Install E2E test dependencies
-cd e2etests && npm install
+# 4. Install E2E test dependencies and browsers
+cd e2etests && npm install && npx playwright install chromium webkit
 
 # 5. Run E2E tests
 npm test
 ```
+
+> Backend PHP tests must run **inside the container** — the host has no `bcmath`,
+> which `Validator.php` needs for the IBAN checksum:
+> `docker compose exec -w /app backend ./vendor/bin/phpunit`
 
 ## Test Setup Details
 
@@ -135,9 +149,8 @@ The install endpoint requires an `INSTALL_KEY` environment variable (at least 16
 `install.php` is blocked by `.htaccess` by default as a defence-in-depth measure. For local development, use the CLI instead:
 
 ```bash
-# Preferred: Run migrations and seeds via CLI (no .htaccess config needed)
-docker compose exec backend php artisan migrate
-docker compose exec backend php artisan db:seed
+# Preferred: let the setup script do the whole thing (idempotent, safe to re-run)
+scripts/dev-setup.sh
 ```
 
 If you must run migrations via HTTP (not recommended locally):

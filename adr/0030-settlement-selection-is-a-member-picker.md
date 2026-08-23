@@ -5,7 +5,7 @@
 
 ## Context
 
-[Exclude-and-flag](https://github.com/dgloeckner/ruderbar/issues/141) §1–§2, implemented in [#161](https://github.com/dgloeckner/ruderbar/issues/161), changed what a settlement *contains*. A run no longer settles the transactions it was handed. It resolves those transactions to their members and then sweeps **every unsettled transaction of each included member**, ignoring the date window and any hand-picked subset.
+[Exclude-and-flag](https://github.com/dgloeckner/clubbar/issues/141) §1–§2, implemented in [#161](https://github.com/dgloeckner/clubbar/issues/161), changed what a settlement *contains*. A run no longer settles the transactions it was handed. It resolves those transactions to their members and then sweeps **every unsettled transaction of each included member**, ignoring the date window and any hand-picked subset.
 
 That was a deliberate money decision: testing eligibility on a windowed slice while settling only that slice strands a credit outside the run. Overcharged €20 in January, drinks €5 in February — settling February alone debits €5 the member does not owe and leaves the €20 invisible.
 
@@ -15,7 +15,7 @@ What it did not change was the screen. The admin still ticks **transactions**, i
 - Unticking one row of a member who has another row ticked changes nothing at all.
 - `period_start`/`period_end` are descriptive; the run reaches back indefinitely regardless of the period shown.
 
-[#128](https://github.com/dgloeckner/ruderbar/issues/128) was filed as a cross-page selection bug — the count included rows the payload dropped — and fixing that arithmetic made the numbers honest without making the model comprehensible. The admin still learns that selection is per-member by watching a number change at the confirmation step: tick one row, the modal says 47 transactions.
+[#128](https://github.com/dgloeckner/clubbar/issues/128) was filed as a cross-page selection bug — the count included rows the payload dropped — and fixing that arithmetic made the numbers honest without making the model comprehensible. The admin still learns that selection is per-member by watching a number change at the confirmation step: tick one row, the modal says 47 transactions.
 
 [UC-A30](../use-cases/admin/UC-A30-create-settlement.md) already recorded the gap — *"the transaction picker below is effectively a member picker … the screen's right shape is not yet designed"* — and its own Main Flow already describes something closer to the right shape (grouped by member, invalid members in a separate section) than the code ever implemented.
 

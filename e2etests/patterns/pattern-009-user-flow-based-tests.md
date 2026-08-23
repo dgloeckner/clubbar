@@ -460,6 +460,6 @@ When writing or reviewing flow-based tests, verify:
 
 - [Pattern 001: Test Data Isolation](pattern-001-test-data-isolation.md) — prefix-based isolation is an extension of Pattern 001
 - [Pattern 004: Parallel Execution Safety](pattern-004-parallel-execution-safety.md) — flow tests must be parallel-safe
-- [Pattern 006: Page Object Model](005-page-object-model.md) — flow tests rely on page objects for readability
-- [Pattern 007: Page Object Fixtures](006-page-object-fixtures.md) — fixtures provide authenticated, navigated page objects
-- [Pattern 008: Playwright Assertions](008-playwright-assertions.md) — `expect.poll()` for async count assertions
+- [Pattern 006: Page Object Model](pattern-006-page-object-model.md) — flow tests rely on page objects for readability
+- [Pattern 007: Page Object Fixtures](pattern-007-page-object-fixtures.md) — fixtures provide authenticated, navigated page objects
+- [Pattern 008: Playwright Assertions](pattern-008-playwright-assertions.md) — `expect.poll()` for async count assertions

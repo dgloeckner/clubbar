@@ -56,7 +56,7 @@ check_deps() {
 
 reset_db() {
   log "Resetting database..."
-  "$PROJECT_ROOT/reset-db.sh"
+  "$PROJECT_ROOT/scripts/reset-db.sh"
   ok "Database reset complete."
 }
 

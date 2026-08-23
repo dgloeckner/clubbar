@@ -1,6 +1,6 @@
 # Flows: Member Lifecycle
 
-Onboarding and offboarding, as decided on [map #139](https://github.com/dgloeckner/ruderbar/issues/139).
+Onboarding and offboarding, as decided on [map #139](https://github.com/dgloeckner/clubbar/issues/139).
 
 ---
 
@@ -35,7 +35,7 @@ flowchart TD
 - The **signature date is required** — pain.008 demands it, and it must never be fabricated. It is also what makes "valid mandate" mean a real-world event rather than "somebody typed an IBAN".
 - **Storing the scan is optional**; OCR is a convenience, not a precondition. Requiring paperwork before a member can drink would strand people at the bar on a Friday.
 - Bar access opens **at the next terminal sync**, not instantly — the terminal decides from its last synced state.
-- The dashed box is [#175](https://github.com/dgloeckner/ruderbar/issues/175), still open.
+- The dashed box is [#175](https://github.com/dgloeckner/clubbar/issues/175), still open.
 
 ### Losing access
 
@@ -54,7 +54,7 @@ A bounced direct debit locks a member out of the bar. That is deliberate — a m
 
 ## Offboarding
 
-**One atomic action**, not a workflow. It cannot complete with a live balance ([#173](https://github.com/dgloeckner/ruderbar/issues/173)).
+**One atomic action**, not a workflow. It cannot complete with a live balance ([#173](https://github.com/dgloeckner/clubbar/issues/173)).
 
 ```mermaid
 flowchart TD
@@ -99,4 +99,4 @@ flowchart TD
 | Still collectable? | **Yes** — debt must still be collected | Resolved before this state exists |
 | Reversible | yes | no |
 
-⚠️ `previewSettlement()` currently excludes `is_active = false` members from collection. That is a bug — a lost card must not strand a real receivable ([#161](https://github.com/dgloeckner/ruderbar/issues/161)).
+⚠️ `previewSettlement()` currently excludes `is_active = false` members from collection. That is a bug — a lost card must not strand a real receivable ([#161](https://github.com/dgloeckner/clubbar/issues/161)).

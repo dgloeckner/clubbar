@@ -63,7 +63,7 @@ any form of identity verification. The system trusts the birth date on file.
 
 An earlier draft of this plan had the server reject underage transactions. Reading
 [ADR-0020](../adr/0020-sepa-mandate-requirement-terminal-access.md) in full showed that exact
-rejection was **already tried and deliberately removed** ([#162](https://github.com/dgloeckner/ruderbar/issues/162)):
+rejection was **already tried and deliberately removed** ([#162](https://github.com/dgloeckner/clubbar/issues/162)):
 
 > "The server must therefore store and flag such transactions, never reject them. Rejecting at
 > sync destroys the record of a sale that actually happened — revenue lost silently,
@@ -268,6 +268,8 @@ The transaction is stored; the violation is raised.
       true; `products_cache`; and the stale duplicate SQL block, replaced by a pointer to the
       Drift schema that generates it
 - [x] `docs/datamodel.md` — `members`, `products`, `members_cache`, `products_cache`
+      (that file has since been removed as a stale duplicate; `docs/erm-master.md` and
+      `docs/erm-frontend.md` are the data model)
 - [x] `docs/legal-requirements-and-how-we-meet-them.md` — new **§4 Jugendschutz** (eight rows,
       JuSchG § 9 to the audit entry), Gemeinnützigkeit renumbered to §5, and rows 3.10 and 3.11
       for the new processing purpose and the kiosk-cache minimisation, cross-linked to

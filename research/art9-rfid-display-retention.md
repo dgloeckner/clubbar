@@ -1,6 +1,6 @@
 # Research: Art. 9 DSGVO, RFID, screen display, and retention periods
 
-**Ticket:** [#175](https://github.com/dgloeckner/ruderbar/issues/175) (partial — see "What is still missing")
+**Ticket:** [#175](https://github.com/dgloeckner/clubbar/issues/175) (partial — see "What is still missing")
 **Date:** 2026-08-07
 **Status:** Findings recovered from a research agent that completed while its siblings failed on session limits. Preserved here before the remaining questions are re-run.
 

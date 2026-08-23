@@ -441,7 +441,7 @@ git commit -m "ci: add deploy-integration job — SFTP upload + migration trigge
 Add to the "Current Plan" table in `plans/INDEX.md`:
 
 ```markdown
-| [IONOS Integration Deployment](../docs/superpowers/plans/2026-03-29-ionos-deployment.md) | Completed | Self-destructing deploy.php migration runner + deploy-integration CI job |
+| IONOS Integration Deployment | Completed | Self-destructing deploy.php migration runner + deploy-integration CI job |
 ```
 
 - [ ] **Step 5.2: Commit**

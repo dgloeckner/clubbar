@@ -4,7 +4,7 @@
 
 Every legal constraint established by research during the money-semantics work, and the specific mechanism that satisfies it. The constraints themselves live in [ADR-0028](../adr/0028-legal-constraints-on-money-handling.md) and [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md); this page is the **mapping**, so that a change to any mechanism can be traced back to what it was there for.
 
-> ⚠️ **Not legal advice.** Items marked ⚠️ need confirmation from the club's Steuerberater or bank; they are flagged where research found no authority, not smoothed over. Sources: [#140](https://github.com/dgloeckner/ruderbar/issues/140), [#149](https://github.com/dgloeckner/ruderbar/issues/149), [#159](https://github.com/dgloeckner/ruderbar/issues/159), [#174](https://github.com/dgloeckner/ruderbar/issues/174), with full working in `research/`:
+> ⚠️ **Not legal advice.** Items marked ⚠️ need confirmation from the club's Steuerberater or bank; they are flagged where research found no authority, not smoothed over. Sources: [#140](https://github.com/dgloeckner/clubbar/issues/140), [#149](https://github.com/dgloeckner/clubbar/issues/149), [#159](https://github.com/dgloeckner/clubbar/issues/159), [#174](https://github.com/dgloeckner/clubbar/issues/174), with full working in `research/`:
 
 | File | Covers |
 |---|---|
@@ -42,10 +42,10 @@ Every legal constraint established by research during the money-semantics work, 
 |---|---|---|---|
 | 2.1 | A collection line must be **strictly positive** | pain.008 `InstdAmt minInclusive="0"` | Members at ≤ 0 are excluded from the file; the invariant sits at settlement, never at data entry |
 | 2.2 | A collection needs a **valid mandate with a real signature date** | pain.008 mandate block | `mandates.signed_at` **NOT NULL**. The old `?? settlement_date` fallback — which told the bank a member signed on a day they did not — is removed |
-| 2.3 | **8 weeks** to reclaim an authorised collection, no reason needed | § 675x Abs. 4 BGB | Settlement reversal ([#148](https://github.com/dgloeckner/ruderbar/issues/148)); a `bank_return` places the member on collection hold so the next sweep cannot re-debit the disputed amount |
+| 2.3 | **8 weeks** to reclaim an authorised collection, no reason needed | § 675x Abs. 4 BGB | Settlement reversal ([#148](https://github.com/dgloeckner/clubbar/issues/148)); a `bank_return` places the member on collection hold so the next sweep cannot re-debit the disputed amount |
 | 2.4 | **13 months** where no valid mandate existed — an unauthorised transaction | § 676b Abs. 2 BGB | Largely *prevented*: SEPA-only plus 2.2 means unmandated collections should not occur |
 | 2.5 | A mandate unused for **36 months** must be **cancelled by the creditor** | EPC SDD Core Rulebook §4.2 | ⚠️ **Not yet modelled.** The mandate record can express it (`is_active`, `ended_at`) but nothing enforces it |
-| 2.6 | A returned collection is matched by `EREF+` / `MREF+`; the Verwendungszweck is **never returned** | DK Anlage 3 | Mandates are append-only, so a bank change creates a new one and the old reference stays resolvable. The EndToEndId is derived from the settlement and the member and stored on every item of the collection at export time, so an `EREF+` quoted back resolves to exactly one collection ([#150](https://github.com/dgloeckner/ruderbar/issues/150), shipped) |
+| 2.6 | A returned collection is matched by `EREF+` / `MREF+`; the Verwendungszweck is **never returned** | DK Anlage 3 | Mandates are append-only, so a bank change creates a new one and the old reference stays resolvable. The EndToEndId is derived from the settlement and the member and stored on every item of the collection at export time, so an `EREF+` quoted back resolves to exactly one collection ([#150](https://github.com/dgloeckner/clubbar/issues/150), shipped) |
 | 2.7 | Expect **`MS03`** domestically — Germany suppresses AM04/AC04/MD07 | DK / data protection practice | Return entry is a **lookup**, not a form; do not depend on the reason code |
 | 2.8 | Over-collection is a **civil-law debt** regardless of what the software permits | § 812 Abs. 1 S. 1 BGB | Credit balances are representable; carry-forward by default, payout at offboarding |
 
@@ -59,11 +59,11 @@ Every legal constraint established by research during the money-semantics work, 
 | 3.2 | Retention is bounded by the **scope of the recording duty** — not a blanket "keep everything" | GoBD Rz. 113 · OLG Dresden 4 U 1278/21 | Field-level split: email, phone, card UID, credentials, avatar, notes, address and DOB are **deleted**; per-transaction records, settlements, IBAN, UMR and the mandate document are retained |
 | 3.3 | Data must not be kept beyond its period | Art. 5(1)(e) DSGVO | `retention_expires_at` + [the annual procedure](./retention-deletion-procedure.md), minuted at the Kassenprüfung |
 | 3.4 | Data-subject rights: access, rectification, erasure, restriction, portability | Art. 15–20 DSGVO | `use-cases/dsgvo/` — note UC-DSGVO-02 and 05 were corrected on 2026-08-07 |
-| 3.5 | **Information at collection** — purposes, legal bases, recipients, retention, rights | Art. 13 DSGVO | ✅ Settled in [#175](https://github.com/dgloeckner/ruderbar/issues/175). Notice is **never signed** (checkbox only); states the concrete period with statute **and** trigger event (WP260 rejects „solange wie nötig“ as insufficient), **names the bank** as recipient, and states that refusal means **no bar access** |
+| 3.5 | **Information at collection** — purposes, legal bases, recipients, retention, rights | Art. 13 DSGVO | ✅ Settled in [#175](https://github.com/dgloeckner/clubbar/issues/175). Notice is **never signed** (checkbox only); states the concrete period with statute **and** trigger event (WP260 rejects „solange wie nötig“ as insufficient), **names the bank** as recipient, and states that refusal means **no bar access** |
 | 3.6 | Legal basis per purpose | Art. 6 DSGVO | ✅ **Art. 6(1)(b)** — membership, tab, RFID, collection, terminal display. **6(1)(c)** + §§ 147/63 AO — retention. **6(1)(a)** — optional extras only. **BGH II ZR 132/24 (10.12.2025)** settles Vereinsbeitritt as a *Vertrag*, read unionsautonom |
 | 3.7 | A SEPA mandate is **not** a GDPR consent | § 675j Abs. 1 BGB | Separate signature on the mandate; the Datenschutzhinweis is never signed. ⚠️ Most real Verein forms get this **wrong** (Starnberg, LSB MV) — only the BSSB template is right |
-| 3.8 | **Art. 13(2)(f)** — declare whether profiling occurs | Art. 13(2)(f) DSGVO | Declaring "no profiling" is truthful **only while** the no-profiling control holds — which makes it a legal commitment, not an internal rule. → [#177](https://github.com/dgloeckner/ruderbar/issues/177) |
-| 3.9 | **Art. 30 Verzeichnis** required — the *nicht nur gelegentlich* exception bites | Art. 30(5) DSGVO | → [#181](https://github.com/dgloeckner/ruderbar/issues/181). A **DSB is not** required (§ 38 BDSG threshold 20; count 3–6) ⚠️ provided admin logins stay narrow |
+| 3.8 | **Art. 13(2)(f)** — declare whether profiling occurs | Art. 13(2)(f) DSGVO | Declaring "no profiling" is truthful **only while** the no-profiling control holds — which makes it a legal commitment, not an internal rule. → [#177](https://github.com/dgloeckner/clubbar/issues/177) |
+| 3.9 | **Art. 30 Verzeichnis** required — the *nicht nur gelegentlich* exception bites | Art. 30(5) DSGVO | → [#181](https://github.com/dgloeckner/clubbar/issues/181). A **DSB is not** required (§ 38 BDSG threshold 20; count 3–6) ⚠️ provided admin logins stay narrow |
 | 3.10 | A **further processing purpose** needs its own named legal basis in the notice | Art. 13(1)(c) DSGVO | Holding a member's date of birth is Art. 6(1)(b) — membership administration, `research/175-onboarding-form-datenschutz.md` §2.2 purpose 1. **Using it to gate alcohol sales is a different purpose on a different basis: Art. 6(1)(c) i.V.m. § 9 JuSchG.** The software enforces it from [ADR-0045](../adr/0045-age-restricted-products.md); the notice needs a new row even though the input field already exists → [#591](https://github.com/dgloeckner/clubbar/issues/591) |
 | 3.11 | **Data minimisation** — a terminal cache may hold only what its function needs | Art. 5(1)(c) DSGVO | The kiosk cache gains exactly one field, `date_of_birth`, and nothing else. It is never rendered, and no age derived from it is rendered — a refusal names what the *drink* requires, never what the member is. Erasure rides the ordinary delta sync, so no kiosk keeps a birth date the server has erased beyond one sync interval ([ADR-0045](../adr/0045-age-restricted-products.md), [`erm-frontend.md`](./erm-frontend.md)) |
 
@@ -115,19 +115,19 @@ Related: crediting members' tabs as a reward (the goodwill credit, deliberately 
 | | |
 |---|---|
 | 2.5 | The 36-month mandate-cancellation duty (EPC §4.2) is modelled nowhere |
-| 3.5, 3.6 | ✅ **Answered** in [#175](https://github.com/dgloeckner/ruderbar/issues/175) — Art. 13 content and legal bases settled; BGH II ZR 132/24 makes Vereinsbeitritt a Vertrag under Art. 6(1)(b) |
-| — | [#177](https://github.com/dgloeckner/ruderbar/issues/177) remove the named member ranking — it violates the no-profiling control, and Art. 13(2)(f) makes that control a legal commitment |
+| 3.5, 3.6 | ✅ **Answered** in [#175](https://github.com/dgloeckner/clubbar/issues/175) — Art. 13 content and legal bases settled; BGH II ZR 132/24 makes Vereinsbeitritt a Vertrag under Art. 6(1)(b) |
+| — | [#177](https://github.com/dgloeckner/clubbar/issues/177) remove the named member ranking — it violates the no-profiling control, and Art. 13(2)(f) makes that control a legal commitment |
 | ⚠️ | Prepaid/post-paid boundary under § 146a AO — no authority either way. Mitigated: terminal-side top-up is ruled out **by design** |
 
 **The club's, not the code's** — tracked as `owner-action`:
 
 | | |
 |---|---|
-| [#178](https://github.com/dgloeckner/ruderbar/issues/178) | Steuerberater: does **at-cost pricing** endanger Gemeinnützigkeit? ⚠️ largest exposure surfaced |
-| [#179](https://github.com/dgloeckner/ruderbar/issues/179) | Steuerberater: must the tax record **identify the member on every line item**? A "no" only ever reduces work |
-| [#180](https://github.com/dgloeckner/ruderbar/issues/180) | Vorstand: adopt a **Barordnung** — BGH Rn. 23 makes the Satzung define lit. b's scope |
-| [#181](https://github.com/dgloeckner/ruderbar/issues/181) | **Art. 30 Verzeichnis** — required; the *nicht nur gelegentlich* exception bites |
-| [#182](https://github.com/dgloeckner/ruderbar/issues/182) | Kassenprüfung: adopt the **annual retention and data-protection reviews** |
-| [#183](https://github.com/dgloeckner/ruderbar/issues/183) | Bank: are returns booked **individually**? If not, manual entry fails |
+| [#178](https://github.com/dgloeckner/clubbar/issues/178) | Steuerberater: does **at-cost pricing** endanger Gemeinnützigkeit? ⚠️ largest exposure surfaced |
+| [#179](https://github.com/dgloeckner/clubbar/issues/179) | Steuerberater: must the tax record **identify the member on every line item**? A "no" only ever reduces work |
+| [#180](https://github.com/dgloeckner/clubbar/issues/180) | Vorstand: adopt a **Barordnung** — BGH Rn. 23 makes the Satzung define lit. b's scope |
+| [#181](https://github.com/dgloeckner/clubbar/issues/181) | **Art. 30 Verzeichnis** — required; the *nicht nur gelegentlich* exception bites |
+| [#182](https://github.com/dgloeckner/clubbar/issues/182) | Kassenprüfung: adopt the **annual retention and data-protection reviews** |
+| [#183](https://github.com/dgloeckner/clubbar/issues/183) | Bank: are returns booked **individually**? If not, manual entry fails |
 
 A **Datenschutzbeauftragter is not required** (§ 38 BDSG threshold 20; realistic count 3–6) — ⚠️ but that depends on keeping admin-panel logins narrow.

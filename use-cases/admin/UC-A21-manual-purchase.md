@@ -2,7 +2,7 @@
 
 **Implementation Status**: **Rejected 2026-08-08** — will not be built. This use case is kept as a tombstone so the reasoning survives and the idea is not re-proposed.
 
-> **Rejected 2026-08-08.** Manual purchase was the last surviving shape of the free-amount booking. [#170](https://github.com/dgloeckner/ruderbar/issues/170) kept it on the strength of a single scenario — *drinks served where the terminal could not reach* — and [#169](https://github.com/dgloeckner/ruderbar/issues/169) was to build it. On review that scenario does not survive contact with what the terminal actually is. See **Why this was rejected** below.
+> **Rejected 2026-08-08.** Manual purchase was the last surviving shape of the free-amount booking. [#170](https://github.com/dgloeckner/clubbar/issues/170) kept it on the strength of a single scenario — *drinks served where the terminal could not reach* — and [#169](https://github.com/dgloeckner/clubbar/issues/169) was to build it. On review that scenario does not survive contact with what the terminal actually is. See **Why this was rejected** below.
 >
 > This reverses the "✅ Manual purchase" row of #170's resolution table. It does not reopen anything else that ruling decided: storno is built ([UC-A23](./UC-A23-storno.md)), goodwill credit stays rejected, cash stays forbidden, payout stays absorbed into offboarding.
 
@@ -22,7 +22,7 @@ Multi-terminal is a first-class concept, not a future one: ADR-0012 ("Multiple t
 
 **3. It would have been the only place in the system where a human types a money amount.**
 
-This use case said so itself, and treated it as a reason for guardrails. It is better read as a reason not to have the path: everything else in the system *derives* its amount. A storno negates its original exactly. A settlement sums the transactions it covers. Manual settlement covers exactly one member's whole position ([#163](https://github.com/dgloeckner/ruderbar/issues/163) — "no picker, no typed amount"). Removing the last typed amount is what makes that a property of the system rather than a coincidence.
+This use case said so itself, and treated it as a reason for guardrails. It is better read as a reason not to have the path: everything else in the system *derives* its amount. A storno negates its original exactly. A settlement sums the transactions it covers. Manual settlement covers exactly one member's whole position ([#163](https://github.com/dgloeckner/clubbar/issues/163) — "no picker, no typed amount"). Removing the last typed amount is what makes that a property of the system rather than a coincidence.
 
 **4. It is the unlinked booking, in the form that disqualified goodwill credit.**
 
@@ -37,15 +37,15 @@ This use case said so itself, and treated it as a reason for guardrails. It is b
 | Situation | Answer |
 |---|---|
 | Club event, party on the terrace | Put a terminal there. It works offline; a second one is a registered terminal ([UC-A51](./UC-A51-create-terminal.md)) |
-| The drink sold there is not in the catalogue | Add the product ([UC-A12](./UC-A12-create-product.md)); the terminal then books it like any other |
+| The drink sold there is not in the catalogue | Add the product ([UC-A41](./UC-A41-create-product.md)); the terminal then books it like any other |
 | A booking is wrong | [UC-A23: Storno](./UC-A23-storno.md) — the only way to correct a booking |
-| A departing member owes or is owed money | Offboarding: write-off or payout ([#173](https://github.com/dgloeckner/ruderbar/issues/173)) |
+| A departing member owes or is owed money | Offboarding: write-off or payout ([#173](https://github.com/dgloeckner/clubbar/issues/173)) |
 
 ## If this is ever revisited
 
 The bar to clear is not "is the terrace case real" — it is **why a terminal cannot be there**. A recurring event where a terminal is genuinely impossible, and where the drinks sold are not in the catalogue, would be a new argument. Volume alone would not be: the more often it happens, the stronger the case for a terminal rather than for typing amounts.
 
-It must not return under the name *correction*. That word now means a storno against a named transaction, and the conflation of the two is what [#158](https://github.com/dgloeckner/ruderbar/issues/158) and #169 exist to undo.
+It must not return under the name *correction*. That word now means a storno against a named transaction, and the conflation of the two is what [#158](https://github.com/dgloeckner/clubbar/issues/158) and #169 exist to undo.
 
 ## Related
 - [UC-A23: Storno](./UC-A23-storno.md) — the only supported way to correct a booking

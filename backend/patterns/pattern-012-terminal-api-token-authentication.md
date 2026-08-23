@@ -10,7 +10,7 @@
 
 ## Context
 
-The Club Bar system includes offline-capable Terminal devices (Electron POS) that sync with the backend periodically. Each terminal must authenticate itself, but this is **device authentication**, not user authentication.
+The Club Bar system includes offline-capable Terminal devices (Flutter kiosk POS) that sync with the backend periodically. Each terminal must authenticate itself, but this is **device authentication**, not user authentication.
 
 **Key Principles (ADR-0015)**:
 1. **Separation of concerns**: Terminals authenticate as devices; members are identified by RFID (not authentication)
@@ -557,7 +557,7 @@ Terminal application stores token in local config file (outside app bundle):
 
 **Important**: Token stored in plaintext on local terminal because:
 - Terminal is isolated device in trusted environment
-- No way to securely store secrets in Electron app
+- No way to securely store secrets in an unattended kiosk app
 - Loss of terminal = loss of token (terminal must be re-paired)
 
 ---

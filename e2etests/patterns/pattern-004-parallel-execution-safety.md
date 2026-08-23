@@ -191,8 +191,8 @@ Fresh database before each test run ensures clean state:
 // Setup (before all tests)
 // docker compose down -v                    (remove old volume)
 // docker compose up -d                      (fresh containers)
-// php artisan migrate                       (create schema)
-// php artisan db:seed                       (seed base data)
+// install.php?action=migrate                (create schema)
+// install.php?action=seed                   (seed base data)
 
 // Now run tests
 // ✅ All tests start with clean database

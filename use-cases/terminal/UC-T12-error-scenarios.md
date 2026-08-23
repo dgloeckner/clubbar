@@ -263,7 +263,7 @@ No user interaction for configured timeout period (30 seconds)
 Member without an **active mandate**
 
 ### Trigger
-Card scanned for a member without an active mandate. This is SEPA-only ([#171](https://github.com/dgloeckner/ruderbar/issues/171)): a member with no active mandate cannot start a terminal session at all — refused at card scan, before any product view opens, with no grace period.
+Card scanned for a member without an active mandate. This is SEPA-only ([#171](https://github.com/dgloeckner/clubbar/issues/171)): a member with no active mandate cannot start a terminal session at all — refused at card scan, before any product view opens, with no grace period.
 
 ### Flow
 1. Member scans RFID card

@@ -45,7 +45,7 @@ Key constraints:
 
 `member_balances` reports only the members the request **names**. Originally the
 only way to name a member was to upload a transaction for them, which left a
-hole ([#191](https://github.com/dgloeckner/ruderbar/issues/191)): a settlement
+hole ([#191](https://github.com/dgloeckner/clubbar/issues/191)): a settlement
 brings a member's tab to zero without the terminal doing anything, and after it
 there is no purchase to upload and none coming. The member scanned their card
 and were shown money they had already paid, until they happened to buy

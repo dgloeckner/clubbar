@@ -16,7 +16,7 @@ Admin clicks "SEPA Issues" in navigation or dashboard alert
 
 > ### ⚠️ This became an **alarm**, not a worklist (2026-08-07)
 >
-> The report was designed when a member without SEPA data could still drink and accumulate debt, making this a routine follow-up queue. Under **SEPA-only** ([#171](https://github.com/dgloeckner/ruderbar/issues/171), [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md)) that member cannot use the bar at all, so **this list should be empty in steady state.**
+> The report was designed when a member without SEPA data could still drink and accumulate debt, making this a routine follow-up queue. Under **SEPA-only** ([#171](https://github.com/dgloeckner/clubbar/issues/171), [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md)) that member cannot use the bar at all, so **this list should be empty in steady state.**
 >
 > Anyone appearing in it is one of exactly two things:
 >
@@ -27,7 +27,7 @@ Admin clicks "SEPA Issues" in navigation or dashboard alert
 >
 > Size and surface it accordingly: a short standing alarm worth investigating, not a queue to work through. A long list means something is wrong with the mandate flow, not that the club has a backlog.
 >
-> Note also that credit balances are **not** shown here. The standalone credit-balance report was dropped — payout is absorbed into member offboarding ([#170](https://github.com/dgloeckner/ruderbar/issues/170)).
+> Note also that credit balances are **not** shown here. The standalone credit-balance report was dropped — payout is absorbed into member offboarding ([#170](https://github.com/dgloeckner/clubbar/issues/170)).
 
 This report shows members who:
 1. Have **no active SEPA mandate** (cannot use the terminal)

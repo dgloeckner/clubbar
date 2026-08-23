@@ -302,11 +302,11 @@ Stores all organization members with payment information.
 | account_holder_name | VARCHAR(70) | NULL | Still on `members` — only banking fields moved to `mandates` ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md), amended) |
 | preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code for product display |
 | credit_limit_cents | INT | NULL | This member's own Deckel ceiling in cents ([ADR-0047](../adr/0047-configurable-credit-limits.md)). **NULL and 0 are different answers**: NULL means *follow the club default* — so raising the club's ceiling lifts this member too — while 0 means *no ceiling for this member*, the value `limitCents <= 0` already reads as "not enforced" at the terminal. A negative value is refused by the API rather than being allowed to pass that same test by accident. Signed `INT`, not `INT UNSIGNED`, so an out-of-range write is a rejected value rather than a silently clamped one. No index: it is read one member at a time through rows the sync and the dashboard already fetch |
-| ~~iban~~ | — | — | **Moved to `mandates.iban`** ([#164](https://github.com/dgloeckner/ruderbar/issues/164)) |
+| ~~iban~~ | — | — | **Moved to `mandates.iban`** ([#164](https://github.com/dgloeckner/clubbar/issues/164)) |
 | ~~mandate_reference~~ | — | — | **Moved to `mandates.reference`** |
 | ~~mandate_signed_at~~ | — | — | **Moved to `mandates.signed_at`** |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | **Temporary** block — e.g. a lost card. **Not** "left the club" |
-| collection_hold | BOOLEAN | NOT NULL, DEFAULT FALSE | Stops the **next SEPA sweep** from re-debiting a member whose collection was just returned ([#148](https://github.com/dgloeckner/ruderbar/issues/148), [#165](https://github.com/dgloeckner/ruderbar/issues/165)) |
+| collection_hold | BOOLEAN | NOT NULL, DEFAULT FALSE | Stops the **next SEPA sweep** from re-debiting a member whose collection was just returned ([#148](https://github.com/dgloeckner/clubbar/issues/148), [#165](https://github.com/dgloeckner/clubbar/issues/165)) |
 | collection_hold_reason | VARCHAR(500) | NULL | Why the hold was placed |
 | held_at | DATETIME | NULL | When the hold was placed |
 | held_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who placed the hold |
@@ -314,7 +314,7 @@ Stores all organization members with payment information.
 | cleared_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who lifted the hold |
 | deleted_at | DATETIME | NULL | Offboarding completed; erasure done. This **is** "gone" |
 | deleted_by_admin_id | VARCHAR(36) | FK → admin_users.id, NULL | Admin who performed the erasure |
-| retention_expires_at | DATE | NULL | Stamped at offboarding: 31.12. of last transaction year + 10 years ([#173](https://github.com/dgloeckner/ruderbar/issues/173)). ⚠️ This is the **earliest** deletion may occur, not a due date — § 147 Abs. 3 S. 5 AO suspends expiry while the Festsetzungsfrist runs. Deletion is a **reviewed, deliberate act**, not an automated sweep ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) |
+| retention_expires_at | DATE | NULL | Stamped at offboarding: 31.12. of last transaction year + 10 years ([#173](https://github.com/dgloeckner/clubbar/issues/173)). ⚠️ This is the **earliest** deletion may occur, not a due date — § 147 Abs. 3 S. 5 AO suspends expiry while the Festsetzungsfrist runs. Deletion is a **reviewed, deliberate act**, not an automated sweep ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
@@ -403,7 +403,7 @@ Product catalog with multilingual support.
 
 ### mandates
 
-A mandate is **one record**, or the member has none. Rows are **append-only** — a bank change or revocation ends the current mandate and creates a new one, never mutates in place. Banking data used to live directly on `members` and was freely mutable, so a return arriving after a bank change quoted an MREF+ that no longer existed anywhere and could not be matched; a standalone, append-only record is what keeps it matchable ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md) amended, [#164](https://github.com/dgloeckner/ruderbar/issues/164), [#165](https://github.com/dgloeckner/ruderbar/issues/165)).
+A mandate is **one record**, or the member has none. Rows are **append-only** — a bank change or revocation ends the current mandate and creates a new one, never mutates in place. Banking data used to live directly on `members` and was freely mutable, so a return arriving after a bank change quoted an MREF+ that no longer existed anywhere and could not be matched; a standalone, append-only record is what keeps it matchable ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md) amended, [#164](https://github.com/dgloeckner/clubbar/issues/164), [#165](https://github.com/dgloeckner/clubbar/issues/165)).
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -476,7 +476,7 @@ Immutable, append-only transaction log. No UPDATE or DELETE operations permitted
 | related_transaction_id | BINARY(16) | FK → transactions.id, **NOT NULL for `storno`**, **UNIQUE** | The transaction being reversed. Mandatory linkage — GoBD Rz. 64 ([ADR-0028](../adr/0028-legal-constraints-on-money-handling.md) §4). UNIQUE enforces *stornoable at most once*; MariaDB permits many NULLs in a unique column, so purchases and payouts (which carry no linkage) are unaffected |
 | created_by_terminal_id | BINARY(16) | FK → terminals.id, NULL | Terminal that recorded the transaction |
 | created_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who created manual entry |
-| occurred_at | TIMESTAMP | NOT NULL | **Terminal-owned**: when the sale actually happened. Reporting queries use this ([#144](https://github.com/dgloeckner/ruderbar/issues/144)) |
+| occurred_at | TIMESTAMP | NOT NULL | **Terminal-owned**: when the sale actually happened. Reporting queries use this ([#144](https://github.com/dgloeckner/clubbar/issues/144)) |
 | received_at | TIMESTAMP | NOT NULL | **Server-owned**: when the backend learned of it. Audit and sync queries use this. A drink sold offline yesterday and synced today `occurred_at` yesterday but `received_at` today — filtering settlement on the terminal-supplied value is what makes backdating profitable, filtering on server time misdates genuine offline sales |
 
 **Indexes:**
@@ -486,7 +486,7 @@ Immutable, append-only transaction log. No UPDATE or DELETE operations permitted
 - `received_at`
 - `related_transaction_id` (UNIQUE)
 
-**Note:** A **storno** is a new transaction whose `amount_cents` is the **exact negation** of the transaction it references — derived, never supplied by the caller. The original is never modified. There is no free-amount adjustment and no partial storno ([ADR-0004](../adr/0004-immutable-transaction-storage.md), amended). `related_transaction_id` is a **hard DB constraint** for storno rows (`CHECK (transaction_type <> 'storno' OR related_transaction_id IS NOT NULL)`), not just an application-level rule ([#158](https://github.com/dgloeckner/ruderbar/issues/158)).
+**Note:** A **storno** is a new transaction whose `amount_cents` is the **exact negation** of the transaction it references — derived, never supplied by the caller. The original is never modified. There is no free-amount adjustment and no partial storno ([ADR-0004](../adr/0004-immutable-transaction-storage.md), amended). `related_transaction_id` is a **hard DB constraint** for storno rows (`CHECK (transaction_type <> 'storno' OR related_transaction_id IS NOT NULL)`), not just an application-level rule ([#158](https://github.com/dgloeckner/clubbar/issues/158)).
 
 ---
 
@@ -497,8 +497,8 @@ Settlement records for SEPA collections and manual settlements.
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | BINARY(16) | PK | UUID |
-| method | ENUM | NOT NULL | `direct_debit` (many members, produces pain.008) · `bank_transfer` (one member, money already arrived) · `write_off` (one member, money never arrives). **Only `direct_debit` may be exported** ([#163](https://github.com/dgloeckner/ruderbar/issues/163)) |
-| settlement_date | DATE | NOT NULL | Creation date, set by the server to its own today. Not a request field — the API accepts no `settlement_date` ([#113](https://github.com/dgloeckner/ruderbar/issues/113)) |
+| method | ENUM | NOT NULL | `direct_debit` (many members, produces pain.008) · `bank_transfer` (one member, money already arrived) · `write_off` (one member, money never arrives). **Only `direct_debit` may be exported** ([#163](https://github.com/dgloeckner/clubbar/issues/163)) |
+| settlement_date | DATE | NOT NULL | Creation date, set by the server to its own today. Not a request field — the API accepts no `settlement_date` ([#113](https://github.com/dgloeckner/clubbar/issues/113)) |
 | execution_date | DATE | NULL | SEPA execution date (>= the server's today + 7 days, and a TARGET2 business day; NULL for manual) |
 | period_start | DATE | NULL | Accounting period start (optional) |
 | period_end | DATE | NULL | Accounting period end (optional) |
@@ -510,7 +510,7 @@ Settlement records for SEPA collections and manual settlements.
 | cancelled_at | DATETIME | NULL | Cancellation timestamp |
 | cancelled_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who cancelled |
 | exported_at | DATETIME | NULL | Last export timestamp |
-| submitted_at | DATETIME | NULL | When the settlement was submitted to the bank and became **no longer freely cancellable**. Cancellation is permitted while no money has moved, which needs a recorded moment at which it did ([#142](https://github.com/dgloeckner/ruderbar/issues/142), [#163](https://github.com/dgloeckner/ruderbar/issues/163)) |
+| submitted_at | DATETIME | NULL | When the settlement was submitted to the bank and became **no longer freely cancellable**. Cancellation is permitted while no money has moved, which needs a recorded moment at which it did ([#142](https://github.com/dgloeckner/clubbar/issues/142), [#163](https://github.com/dgloeckner/clubbar/issues/163)) |
 | submitted_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who submitted |
 | notes | VARCHAR(1000) | NULL | Admin notes; carries no meaning to the system |
 | created_by_admin_id | BINARY(16) | FK → admin_users.id, NOT NULL | Admin who created |
@@ -523,7 +523,7 @@ Settlement records for SEPA collections and manual settlements.
 - `execution_date`
 - `method`
 
-**`method`** replaces two prior fields: a `settlement_type` that was validated at the controller but never stored, and `manual_reason`, which was an unvalidated free string ([#142](https://github.com/dgloeckner/ruderbar/issues/142), [#163](https://github.com/dgloeckner/ruderbar/issues/163)):
+**`method`** replaces two prior fields: a `settlement_type` that was validated at the controller but never stored, and `manual_reason`, which was an unvalidated free string ([#142](https://github.com/dgloeckner/clubbar/issues/142), [#163](https://github.com/dgloeckner/clubbar/issues/163)):
 - `direct_debit`: SEPA collection covering any number of members; the only method that produces a pain.008 export
 - `bank_transfer`: one member, money already arrived by other means
 - `write_off`: one member, money that will never arrive
@@ -536,7 +536,7 @@ Settlement records for SEPA collections and manual settlements.
 
 ### settlement_items
 
-Links transactions to settlements. Cancelling a settlement used to `DELETE` its items, which both returned the transactions to the unsettled pool *and* destroyed the record of what the cancelled settlement had contained. Splitting the claim from the record fixes both: the row survives cancellation while the claim is released ([#142](https://github.com/dgloeckner/ruderbar/issues/142), [#148](https://github.com/dgloeckner/ruderbar/issues/148)).
+Links transactions to settlements. Cancelling a settlement used to `DELETE` its items, which both returned the transactions to the unsettled pool *and* destroyed the record of what the cancelled settlement had contained. Splitting the claim from the record fixes both: the row survives cancellation while the claim is released ([#142](https://github.com/dgloeckner/clubbar/issues/142), [#148](https://github.com/dgloeckner/clubbar/issues/148)).
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -558,7 +558,7 @@ Links transactions to settlements. Cancelling a settlement used to `DELETE` its 
 
 ### settlement_reversals
 
-The bank clawing back a collection without asking — distinct from cancellation, which is the club *choosing* to undo a settlement. Append-only events, at most one per member per settlement ([#148](https://github.com/dgloeckner/ruderbar/issues/148)).
+The bank clawing back a collection without asking — distinct from cancellation, which is the club *choosing* to undo a settlement. Append-only events, at most one per member per settlement ([#148](https://github.com/dgloeckner/clubbar/issues/148)).
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -724,7 +724,7 @@ Administrator accounts for the admin panel.
 | credentials_changed_at | TIMESTAMP | NULL | When this account's password, email or 2FA last changed. A session whose `authenticated_at` is at or before this is refused with `credentials_changed`, which is how a credential change ends the account's other sessions without a session store ([ADR-0026 amendment](../adr/0026-mandatory-totp-two-factor-authentication.md#amendment-2026-08-15--a-reset-now-ends-the-targets-sessions)). NULL until the first such change — every pre-existing row, so deploying the column signs nobody out |
 | totp_secret | VARCHAR(255) | NULL | AES-256-CBC encrypted TOTP secret (`base64(iv):base64(ciphertext)`) |
 | totp_enabled | BOOLEAN | NOT NULL, DEFAULT FALSE | `0` = not enrolled, `1` = TOTP active |
-| totp_last_timestep | BIGINT | NULL | Time-step of the last TOTP code MFA accepted; a code at or below it is refused as a replay ([#338](https://github.com/dgloeckner/ruderbar/issues/338)). Cleared alongside `totp_secret` on 2FA reset |
+| totp_last_timestep | BIGINT | NULL | Time-step of the last TOTP code MFA accepted; a code at or below it is refused as a replay ([#338](https://github.com/dgloeckner/clubbar/issues/338)). Cleared alongside `totp_secret` on 2FA reset |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
@@ -845,9 +845,9 @@ Centralized audit trail for all master data changes.
 - `settlement_create` — Settlement created
 - `settlement_cancel` — Settlement cancelled
 - `settlement_export` — Settlement CSV/XML exported
-- `settlement_submit` — Exported file handed to the bank ([#81](https://github.com/dgloeckner/ruderbar/issues/81))
+- `settlement_submit` — Exported file handed to the bank ([#81](https://github.com/dgloeckner/clubbar/issues/81))
 - `settlement_reverse` — Money that already moved has come back ([#196](https://github.com/dgloeckner/clubbar/issues/196))
-- `transaction_storno` — A booking reversed in full ([#169](https://github.com/dgloeckner/ruderbar/issues/169))
+- `transaction_storno` — A booking reversed in full ([#169](https://github.com/dgloeckner/clubbar/issues/169))
 - `transaction_price_divergence` — A synced sale claimed an amount other than the product's current price ([#204](https://github.com/dgloeckner/clubbar/issues/204)). Written by the sync path, so `admin_user_id` is NULL. The amount stands: it is what the member saw and accepted, possibly weeks earlier while offline — the entry records the disagreement rather than correcting it
 - `jugendschutz_violation` — A synced sale handed an age-restricted drink to a member who was under its `min_age` **at the moment of the sale** ([ADR-0045](../adr/0045-age-restricted-products.md), JuSchG § 9). Written by the sync path, so `admin_user_id` is NULL. Filed under the **transaction**, and the payload carries ids, `min_age` and `age_at_sale` — never the member's name and never their birth date, so a later erasure (which keys on the member's own `entity_id`) leaves nothing behind. Like the divergence entry it never rejects the row: the drink was already poured, and refusing the upload would trade a youth-protection incident for a § 146 Abs. 1 AO bookkeeping one
 - `jugendschutz_violation_acknowledged` — An admin decided a recorded violation had been dealt with ([#622](https://github.com/dgloeckner/clubbar/issues/622)). Deliberately **not** an edit to the entry above: that one is the record and never moves ([ADR-0045](../adr/0045-age-restricted-products.md) invariant 4). This is a later, separate fact. Reading the pair tells a club what happened *and* how it was handled
@@ -1056,7 +1056,7 @@ When a member requests deletion (GDPR Art. 17):
 
 `date_of_birth` is nulled here, and that is the compensating control for putting it on kiosks at all ([ADR-0045](../adr/0045-age-restricted-products.md) decision 1): the anonymized row travels the ordinary delta sync with the field emptied, so the erasure reaches every terminal cache with no separate mechanism. A member with no birth date is refused any product carrying a `min_age` — absent means *anonymized*, never *unknown*, so there is no fail-open branch.
 
-`iban` and `mandate_reference` no longer live on `members` at all — they moved to `mandates` in [#164](https://github.com/dgloeckner/ruderbar/issues/164)/[#165](https://github.com/dgloeckner/ruderbar/issues/165) and are **not** touched by member anonymization ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): both are Beleg-bearing, and nulling them would break matching a returned collection that arrives after the erasure request.
+`iban` and `mandate_reference` no longer live on `members` at all — they moved to `mandates` in [#164](https://github.com/dgloeckner/clubbar/issues/164)/[#165](https://github.com/dgloeckner/clubbar/issues/165) and are **not** touched by member anonymization ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): both are Beleg-bearing, and nulling them would break matching a returned collection that arrives after the erasure request.
 
 The outbox is the **second place a member's address lives**, and erasure covers it in the same transaction ([#408](https://github.com/dgloeckner/clubbar/issues/408)) — otherwise anonymisation clears `members.email` and leaves the same address sitting in a queue row:
 

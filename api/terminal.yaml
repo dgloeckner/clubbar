@@ -519,7 +519,7 @@ paths:
         `member_ids` lets a request name members whose balance it wants back
         even though no uploaded transaction touches them, and it is what makes
         an empty `transactions` array a valid request
-        ([#191](https://github.com/dgloeckner/ruderbar/issues/191)).
+        ([#191](https://github.com/dgloeckner/clubbar/issues/191)).
 
         This is the only way a balance can be refreshed when nothing was sold.
         A settlement brings a member's tab to zero without the terminal doing
@@ -537,7 +537,7 @@ paths:
         - If transaction ID is missing from response, retry in next cycle
 
         ## Error Handling
-        Ruling [#143](https://github.com/dgloeckner/ruderbar/issues/143) §2: a
+        Ruling [#143](https://github.com/dgloeckner/clubbar/issues/143) §2: a
         whole-batch 4xx is reserved for a **malformed envelope**, where nothing
         was judged at all — not an array, empty with no `member_ids`, over the
         batch limit, bad auth. Anything that got as far as being judged is
@@ -548,7 +548,7 @@ paths:
           per-entry under `rejected`, never in `accepted_ids`. The rest of the
           batch still lands. Reporting a refused row as accepted is what let a
           terminal purge a served drink from its offline queue
-          ([#82](https://github.com/dgloeckner/ruderbar/issues/82)).
+          ([#82](https://github.com/dgloeckner/clubbar/issues/82)).
         - **This endpoint does not return 422.** It used to, for a field-level
           problem, refusing the entire batch. Because the terminal treats a
           non-2xx as transient and retries the batch unchanged — reaching its
@@ -1468,7 +1468,7 @@ components:
           description: |
             Members whose balance the terminal wants reported back, even though
             this batch does not touch them
-            ([#191](https://github.com/dgloeckner/ruderbar/issues/191)).
+            ([#191](https://github.com/dgloeckner/clubbar/issues/191)).
 
             Without this, `member_balances` only ever covers members named by an
             uploaded transaction — so a terminal with nothing to upload had no
@@ -1558,7 +1558,7 @@ components:
 
             This is the member's Deckel — their **unsettled** position, i.e. the
             sum of transactions not yet claimed by a live settlement (ruling
-            [#141](https://github.com/dgloeckner/ruderbar/issues/141)). A
+            [#141](https://github.com/dgloeckner/clubbar/issues/141)). A
             settlement run brings it back to zero; it is not a lifetime sum.
 
             Terminal must atomically update members_balance cache with these values.

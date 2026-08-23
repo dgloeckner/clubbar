@@ -14,10 +14,10 @@ This directory contains established patterns for writing robust, reliable E2E te
 | [Pattern 002: Authentication Isolation](pattern-002-authentication-isolation.md) | Properly authenticate different API types | Mixed auth concerns → Failed requests |
 | [Pattern 003: Database-Agnostic Assertions](pattern-003-database-agnostic-assertions.md) | Search for specific data in results | Position-based assertions → Flaky tests |
 | [Pattern 004: Parallel Execution Safety](pattern-004-parallel-execution-safety.md) | Design tests for safe parallel execution | Race conditions → Intermittent failures |
-| [Pattern 005: Using Test IDs (data-testid)](005-test-ids.md) | Use semantic test IDs for reliable selectors | Brittle CSS selectors → Flaky UI tests |
-| [Pattern 006: Page Object Model](005-page-object-model.md) | Encapsulate page interactions in reusable classes | Scattered locators → Unmaintainable tests |
-| [Pattern 007: Page Object Fixtures](006-page-object-fixtures.md) | Inject ready-to-use page objects with Playwright fixtures | Manual page object initialization → Boilerplate |
-| [Pattern 008: Playwright Assertions & Auto-Waiting](008-playwright-assertions.md) | Use `expect()` instead of try-catch visibility checks | Silent failures → Clear error messages |
+| [Pattern 005: Using Test IDs (data-testid)](pattern-005-test-ids.md) | Use semantic test IDs for reliable selectors | Brittle CSS selectors → Flaky UI tests |
+| [Pattern 006: Page Object Model](pattern-006-page-object-model.md) | Encapsulate page interactions in reusable classes | Scattered locators → Unmaintainable tests |
+| [Pattern 007: Page Object Fixtures](pattern-007-page-object-fixtures.md) | Inject ready-to-use page objects with Playwright fixtures | Manual page object initialization → Boilerplate |
+| [Pattern 008: Playwright Assertions & Auto-Waiting](pattern-008-playwright-assertions.md) | Use `expect()` instead of try-catch visibility checks | Silent failures → Clear error messages |
 | [Pattern 009: User-Flow-Based Tests](pattern-009-user-flow-based-tests.md) | Chain related operations into flow tests instead of one-assert-per-test | Bloated suites with redundant setup → Concise flows with shared setup |
 | [Pattern 010: Asserting on Delivered Mail](pattern-010-mail-assertions.md) | Read the message a real drain delivered to a real SMTP server | Asserting on our own queue rows → Blank amounts, stub text parts and duplicates go unnoticed |
 | [Pattern 011: Testing a Role You Are Not](pattern-011-role-fixtures.md) | Mint the office under test per worker and make requests as it | Demoting the shared seeded admin → unrelated specs in the same shard fail on a role they never touched |
@@ -353,8 +353,9 @@ Patterns should be:
 
 ## References
 
-- [TESTING_SETUP.md](../TESTING_SETUP.md) - Setup and execution guide
-- [TEST_ANALYSIS.md](../TEST_ANALYSIS.md) - Analysis of issues and fixes
+- [../README.md](../README.md) - Running the suite, reading a red run, layout
+- [authentication-fixture.md](./authentication-fixture.md) - The `authenticatedRequest` fixture
+- [../../DEV_SETUP.md](../../DEV_SETUP.md) - Bringing up the stack the tests need
 - [Playwright Documentation](https://playwright.dev/docs/intro)
 - [Test Automation Best Practices](https://playwright.dev/docs/best-practices)
 
@@ -363,9 +364,9 @@ Patterns should be:
 ## Questions?
 
 Refer to the specific pattern for detailed guidance:
-- "How do I select elements reliably?" → [Pattern 005](005-test-ids.md)
-- "How do I eliminate page object boilerplate?" → [Pattern 007](006-page-object-fixtures.md)
-- "How do I organize page interactions?" → [Pattern 006](005-page-object-model.md)
+- "How do I select elements reliably?" → [Pattern 005](pattern-005-test-ids.md)
+- "How do I eliminate page object boilerplate?" → [Pattern 007](pattern-007-page-object-fixtures.md)
+- "How do I organize page interactions?" → [Pattern 006](pattern-006-page-object-model.md)
 - "How do I isolate test data?" → [Pattern 001](pattern-001-test-data-isolation.md)
 - "How do I authenticate?" → [Pattern 002](pattern-002-authentication-isolation.md)
 - "How do I assert on lists?" → [Pattern 003](pattern-003-database-agnostic-assertions.md)

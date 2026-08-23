@@ -5,6 +5,10 @@
 
 set -e  # Exit on error
 
+# Run from the repo root regardless of where this script was invoked from
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
