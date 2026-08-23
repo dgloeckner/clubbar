@@ -189,7 +189,7 @@ function statementVariants(MailBranding $branding): array
         $out[$name] = $common + [
             'totalCents' => $total,
             'lines' => $set,
-            'creditStatus' => CreditLimitPolicy::shipped()->clubDefault()->status($total)->value,
+            'creditStatus' => CreditLimitPolicy::shipped()->clubDefault()->status($total),
         ];
     }
 
@@ -200,7 +200,7 @@ function statementVariants(MailBranding $branding): array
         'totalCents' => $cappedTotal,
         'lines' => $many,
         'omittedLines' => 43,
-        'creditStatus' => CreditLimitPolicy::shipped()->clubDefault()->status($cappedTotal)->value,
+        'creditStatus' => CreditLimitPolicy::shipped()->clubDefault()->status($cappedTotal),
     ];
 
     return $out;

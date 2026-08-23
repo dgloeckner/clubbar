@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Dashboard\Services;
 
-use App\Modules\CreditLimits\Domain\CreditLimit;
+use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
 use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Dashboard\DTOs\DashboardDto;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
@@ -148,26 +148,34 @@ class DashboardService
      */
     private function membersNearLimit(): array
     {
-        // The club's own ceiling, which is still the only one this panel knows
-        // about: the per-member override reaches the query in #559.
-        $limit = $this->creditLimitConfigService->policy()->clubDefault();
-        $threshold = $limit->warnAtCents();
+        $policy = $this->creditLimitConfigService->policy();
+        $clubDefault = $policy->clubDefault();
 
-        $rows = $limit->isEnforced()
-            ? $this->dashboardRepository->findMembersNearCreditLimit($threshold, self::MEMBERS_NEAR_LIMIT_SHOWN)
-            : [];
+        // Deliberately no short-circuit when the club caps nobody: a member
+        // carrying an override still has a ceiling and is still being refused
+        // at the bar. The query decides per row (ADR-0046).
+        $rows = $this->dashboardRepository->findMembersNearCreditLimit(
+            $policy->defaultLimitCents,
+            $policy->warnThresholdPercent,
+            self::MEMBERS_NEAR_LIMIT_SHOWN,
+        );
 
         // A short list is its own total; only a full one can be hiding someone.
         $total = count($rows) < self::MEMBERS_NEAR_LIMIT_SHOWN
             ? count($rows)
-            : $this->dashboardRepository->countMembersNearCreditLimit($threshold);
+            : $this->dashboardRepository->countMembersNearCreditLimit(
+                $policy->defaultLimitCents,
+                $policy->warnThresholdPercent,
+            );
 
         return [
-            'limit_cents' => $limit->limitCents,
-            'warn_at_cents' => $threshold,
+            // The club's figures, named as such. Each row carries the ceiling
+            // it was actually measured against, which may be its own.
+            'limit_cents' => $clubDefault->limitCents,
+            'warn_at_cents' => $clubDefault->warnAtCents(),
             'total' => $total,
             'members' => array_map(
-                static fn(array $row): array => self::presentMemberNearLimit($row, $limit),
+                static fn(array $row): array => self::presentMemberNearLimit($row, $policy),
                 $rows,
             ),
         ];
@@ -501,14 +509,20 @@ class DashboardService
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
-    private static function presentMemberNearLimit(array $row, CreditLimit $limit): array
+    private static function presentMemberNearLimit(array $row, CreditLimitPolicy $policy): array
     {
         $balanceCents = (int) $row['balance_cents'];
+        // The ceiling the query measured this row against — the member's own
+        // where they have one, the club default where they do not. Resolved
+        // through the policy rather than read raw, so one rule answers this
+        // question everywhere (ADR-0046 rule 1).
+        $limit = $policy->forMember(isset($row['limit_cents']) ? (int) $row['limit_cents'] : null);
 
         return [
             'id' => $row['id'],
             'name' => trim((string) $row['name']),
             'balance_cents' => $balanceCents,
+            'limit_cents' => $limit->limitCents,
             'percent_of_limit' => $limit->percentOfLimit($balanceCents),
             'status' => $limit->status($balanceCents)->value,
         ];

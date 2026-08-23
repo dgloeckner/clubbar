@@ -271,8 +271,8 @@ final class DeckelStatementMail
         return [
             'heading' => $t->t('statement.limit_heading'),
             'text' => match ($data->creditStatus) {
-                CreditLimitStatus::EXCEEDED->value => $t->t('statement.limit_exceeded', ['limit' => $limit]),
-                CreditLimitStatus::APPROACHING->value => $t->t('statement.limit_approaching', ['limit' => $limit]),
+                CreditLimitStatus::EXCEEDED => $t->t('statement.limit_exceeded', ['limit' => $limit]),
+                CreditLimitStatus::APPROACHING => $t->t('statement.limit_approaching', ['limit' => $limit]),
                 default => $t->t('statement.limit_ok', ['limit' => $limit]),
             },
         ];
