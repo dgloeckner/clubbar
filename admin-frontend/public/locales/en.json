@@ -233,7 +233,8 @@
     },
     "validation": {
       "invalidCardUid": "Invalid card UID format (8-20 hex characters required)",
-      "invalidIban": "Invalid IBAN (check country code and digits)"
+      "invalidIban": "Invalid IBAN (check country code and digits)",
+      "invalidCreditLimit": "Enter an amount between 0 and €{{max}}"
     },
     "errors": {
       "cardUidInUse": "This card UID is already assigned to another member",
@@ -327,7 +328,12 @@
       "show": "Show",
       "showAll": "Show all",
       "gapsTitle": "Missing data"
-    }
+    },
+    "creditLimit": "Own limit",
+    "creditLimitInheritedPlaceholder": "Club default: {{amount}}",
+    "creditLimitInheritedHelper": "Empty: the club default of {{amount}} applies — change it and this member moves with it.",
+    "creditLimitZeroHelper": "0 means no limit for this member. The terminal will not refuse a purchase over their tab.",
+    "creditLimitHelper": "The highest this member's tab may reach. Leave empty for the club default; 0 means no limit."
   },
   "products": {
     "title": "Products",
@@ -925,6 +931,23 @@
         "test": "The test mail could not be sent.",
         "rotateCronSecret": "The secret could not be rotated."
       }
+    },
+    "limits": {
+      "tab": "Limits",
+      "label": "Club default limit",
+      "helper": "The highest a tab may reach before the terminal refuses the next purchase. Applies to every member without a limit of their own — raising it lifts all of them at once. **0 means no limit.**",
+      "warnLabel": "Warning threshold",
+      "warnHelper": "The share of the limit from which the terminal warns but keeps serving the member (1–100%). Club-wide: a member's own limit sets the ceiling, never the threshold.",
+      "warnAtLabel": "Warning starts at",
+      "warnAtHelper": "Derived from the limit and the threshold. The terminal uses exactly this amount.",
+      "unlimited": "No limit — the tab is not capped.",
+      "loading": "Loading limit configuration...",
+      "saved": "Limits saved successfully",
+      "errors": {
+        "load": "Could not load the limit configuration",
+        "save": "Could not save the limits. Please try again.",
+        "validation": "Please correct the highlighted fields"
+      }
     }
   },
   "auditLog": {
@@ -1118,7 +1141,6 @@
     "lastSync": "Last Sync",
     "allSepaValid": "All SEPA data complete",
     "membersNearLimit": "Close to their limit",
-    "creditLimitOf": "Limit: {{amount}}",
     "noMembersNearLimit": "No member is close to their limit",
     "limitApproaching": "{{percent}}% of the limit used",
     "limitExceeded": "Over the limit — {{percent}}%",
@@ -1146,7 +1168,9 @@
     "jugendschutzRecordedAt": "recorded {{at}}",
     "jugendschutzAcknowledge": "Mark as dealt with",
     "jugendschutzAcknowledging": "Saving …",
-    "jugendschutzAcknowledgeFailed": "Could not be marked as dealt with."
+    "jugendschutzAcknowledgeFailed": "Could not be marked as dealt with.",
+    "creditLimitClubDefault": "Club default: {{amount}} — each member is measured against their own limit",
+    "balanceOfLimit": "{{balance}} of {{limit}}"
   },
   "pagination": {
     "firstPage": "First page",

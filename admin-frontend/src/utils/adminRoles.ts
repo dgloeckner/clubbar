@@ -16,11 +16,16 @@
  * 2. **Grants are additive.** Holding several roles is the union of them;
  *    there are no deny rules.
  *
- * `/settings` is `admin`-only even though a Kassenwart may *read* the SEPA
- * configuration: the page is one screen carrying mail configuration, terminal
- * tokens, encryption keys and admin accounts, all of which are `admin`-only on
- * the server. Splitting the treasurer's slice of it out is a page change, not
- * a grant change, and until that happens the honest answer is to hide it.
+ * `/settings` was `admin`-only for exactly this reason: the page is one screen
+ * carrying mail configuration, terminal tokens, encryption keys and admin
+ * accounts, all `admin`-only on the server, so opening the section would have
+ * shown a Kassenwart six doors that answer 403. Splitting the treasurer's slice
+ * out was called a page change rather than a grant change, and ADR-0047 made
+ * it due: the club's credit ceiling is the Kassenwart's own setting.
+ *
+ * That split is {@link SETTINGS_TAB_ROLES} below. The section is TREASURY now,
+ * and the boundary moved one level down rather than disappearing — same two
+ * rules, in a table one screen further in.
  */
 
 import { AdminRole } from '../api/generated/adminRole'
@@ -45,9 +50,57 @@ export const SECTION_ROLES: Record<string, AdminRole[]> = {
   '/settlements': TREASURY,
   '/reports': EVERY_ROLE,
   '/notifications': TREASURY,
-  '/settings': ADMIN_ONLY,
+  '/settings': TREASURY,
   '/audit-log': ADMIN_ONLY,
   '/profile': EVERY_ROLE,
+}
+
+/**
+ * Settings tab → the roles that may see it (ADR-0047, #562).
+ *
+ * The second half of opening `/settings` to the treasury. `SECTION_ROLES` says
+ * who reaches the page; this says what they find on it, under the same rules:
+ * **default-deny**, so a tab added without an entry is `admin`-only until
+ * somebody grants it in a diff a reviewer sees, and **additive**, so holding
+ * several roles is the union.
+ *
+ * The Kassenwart gets Limits alone. SEPA is the near miss worth naming:
+ * `GET /sepa-config` is TREASURY, but `PATCH` is `admin`-only, so showing that
+ * tab means building a read-only mode for it — a non-goal of the epic rather
+ * than something half-done here.
+ *
+ * Keys are the `data-testid` suffixes the page renders, which is what lets a
+ * unit test check that the two lists still describe the same set of tabs.
+ */
+export const SETTINGS_TAB_ROLES: Record<string, AdminRole[]> = {
+  'admin-users': ADMIN_ONLY,
+  sepa: ADMIN_ONLY,
+  terminals: ADMIN_ONLY,
+  security: ADMIN_ONLY,
+  credentials: ADMIN_ONLY,
+  instance: ADMIN_ONLY,
+  mail: ADMIN_ONLY,
+  limits: TREASURY,
+}
+
+/** Whether `held` may see one Settings tab — false for a tab with no entry. */
+export function maySeeSettingsTab(held: AdminRole[], tab: string): boolean {
+  const allowed = SETTINGS_TAB_ROLES[tab]
+
+  return allowed ? held.some((role) => allowed.includes(role)) : false
+}
+
+/** The Settings tabs `held` may see, in the order the page renders them. */
+export function settingsTabsFor(held: AdminRole[]): string[] {
+  return Object.keys(SETTINGS_TAB_ROLES).filter((tab) => maySeeSettingsTab(held, tab))
+}
+
+/**
+ * The tab a caller lands on: the first one they may actually open, rather than
+ * a hardcoded default that answers 403 for everybody but `admin`.
+ */
+export function firstSettingsTab(held: AdminRole[]): string | undefined {
+  return settingsTabsFor(held)[0]
 }
 
 /**

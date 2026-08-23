@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 // needs no filesystem types and breaks loudly if a file is ever renamed.
 import mainLayoutSource from '../components/layout/MainLayout.tsx?raw'
 import bottomTabBarSource from '../components/layout/BottomTabBar.tsx?raw'
+import settingsPageSource from '../pages/SettingsPage.tsx?raw'
 import {
   parseRoles,
   rolesForPath,
@@ -11,6 +12,10 @@ import {
   toggleRole,
   sameRoleSet,
   SECTION_ROLES,
+  SETTINGS_TAB_ROLES,
+  settingsTabsFor,
+  maySeeSettingsTab,
+  firstSettingsTab,
 } from './adminRoles'
 
 describe('parseRoles', () => {
@@ -94,7 +99,11 @@ describe('permitsPath', () => {
     expect(permitsPath(['kassenwart'], '/journal')).toBe(true)
     expect(permitsPath(['kassenwart'], '/notifications')).toBe(true)
 
-    expect(permitsPath(['kassenwart'], '/settings')).toBe(false)
+    // The treasurer's own slice of Settings exists now (ADR-0047, #562): the
+    // club's credit ceiling is theirs to set, so the door is open — and
+    // SETTINGS_TAB_ROLES is what keeps the rest of the page shut.
+    expect(permitsPath(['kassenwart'], '/settings')).toBe(true)
+
     expect(permitsPath(['kassenwart'], '/audit-log')).toBe(false)
     expect(permitsPath(['kassenwart'], '/products')).toBe(false)
   })
@@ -207,6 +216,80 @@ describe('sameRoleSet', () => {
 
   it('two empty sets are the same set', () => {
     expect(sameRoleSet([], [])).toBe(true)
+  })
+})
+
+/**
+ * The Settings page's own table (ADR-0047, #562).
+ *
+ * `/settings` is one screen carrying several `admin`-only surfaces, so opening
+ * the section to the treasury moves the boundary rather than removing it: this
+ * table is where it now lives, under the same two rules as `SECTION_ROLES`.
+ */
+describe('SETTINGS_TAB_ROLES', () => {
+  it('gives the Kassenwart the Limits tab and nothing else', () => {
+    const visible = settingsTabsFor(['kassenwart'])
+
+    expect(visible).toEqual(['limits'])
+  })
+
+  it('leaves every tab open to an admin', () => {
+    const visible = settingsTabsFor(['admin'])
+
+    expect(visible).toEqual(Object.keys(SETTINGS_TAB_ROLES))
+    expect(visible).toContain('admin-users')
+    expect(visible).toContain('sepa')
+    expect(visible).toContain('mail')
+  })
+
+  /**
+   * The SEPA tab stays shut for the treasurer even though `GET /sepa-config`
+   * is TREASURY: `PATCH` is not, so showing the tab means building a read-only
+   * mode for it. Named as a non-goal on #555 rather than half-done here.
+   */
+  it('keeps the Kassenwart out of the SEPA tab', () => {
+    expect(settingsTabsFor(['kassenwart'])).not.toContain('sepa')
+  })
+
+  it('shows the Getränkewart nothing, because the section is shut to them', () => {
+    expect(settingsTabsFor(['getraenkewart'])).toEqual([])
+  })
+
+  it('unions the tabs of several roles held at once', () => {
+    expect(settingsTabsFor(['kassenwart', 'getraenkewart'])).toEqual(['limits'])
+  })
+
+  /** Default-deny: an unclassified tab is invisible to everyone but `admin`. */
+  it('refuses a tab it has never heard of', () => {
+    expect(maySeeSettingsTab(['kassenwart'], 'invented-later')).toBe(false)
+    expect(maySeeSettingsTab(['admin'], 'invented-later')).toBe(false)
+  })
+
+  it('opens the first tab the caller may actually see', () => {
+    expect(firstSettingsTab(['admin'])).toBe('admin-users')
+    expect(firstSettingsTab(['kassenwart'])).toBe('limits')
+  })
+})
+
+/**
+ * The same completeness property the section table has: a tab rendered by the
+ * page but missing from the table would be `admin`-only by default, which is
+ * safe — but a tab in the table that no longer exists is a grant that reads as
+ * live, and the next person to change this reasons from it.
+ */
+describe('every Settings tab is classified', () => {
+  it('covers every tab the page renders, and names no tab it does not', () => {
+    const rendered = [
+      ...settingsPageSource.matchAll(/data-testid="settings-tab-([a-z-]+)"/g),
+    ].map((m) => m[1])
+
+    expect(rendered.length).toBeGreaterThan(0)
+    for (const tab of rendered) {
+      expect(Object.keys(SETTINGS_TAB_ROLES), `${tab} is not classified`).toContain(tab)
+    }
+    for (const tab of Object.keys(SETTINGS_TAB_ROLES)) {
+      expect(rendered, `${tab} is classified but never rendered`).toContain(tab)
+    }
   })
 })
 

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -5,7 +7,9 @@ import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 
 class MockTransactionsRepository extends Mock
     implements TransactionsRepository {}
@@ -42,21 +46,34 @@ void main() {
   group('CartService', () {
     late MockTransactionsRepository mockRepo;
     late MockClubBarDatabase mockDb;
+    late ConfigService configService;
+    late Directory configDir;
     late CartService service;
 
     setUp(() {
       mockRepo = MockTransactionsRepository();
       mockDb = MockClubBarDatabase();
+      // A real ConfigService over a scratch directory: the credit limit is the
+      // club's configuration now (ADR-0047), and stubbing it away would test
+      // the constant this epic removed.
+      configDir = Directory.systemTemp.createTempSync('cart-service-config');
+      addTearDown(() => configDir.deleteSync(recursive: true));
+      configService = ConfigService(configDir: configDir.path);
       service = CartService(
         database: mockDb,
         repository: mockRepo,
+        configService: configService,
       );
       // Settled tab by default; the credit-limit tests override it.
       when(() => mockRepo.getEffectiveBalance(any()))
           .thenAnswer((_) async => 0);
     });
 
-    MembersCacheData memberWith({int isActive = 1, String? dateOfBirth = '1985-06-15'}) =>
+    MembersCacheData memberWith({
+      int isActive = 1,
+      String? dateOfBirth = '1985-06-15',
+      int? creditLimitCents,
+    }) =>
         MembersCacheData(
           id: 'member-1',
           cardUid: 'card-123',
@@ -68,6 +85,7 @@ void main() {
           balanceCents: 0,
           updatedAt: DateTime.now().toIso8601String(),
           dateOfBirth: dateOfBirth,
+          creditLimitCents: creditLimitCents,
         );
 
     /// A birth date that makes the member exactly [years] old today, shifted by
@@ -482,7 +500,9 @@ void main() {
     });
 
     group('credit limit (UC-T11 E3, UC-T12)', () {
-      // The configured limit is €100.00 (AppConfig.balanceLimitCents).
+      // The club default is €100.00 until a /sync/config poll says otherwise —
+      // the value the backend seeds its own configuration with, so an
+      // untouched club behaves exactly as it did (ADR-0047).
 
       test('blocks a checkout that would push the tab past the limit',
           () async {
@@ -522,6 +542,113 @@ void main() {
 
         expect(valid, isTrue);
         expect(error, isNull);
+      });
+
+      /// The member's own ceiling, where they have one (ADR-0047). This is the
+      /// authority — the screens disable the button, but the tab can move under
+      /// the member's feet between rendering and tapping Buy, so every case
+      /// below has to hold here rather than only in the UI.
+      test('a raised override lets a member buy past the club default',
+          () async {
+        when(() => mockRepo.getEffectiveBalance(any()))
+            .thenAnswer((_) async => 9900);
+
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(creditLimitCents: 20000),
+          cartWorth(500),
+        );
+
+        expect(valid, isTrue, reason: 'their ceiling is 200 €, not 100 €');
+        expect(error, isNull);
+      });
+
+      test('a lowered override blocks a member below the club default',
+          () async {
+        when(() => mockRepo.getEffectiveBalance(any()))
+            .thenAnswer((_) async => 4900);
+
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(creditLimitCents: 5000),
+          cartWorth(200),
+        );
+
+        expect(valid, isFalse);
+        expect(error, equals(TerminalErrorKey.balanceLimitExceeded));
+      });
+
+      test('a member with no ceiling is never blocked', () async {
+        when(() => mockRepo.getEffectiveBalance(any()))
+            .thenAnswer((_) async => 500000);
+
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(creditLimitCents: 0),
+          cartWorth(100000),
+        );
+
+        expect(valid, isTrue, reason: '0 means unlimited, not a ceiling of 0');
+        expect(error, isNull);
+      });
+
+      test('landing exactly on their own ceiling is still allowed', () async {
+        when(() => mockRepo.getEffectiveBalance(any()))
+            .thenAnswer((_) async => 4800);
+
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(creditLimitCents: 5000),
+          cartWorth(200),
+        );
+
+        expect(valid, isTrue);
+        expect(error, isNull);
+      });
+
+      test('a club default synced from the backend replaces the seed',
+          () async {
+        await configService.setCreditLimitPolicy(
+          const CreditLimitPolicy(
+            defaultLimitCents: 5000,
+            warnThresholdPercent: 80,
+          ),
+        );
+        when(() => mockRepo.getEffectiveBalance(any()))
+            .thenAnswer((_) async => 4900);
+
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(),
+          cartWorth(200),
+        );
+
+        expect(valid, isFalse, reason: 'the club lowered its ceiling to 50 €');
+        expect(error, equals(TerminalErrorKey.balanceLimitExceeded));
+      });
+
+      /// A member the club stopped capping is still capped by their own
+      /// override, and the reverse: the two settings are independent.
+      test('an override still applies when the club caps nobody', () async {
+        await configService.setCreditLimitPolicy(
+          const CreditLimitPolicy(
+            defaultLimitCents: 0,
+            warnThresholdPercent: 80,
+          ),
+        );
+        when(() => mockRepo.getEffectiveBalance(any()))
+            .thenAnswer((_) async => 4900);
+
+        expect(
+          (await service.validateCartBeforeCheckout(
+            memberWith(creditLimitCents: 5000),
+            cartWorth(200),
+          )).$1,
+          isFalse,
+        );
+        expect(
+          (await service.validateCartBeforeCheckout(
+            memberWith(),
+            cartWorth(200),
+          )).$1,
+          isTrue,
+          reason: 'a member who inherits follows the club, which caps nobody',
+        );
       });
 
       test('blocks a member already over the limit', () async {

@@ -87,7 +87,7 @@ class MembersRepository
      * announce to, and a settlement cannot name one anyway.
      *
      * @param list<string> $ids
-     * @return array<string, array{id: string, first_name: string, last_name: string, email: ?string, preferred_language: ?string, mandate_reference: ?string, iban_last4: ?string}>
+     * @return array<string, array{id: string, first_name: string, last_name: string, email: ?string, preferred_language: ?string, credit_limit_cents: ?int, mandate_reference: ?string, iban_last4: ?string}>
      *         Keyed by member id, so the caller can look a member up rather than search.
      */
     public function findMailRecipients(array $ids): array
@@ -99,6 +99,7 @@ class MembersRepository
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $stmt = $this->db->prepare(
             'SELECT m.id, m.first_name, m.last_name, m.email, m.preferred_language, '
+            . 'm.credit_limit_cents, '
             . 'md.reference AS mandate_reference, md.iban_last4 '
             . 'FROM members m ' . self::MANDATE_JOIN
             . " WHERE m.id IN ({$placeholders}) AND m.deleted_at IS NULL"
@@ -149,8 +150,8 @@ class MembersRepository
         $now = date('Y-m-d H:i:s');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, is_active, account_holder_name, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, credit_limit_cents, is_active, account_holder_name, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
 
         // The member and their mandate are created as one unit: openMandate can
@@ -173,6 +174,7 @@ class MembersRepository
                 $data['phone'] ?? null,
                 $data['date_of_birth'] ?? null,
                 $data['preferred_language'] ?? 'de',
+                $data['credit_limit_cents'] ?? null,
                 $data['is_active'] ?? true ? 1 : 0,
                 $data['account_holder_name'] ?? null,
                 $now,
@@ -207,7 +209,7 @@ class MembersRepository
 
     public function updateById(string $id, array $data): ?array
     {
-        $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'phone', 'date_of_birth', 'preferred_language', 'is_active', 'account_holder_name', 'deleted_at', 'deleted_by_admin_id'];
+        $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'phone', 'date_of_birth', 'preferred_language', 'credit_limit_cents', 'is_active', 'account_holder_name', 'deleted_at', 'deleted_by_admin_id'];
 
         // Banking data lives on the mandate now, so an update may legitimately
         // carry nothing the members row owns — "change this member's IBAN" is

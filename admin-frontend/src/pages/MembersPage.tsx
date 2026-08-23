@@ -19,6 +19,7 @@ import { downloadBlob } from '../api/client'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
 import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
+import { getCreditLimits } from '../api/generated/credit-limits/credit-limits'
 import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, ListMembersHasEmail, ListMembersHasDateOfBirth, ListMembersDataStatus, MemberCreateRequest, MemberUpdateRequest, MemberDataCompleteness } from '../api/generated'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
@@ -31,6 +32,12 @@ import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { DateField } from '../components/forms/DateField'
 import { validateIban } from '../utils/iban'
+import {
+  creditLimitToInput,
+  creditLimitFromInput,
+  isValidCreditLimitInput,
+  MAX_CREDIT_LIMIT_CENTS,
+} from '../utils/creditLimit'
 import { toIsoDate } from '../utils/dates'
 import { buildMemberSortBy, type MemberSortKey } from '../utils/memberSort'
 import { getBalanceColor } from '../utils/transactions'
@@ -150,6 +157,10 @@ export function MembersPage() {
   const metricsRequest = useLatestRequest()
   // The SEPA-Vorlage link is a third, independent stream for the same reason.
   const sepaConfigRequest = useLatestRequest()
+  // The club's credit ceiling is a fifth: it fills the override field's
+  // placeholder, so an empty box reads as "inherits €100.00" rather than as
+  // nothing at all (ADR-0047).
+  const creditLimitConfigRequest = useLatestRequest()
   // The Datenqualität panel's counts are a fourth (#629).
   const completenessRequest = useLatestRequest()
   // The excluded tab's badge is the figure that makes the tab worth clicking,
@@ -214,8 +225,13 @@ export function MembersPage() {
     mandate_signed_at: '',
     preferred_language: 'de',
     card_uid: '',
+    // The member's own credit ceiling, in euros as typed (ADR-0047). Empty is
+    // the ordinary case and means "follow the club default"; see
+    // `utils/creditLimit.ts` for why empty and `0` must never collapse.
+    credit_limit: '',
   })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  const [clubDefaultLimitCents, setClubDefaultLimitCents] = useState<number | null>(null)
   // Removing the stored account is its own act, because a blank IBAN field now
   // means "keep" (#392). Reset wherever the form is opened or cleared.
   const [removeStoredIban, setRemoveStoredIban] = useState(false)
@@ -427,6 +443,24 @@ export function MembersPage() {
     return () => sepaConfigRequest.abort()
   }, [sepaConfigRequest])
 
+  // The club default, for the override field's placeholder and helper. Null
+  // when it could not be read, which the field renders as no placeholder at
+  // all rather than as a figure nobody confirmed.
+  useEffect(() => {
+    const signal = creditLimitConfigRequest.next()
+    getCreditLimits()
+      .getCreditLimitConfig({ signal })
+      .then((config) => {
+        if (signal.aborted) return
+        setClubDefaultLimitCents(config.default_limit_cents ?? null)
+      })
+      .catch(() => {
+        if (signal.aborted) return
+        setClubDefaultLimitCents(null)
+      })
+    return () => creditLimitConfigRequest.abort()
+  }, [creditLimitConfigRequest])
+
   // Handle GDPR data export — downloads a JSON file with the member's personal data
   const handleExportData = async () => {
     if (!editingMember?.id) return
@@ -474,6 +508,13 @@ export function MembersPage() {
       if (formData.card_uid && !CARD_UID_PATTERN.test(formData.card_uid)) {
         validationErrors.card_uid = t('members.validation.invalidCardUid')
       }
+      // Checked here rather than left to the 422: the volunteer finds out
+      // before the save, beside the field, like every other rule in this form.
+      if (!isValidCreditLimitInput(formData.credit_limit)) {
+        validationErrors.credit_limit_cents = t('members.validation.invalidCreditLimit', {
+          max: MAX_CREDIT_LIMIT_CENTS / 100,
+        })
+      }
       if (Object.keys(validationErrors).length > 0) {
         setFormErrors(validationErrors)
         setSubmitAttempted(true)
@@ -511,6 +552,10 @@ export function MembersPage() {
           mandate_signed_at: formData.mandate_signed_at || null,
           preferred_language: formData.preferred_language,
           card_uid: formData.card_uid || null,
+          // Explicit null clears the override back to the club default; 0 is a
+          // deliberate "no ceiling for this member" and is sent as 0. The one
+          // thing this must never do is send 0 for an emptied field.
+          credit_limit_cents: creditLimitFromInput(formData.credit_limit),
         }
         await getMembersFactory().updateMember(editingMember.id, updatePayload)
       } else {
@@ -529,6 +574,9 @@ export function MembersPage() {
           mandate_signed_at: formData.mandate_signed_at || undefined,
           preferred_language: formData.preferred_language,
           card_uid: formData.card_uid || undefined,
+          // Omitted rather than nulled on create: a member who follows the club
+          // default is the ordinary case, and the column's default is NULL.
+          credit_limit_cents: creditLimitFromInput(formData.credit_limit) ?? undefined,
         }
         await getMembersFactory().createMember(createPayload)
       }
@@ -536,7 +584,7 @@ export function MembersPage() {
       // Reset form
       setShowModal(false)
       setEditingMember(null)
-      setFormData({ first_name: '', last_name: '', email: '', date_of_birth: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
+      setFormData({ first_name: '', last_name: '', email: '', date_of_birth: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '', credit_limit: '' })
       resetBankingFieldModes()
       setSubmitAttempted(false)
 
@@ -668,6 +716,9 @@ export function MembersPage() {
         mandate_signed_at: fullMember.mandate_signed_at ?? '',
         preferred_language: fullMember.preferred_language ?? 'de',
         card_uid: fullMember.card_uid ?? '',
+        // null → empty (inherited), 0 → "0.00" (uncapped). Showing an uncapped
+        // member a blank box would re-cap them on the next save.
+        credit_limit: creditLimitToInput(fullMember.credit_limit_cents),
       })
       setShowModal(true)
     } catch (err: unknown) {
@@ -720,7 +771,7 @@ export function MembersPage() {
               data-testid="members-create-button"
               onClick={() => {
                 setEditingMember(null)
-                setFormData({ first_name: '', last_name: '', email: '', date_of_birth: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
+                setFormData({ first_name: '', last_name: '', email: '', date_of_birth: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '', credit_limit: '' })
                 setFormErrors({})
                 resetBankingFieldModes()
                 setSubmitAttempted(false)
@@ -2031,6 +2082,60 @@ export function MembersPage() {
                   testId="members-form-language-select"
                   required
                 />
+              </div>
+
+              {/* The member's own credit ceiling (ADR-0047). Optional, and the
+                  empty state is the ordinary one — which is why the placeholder
+                  names the club figure the member inherits rather than leaving
+                  a blank box that reads as unset-and-broken. */}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <FieldLabel
+                  label={t('members.creditLimit')}
+                  requirement="optional"
+                  testId="members-form-credit-limit-label"
+                />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  data-testid="members-form-credit-limit-input"
+                  value={formData.credit_limit}
+                  onChange={(e) => {
+                    setFormData({ ...formData, credit_limit: e.target.value })
+                    setFormErrors((prev) =>
+                      Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'credit_limit_cents')),
+                    )
+                  }}
+                  placeholder={
+                    clubDefaultLimitCents === null
+                      ? ''
+                      : t('members.creditLimitInheritedPlaceholder', {
+                          amount: formatters.formatPrice(clubDefaultLimitCents),
+                        })
+                  }
+                  aria-invalid={Boolean(formErrors.credit_limit_cents)}
+                  style={formInputStyle(Boolean(formErrors.credit_limit_cents))}
+                />
+                <div
+                  data-testid="members-form-credit-limit-helper"
+                  style={{
+                    marginTop: theme.spacing.xs,
+                    fontSize: theme.typography.fontSize.xs,
+                    color: theme.colors.text.muted,
+                  }}
+                >
+                  {creditLimitFromInput(formData.credit_limit) === 0
+                    ? t('members.creditLimitZeroHelper')
+                    : formData.credit_limit.trim() === '' && clubDefaultLimitCents !== null
+                      ? t('members.creditLimitInheritedHelper', {
+                          amount: formatters.formatPrice(clubDefaultLimitCents),
+                        })
+                      : t('members.creditLimitHelper')}
+                </div>
+                {formErrors.credit_limit_cents && (
+                  <p data-testid="members-form-credit-limit-error" style={formFieldErrorStyle}>
+                    {formErrors.credit_limit_cents}
+                  </p>
+                )}
               </div>
 
               <div style={{ gridColumn: '1 / -1', display: 'flex', gap: theme.spacing.lg, justifyContent: editingMember ? 'space-between' : 'flex-end', marginTop: theme.spacing.lg }}>

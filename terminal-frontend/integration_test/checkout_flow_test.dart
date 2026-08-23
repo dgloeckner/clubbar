@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -16,6 +18,8 @@ import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
 
+import 'package:clubbar_terminal/services/config_service.dart';
+
 import 'test_helpers.dart';
 
 /// A [CartService] that holds [createTransaction] open for [delay], modelling
@@ -24,6 +28,7 @@ class SlowCartService extends CartService {
   SlowCartService({
     required super.database,
     required super.repository,
+    required super.configService,
     required this.delay,
   });
 
@@ -168,6 +173,14 @@ void main() {
       cartService = SlowCartService(
         database: db,
         repository: TransactionsRepository(db),
+        // A ConfigService over a scratch directory: the credit ceiling is
+        // configuration now (ADR-0047), and this flow needs the club default
+        // the shipped seed values give it.
+        configService: ConfigService(
+          configDir: Directory.systemTemp
+              .createTempSync('checkout-flow-config')
+              .path,
+        ),
         delay: const Duration(seconds: 2),
       );
     });

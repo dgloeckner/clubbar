@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
+import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 
 class MockConfigService extends Mock implements ConfigService {}
@@ -38,6 +39,10 @@ MockConfigService createMockConfigService() {
   when(() => mock.seedTestData).thenReturn(false);
   when(() => mock.fontSizes).thenReturn(null);
   when(() => mock.displayName).thenReturn(ConfigService.defaultDisplayName);
+  // The club's credit policy (ADR-0047). The shipped seed values, which are
+  // what a terminal enforces before its first `/sync/config` poll — and what
+  // every screen resolves a member's ceiling against.
+  when(() => mock.creditLimitPolicy).thenReturn(CreditLimitPolicy.shipped);
   return mock;
 }
 

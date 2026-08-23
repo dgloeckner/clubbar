@@ -7,7 +7,9 @@ import '../database/database.dart';
 import '../repository/members_repository.dart';
 import '../repository/products_repository.dart';
 import '../repository/transactions_repository.dart';
+import '../models/credit_limit.dart';
 import '../repository/sync_repository.dart';
+import 'config_service.dart';
 import 'network_service.dart';
 
 /// Result of a sync operation
@@ -30,6 +32,7 @@ class SyncService {
   final ProductsRepository _productsRepo;
   final TransactionsRepository _transactionsRepo;
   final SyncRepository _syncRepo;
+  final ConfigService? _configService;
   final Logger _logger;
   final String? _failedTransactionsPath;
 
@@ -53,6 +56,7 @@ class SyncService {
     required ProductsRepository productsRepo,
     required TransactionsRepository transactionsRepo,
     required SyncRepository syncRepo,
+    ConfigService? configService,
     Logger? logger,
     String? failedTransactionsPath,
   })  : _networkService = networkService,
@@ -60,6 +64,7 @@ class SyncService {
         _productsRepo = productsRepo,
         _transactionsRepo = transactionsRepo,
         _syncRepo = syncRepo,
+        _configService = configService,
         _logger = logger ?? Logger(),
         _failedTransactionsPath = failedTransactionsPath;
 
@@ -101,6 +106,19 @@ class SyncService {
     _credentialExpired = false;
     try {
       _logger.i('Starting sync cycle');
+
+      // The club's credit policy, before the members it applies to. Non-fatal
+      // on purpose: a terminal that cannot reach this endpoint keeps enforcing
+      // the policy it last persisted, which is the whole reason it is cached
+      // (ADR-0047, and the same graceful-degradation rule ADR-0023 sets for
+      // balances). Losing it must never cost the terminal its member data.
+      try {
+        await _syncCreditLimitPolicy();
+      } catch (e, stackTrace) {
+        _logger.e('Config sync failed (non-fatal): $e',
+            error: e, stackTrace: stackTrace);
+        if (isExpiredCredential(e)) _credentialExpired = true;
+      }
 
       // Sync members
       await _syncMembers();
@@ -156,6 +174,30 @@ class SyncService {
     } finally {
       _isSyncing = false;
     }
+  }
+
+  /// Fetch the club's ceiling and warning band, and persist them.
+  ///
+  /// Persisted rather than held in memory because the terminal has to enforce
+  /// this after a restart with the network still down.
+  Future<void> _syncCreditLimitPolicy() async {
+    final configService = _configService;
+    if (configService == null) return;
+
+    final response = await _networkService.syncConfig();
+    final creditLimit = response?.creditLimit;
+    if (creditLimit == null) return;
+
+    await configService.setCreditLimitPolicy(
+      CreditLimitPolicy(
+        defaultLimitCents: creditLimit.defaultLimitCents,
+        warnThresholdPercent: creditLimit.warnThresholdPercent,
+      ),
+    );
+    _logger.i(
+      'Club credit policy: ${creditLimit.defaultLimitCents} cents, '
+      'warn at ${creditLimit.warnThresholdPercent}%',
+    );
   }
 
   /// Sync members from backend

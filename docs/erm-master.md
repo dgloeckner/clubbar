@@ -18,6 +18,7 @@ erDiagram
         date date_of_birth "Jugendschutz (ADR-0045); NULL = anonymized"
         varchar_70 account_holder_name "If different from member (still on members)"
         varchar_10 preferred_language "ISO 639-1 (e.g., 'de', 'en')"
+        int credit_limit_cents "Own ceiling; NULL = club default, 0 = unlimited"
         boolean is_active "Active/blocked (TEMPORARY, e.g. lost card)"
         boolean collection_hold "Blocks the next SEPA sweep after a return"
         varchar_500 collection_hold_reason "Why the hold was placed"
@@ -221,6 +222,15 @@ erDiagram
         datetime updated_at "Last modification"
     }
 
+    credit_limit_config {
+        tinyint id PK "Single row (id=1)"
+        int default_limit_cents "Club-wide ceiling; 0 = no ceiling"
+        tinyint warn_threshold_percent "Warn from this share of the ceiling, 1-100"
+        char_36 updated_by_admin_id FK "Who last modified"
+        timestamp created_at "Initial configuration"
+        timestamp updated_at "Last modification"
+    }
+
     audit_log {
         bigint id PK "Auto-increment"
         binary_16 admin_user_id FK "Acting admin (nullable)"
@@ -259,6 +269,7 @@ erDiagram
     admin_users ||--o{ audit_log : "performs"
     admin_users ||--o{ sepa_config : "modifies"
     admin_users ||--o{ instance_config : "modifies"
+    admin_users ||--o{ credit_limit_config : "modifies"
 
     bank_codes {
         char_8 bank_code PK "Bankleitzahl (BLZ)"
@@ -290,6 +301,7 @@ Stores all organization members with payment information.
 | date_of_birth | DATE | NULL | Date of birth, for the Jugendschutz check ([ADR-0045](../adr/0045-age-restricted-products.md)). **Required when a member is created** and on any write that names it — the column is nullable only so that erasure can empty it, so NULL means *anonymized*, never *unknown*. Synced to terminals as the **raw date**, never an age in years: an age is wrong from the member's next birthday until the kiosk next reaches the server |
 | account_holder_name | VARCHAR(70) | NULL | Still on `members` — only banking fields moved to `mandates` ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md), amended) |
 | preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code for product display |
+| credit_limit_cents | INT | NULL | This member's own Deckel ceiling in cents ([ADR-0047](../adr/0047-configurable-credit-limits.md)). **NULL and 0 are different answers**: NULL means *follow the club default* — so raising the club's ceiling lifts this member too — while 0 means *no ceiling for this member*, the value `limitCents <= 0` already reads as "not enforced" at the terminal. A negative value is refused by the API rather than being allowed to pass that same test by accident. Signed `INT`, not `INT UNSIGNED`, so an out-of-range write is a rejected value rather than a silently clamped one. No index: it is read one member at a time through rows the sync and the dashboard already fetch |
 | ~~iban~~ | — | — | **Moved to `mandates.iban`** ([#164](https://github.com/dgloeckner/ruderbar/issues/164)) |
 | ~~mandate_reference~~ | — | — | **Moved to `mandates.reference`** |
 | ~~mandate_signed_at~~ | — | — | **Moved to `mandates.signed_at`** |
@@ -761,6 +773,25 @@ Deployment-wide instance branding ([ADR-0034](../adr/0034-instance-branding-conf
 
 ---
 
+### credit_limit_config
+
+What the club sets as the ceiling a member's Deckel may reach, and the share of it at which the terminal starts warning ([ADR-0047](../adr/0047-configurable-credit-limits.md)). Single-row table, same pattern as `sepa_config` and `instance_config`. Read by the terminal via `GET /api/sync/config`, by the dashboard's near-limit list, and by the Deckelauszug.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | TINYINT UNSIGNED | PK | Always 1 (single row) |
+| default_limit_cents | INT | NOT NULL, DEFAULT 10000 | Club-wide ceiling in cents, applying to every member whose own `credit_limit_cents` is NULL. `0` = the club enforces no ceiling. Seeded at 10000, exactly the constant it replaced, so the migration changes nothing on the day it runs |
+| warn_threshold_percent | TINYINT UNSIGNED | NOT NULL, DEFAULT 80 | Share of the **effective** ceiling from which a member is warned, 1–100. Club-wide only: an override sets one number, the ceiling, and the band is always the same share of whatever ceiling a member ends up with. The boundary is integer division (`intdiv(limit × percent, 100)`) on both sides of the wire |
+| updated_by_admin_id | CHAR(36) | FK → admin_users.id, NULL | Admin who last modified. Nullable and `ON DELETE SET NULL` — an account can be removed and the setting still stands |
+| created_at | TIMESTAMP | NOT NULL | Initial configuration timestamp |
+| updated_at | TIMESTAMP | NOT NULL | Last modification timestamp |
+
+**Why the club default lives here and not on `/health`.** `/health` carries only what a terminal needs *before* it can authenticate; a spending ceiling is not that. And it cannot ride `/sync/members` either, which is a delta on `updated_at` — a club setting touches no member row, so a terminal that had already synced would never see the change. Hence its own authenticated `GET /api/sync/config`.
+
+**Reads and writes:** both verbs are TREASURY (admin + Kassenwart) in `RouteRoleMap`; the terminal reads the resolved policy through `/api/sync/config` with its bearer token.
+
+---
+
 ### jugendschutz_violation_acks
 
 Whether a human has dealt with a recorded underage sale ([#622](https://github.com/dgloeckner/clubbar/issues/622), [ADR-0045](../adr/0045-age-restricted-products.md) §3).
@@ -886,6 +917,7 @@ flowchart TB
         AL[audit_log]
         SC[sepa_config]
         IC[instance_config]
+        CL[credit_limit_config]
         EK[encryption_keys]
     end
 
@@ -979,6 +1011,7 @@ flowchart TB
 | audit_log | admin_user_id | admin_users | SET NULL |
 | sepa_config | updated_by_admin_id | admin_users | SET NULL |
 | instance_config | updated_by_admin_id | admin_users | SET NULL |
+| credit_limit_config | updated_by_admin_id | admin_users | SET NULL |
 
 ### Business Rules
 
@@ -1064,3 +1097,4 @@ The outbox is the **second place a member's address lives**, and erasure covers 
 - [ADR-0036: IBAN Encryption at Rest with libsodium Sealed Boxes](../adr/0036-iban-encryption-sealed-box.md)
 - [ADR-0037: Mandate Documents Are Not Retained in the System](../adr/0037-mandate-documents-not-retained.md)
 - [ADR-0038: Transactional Mail Outbox on Shared Hosting](../adr/0038-transactional-mail-outbox-on-shared-hosting.md)
+- [ADR-0047: Configurable Credit Limits](../adr/0047-configurable-credit-limits.md)

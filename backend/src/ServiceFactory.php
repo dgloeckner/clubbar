@@ -26,6 +26,7 @@ use App\Modules\Security\Services\KeyRotationService;
 use App\Modules\Security\Controllers\EncryptionKeysController;
 use App\Shared\Security\IbanSealedBox;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
+use App\Modules\CreditLimits\Repositories\CreditLimitConfigRepository;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Repositories\MailConfigRepository;
 use App\Modules\Notifications\Repositories\MailOutboxRepository;
@@ -66,6 +67,7 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
+use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Notifications\Services\CredentialExpiryMailBuilder;
 use App\Modules\Notifications\Services\EncryptionKeyEventMailBuilder;
 use App\Modules\Notifications\Services\CredentialExpiryNotifier;
@@ -111,6 +113,8 @@ use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
 use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
 use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
+use App\Modules\CreditLimits\Controllers\CreditLimitConfigController;
+use App\Modules\CreditLimits\Controllers\SyncController as CreditLimitSyncController;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
@@ -170,6 +174,8 @@ class ServiceFactory implements ContainerInterface
         SettlementsAdminController::class => 'getSettlementsAdminController',
         SepaConfigController::class => 'getSepaConfigController',
         InstanceConfigController::class => 'getInstanceConfigController',
+        CreditLimitConfigController::class => 'getCreditLimitConfigController',
+        CreditLimitSyncController::class => 'getCreditLimitSyncController',
 
         // Notifications
         MailConfigController::class => 'getMailConfigController',
@@ -285,6 +291,11 @@ class ServiceFactory implements ContainerInterface
     public function getInstanceConfigRepository(): InstanceConfigRepository
     {
         return $this->resolve(InstanceConfigRepository::class, fn() => new InstanceConfigRepository($this->pdo, $this->logger));
+    }
+
+    public function getCreditLimitConfigRepository(): CreditLimitConfigRepository
+    {
+        return $this->resolve(CreditLimitConfigRepository::class, fn() => new CreditLimitConfigRepository($this->pdo, $this->logger));
     }
 
     public function getMailConfigRepository(): MailConfigRepository
@@ -492,6 +503,19 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(InstanceConfigService::class, fn() => new InstanceConfigService($this->getInstanceConfigRepository(), $this->getAuditService()));
     }
 
+    /**
+     * The club's credit ceiling and warning band (ADR-0047). Reading it never
+     * throws — see the service for why that matters to the dashboard and the
+     * nightly statement run.
+     */
+    public function getCreditLimitConfigService(): CreditLimitConfigService
+    {
+        return $this->resolve(CreditLimitConfigService::class, fn() => new CreditLimitConfigService(
+            $this->getCreditLimitConfigRepository(),
+            $this->getAuditService(),
+        ));
+    }
+
     public function getMailTransportFactory(): MailTransportFactory
     {
         return $this->resolve(MailTransportFactory::class, fn() => new MailTransportFactory($this->config, $this->logger));
@@ -658,6 +682,7 @@ class ServiceFactory implements ContainerInterface
             $this->getDeckelStatementRepository(),
             $this->getMembersRepository(),
             $this->getMailConfigService(),
+            $this->getCreditLimitConfigService(),
         ));
     }
 
@@ -1249,6 +1274,22 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(InstanceConfigController::class, fn() => new InstanceConfigController($this->getInstanceConfigService(), $this->getValidator()));
     }
 
+    public function getCreditLimitConfigController(): CreditLimitConfigController
+    {
+        return $this->resolve(CreditLimitConfigController::class, fn() => new CreditLimitConfigController(
+            $this->getCreditLimitConfigService(),
+            $this->getValidator(),
+        ));
+    }
+
+    /** The club policy a terminal caches, on GET /api/sync/config (ADR-0047). */
+    public function getCreditLimitSyncController(): CreditLimitSyncController
+    {
+        return $this->resolve(CreditLimitSyncController::class, fn() => new CreditLimitSyncController(
+            $this->getCreditLimitConfigService(),
+        ));
+    }
+
     public function getTerminalsAdminController(): TerminalsAdminController
     {
         return $this->resolve(TerminalsAdminController::class, fn() => new TerminalsAdminController(
@@ -1302,6 +1343,7 @@ class ServiceFactory implements ContainerInterface
             $this->getSepaConfigRepository(),
             $this->getTerminalAnomaliesRepository(),
             $this->getJugendschutzViolationsRepository(),
+            $this->getCreditLimitConfigService(),
         ));
     }
 
