@@ -173,6 +173,8 @@ cp "$PROJECT_ROOT/package/.htaccess"         "$PKG_DIR/.htaccess"
 cp "$PROJECT_ROOT/package/.user.ini"         "$PKG_DIR/.user.ini"
 cp "$PROJECT_ROOT/package/config.sample.php" "$PKG_DIR/config.sample.php"
 cp "$PROJECT_ROOT/package/README.txt"        "$PKG_DIR/README.txt"
+cp "$PROJECT_ROOT/LICENSE"                   "$PKG_DIR/LICENSE"
+cp "$PROJECT_ROOT/package/THIRD-PARTY-NOTICES.txt" "$PKG_DIR/THIRD-PARTY-NOTICES.txt"
 
 # ------------------------------------------------------------------
 # 9. Apply the modes the release carries, and prove it carries them
