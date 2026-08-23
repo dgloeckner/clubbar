@@ -175,6 +175,7 @@ class MembersService
         ?string $mandateReference = null,
         ?string $mandateSignedAt = null,
         ?string $dateOfBirth = null,
+        ?int $creditLimitCents = null,
         ?string $adminUserId = null,
     ): MemberAdminDto {
         $memberData = [
@@ -189,6 +190,9 @@ class MembersService
             'iban' => $iban,
             'account_holder_name' => $accountHolderName,
             'mandate_signed_at' => $mandateSignedAt,
+            // NULL is the ordinary case: this member follows the club default
+            // and moves with it (ADR-0046).
+            'credit_limit_cents' => $creditLimitCents,
         ];
         // Only include mandate_reference key when explicitly provided (even if empty string).
         // Absence of the key triggers auto-generation in the repository when IBAN is present.
@@ -201,12 +205,14 @@ class MembersService
             action: AuditAction::CREATE,
             entityType: EntityType::MEMBER,
             entityId: $member['id'],
+            // A ceiling of their own is a decision worth a line; following the
+            // club default is the ordinary case and is worth none.
             newValues: [
                 'first_name' => $firstName,
                 'last_name' => $lastName,
                 'email' => $email,
                 'preferred_language' => $language->value,
-            ],
+            ] + ($creditLimitCents === null ? [] : ['credit_limit_cents' => $creditLimitCents]),
             adminUserId: $adminUserId,
         );
 
@@ -257,6 +263,11 @@ class MembersService
             'date_of_birth',
             'preferred_language', 'is_active', 'iban', 'account_holder_name',
             'mandate_reference', 'mandate_signed_at',
+            // Three distinct outcomes, and `array_key_exists` below is what
+            // keeps them apart: an absent key leaves the override alone, an
+            // explicit null clears it back to the club default, and 0 stores a
+            // deliberate "no ceiling for this member" (ADR-0046).
+            'credit_limit_cents',
         ];
 
         $dbUpdateData = [];
