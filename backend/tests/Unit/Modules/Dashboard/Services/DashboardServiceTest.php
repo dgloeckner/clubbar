@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Dashboard\Services;
 
-use App\Modules\Dashboard\Domain\CreditLimit;
+use App\Modules\CreditLimits\Domain\CreditLimit;
+use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
+use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Dashboard\Services\DashboardService;
 use App\Modules\Members\Repositories\MembersRepository;
@@ -37,7 +39,11 @@ class DashboardServiceTest extends TestCase
     private SepaConfigRepository $sepaConfigRepository;
     private TerminalAnomaliesRepository $terminalAnomaliesRepository;
     private JugendschutzViolationsRepository $jugendschutzViolationsRepository;
+    private CreditLimitConfigService $creditLimitConfigService;
     private DashboardService $service;
+
+    /** The club's configured ceiling, as the panel resolves it. */
+    private CreditLimit $clubLimit;
 
     protected function setUp(): void
     {
@@ -53,6 +59,13 @@ class DashboardServiceTest extends TestCase
         $this->jugendschutzViolationsRepository->method('unacknowledgedSummary')
             ->willReturn(['count' => 0, 'latest_occurred_at' => null]);
 
+        // The club's ceiling now comes from configuration rather than a
+        // constant (ADR-0046). Stubbed with the shipped defaults, which are
+        // the numbers this panel has always drawn its line at.
+        $this->clubLimit = CreditLimitPolicy::shipped()->clubDefault();
+        $this->creditLimitConfigService = $this->createMock(CreditLimitConfigService::class);
+        $this->creditLimitConfigService->method('policy')->willReturn(CreditLimitPolicy::shipped());
+
         $this->service = new DashboardService(
             $this->dashboardRepository,
             $this->membersRepository,
@@ -63,6 +76,7 @@ class DashboardServiceTest extends TestCase
             $this->sepaConfigRepository,
             $this->terminalAnomaliesRepository,
             $this->jugendschutzViolationsRepository,
+            $this->creditLimitConfigService,
         );
     }
 
@@ -495,13 +509,13 @@ class DashboardServiceTest extends TestCase
         $this->stubEmptyDashboard();
         $this->dashboardRepository->expects($this->once())
             ->method('findMembersNearCreditLimit')
-            ->with(CreditLimit::warnAtCents(), DashboardService::MEMBERS_NEAR_LIMIT_SHOWN)
+            ->with($this->clubLimit->warnAtCents(), DashboardService::MEMBERS_NEAR_LIMIT_SHOWN)
             ->willReturn([]);
 
         $nearLimit = $this->service->getDashboard()->toArray()['members_near_limit'];
 
-        $this->assertSame(CreditLimit::LIMIT_CENTS, $nearLimit['limit_cents']);
-        $this->assertSame(CreditLimit::warnAtCents(), $nearLimit['warn_at_cents']);
+        $this->assertSame($this->clubLimit->limitCents, $nearLimit['limit_cents']);
+        $this->assertSame($this->clubLimit->warnAtCents(), $nearLimit['warn_at_cents']);
         $this->assertSame([], $nearLimit['members']);
         $this->assertSame(0, $nearLimit['total']);
     }
@@ -553,7 +567,7 @@ class DashboardServiceTest extends TestCase
         ));
         $this->dashboardRepository->expects($this->once())
             ->method('countMembersNearCreditLimit')
-            ->with(CreditLimit::warnAtCents())
+            ->with($this->clubLimit->warnAtCents())
             ->willReturn(12);
 
         $nearLimit = $this->service->getDashboard()->toArray()['members_near_limit'];

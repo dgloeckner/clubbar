@@ -221,7 +221,7 @@ enforces come from the club instead of from a compiled constant.
 | Column | Type | Description |
 |---|---|---|
 | id | TINYINT UNSIGNED | Singleton row, always `1` |
-| default_limit_cents | INT UNSIGNED | Club-wide ceiling in cents ([ADR-0001](./0001-monetary-values-as-integer-cents.md)); `0` = no ceiling |
+| default_limit_cents | INT | Club-wide ceiling in cents ([ADR-0001](./0001-monetary-values-as-integer-cents.md)); `0` = no ceiling |
 | warn_threshold_percent | TINYINT UNSIGNED | Share of the ceiling from which a member is warned, 1–100 |
 | updated_by_admin_id | CHAR(36) | FK → `admin_users.id`, `SET NULL` on delete |
 | created_at / updated_at | TIMESTAMP | Standard audit columns |
@@ -229,15 +229,18 @@ enforces come from the club instead of from a compiled constant.
 Seeded with `10000` / `80` — **exactly today's constants**, so the migration is deployable and
 verifiable before any behaviour moves.
 
-`UNSIGNED` is doing work here beyond documentation: it is the reason a negative ceiling cannot
-reach storage even if some future caller slips past the validation, and a negative ceiling would
-otherwise pass the `<= 0` test as "unlimited".
+Signed `INT`, like every other cents column in the schema (`price_cents`, `amount_cents`), rather
+than `UNSIGNED`. The gain from `UNSIGNED` would be a second refusal of a negative ceiling below the
+API's — worth having, but not at the cost of making the money columns two different types, and
+MariaDB's own answer to an out-of-range `UNSIGNED` write depends on `sql_mode` rather than being
+reliably a refusal. So the ban on a negative ceiling is stated once, at the boundary, where the
+error message can say why (rule 3).
 
 **`members.credit_limit_cents`**:
 
 | Column | Type | Description |
 |---|---|---|
-| credit_limit_cents | INT UNSIGNED NULL | This member's own ceiling in cents. `NULL` = follow the club default; `0` = unlimited |
+| credit_limit_cents | INT NULL | This member's own ceiling in cents. `NULL` = follow the club default; `0` = unlimited |
 
 **What `GET /api/sync/config` returns** (bearer-authenticated, no cursor — the document is one
 row and is re-read whole each cycle):

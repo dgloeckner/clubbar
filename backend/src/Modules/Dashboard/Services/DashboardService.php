@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Dashboard\Services;
 
-use App\Modules\Dashboard\Domain\CreditLimit;
+use App\Modules\CreditLimits\Domain\CreditLimit;
+use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Dashboard\DTOs\DashboardDto;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Members\Repositories\MembersRepository;
@@ -56,6 +57,7 @@ class DashboardService
         private SepaConfigRepository $sepaConfigRepository,
         private TerminalAnomaliesRepository $terminalAnomaliesRepository,
         private JugendschutzViolationsRepository $jugendschutzViolationsRepository,
+        private CreditLimitConfigService $creditLimitConfigService,
     ) {}
 
     public function getDashboard(): DashboardDto
@@ -146,9 +148,12 @@ class DashboardService
      */
     private function membersNearLimit(): array
     {
-        $threshold = CreditLimit::warnAtCents();
+        // The club's own ceiling, which is still the only one this panel knows
+        // about: the per-member override reaches the query in #559.
+        $limit = $this->creditLimitConfigService->policy()->clubDefault();
+        $threshold = $limit->warnAtCents();
 
-        $rows = CreditLimit::isEnforced()
+        $rows = $limit->isEnforced()
             ? $this->dashboardRepository->findMembersNearCreditLimit($threshold, self::MEMBERS_NEAR_LIMIT_SHOWN)
             : [];
 
@@ -158,11 +163,11 @@ class DashboardService
             : $this->dashboardRepository->countMembersNearCreditLimit($threshold);
 
         return [
-            'limit_cents' => CreditLimit::LIMIT_CENTS,
+            'limit_cents' => $limit->limitCents,
             'warn_at_cents' => $threshold,
             'total' => $total,
             'members' => array_map(
-                static fn(array $row): array => self::presentMemberNearLimit($row),
+                static fn(array $row): array => self::presentMemberNearLimit($row, $limit),
                 $rows,
             ),
         ];
@@ -496,7 +501,7 @@ class DashboardService
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
-    private static function presentMemberNearLimit(array $row): array
+    private static function presentMemberNearLimit(array $row, CreditLimit $limit): array
     {
         $balanceCents = (int) $row['balance_cents'];
 
@@ -504,8 +509,8 @@ class DashboardService
             'id' => $row['id'],
             'name' => trim((string) $row['name']),
             'balance_cents' => $balanceCents,
-            'percent_of_limit' => CreditLimit::percentOfLimit($balanceCents),
-            'status' => CreditLimit::status($balanceCents),
+            'percent_of_limit' => $limit->percentOfLimit($balanceCents),
+            'status' => $limit->status($balanceCents)->value,
         ];
     }
 

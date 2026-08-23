@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Services;
 
-use App\Modules\Dashboard\Domain\CreditLimit;
+use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\DeckelStatementDataDto;
 use App\Modules\Notifications\DTOs\StatementLineDto;
@@ -47,6 +47,7 @@ class DeckelStatementService
         private DeckelStatementRepository $statementRepository,
         private MembersRepository $membersRepository,
         private MailConfigService $mailConfigService,
+        private CreditLimitConfigService $creditLimitConfigService,
     ) {}
 
     /**
@@ -84,6 +85,8 @@ class DeckelStatementService
         // courtesy.
         $member = $this->membersRepository->findMailRecipients([$memberId])[$memberId] ?? null;
         $mailConfig = $this->mailConfigService->getConfig();
+        // The club's ceiling; the member's own reaches this statement in #559.
+        $creditLimit = $this->creditLimitConfigService->policy()->clubDefault();
 
         return new DeckelStatementDataDto(
             language: $language,
@@ -97,8 +100,8 @@ class DeckelStatementService
             totalCents: $totalCents,
             lines: $lines,
             omittedLines: $omitted,
-            creditLimitCents: CreditLimit::LIMIT_CENTS,
-            creditStatus: CreditLimit::status($totalCents),
+            creditLimitCents: $creditLimit->limitCents,
+            creditStatus: $creditLimit->status($totalCents)->value,
             treasurerEmail: $mailConfig->replyToAddress,
         );
     }

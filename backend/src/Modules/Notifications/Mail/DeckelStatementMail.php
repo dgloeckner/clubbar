@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Mail;
 
-use App\Modules\Dashboard\Domain\CreditLimit;
+use App\Modules\CreditLimits\Domain\CreditLimitStatus;
 use App\Modules\Notifications\DTOs\DeckelStatementDataDto;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Shared\Mail\MailLayout;
@@ -16,7 +16,7 @@ use App\Shared\Mail\MailMessage;
  * A statement, not a demand. Everything in it exists to answer one question a
  * member cannot otherwise answer between settlements — *where does my tab
  * stand, and am I close to the point where the bar stops serving me?* —
- * because `CreditLimit::LIMIT_CENTS` is enforced at the terminal, offline, in
+ * because the ceiling is enforced at the terminal, offline, in
  * front of whoever is queueing behind them.
  *
  * ### What it may never contain
@@ -271,8 +271,8 @@ final class DeckelStatementMail
         return [
             'heading' => $t->t('statement.limit_heading'),
             'text' => match ($data->creditStatus) {
-                CreditLimit::STATUS_EXCEEDED => $t->t('statement.limit_exceeded', ['limit' => $limit]),
-                CreditLimit::STATUS_APPROACHING => $t->t('statement.limit_approaching', ['limit' => $limit]),
+                CreditLimitStatus::EXCEEDED->value => $t->t('statement.limit_exceeded', ['limit' => $limit]),
+                CreditLimitStatus::APPROACHING->value => $t->t('statement.limit_approaching', ['limit' => $limit]),
                 default => $t->t('statement.limit_ok', ['limit' => $limit]),
             },
         ];

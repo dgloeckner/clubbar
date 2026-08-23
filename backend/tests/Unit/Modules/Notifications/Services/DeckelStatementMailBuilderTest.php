@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\Services;
 
-use App\Modules\Dashboard\Domain\CreditLimit;
+use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
+use App\Modules\CreditLimits\Domain\CreditLimitStatus;
 use App\Modules\Notifications\DTOs\DeckelStatementDataDto;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
@@ -144,8 +145,8 @@ class DeckelStatementMailBuilderTest extends TestCase
             branding: new MailBranding(orgName: 'Beispiel-Ruderverein e.V.', headerStyle: MailLayout::HEADER_PAPER),
             boundaryDate: '2026-08-01',
             totalCents: 0,
-            creditLimitCents: CreditLimit::LIMIT_CENTS,
-            creditStatus: CreditLimit::STATUS_OK,
+            creditLimitCents: CreditLimitPolicy::DEFAULT_LIMIT_CENTS,
+            creditStatus: CreditLimitStatus::OK->value,
         );
     }
 }
