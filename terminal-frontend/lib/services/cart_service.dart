@@ -4,6 +4,7 @@ import 'package:clubbar_terminal/models/cart_item.dart';
 import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/utils/age.dart';
 import 'package:clubbar_terminal/utils/app_logger.dart';
 import 'package:drift/drift.dart';
@@ -11,13 +12,21 @@ import 'package:drift/drift.dart';
 class CartService {
   final ClubBarDatabase _db;
   final TransactionsRepository _repository;
+  /// Where the club's ceiling and warning band come from (ADR-0046).
+  ///
+  /// Read on every check rather than captured once: a sync landing mid-session
+  /// changes the club's policy, and the authority on a checkout must be using
+  /// the same numbers the screens are showing.
+  final ConfigService _configService;
   static const _uuid = Uuid();
 
   CartService({
     required ClubBarDatabase database,
     required TransactionsRepository repository,
+    required ConfigService configService,
   })  : _db = database,
-        _repository = repository;
+        _repository = repository,
+        _configService = configService;
 
   /// Create and persist transactions from cart items.
   /// Creates one transaction per cart line item (each with its product_id),
@@ -137,15 +146,18 @@ class CartService {
     return blocking;
   }
 
-  /// Where [items] would leave [member] relative to the credit limit.
+  /// Where [items] would leave [member] relative to **their** credit ceiling.
   ///
   /// Reads the effective tab (including unsynced transactions) so the verdict
-  /// holds on an offline terminal.
+  /// holds on an offline terminal, and resolves the ceiling through the one
+  /// rule that decides it: the member's own where they have one, the club
+  /// default where they do not (ADR-0046 rule 1).
   Future<CreditLimitCheck> checkCreditLimit(
     MembersCacheData member,
     List<CartItem> items,
   ) async {
-    return CreditLimitCheck.evaluate(
+    return _configService.creditLimitPolicy.evaluate(
+      memberLimitCents: member.creditLimitCents,
       currentBalanceCents: await _repository.getEffectiveBalance(member),
       cartTotalCents:
           items.fold<int>(0, (sum, item) => sum + item.lineTotalCents),

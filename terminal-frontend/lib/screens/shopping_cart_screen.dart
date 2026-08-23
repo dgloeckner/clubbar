@@ -6,6 +6,7 @@ import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/models/credit_limit.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
@@ -44,10 +45,16 @@ class ShoppingCartScreen extends StatelessWidget {
         // they tap Buy rather than being refused afterwards. Evaluated above
         // the empty-cart branch too: a member who is already over the limit
         // needs to know that with an empty cart, not after filling one.
-        final limitCheck = CreditLimitCheck.evaluate(
-          currentBalanceCents: currentDeckel,
-          cartTotalCents: totalCents,
-        );
+        final limitCheck =
+            context.read<ConfigService>().creditLimitPolicy.evaluate(
+                  // This member's own ceiling where they have one, the club's
+                  // where they do not (ADR-0046). Resolved through the policy,
+                  // never read raw, so this banner and the service-side
+                  // refusal cannot disagree about the line.
+                  memberLimitCents: selectedMember?.creditLimitCents,
+                  currentBalanceCents: currentDeckel,
+                  cartTotalCents: totalCents,
+                );
 
         if (cartProvider.items.isEmpty) {
           return Column(

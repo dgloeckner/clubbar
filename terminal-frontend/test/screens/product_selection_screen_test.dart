@@ -16,6 +16,7 @@ import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/product_selection_screen.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
@@ -256,6 +257,10 @@ void main() {
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
               ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
               Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
+              // The screens resolve a member's ceiling through the club
+              // policy this service holds (ADR-0046).
+              Provider<ConfigService>.value(value: createMockConfigService()),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),
           ),
@@ -308,6 +313,10 @@ void main() {
                 ChangeNotifierProvider<SessionController>.value(
                     value: mockSessionController),
                 Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
+              // The screens resolve a member's ceiling through the club
+              // policy this service holds (ADR-0046).
+              Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
             ),
@@ -456,6 +465,10 @@ void main() {
                 ChangeNotifierProvider<SessionController>.value(
                     value: mockSessionController),
                 Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
+              // The screens resolve a member's ceiling through the club
+              // policy this service holds (ADR-0046).
+              Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
             ),
@@ -695,6 +708,10 @@ void main() {
                 ChangeNotifierProvider<SessionController>.value(
                     value: mockSessionController),
                 Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
+              // The screens resolve a member's ceiling through the club
+              // policy this service holds (ADR-0046).
+              Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
             ),
@@ -914,6 +931,10 @@ void main() {
                 ChangeNotifierProvider<SessionController>.value(
                     value: mockSessionController),
                 Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
+              // The screens resolve a member's ceiling through the club
+              // policy this service holds (ADR-0046).
+              Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
             ),
@@ -1041,6 +1062,10 @@ void main() {
                 ChangeNotifierProvider<SessionController>.value(
                     value: mockSessionController),
                 Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
+              // The screens resolve a member's ceiling through the club
+              // policy this service holds (ADR-0046).
+              Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
             ),
@@ -1220,6 +1245,10 @@ void main() {
                 ChangeNotifierProvider<SessionController>.value(
                     value: mockSessionController),
                 Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
+              // The screens resolve a member's ceiling through the club
+              // policy this service holds (ADR-0046).
+              Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
             ),
@@ -1423,6 +1452,10 @@ void main() {
               ChangeNotifierProvider<SessionController>.value(
                   value: mockSessionController),
               Provider<SoundService>.value(value: mockSoundService),
+            Provider<ConfigService>.value(value: createMockConfigService()),
+              // The screens resolve a member's ceiling through the club
+              // policy this service holds (ADR-0046).
+              Provider<ConfigService>.value(value: createMockConfigService()),
             ],
             child: MaterialApp.router(
               routerConfig: router,

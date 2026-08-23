@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import 'package:clubbar_terminal/config/app_config.dart';
+import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/services/rfid_reader_probe.dart';
 
 // Thrown when config.json exists but cannot be parsed or is structurally invalid.
@@ -56,6 +58,7 @@ class ConfigService {
   bool _soundsEnabled = true;
   String? _displayName;
   String? _backendDisplayName;
+  CreditLimitPolicy _creditLimitPolicy = CreditLimitPolicy.shipped;
   Map<String, dynamic>? _fontSizes;
   bool _rfidReaderMonitor = true;
   String? _rfidReaderVendorId;
@@ -96,6 +99,54 @@ class ConfigService {
   String get displayName =>
       _displayName ?? _backendDisplayName ?? defaultDisplayName;
   Map<String, dynamic>? get fontSizes => _fontSizes;
+
+  /// The club's credit ceiling and warning band (ADR-0046).
+  ///
+  /// Cached, not asked for: the terminal blocks a checkout in front of the
+  /// member with no backend reachable, so the policy has to be here already.
+  /// It is persisted to `config.json` by [setCreditLimitPolicy], which is what
+  /// makes it survive a restart on a terminal that boots offline.
+  ///
+  /// Before the first successful `/sync/config` poll on a fresh install this
+  /// is [CreditLimitPolicy.shipped] — the values the backend seeds its own
+  /// configuration with, so an untouched club sees no change.
+  CreditLimitPolicy get creditLimitPolicy => _creditLimitPolicy;
+
+  /// Records the club policy learned from `GET /sync/config` and writes it to
+  /// `config.json`.
+  ///
+  /// Persisting rather than holding it in memory is the whole point: a
+  /// terminal that boots with the network down must still enforce what the
+  /// club last said, not the constant this build happened to ship with. A
+  /// failed poll never reaches here, so the cached policy simply stays — the
+  /// same graceful-degradation rule ADR-0023 sets for balances.
+  ///
+  /// The rest of `config.json` is read and written back untouched: it holds
+  /// this terminal's credentials, and this method must not be able to lose
+  /// them.
+  Future<void> setCreditLimitPolicy(CreditLimitPolicy policy) async {
+    _creditLimitPolicy = policy;
+
+    final configFile = await _getConfigFile();
+    Map<String, dynamic> json = {};
+    if (configFile.existsSync()) {
+      try {
+        json = jsonDecode(configFile.readAsStringSync()) as Map<String, dynamic>;
+      } catch (_) {
+        // An unparseable file is not made worse by refusing to write a cache
+        // value into it. load() is where a broken config is reported.
+        return;
+      }
+    }
+
+    json['creditLimit'] = {
+      'defaultLimitCents': policy.defaultLimitCents,
+      'warnThresholdPercent': policy.warnThresholdPercent,
+    };
+
+    configFile.parent.createSync(recursive: true);
+    configFile.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
+  }
 
   /// Records the org-wide instance name learned from the backend's `/health`
   /// response (ADR-0034), so [displayName] can fall back to it.
@@ -158,6 +209,18 @@ class ConfigService {
         _soundsEnabled = json['soundsEnabled'] as bool? ?? true;
         _displayName = json['displayName'] as String?;
         _fontSizes = json['fontSizes'] as Map<String, dynamic>?;
+
+        // The club policy this terminal last synced (ADR-0046). Absent on a
+        // fresh install, which is what the shipped seed values are for.
+        final creditLimit = json['creditLimit'] as Map<String, dynamic>?;
+        if (creditLimit != null) {
+          _creditLimitPolicy = CreditLimitPolicy(
+            defaultLimitCents: creditLimit['defaultLimitCents'] as int? ??
+                AppConfig.balanceLimitCents,
+            warnThresholdPercent: creditLimit['warnThresholdPercent'] as int? ??
+                AppConfig.balanceWarnThresholdPercent,
+          );
+        }
 
         // Dispenser config
         final dispenser = json['dispenser'] as Map<String, dynamic>?;
@@ -262,6 +325,7 @@ class ConfigService {
     _soundsEnabled = true;
     _displayName = null;
     _backendDisplayName = null;
+    _creditLimitPolicy = CreditLimitPolicy.shipped;
     _fontSizes = null;
     _rfidReaderMonitor = true;
     _rfidReaderVendorId = null;

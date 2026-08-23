@@ -48,15 +48,19 @@ class CreditLimitCheck {
     required this.warnAtCents,
   });
 
-  /// Evaluate a cart against the limit.
+  /// Evaluate a cart against an **already-resolved** ceiling.
   ///
-  /// [limitCents] and [warnThresholdPercent] default to [AppConfig] — the seam
-  /// where a per-member or backend-supplied limit will land later.
+  /// [limitCents] and [warnThresholdPercent] are required, and that is the
+  /// point (ADR-0046): they used to default to [AppConfig], which meant any
+  /// call site could silently enforce a compiled-in constant instead of the
+  /// club's configured ceiling. Resolve through [CreditLimitPolicy.forMember]
+  /// and pass the result — a caller that forgets now fails to compile rather
+  /// than quietly refusing the wrong member.
   factory CreditLimitCheck.evaluate({
     required int currentBalanceCents,
     required int cartTotalCents,
-    int limitCents = AppConfig.balanceLimitCents,
-    int warnThresholdPercent = AppConfig.balanceWarnThresholdPercent,
+    required int limitCents,
+    required int warnThresholdPercent,
   }) {
     final enforced = limitCents > 0;
     return CreditLimitCheck._(
@@ -86,4 +90,78 @@ class CreditLimitCheck {
 
   /// Whether the member should be told about the limit at all.
   bool get warnsMember => status != CreditLimitStatus.ok;
+}
+
+/// The club's settings, and the one place the override-or-default rule is
+/// expressed on this side of the wire (ADR-0046 rule 1).
+///
+/// Its twin is `CreditLimitPolicy::forMember()` in the backend. That
+/// duplication is deliberate and is accepted *because it is one line on each
+/// side*: this terminal decides at checkout with no backend reachable, so it
+/// cannot ask. If this method ever grows a second condition, the two copies
+/// stop being trivially comparable — which is why a per-member warning band,
+/// per-category limits and time-boxed limits are all non-goals of the epic.
+///
+/// The club default and the member's override arrive on **separate** channels:
+/// the default from `GET /sync/config`, the override on the member's own row
+/// from `/sync/members`. A backend-resolved figure was rejected because
+/// `/sync/members` is a delta on `updated_at` — a club setting touches no
+/// member row, so the new default would arrive one member at a time, whenever
+/// each next changed for some unrelated reason.
+@immutable
+class CreditLimitPolicy {
+  /// The ceiling that applies to a member who has none of their own, in cents.
+  /// Zero means the club caps nobody.
+  final int defaultLimitCents;
+
+  /// Share of the effective ceiling from which a member is warned but still
+  /// served. Club-wide: an override sets a ceiling, never a band.
+  final int warnThresholdPercent;
+
+  const CreditLimitPolicy({
+    required this.defaultLimitCents,
+    required this.warnThresholdPercent,
+  });
+
+  /// What this build enforces before its first successful `/sync/config` poll.
+  static const CreditLimitPolicy shipped = CreditLimitPolicy(
+    defaultLimitCents: AppConfig.balanceLimitCents,
+    warnThresholdPercent: AppConfig.balanceWarnThresholdPercent,
+  );
+
+  /// The ceiling that applies to one member, in cents.
+  ///
+  /// `null` means inherit — the member was never singled out and moves with
+  /// the club default, which is what a club-level default is for. `0` is a
+  /// different answer: a deliberate "no ceiling for this member", which
+  /// survives a change to the club default rather than following it.
+  int forMember(int? overrideCents) => overrideCents ?? defaultLimitCents;
+
+  /// Evaluate a cart for one member, resolving their ceiling first — the
+  /// single call every screen, widget and service goes through, so the banner,
+  /// the Buy button and the service-side refusal cannot disagree.
+  CreditLimitCheck evaluate({
+    required int? memberLimitCents,
+    required int currentBalanceCents,
+    required int cartTotalCents,
+  }) =>
+      CreditLimitCheck.evaluate(
+        currentBalanceCents: currentBalanceCents,
+        cartTotalCents: cartTotalCents,
+        limitCents: forMember(memberLimitCents),
+        warnThresholdPercent: warnThresholdPercent,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is CreditLimitPolicy &&
+      other.defaultLimitCents == defaultLimitCents &&
+      other.warnThresholdPercent == warnThresholdPercent;
+
+  @override
+  int get hashCode => Object.hash(defaultLimitCents, warnThresholdPercent);
+
+  @override
+  String toString() =>
+      'CreditLimitPolicy(default: $defaultLimitCents, warn: $warnThresholdPercent%)';
 }
