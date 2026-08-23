@@ -19,7 +19,7 @@ namespace App\Modules\CreditLimits\Domain;
  *
  * **Resolved, not resolving.** Whose ceiling this is — the club's default or a
  * member's own — was decided by {@see CreditLimitPolicy::forMember()}, which is
- * the single place that rule is expressed on this side (ADR-0046 rule 1).
+ * the single place that rule is expressed on this side (ADR-0047 rule 1).
  * Instances of this class carry a number and answer questions about it.
  *
  * Sign convention follows the rest of the system: positive cents mean the
@@ -40,7 +40,7 @@ final readonly class CreditLimit
      *
      * Zero means unlimited — the convention `CreditLimitCheck` and
      * `DeckelStatementMail` already use, kept rather than replaced so that one
-     * value means one thing across all three consumers (ADR-0046 decision 3).
+     * value means one thing across all three consumers (ADR-0047 decision 3).
      */
     public function isEnforced(): bool
     {

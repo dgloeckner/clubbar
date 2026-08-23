@@ -10,7 +10,7 @@ use App\Shared\Utils\Uuid;
 use Tests\Feature\HttpTestCase;
 
 /**
- * The club's ceiling, through the real stack (ADR-0046 decision 5, #557).
+ * The club's ceiling, through the real stack (ADR-0047 decision 5, #557).
  *
  * The grant is the interesting part. Both verbs are TREASURY — deliberately
  * unlike `sepa-config`, whose read is TREASURY and whose writes are
@@ -108,7 +108,7 @@ class CreditLimitConfigHttpTest extends HttpTestCase
 
     /**
      * Zero is the club saying "cap nobody" — a real setting, not a validation
-     * accident (ADR-0046 decision 3).
+     * accident (ADR-0047 decision 3).
      */
     public function test_a_ceiling_of_zero_is_accepted(): void
     {

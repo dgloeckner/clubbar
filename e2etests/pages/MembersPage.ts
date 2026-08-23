@@ -69,7 +69,7 @@ export class MembersPage extends BasePage {
   private readonly mandateDateInput = () => this.page.getByTestId('members-form-mandate-date-input')
   private readonly mandateDateValue = () => this.page.getByTestId('members-form-mandate-date-input-value')
   private readonly languageSelect = () => this.page.getByTestId('members-form-language-select')
-  // The member's own credit ceiling (ADR-0046, #563). Empty means "follow the
+  // The member's own credit ceiling (ADR-0047, #563). Empty means "follow the
   // club default"; a typed 0 means "no ceiling for this member".
   private readonly creditLimitInput = () => this.page.getByTestId('members-form-credit-limit-input')
   private readonly creditLimitHelper = () => this.page.getByTestId('members-form-credit-limit-helper')
@@ -319,7 +319,7 @@ export class MembersPage extends BasePage {
     }
   }
 
-  // ── The member's own credit ceiling (ADR-0046, #563) ────────────────────
+  // ── The member's own credit ceiling (ADR-0047, #563) ────────────────────
 
   /**
    * Type an amount in euros, or clear the field.

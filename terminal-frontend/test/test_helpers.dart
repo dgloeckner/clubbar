@@ -39,7 +39,7 @@ MockConfigService createMockConfigService() {
   when(() => mock.seedTestData).thenReturn(false);
   when(() => mock.fontSizes).thenReturn(null);
   when(() => mock.displayName).thenReturn(ConfigService.defaultDisplayName);
-  // The club's credit policy (ADR-0046). The shipped seed values, which are
+  // The club's credit policy (ADR-0047). The shipped seed values, which are
   // what a terminal enforces before its first `/sync/config` poll — and what
   // every screen resolves a member's ceiling against.
   when(() => mock.creditLimitPolicy).thenReturn(CreditLimitPolicy.shipped);

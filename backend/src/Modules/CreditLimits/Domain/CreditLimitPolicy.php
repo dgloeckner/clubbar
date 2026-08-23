@@ -6,11 +6,11 @@ namespace App\Modules\CreditLimits\Domain;
 
 /**
  * The club's settings, and the one place the override-or-default rule is
- * expressed on this side of the wire (ADR-0046 rule 1).
+ * expressed on this side of the wire (ADR-0047 rule 1).
  *
  * Its twin lives in Dart. The terminal decides at checkout with no backend
  * reachable, so it cannot ask this class and has to coalesce the same two
- * values itself. ADR-0046 decision 2 accepts that duplication *because it is
+ * values itself. ADR-0047 decision 2 accepts that duplication *because it is
  * one line on each side*: the moment this method grows a second condition, the
  * two copies stop being trivially comparable. Anything that needs a limit —
  * controller, service, query — asks {@see forMember()} rather than reaching for
@@ -55,7 +55,7 @@ final readonly class CreditLimitPolicy
      * survives a change to the club default rather than following it.
      *
      * The warning band is always the club's, applied to whatever ceiling the
-     * member ends up with (ADR-0046 decision 4).
+     * member ends up with (ADR-0047 decision 4).
      */
     public function forMember(?int $overrideCents): CreditLimit
     {

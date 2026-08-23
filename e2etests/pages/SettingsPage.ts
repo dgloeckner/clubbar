@@ -29,7 +29,7 @@ export class SettingsPage {
   private readonly successMessage: Locator
   private readonly loadingIndicator: Locator
   private readonly ibanValidationIndicator: Locator
-  // Credit limits (ADR-0046, UC-A65) — the treasurer's own tab on this page.
+  // Credit limits (ADR-0047, UC-A65) — the treasurer's own tab on this page.
   private readonly limitsTab: Locator
   private readonly limitsForm: Locator
   private readonly limitsDefaultInput: Locator
@@ -74,7 +74,7 @@ export class SettingsPage {
     this.limitsDefaultError = page.getByTestId('settings-limits-error-default')
   }
 
-  // ── Credit limits tab (ADR-0046, UC-A65) ─────────────────────────────────
+  // ── Credit limits tab (ADR-0047, UC-A65) ─────────────────────────────────
 
   /** Open the Limits tab. For a Kassenwart it is already open — see #562. */
   async openLimitsTab() {

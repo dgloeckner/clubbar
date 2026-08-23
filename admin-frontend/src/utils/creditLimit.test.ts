@@ -7,7 +7,7 @@ import {
 } from './creditLimit'
 
 /**
- * The member override's serialisation (ADR-0046, #563).
+ * The member override's serialisation (ADR-0047, #563).
  *
  * This is the whole risk of the member form. An emptied input must become
  * `null` — "follow the club default" — and never `0`, which means "no ceiling

@@ -55,7 +55,7 @@ class AdminController
         // mandate recorded as signed next month is the same mistake on a date
         // that decides whether a collection is covered.
         'mandate_signed_at' => ['nullable', 'date', 'past_date'],
-        // This member's own ceiling (ADR-0046). Never `required`, on either
+        // This member's own ceiling (ADR-0047). Never `required`, on either
         // path: NULL is the ordinary case and means "follow the club default",
         // which is what lets raising that default lift everybody who has not
         // been deliberately excepted. `0` is a different answer — no ceiling

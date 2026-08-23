@@ -421,7 +421,7 @@ class DashboardRepositoryTest extends DatabaseTestCase
         $this->assertSame($before + 1, $this->repository->countMembersNearCreditLimit(10_000, 80));
     }
 
-    // ── Per-member ceilings (ADR-0046, #559) ────────────────────────────────
+    // ── Per-member ceilings (ADR-0047, #559) ────────────────────────────────
     //
     // The threshold used to be one number for the whole club. It is now one per
     // row, and every case below is a member the old query would have got wrong.

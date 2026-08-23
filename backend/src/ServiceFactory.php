@@ -504,7 +504,7 @@ class ServiceFactory implements ContainerInterface
     }
 
     /**
-     * The club's credit ceiling and warning band (ADR-0046). Reading it never
+     * The club's credit ceiling and warning band (ADR-0047). Reading it never
      * throws — see the service for why that matters to the dashboard and the
      * nightly statement run.
      */
@@ -1282,7 +1282,7 @@ class ServiceFactory implements ContainerInterface
         ));
     }
 
-    /** The club policy a terminal caches, on GET /api/sync/config (ADR-0046). */
+    /** The club policy a terminal caches, on GET /api/sync/config (ADR-0047). */
     public function getCreditLimitSyncController(): CreditLimitSyncController
     {
         return $this->resolve(CreditLimitSyncController::class, fn() => new CreditLimitSyncController(

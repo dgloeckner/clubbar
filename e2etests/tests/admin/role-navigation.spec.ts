@@ -123,7 +123,7 @@ test.describe('Role-aware navigation', () => {
     const layout = new MainLayoutPage(page)
     const nav = await layout.getVisibleNavTestIds()
 
-    // Settings is on this list since ADR-0046: the club's credit ceiling is the
+    // Settings is on this list since ADR-0047: the club's credit ceiling is the
     // treasurer's own setting, so the section opened to them — and the tab
     // filtering below is what keeps the operator surfaces on it shut.
     expect(nav).toEqual([
@@ -141,7 +141,7 @@ test.describe('Role-aware navigation', () => {
   })
 
   /**
-   * The page change ADR-0046 needed (#562). `/settings` is one screen carrying
+   * The page change ADR-0047 needed (#562). `/settings` is one screen carrying
    * admin accounts, terminal tokens, encryption keys and mail configuration —
    * all `admin`-only on the server — plus the club's credit limits, which are
    * the Kassenwart's. Opening the section to them therefore moves the boundary
@@ -189,7 +189,7 @@ test.describe('Role-aware navigation', () => {
 
     expect(nav).toContain('nav-products')
     expect(nav).toContain('nav-members')
-    // Settings comes with the treasurer's half of the union (ADR-0046); the
+    // Settings comes with the treasurer's half of the union (ADR-0047); the
     // audit log is still nobody's but the admin's.
     expect(nav).toContain('nav-settings')
     expect(nav).not.toContain('nav-audit-log')
@@ -251,7 +251,7 @@ test.describe('Role-aware navigation', () => {
 })
 
 /**
- * The other half of the Settings split (ADR-0046, #562), as the seeded admin —
+ * The other half of the Settings split (ADR-0047, #562), as the seeded admin —
  * outside the logged-out describe above, because this one is about the office
  * that loses nothing to it.
  */

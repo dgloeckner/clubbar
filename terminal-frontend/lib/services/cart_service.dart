@@ -12,7 +12,7 @@ import 'package:drift/drift.dart';
 class CartService {
   final ClubBarDatabase _db;
   final TransactionsRepository _repository;
-  /// Where the club's ceiling and warning band come from (ADR-0046).
+  /// Where the club's ceiling and warning band come from (ADR-0047).
   ///
   /// Read on every check rather than captured once: a sync landing mid-session
   /// changes the club's policy, and the authority on a checkout must be using
@@ -151,7 +151,7 @@ class CartService {
   /// Reads the effective tab (including unsynced transactions) so the verdict
   /// holds on an offline terminal, and resolves the ceiling through the one
   /// rule that decides it: the member's own where they have one, the club
-  /// default where they do not (ADR-0046 rule 1).
+  /// default where they do not (ADR-0047 rule 1).
   Future<CreditLimitCheck> checkCreditLimit(
     MembersCacheData member,
     List<CartItem> items,

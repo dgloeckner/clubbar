@@ -12,7 +12,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * The club's ceiling, read and written by the treasury (ADR-0046 decision 5).
+ * The club's ceiling, read and written by the treasury (ADR-0047 decision 5).
  *
  * Both verbs are TREASURY — `admin` and `kassenwart` — deliberately unlike
  * `sepa-config`, whose read is TREASURY and whose writes are `admin`-only.
@@ -44,7 +44,7 @@ class CreditLimitConfigController
         // which is a setting and not an absence. A *negative* ceiling is
         // refused rather than reinterpreted — it would pass the `<= 0` test as
         // "unlimited" and grant every member infinite credit by accident
-        // (ADR-0046 rule 3).
+        // (ADR-0047 rule 3).
         $rules = [
             'default_limit_cents' => ['required', 'integer', 'gte:0', 'lte:' . CreditLimitPolicy::MAX_LIMIT_CENTS],
             'warn_threshold_percent' => ['required', 'integer', 'gte:1', 'lte:100'],

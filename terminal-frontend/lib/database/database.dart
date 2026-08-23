@@ -187,7 +187,7 @@ class ClubBarDatabase extends _$ClubBarDatabase {
                 m, 'products_cache', 'min_age', 'INTEGER');
           }
           if (from < 12) {
-            // The per-member credit ceiling (ADR-0046).
+            // The per-member credit ceiling (ADR-0047).
             //
             // Nullable with no default, and for a cache written before this
             // upgrade that is exactly right: null means "follow the club

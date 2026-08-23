@@ -662,7 +662,7 @@ export function DashboardPage() {
 
           {/* Members near their credit limit (#385) — who the terminal is about
               to turn away, while there is still time to say so beforehand.
-              Ordered by share of *their own* ceiling since ADR-0046, not by
+              Ordered by share of *their own* ceiling since ADR-0047, not by
               raw amount: a member €10 past a €50 ceiling is already being
               refused, while one at €170 of €200 is merely being warned. */}
           <div data-testid="dashboard-members-near-limit" style={{

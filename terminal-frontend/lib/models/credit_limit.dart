@@ -51,7 +51,7 @@ class CreditLimitCheck {
   /// Evaluate a cart against an **already-resolved** ceiling.
   ///
   /// [limitCents] and [warnThresholdPercent] are required, and that is the
-  /// point (ADR-0046): they used to default to [AppConfig], which meant any
+  /// point (ADR-0047): they used to default to [AppConfig], which meant any
   /// call site could silently enforce a compiled-in constant instead of the
   /// club's configured ceiling. Resolve through [CreditLimitPolicy.forMember]
   /// and pass the result — a caller that forgets now fails to compile rather
@@ -93,7 +93,7 @@ class CreditLimitCheck {
 }
 
 /// The club's settings, and the one place the override-or-default rule is
-/// expressed on this side of the wire (ADR-0046 rule 1).
+/// expressed on this side of the wire (ADR-0047 rule 1).
 ///
 /// Its twin is `CreditLimitPolicy::forMember()` in the backend. That
 /// duplication is deliberate and is accepted *because it is one line on each

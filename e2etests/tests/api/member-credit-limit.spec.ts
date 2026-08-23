@@ -3,7 +3,7 @@ import { expect } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 
 /**
- * E2E Test: a member's own credit ceiling, on the member API (ADR-0046, #558)
+ * E2E Test: a member's own credit ceiling, on the member API (ADR-0047, #558)
  *
  * One field, three meanings, and this file exists to keep them apart through
  * the whole stack:

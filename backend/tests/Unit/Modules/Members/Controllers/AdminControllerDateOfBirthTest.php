@@ -128,7 +128,7 @@ class AdminControllerDateOfBirthTest extends TestCase
                 null,
                 null,
                 '1990-05-04',
-                // The per-member ceiling (ADR-0046, #558) sits between the
+                // The per-member ceiling (ADR-0047, #558) sits between the
                 // member's own data and the acting admin.
                 null,
                 'admin-1',

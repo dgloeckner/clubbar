@@ -203,7 +203,7 @@ paths:
       summary: Download the club's credit policy
       description: |
         The club-wide credit ceiling and warning band the terminal enforces
-        between syncs ([ADR-0046](../../adr/0046-configurable-credit-limits.md)).
+        between syncs ([ADR-0047](../../adr/0047-configurable-credit-limits.md)).
 
         **Why this is not on `/health`.** `/health` carries only what a terminal
         needs *before* it can authenticate — reachability, and the
@@ -899,7 +899,7 @@ components:
           minimum: 0
           description: |
             **This member's own ceiling — an override, never a resolved
-            ceiling** ([ADR-0046](../../adr/0046-configurable-credit-limits.md)).
+            ceiling** ([ADR-0047](../../adr/0047-configurable-credit-limits.md)).
 
             | Value | Meaning |
             |---|---|

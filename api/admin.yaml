@@ -2620,14 +2620,14 @@ paths:
 
         **Use Case**: UC-A65
 
-        `admin` and `kassenwart` (ADR-0046 decision 5) — deliberately unlike
+        `admin` and `kassenwart` (ADR-0047 decision 5) — deliberately unlike
         `sepa-config`, whose writes are `admin`-only. A wrong ceiling mints no
         credential and exports no data; it is undone by typing the right
         number.
 
         This is the club *default*. A member may carry an override, in which
         case theirs applies; the terminal resolves the two locally, offline,
-        which is why they travel separately (ADR-0046 decision 1).
+        which is why they travel separately (ADR-0047 decision 1).
       operationId: getCreditLimitConfig
       security:
         - sessionAuth: []
@@ -5498,7 +5498,7 @@ components:
           maximum: 10000000
           description: >-
             This member's own Deckel ceiling in cents
-            ([ADR-0046](../../adr/0046-configurable-credit-limits.md)). `null`
+            ([ADR-0047](../../adr/0047-configurable-credit-limits.md)). `null`
             means they follow the club default and move with it; `0` means a
             deliberate "no ceiling for this member". The two are different
             answers, not synonyms.
@@ -5609,7 +5609,7 @@ components:
           description: >-
             Optional, and **never required**: omitting it is the ordinary case
             and means this member follows the club default
-            ([ADR-0046](../../adr/0046-configurable-credit-limits.md)). `0`
+            ([ADR-0047](../../adr/0047-configurable-credit-limits.md)). `0`
             means no ceiling for them. A negative value is refused rather than
             read as unlimited.
         date_of_birth:
@@ -5679,7 +5679,7 @@ components:
           maximum: 10000000
           description: >-
             Three request shapes, three meanings
-            ([ADR-0046](../../adr/0046-configurable-credit-limits.md)):
+            ([ADR-0047](../../adr/0047-configurable-credit-limits.md)):
             **omitting** the field leaves the override exactly as it is;
             `null` or `""` clears it, so the member goes back to the club
             default; `0` stores a deliberate "no ceiling for this member".
@@ -6967,7 +6967,7 @@ components:
           description: |
             The club-wide ceiling in cents. `0` means no ceiling is enforced —
             the convention the terminal's `CreditLimitCheck` and the
-            Deckelauszug already use (ADR-0046 decision 3).
+            Deckelauszug already use (ADR-0047 decision 3).
           example: 10000
         warn_threshold_percent:
           type: integer
@@ -6976,7 +6976,7 @@ components:
           description: |
             Share of the *effective* ceiling from which a member is warned but
             still served. Club-wide: a member's override sets their ceiling,
-            never their band (ADR-0046 decision 4).
+            never their band (ADR-0047 decision 4).
           example: 80
 
     CreditLimitConfigUpdateRequest:
@@ -8421,7 +8421,7 @@ components:
             terminal serves neither, so there is nothing to warn about.
 
             **Ordered by share of ceiling, not by amount**
-            ([ADR-0046](../../adr/0046-configurable-credit-limits.md)). Once
+            ([ADR-0047](../../adr/0047-configurable-credit-limits.md)). Once
             ceilings differ per member, the raw amount stops ranking urgency: a
             member €10 past a €50 ceiling is already being refused, while one at
             €170 of €200 is merely being warned.

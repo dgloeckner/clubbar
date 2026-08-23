@@ -7,7 +7,7 @@
  * there while there is still time to say something.
  *
  * The line is the terminal's own — a share of the ceiling to warn, past the
- * ceiling to block — and since ADR-0046 that ceiling is per member, so each
+ * ceiling to block — and since ADR-0047 that ceiling is per member, so each
  * fixture below is given one of its own and stated relative to it.
  *
  * The panel names only the five members closest to their ceiling, measured as
@@ -29,7 +29,7 @@ import { DashboardPage } from '../../pages/DashboardPage'
 import { seedMember } from '../../utils/exclusions'
 
 /**
- * **Every fixture here carries a ceiling of its own** (ADR-0046), and that is
+ * **Every fixture here carries a ceiling of its own** (ADR-0047), and that is
  * deliberate rather than incidental. The club default is a singleton another
  * spec in this project edits — the epic's acceptance flow sets it, asserts
  * against it and puts it back — so a file that measured its members against it
@@ -213,7 +213,7 @@ test.describe('Dashboard: members close to their limit (#385)', () => {
     // The envelope names the *club default* — whatever it is at this moment,
     // which is why it is asserted for consistency rather than against a value
     // read minutes ago — and each row names the ceiling that member was
-    // actually measured against (ADR-0046).
+    // actually measured against (ADR-0047).
     expect(body.members_near_limit.limit_cents).toBeGreaterThan(0)
     expect(body.members_near_limit.warn_at_cents).toBe(
       warnAtCents(body.members_near_limit.limit_cents)

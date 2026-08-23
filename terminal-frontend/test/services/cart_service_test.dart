@@ -54,7 +54,7 @@ void main() {
       mockRepo = MockTransactionsRepository();
       mockDb = MockClubBarDatabase();
       // A real ConfigService over a scratch directory: the credit limit is the
-      // club's configuration now (ADR-0046), and stubbing it away would test
+      // club's configuration now (ADR-0047), and stubbing it away would test
       // the constant this epic removed.
       configDir = Directory.systemTemp.createTempSync('cart-service-config');
       addTearDown(() => configDir.deleteSync(recursive: true));
@@ -502,7 +502,7 @@ void main() {
     group('credit limit (UC-T11 E3, UC-T12)', () {
       // The club default is €100.00 until a /sync/config poll says otherwise —
       // the value the backend seeds its own configuration with, so an
-      // untouched club behaves exactly as it did (ADR-0046).
+      // untouched club behaves exactly as it did (ADR-0047).
 
       test('blocks a checkout that would push the tab past the limit',
           () async {
@@ -544,7 +544,7 @@ void main() {
         expect(error, isNull);
       });
 
-      /// The member's own ceiling, where they have one (ADR-0046). This is the
+      /// The member's own ceiling, where they have one (ADR-0047). This is the
       /// authority — the screens disable the button, but the tab can move under
       /// the member's feet between rendering and tapping Buy, so every case
       /// below has to hold here rather than only in the UI.

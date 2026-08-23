@@ -9,7 +9,7 @@ use App\Modules\CreditLimits\Domain\CreditLimitStatus;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Where a resolved credit limit's line sits (#385, ADR-0046).
+ * Where a resolved credit limit's line sits (#385, ADR-0047).
  *
  * Moved here from `Modules/Dashboard/Domain` when the limit became
  * configurable: the rules are unchanged, but the numbers are now carried by an
@@ -17,7 +17,7 @@ use PHPUnit\Framework\TestCase;
  * hold a value that differs per member.
  *
  * Every case below is one the terminal's own `CreditLimitCheck` tests already
- * pin down. They are repeated on this side of the wire because ADR-0046
+ * pin down. They are repeated on this side of the wire because ADR-0047
  * decision 2 keeps the resolution rule in two languages on purpose, and this is
  * half of what makes that duplication safe.
  */
@@ -87,7 +87,7 @@ class CreditLimitTest extends TestCase
     }
 
     /**
-     * ADR-0046 decision 3: zero is a ceiling nobody hits, not a ceiling of
+     * ADR-0047 decision 3: zero is a ceiling nobody hits, not a ceiling of
      * zero. The same convention `CreditLimitCheck` and the Deckelauszug already
      * use.
      */

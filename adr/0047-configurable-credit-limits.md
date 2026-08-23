@@ -1,4 +1,4 @@
-# ADR-0046: Configurable Credit Limits — a Club Default, a Per-Member Override
+# ADR-0047: Configurable Credit Limits — a Club Default, a Per-Member Override
 
 **Status**: Accepted
 

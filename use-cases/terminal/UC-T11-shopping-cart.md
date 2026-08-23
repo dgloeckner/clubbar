@@ -46,7 +46,7 @@ to review items before purchase
 | Cart total | Sum of all line items |
 | Current balance | Member's existing tab balance |
 | New balance | Current + cart total (preview) |
-| Balance limit | The member's own ceiling where they have one, the club default otherwise (see [ADR-0046](../../adr/0046-configurable-credit-limits.md)) |
+| Balance limit | The member's own ceiling where they have one, the club default otherwise (see [ADR-0047](../../adr/0047-configurable-credit-limits.md)) |
 | Limit warning | Shown if new balance would exceed that ceiling |
 | Back button | Return to product view |
 | Buy button | Confirm purchase (disabled if over limit) |

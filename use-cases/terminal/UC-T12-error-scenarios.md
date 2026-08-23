@@ -60,7 +60,7 @@ Member
 - Member has valid RFID card
 - Member's current tab balance is at or near the maximum that applies to them
 - Maximum balance configured in the backend and synced to the terminal
-  ([ADR-0046](../../adr/0046-configurable-credit-limits.md)). Two values make
+  ([ADR-0047](../../adr/0047-configurable-credit-limits.md)). Two values make
   it up, and they travel separately:
   - the **club default**, from `GET /api/sync/config`, cached in `config.json`
     so a terminal that boots offline still enforces what the club last said

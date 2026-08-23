@@ -69,7 +69,7 @@ class DeckelStatementDataTest extends DatabaseTestCase
             logoUrl: null,
         ));
 
-        // The club's ceiling is configuration now (ADR-0046); the shipped
+        // The club's ceiling is configuration now (ADR-0047); the shipped
         // defaults are the constants the statement used to name.
         $creditLimits = $this->createMock(CreditLimitConfigService::class);
         $creditLimits->method('policy')->willReturn(CreditLimitPolicy::shipped());
@@ -279,7 +279,7 @@ class DeckelStatementDataTest extends DatabaseTestCase
     }
 
     /**
-     * A member with a ceiling of their own is told about **theirs** (ADR-0046).
+     * A member with a ceiling of their own is told about **theirs** (ADR-0047).
      * A statement naming the club default while the terminal enforces something
      * else tells the member a number nobody is using.
      */

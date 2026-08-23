@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * The one place the override-or-default rule is expressed on this side
- * (ADR-0046 rule 1). Its twin lives in Dart, in the terminal, which has to
+ * (ADR-0047 rule 1). Its twin lives in Dart, in the terminal, which has to
  * decide the same thing with nothing reachable.
  *
  * The distinction these tests exist to protect is `NULL` versus `0`:
@@ -83,7 +83,7 @@ class CreditLimitPolicyTest extends TestCase
     }
 
     /**
-     * ADR-0046 decision 4: one knob per member, and it is the ceiling. The band
+     * ADR-0047 decision 4: one knob per member, and it is the ceiling. The band
      * is always the club's share of whatever ceiling the member ends up with.
      */
     public function test_the_warning_band_is_the_clubs_whatever_the_ceiling(): void

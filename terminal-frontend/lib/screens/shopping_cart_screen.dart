@@ -48,7 +48,7 @@ class ShoppingCartScreen extends StatelessWidget {
         final limitCheck =
             context.read<ConfigService>().creditLimitPolicy.evaluate(
                   // This member's own ceiling where they have one, the club's
-                  // where they do not (ADR-0046). Resolved through the policy,
+                  // where they do not (ADR-0047). Resolved through the policy,
                   // never read raw, so this banner and the service-side
                   // refusal cannot disagree about the line.
                   memberLimitCents: selectedMember?.creditLimitCents,

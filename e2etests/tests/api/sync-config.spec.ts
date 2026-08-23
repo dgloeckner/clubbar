@@ -3,7 +3,7 @@ import { expect, request as playwrightRequest } from '@playwright/test'
 
 /**
  * E2E Test: `GET /api/sync/config` — the club policy a terminal caches
- * (ADR-0046, UC-T12 E2)
+ * (ADR-0047, UC-T12 E2)
  *
  * UC-T12 has said "maximum balance configured in backend (synced to terminal)"
  * since it was written. This endpoint is where that stops being aspirational.

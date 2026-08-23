@@ -301,7 +301,7 @@ Stores all organization members with payment information.
 | date_of_birth | DATE | NULL | Date of birth, for the Jugendschutz check ([ADR-0045](../adr/0045-age-restricted-products.md)). **Required when a member is created** and on any write that names it — the column is nullable only so that erasure can empty it, so NULL means *anonymized*, never *unknown*. Synced to terminals as the **raw date**, never an age in years: an age is wrong from the member's next birthday until the kiosk next reaches the server |
 | account_holder_name | VARCHAR(70) | NULL | Still on `members` — only banking fields moved to `mandates` ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md), amended) |
 | preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code for product display |
-| credit_limit_cents | INT | NULL | This member's own Deckel ceiling in cents ([ADR-0046](../adr/0046-configurable-credit-limits.md)). **NULL and 0 are different answers**: NULL means *follow the club default* — so raising the club's ceiling lifts this member too — while 0 means *no ceiling for this member*, the value `limitCents <= 0` already reads as "not enforced" at the terminal. A negative value is refused by the API rather than being allowed to pass that same test by accident. Signed `INT`, not `INT UNSIGNED`, so an out-of-range write is a rejected value rather than a silently clamped one. No index: it is read one member at a time through rows the sync and the dashboard already fetch |
+| credit_limit_cents | INT | NULL | This member's own Deckel ceiling in cents ([ADR-0047](../adr/0047-configurable-credit-limits.md)). **NULL and 0 are different answers**: NULL means *follow the club default* — so raising the club's ceiling lifts this member too — while 0 means *no ceiling for this member*, the value `limitCents <= 0` already reads as "not enforced" at the terminal. A negative value is refused by the API rather than being allowed to pass that same test by accident. Signed `INT`, not `INT UNSIGNED`, so an out-of-range write is a rejected value rather than a silently clamped one. No index: it is read one member at a time through rows the sync and the dashboard already fetch |
 | ~~iban~~ | — | — | **Moved to `mandates.iban`** ([#164](https://github.com/dgloeckner/ruderbar/issues/164)) |
 | ~~mandate_reference~~ | — | — | **Moved to `mandates.reference`** |
 | ~~mandate_signed_at~~ | — | — | **Moved to `mandates.signed_at`** |
@@ -775,7 +775,7 @@ Deployment-wide instance branding ([ADR-0034](../adr/0034-instance-branding-conf
 
 ### credit_limit_config
 
-What the club sets as the ceiling a member's Deckel may reach, and the share of it at which the terminal starts warning ([ADR-0046](../adr/0046-configurable-credit-limits.md)). Single-row table, same pattern as `sepa_config` and `instance_config`. Read by the terminal via `GET /api/sync/config`, by the dashboard's near-limit list, and by the Deckelauszug.
+What the club sets as the ceiling a member's Deckel may reach, and the share of it at which the terminal starts warning ([ADR-0047](../adr/0047-configurable-credit-limits.md)). Single-row table, same pattern as `sepa_config` and `instance_config`. Read by the terminal via `GET /api/sync/config`, by the dashboard's near-limit list, and by the Deckelauszug.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -1097,4 +1097,4 @@ The outbox is the **second place a member's address lives**, and erasure covers 
 - [ADR-0036: IBAN Encryption at Rest with libsodium Sealed Boxes](../adr/0036-iban-encryption-sealed-box.md)
 - [ADR-0037: Mandate Documents Are Not Retained in the System](../adr/0037-mandate-documents-not-retained.md)
 - [ADR-0038: Transactional Mail Outbox on Shared Hosting](../adr/0038-transactional-mail-outbox-on-shared-hosting.md)
-- [ADR-0046: Configurable Credit Limits](../adr/0046-configurable-credit-limits.md)
+- [ADR-0047: Configurable Credit Limits](../adr/0047-configurable-credit-limits.md)

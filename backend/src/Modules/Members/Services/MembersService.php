@@ -191,7 +191,7 @@ class MembersService
             'account_holder_name' => $accountHolderName,
             'mandate_signed_at' => $mandateSignedAt,
             // NULL is the ordinary case: this member follows the club default
-            // and moves with it (ADR-0046).
+            // and moves with it (ADR-0047).
             'credit_limit_cents' => $creditLimitCents,
         ];
         // Only include mandate_reference key when explicitly provided (even if empty string).
@@ -266,7 +266,7 @@ class MembersService
             // Three distinct outcomes, and `array_key_exists` below is what
             // keeps them apart: an absent key leaves the override alone, an
             // explicit null clears it back to the club default, and 0 stores a
-            // deliberate "no ceiling for this member" (ADR-0046).
+            // deliberate "no ceiling for this member" (ADR-0047).
             'credit_limit_cents',
         ];
 

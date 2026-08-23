@@ -60,7 +60,7 @@ class DashboardServiceTest extends TestCase
             ->willReturn(['count' => 0, 'latest_occurred_at' => null]);
 
         // The club's ceiling now comes from configuration rather than a
-        // constant (ADR-0046). Stubbed with the shipped defaults, which are
+        // constant (ADR-0047). Stubbed with the shipped defaults, which are
         // the numbers this panel has always drawn its line at.
         $this->clubLimit = CreditLimitPolicy::shipped()->clubDefault();
         $this->creditLimitConfigService = $this->createMock(CreditLimitConfigService::class);
@@ -650,7 +650,7 @@ class DashboardServiceTest extends TestCase
      * A club that caps nobody still has members who were deliberately capped,
      * and they are still being refused at the bar. The panel must therefore
      * keep asking — the query decides per row, this service does not
-     * short-circuit (ADR-0046).
+     * short-circuit (ADR-0047).
      */
     public function test_the_panel_still_asks_when_the_club_default_is_switched_off(): void
     {

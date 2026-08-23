@@ -1,7 +1,7 @@
 # Per-Member Credit Limits
 
 **Epic**: [#555](https://github.com/dgloeckner/clubbar/issues/555)
-**Design**: [ADR-0046](../adr/0046-configurable-credit-limits.md)
+**Design**: [ADR-0047](../adr/0047-configurable-credit-limits.md)
 **Status**: **M1–M9 implemented and verified.** Open as a stacked queue of PRs, each based on the
 slice before it and retargeting automatically as the lower ones merge.
 **Branch**: one PR per slice, each based on the branch before it and the lowest one on a
@@ -50,7 +50,7 @@ settlement behaviour. A ceiling is a number a human sets and another human can r
 | 3 | The warning band is **club-wide only** | One knob per member keeps the resolution rule to a single line on each side of the wire, which is what makes duplicating it in Dart safe |
 | 4 | The band boundary is **integer division** on both sides (`intdiv`, `DIV`) | Dart, PHP and MariaDB agree on the cent at which a warning starts, so the dashboard and the kiosk cannot disagree by one |
 | 5 | The club default rides its **own** `GET /api/sync/config`, not `/sync/members` and not `/health` | `/sync/members` is a delta on `updated_at` and a club setting touches no member row, so a synced terminal would never see the change. `/health` carries only what a terminal needs *before* it can authenticate, and a spending ceiling is not that |
-| 6 | Signed `INT`, not `INT UNSIGNED` | An out-of-range write is a rejected value rather than a silently clamped one. ADR-0046 was amended to say so (commit `bb510ea`) with the user's explicit confirmation, the ADR rules requiring it |
+| 6 | Signed `INT`, not `INT UNSIGNED` | An out-of-range write is a rejected value rather than a silently clamped one. ADR-0047 was amended to say so (commit `bb510ea`) with the user's explicit confirmation, the ADR rules requiring it |
 | 7 | The terminal **prevents**, the backend **records** | Unchanged from [ADR-0020](../adr/0020-sepa-mandate-requirement-terminal-access.md): a sale a stale terminal let through is stored, never rejected |
 
 ### Why the club setting is TREASURY and not admin-only
@@ -73,7 +73,7 @@ Ordered by dependency. Status legend: `[ ]` not started · `[~]` in progress · 
 
 No production code.
 
-- [x] `adr/0046-configurable-credit-limits.md` — seven rules, the five-row NULL/`0` resolution
+- [x] `adr/0047-configurable-credit-limits.md` — seven rules, the five-row NULL/`0` resolution
       table, a sequence diagram of the two transports, alternatives and non-goals
 - [x] `adr/README.md` — the 0046 row
 - [x] Amended after the fact: the cents columns are signed `INT`. The ADR said `INT UNSIGNED`

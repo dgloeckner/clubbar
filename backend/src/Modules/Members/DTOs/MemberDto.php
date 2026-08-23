@@ -10,7 +10,7 @@ namespace App\Modules\Members\DTOs;
  * Deliberately narrower than `MemberAdminDto`: no contact details, no banking
  * data, no Deckel. The kiosk needs to recognize a card, greet a person, decide
  * whether they may transact at all, and — since ADR-0045 — whether they are old
- * enough for what is in the cart. Since ADR-0046 it also carries the ceiling
+ * enough for what is in the cart. Since ADR-0047 it also carries the ceiling
  * that member was given, where they were given one.
  */
 final readonly class MemberDto
@@ -67,7 +67,7 @@ final readonly class MemberDto
             // cursor, with no new mechanism.
             'date_of_birth' => $this->dateOfBirth,
             'preferred_language' => $this->preferredLanguage,
-            // The member's **override**, never a resolved ceiling (ADR-0046
+            // The member's **override**, never a resolved ceiling (ADR-0047
             // decision 1). `null` means they follow the club default, which the
             // terminal has from `/sync/config`; `0` means no ceiling for them.
             //

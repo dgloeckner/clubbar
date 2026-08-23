@@ -96,7 +96,7 @@ class MembersRepository {
             dateOfBirth: Value(_dayOrNull(dto.dateOfBirth)),
             preferredLanguage: Value(dto.preferredLanguage),
             // The member's own ceiling, or null for "follow the club default"
-            // (ADR-0046). Passed through exactly as sent: zero is a real value
+            // (ADR-0047). Passed through exactly as sent: zero is a real value
             // here and must not be collapsed into null.
             creditLimitCents: Value(dto.creditLimitCents),
             isActive: Value(dto.isActive ? 1 : 0),

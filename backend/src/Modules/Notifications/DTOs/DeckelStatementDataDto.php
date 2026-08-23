@@ -52,7 +52,7 @@ final readonly class DeckelStatementDataDto
      * @param CreditLimitStatus $creditStatus Computed over `totalCents` against
      *                              the ceiling that applies to *this* member —
      *                              their own where they have one, the club
-     *                              default where they do not (ADR-0046).
+     *                              default where they do not (ADR-0047).
      */
     public function __construct(
         public MailLanguage $language,

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Database;
 
 /**
- * What migration 052 has to leave behind (ADR-0046, #557).
+ * What migration 052 has to leave behind (ADR-0047, #557).
  *
  * The slice ships without changing anybody's limit, and that claim is only
  * worth anything if the seeded row *is* the constants it replaces. These tests

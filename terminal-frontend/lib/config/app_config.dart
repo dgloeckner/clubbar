@@ -21,7 +21,7 @@ class AppConfig {
   // the queue cannot start.
   static const Duration receiptAutoReturnDelay = Duration(seconds: 8);
 
-  // Seed values for the credit limit, and **only** seed values (ADR-0046).
+  // Seed values for the credit limit, and **only** seed values (ADR-0047).
   //
   // The club configures its own ceiling and warning band; the terminal fetches
   // them from `GET /sync/config` and persists them in `config.json`, so a

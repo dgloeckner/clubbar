@@ -13,7 +13,7 @@ import '../test_helpers.dart';
 /// have noticed its amounts line wrapping without bound at a large type scale.
 void main() {
   /// The club's shipped policy — €100.00 with an 80 % band — which is what a
-  /// terminal enforces before its first `/sync/config` poll (ADR-0046).
+  /// terminal enforces before its first `/sync/config` poll (ADR-0047).
   const policy = CreditLimitPolicy.shipped;
 
   Future<void> pumpBanner(
@@ -203,7 +203,7 @@ void main() {
 
   /// The banner is measured against the member's *own* ceiling, so it says the
   /// same thing the checkout button and the service-side refusal say
-  /// (ADR-0046). A banner reading from the club default while the service
+  /// (ADR-0047). A banner reading from the club default while the service
   /// enforced an override would warn the wrong member — or worse, warn nobody
   /// and then refuse at the till.
   group('a member with a ceiling of their own', () {

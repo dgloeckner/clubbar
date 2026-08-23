@@ -2,7 +2,7 @@ import { test } from '../../fixtures/roleRequests'
 import { expect } from '@playwright/test'
 
 /**
- * E2E Test: the club's credit limit configuration (ADR-0046, UC-A65)
+ * E2E Test: the club's credit limit configuration (ADR-0047, UC-A65)
  *
  * `credit_limit_config` is a singleton, so these tests mutate one shared row
  * rather than creating their own data — Pattern 001 cannot apply, and the same
@@ -60,7 +60,7 @@ test.describe.serial('Credit limit configuration API', () => {
 
   /**
    * Zero is the club saying "cap nobody" — a setting, not an absence
-   * (ADR-0046 decision 3), and the same convention the terminal's
+   * (ADR-0047 decision 3), and the same convention the terminal's
    * `CreditLimitCheck` has always used.
    */
   test('a ceiling of zero is accepted as "no limit"', async ({ authenticatedRequest }) => {

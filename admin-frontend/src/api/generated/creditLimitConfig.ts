@@ -62,7 +62,7 @@ export interface CreditLimitConfig {
   /**
      * The club-wide ceiling in cents. `0` means no ceiling is enforced —
      * the convention the terminal's `CreditLimitCheck` and the
-     * Deckelauszug already use (ADR-0046 decision 3).
+     * Deckelauszug already use (ADR-0047 decision 3).
      * @minimum 0
      * @maximum 10000000
      */
@@ -70,7 +70,7 @@ export interface CreditLimitConfig {
   /**
      * Share of the *effective* ceiling from which a member is warned but
      * still served. Club-wide: a member's override sets their ceiling,
-     * never their band (ADR-0046 decision 4).
+     * never their band (ADR-0047 decision 4).
      * @minimum 1
      * @maximum 100
      */

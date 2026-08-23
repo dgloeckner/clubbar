@@ -84,7 +84,7 @@ void main() {
   });
 
   /// The one place the override-or-default rule is expressed on this side
-  /// (ADR-0046 rule 1). Its twin is `CreditLimitPolicy::forMember()` in PHP,
+  /// (ADR-0047 rule 1). Its twin is `CreditLimitPolicy::forMember()` in PHP,
   /// and the cases below are the same ones its unit test pins — deliberately,
   /// because keeping the two comparable is what makes duplicating the rule
   /// safe for a terminal that has to decide with nothing reachable.
@@ -137,7 +137,7 @@ void main() {
 
   /// End to end through the seam: a resolved ceiling decides the verdict, and
   /// the band is always the club's share of whatever ceiling the member ends
-  /// up with (ADR-0046 decision 4).
+  /// up with (ADR-0047 decision 4).
   group('a member checked against their own ceiling', () {
     const policy = CreditLimitPolicy(
       defaultLimitCents: 10000,

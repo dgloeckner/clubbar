@@ -259,7 +259,7 @@ void main() {
               Provider<SoundService>.value(value: mockSoundService),
             Provider<ConfigService>.value(value: createMockConfigService()),
               // The screens resolve a member's ceiling through the club
-              // policy this service holds (ADR-0046).
+              // policy this service holds (ADR-0047).
               Provider<ConfigService>.value(value: createMockConfigService()),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),
@@ -315,7 +315,7 @@ void main() {
                 Provider<SoundService>.value(value: mockSoundService),
             Provider<ConfigService>.value(value: createMockConfigService()),
               // The screens resolve a member's ceiling through the club
-              // policy this service holds (ADR-0046).
+              // policy this service holds (ADR-0047).
               Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
@@ -467,7 +467,7 @@ void main() {
                 Provider<SoundService>.value(value: mockSoundService),
             Provider<ConfigService>.value(value: createMockConfigService()),
               // The screens resolve a member's ceiling through the club
-              // policy this service holds (ADR-0046).
+              // policy this service holds (ADR-0047).
               Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
@@ -710,7 +710,7 @@ void main() {
                 Provider<SoundService>.value(value: mockSoundService),
             Provider<ConfigService>.value(value: createMockConfigService()),
               // The screens resolve a member's ceiling through the club
-              // policy this service holds (ADR-0046).
+              // policy this service holds (ADR-0047).
               Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
@@ -933,7 +933,7 @@ void main() {
                 Provider<SoundService>.value(value: mockSoundService),
             Provider<ConfigService>.value(value: createMockConfigService()),
               // The screens resolve a member's ceiling through the club
-              // policy this service holds (ADR-0046).
+              // policy this service holds (ADR-0047).
               Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
@@ -1064,7 +1064,7 @@ void main() {
                 Provider<SoundService>.value(value: mockSoundService),
             Provider<ConfigService>.value(value: createMockConfigService()),
               // The screens resolve a member's ceiling through the club
-              // policy this service holds (ADR-0046).
+              // policy this service holds (ADR-0047).
               Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
@@ -1247,7 +1247,7 @@ void main() {
                 Provider<SoundService>.value(value: mockSoundService),
             Provider<ConfigService>.value(value: createMockConfigService()),
               // The screens resolve a member's ceiling through the club
-              // policy this service holds (ADR-0046).
+              // policy this service holds (ADR-0047).
               Provider<ConfigService>.value(value: createMockConfigService()),
               ],
               child: const Scaffold(body: ProductSelectionScreen()),
@@ -1454,7 +1454,7 @@ void main() {
               Provider<SoundService>.value(value: mockSoundService),
             Provider<ConfigService>.value(value: createMockConfigService()),
               // The screens resolve a member's ceiling through the club
-              // policy this service holds (ADR-0046).
+              // policy this service holds (ADR-0047).
               Provider<ConfigService>.value(value: createMockConfigService()),
             ],
             child: MaterialApp.router(

@@ -91,7 +91,7 @@ Read-only cache of member data synced from backend. Used for RFID card lookups.
 | `last_name` | TEXT | NULL | Last name (for display) |
 | `date_of_birth` | TEXT | NULL | `YYYY-MM-DD`. The **raw date**, for the Jugendschutz check ([ADR-0045](../adr/0045-age-restricted-products.md)) — see below |
 | `preferred_language` | TEXT | NOT NULL | ISO 639-1 language code |
-| `credit_limit_cents` | INTEGER | NULL | This member's own Deckel ceiling in cents ([ADR-0046](../adr/0046-configurable-credit-limits.md)). NULL means *follow the club default*, which the terminal holds in `config.json` and refreshes from `GET /api/sync/config`; `0` means *no ceiling for this member*. `CreditLimitPolicy.forMember` resolves the pair with `override ?? clubDefault` — the same one-line rule the backend applies |
+| `credit_limit_cents` | INTEGER | NULL | This member's own Deckel ceiling in cents ([ADR-0047](../adr/0047-configurable-credit-limits.md)). NULL means *follow the club default*, which the terminal holds in `config.json` and refreshes from `GET /api/sync/config`; `0` means *no ceiling for this member*. `CreditLimitPolicy.forMember` resolves the pair with `override ?? clubDefault` — the same one-line rule the backend applies |
 | `is_active` | INTEGER | NOT NULL, DEFAULT 1 | 1=active, 0=blocked |
 | `is_sepa_valid` | INTEGER | NOT NULL | 1=valid SEPA data, 0=missing IBAN or mandate |
 | `updated_at` | TEXT | NOT NULL | Last modification timestamp (ISO 8601) |
@@ -196,7 +196,7 @@ will still sell the drink — that gap is what the server-side
 
 **Credit limit**: the ceiling a checkout is refused past is the member's own
 `credit_limit_cents` where they have one and the club default otherwise
-([ADR-0046](../adr/0046-configurable-credit-limits.md)). The club default is
+([ADR-0047](../adr/0047-configurable-credit-limits.md)). The club default is
 **not** a cache table — it is one pair of numbers, so it lives in `config.json`
 alongside the terminal's other settings and is refreshed by `GET /sync/config`
 on each cycle. That call is deliberately separate from `/sync/members`: that
@@ -421,4 +421,4 @@ existing kiosk gains them as nullable columns and fills them on its next sync.
 - [ADR-0014](../adr/0014-rfid-scanning-integration.md): RFID scanning integration
 - [ADR-0020](../adr/0020-sepa-mandate-requirement-terminal-access.md): SEPA mandate requirement for terminal access
 - [ADR-0045](../adr/0045-age-restricted-products.md): Age-restricted products (Jugendschutz)
-- [ADR-0046](../adr/0046-configurable-credit-limits.md): Configurable credit limits (club default + per-member override)
+- [ADR-0047](../adr/0047-configurable-credit-limits.md): Configurable credit limits (club default + per-member override)

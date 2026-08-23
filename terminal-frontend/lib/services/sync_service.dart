@@ -110,7 +110,7 @@ class SyncService {
       // The club's credit policy, before the members it applies to. Non-fatal
       // on purpose: a terminal that cannot reach this endpoint keeps enforcing
       // the policy it last persisted, which is the whole reason it is cached
-      // (ADR-0046, and the same graceful-degradation rule ADR-0023 sets for
+      // (ADR-0047, and the same graceful-degradation rule ADR-0023 sets for
       // balances). Losing it must never cost the terminal its member data.
       try {
         await _syncCreditLimitPolicy();

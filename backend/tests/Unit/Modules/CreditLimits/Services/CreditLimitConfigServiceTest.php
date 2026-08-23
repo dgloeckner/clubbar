@@ -14,7 +14,7 @@ use PDOException;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The club's half of ADR-0046, and the one thing about it that is not obvious:
+ * The club's half of ADR-0047, and the one thing about it that is not obvious:
  * **reading it must never be able to break a caller**.
  *
  * The dashboard and the nightly Deckelauszug run both ask for a limit, and both

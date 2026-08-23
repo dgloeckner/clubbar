@@ -10,7 +10,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * The club policy a terminal caches (ADR-0046 decision 1).
+ * The club policy a terminal caches (ADR-0047 decision 1).
  *
  * Two channels carry a limit to a terminal, on purpose. The **club default**
  * is here; a member's **own ceiling** rides their row on `/sync/members`, and

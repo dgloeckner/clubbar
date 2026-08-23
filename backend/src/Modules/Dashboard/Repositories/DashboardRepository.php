@@ -39,7 +39,7 @@ class DashboardRepository
 
     /**
      * Whose tab the credit-limit list is about, and what the tab is (#385),
-     * now measured against each member's *own* ceiling (ADR-0046).
+     * now measured against each member's *own* ceiling (ADR-0047).
      *
      * One tab per active, undeleted member, summed over their unsettled
      * transactions. Shared by the list and its count because the two must

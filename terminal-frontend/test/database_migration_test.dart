@@ -168,7 +168,7 @@ void main() {
     });
   });
 
-  /// The per-member credit ceiling (ADR-0046, #561).
+  /// The per-member credit ceiling (ADR-0047, #561).
   ///
   /// The riskiest upgrade in the epic, because terminals upgrade in place while
   /// holding sales that have never reached the backend. Two things therefore

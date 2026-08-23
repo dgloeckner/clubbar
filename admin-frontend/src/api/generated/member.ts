@@ -94,7 +94,7 @@ export interface Member {
      */
   iban_masked?: string | null;
   /**
-     * This member's own Deckel ceiling in cents ([ADR-0046](../../adr/0046-configurable-credit-limits.md)). `null` means they follow the club default and move with it; `0` means a deliberate "no ceiling for this member". The two are different answers, not synonyms.
+     * This member's own Deckel ceiling in cents ([ADR-0047](../../adr/0047-configurable-credit-limits.md)). `null` means they follow the club default and move with it; `0` means a deliberate "no ceiling for this member". The two are different answers, not synonyms.
      * @minimum 0
      * @maximum 10000000
      * @nullable

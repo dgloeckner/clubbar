@@ -564,7 +564,7 @@ void main() {
       });
     });
 
-    /// The club's credit policy, cached (ADR-0046).
+    /// The club's credit policy, cached (ADR-0047).
     ///
     /// Cached rather than fetched on demand because the terminal blocks a
     /// checkout in front of the member with no backend reachable — and

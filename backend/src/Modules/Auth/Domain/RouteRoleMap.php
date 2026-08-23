@@ -190,7 +190,7 @@ final class RouteRoleMap
         // that no longer matches what happened, while a wrong ceiling mints no
         // credential, exports no data, and is undone by typing the right
         // number. Deciding what members may run up on their Deckel is the
-        // Kassenwart's own job (ADR-0046 decision 5).
+        // Kassenwart's own job (ADR-0047 decision 5).
         'GET /api/admin/credit-limit-config' => self::TREASURY,
         'PATCH /api/admin/credit-limit-config' => self::TREASURY,
 

@@ -87,7 +87,7 @@ test.describe('Jugendschutz over the terminal sync', () => {
       [
         'card_uid',
         'created_at',
-        // The per-member credit ceiling joined the payload with ADR-0046
+        // The per-member credit ceiling joined the payload with ADR-0047
         // (#560) — an override, never a resolved ceiling.
         'credit_limit_cents',
         'date_of_birth',

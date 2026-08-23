@@ -79,7 +79,7 @@ export interface MemberUpdateRequest {
      */
   phone?: string | null;
   /**
-     * Three request shapes, three meanings ([ADR-0046](../../adr/0046-configurable-credit-limits.md)): **omitting** the field leaves the override exactly as it is; `null` or `""` clears it, so the member goes back to the club default; `0` stores a deliberate "no ceiling for this member".
+     * Three request shapes, three meanings ([ADR-0047](../../adr/0047-configurable-credit-limits.md)): **omitting** the field leaves the override exactly as it is; `null` or `""` clears it, so the member goes back to the club default; `0` stores a deliberate "no ceiling for this member".
      * `0` is **not** a way to clear the field. A form that serialises an emptied input to `0` grants that member unlimited credit — send `null` or `""` for a cleared input.
      * @minimum 0
      * @maximum 10000000

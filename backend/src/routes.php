@@ -99,7 +99,7 @@ return function (App $app): void {
         $group->get('/categories', [ProductsSyncController::class, 'categories']);
         $group->get('/products', [ProductsSyncController::class, 'products']);
         $group->post('/transactions', [TransactionsSyncController::class, 'processBatch']);
-        // The club's credit policy (ADR-0046). Inside this group on purpose:
+        // The club's credit policy (ADR-0047). Inside this group on purpose:
         // it is what a terminal caches *after* it can authenticate, unlike
         // /health, which carries only what it needs before that.
         $group->get('/config', [CreditLimitSyncController::class, 'config']);
@@ -246,7 +246,7 @@ return function (App $app): void {
         // Instance branding
         $group->patch('/instance-config', [InstanceConfigController::class, 'update']);
 
-        // Credit limits (ADR-0046). Both verbs are TREASURY, unlike
+        // Credit limits (ADR-0047). Both verbs are TREASURY, unlike
         // sepa-config: setting what members may run up on their Deckel is the
         // Kassenwart's own job, and a wrong number is undone by typing the
         // right one.

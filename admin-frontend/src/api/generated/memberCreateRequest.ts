@@ -87,7 +87,7 @@ export interface MemberCreateRequest {
      */
   account_holder_name?: string;
   /**
-     * Optional, and **never required**: omitting it is the ordinary case and means this member follows the club default ([ADR-0046](../../adr/0046-configurable-credit-limits.md)). `0` means no ceiling for them. A negative value is refused rather than read as unlimited.
+     * Optional, and **never required**: omitting it is the ordinary case and means this member follows the club default ([ADR-0047](../../adr/0047-configurable-credit-limits.md)). `0` means no ceiling for them. A negative value is refused rather than read as unlimited.
      * @minimum 0
      * @maximum 10000000
      * @nullable

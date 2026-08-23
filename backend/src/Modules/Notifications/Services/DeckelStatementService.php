@@ -86,7 +86,7 @@ class DeckelStatementService
         $member = $this->membersRepository->findMailRecipients([$memberId])[$memberId] ?? null;
         $mailConfig = $this->mailConfigService->getConfig();
         // This member's own ceiling where they have one, the club default where
-        // they do not (ADR-0046). A statement naming the club figure while the
+        // they do not (ADR-0047). A statement naming the club figure while the
         // terminal enforces another tells the member a number nobody is using.
         $creditLimit = $this->creditLimitConfigService->policy()->forMember(
             isset($member['credit_limit_cents']) ? (int) $member['credit_limit_cents'] : null,

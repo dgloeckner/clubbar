@@ -39,7 +39,7 @@ The ceiling a member's **Deckel** may reach. One number, in cents, and it is alw
 
 Two values that look alike mean opposite things and both are deliberate: **empty** on a member means *follow the club*, so raising the club's ceiling lifts them too, while **0** means *no ceiling for this member*. A negative one is refused rather than stored, because `<= 0` already reads as "not enforced".
 
-Enforced at **checkout**, offline, like Jugendschutz — with a warning band below it, a club-wide share of whatever ceiling the member ended up with. Unlike Jugendschutz it is about money, not law: a sale a stale terminal let through is still recorded. See [ADR-0046](./adr/0046-configurable-credit-limits.md).
+Enforced at **checkout**, offline, like Jugendschutz — with a warning band below it, a club-wide share of whatever ceiling the member ended up with. Unlike Jugendschutz it is about money, not law: a sale a stale terminal let through is still recorded. See [ADR-0047](./adr/0047-configurable-credit-limits.md).
 _Avoid_: credit limit (the member is not being lent anything — the club is deciding how large a tab it will carry), balance limit, max balance, Kreditrahmen, overdraft
 
 ### Accounting

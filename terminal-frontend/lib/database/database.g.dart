@@ -354,7 +354,7 @@ class MembersCacheData extends DataClass
   final String? dateOfBirth;
   final String preferredLanguage;
 
-  /// This member's **own** credit ceiling in cents, or null (ADR-0046).
+  /// This member's **own** credit ceiling in cents, or null (ADR-0047).
   ///
   /// An override, never an effective ceiling. Null means "follow the club
   /// default", which arrives separately on `GET /sync/config` and is cached in

@@ -159,7 +159,7 @@ export function MembersPage() {
   const sepaConfigRequest = useLatestRequest()
   // The club's credit ceiling is a fifth: it fills the override field's
   // placeholder, so an empty box reads as "inherits €100.00" rather than as
-  // nothing at all (ADR-0046).
+  // nothing at all (ADR-0047).
   const creditLimitConfigRequest = useLatestRequest()
   // The Datenqualität panel's counts are a fourth (#629).
   const completenessRequest = useLatestRequest()
@@ -225,7 +225,7 @@ export function MembersPage() {
     mandate_signed_at: '',
     preferred_language: 'de',
     card_uid: '',
-    // The member's own credit ceiling, in euros as typed (ADR-0046). Empty is
+    // The member's own credit ceiling, in euros as typed (ADR-0047). Empty is
     // the ordinary case and means "follow the club default"; see
     // `utils/creditLimit.ts` for why empty and `0` must never collapse.
     credit_limit: '',
@@ -2084,7 +2084,7 @@ export function MembersPage() {
                 />
               </div>
 
-              {/* The member's own credit ceiling (ADR-0046). Optional, and the
+              {/* The member's own credit ceiling (ADR-0047). Optional, and the
                   empty state is the ordinary one — which is why the placeholder
                   names the club figure the member inherits rather than leaving
                   a blank box that reads as unset-and-broken. */}

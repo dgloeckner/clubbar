@@ -10,7 +10,7 @@ use App\Shared\Utils\Uuid;
 use Tests\Feature\HttpTestCase;
 
 /**
- * A member's own ceiling, through the real stack (ADR-0046, #558).
+ * A member's own ceiling, through the real stack (ADR-0047, #558).
  *
  * No new route: `POST` and `PATCH /api/admin/members` already carry it, the
  * way `preferred_language` is carried. What is new is a field with **three**

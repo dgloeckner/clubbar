@@ -153,7 +153,7 @@ class DashboardService
 
         // Deliberately no short-circuit when the club caps nobody: a member
         // carrying an override still has a ceiling and is still being refused
-        // at the bar. The query decides per row (ADR-0046).
+        // at the bar. The query decides per row (ADR-0047).
         $rows = $this->dashboardRepository->findMembersNearCreditLimit(
             $policy->defaultLimitCents,
             $policy->warnThresholdPercent,
@@ -515,7 +515,7 @@ class DashboardService
         // The ceiling the query measured this row against — the member's own
         // where they have one, the club default where they do not. Resolved
         // through the policy rather than read raw, so one rule answers this
-        // question everywhere (ADR-0046 rule 1).
+        // question everywhere (ADR-0047 rule 1).
         $limit = $policy->forMember(isset($row['limit_cents']) ? (int) $row['limit_cents'] : null);
 
         return [

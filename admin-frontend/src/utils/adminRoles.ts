@@ -20,7 +20,7 @@
  * carrying mail configuration, terminal tokens, encryption keys and admin
  * accounts, all `admin`-only on the server, so opening the section would have
  * shown a Kassenwart six doors that answer 403. Splitting the treasurer's slice
- * out was called a page change rather than a grant change, and ADR-0046 made
+ * out was called a page change rather than a grant change, and ADR-0047 made
  * it due: the club's credit ceiling is the Kassenwart's own setting.
  *
  * That split is {@link SETTINGS_TAB_ROLES} below. The section is TREASURY now,
@@ -56,7 +56,7 @@ export const SECTION_ROLES: Record<string, AdminRole[]> = {
 }
 
 /**
- * Settings tab → the roles that may see it (ADR-0046, #562).
+ * Settings tab → the roles that may see it (ADR-0047, #562).
  *
  * The second half of opening `/settings` to the treasury. `SECTION_ROLES` says
  * who reaches the page; this says what they find on it, under the same rules:

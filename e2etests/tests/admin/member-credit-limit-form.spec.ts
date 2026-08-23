@@ -1,5 +1,5 @@
 /**
- * The member's own ceiling, typed into the member form (#563, ADR-0046).
+ * The member's own ceiling, typed into the member form (#563, ADR-0047).
  *
  * `tests/api/member-credit-limit.spec.ts` proves the API keeps NULL, 0 and a
  * value apart. This file proves the *form* does — which is a different claim,

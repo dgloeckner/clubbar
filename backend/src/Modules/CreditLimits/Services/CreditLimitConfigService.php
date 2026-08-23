@@ -13,7 +13,7 @@ use App\Shared\Services\AuditService;
 use PDOException;
 
 /**
- * The club's ceiling and warning band (ADR-0046).
+ * The club's ceiling and warning band (ADR-0047).
  *
  * Reading it is deliberately unbreakable. Two callers ask for a limit on paths
  * that must not fail — the dashboard, and the nightly Deckelauszug run — and

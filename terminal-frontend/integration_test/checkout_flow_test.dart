@@ -174,7 +174,7 @@ void main() {
         database: db,
         repository: TransactionsRepository(db),
         // A ConfigService over a scratch directory: the credit ceiling is
-        // configuration now (ADR-0046), and this flow needs the club default
+        // configuration now (ADR-0047), and this flow needs the club default
         // the shipped seed values give it.
         configService: ConfigService(
           configDir: Directory.systemTemp

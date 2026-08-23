@@ -1,5 +1,5 @@
 /**
- * The epic's acceptance test, end to end (#555, ADR-0046).
+ * The epic's acceptance test, end to end (#555, ADR-0047).
  *
  * Every other spec in this epic checks one seam. This one checks that they
  * join up: a club sets its ceiling, a member with no override of their own is

@@ -234,7 +234,7 @@ class AdminControllerValidationTest extends TestCase
             'mandate_signed_at' => ['mandate_signed_at'],
             // An override an admin emptied must clear to NULL — "follow the
             // club default" — and never arrive as 0, which means the opposite:
-            // unlimited credit for this member (ADR-0046 rule 3).
+            // unlimited credit for this member (ADR-0047 rule 3).
             'credit_limit_cents' => ['credit_limit_cents'],
         ];
     }
@@ -431,7 +431,7 @@ class AdminControllerValidationTest extends TestCase
         ]);
     }
 
-    // ── the per-member credit ceiling (ADR-0046, #558) ──────────────────────
+    // ── the per-member credit ceiling (ADR-0047, #558) ──────────────────────
     //
     // Three request shapes, three different meanings, and the difference is
     // the whole feature: omitted leaves the override alone, null clears it

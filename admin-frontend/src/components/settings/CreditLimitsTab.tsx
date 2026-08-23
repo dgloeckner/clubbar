@@ -1,7 +1,7 @@
 /**
  * CreditLimitsTab Component
  *
- * The club's credit ceiling and warning band (ADR-0046, UC-A65).
+ * The club's credit ceiling and warning band (ADR-0047, UC-A65).
  *
  * The Kassenwart's own slice of Settings, and the reason `/settings` opened to
  * the treasury at all: setting what members may run up on their Deckel is

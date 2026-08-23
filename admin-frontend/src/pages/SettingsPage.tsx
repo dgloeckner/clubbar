@@ -74,7 +74,7 @@ export function SettingsPage() {
   const { refetch: refetchInstanceConfig } = useInstanceConfig()
 
   // State management
-  // Which tabs this caller may see (ADR-0046, #562). `/settings` is TREASURY
+  // Which tabs this caller may see (ADR-0047, #562). `/settings` is TREASURY
   // now, and the boundary moved one level down: a Kassenwart reaches the page
   // for the Limits tab and finds nothing else on it. Default-deny lives in
   // SETTINGS_TAB_ROLES, so a tab added without a classification is invisible
@@ -207,7 +207,7 @@ export function SettingsPage() {
   // success message (#136).
   const instanceSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Credit limits (ADR-0046 / UC-A65) — the club's ceiling and warning band,
+  // Credit limits (ADR-0047 / UC-A65) — the club's ceiling and warning band,
   // the Kassenwart's own slice of this page. Held as the strings the inputs
   // carry; the euro/cent conversion is the tab's, so a half-typed amount is
   // not rounded under the treasurer's cursor.
@@ -1181,7 +1181,7 @@ export function SettingsPage() {
           dialog (#473), same as CredentialsTab below. */}
       {activeTab === 'mail' && <MailSettingsTab callerTotpEnabled={callerTotpEnabled} />}
 
-      {/* Credit Limits Tab (ADR-0046, UC-A65) */}
+      {/* Credit Limits Tab (ADR-0047, UC-A65) */}
       {activeTab === 'limits' && (
         <CreditLimitsTab
           loading={limitsLoading}

@@ -100,7 +100,7 @@ class ConfigService {
       _displayName ?? _backendDisplayName ?? defaultDisplayName;
   Map<String, dynamic>? get fontSizes => _fontSizes;
 
-  /// The club's credit ceiling and warning band (ADR-0046).
+  /// The club's credit ceiling and warning band (ADR-0047).
   ///
   /// Cached, not asked for: the terminal blocks a checkout in front of the
   /// member with no backend reachable, so the policy has to be here already.
@@ -210,7 +210,7 @@ class ConfigService {
         _displayName = json['displayName'] as String?;
         _fontSizes = json['fontSizes'] as Map<String, dynamic>?;
 
-        // The club policy this terminal last synced (ADR-0046). Absent on a
+        // The club policy this terminal last synced (ADR-0047). Absent on a
         // fresh install, which is what the shipped seed values are for.
         final creditLimit = json['creditLimit'] as Map<String, dynamic>?;
         if (creditLimit != null) {

@@ -99,7 +99,7 @@ describe('permitsPath', () => {
     expect(permitsPath(['kassenwart'], '/journal')).toBe(true)
     expect(permitsPath(['kassenwart'], '/notifications')).toBe(true)
 
-    // The treasurer's own slice of Settings exists now (ADR-0046, #562): the
+    // The treasurer's own slice of Settings exists now (ADR-0047, #562): the
     // club's credit ceiling is theirs to set, so the door is open — and
     // SETTINGS_TAB_ROLES is what keeps the rest of the page shut.
     expect(permitsPath(['kassenwart'], '/settings')).toBe(true)
@@ -220,7 +220,7 @@ describe('sameRoleSet', () => {
 })
 
 /**
- * The Settings page's own table (ADR-0046, #562).
+ * The Settings page's own table (ADR-0047, #562).
  *
  * `/settings` is one screen carrying several `admin`-only surfaces, so opening
  * the section to the treasury moves the boundary rather than removing it: this

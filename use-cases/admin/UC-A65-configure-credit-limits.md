@@ -1,6 +1,6 @@
 # UC-A65: Configure Credit Limits
 
-**Implementation Status**: Implemented ([ADR-0046](../../adr/0046-configurable-credit-limits.md), epic [#555](https://github.com/dgloeckner/clubbar/issues/555))
+**Implementation Status**: Implemented ([ADR-0047](../../adr/0047-configurable-credit-limits.md), epic [#555](https://github.com/dgloeckner/clubbar/issues/555))
 
 ## Actor
 Admin or Kassenwart
@@ -107,6 +107,6 @@ deliberately given a ceiling still has one.
   terminal token
 
 ## Related
-- [ADR-0046: Configurable Credit Limits](../../adr/0046-configurable-credit-limits.md)
+- [ADR-0047: Configurable Credit Limits](../../adr/0047-configurable-credit-limits.md)
 - [ADR-0044: Tiered Admin Roles](../../adr/0044-tiered-admin-roles.md) — why both verbs are TREASURY
 - [UC-T11](../terminal/UC-T11-shopping-cart.md), [UC-T12](../terminal/UC-T12-error-scenarios.md) — where the ceiling is enforced

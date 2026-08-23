@@ -1,6 +1,6 @@
 /**
  * The member's own credit ceiling, between the form and the API
- * ([ADR-0046](../../../adr/0046-configurable-credit-limits.md)).
+ * ([ADR-0047](../../../adr/0047-configurable-credit-limits.md)).
  *
  * One field, three meanings, and keeping them apart is the whole job:
  *

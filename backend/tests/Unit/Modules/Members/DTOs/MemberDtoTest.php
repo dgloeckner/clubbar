@@ -87,7 +87,7 @@ class MemberDtoTest extends TestCase
     }
 
     /**
-     * The **override**, not a resolved ceiling (ADR-0046 decision 1). The
+     * The **override**, not a resolved ceiling (ADR-0047 decision 1). The
      * terminal coalesces it with the club default from `/sync/config`, and it
      * has to, because this payload is a delta on `updated_at`: a club setting
      * touches no member row, so a figure resolved here would go stale on every

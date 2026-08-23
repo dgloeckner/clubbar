@@ -75,14 +75,14 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  *
  * **Use Case**: UC-A65
  *
- * `admin` and `kassenwart` (ADR-0046 decision 5) — deliberately unlike
+ * `admin` and `kassenwart` (ADR-0047 decision 5) — deliberately unlike
  * `sepa-config`, whose writes are `admin`-only. A wrong ceiling mints no
  * credential and exports no data; it is undone by typing the right
  * number.
  *
  * This is the club *default*. A member may carry an override, in which
  * case theirs applies; the terminal resolves the two locally, offline,
- * which is why they travel separately (ADR-0046 decision 1).
+ * which is why they travel separately (ADR-0047 decision 1).
  * @summary Get the club's credit limit configuration
  */
 const getCreditLimitConfig = (

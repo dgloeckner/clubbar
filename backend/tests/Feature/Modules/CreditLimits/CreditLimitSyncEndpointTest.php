@@ -10,7 +10,7 @@ use Tests\Feature\HttpTestCase;
 
 /**
  * `GET /api/sync/config` — how the club's ceiling reaches a terminal that has
- * to enforce it with nothing reachable (ADR-0046, #560).
+ * to enforce it with nothing reachable (ADR-0047, #560).
  *
  * The endpoint exists because `/sync/members` is a delta on `updated_at` and a
  * club setting touches no member row: a pre-resolved per-member figure would
@@ -146,7 +146,7 @@ class CreditLimitSyncEndpointTest extends HttpTestCase
     /**
      * The boundary this endpoint exists to hold: `/health` carries only what a
      * terminal needs *before* it can authenticate, and club policy is not that
-     * (ADR-0046 decision 3).
+     * (ADR-0047 decision 3).
      */
     public function test_the_health_check_gains_no_club_policy(): void
     {

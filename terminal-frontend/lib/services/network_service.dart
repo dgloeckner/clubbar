@@ -244,7 +244,7 @@ class NetworkService {
   // Club policy
   // ---------------------------------------------------------------------------
 
-  /// The club's credit ceiling and warning band (ADR-0046).
+  /// The club's credit ceiling and warning band (ADR-0047).
   ///
   /// No cursor and no delta: the document is one row, re-read whole each
   /// cycle. It is bearer-authenticated like the rest of `/sync/*` — club
