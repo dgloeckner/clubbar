@@ -38,6 +38,37 @@ make reset-and-run
 - **macOS**: `~/Library/Containers/de.clubbar.clubbarTerminal/Data/clubbar_terminal.db`
 - **Linux**: `~/.local/share/clubbar_terminal/clubbar_terminal.db`
 
+### `audio-diagnose.sh`
+
+Captures the state of terminal audio **while it is broken**, on the Pi. For the
+fault where sound worked, nothing was changed, sound is gone, and a reboot
+brings it back — the reboot is what destroys the evidence, so run this first.
+
+**Usage:**
+
+```bash
+# On the terminal, while it is silent
+/opt/clubbar-terminal/scripts/audio-diagnose.sh          # ~/audio-diagnose-<timestamp>.txt
+/opt/clubbar-terminal/scripts/audio-diagnose.sh --no-play  # skip the noise-making tests
+```
+
+**What it collects:**
+- The terminal process: start time, the environment it actually got, and which
+  audio path it holds open (an ALSA device, or a socket to a sound server)
+- Cards, playback substream owners, and who is holding `/dev/snd/*`
+- Sound servers **with their start times** — one younger than the app is the
+  usual cause
+- Mixer state, the clips `audioplayers` extracted to the temp dir, `error.log`
+- `dmesg`/journal lines for `vc4`, HDMI and ALSA
+- Playback tests along three paths, including the one `audioplayers` really
+  builds (`audiopanorama ! autoaudiosink`)
+
+Read the result alongside
+[docs/audio-dropout-debugging.md](../docs/audio-dropout-debugging.md), which
+ranks the causes and says which capture section separates them.
+
+---
+
 ---
 
 ## Common Development Tasks
