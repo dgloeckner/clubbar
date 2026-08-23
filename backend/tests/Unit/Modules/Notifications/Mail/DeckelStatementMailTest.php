@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\Mail;
 
-use App\Modules\Dashboard\Domain\CreditLimit;
+use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
+use App\Modules\CreditLimits\Domain\CreditLimitStatus;
 use App\Modules\Notifications\DTOs\DeckelStatementDataDto;
 use App\Modules\Notifications\DTOs\StatementLineDto;
 use App\Modules\Notifications\Enums\MailLanguage;
@@ -59,8 +60,8 @@ class DeckelStatementMailTest extends TestCase
                 new StatementLineDto('Kaffee', '2026-07-09 18:02:00', 250),
             ],
             'omittedLines' => 0,
-            'creditLimitCents' => CreditLimit::LIMIT_CENTS,
-            'creditStatus' => CreditLimit::STATUS_OK,
+            'creditLimitCents' => CreditLimitPolicy::DEFAULT_LIMIT_CENTS,
+            'creditStatus' => CreditLimitStatus::OK->value,
             'treasurerEmail' => 'kasse@example.org',
         ];
 
@@ -174,7 +175,7 @@ class DeckelStatementMailTest extends TestCase
         $message = $this->render($language, [
             'totalCents' => -750,
             'lines' => [new StatementLineDto('Storno Bier 0,5 l', '2026-07-20 19:00:00', -750)],
-            'creditStatus' => CreditLimit::STATUS_OK,
+            'creditStatus' => CreditLimitStatus::OK->value,
         ]);
 
         $creditLabel = $language === MailLanguage::German ? 'Guthaben' : 'In credit';
@@ -204,7 +205,7 @@ class DeckelStatementMailTest extends TestCase
     {
         $message = $this->render($language, [
             'totalCents' => 12_500,
-            'creditStatus' => CreditLimit::STATUS_EXCEEDED,
+            'creditStatus' => CreditLimitStatus::EXCEEDED->value,
         ]);
 
         $limit = $language === MailLanguage::German ? '100,00 €' : 'EUR 100.00';
@@ -222,7 +223,7 @@ class DeckelStatementMailTest extends TestCase
     {
         $message = $this->render($language, [
             'totalCents' => 8_500,
-            'creditStatus' => CreditLimit::STATUS_APPROACHING,
+            'creditStatus' => CreditLimitStatus::APPROACHING->value,
         ]);
 
         $expected = $language === MailLanguage::German ? 'näherst Dich' : 'approaching it';
@@ -294,7 +295,7 @@ class DeckelStatementMailTest extends TestCase
     #[DataProvider('languages')]
     public function test_no_placeholder_survives_rendering(MailLanguage $language): void
     {
-        $message = $this->render($language, ['omittedLines' => 3, 'creditStatus' => CreditLimit::STATUS_APPROACHING]);
+        $message = $this->render($language, ['omittedLines' => 3, 'creditStatus' => CreditLimitStatus::APPROACHING->value]);
 
         foreach ([$message->subject, $message->html, $message->text] as $part) {
             $this->assertDoesNotMatchRegularExpression('/\{[a-z_]+\}/', $part);

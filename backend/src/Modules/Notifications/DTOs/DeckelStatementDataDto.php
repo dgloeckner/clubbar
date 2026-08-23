@@ -47,8 +47,9 @@ final readonly class DeckelStatementDataDto
      *                              day it was sent.
      * @param list<StatementLineDto> $lines Already netted, already capped.
      * @param int $omittedLines     Netted lines the cap dropped; 0 when all fit.
-     * @param string $creditStatus  One of {@see \App\Modules\Dashboard\Domain\CreditLimit}'s
-     *                              STATUS_* values, computed over `totalCents`.
+     * @param string $creditStatus  One of {@see \App\Modules\CreditLimits\Domain\CreditLimitStatus}'s
+     *                              values, computed over `totalCents` against the
+     *                              ceiling that applies to this member.
      */
     public function __construct(
         public MailLanguage $language,
