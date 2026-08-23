@@ -232,6 +232,10 @@ class AdminControllerValidationTest extends TestCase
             'card_uid' => ['card_uid'],
             'account_holder_name' => ['account_holder_name'],
             'mandate_signed_at' => ['mandate_signed_at'],
+            // An override an admin emptied must clear to NULL — "follow the
+            // club default" — and never arrive as 0, which means the opposite:
+            // unlimited credit for this member (ADR-0046 rule 3).
+            'credit_limit_cents' => ['credit_limit_cents'],
         ];
     }
 
@@ -275,6 +279,7 @@ class AdminControllerValidationTest extends TestCase
                 $this->identicalTo(null),
                 $this->identicalTo(null),
                 '1990-05-04',
+                $this->identicalTo(null),
                 'admin-1',
             )
             ->willReturn($this->member());
@@ -424,5 +429,101 @@ class AdminControllerValidationTest extends TestCase
             'created_at' => '2026-01-01 00:00:00',
             'updated_at' => '2026-01-01 00:00:00',
         ]);
+    }
+
+    // ── the per-member credit ceiling (ADR-0046, #558) ──────────────────────
+    //
+    // Three request shapes, three different meanings, and the difference is
+    // the whole feature: omitted leaves the override alone, null clears it
+    // back to the club default, and 0 is a deliberate "no ceiling for this
+    // member". A UI that serialises an emptied input to 0 silently grants
+    // unlimited credit, which is the worst failure this feature can have.
+
+    public function test_update_stores_a_ceiling_of_zero_rather_than_clearing_it(): void
+    {
+        $this->membersService->expects($this->once())
+            ->method('updateMember')
+            ->with('m-1', $this->identicalTo(['credit_limit_cents' => 0]), 'admin-1')
+            ->willReturn($this->member());
+
+        $response = $this->controller->update(
+            $this->patch(['credit_limit_cents' => 0]),
+            new Response(),
+            ['memberId' => 'm-1'],
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_update_passes_an_explicit_null_through_as_a_clear(): void
+    {
+        $this->membersService->expects($this->once())
+            ->method('updateMember')
+            ->with('m-1', $this->identicalTo(['credit_limit_cents' => null]), 'admin-1')
+            ->willReturn($this->member());
+
+        $response = $this->controller->update(
+            $this->patch(['credit_limit_cents' => null]),
+            new Response(),
+            ['memberId' => 'm-1'],
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * Never `required`, on either path: a member who follows the club default
+     * is the ordinary case, and the field is absent from almost every request.
+     */
+    public function test_store_accepts_a_member_with_no_ceiling_of_their_own(): void
+    {
+        $this->membersService->expects($this->once())
+            ->method('createMember')
+            ->willReturn($this->member());
+
+        $response = $this->controller->store($this->post(self::validBody()), new Response());
+
+        $this->assertSame(201, $response->getStatusCode());
+    }
+
+    /** @return array<string, array{0: mixed}> */
+    public static function refusedCeilings(): array
+    {
+        return [
+            // Would pass the `<= 0` test as "unlimited" — refused rather than
+            // reinterpreted.
+            'negative' => [-1],
+            'past the shared upper bound' => [10_000_001],
+            'a decimal amount' => ['100.50'],
+            'prose' => ['unbegrenzt'],
+        ];
+    }
+
+    #[DataProvider('refusedCeilings')]
+    public function test_store_refuses_a_ceiling_outside_the_shared_bounds(mixed $value): void
+    {
+        $this->membersService->expects($this->never())->method('createMember');
+
+        $response = $this->controller->store(
+            $this->post(self::validBody(['credit_limit_cents' => $value])),
+            new Response(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('credit_limit_cents', $this->decode($response)['messages']);
+    }
+
+    #[DataProvider('refusedCeilings')]
+    public function test_update_refuses_a_ceiling_outside_the_shared_bounds(mixed $value): void
+    {
+        $this->membersService->expects($this->never())->method('updateMember');
+
+        $response = $this->controller->update(
+            $this->patch(['credit_limit_cents' => $value]),
+            new Response(),
+            ['memberId' => 'm-1'],
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
     }
 }

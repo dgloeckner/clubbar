@@ -15,6 +15,7 @@ final readonly class MemberAdminDto
         public ?string $phone,
         public ?string $dateOfBirth,
         public string $preferredLanguage,
+        public ?int $creditLimitCents,
         public bool $isActive,
         public bool $isSepaValid,
         public ?string $ibanMasked,
@@ -51,6 +52,10 @@ final readonly class MemberAdminDto
             dateOfBirth: $row['date_of_birth'] ?? null,
             phone: $row['phone'] ?? null,
             preferredLanguage: $row['preferred_language'],
+            // Left null rather than defaulted: NULL is this member following
+            // the club default, and 0 is a deliberate absence of a ceiling —
+            // two different answers (ADR-0046 decision 3).
+            creditLimitCents: isset($row['credit_limit_cents']) ? (int) $row['credit_limit_cents'] : null,
             isActive: (bool) $row['is_active'],
             isSepaValid: !empty($row['has_iban']) && !empty($row['mandate_reference']),
             ibanMasked: $last4 ? '****' . $last4 : null,
@@ -79,6 +84,9 @@ final readonly class MemberAdminDto
             // NULL means the member has been anonymized (ADR-0045 rule 3).
             'date_of_birth' => $this->dateOfBirth,
             'preferred_language' => $this->preferredLanguage,
+            // This member's own ceiling. `null` = follow the club default,
+            // `0` = no ceiling for them (ADR-0046).
+            'credit_limit_cents' => $this->creditLimitCents,
             'is_active' => $this->isActive,
             'is_sepa_valid' => $this->isSepaValid,
             'iban_last4' => $this->ibanLast4,
