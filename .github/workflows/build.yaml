@@ -39,6 +39,21 @@ env:
   # That is a change of its own, not a side effect of fixing jsdom.
   NODE_VERSION: '22'
 
+  # The SDK that compiles the POS binary shipped to clubs. Pinned to an
+  # explicit tag, like NODE_VERSION above and `php-version` below — it used to
+  # clone `-b stable`, so the compiler was whatever Flutter had released that
+  # morning and nothing recorded which SDK produced a given artifact.
+  #
+  # `terminal-frontend/pubspec.lock` sets the floor:
+  #
+  #     sdks:
+  #       dart: ">=3.12.0 <4.0.0"
+  #       flutter: ">=3.44.0"
+  #
+  # Bump this deliberately, in its own pull request, and read the release
+  # notes — it is the one input here that changes what the binary *is*.
+  FLUTTER_VERSION: '3.47.1'
+
 # Superseded runs on the same branch are pointless — cancel them. main is
 # exempt because its runs deploy, and a half-finished deploy is worse than a
 # redundant one.
@@ -918,15 +933,33 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/flutter
-          key: flutter-arm64-stable-${{ hashFiles('terminal-frontend/pubspec.lock') }}
-          restore-keys: flutter-arm64-stable-
+          # Keyed on the SDK version and nothing else. The old key hashed
+          # `pubspec.lock` and fell back to a `flutter-arm64-stable-`
+          # restore-key, which had it backwards on both counts: the cached SDK
+          # does not depend on pubspec.lock, so a dependency bump evicted it
+          # and re-cloned whatever `stable` pointed at that day, while the
+          # restore-key quietly served a stale SDK the rest of the time. Now
+          # the SDK changes when, and only when, FLUTTER_VERSION changes.
+          key: flutter-arm64-${{ env.FLUTTER_VERSION }}
 
       - name: Setup Flutter
         run: |
           if [ ! -d ~/flutter ]; then
-            git clone https://github.com/flutter/flutter.git --depth 1 -b stable ~/flutter
+            git clone https://github.com/flutter/flutter.git --depth 1 \
+              -b "$FLUTTER_VERSION" ~/flutter
           fi
           echo "$HOME/flutter/bin" >> $GITHUB_PATH
+
+      - name: Report Flutter version
+        run: |
+          flutter --version
+          # A cache restored under a stale key, or a tag moved upstream, would
+          # otherwise be invisible. Fail loudly instead of building with an
+          # SDK nobody asked for.
+          flutter --version | grep -q "Flutter $FLUTTER_VERSION " || {
+            echo "::error::Expected Flutter $FLUTTER_VERSION, got the above."
+            exit 1
+          }
 
       - name: Enable Linux desktop
         run: flutter config --enable-linux-desktop
