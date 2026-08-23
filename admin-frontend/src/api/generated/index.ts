@@ -92,6 +92,8 @@ export * from './createTerminalRequest';
 export * from './creditBalance';
 export * from './creditLimitConfig';
 export * from './creditLimitConfigUpdateRequest';
+export * from './creditLimitConfig';
+export * from './creditLimitConfigUpdateRequest';
 export * from './cronSecretRotated';
 export * from './dashboard';
 export * from './dashboardAlertsItem';

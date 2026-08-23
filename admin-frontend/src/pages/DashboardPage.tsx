@@ -661,7 +661,10 @@ export function DashboardPage() {
           </div>
 
           {/* Members near their credit limit (#385) — who the terminal is about
-              to turn away, while there is still time to say so beforehand. */}
+              to turn away, while there is still time to say so beforehand.
+              Ordered by share of *their own* ceiling since ADR-0046, not by
+              raw amount: a member €10 past a €50 ceiling is already being
+              refused, while one at €170 of €200 is merely being warned. */}
           <div data-testid="dashboard-members-near-limit" style={{
             background: theme.colors.bg.card,
             border: `1px solid ${theme.colors.border.light}`,
@@ -681,7 +684,9 @@ export function DashboardPage() {
               color: theme.colors.text.muted,
               margin: `${theme.spacing.xs} 0 ${theme.spacing.lg} 0`,
             }}>
-              {t('dashboard.creditLimitOf', { amount: formatPrice(members_near_limit?.limit_cents ?? 0) })}
+              {t('dashboard.creditLimitClubDefault', {
+                amount: formatPrice(members_near_limit?.limit_cents ?? 0),
+              })}
             </div>
 
             {near_limit_members.length === 0 ? (
@@ -708,7 +713,10 @@ export function DashboardPage() {
                         flexShrink: 0,
                         whiteSpace: 'nowrap',
                       }}>
-                        {formatPrice(member.balance_cents)}
+                        {t('dashboard.balanceOfLimit', {
+                          balance: formatPrice(member.balance_cents),
+                          limit: formatPrice(member.limit_cents),
+                        })}
                       </span>
                     </div>
                     {/* The bar fills, it never overflows: a tab past the limit
