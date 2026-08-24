@@ -69,15 +69,101 @@ Six requirements follow, and everything else in this ADR is refinement of them.
 ### 1. The dump is produced in PHP, and the snapshot is atomic
 
 There is no `mysqldump` on the target, so the dumper walks the schema itself and
-streams rows to a compressed, sealed file. Tables fall into three classes, and a
-table added later that nobody classified fails a unit test rather than silently
-defaulting:
+streams rows to a compressed, sealed file. Tables fall into three classes:
 
 | Class | Tables | Why |
 |---|---|---|
-| **full** | Business data | It is the point |
-| **schema-only** | `bank_codes` | Bulk reference data, reimportable from its own importer |
-| **skip** | `sessions`, `login_attempts`, `terminal_auth_attempts`, `terminal_ip_sightings` | Ephemeral; restoring them restores nothing |
+| **full** | Business data, and `_migrations` | It is the point. The migration ledger is included because a restore without it leaves the runner believing nothing is applied, so the next upgrade replays every migration against a populated database |
+| **schema-only** | `bank_codes` | Bulk reference data, reimportable from its own importer. Structure is kept so the archive still loads |
+| **skip** | `login_attempts`, `terminal_auth_attempts`, `terminal_ip_sightings` | Ephemeral; restoring them restores nothing |
+
+**A table nobody classified is an error, not a guess.** Defaulting to "back it
+up" would quietly grow the archive with whatever the next migration adds;
+defaulting to "skip it" would quietly lose it. Either mistake is invisible until
+a restore, which is the worst possible moment to find out.
+
+**The check is a bijection against the live schema, in both directions**, and it
+is a feature test — a unit test over a hand-written list would only ever catch a
+typo, never a migration. A new table missing from the map is the direction
+everyone anticipates. The other one earns its place on its own: this ADR's own
+first draft listed `sessions` under **skip**, a table migration `044` had already
+dropped, and nothing but the stale-side assertion would have caught it. A map
+that has drifted in either direction is no longer evidence of anything.
+
+**But CI and the nightly run want opposite things from that rule.** In CI the
+classification must fail closed: an unclassified table is a red build, because
+that is the moment a human is present and the cost of stopping is nil. At 03:00
+it must fail *open*: the table is dumped as **full** and the run records a
+`SecurityFinding` (✕) plus a notice. Refusing the whole night's backup over one
+unrecognised name would be the control-that-looks-like-protection failure this
+ADR opens with — and an unrecognised table is far likelier to be business data
+than ephemera, so including it is also the better guess.
+
+This is the general shape of the rule, and it is worth stating once:
+**confidentiality fails closed, completeness fails open and reports.** No
+recipient key means no archive at all (decision 2). An unknown table means a
+slightly larger archive and a finding. Collapsing the two — as "fail closed"
+alone would — trades a real backup for a tidier invariant.
+
+#### What the dumper assumes, and what keeps those assumptions true
+
+Three properties of the schema make the dumper correct. None is enforced by
+anything the dumper does, so each is asserted by a guard test instead — the day
+one stops holding, CI says so rather than the backup failing at 03:00:
+
+| Assumption | What breaks without it |
+|---|---|
+| Every name is a **base table** | `SHOW TABLES` returns views as well. The first view added anywhere makes the classification throw and takes the entire nightly backup down, from an unrelated migration. The dumper therefore reads `information_schema.TABLES` with `TABLE_TYPE = 'BASE TABLE'` — and the guard test asserts the schema holds no views, triggers, routines or events, because those are silently absent from the archive rather than loudly missing |
+| Every table is **InnoDB** | `START TRANSACTION WITH CONSISTENT SNAPSHOT` covers InnoDB and nothing else. A non-InnoDB table is read at whatever moment the cursor reaches it, so the archive tears between tables — and looks perfectly normal |
+| The restoring session is **UTC** | See below |
+
+#### The archive states the session it must be restored under
+
+A dump is a sequence of statements, and the same statement means different things
+in different sessions. The archive therefore pins its own: `NAMES utf8mb4`,
+`SQL_MODE` (neither `NO_BACKSLASH_ESCAPES`, which would change every escaped
+value, nor `NO_ZERO_DATE`, which would reject the zero dates it copies verbatim),
+`FOREIGN_KEY_CHECKS = 0` because tables are written in name order rather than
+dependency order, the database's own character set, and — the one whose absence
+has no symptom — **`time_zone = '+00:00'`**.
+
+The schema holds 53 `TIMESTAMP` columns against 29 `DATETIME`, and `TIMESTAMP` is
+converted by the session zone. An archive imported through phpMyAdmin in the
+host's local zone shifts every one of those 53 columns by the offset: settlement
+dates, announcement distances, audit timestamps and the seven-day
+[ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md) window all move
+together, consistently, and nothing about the result looks wrong. Every *other*
+path in this project already pins UTC, which is exactly why forgetting it here
+was easy.
+
+The same reasoning binds the *reading* side: the dump connection asserts its own
+offset before opening the snapshot, because a correct-looking statement written
+from a non-UTC read carries the wrong instant.
+
+#### The archive is addressable per table
+
+Each table is written between terminated markers, and every `INSERT` names its
+columns. Two unrelated needs turn out to want the same property:
+
+- **Repairing one table is not restoring the database.** When a tablespace is
+  unreadable or a table has been dropped, the club wants that table back — not a
+  restore that discards everything since the dump.
+- **phpMyAdmin has an upload limit.** A single file from a grown database will
+  not import through the web UI on shared hosting at all. On a host with no
+  shell that is a restore blocker, not an inconvenience.
+
+Named columns are what let a single table's section load into a schema that has
+since gained a nullable column, instead of failing on arity; at 100 rows per
+statement the extra bytes are noise.
+
+**A damaged index needs no archive at all.** `ALTER TABLE t ENGINE=InnoDB`
+rebuilds every index in place and `OPTIMIZE TABLE` does the same on InnoDB;
+`REPAIR TABLE` is MyISAM-only and is not the answer on this schema. Worth stating
+because it is the first thing an operator reaches for, and because restoring
+everything to fix an index would discard every transaction since the dump. This
+also means a logical dump can never carry a *stale* index: it carries DDL, and
+the server rebuilds each of the schema's 63 secondary indexes as the rows go
+back in.
 
 **A snapshot must be atomic; a transfer must be resumable.** These are different
 problems and get different treatment — the distinction is what makes the run fit
@@ -112,10 +198,19 @@ Backups belong to the **Admin**: *whoever holds the server*.
 
 **The archive seals to a list of recipients, not to one key.** The motivation is
 not cryptographic, it is organisational: the realistic failure in a Verein is
-*"der Kassenwart ist weggezogen und niemand hat den Schlüssel"*. Two standing
-recipients — the Kassenwart and a second board member — cost a few dozen bytes
+*"der Vorstand hat gewechselt und niemand hat den Schlüssel"*. Two standing
+recipients — the **Admin** and a second board member — cost a few dozen bytes
 and make one volunteer disappearing survivable. That the same mechanism turns key
 rotation into a safe overlap instead of a cutover is a consequence, not the reason.
+
+**Custody follows the office, and the Kassenwart is not it.** The temptation is
+to hand one copy to the Kassenwart, who is the volunteer most reliably still in
+post next year. That would re-cross, through a second keypair, precisely the
+boundary the paragraph above draws: a backup carries the audit log, every admin's
+TOTP ciphertext and the database password, and it makes no difference to the
+Kassenwart's reach whether they arrive sealed to the IBAN key or to a new one.
+The second recipient is a board member because two holders are needed, not
+because the office confers access.
 
 **Fail closed.** With no recipient key configured, **no backup is written at
 all**, and the security self-check reports it as a failure. A plaintext fallback
@@ -276,10 +371,47 @@ and asserts row-for-row equality — plus an annual human drill that does the sa
 thing by hand, because a test proves the code and only a drill proves the
 *procedure*, the archive and the key.
 
+**Row equality does not prove an index.** A dumper that dropped every one of the
+schema's 63 secondary indexes, its foreign keys with their `ON DELETE` clauses,
+or its `CHECK` constraints would pass a row-for-row comparison unchanged, and the
+restored database would be correct in content and wrong in every other way. So the
+comparison covers **schema too**: normalised `SHOW CREATE TABLE` per table, source
+against restored.
+
+**And the dumper is diffed against a reference implementation.** CI runs a MariaDB
+service container, so `mariadb-dump` is available *there* even though the reference
+host has none. Both dumps are restored into scratch schemas and the two restored
+schemas are compared — DDL per table plus ordered row checksums. Comparing the
+restored *state*, never the dump text, is what makes this meaningful: the two
+differ on formatting, batching and comments, none of which is a defect.
+
+This is the honest answer to the risk that this decision exists for. "The
+hand-written dumper is correct" was an assertion backed by the hazards we thought
+to enumerate; against an oracle it becomes a difference or the absence of one, and
+it costs about one CI step. It does **not** make `mysqldump` a runtime path — see
+*Alternatives considered*; it cannot be one on the reference host, and running it
+where it does exist would halve the field exposure of the PHP path that is the
+risky one.
+
+**A restore has to end in a working installation, not merely an equal one.**
+Three things are true of a correct restore that a row comparison would not catch:
+the configuration file must travel inside the archive (below); `bank_codes` is
+`schema-only` and comes back empty, so it needs a repopulation path that works
+without a shell; and the archive's own session pinning (decision 1) has to survive
+the operator, since overriding it shifts every `TIMESTAMP` in the database with no
+visible symptom.
+
 The restore path assumes no shell: download the archive, decrypt it with a
 browser-based offline tool built the same way as the existing keypair generator,
 import the resulting SQL through whatever database tool the host offers. A restore
 tool that needed SSH would not exist for the reference host.
+
+**Restoring everything is the wrong remedy for partial damage**, and partial
+damage is the commoner event. A damaged index needs no archive at all — see
+decision 1 — and a single lost table needs its own section, not a restore that
+discards every transaction since the dump. The runbook therefore treats "repair
+one table" as a first-class procedure rather than a footnote to disaster
+recovery.
 
 **The configuration file travels inside the archive.** Without the TOTP
 encryption key a restored database locks out **every** admin's second factor;
@@ -315,7 +447,7 @@ copies of anything sitting in the same building.
   the same trade [ADR-0036](./0036-iban-encryption-sealed-box.md) already accepted
   for IBANs. Mitigation: two standing recipients, and a drill that would notice.
 - **A second scheduled job is a second thing to configure**, and a successor
-  treasurer can fail to re-add it after a tariff migration. Mitigation: it is
+  Kassenwart can fail to re-add it after a tariff migration. Mitigation: it is
   observed, so its absence reads as "no backup ever" rather than as silence.
 - **The club can stop doing the manual copy and nobody would know.** Honestly
   unfixable by software. The annual drill is where it surfaces, which is why the
@@ -340,6 +472,23 @@ installation exactly as unprotected as before.
 **`mysqldump` on a schedule.** The documented procedure today. There is no shell,
 no crontab and no binary on the reference host. Kept, relabelled, for self-hosters
 on a root server.
+
+Two further reasons, because "the binary is absent" invites the obvious
+counter-proposal — *use it where it exists*. First, existence is not
+availability: shared hosting routinely lists `exec` and `proc_open` in
+`disable_functions`, and the password would have to travel through a defaults
+file, never `-p`, which is world-visible in `ps`. This product ships as a ZIP to
+clubs on hosts nobody here will ever see.
+
+Second, and decisively: **a hybrid is worse than either half.** Two dump dialects
+double the restore matrix — every runbook step, every recovery drill and every
+round-trip test exists twice — while halving the field exposure of the PHP
+dumper, which is the half that needs exposure most. The path that gets used only
+where nobody is watching is the path that fails on the day it is needed.
+
+None of which makes the binary useless. Where it *is* available — CI — it is the
+best available oracle, and decision 7 uses it as one. Rejected as a runtime path,
+adopted as a test instrument; these are not in tension.
 
 **Sealing backups to the IBAN keypair.** Rejected: the Kassenwart holds a copy of
 that key, and would thereby hold the audit log, every admin's TOTP ciphertext and
@@ -385,4 +534,5 @@ without it.
 - [ADR-0029](./0029-two-tier-retention-and-erasure.md) — erasure, which a backup can outlive
 - [ADR-0044](./0044-tiered-admin-roles.md) — why backups are the Admin's and not the Kassenwart's
 - [ADR-0013](./0013-audit-logging.md) — its annual restore test, which the backup drill adopts
+- [ADR-0022](./0022-test-strategy-and-automation.md) — the test pyramid the round-trip and its `mariadb-dump` oracle sit inside; applied here, not amended
 - [#686](https://github.com/dgloeckner/clubbar/issues/686) — the epic implementing this decision
