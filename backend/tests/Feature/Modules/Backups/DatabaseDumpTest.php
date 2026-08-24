@@ -24,10 +24,50 @@ class DatabaseDumpTest extends DatabaseTestCase
 {
     private DatabaseDump $dump;
 
+    /** @var list<string> */
+    private array $createdMandateIds = [];
+    /** @var list<string> */
+    private array $createdMemberIds = [];
+    /** @var list<string> */
+    private array $createdKeyIds = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->dump = new DatabaseDump($this->db);
+    }
+
+    /**
+     * Remove exactly the rows this test created, in foreign-key order.
+     *
+     * Deleting by tracked id and never by a predicate: this suite shares one
+     * database with every other Feature test, and `encryption_keys` in
+     * particular is a table other suites make assertions about. CI applies
+     * migrations without seed.sql, so a key row left behind here would be the
+     * *first* one those tests see.
+     */
+    protected function tearDown(): void
+    {
+        $this->deleteById('mandates', $this->createdMandateIds);
+        $this->deleteById('members', $this->createdMemberIds);
+        $this->deleteById('encryption_keys', $this->createdKeyIds);
+
+        $this->createdMandateIds = [];
+        $this->createdMemberIds = [];
+        $this->createdKeyIds = [];
+
+        parent::tearDown();
+    }
+
+    /** @param list<string> $ids */
+    private function deleteById(string $table, array $ids): void
+    {
+        if ($ids === []) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $this->db->prepare("DELETE FROM {$table} WHERE id IN ({$placeholders})")->execute($ids);
     }
 
     /**
@@ -161,18 +201,21 @@ class DatabaseDumpTest extends DatabaseTestCase
              VALUES (?, ?, ?, 1, NOW())'
         );
         $stmt->execute([$id, 'Dump', 'Fixture ' . substr($id, 0, 8)]);
+        $this->createdMemberIds[] = $id;
 
         return $id;
     }
 
     private function insertMandateWithCiphertext(string $memberId, string $ciphertext): void
     {
+        $mandateId = $this->generateUuid();
+
         $stmt = $this->db->prepare(
             'INSERT INTO mandates (id, member_id, reference, iban_ciphertext, iban_last4,
                                    iban_fingerprint, encryption_key_id, signed_at, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), NOW())'
         );
-        $stmt->bindValue(1, $this->generateUuid());
+        $stmt->bindValue(1, $mandateId);
         $stmt->bindValue(2, $memberId);
         $stmt->bindValue(3, 'DUMPTEST' . substr($this->generateUuid(), 0, 12));
         $stmt->bindValue(4, $ciphertext, \PDO::PARAM_LOB);
@@ -180,6 +223,8 @@ class DatabaseDumpTest extends DatabaseTestCase
         $stmt->bindValue(6, str_repeat('a', 64));
         $stmt->bindValue(7, $this->ensureEncryptionKey());
         $stmt->execute();
+
+        $this->createdMandateIds[] = $mandateId;
     }
 
     /**
@@ -210,6 +255,8 @@ class DatabaseDumpTest extends DatabaseTestCase
         $stmt->bindValue(5, hash('sha256', $id));
         $stmt->bindValue(6, 'pending');
         $stmt->execute();
+
+        $this->createdKeyIds[] = $id;
 
         return $id;
     }
