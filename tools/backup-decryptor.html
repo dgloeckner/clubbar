@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Club Bar - Backup Decryptor</title>
+<!--
+  Opens a Club Bar backup archive offline.
+
+  This is the restore path on the hosting this project targets: no shell, no
+  mysqldump, no client binaries (ADR-0031). A treasurer downloads the archive,
+  opens it here on a machine they trust, and imports the resulting .sql through
+  whatever database tool the host offers.
+
+  Nothing leaves this page. There is no fetch, no form action and no analytics;
+  the crypto is vendored beside it. Open it from a local copy of the repository
+  with the network off if you want to be sure - the private key you paste in is
+  the one that opens every backup the club has.
+
+  It vendors libsodium.js rather than the TweetNaCl that tools/keypair-generator.html
+  uses, because the container needs crypto_box_seal and crypto_secretstream, and
+  TweetNaCl has neither. Reimplementing them over its primitives would have meant
+  hand-rolling framing that libsodium already does correctly - the mistake
+  ADR-0048 exists to prevent.
+
+  The crypto itself lives in backup-decryptor.js, not in this file, so that the
+  interop test can load exactly the code shipped here.
+-->
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 46rem; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  .lede { color: #666; margin-top: 0; }
+  fieldset { border: 1px solid #ccc; border-radius: 6px; padding: 1rem; margin: 1.25rem 0; }
+  legend { font-weight: 600; padding: 0 .4rem; }
+  textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+  button { font-size: 1rem; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; }
+  button[disabled] { opacity: .5; cursor: not-allowed; }
+  .note { background: #fff8e1; border-left: 4px solid #f0ad4e; padding: .75rem 1rem; margin: 1rem 0; }
+  .error { background: #fdecea; border-left: 4px solid #d9534f; padding: .75rem 1rem; margin: 1rem 0; }
+  .ok { background: #e8f5e9; border-left: 4px solid #4caf50; padding: .75rem 1rem; margin: 1rem 0; }
+  .hidden { display: none; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #ddd; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; color: #eee; }
+    .lede { color: #aaa; }
+    fieldset { border-color: #444; }
+    .note { background: #3a3320; } .error { background: #3a2320; } .ok { background: #1e3320; }
+    th, td { border-bottom-color: #333; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Backup Decryptor</h1>
+<p class="lede">Opens a Club Bar backup archive (<code>.cbb</code>) with one of the private keys it was sealed to.</p>
+
+<div class="note">
+  <strong>Do this on a machine you trust, and offline if you can.</strong>
+  The private key you paste below opens every backup sealed to it. Nothing is
+  sent anywhere from this page - but the only way to be certain of that is to
+  run it from a local copy with the network disconnected.
+</div>
+
+<div id="unavailable" class="error hidden">
+  The vendored crypto library did not load. Open this file from a full checkout
+  so that <code>vendor/libsodium.js</code> sits beside it.
+</div>
+
+<fieldset>
+  <legend>1. The archive</legend>
+  <input type="file" id="archive" accept=".cbb,application/octet-stream">
+  <div id="archive-info" class="hidden">
+    <p>Sealed <strong id="created"></strong>. It can be opened by any one of these keys:</p>
+    <table>
+      <thead><tr><th>Label</th><th>Key fingerprint (SHA-256)</th></tr></thead>
+      <tbody id="recipients"></tbody>
+    </table>
+    <p class="lede">Fetch whichever of these you hold. The others will not work.</p>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>2. Your private key</legend>
+  <p class="lede">
+    Base64 or hex, as <code>keypair-generator.html</code> produced it. It is
+    never stored and never transmitted.
+  </p>
+  <textarea id="key" rows="3" spellcheck="false" autocomplete="off"></textarea>
+</fieldset>
+
+<button id="decrypt" disabled>Decrypt</button>
+
+<div id="error" class="error hidden"></div>
+<div id="result" class="ok hidden">
+  <p>Opened <strong id="size"></strong>. SHA-256 of the plaintext: <code id="sha"></code></p>
+  <p><a id="download" download="clubbar-backup.sql">Download the .sql</a> and import it through your host's database tool.</p>
+</div>
+
+<script src="vendor/libsodium.js"></script>
+<script src="vendor/libsodium-wrappers.js"></script>
+<script src="backup-decryptor.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var archiveBytes = null;
+
+  if (typeof sodium === 'undefined' || typeof BackupDecryptor === 'undefined') {
+    $('unavailable').classList.remove('hidden');
+    return;
+  }
+
+  function show(el, on) { el.classList.toggle('hidden', !on); }
+
+  function fail(message) {
+    $('error').textContent = message;
+    show($('error'), true);
+    show($('result'), false);
+  }
+
+  function decodeKey(text) {
+    var trimmed = text.trim().replace(/\s+/g, '');
+    if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+      return sodium.from_hex(trimmed);
+    }
+    var bytes = sodium.from_base64(trimmed, sodium.base64_variants.ORIGINAL);
+    if (bytes.length !== 32) {
+      throw new Error('That is ' + bytes.length + ' bytes; a private key is 32.');
+    }
+    return bytes;
+  }
+
+  $('archive').addEventListener('change', function (event) {
+    var file = event.target.files[0];
+    show($('error'), false);
+    show($('result'), false);
+    show($('archive-info'), false);
+    $('decrypt').disabled = true;
+    if (!file) return;
+
+    file.arrayBuffer().then(function (buffer) {
+      archiveBytes = new Uint8Array(buffer);
+      var header = BackupDecryptor.readHeader(archiveBytes).header;
+
+      $('created').textContent = header.created_at;
+      $('recipients').textContent = '';
+      header.recipients.forEach(function (r) {
+        var row = document.createElement('tr');
+        var label = document.createElement('td');
+        var fp = document.createElement('td');
+        label.textContent = r.label;
+        fp.innerHTML = '<code></code>';
+        fp.firstChild.textContent = r.fingerprint;
+        row.appendChild(label);
+        row.appendChild(fp);
+        $('recipients').appendChild(row);
+      });
+
+      show($('archive-info'), true);
+      $('decrypt').disabled = false;
+    }).catch(function (e) {
+      archiveBytes = null;
+      fail(e.message);
+    });
+  });
+
+  $('decrypt').addEventListener('click', function () {
+    show($('error'), false);
+    show($('result'), false);
+
+    sodium.ready.then(function () {
+      var key;
+      try {
+        key = decodeKey($('key').value);
+      } catch (e) {
+        return fail('That does not look like a private key: ' + e.message);
+      }
+
+      var plaintext;
+      try {
+        plaintext = BackupDecryptor.open(sodium, archiveBytes, key);
+      } catch (e) {
+        return fail(e.message);
+      } finally {
+        sodium.memzero(key);
+      }
+
+      var blob = new Blob([plaintext], { type: 'application/sql' });
+      $('download').href = URL.createObjectURL(blob);
+      $('size').textContent = plaintext.length.toLocaleString() + ' bytes';
+      $('sha').textContent = sodium.to_hex(sodium.crypto_hash_sha256(plaintext));
+      show($('result'), true);
+    });
+  });
+}());
+</script>
+
+</body>
+</html>
