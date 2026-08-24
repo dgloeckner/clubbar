@@ -502,7 +502,7 @@ Settlement records for SEPA collections and manual settlements.
 | period_start | DATE | NULL | Accounting period start (optional) |
 | period_end | DATE | NULL | Accounting period end (optional) |
 | ~~manual_reason~~ | — | — | **Removed** — replaced by `method`. `notes` remains free text carrying no meaning to the system |
-| ~~sepa_message_id~~ | — | — | **Removed** (migration 054). It held a random `SEPA-<12 hex>` used as the pain.008 `MsgId`, unrelated to the row's own id, so one settlement had two names. The `MsgId` is now derived from `id` (see below) and the column was a stored copy of a derivable fact — the duplication [ADR-0032](../adr/0032-settlement-lifecycle.md) §1 refuses for `status` |
+| ~~sepa_message_id~~ | — | — | **Removed** (migration 053). It held a random `SEPA-<12 hex>` used as the pain.008 `MsgId`, unrelated to the row's own id, so one settlement had two names. The `MsgId` is now derived from `id` (see below) and the column was a stored copy of a derivable fact — the duplication [ADR-0032](../adr/0032-settlement-lifecycle.md) §1 refuses for `status` |
 | total_amount_cents | INT | NOT NULL | Total amount collected in cents (> 0) |
 | member_count | INT | NOT NULL | Number of members included (> 0) |
 | is_cancelled | BOOLEAN | NOT NULL, DEFAULT FALSE | Cancellation flag |
