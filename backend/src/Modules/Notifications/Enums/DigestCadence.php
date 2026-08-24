@@ -44,7 +44,7 @@ enum DigestCadence: string
 
     /**
      * What a fresh installation is configured with, and — unlike
-     * {@see StatementCadence::DEFAULT} — what migration 053 actually leaves the
+     * {@see StatementCadence::DEFAULT} — what migration 054 actually leaves the
      * singleton row holding.
      *
      * See that migration for the argument. In short: this mails the admins and
@@ -58,7 +58,7 @@ enum DigestCadence: string
      * Read a stored value, falling back rather than throwing.
      *
      * Falls back to {@see OFF}, not to {@see DEFAULT}. A row written before
-     * migration 053 and a value this build cannot parse are the same situation,
+     * migration 054 and a value this build cannot parse are the same situation,
      * and the safe answer to "I do not know what this column says" is to send
      * nothing — a column nobody could read is not a mandate to start mailing.
      * That is the identical rule {@see StatementCadence::fromDeclared()}

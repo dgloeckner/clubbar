@@ -173,7 +173,7 @@ enum MailKind: string
     /**
      * The near-limit digest: every member whose Deckel has reached the warning
      * band, what they owe, and the ceiling it is measured against — one mail,
-     * on a cadence the club chooses (ADR-0047, migration 053).
+     * on a cadence the club chooses (ADR-0047, migration 054).
      *
      * **The first kind that is a list rather than an event.** Every other kind
      * here reports one thing that happened to one subject; this reports a

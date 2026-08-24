@@ -1,7 +1,7 @@
 # UC-A66: Receive the Near-Limit Digest
 
 **Implementation Status**: Implemented ([ADR-0038](../../adr/0038-mail-outbox-and-scheduler.md),
-[ADR-0047](../../adr/0047-configurable-credit-limits.md), migration `053_credit_limit_digest.sql`)
+[ADR-0047](../../adr/0047-configurable-credit-limits.md), migration `054_credit_limit_digest.sql`)
 
 ## Actor
 Admin or Kassenwart — as a **recipient**, not as an operator

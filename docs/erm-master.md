@@ -502,7 +502,7 @@ Settlement records for SEPA collections and manual settlements.
 | period_start | DATE | NULL | Accounting period start (optional) |
 | period_end | DATE | NULL | Accounting period end (optional) |
 | ~~manual_reason~~ | — | — | **Removed** — replaced by `method`. `notes` remains free text carrying no meaning to the system |
-| ~~sepa_message_id~~ | — | — | **Removed** (migration 053). It held a random `SEPA-<12 hex>` used as the pain.008 `MsgId`, unrelated to the row's own id, so one settlement had two names. The `MsgId` is now derived from `id` (see below) and the column was a stored copy of a derivable fact — the duplication [ADR-0032](../adr/0032-settlement-lifecycle.md) §1 refuses for `status` |
+| ~~sepa_message_id~~ | — | — | **Removed** (migration 054). It held a random `SEPA-<12 hex>` used as the pain.008 `MsgId`, unrelated to the row's own id, so one settlement had two names. The `MsgId` is now derived from `id` (see below) and the column was a stored copy of a derivable fact — the duplication [ADR-0032](../adr/0032-settlement-lifecycle.md) §1 refuses for `status` |
 | total_amount_cents | INT | NOT NULL | Total amount collected in cents (> 0) |
 | member_count | INT | NOT NULL | Number of members included (> 0) |
 | is_cancelled | BOOLEAN | NOT NULL, DEFAULT FALSE | Cancellation flag |
@@ -657,7 +657,7 @@ The same rule has a second payoff for the aggregate kinds. A `credit_limit_diges
 
 Club-editable mail settings — sender name and address, reply-to, the club notification address, header style, footer identity, the declared scheduler interval and drain dials, and the two mail cadences: `statement_cadence` (the Deckelauszug, [ADR-0039](../adr/0039-periodic-deckel-statement.md)) and `credit_limit_digest_cadence` (the near-limit digest, [ADR-0047](../adr/0047-configurable-credit-limits.md)). Singleton row.
 
-The two cadences are club-wide and independent, and their defaults differ on purpose. `statement_cadence` ships `off`, because running a migration must never mail an entire membership. `credit_limit_digest_cadence` ships `weekly`, because it reaches the handful of accounts that run the club, and sends nothing at all in a week where nobody is near their ceiling — see migration `053_credit_limit_digest.sql`.
+The two cadences are club-wide and independent, and their defaults differ on purpose. `statement_cadence` ships `off`, because running a migration must never mail an entire membership. `credit_limit_digest_cadence` ships `weekly`, because it reaches the handful of accounts that run the club, and sends nothing at all in a week where nobody is near their ceiling — see migration `054_credit_limit_digest.sql`.
 
 The **DSN, including the SMTP password, is deliberately not here**: it stays in `config.php`, consistent with the database password and the TOTP key ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) decision 2). Changing the mail server is an installer or file operation.
 

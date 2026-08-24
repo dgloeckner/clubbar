@@ -176,7 +176,7 @@ final class MailStrings
             'jugendschutz.no_member' => 'Wer das Getränk gekauft hat, steht bewusst nicht in dieser E-Mail. '
                 . 'Die Buchungsnummer oben führt zum Vorgang.',
 
-            // Der Deckel-Übersicht (ADR-0047, Migration 053). Sie-Form wäre hier
+            // Der Deckel-Übersicht (ADR-0047, Migration 054). Sie-Form wäre hier
             // ebenso falsch wie überall sonst in dieser Tabelle: es ist dieselbe
             // Ansprache wie am Tresen, nur an den Vorstand statt an das Mitglied.
             'credit_digest.subject'        => '{count} Mitglieder nahe am Deckel-Limit',
@@ -530,7 +530,7 @@ final class MailStrings
             'jugendschutz.no_member' => 'Who bought the drink is deliberately not in this email. The transaction '
                 . 'number above leads to the record.',
 
-            // The near-limit digest (ADR-0047, migration 053).
+            // The near-limit digest (ADR-0047, migration 054).
             'credit_digest.subject'        => '{count} members near their Deckel limit',
             'credit_digest.subject_empty'  => 'Deckel overview: nobody near their limit',
             'credit_digest.preheader'      => '{count} members, {total} outstanding between them',

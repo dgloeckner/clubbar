@@ -687,7 +687,7 @@ class ServiceFactory implements ContainerInterface
     }
 
     /**
-     * The near-limit digest scan (ADR-0047, migration 053).
+     * The near-limit digest scan (ADR-0047, migration 054).
      *
      * Called by `bin/cron.php` before the drain, for the same reason the
      * anomaly scan, the statement enqueue and the expiry scan are: a message

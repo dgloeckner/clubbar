@@ -12,7 +12,7 @@ use DateTimeImmutable;
 
 /**
  * Tells the Kassenwart which members are close to their Deckel ceiling, without
- * waiting for them to open the admin panel (ADR-0047, migration 053).
+ * waiting for them to open the admin panel (ADR-0047, migration 054).
  *
  * ## Why this exists at all
  *

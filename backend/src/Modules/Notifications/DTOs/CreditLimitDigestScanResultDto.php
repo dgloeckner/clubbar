@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\DTOs;
 
 /**
- * What one near-limit digest pass did (ADR-0047, migration 053).
+ * What one near-limit digest pass did (ADR-0047, migration 054).
  *
  * Shaped like {@see CredentialExpiryScanResultDto} and
  * {@see PeriodicEnqueueResultDto} for the same reason all three exist: an

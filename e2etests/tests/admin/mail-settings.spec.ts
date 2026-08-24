@@ -142,7 +142,7 @@ test.describe.serial('Mail settings', () => {
     // Weekly **is** offered here, and is absent from the Deckelauszug control
     // above. The difference is the audience: that one goes to the whole
     // membership, this to the handful of people who run the club, about a
-    // condition that changes inside a week (ADR-0047, migration 053). Asserted
+    // condition that changes inside a week (ADR-0047, migration 054). Asserted
     // rather than assumed, because the two selects are one careless copy apart.
     const options = await cadence.locator('option').allTextContents()
     expect(options).toHaveLength(4)

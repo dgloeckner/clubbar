@@ -39,9 +39,9 @@ and almost all of the design work was in deciding what **not** to build:
 
 ### M1 — Schema `[x]`
 
-- [x] Migration `053_credit_limit_digest.sql`: the `credit_limit_digest` kind on
+- [x] Migration `054_credit_limit_digest.sql`: the `credit_limit_digest` kind on
       `mail_outbox`, and `credit_limit_digest_cadence` on `mail_config`
-- [x] Rollback `db/rollback/053_credit_limit_digest.down.sql`
+- [x] Rollback `db/rollback/054_credit_limit_digest.down.sql`
 
 **Verified**: applied against the dev stack; `SHOW COLUMNS` reports the enum
 carrying `credit_limit_digest` and the cadence column defaulting to `weekly`.

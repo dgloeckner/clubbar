@@ -195,7 +195,7 @@ effect of an upgrade.
   /** How often admins and the Kassenwart receive the near-limit digest —
 one aggregate mail naming every member whose Deckel has reached the
 warning band, what they owe and the ceiling that applies to them
-(ADR-0047, migration 053). It is the push half of the dashboard's
+(ADR-0047, migration 054). It is the push half of the dashboard's
 near-limit panel; members never receive it.
 
 `weekly` is present here and absent from `statement_cadence`
@@ -204,7 +204,7 @@ who run the club, about a condition that changes inside a week.
 
 Nothing is queued when nobody is in the warning band, so silence
 means "nobody is near their ceiling" rather than "the scheduler has
-stopped". Migration 053 leaves a fresh or upgraded installation on
+stopped". Migration 054 leaves a fresh or upgraded installation on
 `weekly`; see that migration for why this one defaults on where the
 statements default off.
  */

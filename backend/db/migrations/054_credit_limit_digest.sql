@@ -1,5 +1,5 @@
 -- =============================================================================
--- 053_credit_limit_digest.sql — the Kassenwart hears about full Deckel
+-- 054_credit_limit_digest.sql — the Kassenwart hears about full Deckel
 -- =============================================================================
 -- Who is close to their credit limit is already computed, already correct and
 -- already invisible to anybody not looking at it. The dashboard's near-limit
@@ -68,7 +68,7 @@
 -- A club that would rather not hear from it sets the cadence to `off`, which is
 -- one select in Settings → Mail.
 --
--- Rollback: db/rollback/053_credit_limit_digest.down.sql
+-- Rollback: db/rollback/054_credit_limit_digest.down.sql
 -- =============================================================================
 
 -- Restating the whole list, as 026, 030, 036, 038, 039, 041, 042, 048 and 050

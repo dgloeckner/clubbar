@@ -66,7 +66,7 @@ final class MailRetention
     public const STATEMENT_SENT_DAYS = 90;
 
     /**
-     * Days a delivered near-limit digest is kept (ADR-0047, migration 053).
+     * Days a delivered near-limit digest is kept (ADR-0047, migration 054).
      *
      * The shortest window in this class, and the one kind where that is easy to
      * argue. A digest proves nothing, announces nothing and is not the record

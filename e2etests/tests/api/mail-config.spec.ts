@@ -191,7 +191,7 @@ test.describe.serial('Mail Settings API', () => {
     expect(reread.credit_limit_digest_cadence).toBe('daily')
 
     // `off` is the club's only control over this feature, and a real value
-    // rather than a way of clearing the field (ADR-0047, migration 053).
+    // rather than a way of clearing the field (ADR-0047, migration 054).
     const off = await authenticatedRequest.patch(URL, {
       data: { credit_limit_digest_cadence: 'off' },
     })

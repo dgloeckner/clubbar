@@ -1,6 +1,6 @@
 # ADR-0004: Immutable Storage of Purchase Transactions
 
-**Status**: Accepted (corrected 2026-08-23: the settlement sketch below no longer declares `sepa_message_id`, dropped by migration 053 — see [ADR-0008](./0008-sepa-xml-export-format-selection.md))
+**Status**: Accepted (corrected 2026-08-23: the settlement sketch below no longer declares `sepa_message_id`, dropped by migration 054 — see [ADR-0008](./0008-sepa-xml-export-format-selection.md))
 
 **Date**: 2025-01-23
 
@@ -128,7 +128,7 @@ CREATE TABLE settlements (
   cancelled_at DATETIME,                    -- When settlement was cancelled
   cancelled_by_admin_id BINARY(16),         -- Who cancelled
   exported_at DATETIME,                     -- Last export timestamp (audit log entry per export)
-  -- (no sepa_message_id: dropped by migration 053. The pain.008 MsgId is
+  -- (no sepa_message_id: dropped by migration 054. The pain.008 MsgId is
   --  derived from this row's own id -- see ADR-0008, ID Generation Strategy)
   created_at DATETIME DEFAULT NOW(),
   updated_at DATETIME DEFAULT NOW() ON UPDATE NOW(),

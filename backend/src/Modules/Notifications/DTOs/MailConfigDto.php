@@ -82,7 +82,7 @@ final readonly class MailConfigDto
         public StatementCadence $statementCadence = StatementCadence::OFF,
         /**
          * How often the near-limit digest reaches the admins and the Kassenwart
-         * (ADR-0047, migration 053). Defaults to `off` for the same reason
+         * (ADR-0047, migration 054). Defaults to `off` for the same reason
          * {@see $statementCadence} does — a value this build could not read is
          * not a mandate to start mailing — which is deliberately *not* the same
          * as the column's default of `weekly`. See {@see DigestCadence::DEFAULT}.

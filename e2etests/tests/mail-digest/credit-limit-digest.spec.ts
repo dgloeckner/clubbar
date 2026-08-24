@@ -1,5 +1,5 @@
 /**
- * The near-limit digest chain, end to end (ADR-0047, migration 053).
+ * The near-limit digest chain, end to end (ADR-0047, migration 054).
  *
  *     cadence switched on → bin/cron.php (scan + enqueue + drain) → Mailpit
  *

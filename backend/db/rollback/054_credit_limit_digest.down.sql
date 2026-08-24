@@ -1,5 +1,5 @@
 -- =============================================================================
--- Rollback for 053_credit_limit_digest.sql
+-- Rollback for 054_credit_limit_digest.sql
 -- =============================================================================
 -- Order matters. The cadence column goes first, so that nothing can enqueue a
 -- fresh digest between the two statements and make the second one fail on rows
