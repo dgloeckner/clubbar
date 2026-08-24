@@ -17,6 +17,10 @@
 # The drain's flock file (#403). Created by every cron run and by the URL
 # trigger; the pid inside it is meaningless to anyone but the run that wrote it.
 /storage/mail-drain.lock
+# The backup's own flock file (ADR-0049, #690). Its own file rather than the
+# drain's, so the two scheduled jobs cannot block each other — which is the
+# thing separating them was for.
+/storage/backup.lock
 *.php.disabled
 .DS_Store
 Thumbs.db
