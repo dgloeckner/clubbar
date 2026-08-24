@@ -35,9 +35,14 @@ final class CancellationNoticeMail
 
         $subject = $t->t('cancel.subject');
 
+        // Amount and date alone stop identifying the retracted announcement as
+        // soon as a member is announced the same figure twice; the reference
+        // always does. Both renderers walk this array, so the row lands in the
+        // HTML and the text part together.
         $rows = [
             $t->t('cancel.label_amount') => $amount,
             $t->t('cancel.label_due_date') => $dueDate,
+            $t->t('cancel.label_reference') => $data->settlementReference,
         ];
 
         $html = MailLayout::document($data->branding, [

@@ -32,7 +32,7 @@ Each ADR follows this structure:
 | [0005](./0005-iban-storage-and-validation.md) | IBAN Storage and Validation | Accepted (amended by 0036: at-rest encryption rejection revoked) | 2025-01-23 |
 | [0006](./0006-sepa-mandate-reference-strategy.md) | SEPA Mandate Reference Strategy | Accepted | 2025-01-23 |
 | [0007](./0007-organization-sepa-configuration-storage.md) | Organization-Level SEPA Configuration Storage | Accepted | 2025-01-23 |
-| [0008](./0008-sepa-xml-export-format-selection.md) | SEPA XML Export Format Selection (pain.008.001.08) | Accepted (amended 2026-08-04: raised from pain.008.001.02; 2026-08-05: IBAN-only agents as `NOTPROVIDED`) | 2025-01-23 |
+| [0008](./0008-sepa-xml-export-format-selection.md) | SEPA XML Export Format Selection (pain.008.001.08) | Accepted (amended 2026-08-04: raised from pain.008.001.02; 2026-08-05: IBAN-only agents as `NOTPROVIDED`; 2026-08-23: identifiers consolidated on the settlement reference) | 2025-01-23 |
 | [0009](./0009-settlement-lead-times-bank-working-days.md) | Settlement Lead Times and Bank Working Days | Accepted | 2025-01-23 |
 | [0010](./0010-mandate-lifecycle-and-retention.md) | Mandate Lifecycle and Retention | Superseded | 2025-01-23 |
 | [0011](./0011-sepa-configuration-management-admin-frontend.md) | SEPA Configuration Management in Admin Frontend | Accepted | 2025-01-23 |

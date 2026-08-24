@@ -111,7 +111,6 @@ erDiagram
         date execution_date "SEPA execution date"
         date period_start "Accounting period start"
         date period_end "Accounting period end"
-        varchar_35 sepa_message_id UK "SEPA XML message ID (direct_debit only)"
         int total_amount_cents "Total settlement amount"
         int member_count "Number of members included"
         boolean is_cancelled "Cancellation flag"
@@ -502,8 +501,8 @@ Settlement records for SEPA collections and manual settlements.
 | execution_date | DATE | NULL | SEPA execution date (>= the server's today + 7 days, and a TARGET2 business day; NULL for manual) |
 | period_start | DATE | NULL | Accounting period start (optional) |
 | period_end | DATE | NULL | Accounting period end (optional) |
-| sepa_message_id | VARCHAR(35) | UNIQUE, NULL | SEPA XML message ID (auto-generated on first export; NULL for manual) |
 | ~~manual_reason~~ | — | — | **Removed** — replaced by `method`. `notes` remains free text carrying no meaning to the system |
+| ~~sepa_message_id~~ | — | — | **Removed** (migration 053). It held a random `SEPA-<12 hex>` used as the pain.008 `MsgId`, unrelated to the row's own id, so one settlement had two names. The `MsgId` is now derived from `id` (see below) and the column was a stored copy of a derivable fact — the duplication [ADR-0032](../adr/0032-settlement-lifecycle.md) §1 refuses for `status` |
 | total_amount_cents | INT | NOT NULL | Total amount collected in cents (> 0) |
 | member_count | INT | NOT NULL | Number of members included (> 0) |
 | is_cancelled | BOOLEAN | NOT NULL, DEFAULT FALSE | Cancellation flag |
@@ -516,6 +515,20 @@ Settlement records for SEPA collections and manual settlements.
 | created_by_admin_id | BINARY(16) | FK → admin_users.id, NOT NULL | Admin who created |
 | created_at | DATETIME | NOT NULL | Settlement creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
+
+**Settlement reference (derived, not stored).** A settlement is named by its
+`id` with the hyphens removed — 32 lowercase hex digits, e.g.
+`3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f`. One string, everywhere: pain.008 `MsgId`
+and `PmtInfId`, the Verwendungszweck the member reads on their bank statement,
+the Vorabankündigung, the CSV, the download filenames, and the `reference`
+field of the API response. It is computed by
+`Settlements\Domain\SettlementReference`, so there is nothing to store and
+nothing to keep in sync. **Do not add a column for it.**
+
+`settlement_items.end_to_end_id` is the single exception and is genuinely
+stored: it has to name a member as well as a run *and* fit the 35-character
+ISO 20022 field, which two 32-character references cannot, and a bank return
+arriving months later resolves against the exact string that was sent.
 
 **Indexes:**
 - `is_cancelled`

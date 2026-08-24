@@ -1,6 +1,6 @@
 # ADR-0006: SEPA Mandate Reference Strategy
 
-**Status**: Accepted
+**Status**: Accepted (amended 2026-08-07 — see the note below; corrected 2026-08-23: the XML sample names pain.008.001.08, the format exported since [ADR-0008](./0008-sepa-xml-export-format-selection.md)'s 2026-08-04 amendment)
 
 **Date**: 2025-01-23
 
@@ -75,7 +75,7 @@ The system stores a single editable mandate_reference field per member. All mand
 
 #### SEPA XML Output
 
-Mandate reference appears in SEPA Direct Debit XML (pain.008.001.02) as:
+Mandate reference appears in SEPA Direct Debit XML (pain.008.001.08) as:
 
 ```xml
 <MndtRltdInf>

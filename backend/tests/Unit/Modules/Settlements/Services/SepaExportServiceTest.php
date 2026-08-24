@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\Settlements\Services;
 
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Settlements\DTOs\ExcludedMemberDto;
+use App\Modules\Settlements\Domain\SettlementReference;
 use App\Modules\Settlements\Enums\SepaExclusionReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
@@ -508,30 +509,140 @@ class SepaExportServiceTest extends TestCase
         $this->assertLessThanOrEqual(35, strlen($ids[0]));
     }
 
+    // ------------------------------------------------------------------
+    // One identifier, in every field of the file that names the run
+    // ------------------------------------------------------------------
+
+    /**
+     * MsgId used to be a random `SEPA-<12 hex>` stored on the row and PmtInfId
+     * the first 16 hex digits of the UUID, so one settlement reached the bank
+     * under two names, neither of them the one in the admin panel. Both are now
+     * the canonical reference.
+     */
+    public function test_the_file_names_the_settlement_the_same_way_twice(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->givenMembers([self::MEMBER_ID => self::member('Ada', 'Lovelace')]);
+
+        $xml = $this->service->export(self::SETTLEMENT_ID, self::opener())->xml;
+        $reference = SettlementReference::of(self::SETTLEMENT_ID);
+
+        $this->assertSame('11111111222233334444555555555555', $reference);
+        $this->assertSame($reference, $this->xmlText($xml, '//pain:GrpHdr/pain:MsgId'));
+        $this->assertSame($reference, $this->xmlText($xml, '//pain:PmtInf/pain:PmtInfId'));
+        $this->assertLessThanOrEqual(35, strlen($reference), 'ISO 20022 caps these fields at 35');
+    }
+
+    /**
+     * The Verwendungszweck — the only text about this collection a member ever
+     * reads. It used to carry the club's prefix and the settlement date and no
+     * identifier at all, so a member could describe a debit only by amount and
+     * date, and so could the treasurer looking for it.
+     */
+    public function test_the_verwendungszweck_says_what_it_is_what_it_covers_and_which_run(): void
+    {
+        $this->givenSepaConfig('Ruderbar Getraenke');
+        $this->givenSettlement(
+            self::SETTLEMENT_ID,
+            totalAmountCents: 1500,
+            periodStart: '2026-07-01',
+            periodEnd: '2026-07-31',
+        );
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->givenMembers([self::MEMBER_ID => self::member('Ada', 'Lovelace')]);
+
+        $xml = $this->service->export(self::SETTLEMENT_ID, self::opener())->xml;
+        $ustrd = $this->xmlText($xml, '//pain:RmtInf/pain:Ustrd');
+
+        $this->assertSame(
+            'Ruderbar Getraenke 2026-07-01 - 2026-07-31 ' . SettlementReference::of(self::SETTLEMENT_ID),
+            $ustrd,
+        );
+        $this->assertLessThanOrEqual(140, strlen($ustrd), 'Ustrd is capped at 140 characters');
+    }
+
+    /**
+     * `period_start` and `period_end` are nullable, and ADR-0032 §2 makes them
+     * descriptive labels rather than a boundary on the run's contents. With
+     * neither recorded, the run's own date is all there is to say — but the
+     * reference is there either way, which is the part that has to hold.
+     */
+    public function test_the_verwendungszweck_falls_back_to_the_settlement_date(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->givenMembers([self::MEMBER_ID => self::member('Ada', 'Lovelace')]);
+
+        $xml = $this->service->export(self::SETTLEMENT_ID, self::opener())->xml;
+
+        $this->assertSame(
+            'Settlement 2026-08-06 ' . SettlementReference::of(self::SETTLEMENT_ID),
+            $this->xmlText($xml, '//pain:RmtInf/pain:Ustrd'),
+        );
+    }
+
+    /**
+     * `payment_reference_prefix` is `VARCHAR(100)` and `Ustrd` allows 140, so a
+     * club that fills the column leaves no room for the period and the
+     * reference. The prefix is what gives way: it is the part a member can
+     * afford to see abbreviated, and the reference is the part that has to
+     * survive for the debit to be answerable.
+     */
+    public function test_a_long_prefix_is_truncated_rather_than_the_reference(): void
+    {
+        $this->givenSepaConfig(str_repeat('A', 100));
+        $this->givenSettlement(
+            self::SETTLEMENT_ID,
+            totalAmountCents: 1500,
+            periodStart: '2026-07-01',
+            periodEnd: '2026-07-31',
+        );
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->givenMembers([self::MEMBER_ID => self::member('Ada', 'Lovelace')]);
+
+        $xml = $this->service->export(self::SETTLEMENT_ID, self::opener())->xml;
+        $ustrd = $this->xmlText($xml, '//pain:RmtInf/pain:Ustrd');
+
+        $this->assertLessThanOrEqual(140, strlen($ustrd));
+        $this->assertStringEndsWith(
+            '2026-07-01 - 2026-07-31 ' . SettlementReference::of(self::SETTLEMENT_ID),
+            $ustrd,
+        );
+        $this->assertStringStartsWith('AAAA', $ustrd);
+    }
+
     private const SETTLEMENT_ID = '11111111-2222-3333-4444-555555555555';
     private const MEMBER_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
     private const OTHER_MEMBER_ID = '99999999-8888-7777-6666-555555555555';
 
-    private function givenSepaConfig(): void
+    private function givenSepaConfig(?string $paymentReferencePrefix = null): void
     {
         $this->sepaConfigRepository->method('getConfig')->willReturn([
             'creditor_id' => 'DE98ZZZ09999999999',
             'creditor_name' => 'Ruderclub',
             'creditor_iban' => 'DE89370400440532013000',
-            'payment_reference_prefix' => null,
+            'payment_reference_prefix' => $paymentReferencePrefix,
             'mandate_template_url' => 'https://club.example/anmeldung',
         ]);
     }
 
-    private function givenSettlement(string $id, ?int $totalAmountCents = null): void
-    {
+    private function givenSettlement(
+        string $id,
+        ?int $totalAmountCents = null,
+        ?string $periodStart = null,
+        ?string $periodEnd = null,
+    ): void {
         $this->settlementsRepository->method('findById')->willReturn([
             'id' => $id,
             'method' => SettlementMethod::DIRECT_DEBIT->value,
             'is_cancelled' => 0,
             'execution_date' => '2026-08-20',
             'settlement_date' => '2026-08-06',
-            'sepa_message_id' => null,
+            'period_start' => $periodStart,
+            'period_end' => $periodEnd,
             'total_amount_cents' => $totalAmountCents ?? 0,
         ]);
     }
@@ -663,6 +774,19 @@ class SepaExportServiceTest extends TestCase
     }
 
     /** @return list<string> the EndToEndIds the file carries, in document order */
+    /** The text of the first node matching an XPath, or '' if there is none. */
+    private function xmlText(string $xml, string $path): string
+    {
+        $dom = new \DOMDocument();
+        $dom->loadXML($xml);
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('pain', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.08');
+
+        $nodes = $xpath->query($path);
+
+        return $nodes !== false && $nodes->length > 0 ? $nodes->item(0)->textContent : '';
+    }
+
     private function endToEndIds(string $xml): array
     {
         $dom = new \DOMDocument();

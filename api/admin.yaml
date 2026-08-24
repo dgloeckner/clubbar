@@ -2281,7 +2281,7 @@ paths:
             Content-Disposition:
               schema:
                 type: string
-                example: 'attachment; filename="sepa-SET-2025-001-20250123.xml"'
+                example: 'attachment; filename="sepa-2026-08-06-3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f.xml"'
             X-Uncollectable-Members:
               description: |
                 Members the settlement records as owing money that the file
@@ -2400,7 +2400,7 @@ paths:
             Content-Disposition:
               schema:
                 type: string
-                example: 'attachment; filename="abrechnung-SET-2025-001-20250123.csv"'
+                example: 'attachment; filename="abrechnung-2026-08-06-3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f.csv"'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -2443,7 +2443,7 @@ paths:
             Content-Disposition:
               schema:
                 type: string
-                example: 'attachment; filename="settlement-transactions-SET-2025-001.csv"'
+                example: 'attachment; filename="abrechnung-transaktionen-2026-08-06-3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f.csv"'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -6126,6 +6126,17 @@ components:
         id:
           type: string
           format: uuid
+        reference:
+          type: string
+          description: |
+            The canonical, human-quotable name of this settlement: its id with
+            the hyphens removed, 32 lowercase hex digits. The same string is the
+            pain.008 `MsgId` and `PmtInfId`, appears in the Verwendungszweck the
+            member reads on their bank statement, and is shown in the
+            Vorabankündigung — so a member can quote it and the Kassenwart can
+            look it up. Derived server-side from `id`; never stored, never
+            recomputed by a client.
+          example: 3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f
         method:
           type: string
           enum: [direct_debit, bank_transfer, write_off]
@@ -6269,9 +6280,17 @@ components:
           type: string
           format: date
           nullable: true
-        sepa_message_id:
+        reference:
           type: string
-          nullable: true
+          description: |
+            The canonical, human-quotable name of this settlement: its id with
+            the hyphens removed, 32 lowercase hex digits. The same string is the
+            pain.008 `MsgId` and `PmtInfId`, appears in the Verwendungszweck the
+            member reads on their bank statement, and is shown in the
+            Vorabankündigung — so a member can quote it and the Kassenwart can
+            look it up. Derived server-side from `id`; never stored, never
+            recomputed by a client.
+          example: 3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f
         total_amount_cents:
           type: integer
         member_count:

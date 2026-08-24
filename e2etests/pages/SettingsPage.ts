@@ -667,10 +667,16 @@ export class SettingsPage {
   }
 
   /**
-   * Get admin user count in table by counting rows
+   * Get admin user count in table by counting rows.
+   *
+   * There is always at least one admin (the authenticated caller), so the
+   * first row appearing is a safe signal that the list has finished
+   * rendering - unlike `waitForResponse` on the list request, which only
+   * confirms the data arrived, not that React has painted it yet.
    */
   async getAdminUserCount(): Promise<number> {
     const rows = this.page.locator('[data-testid^="settings-admin-user-row-"]')
+    await rows.first().waitFor({ state: 'attached', timeout: 5000 })
     return await rows.count()
   }
 

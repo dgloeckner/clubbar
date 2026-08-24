@@ -44,6 +44,15 @@ export class SettlementsPage extends BasePage {
   // when it says something the settlement's own date does not (#378).
   private readonly settlementTransactionPeriod = (settlementId: string) =>
     this.page.getByTestId(`settlements-transaction-period-${settlementId}`)
+  // The canonical reference, third line of the date cell. The visible text is
+  // abbreviated; `-value` carries the full 32 characters, which is what the
+  // treasurer copies and what a bank statement shows.
+  private readonly settlementReference = (settlementId: string) =>
+    this.page.getByTestId(`settlements-reference-${settlementId}-value`)
+  private readonly settlementReferenceCopy = (settlementId: string) =>
+    this.page.getByTestId(`settlements-reference-${settlementId}-copy`)
+  private readonly settlementDetailReference = (settlementId: string) =>
+    this.page.getByTestId(`settlements-detail-reference-${settlementId}-value`)
   private readonly exportWarning = () => this.page.getByTestId('settlements-export-warning')
 
   // SEPA export dialog (#393). The bank file is the one legitimate bulk
@@ -166,14 +175,7 @@ export class SettlementsPage extends BasePage {
    */
   async waitForPageLoad(timeout = 10000) {
     await expect(this.loadingIndicator()).toBeHidden({ timeout })
-    try {
-      await Promise.race([
-        expect(this.table()).toBeVisible({ timeout: 1000 }),
-        expect(this.emptyState()).toBeVisible({ timeout: 1000 }),
-      ])
-    } catch {
-      throw new Error('Page loaded but neither settlements table nor empty state appeared')
-    }
+    await expect(this.table().or(this.emptyState())).toBeVisible({ timeout })
   }
 
   /**
@@ -282,6 +284,27 @@ export class SettlementsPage extends BasePage {
    */
   async expectNoTransactionPeriod(settlementId: string) {
     await expect(this.settlementTransactionPeriod(settlementId)).toHaveCount(0)
+  }
+
+  /**
+   * The run's canonical reference, as shown in the list.
+   *
+   * Read off the `-value` element rather than the visible text: the cell shows
+   * an abbreviated form, and what has to match a bank statement is the whole
+   * string.
+   */
+  async getSettlementReference(settlementId: string): Promise<string> {
+    return (await this.settlementReference(settlementId).getAttribute('title')) ?? ''
+  }
+
+  async expectSettlementReference(settlementId: string, reference: string) {
+    await expect(this.settlementReference(settlementId)).toHaveAttribute('title', reference)
+    await expect(this.settlementReferenceCopy(settlementId)).toBeVisible()
+  }
+
+  /** The expanded row shows it unabbreviated — this is where it gets checked. */
+  async expectDetailReference(settlementId: string, reference: string) {
+    await expect(this.settlementDetailReference(settlementId)).toHaveText(reference)
   }
 
   async expectUndoButtonEnabled(settlementId: string) {

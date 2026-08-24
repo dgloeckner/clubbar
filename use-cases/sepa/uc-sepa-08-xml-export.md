@@ -80,7 +80,7 @@ Admin exports finalized settlement as SEPA Direct Debit XML file for bank upload
 ## File Naming
 
 Format: `sepa-{settlement-id}-{date}.xml`
-Example: `sepa-SET-2025-001-20250123.xml`
+Example: `sepa-2026-08-06-3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f.xml`
 
 ## Audit Log Entry
 

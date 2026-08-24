@@ -62,12 +62,29 @@ issue #11). Clients obtain the earliest valid date from
 All included transactions:
 - `settlement_id` set to this settlement's UUID
 
-## SEPA Message ID Format
+## Settlement Reference
 
-Format: `SET-{YYYY}-{NNN}`
-- Example: `SET-2025-001`
-- Unique per settlement
-- Used in XML export as Message ID
+A settlement is named by **one** string everywhere: its own id with the hyphens
+removed, 32 lowercase hex digits.
+
+- Example: `3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f`
+- Derived from `settlements.id`; never stored, never allocated
+- Used as the pain.008 `MsgId` and `PmtInfId`, in the Verwendungszweck the
+  member reads on their bank statement, in the Vorabankündigung, in the CSV,
+  and in every download's filename
+
+> **Superseded.** This section previously specified `SET-{YYYY}-{NNN}` — a
+> per-year running number that was never implemented. The code allocated a
+> random `SEPA-<12 hex>` instead, and derived two *further* forms for
+> `PmtInfId` and `EndToEndId`, so one settlement reached the bank under names
+> that matched neither each other nor the admin panel. Consolidating on the id
+> itself was chosen over building the running number: 32 characters fit the
+> 35-character ISO 20022 fields without truncation, and the same string a
+> member reads off a bank statement pastes into the admin lookup and matches.
+
+`EndToEndId` is the one exception and keeps `E2E-<12 hex settlement>-<12 hex
+member>`: it must name a member as well as a run *and* fit 35 characters, and
+two 32-character references are 64.
 
 ## Alternative Flows
 
@@ -104,7 +121,7 @@ Finalization is **permanent**:
 | action | `settlement_finalize` |
 | entity_type | `settlement` |
 | entity_id | Settlement UUID |
-| new_values | `{ "status": "finalized", "execution_date": "2025-02-01", "message_id": "SET-2025-001" }` |
+| new_values | `{ "status": "finalized", "execution_date": "2025-02-01", "reference": "3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f" }` |
 
 ## Test Scenarios
 

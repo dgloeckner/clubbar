@@ -25,6 +25,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { theme } from '../styles/design-system'
+import { SettlementReferenceTag } from '../components/settlements/SettlementReferenceTag'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { UndoSettlementDialog } from '../components/modals/UndoSettlementDialog'
@@ -291,6 +292,18 @@ export function SettlementsPage() {
       .catch(() => setCallerTotpEnabled(false))
   }, [])
 
+  /**
+   * What a download is called on the treasurer's disk.
+   *
+   * The backend sends the same name in `Content-Disposition`, and
+   * `downloadFile` honours it — but the two CSV routes go through the
+   * generated client, which returns the blob alone and drops the header, so
+   * the name has to be built here as well. Kept in one place so the two cannot
+   * drift apart.
+   */
+  const downloadName = (settlement: SettlementListItem, kind: string, extension: string) =>
+    `${kind}-${settlement.settlement_date ?? 'unbekannt'}-${settlement.reference ?? settlement.id}.${extension}`
+
   const handleExportSepa = (settlementId: string) => {
     setExportWarning(null)
     setExportStepUpError(null)
@@ -308,9 +321,13 @@ export function SettlementsPage() {
       // the omissions ride on response headers, and the generated call returns
       // the blob alone (#114). The bank file itself cannot carry a warning.
       // A POST, because the private key rides in the body (ADR-0036).
+      // The fallback only applies if the response carries no
+      // Content-Disposition; the backend always sends one, built from the same
+      // date and reference.
+      const target = list.items.find((item) => item.id === settlementId)
       const headers = await downloadFile(
         `/admin/settlements/${settlementId}/export/sepa-xml`,
-        `sepa-${settlementId}.xml`,
+        target ? downloadName(target, 'sepa', 'xml') : `sepa-${settlementId}.xml`,
         { ...credentials, private_key: exportPrivateKey }
       )
 
@@ -350,10 +367,10 @@ export function SettlementsPage() {
     }
   }
 
-  const handleExportCsv = async (settlementId: string) => {
+  const handleExportCsv = async (settlement: SettlementListItem) => {
     try {
-      const blob = await getSettlementsFactory().downloadSettlementCsv(settlementId)
-      downloadBlob(blob as unknown as Blob, `settlement-${settlementId}.csv`)
+      const blob = await getSettlementsFactory().downloadSettlementCsv(settlement.id ?? '')
+      downloadBlob(blob as unknown as Blob, downloadName(settlement, 'abrechnung', 'csv'))
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)
@@ -365,10 +382,10 @@ export function SettlementsPage() {
     }
   }
 
-  const handleExportTransactionsCsv = async (settlementId: string) => {
+  const handleExportTransactionsCsv = async (settlement: SettlementListItem) => {
     try {
-      const blob = await getSettlementsFactory().exportSettlementTransactions(settlementId)
-      downloadBlob(blob, `transactions-${settlementId}.csv`)
+      const blob = await getSettlementsFactory().exportSettlementTransactions(settlement.id ?? '')
+      downloadBlob(blob, downloadName(settlement, 'abrechnung-transaktionen', 'csv'))
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)
@@ -776,6 +793,15 @@ export function SettlementsPage() {
                             {transactionPeriod(settlement)}
                           </span>
                         )}
+                        {settlement.reference && (
+                          <span style={{ display: 'block', fontWeight: 400, marginTop: 2 }}>
+                            <SettlementReferenceTag
+                              reference={settlement.reference}
+                              testId={`settlements-card-reference-${settlement.id}`}
+                              short
+                            />
+                          </span>
+                        )}
                       </span>
                       {/* The same badge the table renders. The card used to
                           know only cancelled vs active, so on a phone an
@@ -870,7 +896,7 @@ export function SettlementsPage() {
                       )}
                       <button
                         data-testid={`settlements-export-csv-btn-${settlement.id}`}
-                        onClick={() => handleExportCsv(settlement.id ?? '')}
+                        onClick={() => handleExportCsv(settlement)}
                         disabled={settlement.is_cancelled}
                         title={t('settlements.exportCsvHint')}
                         aria-label={t('settlements.exportCsvHint')}
@@ -889,7 +915,7 @@ export function SettlementsPage() {
                       </button>
                       <button
                         data-testid={`settlements-export-transactions-btn-${settlement.id}`}
-                        onClick={() => handleExportTransactionsCsv(settlement.id ?? '')}
+                        onClick={() => handleExportTransactionsCsv(settlement)}
                         disabled={settlement.is_cancelled}
                         title={t('settlements.exportTransactionsHint')}
                         aria-label={t('settlements.exportTransactionsHint')}
@@ -1136,6 +1162,20 @@ export function SettlementsPage() {
                               {transactionPeriod(settlement)}
                             </div>
                           )}
+                          {/* Abbreviated here and complete in the expanded
+                              row: the column is fixed-width, and what the
+                              treasurer needs from a list is to recognise a run
+                              and copy its reference, not to read 32 hex
+                              digits. */}
+                          {settlement.reference && (
+                            <div style={{ marginTop: 2 }}>
+                              <SettlementReferenceTag
+                                reference={settlement.reference}
+                                testId={`settlements-reference-${settlement.id}`}
+                                short
+                              />
+                            </div>
+                          )}
                         </td>
 
                         {/* Created By */}
@@ -1289,7 +1329,7 @@ export function SettlementsPage() {
                             {/* Export CSV (aggregated) */}
                             <PillActionButton
                               data-testid={`settlements-export-csv-btn-${settlement.id}`}
-                              onClick={() => handleExportCsv(settlement.id ?? '')}
+                              onClick={() => handleExportCsv(settlement)}
                               disabled={settlement.is_cancelled}
                               color={theme.colors.semantic.emerald}
                               hoverColor={theme.colors.semantic.emeraldHover}
@@ -1302,7 +1342,7 @@ export function SettlementsPage() {
                             {/* Export Transactions CSV (detailed) */}
                             <PillActionButton
                               data-testid={`settlements-export-transactions-btn-${settlement.id}`}
-                              onClick={() => handleExportTransactionsCsv(settlement.id ?? '')}
+                              onClick={() => handleExportTransactionsCsv(settlement)}
                               disabled={settlement.is_cancelled}
                               color={theme.colors.semantic.purple}
                               hoverColor={theme.colors.semantic.purpleHover}
@@ -1351,6 +1391,28 @@ export function SettlementsPage() {
                       {expandedSettlementId === settlement.id && settlement.id && (
                         <tr data-testid={`settlements-detail-row-${settlement.id}`}>
                           <td colSpan={6} style={{ background: tableColors.rowInactiveBg, padding: 0 }}>
+                            {/* Unabbreviated here: this is where the treasurer
+                                comes to answer "which run is this?", and a
+                                truncated reference cannot be checked against a
+                                bank statement. */}
+                            {settlement.reference && (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '10px 16px 0',
+                                  fontSize: 12,
+                                  color: tableColors.cellSecondaryText,
+                                }}
+                              >
+                                <span>{t('settlements.reference')}</span>
+                                <SettlementReferenceTag
+                                  reference={settlement.reference}
+                                  testId={`settlements-detail-reference-${settlement.id}`}
+                                />
+                              </div>
+                            )}
                             <SettlementMemberBreakdown settlementId={settlement.id} />
                           </td>
                         </tr>

@@ -224,7 +224,7 @@ class SettlementsRepository
         $now = date('Y-m-d H:i:s');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO settlements (id, method, settlement_date, execution_date, period_start, period_end, sepa_message_id, total_amount_cents, member_count, is_cancelled, notes, created_by_admin_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO settlements (id, method, settlement_date, execution_date, period_start, period_end, total_amount_cents, member_count, is_cancelled, notes, created_by_admin_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id,
@@ -235,7 +235,6 @@ class SettlementsRepository
             $data['execution_date'],
             $data['period_start'] ?? null,
             $data['period_end'] ?? null,
-            $data['sepa_message_id'] ?? null,
             (int) $data['total_amount_cents'],
             (int) $data['member_count'],
             0,
@@ -434,16 +433,27 @@ class SettlementsRepository
      *
      * @param string $needle Already normalised (trimmed, lower-cased, `E2E-`
      *        stripped); this method only escapes it for LIKE.
+     * @param string $settlementNeedle The same input with hyphens removed, for
+     *        the settlement-id arm — a treasurer who pastes the Verwendungszweck
+     *        is holding {@see \App\Modules\Settlements\Domain\SettlementReference},
+     *        which names the run but no member, so it matches the whole run.
      * @return list<array<string, mixed>>
      */
-    public function findCollectionsByReference(string $needle, int $limit = 25): array
+    public function findCollectionsByReference(string $needle, string $settlementNeedle, int $limit = 25): array
     {
         // `\`, `%` and `_` are LIKE metacharacters; a reference containing one
         // must match itself rather than act as a wildcard.
-        $escaped = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $needle) . '%';
+        $escape = static fn (string $value): string
+            => '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value) . '%';
+        $escaped = $escape($needle);
+        // The settlement id is matched hyphen-free, so it needs its own needle:
+        // stripping hyphens from $needle would stop `E2E-<a>-<b>` matching the
+        // stored EndToEndId, which does contain them.
+        $escapedSettlement = $escape($settlementNeedle);
 
-        // Two named parameters holding the same value: prepares are not
-        // emulated on this connection, so a placeholder cannot be reused.
+        // Named parameters holding the same value are repeated rather than
+        // reused: prepares are not emulated on this connection, so a
+        // placeholder cannot appear twice.
         $stmt = $this->db->prepare(
             "SELECT si.settlement_id,
                     si.member_id,
@@ -460,6 +470,7 @@ class SettlementsRepository
                JOIN settlements s ON s.id = si.settlement_id
                JOIN members m ON m.id = si.member_id
               WHERE (si.end_to_end_id IS NOT NULL AND LOWER(si.end_to_end_id) LIKE :eref ESCAPE '\\\\')
+                 OR REPLACE(LOWER(si.settlement_id), '-', '') LIKE :sref ESCAPE '\\\\'
                  OR EXISTS (SELECT 1
                               FROM mandates mref
                              WHERE mref.member_id = si.member_id
@@ -468,7 +479,7 @@ class SettlementsRepository
               ORDER BY MAX(s.execution_date) DESC, MAX(s.created_at) DESC, MAX(m.last_name) ASC
               LIMIT " . max(1, $limit)
         );
-        $stmt->execute(['eref' => $escaped, 'mref' => $escaped]);
+        $stmt->execute(['eref' => $escaped, 'sref' => $escapedSettlement, 'mref' => $escaped]);
 
         return $stmt->fetchAll();
     }
@@ -548,12 +559,6 @@ class SettlementsRepository
         $stmt->execute($dataParams);
 
         return ['items' => $stmt->fetchAll(), 'total' => $total];
-    }
-
-    public function getNextSepaMessageId(): string
-    {
-        $uuid = Uuid::v4();
-        return 'SEPA-' . substr(str_replace('-', '', $uuid), 0, 12);
     }
 
     public function hasConflicts(array $transactionIds): array

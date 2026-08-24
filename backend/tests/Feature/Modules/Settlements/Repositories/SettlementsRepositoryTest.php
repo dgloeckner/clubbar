@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Modules\Settlements\Repositories;
 
 use App\Modules\Settlements\Repositories\SettlementsRepository;
+use App\Modules\Settlements\Domain\SettlementReference;
 use Tests\Feature\DatabaseTestCase;
 
 class SettlementsRepositoryTest extends DatabaseTestCase
@@ -555,7 +556,6 @@ class SettlementsRepositoryTest extends DatabaseTestCase
             'execution_date' => '2026-06-05',
             'period_start' => '2026-05-01',
             'period_end' => '2026-05-31',
-            'sepa_message_id' => null,
             'total_amount_cents' => 12345,
             'member_count' => 1,
             'notes' => 'Test settlement notes',
@@ -967,20 +967,6 @@ class SettlementsRepositoryTest extends DatabaseTestCase
     }
 
     // ------------------------------------------------------------------
-    // getNextSepaMessageId
-    // ------------------------------------------------------------------
-
-    public function test_getNextSepaMessageId_returns_prefixed_unique_string(): void
-    {
-        $id1 = $this->settlementsRepository->getNextSepaMessageId();
-        $id2 = $this->settlementsRepository->getNextSepaMessageId();
-
-        $this->assertStringStartsWith('SEPA-', $id1);
-        $this->assertNotEquals($id1, $id2);
-        $this->assertLessThanOrEqual(35, strlen($id1), 'sepa_message_id column is VARCHAR(35)');
-    }
-
-    // ------------------------------------------------------------------
     // hasConflicts
     // ------------------------------------------------------------------
 
@@ -1056,7 +1042,7 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $this->addCollection($settlementId, $alice, 2550, 'E2E-lookup-alice');
         $this->addCollection($settlementId, $bob, 1500, 'E2E-lookup-bob');
 
-        $rows = $this->settlementsRepository->findCollectionsByReference('e2e-lookup-alice');
+        $rows = $this->settlementsRepository->findCollectionsByReference('e2e-lookup-alice', SettlementReference::normalise('e2e-lookup-alice'));
 
         $this->assertCount(1, $rows);
         $this->assertEquals($alice, $rows[0]['member_id']);
@@ -1076,7 +1062,7 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $this->addCollection($settlementId, $memberId, 1000, 'E2E-lookup-summed');
         $this->addCollection($settlementId, $memberId, 550, 'E2E-lookup-summed');
 
-        $rows = $this->settlementsRepository->findCollectionsByReference('e2e-lookup-summed');
+        $rows = $this->settlementsRepository->findCollectionsByReference('e2e-lookup-summed', SettlementReference::normalise('e2e-lookup-summed'));
 
         $this->assertCount(1, $rows, 'one row per member per settlement, not per item');
         $this->assertEquals(1550, (int) $rows[0]['amount_cents']);
@@ -1089,7 +1075,7 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $memberId = $this->createTestMember('Lookup', 'Partial');
         $this->addCollection($settlementId, $memberId, 800, 'E2E-lookup-partial-tail');
 
-        $rows = $this->settlementsRepository->findCollectionsByReference('partial-tail');
+        $rows = $this->settlementsRepository->findCollectionsByReference('partial-tail', SettlementReference::normalise('partial-tail'));
 
         $this->assertCount(1, $rows);
         $this->assertEquals($memberId, $rows[0]['member_id']);
@@ -1109,7 +1095,10 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $this->addCollection($first, $memberId, 1100, 'E2E-lookup-mandate-one');
         $this->addCollection($second, $memberId, 1300, null);
 
-        $rows = $this->settlementsRepository->findCollectionsByReference(strtolower($mandateReference));
+        $rows = $this->settlementsRepository->findCollectionsByReference(
+            strtolower($mandateReference),
+            SettlementReference::normalise($mandateReference),
+        );
 
         $settlementIds = array_column($rows, 'settlement_id');
         $this->assertContains($first, $settlementIds);
@@ -1128,7 +1117,7 @@ class SettlementsRepositoryTest extends DatabaseTestCase
 
         $this->assertSame(
             [],
-            $this->settlementsRepository->findCollectionsByReference('e2e-lookup-unexported')
+            $this->settlementsRepository->findCollectionsByReference('e2e-lookup-unexported', SettlementReference::normalise('e2e-lookup-unexported'))
         );
     }
 
@@ -1140,8 +1129,8 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $memberId = $this->createTestMember('Lookup', 'Namesearch');
         $this->addCollection($settlementId, $memberId, 900, 'E2E-lookup-namesearch');
 
-        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('namesearch lookup'));
-        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('lookup namesearch'));
+        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('namesearch lookup', SettlementReference::normalise('namesearch lookup')));
+        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('lookup namesearch', SettlementReference::normalise('lookup namesearch')));
     }
 
     public function test_findCollectionsByReference_treats_a_wildcard_as_a_literal(): void
@@ -1153,8 +1142,8 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $memberId = $this->createTestMember('Lookup', 'Wildcard');
         $this->addCollection($settlementId, $memberId, 700, 'E2E-lookup-wildcard');
 
-        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('%'));
-        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('e2e-lookup-w%ldcard'));
+        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('%', SettlementReference::normalise('%')));
+        $this->assertSame([], $this->settlementsRepository->findCollectionsByReference('e2e-lookup-w%ldcard', SettlementReference::normalise('e2e-lookup-w%ldcard')));
     }
 
     public function test_findCollectionsByReference_caps_how_many_collections_it_returns(): void
@@ -1164,10 +1153,62 @@ class SettlementsRepositoryTest extends DatabaseTestCase
             $this->addCollection($settlementId, $this->createTestMember('Lookup', "Capped{$i}"), 500, "E2E-lookup-capped-{$i}");
         }
 
-        $this->assertCount(2, $this->settlementsRepository->findCollectionsByReference('e2e-lookup-capped', 2));
+        $this->assertCount(2, $this->settlementsRepository->findCollectionsByReference('e2e-lookup-capped', SettlementReference::normalise('e2e-lookup-capped'), 2));
     }
 
     /** A settlement to hang lookup fixtures on; its own fields do not matter here. */
+    /**
+     * A treasurer holding the Verwendungszweck rather than the EREF.
+     *
+     * The remittance text carries {@see SettlementReference} — the run, but no
+     * member — so pasting it lists everyone the run collected from and the
+     * treasurer picks. Before this arm existed the same paste returned nothing,
+     * which reads as "that collection is not ours".
+     */
+    public function test_findCollectionsByReference_resolves_a_settlement_reference_to_the_whole_run(): void
+    {
+        $settlementId = $this->createLookupSettlement();
+        $alice = $this->createTestMember('Reference', 'Alice');
+        $bob = $this->createTestMember('Reference', 'Bob');
+        $this->addCollection($settlementId, $alice, 2550, 'E2E-reference-alice');
+        $this->addCollection($settlementId, $bob, 1500, 'E2E-reference-bob');
+
+        $reference = SettlementReference::of($settlementId);
+
+        $rows = $this->settlementsRepository->findCollectionsByReference($reference, $reference);
+
+        $found = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => $row['settlement_id'] === $settlementId,
+        ));
+        $this->assertCount(2, $found, 'both of the run\'s collections resolve');
+        $this->assertSame(
+            [$alice, $bob],
+            array_values(array_map(static fn (array $row): string => $row['member_id'], $found)),
+        );
+    }
+
+    /**
+     * The hyphenated form is what a member reads off some bank portals and what
+     * the admin URL shows, so it has to find the same run.
+     */
+    public function test_findCollectionsByReference_accepts_the_hyphenated_settlement_id(): void
+    {
+        $settlementId = $this->createLookupSettlement();
+        $alice = $this->createTestMember('Hyphen', 'Alice');
+        $this->addCollection($settlementId, $alice, 2550, 'E2E-hyphen-alice');
+
+        $rows = $this->settlementsRepository->findCollectionsByReference(
+            strtolower($settlementId),
+            SettlementReference::normalise($settlementId),
+        );
+
+        $this->assertContains(
+            $settlementId,
+            array_map(static fn (array $row): string => $row['settlement_id'], $rows),
+        );
+    }
+
     private function createLookupSettlement(): string
     {
         return $this->createSettlementRow(

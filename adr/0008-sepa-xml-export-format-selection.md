@@ -1,6 +1,6 @@
 # ADR-0008: SEPA XML Export Format Selection
 
-**Status**: Accepted (amended 2026-08-04: format raised from pain.008.001.02 to pain.008.001.08; amended 2026-08-05: IBAN-only agents documented as `Othr/Id = NOTPROVIDED`, see issue #12)
+**Status**: Accepted (amended 2026-08-04: format raised from pain.008.001.02 to pain.008.001.08; amended 2026-08-05: IBAN-only agents documented as `Othr/Id = NOTPROVIDED`, see issue #12; amended 2026-08-23: the identifier scheme is consolidated on the settlement reference and the remittance content is documented, see [#680](https://github.com/dgloeckner/clubbar/pull/680))
 
 **Date**: 2025-01-23
 
@@ -48,11 +48,11 @@ Additionally, SEPA Direct Debit has two schemes:
 4. **Minimal debtor information**: Only debtor name and IBAN; no address data (privacy-first)
 5. **IBAN-only agent identification**: Club Bar collects no agent BICs. `CdtrAgt` and `DbtrAgt` are both mandatory (1..1) in pain.008.001.08 and therefore cannot be omitted; the missing BIC is encoded as `Othr/Id = NOTPROVIDED` per the EPC/DK implementation guidelines. It must **not** be written to `BICFI`: the literal satisfies the `BICFIDec2014Identifier` pattern by accident (`NOTP`-`RO`-`VI`-`DED`), so it passes XSD validation while declaring a non-existent Romanian institution — which bank-side validators that resolve BICs against a directory will reject
 6. **XSD validation**: All generated XML validated against official SEPA schema
-7. **Pragmatic ID generation**: Settlement ID used as base for all SEPA identifiers; all identifiers respect the ISO 20022 35-character maximum
-   - Message ID = stored `sepa_message_id` (e.g., `SEPA-7f499732c4fe`)
-   - Payment Info ID = `PMT-` + first 16 hex chars of settlement UUID (e.g., `PMT-401f7c9dbf504925`)
-   - End-to-End ID = Payment Info ID + sequence (e.g., `PMT-401f7c9dbf504925-1`)
-8. **Human-readable IDs**: Audit trail clarity; easy to trace transactions to settlements
+7. **One identifier, derived from the settlement**: every id in the file is the settlement's **reference** — its UUID with the hyphens removed, 32 lowercase hex characters, inside the ISO 20022 35-character maximum without truncation
+   - Message ID = the reference (e.g., `401f7c9dbf504925a3ea1c9c330a9333`)
+   - Payment Info ID = the reference
+   - End-to-End ID = the one exception, `E2E-` + 12 hex of the settlement + 12 hex of the member id (e.g., `E2E-401f7c9dbf50-7c1d55a09e34`)
+8. **Quotable IDs**: the same string appears in the Verwendungszweck the member reads on their bank statement, in the Vorabankündigung, and in the admin panel — so a member can quote a collection and the Kassenwart can find it. Thirty-two hex characters are not "readable" in the sense of being memorable; the property that matters is that they **match by paste**, character for character
 9. **Comprehensive error handling**: Detailed validation errors before export
 10. **UTF-8 encoding**: Mandatory for XML; charset declared in header
 
@@ -67,7 +67,7 @@ Additionally, SEPA Direct Debit has two schemes:
   <CstmrDrctDbtInitn>
     <!-- Group Header (applies to entire file) -->
     <GrpHdr>
-      <MsgId>SEPA-7f499732c4fe</MsgId>                        <!-- Message ID = sepa_message_id -->
+      <MsgId>401f7c9dbf504925a3ea1c9c330a9333</MsgId>      <!-- = the settlement reference -->
       <CreDtTm>2025-01-23T14:30:00Z</CreDtTm>                <!-- Creation timestamp (UTC) -->
       <NbOfTxs>2</NbOfTxs>                                   <!-- Total transaction count -->
       <CtrlSum>37.50</CtrlSum>                                <!-- Total amount in EUR -->
@@ -78,7 +78,7 @@ Additionally, SEPA Direct Debit has two schemes:
 
     <!-- Payment Information (can have multiple, but Club Bar uses single PmtInf) -->
     <PmtInf>
-      <PmtInfId>PMT-401f7c9dbf504925</PmtInfId>              <!-- PMT- + first 16 hex of settlement UUID -->
+      <PmtInfId>401f7c9dbf504925a3ea1c9c330a9333</PmtInfId>   <!-- the same reference -->
       <PmtMtd>DD</PmtMtd>                                    <!-- Payment Method = Direct Debit -->
       <NbOfTxs>2</NbOfTxs>                                   <!-- Transaction count in this batch -->
       <CtrlSum>37.50</CtrlSum>                                <!-- Sum of transactions in batch -->
@@ -136,7 +136,7 @@ Additionally, SEPA Direct Debit has two schemes:
       <!-- Direct Debit Transaction Information (repeated for each member) -->
       <DrctDbtTxInf>
         <PmtId>
-          <EndToEndId>PMT-401f7c9dbf504925-1</EndToEndId>    <!-- Payment Info ID + sequence -->
+          <EndToEndId>E2E-401f7c9dbf50-7c1d55a09e34</EndToEndId>  <!-- 12 hex of the settlement + 12 hex of the MEMBER id (not the mandate below); the one id that is not the plain reference -->
         </PmtId>
 
         <InstdAmt Ccy="EUR">25.50</InstdAmt>                 <!-- Instruction Amount -->
@@ -171,14 +171,14 @@ Additionally, SEPA Direct Debit has two schemes:
 
         <!-- Remittance Information (Purpose) -->
         <RmtInf>
-          <Ustrd>Club Bar Abrechnung Jan 2025</Ustrd>             <!-- Unstructured purpose text -->
+          <Ustrd>Sportverein Beispiel Getraenke 2025-01-01 - 2025-01-31 401f7c9dbf504925a3ea1c9c330a9333</Ustrd>  <!-- prefix + period + reference; see ID Generation Strategy -->
         </RmtInf>
       </DrctDbtTxInf>
 
       <!-- Second transaction (another member) -->
       <DrctDbtTxInf>
         <PmtId>
-          <EndToEndId>PMT-401f7c9dbf504925-2</EndToEndId>    <!-- incremented sequence -->
+          <EndToEndId>E2E-401f7c9dbf50-b93e2f7a0c18</EndToEndId>  <!-- same run, so the same first half; a different member, so a different second -->
         </PmtId>
 
         <InstdAmt Ccy="EUR">12.00</InstdAmt>
@@ -208,7 +208,7 @@ Additionally, SEPA Direct Debit has two schemes:
         </DbtrAcct>
 
         <RmtInf>
-          <Ustrd>Club Bar Abrechnung Jan 2025</Ustrd>
+          <Ustrd>Sportverein Beispiel Getraenke 2025-01-01 - 2025-01-31 401f7c9dbf504925a3ea1c9c330a9333</Ustrd>
         </RmtInf>
       </DrctDbtTxInf>
     </PmtInf>
@@ -241,7 +241,7 @@ sequenceDiagram
         Validator-->>API: Validation OK
         API->>Exporter: Build SEPA XML
         Exporter->>Exporter: Map settlement to pain.008<br/>structure (Group Header,<br/>Payment Info, Transactions)
-        Exporter->>Exporter: Use IDs:<br/>MsgId = Settlement ID<br/>PmtInfId = Settlement ID<br/>EndToEndId = Settlement ID<br/>+ sequence (0001, 0002, ...)
+        Exporter->>Exporter: Use IDs:<br/>MsgId = settlement reference<br/>PmtInfId = settlement reference<br/>EndToEndId = E2E- + settlement half<br/>+ member half (persisted)
         Exporter->>Digitick: Generate XML<br/>(digitick handles encoding,<br/>formatting, XSD validation)
         Digitick-->>Exporter: Valid SEPA XML
         Exporter-->>API: XML ready
@@ -257,18 +257,58 @@ sequenceDiagram
 
 **Key responsibility areas**:
 - **Validation**: Check SEPA config completeness, member IBAN/mandate data, execution date constraints
-- **ID Mapping**: Use settlement ID as base for all SEPA identifiers (simple, human-readable, traceable)
+- **ID Mapping**: Derive every SEPA identifier from the settlement's own id (simple, traceable, and the same string the member sees)
 - **Data Transformation**: Map transaction data to pain.008 XML elements (creditor, debtor, amounts, dates)
 - **XSD Validation**: Leverage digitick library's built-in validation against pain.008.001.08 schema
 
 ### ID Generation Strategy
 
-Pragmatic approach: Use the settlement's stored identifiers as base for all SEPA identifiers. All IDs must respect the ISO 20022 35-character maximum — a raw settlement UUID with prefix exceeds it, so UUIDs are hyphen-stripped and truncated.
+**A settlement has one identifier, and it is its own id.** The *settlement
+reference* is `settlements.id` with the hyphens removed: 32 lowercase hex
+characters, three inside the ISO 20022 maximum of 35, so nothing has to be
+truncated to fit. It is derived on read by `Settlements\Domain\SettlementReference`
+and stored nowhere — a column holding it would be a copy of the primary key, which
+is the duplication [ADR-0032](./0032-settlement-lifecycle.md) §1 refuses for
+`status`.
 
-**Derived IDs**:
-- **Message ID (MsgId)**: = stored `sepa_message_id` (e.g., `SEPA-7f499732c4fe`); fallback `MSG-` + first 31 hex chars of settlement UUID
-- **Payment Info ID (PmtInfId)**: = `PMT-` + first 16 hex chars of settlement UUID (e.g., `PMT-401f7c9dbf504925`)
-- **End-to-End ID (EndToEndId)**: = Payment Info ID + sequence (e.g., `PMT-401f7c9dbf504925-1`, `PMT-401f7c9dbf504925-2`)
+| Field | Value | Example |
+|---|---|---|
+| **MsgId** | the reference | `401f7c9dbf504925a3ea1c9c330a9333` |
+| **PmtInfId** | the reference | `401f7c9dbf504925a3ea1c9c330a9333` |
+| **EndToEndId** | `E2E-` + 12 hex of the settlement + 12 hex of the **member id** | `E2E-401f7c9dbf50-7c1d55a09e34` |
+| **MndtId** | the member's mandate reference, unchanged | `550e8400e29b41d4a716446655440000` |
+| **Ustrd** | configured prefix + period + reference | `Sportverein Beispiel Getraenke 2025-01-01 - 2025-01-31 401f7c9dbf504925a3ea1c9c330a9333` |
+
+**EndToEndId is the one exception, for a structural reason.** It has to name a
+*member* as well as a run and still fit 35 characters — and two references are 64.
+So both halves are truncated. It is also the only identifier that is **persisted**
+(`settlement_items.end_to_end_id`) rather than derived: German banks are required
+by DK *DFÜ-Abkommen Anlage 3* to quote it back as `EREF+` on a return booking, and
+a return arriving months later must resolve against the exact string that was sent
+([#150](https://github.com/dgloeckner/clubbar/issues/150),
+[ADR-0032](./0032-settlement-lifecycle.md) §8). It must never be a loop index: the
+earlier `PMT-<settlement>-<n>` form counted the members that survived the export's
+skip rules, so a cleared IBAN between two exports silently renumbered everyone
+after it.
+
+**The Verwendungszweck is the only text about the collection a member ever reads,**
+so it names three things: what it is (the club's configured
+`sepa_config.payment_reference_prefix`, or the literal `Settlement` where a club
+has not set one), what it covers (the settlement's period,
+falling back to its own date when `period_start`/`period_end` are unset), and which
+run took it (the reference). The field allows 140 characters and the prefix column
+allows 100, so the budget is spent tail-first: the period and the reference are
+load-bearing and the **prefix** is what gets truncated to fit.
+
+**Accepted: the MsgId is stable across re-exports.** It is a property of the
+settlement, not of the export event, so exporting the same settlement twice
+produces the same `MsgId`. This is deliberate — a re-export is the same collection
+instruction, not a new one, and it is the same identity the treasurer sees
+everywhere else. The consequence is worth knowing: a bank portal that runs a
+duplicate-file check may refuse the second upload, and the remedy is to submit the
+file that was already generated rather than to generate a new one. The behaviour
+predates this amendment; the removed `sepa_message_id` was assigned at settlement
+*creation*, never per export, so nothing about it changed here.
 
 ### Pre-Export Validation Checklist
 
@@ -308,8 +348,9 @@ Before generating SEPA XML, validate:
 ✅ **Tested & maintained**: Community-maintained library, proven in production
 ✅ **Reduced custom code**: No need to implement XML generation from scratch
 ✅ **Reduced complexity**: No mandate date tracking; only mandate_reference needed
-✅ **Pragmatic ID strategy**: Settlement ID as base for all SEPA identifiers (simple, traceable, human-readable)
-✅ **Easy audit trail**: Settlement IDs directly link transactions to settlement exports
+✅ **One identifier**: every id in the file is the settlement's own, so the file, the admin panel, the announcement mail and the audit entry all name the run the same way. This is what the ADR always claimed; until 2026-08-23 the code did not deliver it, generating a random `MsgId` and a truncated `PmtInfId` that matched neither each other nor the settlement
+✅ **A member can quote a collection**: the reference is in the Verwendungszweck on their bank statement, so "what was this debit?" has an answer the Kassenwart can look up
+✅ **Easy audit trail**: settlement references directly link transactions to settlement exports
 ✅ **UTF-8 support**: Library handles proper character encoding
 ✅ **No schema management**: Library includes and validates against XSD
 
@@ -318,6 +359,8 @@ Before generating SEPA XML, validate:
 ❌ **External dependency**: Requires digitick/sepa-xml package (must be maintained in composer.json)
 ❌ **XML verbosity**: Large file format (verbose compared to CSV)
 ❌ **Character handling**: Must sanitize member names for Latin-only SEPA compliance
+❌ **A 32-character hex string is not memorable**: it is quotable and paste-matchable, not something a member reads out over the phone. A shorter running number was considered and rejected — see Alternative 6
+❌ **Re-exports reuse the MsgId**: accepted, with the bank-side caveat spelled out in the ID Generation Strategy
 
 ### Mitigations
 
@@ -400,6 +443,28 @@ Build SEPA XML manually using PHP's SimpleXML or DOMDocument.
 
 **Rejected**: digitick/sepa-xml is tested, maintained, and proven. Custom XML generation introduces unnecessary complexity and maintenance burden.
 
+### Alternative 6: A short per-year running number (`A-2026-0007`)
+
+Give each settlement a sequential, human-sized number — prefix, calendar year, and
+a counter that resets annually — and use that everywhere the reference is used now.
+
+**Pros**:
+- Short enough to read aloud, write on paper, and retype without error
+- Sorts and reads chronologically at a glance
+- Gapless, which is the *Vollständigkeitskontrolle* a GoBD Belegnummer exists for (GoBD Rz. 77 lists "eindeutige Belegnummer" as mandatory, though it accepts a Dokumenten-ID as one)
+
+**Cons**:
+- A counter is state: allocating it needs a lock or a counter table, and it can be allocated twice under two concurrent runs — the exact class of bug the settlement design avoids elsewhere by deriving rather than storing
+- It is a *second* identity for a row that already has one. The admin URL, the audit entry and the API would still carry the UUID, so the system would name a settlement two ways rather than one — a smaller version of the problem this amendment exists to remove
+- It cannot name a member, so `EndToEndId` would still need its own truncated form; the exception does not go away
+
+**Rejected**: consistency beats brevity here. The whole value of the reference is
+that one string matches across the bank statement, the mail and the admin panel;
+a second, prettier identifier alongside the first would reintroduce the divergence.
+A member never needs to *recite* a reference — they paste it, or the Kassenwart
+searches for it. Revisit if the club finds itself reading references over the
+telephone.
+
 ---
 
 ## Related Decisions
@@ -409,6 +474,7 @@ Build SEPA XML manually using PHP's SimpleXML or DOMDocument.
 - [ADR-0007: Organization SEPA Configuration](./0007-organization-sepa-configuration-storage.md) - Creditor info in XML
 - [ADR-0009: Settlement Lead Times](./0009-settlement-lead-times-bank-working-days.md) - Execution date validation
 - [ADR-0005: IBAN Storage and Validation](./0005-iban-storage-and-validation.md) - Member IBAN validation
+- [ADR-0032: Settlement Lifecycle](./0032-settlement-lifecycle.md) - why the reference is derived rather than stored (§1), and why the EndToEndId is persisted (§8)
 
 ---
 
