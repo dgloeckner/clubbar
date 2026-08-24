@@ -92,6 +92,56 @@ Reference backend code patterns in `backend/patterns/` directory:
 
 **Important**: All backend work must follow these patterns for consistency with ADR-0018 (Modular Architecture) and to maintain code quality across modules.
 
+### Notification Recipients (ADR-0044, #633)
+
+**A notification is addressed to an *office*, never to a person and never to
+"the admins".** Mail is the one surface a role model is easy to forget, and the
+failure is silent: a notice reaches somebody it was never meant for, in a
+channel that cannot be taken back.
+
+The rule is **mirror the grant on the surface the mail points at**. There is one
+source of truth about who may know a thing — `RouteRoleMap` — and a mail about a
+screen carries exactly that screen's role set. A second table of who-hears-what
+would drift.
+
+1. **Every `MailKind` answers `recipientRoles()` explicitly**, in a `match` with
+   no default arm. A kind added later must *state* its audience; it must never
+   inherit one from the shape of the kinds around it. The same applies to
+   `addressesMember()`, `addressesClub()` and `subjectType()` — all four are
+   exhaustive `match` expressions for this reason, and PHP's exhaustiveness check
+   is what makes forgetting one a build error rather than a leak.
+2. **Derive the set from the route, not from intuition.** The near-limit digest
+   is the push half of `GET /api/admin/dashboard`, which is `TREASURY`, so it is
+   `[ADMIN, KASSENWART]`. A terminal token's expiry is behind an `admin`-only
+   route, so it is `[ADMIN]` — the Kassenwart is narrowed out by the same rule
+   that includes them elsewhere, not by a judgement call.
+3. **Fan out to every active account holding any of those roles**, one message
+   each, via `AdminUsersRepository::findActiveRecipientsWithAnyRole()`. Roles are
+   additive and stored one row per role, so the query is `DISTINCT` — an account
+   holding two of the roles asked for is one recipient, not two identical mails.
+   Never send to a single "the treasurer": an office can be held by several
+   people, or by nobody.
+4. **Deduplicate per recipient**, not per notice — `dedup_key` is
+   `<occasion>:<adminUserId>`. One recipient having already been told must not
+   silence the others, and `UNIQUE (kind, subject_id, dedup_key)` is what makes a
+   repeating scan idempotent without a lookup (and therefore race-free under two
+   overlapping ticks).
+5. **Fail closed.** An empty role list selects *nobody*, matching ADR-0044 rule
+   1's reading of an unclassified route. When no active account holds the office,
+   escalate to the configured club address — never widen back to every admin,
+   which is the leak this rule exists to prevent — and log an unreachable notice
+   when there is no club address either, so a notice that reached nobody is
+   visible rather than silent.
+6. **Say nothing when there is nothing to say.** A periodic digest with an empty
+   list queues no mail at all. Silence must mean "the condition does not hold";
+   the scheduler's own health is the heartbeat's job. A recipient who receives
+   "0 items" fifty times has learned to file it unread by the fifty-first.
+
+**Worked example** — `MailKind::CREDIT_LIMIT_DIGEST` is `[ADMIN, KASSENWART]`,
+so it reaches *every* active admin and *every* active Kassenwart, one mail each,
+in each recipient's own language; the Getränkewart is excluded because member
+balances are outside their remit on every surface (ADR-0045 invariant 5).
+
 ### E2E Testing Patterns
 
 Reference E2E testing patterns in `e2etests/patterns/` directory (see **`README.md`** for complete index):
@@ -512,7 +562,7 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    |------|----------|-------|
    | `api` | `api-tests` | 2 shards, 318/318 — homogeneous, so count-balancing is time-balancing |
    | `ui` | `admin-chromium`, `admin-mobile` | 2 shards |
-   | `chain` | `api-ordered`, `api-rotation`, `mail-chain`, `mail-statement`, `mail-credentials`, `mail-issuance`, `mail-lifecycle`, `mail-jugendschutz`, `mail-roles` | 1 job, no shard: every project in it is deliberately serial |
+   | `chain` | `api-ordered`, `api-rotation`, `mail-chain`, `mail-statement`, `mail-credentials`, `mail-issuance`, `mail-lifecycle`, `mail-jugendschutz`, `mail-roles`, `mail-digest` | 1 job, no shard: every project in it is deliberately serial |
 
    Those dependencies are about **one shared database**, not about data, so a
    job of its own satisfies them. `E2E_LANE=chain` is what says so, and it is
@@ -523,7 +573,8 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    cd e2etests
    E2E_LANE=chain npx playwright test --project=api-ordered --project=api-rotation \
      --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance \
-     --project=mail-lifecycle --project=mail-jugendschutz --project=mail-roles
+     --project=mail-lifecycle --project=mail-jugendschutz --project=mail-roles \
+     --project=mail-digest
    npx playwright test --project=api-tests --shard=1/2
    ```
 

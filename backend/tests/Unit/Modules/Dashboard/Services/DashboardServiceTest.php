@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\Dashboard\Services;
 
 use App\Modules\CreditLimits\Domain\CreditLimit;
 use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
+use App\Modules\CreditLimits\Repositories\NearLimitRepository;
 use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Dashboard\Services\DashboardService;
@@ -40,6 +41,12 @@ class DashboardServiceTest extends TestCase
     private TerminalAnomaliesRepository $terminalAnomaliesRepository;
     private JugendschutzViolationsRepository $jugendschutzViolationsRepository;
     private CreditLimitConfigService $creditLimitConfigService;
+
+    /**
+     * The near-limit query moved to the CreditLimits module when the digest
+     * became its second consumer, so the panel and the mail read the same one.
+     */
+    private NearLimitRepository $nearLimitRepository;
     private DashboardService $service;
 
     /** The club's configured ceiling, as the panel resolves it. */
@@ -65,6 +72,7 @@ class DashboardServiceTest extends TestCase
         $this->clubLimit = CreditLimitPolicy::shipped()->clubDefault();
         $this->creditLimitConfigService = $this->createMock(CreditLimitConfigService::class);
         $this->creditLimitConfigService->method('policy')->willReturn(CreditLimitPolicy::shipped());
+        $this->nearLimitRepository = $this->createMock(NearLimitRepository::class);
 
         $this->service = $this->serviceWith($this->creditLimitConfigService);
     }
@@ -86,6 +94,7 @@ class DashboardServiceTest extends TestCase
             $this->terminalAnomaliesRepository,
             $this->jugendschutzViolationsRepository,
             $creditLimits,
+            $this->nearLimitRepository,
         );
     }
 
@@ -516,8 +525,8 @@ class DashboardServiceTest extends TestCase
     public function test_the_dashboard_asks_only_for_members_inside_the_terminals_warning_band(): void
     {
         $this->stubEmptyDashboard();
-        $this->dashboardRepository->expects($this->once())
-            ->method('findMembersNearCreditLimit')
+        $this->nearLimitRepository->expects($this->once())
+            ->method('findNearLimit')
             ->with(
                 $this->clubLimit->limitCents,
                 $this->clubLimit->warnThresholdPercent,
@@ -536,7 +545,7 @@ class DashboardServiceTest extends TestCase
     public function test_each_member_near_the_limit_carries_their_tab_share_and_verdict(): void
     {
         $this->stubEmptyDashboard();
-        $this->dashboardRepository->method('findMembersNearCreditLimit')->willReturn([
+        $this->nearLimitRepository->method('findNearLimit')->willReturn([
             ['id' => 'mem-1', 'name' => 'Anna Meier', 'balance_cents' => '10500', 'limit_cents' => '10000'],
             ['id' => 'mem-2', 'name' => 'Bert Klein', 'balance_cents' => '8200', 'limit_cents' => '10000'],
         ]);
@@ -562,10 +571,10 @@ class DashboardServiceTest extends TestCase
     public function test_a_list_shorter_than_the_cap_is_its_own_total_and_costs_no_second_query(): void
     {
         $this->stubEmptyDashboard();
-        $this->dashboardRepository->method('findMembersNearCreditLimit')->willReturn([
+        $this->nearLimitRepository->method('findNearLimit')->willReturn([
             ['id' => 'mem-1', 'name' => 'Anna Meier', 'balance_cents' => '8100', 'limit_cents' => '10000'],
         ]);
-        $this->dashboardRepository->expects($this->never())->method('countMembersNearCreditLimit');
+        $this->nearLimitRepository->expects($this->never())->method('countNearLimit');
 
         $nearLimit = $this->service->getDashboard()->toArray()['members_near_limit'];
 
@@ -575,12 +584,12 @@ class DashboardServiceTest extends TestCase
     public function test_a_full_list_reports_how_many_members_it_is_not_showing(): void
     {
         $this->stubEmptyDashboard();
-        $this->dashboardRepository->method('findMembersNearCreditLimit')->willReturn(array_map(
+        $this->nearLimitRepository->method('findNearLimit')->willReturn(array_map(
             static fn(int $i): array => ['id' => "mem-{$i}", 'name' => "Member {$i}", 'balance_cents' => '9000', 'limit_cents' => '10000'],
             range(1, DashboardService::MEMBERS_NEAR_LIMIT_SHOWN),
         ));
-        $this->dashboardRepository->expects($this->once())
-            ->method('countMembersNearCreditLimit')
+        $this->nearLimitRepository->expects($this->once())
+            ->method('countNearLimit')
             ->with($this->clubLimit->limitCents, $this->clubLimit->warnThresholdPercent)
             ->willReturn(12);
 
@@ -593,7 +602,7 @@ class DashboardServiceTest extends TestCase
     public function test_a_member_with_only_one_name_is_labelled_with_the_half_that_exists(): void
     {
         $this->stubEmptyDashboard();
-        $this->dashboardRepository->method('findMembersNearCreditLimit')->willReturn([
+        $this->nearLimitRepository->method('findNearLimit')->willReturn([
             ['id' => 'mem-1', 'name' => 'Meier ', 'balance_cents' => '9000', 'limit_cents' => '10000'],
         ]);
 
@@ -610,7 +619,7 @@ class DashboardServiceTest extends TestCase
     public function test_a_members_share_is_measured_against_their_own_ceiling(): void
     {
         $this->stubEmptyDashboard();
-        $this->dashboardRepository->method('findMembersNearCreditLimit')->willReturn([
+        $this->nearLimitRepository->method('findNearLimit')->willReturn([
             // Past a small ceiling — refused at the bar right now.
             ['id' => 'mem-1', 'name' => 'Small Ceiling', 'balance_cents' => '6000', 'limit_cents' => '5000'],
             // Deep inside a large one, on a tab three times the size.
@@ -635,7 +644,7 @@ class DashboardServiceTest extends TestCase
     public function test_the_envelope_reports_the_club_default_not_a_members_ceiling(): void
     {
         $this->stubEmptyDashboard();
-        $this->dashboardRepository->method('findMembersNearCreditLimit')->willReturn([
+        $this->nearLimitRepository->method('findNearLimit')->willReturn([
             ['id' => 'mem-1', 'name' => 'Own Ceiling', 'balance_cents' => '4500', 'limit_cents' => '5000'],
         ]);
 
@@ -659,8 +668,8 @@ class DashboardServiceTest extends TestCase
         $this->service = $this->serviceWith($this->creditLimitConfigService);
 
         $this->stubEmptyDashboard();
-        $this->dashboardRepository->expects($this->once())
-            ->method('findMembersNearCreditLimit')
+        $this->nearLimitRepository->expects($this->once())
+            ->method('findNearLimit')
             ->with(0, 80, DashboardService::MEMBERS_NEAR_LIMIT_SHOWN)
             ->willReturn([
                 ['id' => 'mem-1', 'name' => 'Capped Anyway', 'balance_cents' => '4500', 'limit_cents' => '5000'],

@@ -171,6 +171,35 @@ enum MailKind: string
     case JUGENDSCHUTZ_VIOLATION = 'jugendschutz_violation';
 
     /**
+     * The near-limit digest: every member whose Deckel has reached the warning
+     * band, what they owe, and the ceiling it is measured against — one mail,
+     * on a cadence the club chooses (ADR-0047, migration 054).
+     *
+     * **The first kind that is a list rather than an event.** Every other kind
+     * here reports one thing that happened to one subject; this reports a
+     * standing condition across the membership, and that is what makes it an
+     * aggregate instead of a fan-out. Queueing one message per member near
+     * their limit would be the same information delivered as the pile of mail
+     * a treasurer stops reading — and it would put member names into the queue,
+     * where this design keeps them out of it entirely.
+     *
+     * So `subject_id` is the club's credit-limit configuration
+     * ({@see MailSubject::CREDIT_LIMIT_CONFIG}, the singleton row `1`) and the
+     * `dedup_key` is `<window>:<adminUserId>` — `2026-W35:8f3c…`. The unique
+     * index then does the whole of the idempotency: a scheduler ticking every
+     * fifteen minutes produces one digest per recipient per window, with no
+     * lookup and therefore no race ({@see \App\Modules\Notifications\Domain\DigestWindow}).
+     *
+     * The names and amounts are **not** in the queue row. They are rebuilt from
+     * live data when the drain renders the message, which is what ADR-0038
+     * rule 5 asks of every builder and which matters more here than elsewhere:
+     * a digest queued on Monday and sent on Tuesday should say what is true on
+     * Tuesday, and a member who settled up in between should not be named at
+     * all.
+     */
+    case CREDIT_LIMIT_DIGEST = 'credit_limit_digest';
+
+    /**
      * A new admin account exists (ADR-0044 rule 3).
      *
      * ADR-0044 calls account creation the *loud* path — the one that fires
@@ -237,7 +266,12 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
-            self::ADMIN_EMAIL_CHANGED => false,
+            self::ADMIN_EMAIL_CHANGED,
+            // Not a lifecycle event, and not for a Vorstand list. Who is near
+            // their Deckel ceiling is operational detail with member names in
+            // it, and routing it to a club-wide address would widen a report
+            // the role model deliberately holds to two offices.
+            self::CREDIT_LIMIT_DIGEST => false,
         };
     }
 
@@ -300,6 +334,14 @@ enum MailKind: string
             // special case: it is the same rule applied to a different route.
             self::JUGENDSCHUTZ_VIOLATION => [AdminRole::ADMIN, AdminRole::KASSENWART],
 
+            // The same rule, applied to the same route. This digest is the push
+            // half of the dashboard's near-limit panel, `GET /api/admin/dashboard`
+            // is TREASURY, and the Kassenwart is the office the epic names as
+            // the reader — so the mail carries exactly that set. The
+            // Getränkewart is outside it because member balances are, on every
+            // surface.
+            self::CREDIT_LIMIT_DIGEST => [AdminRole::ADMIN, AdminRole::KASSENWART],
+
             self::SEPA_PRENOTIFICATION,
             self::CANCELLATION_NOTICE,
             self::DECKEL_STATEMENT => [],
@@ -324,6 +366,7 @@ enum MailKind: string
             self::ADMIN_ROLE_CHANGED => MailSubject::ADMIN_USER,
             self::DECKEL_STATEMENT => MailSubject::MEMBER,
             self::JUGENDSCHUTZ_VIOLATION => MailSubject::TRANSACTION,
+            self::CREDIT_LIMIT_DIGEST => MailSubject::CREDIT_LIMIT_CONFIG,
         };
     }
 
@@ -359,7 +402,8 @@ enum MailKind: string
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED,
-            self::JUGENDSCHUTZ_VIOLATION => false,
+            self::JUGENDSCHUTZ_VIOLATION,
+            self::CREDIT_LIMIT_DIGEST => false,
         };
     }
 }

@@ -7,6 +7,7 @@ namespace App\Modules\Notifications\Controllers;
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\CronInterval;
+use App\Modules\Notifications\Enums\DigestCadence;
 use App\Modules\Notifications\Enums\StatementCadence;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\TestMailService;
@@ -82,6 +83,7 @@ class MailConfigController
                 'max:' . MailConfigDto::MAX_DRAIN_BUDGET_SECONDS,
             ],
             'statement_cadence' => ['in:' . implode(',', array_column(StatementCadence::cases(), 'value'))],
+            'credit_limit_digest_cadence' => ['in:' . implode(',', array_column(DigestCadence::cases(), 'value'))],
         ];
 
         if (!$this->validator->validate($body, $rules)) {

@@ -41,6 +41,7 @@ test.describe.serial('Mail Settings API', () => {
         cron_interval: original.cron_interval,
         drain_batch_size: original.drain_batch_size,
         statement_cadence: original.statement_cadence,
+        credit_limit_digest_cadence: original.credit_limit_digest_cadence,
       },
     })
   })
@@ -56,6 +57,7 @@ test.describe.serial('Mail Settings API', () => {
     expect(data).toHaveProperty('header_style')
     expect(data).toHaveProperty('is_complete')
     expect(data).toHaveProperty('can_send')
+    expect(data).toHaveProperty('credit_limit_digest_cadence')
 
     // The transport half is reported, never edited: the DSN lives in
     // config.php next to the database password.
@@ -173,6 +175,56 @@ test.describe.serial('Mail Settings API', () => {
     // it is the club's only control over this feature (ADR-0039 decision 3).
     const off = await authenticatedRequest.patch(URL, { data: { statement_cadence: 'off' } })
     expect((await off.json()).statement_cadence).toBe('off')
+  })
+
+  test('PATCH stores the near-limit digest cadence', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.patch(URL, {
+      data: { credit_limit_digest_cadence: 'daily' },
+    })
+
+    expect(response.status()).toBe(200)
+    expect((await response.json()).credit_limit_digest_cadence).toBe('daily')
+
+    // Read back through a fresh request: the response could be echoing the
+    // payload rather than the row.
+    const reread = await (await authenticatedRequest.get(URL)).json()
+    expect(reread.credit_limit_digest_cadence).toBe('daily')
+
+    // `off` is the club's only control over this feature, and a real value
+    // rather than a way of clearing the field (ADR-0047, migration 054).
+    const off = await authenticatedRequest.patch(URL, {
+      data: { credit_limit_digest_cadence: 'off' },
+    })
+    expect((await off.json()).credit_limit_digest_cadence).toBe('off')
+  })
+
+  /**
+   * `weekly` is accepted here and refused for `statement_cadence` two tests
+   * below, and the difference is the audience: a Deckelauszug goes to the whole
+   * membership, this goes to the handful of people who run the club, about a
+   * condition that changes inside a week. Asserted rather than assumed, because
+   * the two enums are one careless copy away from agreeing.
+   */
+  test('PATCH accepts a weekly digest cadence, unlike the statement one', async ({
+    authenticatedRequest,
+  }) => {
+    const response = await authenticatedRequest.patch(URL, {
+      data: { credit_limit_digest_cadence: 'weekly' },
+    })
+
+    expect(response.status()).toBe(200)
+    expect((await response.json()).credit_limit_digest_cadence).toBe('weekly')
+
+    await authenticatedRequest.patch(URL, { data: { credit_limit_digest_cadence: 'off' } })
+  })
+
+  test('PATCH refuses a digest cadence it does not know', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.patch(URL, {
+      data: { credit_limit_digest_cadence: 'hourly' },
+    })
+
+    expect(response.status()).toBe(422)
+    expect(await response.json()).toHaveProperty('messages.credit_limit_digest_cadence')
   })
 
   test('PATCH refuses a weekly statement cadence', async ({ authenticatedRequest }) => {

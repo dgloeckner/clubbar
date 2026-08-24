@@ -66,6 +66,23 @@ final class MailRetention
     public const STATEMENT_SENT_DAYS = 90;
 
     /**
+     * Days a delivered near-limit digest is kept (ADR-0047, migration 054).
+     *
+     * The shortest window in this class, and the one kind where that is easy to
+     * argue. A digest proves nothing, announces nothing and is not the record
+     * of anything: the condition it reports is *live*, still on the dashboard,
+     * and the numbers in the delivered copy are stale within a day of being
+     * sent. What the row holds past delivery is one admin's address and a
+     * window key.
+     *
+     * Thirty days is well past the point where a recipient is still asking
+     * whether last week's digest went out, and — on a daily cadence with
+     * several recipients — it is the difference between a few dozen rows and a
+     * few thousand sitting in the queue proving nothing.
+     */
+    public const DIGEST_SENT_DAYS = 30;
+
+    /**
      * The most rows one prune pass may delete.
      *
      * Pruning runs at the tail of a drain, and a drain has a wall-clock budget
@@ -129,6 +146,7 @@ final class MailRetention
             // against a youth-protection matter for no added evidentiary value.
             MailKind::JUGENDSCHUTZ_VIOLATION => self::DEFAULT_SENT_DAYS,
             MailKind::DECKEL_STATEMENT => self::STATEMENT_SENT_DAYS,
+            MailKind::CREDIT_LIMIT_DIGEST => self::DIGEST_SENT_DAYS,
         };
     }
 

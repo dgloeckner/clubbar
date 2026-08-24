@@ -916,6 +916,14 @@
         "quarterly": "Vierteljährlich"
       },
       "statementCadenceHint": "Ein periodischer Auszug über den Deckel — an jedes aktive Mitglied, unabhängig davon, was offen ist, angekündigt wird damit nichts und eingezogen auch nicht. „Aus\" ist die einzige Abschaltmöglichkeit: ein Abbestellen durch einzelne Mitglieder gibt es nicht. Der Auszug geht am ersten Tag der Periode heraus und nennt den Stand von genau diesem Tag.",
+      "digestCadence": "Deckel-Übersicht für den Vorstand",
+      "digestCadences": {
+        "off": "Aus",
+        "daily": "Täglich",
+        "weekly": "Wöchentlich",
+        "monthly": "Monatlich"
+      },
+      "digestCadenceHint": "Eine Sammel-E-Mail an Administratoren und den Kassenwart mit allen Mitgliedern, deren Deckel den Warnbereich erreicht hat — mit Name, aktuellem Betrag und dem jeweils geltenden Limit. Sie geht nur raus, wenn tatsächlich jemand im Warnbereich ist; ist niemand betroffen, kommt keine E-Mail. Mitglieder erhalten diese Übersicht nie.",
       "saved": "Mail-Einstellungen gespeichert.",
       "cronSecretTitle": "URL-Trigger-Geheimnis",
       "cronSecretConfigured": "Konfiguriert",
@@ -1366,7 +1374,8 @@
       "terminal_token_expiry_warning": "Terminal-Token läuft ab",
       "terminal_anomaly_warning": "Terminal-Auffälligkeit",
       "admin_email_changed": "Anmeldeadresse geändert",
-      "deckel_statement": "Deckelauszug"
+      "deckel_statement": "Deckelauszug",
+      "credit_limit_digest": "Deckel-Übersicht"
     },
     "statuses": {
       "pending": "Eingereiht",

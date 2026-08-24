@@ -59,6 +59,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type { MailConfigCronInterval } from './mailConfigCronInterval';
 import type { MailConfigHeaderStyle } from './mailConfigHeaderStyle';
+import type { MailConfigCreditLimitDigestCadence } from './mailConfigCreditLimitDigestCadence';
 import type { MailConfigStatementCadence } from './mailConfigStatementCadence';
 import type { MailConfigTransport } from './mailConfigTransport';
 
@@ -191,6 +192,23 @@ statements on is always somebody's decision rather than a side
 effect of an upgrade.
  */
   statement_cadence?: MailConfigStatementCadence;
+  /** How often admins and the Kassenwart receive the near-limit digest —
+one aggregate mail naming every member whose Deckel has reached the
+warning band, what they owe and the ceiling that applies to them
+(ADR-0047, migration 054). It is the push half of the dashboard's
+near-limit panel; members never receive it.
+
+`weekly` is present here and absent from `statement_cadence`
+because the audience differs: this reaches the handful of people
+who run the club, about a condition that changes inside a week.
+
+Nothing is queued when nobody is in the warning band, so silence
+means "nobody is near their ceiling" rather than "the scheduler has
+stopped". Migration 054 leaves a fresh or upgraded installation on
+`weekly`; see that migration for why this one defaults on where the
+statements default off.
+ */
+  credit_limit_digest_cadence?: MailConfigCreditLimitDigestCadence;
   /** Whether the URL trigger (`/api/cron/drain`) has a secret to check —
 one rotated from this panel, or `config.php`'s `cron.secret`
 (#473). Never the secret itself: use

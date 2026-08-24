@@ -67,6 +67,7 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Instance\Services\InstanceConfigService;
+use App\Modules\CreditLimits\Repositories\NearLimitRepository;
 use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Notifications\Services\CredentialExpiryMailBuilder;
 use App\Modules\Notifications\Services\EncryptionKeyEventMailBuilder;
@@ -78,6 +79,9 @@ use App\Modules\Notifications\Services\DrainService;
 use App\Modules\Notifications\Services\HeartbeatPinger;
 use App\Modules\Notifications\Services\MailDeliveryCheck;
 use App\Modules\Notifications\Services\MailConfigService;
+use App\Modules\Notifications\Services\CreditLimitDigestMailBuilder;
+use App\Modules\Notifications\Services\CreditLimitDigestNotifier;
+use App\Modules\Notifications\Services\CreditLimitDigestService;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\PeriodicEnqueueService;
@@ -606,6 +610,7 @@ class ServiceFactory implements ContainerInterface
             $this->getCredentialExpiryMailBuilder(),
             $this->getTerminalTokenIssuedMailBuilder(),
             $this->getEncryptionKeyEventMailBuilder(),
+            $this->getCreditLimitDigestMailBuilder(),
         ));
     }
 
@@ -643,6 +648,59 @@ class ServiceFactory implements ContainerInterface
             $this->getEncryptionKeysRepository(),
             $this->getTerminalsRepository(),
             $this->getAdminUsersRepository(),
+        ));
+    }
+
+    /**
+     * The near-limit query, shared by the dashboard panel and the digest
+     * (ADR-0047 rule 1). One instance, one spelling of the boundary cent — the
+     * two surfaces must never name different members.
+     */
+    public function getNearLimitRepository(): NearLimitRepository
+    {
+        return $this->resolve(NearLimitRepository::class, fn() => new NearLimitRepository($this->pdo));
+    }
+
+    /** Who is near their ceiling, as the digest reports it (ADR-0047). */
+    public function getCreditLimitDigestService(): CreditLimitDigestService
+    {
+        return $this->resolve(CreditLimitDigestService::class, fn() => new CreditLimitDigestService(
+            $this->getNearLimitRepository(),
+            $this->getCreditLimitConfigService(),
+        ));
+    }
+
+    /**
+     * The near-limit digest's content, rendered at send time.
+     *
+     * The first builder that reads *no* subject at all: `subject_id` names the
+     * club's credit-limit configuration, and everything the message says is a
+     * live query. See {@see CreditLimitDigestMailBuilder}.
+     */
+    public function getCreditLimitDigestMailBuilder(): CreditLimitDigestMailBuilder
+    {
+        return $this->resolve(CreditLimitDigestMailBuilder::class, fn() => new CreditLimitDigestMailBuilder(
+            $this->getCreditLimitDigestService(),
+            $this->getMailConfigService(),
+            $this->getAdminUsersRepository(),
+        ));
+    }
+
+    /**
+     * The near-limit digest scan (ADR-0047, migration 054).
+     *
+     * Called by `bin/cron.php` before the drain, for the same reason the
+     * anomaly scan, the statement enqueue and the expiry scan are: a message
+     * queued by a tick should leave on that tick rather than waiting for the
+     * next one.
+     */
+    public function getCreditLimitDigestNotifier(): CreditLimitDigestNotifier
+    {
+        return $this->resolve(CreditLimitDigestNotifier::class, fn() => new CreditLimitDigestNotifier(
+            $this->getCreditLimitDigestService(),
+            $this->getAdminNotifier(),
+            $this->getMailConfigService(),
+            $this->getLogger(),
         ));
     }
 
@@ -1344,6 +1402,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalAnomaliesRepository(),
             $this->getJugendschutzViolationsRepository(),
             $this->getCreditLimitConfigService(),
+            $this->getNearLimitRepository(),
         ));
     }
 

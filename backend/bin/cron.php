@@ -252,6 +252,25 @@ try {
     // `run()` never throws, and is caught anyway: the drain running is the
     // property that matters here, and it should not depend on a promise made in
     // another file.
+    // ADR-0047, and before the drain for the fourth time for the same reason: a
+    // digest queued by this tick should leave on this tick.
+    //
+    // The push half of the dashboard's near-limit panel — who is close to their
+    // Deckel ceiling, in one aggregate mail to the admins and the Kassenwart.
+    // Nearly every tick this finds the cadence's current window already queued
+    // and returns, and on a club whose members settle up it finds nothing to
+    // say and queues nothing at all.
+    //
+    // `run()` never throws, and is caught anyway, for the third time and the
+    // same reason: the drain running is the property that matters here, and it
+    // should not depend on a promise made in another file.
+    try {
+        $digest = $factory->getCreditLimitDigestNotifier()->run(new \DateTimeImmutable('now'));
+        $say('Credit limit digest: ' . $digest->summary());
+    } catch (\Throwable $e) {
+        fwrite(STDERR, "Warning: credit limit digest scan failed: {$e->getMessage()}\n");
+    }
+
     try {
         $expiry = $factory->getCredentialExpiryNotifier()->run(new \DateTimeImmutable('now'));
         $say('Credential expiry scan: ' . $expiry->summary());

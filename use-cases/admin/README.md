@@ -87,6 +87,7 @@ The admin panel provides management and accounting functions for the bar system:
 | [UC-A61](./UC-A61-manage-admins.md) | Manage Admins | Admin user list |
 | [UC-A62](./UC-A62-create-admin.md) | Create Admin | Add admin user |
 | [UC-A63](./UC-A63-reset-admin-password.md) | Reset Admin Password | Generate new password |
+| [UC-A66](./UC-A66-credit-limit-digest.md) | Near-Limit Digest | One scheduled mail listing members close to their Deckel limit |
 
 ### System
 
