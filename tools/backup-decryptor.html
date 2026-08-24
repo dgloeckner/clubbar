@@ -8,9 +8,11 @@
   Opens a Club Bar backup archive offline.
 
   This is the restore path on the hosting this project targets: no shell, no
-  mysqldump, no client binaries (ADR-0031). A treasurer downloads the archive,
-  opens it here on a machine they trust, and imports the resulting .sql through
-  whatever database tool the host offers.
+  mysqldump, no client binaries (ADR-0031). A key holder - the Admin, or the
+  board member holding the second copy (ADR-0049 decision 2; never the
+  Kassenwart, who holds the IBAN key instead) - downloads the archive, opens it
+  here on a machine they trust, and imports the resulting .sql through whatever
+  database tool the host offers.
 
   Nothing leaves this page. There is no fetch, no form action and no analytics;
   the crypto is vendored beside it. Open it from a local copy of the repository

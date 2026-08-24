@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
  * One committed archive, opened by both implementations.
  *
  * The container has two readers: `BackupSealedBox` here, and
- * `tools/backup-decryptor.js` in the browser a treasurer restores from. If
+ * `tools/backup-decryptor.js` in the browser a key holder restores from. If
  * those drift apart, the failure surfaces on the day of a restore — the worst
  * possible moment, and the one this whole epic exists to avoid.
  *
@@ -56,7 +56,7 @@ class BackupSealedBoxGoldenFixtureTest extends TestCase
 
         $this->assertSame(BackupSealedBox::VERSION, $header['version']);
         $this->assertSame(BackupSealedBox::ALGORITHM, $header['algorithm']);
-        $this->assertSame(['kassenwart', 'vorstand'], array_column($header['recipients'], 'label'));
+        $this->assertSame(['admin', 'vorstand'], array_column($header['recipients'], 'label'));
     }
 
     /**
