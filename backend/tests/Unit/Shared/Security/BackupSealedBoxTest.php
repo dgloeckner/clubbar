@@ -201,4 +201,57 @@ class BackupSealedBoxTest extends TestCase
     {
         return hash('sha256', $publicKey);
     }
+
+    /**
+     * A wrong-length key is caught with a message naming the recipient, not
+     * with a libsodium error naming a parameter. The likeliest cause is hex
+     * where raw bytes were meant — 64 characters instead of 32 bytes — and
+     * "has a 64-byte public key; expected 32" points straight at it.
+     */
+    public function test_a_public_key_of_the_wrong_length_names_the_recipient(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/"vorstand" has a 64-byte public key; expected 32/');
+
+        BackupSealedBox::seal('x', [['label' => 'vorstand', 'public_key' => bin2hex($this->pkA)]]);
+    }
+
+    /** Not a Club Bar archive at all — refused before anything is decrypted. */
+    public function test_a_file_that_is_not_an_archive_is_refused_by_its_magic(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/bad magic/i');
+
+        BackupSealedBox::open('just some bytes that are not an archive at all', $this->skA);
+    }
+
+    /**
+     * A future format must not be opened by guesswork. Restoring a version this
+     * build does not understand would be the one failure mode worse than
+     * refusing: a partial restore that looked like a whole one.
+     */
+    public function test_an_archive_from_a_future_version_is_refused_rather_than_guessed_at(): void
+    {
+        $archive = BackupSealedBox::seal('x', [$this->recipient('admin', $this->pkA)]);
+
+        // Rewrite the version inside the header JSON, keeping the length prefix
+        // intact by substituting an equal-length token.
+        $tampered = str_replace('"version":1', '"version":9', $archive);
+        $this->assertNotSame($archive, $tampered, 'Precondition: the header carries a version.');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/version/i');
+
+        BackupSealedBox::open($tampered, $this->skA);
+    }
+
+    /** A header shorter than its own length prefix claims is a truncated file. */
+    public function test_an_archive_cut_inside_its_header_is_refused(): void
+    {
+        $archive = BackupSealedBox::seal('x', [$this->recipient('admin', $this->pkA)]);
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        BackupSealedBox::open(substr($archive, 0, strlen(BackupSealedBox::MAGIC) + 6), $this->skA);
+    }
 }

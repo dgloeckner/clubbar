@@ -34,6 +34,17 @@ class BackupServiceTest extends DatabaseTestCase
 
     private string $tempTree = '';
     private string $backupDir = '';
+
+    /**
+     * Tables this test created with DDL, to be dropped again.
+     *
+     * Names are generated here and never read from the schema, so cleanup can
+     * only point at something this file made; the pattern guard means a
+     * misassignment cannot turn into a DROP of a real table.
+     *
+     * @var list<string>
+     */
+    private array $createdProbeTables = [];
     private string $publicKeys;
     private string $secretKey;
 
@@ -57,6 +68,13 @@ class BackupServiceTest extends DatabaseTestCase
 
     protected function tearDown(): void
     {
+        foreach ($this->createdProbeTables as $table) {
+            if (preg_match('/^zz_backup_probe_[0-9a-f]{8}$/', $table) === 1) {
+                $this->db->exec('DROP TABLE IF EXISTS `' . $table . '`');
+            }
+        }
+        $this->createdProbeTables = [];
+
         self::removeTempTree($this->tempTree);
 
         $this->db->exec('DELETE FROM backup_runs');
@@ -296,6 +314,133 @@ class BackupServiceTest extends DatabaseTestCase
 
         $this->assertCount(1, $rows);
         $this->assertSame($first['first_seen_at'], $rows[0]['first_seen_at']);
+    }
+
+    /**
+     * A run that cannot write must leave a row saying so — not a row still
+     * reading `running`, which the staleness check would report as a stalled
+     * scheduler rather than as the failure it was.
+     *
+     * The unwritable path is a *file* where the directory should be, which is
+     * the closest reproducible stand-in for the real cause on shared hosting: a
+     * data directory the cron user does not own. Running as root, a plain
+     * `chmod 0500` would not stop the write.
+     */
+    public function test_a_run_that_cannot_write_records_the_failure_on_its_row(): void
+    {
+        file_put_contents($this->tempTree . '/not-a-directory', 'blocking the path');
+
+        $outcome = $this->serviceWritingTo($this->tempTree . '/not-a-directory')->run('cli');
+
+        $this->assertSame('failed', $outcome->status);
+        $this->assertTrue($outcome->needsAttention());
+
+        $row = $this->db->query('SELECT * FROM backup_runs')->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('failed', $row['status']);
+        $this->assertNotNull($row['finished_at']);
+        $this->assertNotEmpty($row['last_error']);
+    }
+
+    /**
+     * An operator who deleted an archive by hand must not leave a row claiming
+     * it is still on disk — the panel would then offer a private key as "still
+     * needed" for a file nobody has.
+     */
+    public function test_pruning_an_archive_somebody_already_deleted_still_marks_the_row(): void
+    {
+        $this->db->exec('UPDATE backup_config SET local_retention_days = 1 WHERE id = 1');
+
+        $gone = '55555555-5555-4555-8555-555555555555';
+        $runs = new BackupRunsRepository($this->db);
+        $runs->start($gone, 'cli', gmdate('Y-m-d H:i:s', time() - (5 * 86400)));
+        $runs->markLocal($gone, 'never-existed.cbb', 10, str_repeat('0', 64), ['fp'], ['members' => 1],
+            gmdate('Y-m-d H:i:s', time() - (5 * 86400)));
+
+        $outcome = $this->service()->run('cli');
+
+        $this->assertSame(1, $outcome->prunedArchives);
+        $this->assertNotNull(
+            $this->db->query("SELECT pruned_at FROM backup_runs WHERE id = '{$gone}'")->fetchColumn()
+        );
+    }
+
+    /**
+     * A first-ever run has nothing to compare against, and must not report the
+     * entire schema as new. Silence has to mean "nothing changed", or the
+     * finding is noise from the first night onwards.
+     */
+    public function test_the_first_run_reports_no_drift(): void
+    {
+        $this->assertSame([], $this->service()->run('cli')->manifestDrift);
+    }
+
+    /**
+     * A previous row whose manifest is unreadable — an older format, a
+     * truncated column, a hand-edited row — is treated as "no comparison
+     * available" rather than as drift. Reporting every table as new because a
+     * JSON column would not parse is an alarm nobody would trust twice.
+     */
+    public function test_an_unreadable_previous_manifest_is_not_reported_as_drift(): void
+    {
+        $id = '66666666-6666-4666-8666-666666666666';
+        $runs = new BackupRunsRepository($this->db);
+        $runs->start($id, 'cli', gmdate('Y-m-d H:i:s', time() - 86400));
+        $runs->markLocal($id, 'yesterday.cbb', 10, str_repeat('0', 64), ['fp'], ['members' => 1],
+            gmdate('Y-m-d H:i:s', time() - 86400));
+        $this->db->exec("UPDATE backup_runs SET table_manifest = NULL WHERE id = '{$id}'");
+
+        $this->assertSame([], $this->service()->run('cli')->manifestDrift);
+    }
+
+    /**
+     * The fail-open half of the policy has to reach the caller, or it is just a
+     * silent guess. #690's entrypoint turns this into a finding and #693 into a
+     * mail.
+     */
+    public function test_an_unclassified_table_is_reported_as_a_finding_without_stopping_the_run(): void
+    {
+        $probe = $this->createProbeTable();
+
+        $outcome = $this->service()->run('cli');
+
+        $this->assertTrue($outcome->producedAnArchive(), 'A guess must not cost the night\'s backup.');
+        $this->assertSame([$probe], $outcome->unclassifiedTables);
+        $this->assertNotEmpty(array_filter(
+            $outcome->findings,
+            static fn (string $f): bool => str_contains($f, $probe)
+        ));
+    }
+
+    /**
+     * A table the classification map cannot know about, so the fail-open policy
+     * has something real to meet. Dropped again in tearDown, by a name this
+     * file generated and nothing else (CLAUDE.md, destructive test cleanup).
+     */
+    private function createProbeTable(): string
+    {
+        $name = 'zz_backup_probe_' . substr(bin2hex(random_bytes(4)), 0, 8);
+        $this->createdProbeTables[] = $name;
+
+        $this->db->exec("CREATE TABLE `{$name}` (id INT PRIMARY KEY, note VARCHAR(32)) ENGINE=InnoDB");
+        $this->db->exec("INSERT INTO `{$name}` (id, note) VALUES (1, 'probe')");
+
+        return $name;
+    }
+
+    private function serviceWritingTo(string $directory): BackupService
+    {
+        return new BackupService(
+            new DatabaseDump($this->db, UnclassifiedTablePolicy::INCLUDE_AND_REPORT),
+            new BackupKeyring(new BackupKeysRepository($this->db)),
+            new BackupRunsRepository($this->db),
+            new BackupKeysRepository($this->db),
+            new BackupConfigRepository($this->db),
+            $this->createMock(AuditService::class),
+            $this->createMock(Logger::class),
+            $directory,
+            $this->publicKeys,
+            'development',
+        );
     }
 
     /** @return array<string, int> */

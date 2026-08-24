@@ -159,4 +159,51 @@ class ConfigFileTest extends TestCase
             ],
         ];
     }
+
+    /**
+     * The recipient keys are a *list* in `config.php` and the environment is
+     * flat, so they travel as one newline-separated string and are parsed back
+     * by `BackupKeyring`. The separator can appear in neither half — a label is
+     * `[A-Za-z0-9_-]` and a key is hex.
+     */
+    public function test_the_backup_recipient_list_survives_the_flattening(): void
+    {
+        ConfigFile::applyToEnvironment(
+            $this->config() + ['backup' => ['public_keys' => ['admin:aa', 'vorstand:bb']]],
+            '/srv/clubbar-data'
+        );
+
+        $this->assertSame("admin:aa\nvorstand:bb", $_ENV['BACKUP_PUBLIC_KEYS']);
+    }
+
+    /**
+     * A hand-edited `config.php` that wrote one key as a bare string rather
+     * than a one-element list must still boot. It is the likeliest way to get
+     * this wrong, and the cost of being strict here is a fatal in a scheduled
+     * job nobody is watching — `BackupKeyring` reports a malformed entry as a
+     * finding instead, which is where a human can see it.
+     */
+    public function test_a_single_recipient_written_as_a_bare_string_still_boots(): void
+    {
+        ConfigFile::applyToEnvironment(
+            $this->config() + ['backup' => ['public_keys' => 'admin:aa']],
+            '/srv/clubbar-data'
+        );
+
+        $this->assertSame('admin:aa', $_ENV['BACKUP_PUBLIC_KEYS']);
+    }
+
+    /**
+     * An installation that has never configured backups still boots, and the
+     * absence reads as "no recipient" rather than as a confidently wrong value.
+     * With no key nothing is written at all — never a plaintext archive.
+     */
+    public function test_an_installation_without_a_backup_section_publishes_empty_values(): void
+    {
+        ConfigFile::applyToEnvironment($this->config(), '/srv/clubbar-data');
+
+        $this->assertSame('', $_ENV['BACKUP_PUBLIC_KEYS']);
+        $this->assertSame('', $_ENV['BACKUP_DSN']);
+        $this->assertSame('', $_ENV['BACKUP_HEARTBEAT_URL']);
+    }
 }
