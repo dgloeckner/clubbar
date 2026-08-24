@@ -511,7 +511,12 @@ jobs:
           retention-days: 1
 
   test-e2e:
-    needs: [changes, lint, test-backend, build-frontend, build-backend]
+    # Deliberately does not depend on test-backend: this job never consumes
+    # its output (only build-backend's vendor/ and build-frontend's dist/),
+    # so gating on it just serialized two independent test suites behind
+    # each other. Running them concurrently trades "skip E2E compute when
+    # PHPUnit already failed" for shorter wall-clock CI time.
+    needs: [changes, lint, build-frontend, build-backend]
     # A skipped dependency must not cascade into skipping this job (lint is
     # skipped for a backend-only change), so gate on failure rather than on
     # the default "all needs succeeded".
@@ -519,7 +524,6 @@ jobs:
       always() && !cancelled()
       && needs.changes.outputs.web == 'true'
       && needs.lint.result != 'failure'
-      && needs['test-backend'].result != 'failure'
       && needs['build-frontend'].result == 'success'
       && needs['build-backend'].result == 'success'
     runs-on: ubuntu-24.04
