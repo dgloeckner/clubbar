@@ -26,13 +26,13 @@ use InvalidArgumentException;
  * hand them the audit log, every admin's TOTP ciphertext and the database
  * password. Backups belong to the Admin — whoever holds the server.
  *
- * Which settles the *recipients* too, and it is worth saying out loud because
- * the temptation is real: the Kassenwart is the volunteer most reliably still
- * in post next year, so handing them the second copy looks like prudence. It
- * would re-cross the boundary the paragraph above draws, through a second
- * keypair — a backup carries the same three things whichever key sealed it. The
- * second recipient is a board member because two holders are needed, not
- * because the office confers access.
+ * That settles who the archive is sealed to, and not only which key it uses.
+ * The temptation is worth naming, because it looks like prudence: the
+ * Kassenwart is the volunteer most reliably still in post next year, so giving
+ * them the second copy is the obvious move. It would re-cross the boundary the
+ * paragraph above draws, through a second keypair — a backup carries the same
+ * three things whichever key sealed it. The second copy goes to a board member
+ * because two holders are needed, not because any office confers access.
  *
  * ## Layout
  *

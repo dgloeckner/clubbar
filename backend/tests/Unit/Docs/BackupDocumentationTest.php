@@ -130,6 +130,69 @@ class BackupDocumentationTest extends TestCase
     }
 
     /**
+     * The offline decryptor is the file a key holder reads at the worst moment
+     * of the club's year, so who it tells them to be matters more here than
+     * anywhere else in the repository.
+     *
+     * Two things are guarded, and they failed together in the first draft.
+     * `tools/backup-decryptor.html` said *"A treasurer downloads the archive"*:
+     * the wrong office — backups belong to the Admin (ADR-0049 decision 2),
+     * because a backup carries the audit log, every admin's TOTP ciphertext and
+     * the database password — and a word `CONTEXT.md:95` lists under **Avoid**,
+     * since the club says *Kassenwart*, never *treasurer*.
+     *
+     * The sources are included as well as the tool: the same sentence was in
+     * `BackupSealedBox`'s class docblock, six lines from the paragraph
+     * explaining why it could not be true.
+     */
+    public function test_the_backup_tool_and_container_name_the_right_key_holder(): void
+    {
+        $guarded = [
+            'tools/backup-decryptor.html',
+            'tools/backup-decryptor.js',
+            'backend/src/Shared/Security/BackupSealedBox.php',
+        ];
+
+        foreach ($guarded as $relativePath) {
+            $text = self::read($relativePath);
+
+            $this->assertStringNotContainsStringIgnoringCase(
+                'treasurer',
+                $text,
+                $relativePath . ' says "treasurer". CONTEXT.md lists that word under Avoid — '
+                . 'the club says Kassenwart, in code, specs and UI alike.'
+            );
+
+            $this->assertDoesNotMatchRegularExpression(
+                '/(private half|recipients?|key holders?)[^.]{0,80}\bKassenwart\b/i',
+                $text,
+                $relativePath . ' names the Kassenwart as a backup key holder. They hold the '
+                . 'IBAN private key because SEPA collection is impossible without it; a backup '
+                . 'key would re-cross that boundary through a second keypair (ADR-0049 '
+                . 'decision 2).'
+            );
+        }
+    }
+
+    /**
+     * The worked example a reader copies, so it has to demonstrate the custody
+     * the ADR requires rather than the one its first draft assumed.
+     */
+    public function test_the_golden_fixture_is_sealed_to_the_offices_that_hold_backup_keys(): void
+    {
+        $archive = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/Fixtures/backup/golden.cbb'
+        );
+
+        $this->assertSame(
+            ['admin', 'vorstand'],
+            array_column(\App\Shared\Security\BackupSealedBox::readHeader($archive)['recipients'], 'label'),
+            'The committed fixture is the example a reader copies. Sealing it to the '
+            . 'Kassenwart would demonstrate exactly the custody ADR-0049 decision 2 forbids.'
+        );
+    }
+
+    /**
      * These files live above `./backend`, which is the only thing the backend
      * container mounts at `/app` — the same problem CheckPatchCoverageScriptTest
      * hit with `scripts/`, solved the same way, with a read-only mount.
@@ -142,8 +205,11 @@ class BackupDocumentationTest extends TestCase
             return $checkout;
         }
 
-        // The documented container workflow; see docker-compose.yml.
-        if (is_dir('/repo/adr')) {
+        // The documented container workflow; see docker-compose.yml. `tools/`
+        // is checked too, because a compose file predating the decryptor would
+        // otherwise resolve here and fail on a missing file rather than saying
+        // the mount is stale.
+        if (is_dir('/repo/adr') && is_dir('/repo/tools')) {
             return '/repo';
         }
 

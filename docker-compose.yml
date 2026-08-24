@@ -156,6 +156,10 @@ services:
       - ./docs:/repo/docs:ro
       - ./use-cases:/repo/use-cases:ro
       - ./README.md:/repo/README.md:ro
+      # The offline decryptor, guarded for the office it names (ADR-0049
+      # decision 2) — it is the file a key holder reads at the worst moment of
+      # the club's year.
+      - ./tools:/repo/tools:ro
     depends_on:
       database:
         condition: service_healthy
