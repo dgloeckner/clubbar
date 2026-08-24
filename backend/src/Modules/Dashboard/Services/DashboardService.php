@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Dashboard\Services;
 
 use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
+use App\Modules\CreditLimits\Repositories\NearLimitRepository;
 use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Dashboard\DTOs\DashboardDto;
 use App\Modules\Dashboard\Repositories\DashboardRepository;
@@ -58,6 +59,10 @@ class DashboardService
         private TerminalAnomaliesRepository $terminalAnomaliesRepository,
         private JugendschutzViolationsRepository $jugendschutzViolationsRepository,
         private CreditLimitConfigService $creditLimitConfigService,
+        // Not `DashboardRepository`: the near-limit query is shared with the
+        // credit-limit digest, and one copy is what keeps the panel and the
+        // mail from naming different members (ADR-0047 rule 1).
+        private NearLimitRepository $nearLimitRepository,
     ) {}
 
     public function getDashboard(): DashboardDto
@@ -154,7 +159,7 @@ class DashboardService
         // Deliberately no short-circuit when the club caps nobody: a member
         // carrying an override still has a ceiling and is still being refused
         // at the bar. The query decides per row (ADR-0047).
-        $rows = $this->dashboardRepository->findMembersNearCreditLimit(
+        $rows = $this->nearLimitRepository->findNearLimit(
             $policy->defaultLimitCents,
             $policy->warnThresholdPercent,
             self::MEMBERS_NEAR_LIMIT_SHOWN,
@@ -163,7 +168,7 @@ class DashboardService
         // A short list is its own total; only a full one can be hiding someone.
         $total = count($rows) < self::MEMBERS_NEAR_LIMIT_SHOWN
             ? count($rows)
-            : $this->dashboardRepository->countMembersNearCreditLimit(
+            : $this->nearLimitRepository->countNearLimit(
                 $policy->defaultLimitCents,
                 $policy->warnThresholdPercent,
             );

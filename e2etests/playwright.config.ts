@@ -382,6 +382,25 @@ export default defineConfig({
       dependencies: ['mail-jugendschutz'],
     },
 
+    // The near-limit digest chain (ADR-0047): a member near their ceiling →
+    // bin/cron.php → the Kassenwart's mailbox.
+    //
+    // Its own project for the reason each of the seven before it is, and more
+    // sharply: this digest reports on **every** member near their ceiling, so
+    // while its cadence is on, any drain anywhere in the suite queues one — and
+    // its content depends on fixtures other files created. Running it alone,
+    // last, with the cadence switched on in `beforeAll` and off in `afterAll`,
+    // is what keeps that window inside this project.
+    //
+    // `dependencies` makes the ordering structural rather than alphabetical
+    // luck, as it does for the rest of the chain.
+    {
+      name: 'mail-digest',
+      testDir: './tests/mail-digest',
+      fullyParallel: false,
+      dependencies: ['mail-roles'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',

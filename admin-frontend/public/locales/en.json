@@ -913,6 +913,14 @@
         "quarterly": "Quarterly"
       },
       "statementCadenceHint": "A periodic statement of a member’s tab — sent to every active member whatever they owe, announcing nothing and collecting nothing. \"Off\" is the only way to stop it: there is no per-member opt-out. It goes out on the first day of the period and states the tab as it stood on that day.",
+      "digestCadence": "Near-limit digest",
+      "digestCadences": {
+        "off": "Off",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly"
+      },
+      "digestCadenceHint": "One aggregate email to admins and the Kassenwart listing every member whose Deckel has reached the warning band, with their name, what they currently owe and the limit that applies to them. It only goes out when somebody is actually in the band \u2014 a quiet week means no email at all. Members never receive this digest.",
       "saved": "Mail settings saved.",
       "cronSecretTitle": "URL-trigger secret",
       "cronSecretConfigured": "Configured",
@@ -1363,7 +1371,8 @@
       "terminal_token_expiry_warning": "Terminal token expiring",
       "terminal_anomaly_warning": "Terminal anomaly",
       "admin_email_changed": "Sign-in address changed",
-      "deckel_statement": "Tab statement"
+      "deckel_statement": "Tab statement",
+      "credit_limit_digest": "Near-limit digest"
     },
     "statuses": {
       "pending": "Queued",

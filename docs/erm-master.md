@@ -608,12 +608,14 @@ The transactional outbox ([ADR-0038](../adr/0038-transactional-mail-outbox-on-sh
 
 There is **no body column**. Content is rendered from settlement data at send time, which is safe because ADR-0032 makes a settlement append-only — and storing bodies would multiply copies of member PII for no evidentiary gain.
 
+The same rule has a second payoff for the aggregate kinds. A `credit_limit_digest` row names no member at all — its `subject_id` is the singleton `credit_limit_config` row — so the names and amounts exist only in the message that was rendered and sent. That keeps the row outside the erasure scrub and the member delete cascade, and means a digest queued on Monday and drained on Tuesday describes Tuesday.
+
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | CHAR(36) | PK | UUID |
-| kind | ENUM | NOT NULL | `sepa_prenotification` · `cancellation_notice` · `key_expiry_warning` · `terminal_token_expiry_warning` · `terminal_anomaly_warning`. A `payment_request` value existed until migration `036` removed it — see CONTEXT.md, **Settlement method** |
+| kind | ENUM | NOT NULL | What the message is. `MailKind` is the authority and decides four things that are therefore not columns — the subject type, whether it is addressed to a member, which offices it is for, and how long a delivered copy is kept. Settlement mail: `sepa_prenotification` · `cancellation_notice`. Credentials: `key_expiry_warning` · `terminal_token_expiry_warning` · `terminal_anomaly_warning` · `terminal_token_issued` · `encryption_key_registered` · `encryption_key_activated` · `encryption_key_revoked`. Admin lifecycle: `admin_email_changed` · `admin_account_created` · `admin_role_changed`. Periodic and reporting: `deckel_statement` · `jugendschutz_violation` · `credit_limit_digest`. A `payment_request` value existed until migration `036` removed it — see CONTEXT.md, **Settlement method** |
 | subject_id | CHAR(36) | NOT NULL, no FK | What the message is about; which table it points at is decided by `kind`. Polymorphic, so no foreign key is possible — stated rather than hidden |
-| dedup_key | VARCHAR(64) | NOT NULL | The rest of a message's identity: the member for settlement mail, the warning tier for an expiry warning |
+| dedup_key | VARCHAR(64) | NOT NULL | The rest of a message's identity: the member for settlement mail, the warning tier for an expiry warning, the period for a Deckelauszug, `<window>:<adminUserId>` for the near-limit digest. An admin id is 36 of the 64 characters, which is what bounds every occasion prefix |
 | member_id | CHAR(36) | FK → members.id (CASCADE), NULL | The member written to, when there is one. The FK is how erasure finds this table |
 | admin_user_id | CHAR(36) | FK → admin_users.id (CASCADE), NULL | The admin written to, for operational warnings |
 | recipient | VARCHAR(255) | NOT NULL | **Snapshot** of the address at enqueue — the proof of who was announced to, and the one field not reproducible later. Cleared to `''` on erasure |
@@ -640,7 +642,9 @@ There is **no body column**. Content is rendered from settlement data at send ti
 
 ### mail_config
 
-Club-editable mail settings — sender name and address, reply-to, header style, footer identity, and the declared scheduler interval and drain batch size. Singleton row.
+Club-editable mail settings — sender name and address, reply-to, the club notification address, header style, footer identity, the declared scheduler interval and drain dials, and the two mail cadences: `statement_cadence` (the Deckelauszug, [ADR-0039](../adr/0039-periodic-deckel-statement.md)) and `credit_limit_digest_cadence` (the near-limit digest, [ADR-0047](../adr/0047-configurable-credit-limits.md)). Singleton row.
+
+The two cadences are club-wide and independent, and their defaults differ on purpose. `statement_cadence` ships `off`, because running a migration must never mail an entire membership. `credit_limit_digest_cadence` ships `weekly`, because it reaches the handful of accounts that run the club, and sends nothing at all in a week where nobody is near their ceiling — see migration `053_credit_limit_digest.sql`.
 
 The **DSN, including the SMTP password, is deliberately not here**: it stays in `config.php`, consistent with the database password and the TOTP key ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) decision 2). Changing the mail server is an installer or file operation.
 

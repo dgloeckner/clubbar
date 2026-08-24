@@ -173,6 +173,42 @@ final class MailStrings
                 . 'und den Hinweis anschließend im Dashboard als erledigt markieren.',
             'jugendschutz.no_member' => 'Wer das Getränk gekauft hat, steht bewusst nicht in dieser E-Mail. '
                 . 'Die Buchungsnummer oben führt zum Vorgang.',
+
+            // Der Deckel-Übersicht (ADR-0047, Migration 053). Sie-Form wäre hier
+            // ebenso falsch wie überall sonst in dieser Tabelle: es ist dieselbe
+            // Ansprache wie am Tresen, nur an den Vorstand statt an das Mitglied.
+            'credit_digest.subject'        => '{count} Mitglieder nahe am Deckel-Limit',
+            'credit_digest.subject_empty'  => 'Deckel-Übersicht: derzeit niemand nahe am Limit',
+            'credit_digest.preheader'      => '{count} Mitglieder, zusammen {total} offen',
+            'credit_digest.preheader_empty' => 'Zurzeit ist kein Deckel im Warnbereich',
+            'credit_digest.eyebrow'        => 'Deckel-Übersicht',
+            'credit_digest.title'          => 'Mitglieder nahe am Deckel-Limit',
+            'credit_digest.lede'           => 'bei <strong>{count}</strong> Mitgliedern hat der Deckel den '
+                . 'Warnbereich erreicht. Das Terminal weist sie beim nächsten Einkauf darauf hin und lehnt ab, '
+                . 'sobald das Limit überschritten wäre.',
+            'credit_digest.lede_text'      => 'bei {count} Mitgliedern hat der Deckel den Warnbereich erreicht. '
+                . 'Das Terminal weist sie beim nächsten Einkauf darauf hin und lehnt ab, sobald das Limit '
+                . 'überschritten wäre.',
+            'credit_digest.empty_lede'     => 'zurzeit ist kein Deckel im Warnbereich — es ist also nichts zu tun. '
+                . 'Diese Nachricht wurde verschickt, weil sich zwischen Erstellung und Versand noch etwas '
+                . 'geändert hat.',
+            'credit_digest.empty_lede_text' => 'zurzeit ist kein Deckel im Warnbereich — es ist also nichts zu tun. '
+                . 'Diese Nachricht wurde verschickt, weil sich zwischen Erstellung und Versand noch etwas '
+                . 'geändert hat.',
+            'credit_digest.percent'        => '{percent} %',
+            'credit_digest.of_limit'       => '{balance} von {limit}',
+            'credit_digest.total_label'    => 'Summe der offenen Deckel',
+            'credit_digest.status.exceeded' => 'Limit überschritten',
+            'credit_digest.exceeded_heading' => 'Bereits über dem Limit',
+            'credit_digest.exceeded_body'  => '{count} davon sind über ihrem Limit. Diese Mitglieder können am '
+                . 'Terminal nichts mehr kaufen, bis der Deckel abgerechnet oder das Limit angehoben wird.',
+            'credit_digest.policy'         => 'Das Vereins-Limit liegt bei {limit}; gewarnt wird ab {percent} % '
+                . 'davon. Einzelne Mitglieder können ein eigenes Limit haben — in der Tabelle steht immer das, '
+                . 'das für das jeweilige Mitglied gilt.',
+            'credit_digest.next'           => 'Zu ändern ist hier nichts: Diese Übersicht sammelt nur, was im '
+                . 'Dashboard ohnehin steht. Wie oft sie kommt, lässt sich unter Einstellungen → E-Mail einstellen.',
+            'credit_digest.omitted'        => 'Weitere {count} Mitglieder sind ebenfalls im Warnbereich; diese Liste zeigt nur die vollsten Deckel. Die vollständige Liste steht im Dashboard.',
+            'credit_digest.unnamed_member' => '(ohne Namen)',
             'terminal_anomaly.subject'   => 'Terminal „{terminal}“: bitte einmal prüfen',
             'terminal_anomaly.preheader' => 'Möglicherweise wird der Zugang von „{terminal}“ auf mehr als einem Gerät verwendet',
             'terminal_anomaly.eyebrow'   => 'Terminal-Zugang',
@@ -489,6 +525,38 @@ final class MailStrings
                 . 'the dashboard.',
             'jugendschutz.no_member' => 'Who bought the drink is deliberately not in this email. The transaction '
                 . 'number above leads to the record.',
+
+            // The near-limit digest (ADR-0047, migration 053).
+            'credit_digest.subject'        => '{count} members near their Deckel limit',
+            'credit_digest.subject_empty'  => 'Deckel overview: nobody near their limit',
+            'credit_digest.preheader'      => '{count} members, {total} outstanding between them',
+            'credit_digest.preheader_empty' => 'No tab is currently in the warning band',
+            'credit_digest.eyebrow'        => 'Deckel overview',
+            'credit_digest.title'          => 'Members near their Deckel limit',
+            'credit_digest.lede'           => '<strong>{count}</strong> members have a tab that has reached the '
+                . 'warning band. The terminal tells them so at their next purchase, and refuses one that would '
+                . 'take them past the limit.',
+            'credit_digest.lede_text'      => '{count} members have a tab that has reached the warning band. The '
+                . 'terminal tells them so at their next purchase, and refuses one that would take them past the '
+                . 'limit.',
+            'credit_digest.empty_lede'     => 'no tab is in the warning band at the moment, so there is nothing to '
+                . 'do. This message went out because something changed between it being queued and being sent.',
+            'credit_digest.empty_lede_text' => 'no tab is in the warning band at the moment, so there is nothing to '
+                . 'do. This message went out because something changed between it being queued and being sent.',
+            'credit_digest.percent'        => '{percent}%',
+            'credit_digest.of_limit'       => '{balance} of {limit}',
+            'credit_digest.total_label'    => 'Total outstanding',
+            'credit_digest.status.exceeded' => 'over the limit',
+            'credit_digest.exceeded_heading' => 'Already over the limit',
+            'credit_digest.exceeded_body'  => '{count} of them are past their limit. Those members cannot buy '
+                . 'anything at the terminal until the tab is settled or the limit is raised.',
+            'credit_digest.policy'         => 'The club limit is {limit}, with the warning starting at {percent}% '
+                . 'of it. Individual members may have a limit of their own — the table always shows the one that '
+                . 'applies to that member.',
+            'credit_digest.next'           => 'Nothing needs changing here: this overview only collects what the '
+                . 'dashboard already shows. How often it arrives is set under Settings → Mail.',
+            'credit_digest.omitted'        => 'Another {count} members are in the warning band as well; this list shows only the fullest tabs. The dashboard has the complete list.',
+            'credit_digest.unnamed_member' => '(no name)',
             'terminal_anomaly.subject'   => 'Terminal "{terminal}": worth a look',
             'terminal_anomaly.preheader' => 'The credential for "{terminal}" may be in use on more than one device',
             'terminal_anomaly.eyebrow'   => 'Terminal credential',

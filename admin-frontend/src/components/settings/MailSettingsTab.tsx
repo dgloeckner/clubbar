@@ -67,6 +67,16 @@ const CRON_INTERVALS = ['fifteen_minutes', 'hourly', 'daily'] as const
  */
 const STATEMENT_CADENCES = ['off', 'monthly', 'quarterly'] as const
 
+/**
+ * The near-limit digest's cadence (ADR-0047, migration 053).
+ *
+ * `weekly` is here and deliberately absent above, and the difference is the
+ * audience: a Deckelauszug goes to the whole membership, this goes to the
+ * handful of people who run the club, about a condition that changes inside a
+ * week.
+ */
+const DIGEST_CADENCES = ['off', 'daily', 'weekly', 'monthly'] as const
+
 type FormState = {
   sender_name: string
   sender_address: string
@@ -80,6 +90,7 @@ type FormState = {
   drain_batch_size: string
   drain_budget_seconds: string
   statement_cadence: string
+  credit_limit_digest_cadence: string
 }
 
 function toForm(config: MailConfig): FormState {
@@ -96,6 +107,7 @@ function toForm(config: MailConfig): FormState {
     drain_batch_size: String(config.drain_batch_size ?? 100),
     drain_budget_seconds: String(config.drain_budget_seconds ?? 25),
     statement_cadence: config.statement_cadence ?? 'off',
+    credit_limit_digest_cadence: config.credit_limit_digest_cadence ?? 'off',
   }
 }
 
@@ -170,6 +182,7 @@ export function MailSettingsTab({ callerTotpEnabled }: MailSettingsTabProps) {
       drain_batch_size: Number(form.drain_batch_size),
       drain_budget_seconds: Number(form.drain_budget_seconds),
       statement_cadence: form.statement_cadence as MailConfigUpdateRequest['statement_cadence'],
+      credit_limit_digest_cadence: form.credit_limit_digest_cadence as MailConfigUpdateRequest['credit_limit_digest_cadence'],
     }
 
     try {
@@ -462,6 +475,41 @@ export function MailSettingsTab({ callerTotpEnabled }: MailSettingsTabProps) {
           {fieldErrors.statement_cadence && (
             <div data-testid="settings-mail-error-statement_cadence" style={fieldErrorStyle}>
               {fieldErrors.statement_cadence}
+            </div>
+          )}
+        </div>
+
+        {/* The other push notification, and the other one that is not a
+            scheduler dial: who hears about members nearing their Deckel limit,
+            and how often. Beside the statement cadence because the two answer
+            the same shape of question — how much mail does this club want —
+            and nowhere near the batch size, which is about the queue. */}
+        <div style={fieldWrapperStyle}>
+          <label style={labelStyle} htmlFor="settings-mail-credit_limit_digest_cadence">
+            {t('settings.mail.digestCadence')}
+          </label>
+          <select
+            id="settings-mail-credit_limit_digest_cadence"
+            data-testid="settings-mail-credit_limit_digest_cadence"
+            value={form.credit_limit_digest_cadence}
+            onChange={(e) => setForm({ ...form, credit_limit_digest_cadence: e.target.value })}
+            style={{
+              ...inputStyle,
+              borderColor: fieldErrors.credit_limit_digest_cadence
+                ? theme.colors.semantic.danger
+                : theme.colors.border.light,
+            }}
+          >
+            {DIGEST_CADENCES.map((cadence) => (
+              <option key={cadence} value={cadence}>
+                {t(`settings.mail.digestCadences.${cadence}`)}
+              </option>
+            ))}
+          </select>
+          <div style={hintStyle}>{t('settings.mail.digestCadenceHint')}</div>
+          {fieldErrors.credit_limit_digest_cadence && (
+            <div data-testid="settings-mail-error-credit_limit_digest_cadence" style={fieldErrorStyle}>
+              {fieldErrors.credit_limit_digest_cadence}
             </div>
           )}
         </div>

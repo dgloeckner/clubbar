@@ -77,6 +77,26 @@ enum MailSubject: string
      */
     case TRANSACTION = 'transaction';
 
+    /**
+     * The club's credit-limit policy — the singleton `credit_limit_config` row
+     * (ADR-0047), whose `subject_id` is therefore the literal `1`.
+     *
+     * The first subject that is a **setting** rather than a party, a piece of
+     * infrastructure or an event. The near-limit digest is about the club's
+     * ceiling and who is up against it; it names no one member because it is
+     * about all of them at once, and inventing a per-member subject would turn
+     * one aggregate mail into a fan-out of the very thing it exists to replace.
+     *
+     * Filing it here also keeps the erasure scrub out of it, the same way
+     * {@see TRANSACTION} does: that scrub keys on a member's own `entity_id`,
+     * and a digest filed under the configuration is simply out of its reach —
+     * which is right, because the row records that a *report* was queued, not
+     * anything about the members who happened to be in it. The message body is
+     * rebuilt from live data at send time and carries no member data in the
+     * queue at all.
+     */
+    case CREDIT_LIMIT_CONFIG = 'credit_limit_config';
+
     public function auditEntityType(): EntityType
     {
         return match ($this) {
@@ -86,6 +106,7 @@ enum MailSubject: string
             self::ADMIN_USER => EntityType::ADMIN_USER,
             self::MEMBER => EntityType::MEMBER,
             self::TRANSACTION => EntityType::TRANSACTION,
+            self::CREDIT_LIMIT_CONFIG => EntityType::CREDIT_LIMIT_CONFIG,
         };
     }
 }

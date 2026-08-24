@@ -130,6 +130,53 @@ test.describe.serial('Mail settings', () => {
     expect((await (await authenticatedRequest.get(API)).json()).statement_cadence).toBe('off')
   })
 
+  test('the near-limit digest cadence is set from the form and read back from the row', async ({
+    page,
+    authenticatedRequest,
+  }) => {
+    await openMailTab(page)
+
+    const cadence = page.getByTestId('settings-mail-credit_limit_digest_cadence')
+    await expect(cadence).toBeVisible()
+
+    // Weekly **is** offered here, and is absent from the Deckelauszug control
+    // above. The difference is the audience: that one goes to the whole
+    // membership, this to the handful of people who run the club, about a
+    // condition that changes inside a week (ADR-0047, migration 053). Asserted
+    // rather than assumed, because the two selects are one careless copy apart.
+    const options = await cadence.locator('option').allTextContents()
+    expect(options).toHaveLength(4)
+    // `wöch`, with the umlaut: the neighbouring Deckelauszug test asserts the
+    // absence of `woch`, which the German label never contains either way.
+    expect(options.join(' ').toLowerCase()).toContain('wöch')
+
+    await cadence.selectOption('daily')
+    const saved = page.waitForResponse(
+      (r) => r.url().includes(API) && r.request().method() === 'PATCH' && r.status() === 200
+    )
+    await page.getByTestId('settings-mail-save').click()
+    await saved
+
+    expect((await (await authenticatedRequest.get(API)).json()).credit_limit_digest_cadence).toBe(
+      'daily'
+    )
+
+    // Back off, so nothing this suite leaves behind queues a digest into a
+    // mailbox another spec is counting.
+    await openMailTab(page)
+    await expect(cadence).toHaveValue('daily')
+    await cadence.selectOption('off')
+    const savedOff = page.waitForResponse(
+      (r) => r.url().includes(API) && r.request().method() === 'PATCH' && r.status() === 200
+    )
+    await page.getByTestId('settings-mail-save').click()
+    await savedOff
+
+    expect((await (await authenticatedRequest.get(API)).json()).credit_limit_digest_cadence).toBe(
+      'off'
+    )
+  })
+
   test('the interval dropdown offers no weekly option at all', async ({ page }) => {
     await openMailTab(page)
 

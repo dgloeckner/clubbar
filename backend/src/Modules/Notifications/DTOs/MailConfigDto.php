@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\DTOs;
 
 use App\Modules\Notifications\Enums\CronInterval;
+use App\Modules\Notifications\Enums\DigestCadence;
 use App\Modules\Notifications\Enums\StatementCadence;
 use App\Shared\Mail\MailBranding;
 use App\Shared\Mail\MailLayout;
@@ -80,6 +81,14 @@ final readonly class MailConfigDto
          */
         public StatementCadence $statementCadence = StatementCadence::OFF,
         /**
+         * How often the near-limit digest reaches the admins and the Kassenwart
+         * (ADR-0047, migration 053). Defaults to `off` for the same reason
+         * {@see $statementCadence} does — a value this build could not read is
+         * not a mandate to start mailing — which is deliberately *not* the same
+         * as the column's default of `weekly`. See {@see DigestCadence::DEFAULT}.
+         */
+        public DigestCadence $creditLimitDigestCadence = DigestCadence::OFF,
+        /**
          * SHA-256 hex, never a plaintext secret. `null` means no rotation from
          * the admin panel has ever happened — `config.php`'s `cron.secret` is
          * still the fallback (#473). Not part of {@see toArray()}: a hash has
@@ -119,6 +128,7 @@ final readonly class MailConfigDto
             drainBatchSize: self::batchSize($row['drain_batch_size'] ?? null),
             drainBudgetSeconds: self::budgetSeconds($row['drain_budget_seconds'] ?? null),
             statementCadence: StatementCadence::fromDeclared($row['statement_cadence'] ?? null),
+            creditLimitDigestCadence: DigestCadence::fromDeclared($row['credit_limit_digest_cadence'] ?? null),
             cronSecretHash: self::nullIfBlank($row['cron_secret_hash'] ?? null),
             cronSecretRotatedAt: self::nullIfBlank($row['cron_secret_rotated_at'] ?? null),
         );
@@ -178,6 +188,7 @@ final readonly class MailConfigDto
             'drain_batch_size' => $this->drainBatchSize,
             'drain_budget_seconds' => $this->drainBudgetSeconds,
             'statement_cadence' => $this->statementCadence->value,
+            'credit_limit_digest_cadence' => $this->creditLimitDigestCadence->value,
             // Never the hash — only whether one exists and when it was made,
             // which is what the admin panel needs to show a rotate button
             // and a "last rotated" line without any secret value at all.

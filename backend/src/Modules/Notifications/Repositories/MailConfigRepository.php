@@ -42,6 +42,10 @@ class MailConfigRepository
         // the audit log is exactly what this column wants: "who turned the
         // statements on, and when" is a question somebody will ask.
         'statement_cadence',
+        // The near-limit digest's cadence, here for the identical reason: a
+        // preference with no secret in it, and the generic path's old/new diff
+        // into the audit log answers "who turned the digest off, and when".
+        'credit_limit_digest_cadence',
     ];
 
     public function __construct(

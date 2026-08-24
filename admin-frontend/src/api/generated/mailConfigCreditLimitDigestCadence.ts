@@ -57,71 +57,32 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { MailConfigUpdateRequestCronInterval } from './mailConfigUpdateRequestCronInterval';
-import type { MailConfigUpdateRequestHeaderStyle } from './mailConfigUpdateRequestHeaderStyle';
-import type { MailConfigUpdateRequestCreditLimitDigestCadence } from './mailConfigUpdateRequestCreditLimitDigestCadence';
-import type { MailConfigUpdateRequestStatementCadence } from './mailConfigUpdateRequestStatementCadence';
 
-export interface MailConfigUpdateRequest {
-  /** @maxLength 120 */
-  sender_name?: string;
-  /** @maxLength 255 */
-  sender_address?: string;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  reply_to_address?: string | null;
-  /**
-   * The club-level address that also receives admin lifecycle mail
-(ADR-0044 rule 3). Send `null` to switch it off and return to
-mailing active admins only.
 
-   * @maxLength 255
-   * @nullable
-   */
-  club_notification_address?: string | null;
-  header_style?: MailConfigUpdateRequestHeaderStyle;
-  /** @maxLength 200 */
-  footer_org_name?: string;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  footer_address_line?: string | null;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  website_url?: string | null;
-  /**
-   * @maxLength 255
-   * @nullable
-   */
-  logo_url?: string | null;
-  /** `weekly` is rejected with 422 and a message naming Nutzungsordnung
-§ 7 Abs. 3 — see the same field on `MailConfig`.
- */
-  cron_interval?: MailConfigUpdateRequestCronInterval;
-  /**
-   * @minimum 1
-   * @maximum 1000
-   */
-  drain_batch_size?: number;
-  /**
-   * Must stay under the trigger's own timeout — see the same field on
-`MailConfig`.
+/**
+ * How often admins and the Kassenwart receive the near-limit digest —
+one aggregate mail naming every member whose Deckel has reached the
+warning band, what they owe and the ceiling that applies to them
+(ADR-0047, migration 053). It is the push half of the dashboard's
+near-limit panel; members never receive it.
 
-   * @minimum 10
-   * @maximum 55
-   */
-  drain_budget_seconds?: number;
-  /** The club-wide Deckelauszug switch — see the same field on
-`MailConfig`.
+`weekly` is present here and absent from `statement_cadence`
+because the audience differs: this reaches the handful of people
+who run the club, about a condition that changes inside a week.
+
+Nothing is queued when nobody is in the warning band, so silence
+means "nobody is near their ceiling" rather than "the scheduler has
+stopped". Migration 053 leaves a fresh or upgraded installation on
+`weekly`; see that migration for why this one defaults on where the
+statements default off.
+
  */
-  statement_cadence?: MailConfigUpdateRequestStatementCadence;
-  /** The club-wide near-limit digest switch — see the same field on
-`MailConfig`.
- */
-  credit_limit_digest_cadence?: MailConfigUpdateRequestCreditLimitDigestCadence;
-}
+export type MailConfigCreditLimitDigestCadence = typeof MailConfigCreditLimitDigestCadence[keyof typeof MailConfigCreditLimitDigestCadence];
+
+
+export const MailConfigCreditLimitDigestCadence = {
+  off: 'off',
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
