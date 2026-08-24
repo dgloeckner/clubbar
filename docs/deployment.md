@@ -359,7 +359,7 @@ What this means operationally:
   a phone, or anything else with its own backup/sync story you have not
   vetted.
 - **Archive it like the safe key, not like a password.** At minimum: one
-  copy with the treasurer, one copy offsite (a second board member, a safe
+  copy with the Kassenwart, one copy offsite (a second board member, a safe
   deposit box). The DB backup and the key archive should never be the *only*
   two copies of anything sitting in the same building.
 - **Test the archive, don't just trust it.** A private key file that was
@@ -698,7 +698,7 @@ rows.** It permanently removes every scanned mandate document under
 `storage/mandates/` along with the `mandate_documents` table. A database backup
 does not cover this — the files live outside MariaDB. Before approving a
 release that carries this migration, download and archive any stored scans (or
-confirm the treasurer already holds the paper originals); there is no
+confirm the Kassenwart already holds the paper originals); there is no
 migration-side undo once it has run.
 
 **The upgrade secret is generated per run** and is not stored as a GitHub

@@ -116,13 +116,20 @@ class HttpProbeTest extends TestCase
         // picked and retried: two test processes must not collide.
         for ($attempt = 0; $attempt < 10; $attempt++) {
             $port = random_int(20000, 60000);
-            $command = sprintf(
-                '%s -S 127.0.0.1:%d -t %s %s',
-                escapeshellarg(PHP_BINARY),
-                $port,
-                escapeshellarg($this->documentRoot),
-                escapeshellarg($this->documentRoot . '/router.php'),
-            );
+            // An array command, not a string: proc_open() with a string runs
+            // it through `sh -c`, so proc_terminate() below signals the shell
+            // and the `php -S` child is orphaned rather than stopped. Those
+            // orphans keep the port, the memory *and the inherited stdout
+            // pipe*, which is why `phpunit | tail` — the command CLAUDE.md
+            // prescribes — used to hang after the suite had already finished.
+            $command = [
+                PHP_BINARY,
+                '-S',
+                "127.0.0.1:{$port}",
+                '-t',
+                $this->documentRoot,
+                $this->documentRoot . '/router.php',
+            ];
 
             $server = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
             if (!is_resource($server)) {

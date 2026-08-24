@@ -24,9 +24,10 @@ The Getränkewart sees no member at all and therefore nothing here.
 ## Main flow — the club does almost nothing
 
 1. **At install**, the Admin generates two keypairs offline, puts both public
-   halves in the configuration, and gives one private half to the Kassenwart and
-   one to a second board member. Two holders, so one volunteer moving away does
-   not take the archives with them.
+   halves in the configuration, and keeps one private half themselves, giving the
+   other to a second board member. Two holders, so one volunteer moving away does
+   not take the archives with them — and neither of them is the Kassenwart, for
+   the reason this use case opens with.
 2. **The Admin schedules the backup job**, alongside the existing mail one. The
    installer prints both lines on the same screen.
 3. **Nightly, unattended**: the job dumps the database, seals it so that only the

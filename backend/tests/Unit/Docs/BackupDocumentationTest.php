@@ -25,7 +25,8 @@ use PHPUnit\Framework\TestCase;
  * backups, believing they had them. That is the failure mode worth a test: not
  * "is the wording good" but "does this file still claim something untrue".
  *
- * See #686 (epic) and #687 (this slice).
+ * See #686 (epic), #687 (this slice) and #699, which added the role-word guards
+ * after the ADR shipped naming the Kassenwart as a backup key holder.
  */
 class BackupDocumentationTest extends TestCase
 {
@@ -109,6 +110,51 @@ class BackupDocumentationTest extends TestCase
             'The `crontab -e` recipe must sit underneath the heading that scopes it, not '
             . 'above it — otherwise it still reads as the procedure for every host.'
         );
+    }
+
+    /**
+     * The backup private keys are the Admin's, and the docs must not drift back.
+     *
+     * This is one mistake wearing two hats. The *office* is wrong: ADR-0049
+     * rejects sealing backups to the IBAN keypair precisely because the
+     * Kassenwart holds a copy of it and would thereby hold the audit log, every
+     * admin's TOTP ciphertext and the database password — and then handing them a
+     * backup key instead re-crosses the same boundary through a different key.
+     * The ADR shipped saying both things, six lines apart.
+     *
+     * The *word* is wrong too: CONTEXT.md lists "treasurer" under Avoid, because
+     * the club says Kassenwart. A doc that says "treasurer" is usually a doc that
+     * stopped thinking about which office it meant, which is how the first
+     * mistake gets in.
+     *
+     * See #699.
+     */
+    public function test_the_backup_docs_do_not_hand_a_backup_key_to_the_kassenwart(): void
+    {
+        foreach ([self::ADR, self::USE_CASE] as $relativePath) {
+            $text = self::read($relativePath);
+
+            $this->assertDoesNotMatchRegularExpression(
+                '/(private half|recipients?|key holders?)[^.]{0,80}\bKassenwart\b/i',
+                $text,
+                $relativePath . ' names the Kassenwart as a backup key holder. Backups belong '
+                . 'to the Admin (ADR-0049 decision 2) — a backup carries the audit log, every '
+                . "admin's TOTP ciphertext and the database password, which is the boundary "
+                . 'the "not the IBAN keypair" decision exists to hold.'
+            );
+        }
+    }
+
+    public function test_the_backup_docs_say_kassenwart_rather_than_treasurer(): void
+    {
+        foreach ([self::ADR, self::USE_CASE, 'docs/deployment.md'] as $relativePath) {
+            $this->assertStringNotContainsStringIgnoringCase(
+                'treasurer',
+                self::read($relativePath),
+                $relativePath . ' says "treasurer". CONTEXT.md lists that word under Avoid — '
+                . 'the club says Kassenwart, in code, specs and UI alike.'
+            );
+        }
     }
 
     /** Offset of the first heading matching $pattern, or null. */
