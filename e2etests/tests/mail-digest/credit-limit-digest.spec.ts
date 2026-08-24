@@ -81,14 +81,38 @@ interface DigestMember {
 let mail: MailpitClient
 let disposeMailpit: () => Promise<void>
 
-/** The HTML part as text: entities decoded and tags dropped, so one assertion covers both parts. */
+/**
+ * Every entity `MailLayout::esc()` can emit, plus the two the money formatter
+ * produces. `&amp;` is in the same table as the rest rather than handled
+ * separately, which is the point — see {@link htmlAsText}.
+ */
+const ENTITIES: Record<string, string> = {
+  '&nbsp;': ' ',
+  '&euro;': '€',
+  '&#8364;': '€',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#039;': "'",
+  '&#39;': "'",
+  '&amp;': '&',
+}
+
+/**
+ * The HTML part as text: entities decoded and tags dropped, so one assertion
+ * covers both parts.
+ *
+ * **One pass, not a chain of `.replace()` calls.** A chain decodes its own
+ * output: `&amp;euro;` — the correct escaping of the literal text `&euro;` —
+ * becomes `&euro;` at the ampersand rule and then `€` at the next one, so the
+ * assertion would see a currency symbol in a mail that never contained one.
+ * A single regex consumes each entity exactly once and never re-reads what it
+ * wrote, which is the only ordering-independent way to do this.
+ */
 function htmlAsText(html: string): string {
   return html
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&euro;/g, '€')
-    .replace(/&#8364;/g, '€')
+    .replace(/&(?:nbsp|euro|lt|gt|quot|amp|#8364|#0?39);/g, (entity) => ENTITIES[entity] ?? entity)
     .replace(/\s+/g, ' ')
 }
 
