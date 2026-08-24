@@ -166,14 +166,7 @@ export class SettlementsPage extends BasePage {
    */
   async waitForPageLoad(timeout = 10000) {
     await expect(this.loadingIndicator()).toBeHidden({ timeout })
-    try {
-      await Promise.race([
-        expect(this.table()).toBeVisible({ timeout: 1000 }),
-        expect(this.emptyState()).toBeVisible({ timeout: 1000 }),
-      ])
-    } catch {
-      throw new Error('Page loaded but neither settlements table nor empty state appeared')
-    }
+    await expect(this.table().or(this.emptyState())).toBeVisible({ timeout })
   }
 
   /**
