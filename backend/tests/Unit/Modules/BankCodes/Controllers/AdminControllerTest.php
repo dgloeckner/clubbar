@@ -6,6 +6,8 @@ namespace Tests\Unit\Modules\BankCodes\Controllers;
 
 use App\Modules\BankCodes\Controllers\AdminController;
 use App\Modules\BankCodes\Services\BankCodeService;
+use App\Shared\Logging\Logger;
+use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -24,7 +26,11 @@ class AdminControllerTest extends TestCase
     protected function setUp(): void
     {
         $this->service = $this->createMock(BankCodeService::class);
-        $this->controller = new AdminController($this->service);
+        $this->controller = new AdminController(
+            $this->service,
+            $this->createMock(AuditService::class),
+            $this->createMock(Logger::class),
+        );
     }
 
     /**

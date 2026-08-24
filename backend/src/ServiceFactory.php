@@ -119,6 +119,14 @@ use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\CreditLimits\Controllers\CreditLimitConfigController;
 use App\Modules\CreditLimits\Controllers\SyncController as CreditLimitSyncController;
+use App\Modules\Backups\Controllers\BackupCronController;
+use App\Modules\Backups\Domain\UnclassifiedTablePolicy;
+use App\Modules\Backups\Repositories\BackupConfigRepository;
+use App\Modules\Backups\Repositories\BackupKeysRepository;
+use App\Modules\Backups\Repositories\BackupRunsRepository;
+use App\Modules\Backups\Services\BackupKeyring;
+use App\Modules\Backups\Services\BackupService;
+use App\Modules\Backups\Services\DatabaseDump;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
@@ -185,6 +193,7 @@ class ServiceFactory implements ContainerInterface
         MailConfigController::class => 'getMailConfigController',
         NotificationsController::class => 'getNotificationsController',
         SchedulerController::class => 'getSchedulerController',
+        BackupCronController::class => 'getBackupCronController',
         CronController::class => 'getCronController',
 
         // AdminUsers
@@ -1316,6 +1325,63 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(SchedulerController::class, fn() => new SchedulerController($this->getSchedulerStatusService()));
     }
 
+    public function getBackupRunsRepository(): BackupRunsRepository
+    {
+        return $this->resolve(BackupRunsRepository::class, fn() => new BackupRunsRepository($this->pdo));
+    }
+
+    public function getBackupKeysRepository(): BackupKeysRepository
+    {
+        return $this->resolve(BackupKeysRepository::class, fn() => new BackupKeysRepository($this->pdo));
+    }
+
+    public function getBackupConfigRepository(): BackupConfigRepository
+    {
+        return $this->resolve(BackupConfigRepository::class, fn() => new BackupConfigRepository($this->pdo));
+    }
+
+    public function getBackupKeyring(): BackupKeyring
+    {
+        return $this->resolve(BackupKeyring::class, fn() => new BackupKeyring($this->getBackupKeysRepository()));
+    }
+
+    /**
+     * The dumper as the *runtime* uses it: an unclassified table is included
+     * and reported, never fatal.
+     *
+     * The throwing policy is the default on the class and belongs to CI, where
+     * a human is present and stopping costs nothing. Here, at 03:00, refusing
+     * the whole night's backup over one unrecognised name would be the
+     * control-that-looks-like-protection failure ADR-0049 opens with — so the
+     * asymmetry is expressed exactly once, here, rather than as a flag every
+     * caller has to remember.
+     */
+    public function getBackupService(): BackupService
+    {
+        return $this->resolve(BackupService::class, fn() => new BackupService(
+            new DatabaseDump($this->pdo, UnclassifiedTablePolicy::INCLUDE_AND_REPORT),
+            $this->getBackupKeyring(),
+            $this->getBackupRunsRepository(),
+            $this->getBackupKeysRepository(),
+            $this->getBackupConfigRepository(),
+            $this->getAuditService(),
+            $this->getLogger(),
+            $this->config->dataDir . '/' . BackupService::DIRECTORY,
+            $this->config->backupPublicKeys,
+            $this->config->env,
+        ));
+    }
+
+    public function getBackupCronController(): BackupCronController
+    {
+        return $this->resolve(BackupCronController::class, fn() => new BackupCronController(
+            $this->getBackupService(),
+            $this->config,
+            $this->getLogger(),
+            $this->getMailConfigService(),
+        ));
+    }
+
     public function getCronController(): CronController
     {
         return $this->resolve(CronController::class, fn() => new CronController(
@@ -1381,7 +1447,11 @@ class ServiceFactory implements ContainerInterface
 
     public function getBankCodesAdminController(): BankCodesAdminController
     {
-        return $this->resolve(BankCodesAdminController::class, fn() => new BankCodesAdminController($this->getBankCodeService()));
+        return $this->resolve(BankCodesAdminController::class, fn() => new BankCodesAdminController(
+            $this->getBankCodeService(),
+            $this->getAuditService(),
+            $this->getLogger(),
+        ));
     }
 
     public function getDashboardRepository(): DashboardRepository

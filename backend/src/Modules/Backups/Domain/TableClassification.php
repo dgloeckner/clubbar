@@ -76,6 +76,17 @@ final class TableClassification
         'cron_heartbeat' => TableClass::FULL,
         'jugendschutz_violation_acks' => TableClass::FULL,
 
+        // The backup's own record (ADR-0049). `backup_runs` is included for a
+        // reason worth stating: a restored installation that had lost its run
+        // history would no longer know which private keys still open the
+        // archives sitting on the remote, and the answer to "may we discard
+        // key A?" would have to be guessed. `backup_keys` carries
+        // `compromised_at`, which is a blocklist — losing it would silently
+        // re-permit a key somebody deliberately retired.
+        'backup_runs' => TableClass::FULL,
+        'backup_keys' => TableClass::FULL,
+        'backup_config' => TableClass::FULL,
+
         // ~20k rows of German bank codes, identical in every installation and
         // reimportable with backend/bin/import-bank-codes.php. Keeping the rows
         // would dominate the size of every nightly archive for no recovery

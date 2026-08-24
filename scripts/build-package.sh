@@ -72,13 +72,18 @@ cp    "$PROJECT_ROOT/backend/db/MigrationRunner.php" "$PKG_DIR/backend/db/"
 cp -R "$PROJECT_ROOT/backend/db/migrations"  "$PKG_DIR/backend/db/migrations"
 cp -R "$PROJECT_ROOT/backend/vendor"         "$PKG_DIR/backend/vendor"
 cp    "$PROJECT_ROOT/backend/bootstrap.php"  "$PKG_DIR/backend/bootstrap.php"
-# The scheduled drain (ADR-0038 rule 3) — without this in the archive, the one
-# thing that sends mail does not reach the host at all. Only cron.php: the rest
-# of bin/ is developer tooling, and every file under the document root is a file
-# that becomes a URL the day .htaccess stops being honoured. cron.php refuses to
-# run outside the CLI for exactly that reason.
+# The two scheduled entrypoints — the mail drain (ADR-0038 rule 3) and the
+# backup (ADR-0049). Without these in the archive, the one thing that sends mail
+# and the one thing that writes a backup do not reach the host at all.
+#
+# Only these two: the rest of bin/ is developer tooling, and every file under
+# the document root is a file that becomes a URL the day .htaccess stops being
+# honoured. Both refuse to run outside the CLI for exactly that reason — and it
+# matters more for backup.php than for cron.php, because reaching it as a URL
+# would not drain a queue, it would write a database dump.
 mkdir -p "$PKG_DIR/backend/bin"
 cp    "$PROJECT_ROOT/backend/bin/cron.php"   "$PKG_DIR/backend/bin/cron.php"
+cp    "$PROJECT_ROOT/backend/bin/backup.php" "$PKG_DIR/backend/bin/backup.php"
 if [ -f "$PROJECT_ROOT/backend/VERSION" ]; then
   cp    "$PROJECT_ROOT/backend/VERSION"      "$PKG_DIR/backend/VERSION"
 fi

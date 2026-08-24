@@ -83,6 +83,27 @@ final class ConfigFile
         // config key and not an admin-panel field.
         $_ENV['CRON_HEARTBEAT_URL'] = $config['cron']['heartbeat_url'] ?? '';
 
+        // Encrypted off-site backups (ADR-0049). The recipient keys are a
+        // *list*, and the environment is flat, so they travel as one
+        // newline-separated string of `label:hexkey` entries and are parsed
+        // back by BackupKeyring. A separator that cannot occur inside either
+        // half: a label is [a-z0-9_-] and a key is hex.
+        $publicKeys = $config['backup']['public_keys'] ?? [];
+        $_ENV['BACKUP_PUBLIC_KEYS'] = is_array($publicKeys)
+            ? implode("\n", array_map('strval', $publicKeys))
+            : (string) $publicKeys;
+
+        // Absent leaves the backup local-only: archives are still written and
+        // still sealed, they simply never leave the webspace. Logged, never
+        // thrown — a club without a remote configured still gets the "undo a
+        // mistake an hour ago" half.
+        $_ENV['BACKUP_DSN'] = $config['backup']['dsn'] ?? '';
+        $_ENV['BACKUP_CLIENT_SECRET'] = $config['backup']['client_secret'] ?? '';
+
+        // Its own monitor, not the mail one (#690): a check guarding a legal
+        // deadline must not go red for a storage problem, or it gets ignored.
+        $_ENV['BACKUP_HEARTBEAT_URL'] = $config['backup']['heartbeat_url'] ?? '';
+
         // Terminal anomaly detection (ADR-0041). Optional to a fault: every one
         // has a default on the detector, and the scan runs from the cron
         // entrypoint — which reads this file and nothing else — so an

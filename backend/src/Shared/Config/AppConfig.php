@@ -58,6 +58,45 @@ class AppConfig
      */
     public readonly ?string $cronHeartbeatUrl;
     /**
+     * Who can open a backup archive, as `label:hexkey` entries (ADR-0049
+     * decision 2).
+     *
+     * A list rather than one key, and the reason is organisational: the
+     * realistic failure in a Verein is that the one holder moved away. Two
+     * standing recipients — the Admin and a second board member — cost about
+     * 48 bytes each and make that survivable. That it also turns rotation into
+     * an overlap instead of a cutover is a consequence, not the motivation.
+     *
+     * The private halves are never here, never anywhere on this server, which
+     * is the property the whole design exists for: `config.php` plus an
+     * unencrypted backup would be the entire member database from one file.
+     *
+     * Empty means **no archive is written at all**, not a plaintext one
+     * (ADR-0031 rule 3: refuse and report, never silently degrade).
+     *
+     * Kept as the raw string here and parsed by `BackupKeyring`, so a
+     * malformed entry becomes one reportable finding rather than a fatal in a
+     * constructor every request runs through.
+     */
+    public readonly string $backupPublicKeys;
+    /**
+     * Where finished archives are pushed (#691). Absent means local-only:
+     * archives are still written and still sealed, they simply never leave the
+     * webspace — which covers "undo a mistake an hour ago" and none of "the
+     * hosting account is gone".
+     */
+    public readonly ?string $backupDsn;
+    /** The secret half of {@see $backupDsn}'s credential, kept out of a URL that gets pasted around. */
+    public readonly ?string $backupClientSecret;
+    /**
+     * The backup job's own push monitor, deliberately not {@see $cronHeartbeatUrl}.
+     *
+     * Turning a check that guards a legal deadline red for a storage problem
+     * teaches the operator to ignore it, and an alarm somebody has learned to
+     * ignore protects nothing. Two checks, two meanings.
+     */
+    public readonly ?string $backupHeartbeatUrl;
+    /**
      * The deployment's document root — the directory `backend/` sits in.
      *
      * Needed to *print* a path rather than to read one: the scheduler setup
@@ -86,6 +125,10 @@ class AppConfig
         $this->mailDsn              = trim(Env::get('MAIL_DSN', '')) ?: null;
         $this->cronSecret           = trim(Env::get('CRON_SECRET', '')) ?: null;
         $this->cronHeartbeatUrl     = trim(Env::get('CRON_HEARTBEAT_URL', '')) ?: null;
+        $this->backupPublicKeys     = trim(Env::get('BACKUP_PUBLIC_KEYS', ''));
+        $this->backupDsn            = trim(Env::get('BACKUP_DSN', '')) ?: null;
+        $this->backupClientSecret   = trim(Env::get('BACKUP_CLIENT_SECRET', '')) ?: null;
+        $this->backupHeartbeatUrl   = trim(Env::get('BACKUP_HEARTBEAT_URL', '')) ?: null;
         $this->documentRoot         = self::resolveDocumentRoot();
 
         // Resolved last — the default depends on $this->appUrl.

@@ -174,4 +174,52 @@ enum AuditAction: string
      * authorising the route) stops working the moment this is written.
      */
     case CRON_SECRET_ROTATED = 'cron_secret_rotated';
+
+    /**
+     * The Bundesbank BLZ table was refilled from the panel (ADR-0049, #690).
+     *
+     * `bank_codes` is `SCHEMA_ONLY` in a backup, so a restored installation
+     * comes back with it empty and no other way to fill it: `install.php`
+     * refuses once `storage/.installed` exists, and the CLI importer needs a
+     * shell the reference host does not have. So this is an admin action, and
+     * one that reaches out to a third party and rewrites ~20k rows is worth a
+     * row of its own.
+     */
+    case BANK_CODES_IMPORTED = 'bank_codes_imported';
+
+    /**
+     * A backup recipient key was seen for the first time (ADR-0049 decision 2).
+     *
+     * Written from the run that first sealed to it rather than from a form,
+     * because the keys live in `config.php` — where they are added is not a
+     * place that can write an audit row, so the observation is the record.
+     */
+    case BACKUP_KEY_ADDED = 'backup_key_added';
+
+    /**
+     * Somebody proved they can open a real archive with the private half.
+     *
+     * The distinction this records is the whole reason the panel shows a key as
+     * unverified until then: a recipient nobody has ever decrypted with is a
+     * belief about a keypair, not a backup.
+     */
+    case BACKUP_KEY_VERIFIED = 'backup_key_verified';
+
+    /**
+     * A key stopped being sealed to — the ordinary end of a handover rotation.
+     *
+     * **Not the end of its usefulness.** Archives sealed to it exist until
+     * retention drains, so its private half must stay archived; "removed" means
+     * dead for writing, not for reading (ADR-0049 decision 3).
+     */
+    case BACKUP_KEY_REMOVED = 'backup_key_removed';
+
+    /**
+     * A key was blocklisted, and the blocklist outranks `config.php`.
+     *
+     * The compromise date bounds which archives are affected, which is why the
+     * repository keeps the first one rather than the latest: moving it forward
+     * would shrink the set somebody has to go and purge.
+     */
+    case BACKUP_KEY_MARKED_COMPROMISED = 'backup_key_marked_compromised';
 }

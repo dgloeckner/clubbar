@@ -141,4 +141,70 @@ return [
         // Leave empty and nothing is pinged.
         'heartbeat_url' => '',
     ],
+
+    // -------------------------------------------------------------------------
+    // Encrypted off-site backups (ADR-0049)
+    // -------------------------------------------------------------------------
+    // Nothing here is filled in by the installer, because two of the four
+    // values cannot be: the keypairs are generated on a laptop, and their
+    // private halves must never reach this server.
+    'backup' => [
+        // WHO CAN OPEN AN ARCHIVE. A list of `label:public_key_hex`, one entry
+        // per recipient, generated offline with tools/keypair-generator.html.
+        //
+        //   'public_keys' => [
+        //       'admin:3d1f…',      // 64 hex characters
+        //       'vorstand:9a02…',
+        //   ],
+        //
+        // TWO ENTRIES, NOT ONE, and the reason is organisational rather than
+        // cryptographic: the realistic failure in a Verein is "der Vorstand hat
+        // gewechselt und niemand hat den Schlüssel". Each costs about 48 bytes
+        // in every archive. One private half goes to the **Admin** — whoever
+        // holds the server — and one to a second board member, archived like
+        // the key to the safe.
+        //
+        // NOT TO THE KASSENWART, and not the IBAN keypair either. A backup
+        // carries the audit log, every admin's TOTP ciphertext and the database
+        // password; the Kassenwart holds the IBAN private key because SEPA
+        // collection is impossible without it, and handing them a backup key
+        // would re-cross that boundary through a different keypair.
+        //
+        // ROTATION IS ADDITIVE. Add the successor's key, let both open new
+        // archives, prove the new one opens a real archive, then remove the
+        // departing one. **Delete no archives**, and do not discard the retired
+        // *private* key: "rotated" means dead for writing, not for reading, and
+        // archives sealed to it exist until retention has drained (about four
+        // months). The panel's key list is what says when nothing needs it.
+        //
+        // EMPTY MEANS NO BACKUP IS WRITTEN AT ALL. There is no plaintext
+        // fallback — ADR-0031 rule 3: refuse and report, never silently
+        // degrade. The security self-check reports it.
+        'public_keys' => [],
+
+        // Where finished archives are pushed. Empty means local-only: archives
+        // are written to the data directory and pruned there, which satisfies
+        // "undo a mistake an hour ago" and none of "the webspace is gone".
+        //
+        //   'dsn' => 'msgraph://<tenant-id>/<client-id>@<site>/<library>/<path>',
+        //
+        'dsn' => '',
+
+        // The secret half of the DSN's credential, kept out of it for the same
+        // reason the SMTP password is kept out of a URL that gets pasted into
+        // support threads.
+        'client_secret' => '',
+
+        // A push monitor for the backup job, and deliberately NOT the mail one
+        // (`cron.heartbeat_url` above). Turning a check that guards a legal
+        // deadline red for a storage problem teaches the operator to ignore it.
+        //
+        // Recommended check settings: period 1 day, grace 6 hours — a nightly
+        // job that misses one night is worth knowing about in the morning, not
+        // at 03:05.
+        //
+        // The ping body carries counts and a closed set of reasons: never a
+        // table name, never a filename, never a key.
+        'heartbeat_url' => '',
+    ],
 ];

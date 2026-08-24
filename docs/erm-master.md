@@ -888,6 +888,63 @@ Centralized audit trail for all master data changes.
 
 **Retention**: 10 years per § 147 AO (German tax code).
 
+### backup_runs
+
+One row per attempted backup ([ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md)). **Rows are never deleted.** Pruning an artifact stamps `pruned_at` and keeps the row, because the row is what answers *"which private keys do we still need?"* after the file is gone — a rotation retires a key by waiting for retention to drain, and discarding the old private key before then destroys the still-existing archives silently.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | CHAR(36) | PK |
+| started_at / finished_at | TIMESTAMP | The run's window |
+| status | ENUM | `running` · `local` (sealed on the webspace) · `uploaded` · `failed`. `local` and `uploaded` are separate states because a snapshot is atomic and a transfer is resumable, so a run may legitimately end at `local` |
+| trigger_source | ENUM | `cli` (preferred) · `url` |
+| filename / bytes / sha256 | | The artifact as it sits on disk; the checksum answers "is this the file we wrote" without a private key |
+| key_fingerprints | JSON | Which keys open this archive. Outlives the artifact — see above |
+| table_manifest | JSON | Table → rows written. Compared against the previous run, so a table appearing, disappearing or changing class is reportable while it still matters |
+| remote_path / upload_session_url / uploaded_bytes / uploaded_at | | Resumable upload progress ([#691](https://github.com/dgloeckner/clubbar/issues/691)) |
+| attempts / next_attempt_at / last_error | | Backoff on transient upload failure |
+| pruned_at | TIMESTAMP | Set when the artifact was removed. The row stays |
+
+**Retention tier:** operational. No personal data — the manifest holds table names and counts, never rows.
+
+---
+
+### backup_keys
+
+A projection of which recipient keys have actually been used, created on first use. The configured keys themselves live in `config.php` (`backup.public_keys`), off the database, for the same reason the SMTP DSN does.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| fingerprint | CHAR(64) | PK. SHA-256 of the 32-byte public key, as the archive header carries it |
+| label | VARCHAR(64) | The label from `config.php` |
+| first_seen_at / last_used_at | TIMESTAMP | Observed, not declared |
+| verified_at | TIMESTAMP | Set when a holder has opened a real archive with the private half. Until then the panel says the key is unverified — a recipient nobody has ever decrypted with is a belief, not a recipient |
+| compromised_at | TIMESTAMP | A blocklist that **outranks `config.php`**, the same precedence `mail_config.cron_secret_hash` has over `cron.secret`. A key retired from the panel stops being sealed to immediately, without an FTP edit, and cannot come back because the file still names it |
+
+**Retention tier:** operational. No personal data.
+
+---
+
+### backup_config
+
+Singleton row, mirroring `mail_config`: the club-editable half of backup policy.
+
+| Column | Type | Default | Description |
+|--------|------|---------|-------------|
+| id | TINYINT | 1 | PK |
+| enabled | TINYINT(1) | 0 | Off by default, because an installation with no recipient key cannot write an archive at all — defaulting to on would produce a nightly *failure* rather than a nightly backup |
+| cadence | ENUM | `daily` | `daily` · `weekly` |
+| local_retention_days | SMALLINT | 30 | |
+| local_max_bytes | BIGINT | 1073741824 | 1 GiB. Refused rather than exceeded: a full webspace quota breaks logging and mandate storage |
+| remote_retention_days | SMALLINT | 90 | |
+| budget_seconds | SMALLINT | 45 | The whole 60 s abort minus room to finish and record. Its own budget, because the mail drain has its own |
+
+The **minimum interval between runs is deliberately not here**. It exists only to stop the URL trigger being called in a loop until the quota is full — it is not a schedule anybody should tune, and a club that could raise it could disable the guard. It is compiled into `BackupService`.
+
+**Retention tier:** configuration. No personal data.
+
+---
+
 ### bank_codes
 
 Lookup table for resolving German IBANs to bank names. Data sourced from the Deutsche Bundesbank BLZ (Bankleitzahl) file, updated quarterly. Only Hauptstelle (main office, Merkmal=1) entries are stored.

@@ -207,12 +207,22 @@ curl -I https://your-domain.com/api/health
 
 ## Database Backup & Restore
 
-**Club Bar does not back itself up yet.** Automatic, encrypted, off-site backups
-are specified in [ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md)
-and tracked in [#686](https://github.com/dgloeckner/clubbar/issues/686); until
-that ships, backing up is something **you** do, on a rhythm you set. This section
-says how, and it splits by what your hosting actually gives you — because the
-recipe further down cannot run on the host this project targets.
+**Club Bar backs itself up, once you have given it a key to seal the archive
+with.** Encrypted, off-site backups are specified in
+[ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md) and
+tracked in [#686](https://github.com/dgloeckner/clubbar/issues/686). The local
+half — a nightly sealed archive in the data directory, with bounded retention —
+is described under [Scheduling the backup](#scheduling-the-backup) below; pushing
+it off the host is [#691](https://github.com/dgloeckner/clubbar/issues/691) and
+until that lands the quarterly manual copy in this section is what gets an
+archive off the webspace.
+
+**Until you configure a recipient key, nothing is written at all**, and that is
+deliberate rather than a bug: there is no plaintext fallback
+([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) rule 3 — refuse
+and report, never silently degrade). So the manual recipe below is still the
+whole story on an installation that has not been set up, and is worth knowing
+either way, because it is also the *restore* path.
 
 **A dump is personal data ([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)).**
 Every IBAN in it is a libsodium sealed box the dump alone cannot open — but
@@ -490,6 +500,70 @@ web-reachable. A panel-rotated secret supersedes `config.php`'s entirely —
 the old value stops working the moment a new one is generated, rather than
 staying valid alongside it — and it is shown exactly once; only its hash is
 stored, the same way terminal API tokens are kept.
+
+### Scheduling the backup
+
+**A second cron line, not a second sending path.** ADR-0038's *"one scheduled
+command"* is narrowed by
+[ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md) to its
+actual principle: **no scheduled path may exist that nothing observes.** The
+backup has its own observation, so it gets its own job — which also means each
+job gets the whole 60-second abort instead of splitting it, and a backup dying
+on a huge `audit_log` cannot delay the mail drain.
+
+```
+php /path/to/htdocs/backend/bin/backup.php
+```
+
+Nightly is the recommendation (`0 3 * * *`). The installer prints this line next
+to the drain's, on the same screen, so both go into the panel in one sitting.
+
+**No CLI cron?** The same `cron.secret` authorises a URL trigger, so there is one
+credential and one rotation for both jobs:
+
+```bash
+curl -sS -H 'X-Cron-Secret: <secret>' https://your-domain.com/api/cron/backup
+```
+
+It answers **204 with an empty body, always** — it triggers a run, it never
+serves an archive — and it refuses to run again within an hour of the last
+attempt, so a caller in a loop cannot fill your webspace quota with dumps. Like
+the drain, it is **not mounted at all** without a secret.
+
+**Before it writes anything, it needs a key.** Generate two keypairs offline with
+`tools/keypair-generator.html`, put both public halves in `config.php` under
+`backup.public_keys`, and give one private half to whoever holds the server and
+one to a second board member — archived like the key to the safe, and **never
+stored on the server**. Two recipients because the realistic failure in a Verein
+is that the one holder moved away, not that somebody broke the cryptography.
+
+Not to the Kassenwart, and not the IBAN keypair: a backup carries the audit log,
+every admin's TOTP ciphertext and the database password, and the Kassenwart holds
+the IBAN private key because SEPA collection is impossible without it.
+
+**Then prove it.** Download one archive and open it with
+`tools/backup-decryptor.html` — offline, on a machine you trust. Until somebody
+has done that, what you have is a belief about a keypair rather than a backup.
+
+**Where the archives go.** `<data-dir>/backups/`, mode `0700`, outside the
+document root ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md)
+decision 2) — an archive under it would become a URL the day `.htaccess` stops
+being honoured. Retention is 30 days by default and there is a byte cap; when
+pruning to the cap would leave you with no recent archive, the run reports it
+rather than deleting the newest one.
+
+**A local archive is not an off-site backup.** It answers "undo a mistake an
+hour ago" and none of "the hosting account is gone" — that is
+[#691](https://github.com/dgloeckner/clubbar/issues/691). Until then, keep doing
+the quarterly manual copy above.
+
+**After a restore, refill the bank codes.** `bank_codes` is deliberately
+structure-only in an archive (~20k rows identical in every installation would
+dominate every nightly backup), so a restored installation comes back with it
+empty. Existing mandates are unaffected — the bank name is stored on the row —
+but resolution for *new* mandates needs the table. Refill it from the admin panel
+rather than `install.php`, which refuses to run once the installation is marked
+installed.
 
 ### IONOS specifically
 
