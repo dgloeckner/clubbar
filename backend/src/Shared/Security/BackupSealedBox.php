@@ -14,17 +14,25 @@ use InvalidArgumentException;
  *
  * Not cryptographic hedging. The realistic failure in a Verein is that the one
  * person holding the key moves away, and the club discovers it on the day it
- * needs a restore. Two standing recipients — the Kassenwart and a second board
+ * needs a restore. Two standing recipients — the **Admin** and a second board
  * member — cost 48 bytes each and make that survivable. That the same mechanism
  * turns key rotation into a safe overlap instead of a cutover (ADR-0049
  * decision 3) is a consequence, not the motivation.
  *
- * ## Why not the IBAN keypair
+ * ## Why not the IBAN keypair, and why not the Kassenwart either
  *
- * The Kassenwart holds a copy of that one, because SEPA collection is
- * impossible without it (ADR-0044, CONTEXT.md). Sealing backups to it would
+ * The Kassenwart holds a copy of the IBAN private key, because SEPA collection
+ * is impossible without it (ADR-0044, CONTEXT.md). Sealing backups to it would
  * hand them the audit log, every admin's TOTP ciphertext and the database
  * password. Backups belong to the Admin — whoever holds the server.
+ *
+ * That settles who the archive is sealed to, and not only which key it uses.
+ * The temptation is worth naming, because it looks like prudence: the
+ * Kassenwart is the volunteer most reliably still in post next year, so giving
+ * them the second copy is the obvious move. It would re-cross the boundary the
+ * paragraph above draws, through a second keypair — a backup carries the same
+ * three things whichever key sealed it. The second copy goes to a board member
+ * because two holders are needed, not because any office confers access.
  *
  * ## Layout
  *

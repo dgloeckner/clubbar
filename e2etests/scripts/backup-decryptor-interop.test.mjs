@@ -5,7 +5,7 @@
  * (`BackupSealedBox::seal()`) and is committed. Two readers open it:
  * `BackupSealedBoxGoldenFixtureTest` on the PHP side, and this file on the JS
  * side, using the *same* `tools/backup-decryptor.js` the offline decryptor
- * ships to a treasurer.
+ * ships to a key holder.
  *
  * Neither implementation is its own witness. If the container format changes
  * and only one reader is updated, that reader's test goes red here rather than
@@ -58,7 +58,7 @@ test('the header is readable without any key at all', () => {
   assert.equal(header.version, decryptor.VERSION)
   assert.deepEqual(
     header.recipients.map((r) => r.label),
-    ['kassenwart', 'vorstand'],
+    ['admin', 'vorstand'],
     'The decryptor tells a holder which key to fetch before asking for one.',
   )
 })
