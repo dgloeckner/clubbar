@@ -147,6 +147,15 @@ services:
       # finds it the same way it finds the real checkout's scripts/ on a host —
       # the test needs no knowledge that Docker is involved.
       - ./scripts:/scripts:ro
+      # The documentation this repository makes claims in, read-only, for the
+      # same reason as scripts/ above: BackupDocumentationTest guards the
+      # factual claims in README.md and docs/deployment.md, and those files live
+      # above ./backend. Mounted under one root so the test resolves them the
+      # same way it does inside a real checkout (see its repoRoot()).
+      - ./adr:/repo/adr:ro
+      - ./docs:/repo/docs:ro
+      - ./use-cases:/repo/use-cases:ro
+      - ./README.md:/repo/README.md:ro
     depends_on:
       database:
         condition: service_healthy

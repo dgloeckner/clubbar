@@ -207,18 +207,49 @@ curl -I https://your-domain.com/api/health
 
 ## Database Backup & Restore
 
-**A dump is no longer the whole secret, but it is still personal data
-([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)).** Every IBAN in it is
-now a libsodium sealed box the dump alone cannot open — but names, emails,
-addresses and the last four digits of every IBAN are still in there in the
-clear. Encrypt the dump at rest the same as you would have before; the
-commands below pipe through `gpg -c` (a passphrase, not a keypair — the
-libsodium keypair discussed further down is a separate secret with a separate
-job).
+**Club Bar does not back itself up yet.** Automatic, encrypted, off-site backups
+are specified in [ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md)
+and tracked in [#686](https://github.com/dgloeckner/clubbar/issues/686); until
+that ships, backing up is something **you** do, on a rhythm you set. This section
+says how, and it splits by what your hosting actually gives you — because the
+recipe further down cannot run on the host this project targets.
 
-### Automated Daily Backups (Cron)
+**A dump is personal data ([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)).**
+Every IBAN in it is a libsodium sealed box the dump alone cannot open — but
+names, addresses, birth dates, the whole transaction history and the last four
+digits of every IBAN are in there in the clear. Encrypt it at rest, wherever you
+put it.
 
-Create a backup script at `/opt/clubbar/backup.sh`:
+### On shared hosting (the reference target)
+
+There is no shell, no `crontab` and no `mysqldump` binary — see
+[IONOS specifically](#ionos-specifically) further down, which is the same reason
+the mail scheduler is driven by a URL. So today the backup is manual:
+
+1. Open your hosting panel's database tool (phpMyAdmin on most tariffs).
+2. Export the whole database as SQL, with structure **and** data.
+3. Encrypt the file before you put it anywhere — `gpg -c backup.sql` asks for a
+   passphrase and produces `backup.sql.gpg`. Do not skip this because the file is
+   "just going in Drive": that is exactly where it will still be in three years.
+4. Keep it somewhere that is **not** the hosting account, and keep more than one.
+
+**Do this before every upgrade**, without exception if the release carries a
+migration that drops or alters a column — the deploy workflow prints a reminder
+precisely because it cannot do this for you (see
+[Automated Production Deployment](#automated-production-deployment)).
+
+To restore: create an empty database (or drop the tables), then import the SQL
+through the same panel tool. If you encrypted it, `gpg -d backup.sql.gpg >
+backup.sql` first.
+
+### On a VPS or root server
+
+If your hosting gives you SSH and a crontab — an IONOS VPS or Cloud Server rather
+than a webhosting contract, a Hetzner root server, your own machine — then the
+ordinary shell recipe applies and is much better than the manual route above,
+because it actually happens without you.
+
+Create `/opt/clubbar/backup.sh`:
 
 ```bash
 #!/bin/bash
@@ -247,13 +278,17 @@ Add to crontab (`crontab -e`):
 0 3 * * * /opt/clubbar/backup.sh >> /var/log/clubbar-backup.log 2>&1
 ```
 
-### Manual Backup
+⚠️ **`$BACKUP_DIR` is on the same machine as the database.** That covers a bad
+migration; it does not cover losing the server. Copy the archives somewhere else
+as well.
+
+### Manual backup (any host with a shell)
 
 ```bash
 mysqldump -u clubbar_prod -p clubbar | gpg -c > backup.sql.gpg
 ```
 
-### Restore from Backup
+### Restore from backup
 
 ```bash
 gpg -d backup.sql.gz.gpg | gunzip | mysql -u clubbar_prod -p clubbar
@@ -270,9 +305,11 @@ rather than piggybacking on this one.
 
 ### Pre-Upgrade Backup
 
-Always create a backup before upgrading:
+Always create a backup before upgrading — by whichever of the two routes above
+applies to your host:
+
 ```bash
-# 1. Backup database
+# 1. Backup database (shell hosts; on shared hosting export via the panel)
 mysqldump -u clubbar_prod -p clubbar | gpg -c > pre-upgrade-backup.sql.gpg
 
 # 2. Backup config file
