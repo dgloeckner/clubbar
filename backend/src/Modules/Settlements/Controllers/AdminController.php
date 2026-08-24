@@ -7,7 +7,9 @@ namespace App\Modules\Settlements\Controllers;
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Security\Services\EncryptionKeyService;
 use App\Modules\Settlements\DTOs\ReversalCandidateDto;
+use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\Domain\SettlementLeadTime;
+use App\Modules\Settlements\Domain\SettlementReference;
 use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Services\SettlementReversalService;
@@ -382,7 +384,7 @@ class AdminController
         $response->getBody()->write($result->xml);
         $response = $response
             ->withHeader('Content-Type', 'application/xml; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="sepa-' . $id . '.xml"')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $result->downloadName . '"')
             // The body is a list of plaintext IBANs. It must not sit in a proxy
             // or a browser cache once the download is done (ADR-0036).
             ->withHeader('Cache-Control', 'no-store');
@@ -428,12 +430,12 @@ class AdminController
         }
 
         $csvData = $this->settlementsService->getCsvData($id);
-        $csv = $this->buildSettlementCsv($csvData);
+        $csv = $this->buildSettlementCsv($csvData, $settlement);
 
         $response->getBody()->write($csv);
         return $response
             ->withHeader('Content-Type', 'text/csv; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="settlement-' . $id . '.csv"')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . self::downloadName('abrechnung', $settlement, 'csv') . '"')
             ->withStatus(200);
     }
 
@@ -454,7 +456,7 @@ class AdminController
         $response->getBody()->write($csv);
         return $response
             ->withHeader('Content-Type', 'text/csv; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="settlement-transactions-' . $id . '.csv"')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . self::downloadName('abrechnung-transaktionen', $settlement, 'csv') . '"')
             ->withStatus(200);
     }
 
@@ -498,11 +500,39 @@ class AdminController
         return ['execution_date' => [SettlementLeadTime::violationMessage()]];
     }
 
-    private function buildSettlementCsv(array $memberRows): string
+    /**
+     * What the file is called in the treasurer's downloads folder.
+     *
+     * Date first so a folder of these sorts chronologically, then the canonical
+     * reference so the file names the run it came from — previously every one
+     * of them was `<kind>-<raw uuid>`, unsortable and unrecognisable.
+     */
+    private static function downloadName(string $kind, SettlementDto $settlement, string $extension): string
     {
+        return sprintf(
+            '%s-%s-%s.%s',
+            $kind,
+            $settlement->settlementDate,
+            SettlementReference::of($settlement->id),
+            $extension,
+        );
+    }
+
+    /**
+     * The per-member breakdown of one settlement.
+     *
+     * The reference is a column on every row rather than a preamble line: a
+     * preamble is not CSV, and the file's own name is not something that
+     * survives being pasted into a spreadsheet next to another run's.
+     */
+    private function buildSettlementCsv(array $memberRows, SettlementDto $settlement): string
+    {
+        $reference = SettlementReference::of($settlement->id);
+
         return Csv::build(
-            ['Member Name', 'Email', 'IBAN', 'Amount EUR'],
+            ['Settlement', 'Member Name', 'Email', 'IBAN', 'Amount EUR'],
             array_map(static fn(array $row): array => [
+                $reference,
                 $row['name'],
                 $row['email'],
                 $row['iban'],

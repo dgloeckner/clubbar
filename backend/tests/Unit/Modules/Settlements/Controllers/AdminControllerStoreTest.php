@@ -85,7 +85,6 @@ class AdminControllerStoreTest extends TestCase
             'execution_date' => self::executionDate(),
             'period_start' => null,
             'period_end' => null,
-            'sepa_message_id' => 'SEPA-1',
             'total_amount_cents' => 1200,
             'member_count' => 1,
             'is_cancelled' => 0,

@@ -7,6 +7,7 @@ namespace App\Modules\Settlements\DTOs;
 use App\Modules\Notifications\DTOs\QueuedMailDto;
 use App\Modules\Settlements\Domain\CancellationGate;
 use App\Modules\Settlements\Domain\ReversalGate;
+use App\Modules\Settlements\Domain\SettlementReference;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Enums\SettlementStatus;
 
@@ -19,7 +20,6 @@ final readonly class SettlementDto
         public string $executionDate,
         public ?string $periodStart,
         public ?string $periodEnd,
-        public ?string $sepaMessageId,
         public int $totalAmountCents,
         public int $memberCount,
         public bool $isCancelled,
@@ -123,7 +123,6 @@ final readonly class SettlementDto
             executionDate: $row['execution_date'],
             periodStart: $row['period_start'] ?? null,
             periodEnd: $row['period_end'] ?? null,
-            sepaMessageId: $row['sepa_message_id'] ?? null,
             totalAmountCents: (int) $row['total_amount_cents'],
             memberCount: (int) $row['member_count'],
             isCancelled: (bool) $row['is_cancelled'],
@@ -160,7 +159,12 @@ final readonly class SettlementDto
             'execution_date' => $this->executionDate,
             'period_start' => $this->periodStart,
             'period_end' => $this->periodEnd,
-            'sepa_message_id' => $this->sepaMessageId,
+            // The one string that names this settlement everywhere: in the
+            // pain.008 (MsgId, PmtInfId), in the Verwendungszweck a member
+            // reads on their statement, in the announcement mail, and here.
+            // Rendered once, server-side, so the rule does not also exist in
+            // TypeScript (Pattern 003).
+            'reference' => SettlementReference::of($this->id),
             'total_amount_cents' => $this->totalAmountCents,
             'total_amount_eur' => round($this->totalAmountCents / 100, 2),
             'member_count' => $this->memberCount,

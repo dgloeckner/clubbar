@@ -32,6 +32,7 @@ class PreNotificationMailTest extends TestCase
 {
     private const CREDITOR_ID = 'DE43ZZZ00000548506';
     private const MANDATE = 'F3332CA866B249E7A202BFBF4836B605';
+    private const SETTLEMENT_REFERENCE = '3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f';
 
     private function data(MailLanguage $language, array $overrides = []): PreNotificationDataDto
     {
@@ -52,6 +53,7 @@ class PreNotificationMailTest extends TestCase
             'creditorId' => self::CREDITOR_ID,
             'mandateReference' => self::MANDATE,
             'accountLast4' => '3000',
+            'settlementReference' => self::SETTLEMENT_REFERENCE,
             'lines' => [
                 new StatementLineDto('Bier 0,5 l', '2026-07-02 20:14:00', 984),
                 new StatementLineDto('Kaffee', '2026-07-09 18:02:00', 250),
@@ -267,5 +269,25 @@ class PreNotificationMailTest extends TestCase
 
         $this->assertStringNotContainsString('<script>', $message->html);
         $this->assertStringContainsString('&lt;script&gt;', $message->html);
+    }
+
+    /**
+     * The whole point of the identifier consolidation, from the member's side.
+     *
+     * The same string goes into the `Ustrd` of the pain.008, so what a member
+     * reads on their bank statement and what they read in this mail are one
+     * value they can quote back — and one the Kassenwart can look up. Asserted
+     * on both parts because {@see \App\Shared\Mail\MailMessage} requires the
+     * text part to carry the same statements as the HTML.
+     */
+    #[DataProvider('languages')]
+    public function test_it_names_the_settlement_in_both_parts(MailLanguage $language, string $amount): void
+    {
+        $message = $this->render($language);
+
+        foreach ([self::SETTLEMENT_REFERENCE, $amount] as $required) {
+            $this->assertStringContainsString($required, $message->html);
+            $this->assertStringContainsString($required, $message->text);
+        }
     }
 }

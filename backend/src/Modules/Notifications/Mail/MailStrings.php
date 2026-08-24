@@ -76,6 +76,7 @@ final class MailStrings
             'pre.label_amount'     => 'Betrag',
             'pre.label_due_date'   => 'Fälligkeit',
             'pre.label_account'    => 'Dein Konto',
+            'pre.label_reference'  => 'Abrechnungsnummer',
             'pre.statement_heading' => 'Abrechnungsübersicht',
             'pre.statement_intro'  => 'Diese Buchungen ergeben den Betrag:',
             'pre.statement_period' => 'Zeitraum {from} bis {to}',
@@ -101,6 +102,7 @@ final class MailStrings
                                 . 'späteren Einzug angekündigt.',
             'cancel.label_amount'   => 'Angekündigter Betrag',
             'cancel.label_due_date' => 'Angekündigte Fälligkeit',
+            'cancel.label_reference' => 'Abrechnungsnummer',
 
             // ── Deckelauszug (ADR-0039) ─────────────────────────────────────
             // Kein Wort aus der Vorabankündigung wandert hierher: kein Einzug,
@@ -408,6 +410,7 @@ final class MailStrings
             'pre.label_amount'     => 'Amount',
             'pre.label_due_date'   => 'Due date',
             'pre.label_account'    => 'Your account',
+            'pre.label_reference'  => 'Settlement reference',
             'pre.statement_heading' => 'Itemised statement',
             'pre.statement_intro'  => 'These entries make up the amount:',
             'pre.statement_period' => 'Period {from} to {to}',
@@ -431,6 +434,7 @@ final class MailStrings
             'cancel.next'      => 'Anything still owed stays open and may be announced again with a later collection.',
             'cancel.label_amount'   => 'Announced amount',
             'cancel.label_due_date' => 'Announced due date',
+            'cancel.label_reference' => 'Settlement reference',
 
             'statement.subject'      => 'Your tab — as at {date}',
             'statement.preheader'    => 'What your bar tab stood at on {date}',

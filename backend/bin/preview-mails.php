@@ -91,6 +91,7 @@ foreach (MailLanguage::cases() as $language) {
             creditorId: 'DE43ZZZ00000548506',
             mandateReference: 'F3332CA866B249E7A202BFBF4836B605',
             accountLast4: '3000',
+            settlementReference: '3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f',
             lines: $lines,
             periodStart: '2026-07-01',
             periodEnd: '2026-07-31',
@@ -107,6 +108,7 @@ foreach (MailLanguage::cases() as $language) {
             branding: $branding,
             amountCents: $total,
             dueDate: '2026-08-21',
+            settlementReference: '3f9c2d1e7b4a4c8d9e2f1a5b6c7d8e9f',
             treasurerEmail: 'kasse@beispiel-ruderverein.de',
         )
     ));

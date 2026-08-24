@@ -34,13 +34,33 @@ class LoginAttemptsRepositoryTest extends DatabaseTestCase
         $this->ip = '198.51.100.' . (crc32($suffix) % 200 + 1);
         $this->emailA = "a-{$suffix}@example.test";
         $this->emailB = "b-{$suffix}@example.test";
+
+        // Clear the address *before* the test, not only after it.
+        //
+        // The emails are unique per test; the IP is one of two hundred, and
+        // four Feature classes draw from the same pool while several of them
+        // write rows keyed on an email of their own. So a run where two of
+        // them land on the same address leaves this one counting a stranger's
+        // attempt — `test_clearing_is_scoped_to_the_account_that_authenticated`
+        // asserts `countRecentByIp() === 1` and gets 2, in CI only, on maybe one
+        // run in ten. tearDown() cannot prevent that: it runs after the damage.
+        //
+        // `AuthRouteRateLimitTest` already clears in setUp for exactly this
+        // reason; this class was the asymmetry.
+        $this->clearAttempts();
     }
 
     protected function tearDown(): void
     {
+        $this->clearAttempts();
+        parent::tearDown();
+    }
+
+    /** Every row this test could see or leave, on either dimension. */
+    private function clearAttempts(): void
+    {
         $stmt = $this->db->prepare('DELETE FROM login_attempts WHERE ip_address = ? OR email IN (?, ?)');
         $stmt->execute([$this->ip, $this->emailA, $this->emailB]);
-        parent::tearDown();
     }
 
     public function test_a_recorded_attempt_counts_on_both_dimensions(): void

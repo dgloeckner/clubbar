@@ -22,6 +22,9 @@ final readonly class PreNotificationDataDto
      * @param string|null $salutationName   How the member is addressed; null greets generically
      * @param string|null $creditorAddress  One line, already assembled
      * @param string|null $treasurerEmail   Reply-to, for the six-week objection hint
+     * @param string      $settlementReference The canonical settlement id, the
+     *        same string the member will see in the Verwendungszweck on their
+     *        bank statement — so a question about this collection can name it
      * @param list<StatementLineDto> $lines
      */
     public function __construct(
@@ -37,6 +40,7 @@ final readonly class PreNotificationDataDto
         public ?string $creditorId,
         public ?string $mandateReference,
         public ?string $accountLast4,
+        public string $settlementReference,
         public array $lines = [],
         public ?string $periodStart = null,
         public ?string $periodEnd = null,

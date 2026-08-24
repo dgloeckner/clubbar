@@ -819,7 +819,9 @@ test.describe('Settlements API', () => {
 
       expect(response.status()).toBe(200);
       expect(response.headers()['content-type']).toContain('xml');
-      expect(response.headers()['content-disposition']).toContain(settlement.id);
+      // Named after the run's canonical reference, not its raw id — see F7.
+      expect(response.headers()['content-disposition'])
+        .toContain(settlement.id.replaceAll('-', '').toLowerCase());
     });
 
     test('F5: POST /settlements/{id}/export/sepa-xml refuses a non-direct-debit settlement', async ({ authenticatedRequest, settlementFactory }) => {
@@ -859,6 +861,35 @@ test.describe('Settlements API', () => {
       const second = await exportSepaXml(authenticatedRequest, settlement.id);
       expect(second.status()).toBe(200);
       expect(await second.text()).toContain(`<EndToEndId>${expectedId}</EndToEndId>`);
+    });
+
+    test('F7: one identifier names the run in every field of the file', async ({ authenticatedRequest, settlementFactory }) => {
+      // A settlement used to reach the bank under two names — a random
+      // `SEPA-<12 hex>` MsgId and `PMT-<16 hex>` PmtInfId — and the
+      // Verwendungszweck named nothing at all, so a member could describe a
+      // debit only by its amount and date. All three now carry the settlement's
+      // canonical reference: its id, hyphens stripped, 32 characters against
+      // the ISO 20022 cap of 35.
+      const settlement = await settlementFactory.create({ amountCents: 4250 });
+      const reference = settlement.id.replaceAll('-', '').toLowerCase();
+      expect(reference).toHaveLength(32);
+
+      const response = await exportSepaXml(authenticatedRequest, settlement.id);
+      expect(response.status()).toBe(200);
+      const xml = await response.text();
+
+      expect(xml).toContain(`<MsgId>${reference}</MsgId>`);
+      expect(xml).toContain(`<PmtInfId>${reference}</PmtInfId>`);
+
+      // The Verwendungszweck: what it is, what it covers, and which run — and
+      // within the 140 characters SEPA allows.
+      const ustrd = /<Ustrd>([^<]*)<\/Ustrd>/.exec(xml)?.[1] ?? '';
+      expect(ustrd).toContain(reference);
+      expect(ustrd.length).toBeLessThanOrEqual(140);
+
+      // And the file is named after the same string, so the download in the
+      // treasurer's folder says which run it is.
+      expect(response.headers()['content-disposition']).toContain(`-${reference}.xml`);
     });
 
     test('F4: POST /settlements/{id}/export/sepa-xml requires authentication', async ({ request }) => {
@@ -961,7 +992,8 @@ test.describe('Settlements API', () => {
 
       expect(response.status()).toBe(200);
       expect(response.headers()['content-type']).toContain('csv');
-      expect(response.headers()['content-disposition']).toContain(settlement.id);
+      expect(response.headers()['content-disposition'])
+        .toContain(settlement.id.replaceAll('-', '').toLowerCase());
     });
 
     test('G2: GET /settlements/{id}/export/csv has correct format', async ({ authenticatedRequest, settlementFactory }) => {
@@ -972,12 +1004,15 @@ test.describe('Settlements API', () => {
       expect(response.status()).toBe(200);
       const csv = await response.text();
       const [header, ...rows] = csv.trim().split('\n');
-      expect(header).toBe('Member Name;Email;IBAN;Amount EUR');
+      // The leading column names the run, so a member row still says which
+      // settlement it came from once it is pasted beside another one's.
+      expect(header).toBe('Settlement;Member Name;Email;IBAN;Amount EUR');
       expect(rows).toHaveLength(1);
       // Masked: the CSV is a reconciliation aid, not a debit instruction, so
       // last4 is enough to recognise the account (ADR-0036). The full IBAN
       // exists only in the pain.008, which needs the private key.
       expect(rows[0].split(';')).toEqual([
+        settlement.id.replaceAll('-', '').toLowerCase(),
         settlement.memberName,
         settlement.memberEmail,
         `****${settlement.iban.slice(-4)}`,
@@ -1002,7 +1037,7 @@ test.describe('Settlements API', () => {
         expect(response.status()).toBe(200);
         const rows = (await response.text()).trim().split('\n').slice(1);
         expect(rows, `${amountCents} cents must produce exactly one CSV row`).toHaveLength(1);
-        expect(rows[0].split(';')[3], `${amountCents} cents must export as ${expectedEur}`).toBe(expectedEur);
+        expect(rows[0].split(';')[4], `${amountCents} cents must export as ${expectedEur}`).toBe(expectedEur);
       }
     });
   });
@@ -1025,7 +1060,8 @@ test.describe('Settlements API', () => {
 
       expect(response.status()).toBe(200);
       expect(response.headers()['content-type']).toContain('csv');
-      expect(response.headers()['content-disposition']).toContain(settlement.id);
+      expect(response.headers()['content-disposition'])
+        .toContain(settlement.id.replaceAll('-', '').toLowerCase());
 
       const [header, ...rows] = (await response.text()).trim().split('\n');
       const columns = header.split(';');

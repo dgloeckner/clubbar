@@ -125,7 +125,6 @@ class AdminControllerListTest extends TestCase
             executionDate: '2026-01-10',
             periodStart: null,
             periodEnd: null,
-            sepaMessageId: null,
             totalAmountCents: 0,
             memberCount: 0,
             isCancelled: false,
@@ -156,8 +155,11 @@ class AdminControllerListTest extends TestCase
             ['name' => 'Hans Meier', 'email' => 'hans@example.com', 'iban' => 'DE89370400440532013000', 'amount_cents' => 1234],
         ]);
 
+        // Every row names the run, so a member line pasted next to another
+        // settlement's still says which one it came from.
         $this->assertSame(
-            "Member Name;Email;IBAN;Amount EUR\nHans Meier;hans@example.com;DE89370400440532013000;12.34\n",
+            "Settlement;Member Name;Email;IBAN;Amount EUR\n"
+            . "s1;Hans Meier;hans@example.com;DE89370400440532013000;12.34\n",
             $csv
         );
     }
@@ -169,7 +171,7 @@ class AdminControllerListTest extends TestCase
         ]);
 
         $rows = explode("\n", trim($csv));
-        $this->assertSame('"Meier; Hans";h@example.com;DE89;5.00', $rows[1]);
+        $this->assertSame('s1;"Meier; Hans";h@example.com;DE89;5.00', $rows[1]);
     }
 
     public function test_the_member_csv_keeps_a_credit_negative(): void
@@ -183,7 +185,7 @@ class AdminControllerListTest extends TestCase
 
     public function test_the_member_csv_is_a_header_alone_when_there_is_nothing_to_collect(): void
     {
-        $this->assertSame("Member Name;Email;IBAN;Amount EUR\n", $this->memberCsv([]));
+        $this->assertSame("Settlement;Member Name;Email;IBAN;Amount EUR\n", $this->memberCsv([]));
     }
 
     public function test_the_member_csv_404s_for_an_unknown_settlement(): void
@@ -203,7 +205,12 @@ class AdminControllerListTest extends TestCase
         $response = $this->controller->exportCsv($this->get('/api/admin/settlements/s-1/export/csv'), new Response(), ['id' => 's-1']);
 
         $this->assertStringContainsString('text/csv', $response->getHeaderLine('Content-Type'));
-        $this->assertStringContainsString('settlement-s-1.csv', $response->getHeaderLine('Content-Disposition'));
+        // Date first so a treasurer's folder sorts chronologically, then the
+        // canonical reference — `settlement-<raw uuid>.csv` was neither.
+        $this->assertStringContainsString(
+            'abrechnung-2026-01-01-s1.csv',
+            $response->getHeaderLine('Content-Disposition'),
+        );
     }
 
     // ── The transactions CSV ──────────────────────────────────────────

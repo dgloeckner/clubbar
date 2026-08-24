@@ -8,6 +8,7 @@ use App\Modules\Settlements\DTOs\ReversalCandidateDto;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementReversalDto;
 use App\Modules\Settlements\Domain\ReversalGate;
+use App\Modules\Settlements\Domain\SettlementReference;
 use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Repositories\CollectionHoldRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
@@ -177,7 +178,18 @@ class SettlementReversalService
             );
         }
 
-        $rows = $this->settlementsRepository->findCollectionsByReference($needle, $limit);
+        $rows = $this->settlementsRepository->findCollectionsByReference(
+            $needle,
+            // The already-prefix-stripped needle, not the raw input — an
+            // `EREF+`/`E2E-` prefix left in place would never match a
+            // settlement id. Inner spaces go too, because a Verwendungszweck
+            // that wrapped in the bank's UI pastes back with them; that is safe
+            // here and only here, since the eref and mref arms still receive
+            // $needle untouched and a mandate reference may legitimately
+            // contain a space.
+            SettlementReference::normalise($needle),
+            $limit,
+        );
 
         /** @var array<string, SettlementDto> */
         $settlements = [];
@@ -309,7 +321,7 @@ class SettlementReversalService
     private function holdReason(array $settlement, ?string $bankReference): string
     {
         $reason = 'Direct debit returned by the bank for settlement '
-            . ($settlement['sepa_message_id'] ?? $settlement['id']);
+            . SettlementReference::of($settlement['id']);
 
         if ($bankReference !== null && $bankReference !== '') {
             $reason .= ' (bank reference ' . $bankReference . ')';

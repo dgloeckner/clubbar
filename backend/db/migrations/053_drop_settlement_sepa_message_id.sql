@@ -1,0 +1,22 @@
+-- =============================================================================
+-- 053_drop_settlement_sepa_message_id.sql — one identifier per settlement
+-- =============================================================================
+-- A settlement used to be named four different ways, and this column was the
+-- worst of them: `SEPA-<12 hex>` from a *fresh random UUID*, generated at
+-- creation by a method called `getNextSepaMessageId()` that counted nothing.
+-- It went into the pain.008 as `MsgId`, so the name the bank saw had no
+-- relationship to the id in the admin URL, in the audit log, or in the
+-- `EndToEndId` of the very same file.
+--
+-- The `MsgId` is now the settlement's own id, hyphens stripped — the canonical
+-- form in `SettlementReference`, which is 32 characters against the ISO 20022
+-- cap of 35 and fits without truncation. That makes this column a stored copy
+-- of something derivable from the primary key, which is the duplication
+-- ADR-0032 §1 refuses for `status`: a fifth place for a fact to disagree with
+-- the other four, invisibly. It is also the last place a divergent id form
+-- could quietly reappear.
+--
+-- Safe to drop rather than backfill: the project is pre-launch, no settlement
+-- has been submitted to a bank, and nothing in the admin frontend ever
+-- rendered the value — it reached the API and stopped there.
+ALTER TABLE settlements DROP COLUMN sepa_message_id;

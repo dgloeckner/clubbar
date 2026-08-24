@@ -187,7 +187,6 @@ class SettlementsServiceTest extends TestCase
             'execution_date' => '2026-01-15',
             'period_start' => null,
             'period_end' => null,
-            'sepa_message_id' => 'SEPA-XYZ',
             'total_amount_cents' => 0,
             'member_count' => 1,
             'is_cancelled' => 0,
@@ -1020,7 +1019,6 @@ class SettlementsServiceTest extends TestCase
             'execution_date' => '2026-01-15',
             'period_start' => null,
             'period_end' => null,
-            'sepa_message_id' => 'SEPA-ABC123',
             'total_amount_cents' => 1250,
             'member_count' => 2,
             'is_cancelled' => 0,
@@ -1034,8 +1032,6 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
         $this->stubEligibleSweep($transactions);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-ABC123');
-
         $this->settlementsRepository
             ->expects($this->once())
             ->method('create')
@@ -1046,7 +1042,6 @@ class SettlementsServiceTest extends TestCase
                     // and there is no longer a caller-supplied one to use.
                     && $data['settlement_date'] === (new \DateTimeImmutable('today'))->format('Y-m-d')
                     && $data['execution_date'] === '2026-01-15'
-                    && $data['sepa_message_id'] === 'SEPA-ABC123'
                     && $data['created_by_admin_id'] === 'admin-1';
             }))
             ->willReturn($settlementRow);
@@ -1099,7 +1094,6 @@ class SettlementsServiceTest extends TestCase
             'execution_date' => '2026-01-15',
             'period_start' => null,
             'period_end' => null,
-            'sepa_message_id' => null,
             'total_amount_cents' => 500,
             'member_count' => 1,
             'is_cancelled' => 0,
@@ -1113,7 +1107,6 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
         $this->stubEligibleSweep($transactions);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
 
         $this->settlementsRepository
             ->expects($this->once())
@@ -1167,7 +1160,6 @@ class SettlementsServiceTest extends TestCase
             'execution_date' => '2026-08-09', // a Sunday
             'period_start' => null,
             'period_end' => null,
-            'sepa_message_id' => null,
             'total_amount_cents' => 500,
             'member_count' => 1,
             'is_cancelled' => 0,
@@ -1181,7 +1173,6 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
         $this->stubEligibleSweep($transactions);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willReturn($settlementRow);
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
@@ -1197,7 +1188,6 @@ class SettlementsServiceTest extends TestCase
             ['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500],
         ]);
         $this->stubEligibleSweep([['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]]);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willThrowException(new \RuntimeException('db exploded'));
 
         $this->db->expects($this->once())->method('rollBack');
@@ -1228,7 +1218,6 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
         $this->stubEligibleSweep($transactions);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willReturn($this->settlementRow());
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
@@ -1305,7 +1294,6 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
         $this->stubEligibleSweep($transactions);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willReturn($this->settlementRow());
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
@@ -1334,7 +1322,6 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
         $this->stubEligibleSweep($transactions);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willReturn($this->settlementRow(['method' => 'write_off']));
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
@@ -1363,7 +1350,6 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
         $this->stubEligibleSweep($transactions);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willReturn($this->settlementRow(['method' => 'bank_transfer']));
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
@@ -1394,7 +1380,6 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
         $this->stubEligibleSweep($transactions);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willReturn($this->settlementRow());
 
         $notifications = $this->createMock(NotificationsService::class);
@@ -1485,7 +1470,6 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($posted);
         $this->stubEligibleSweep($wholePosition);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
 
         $this->settlementsRepository
             ->expects($this->once())
@@ -1525,7 +1509,6 @@ class SettlementsServiceTest extends TestCase
         $this->transactionsRepository->expects($this->never())->method('findUnsettledByIds');
 
         $this->stubEligibleSweep($wholePosition);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
 
         $this->settlementsRepository
             ->expects($this->once())
@@ -1552,7 +1535,6 @@ class SettlementsServiceTest extends TestCase
     public function test_createSettlement_deduplicates_posted_member_ids(): void
     {
         $this->stubEligibleSweep([['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]]);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository
             ->expects($this->once())
             ->method('create')
@@ -1770,7 +1752,6 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($wholePosition);
         $this->stubEligibleSweep($wholePosition);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
 
         $this->settlementsRepository
             ->expects($this->once())
@@ -1832,7 +1813,6 @@ class SettlementsServiceTest extends TestCase
             ['id' => 'tx-2', 'member_id' => 'member-b', 'amount_cents' => 750],
         ]);
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willReturn([
             'id' => 'settlement-1',
             'method' => 'direct_debit',
@@ -1840,7 +1820,6 @@ class SettlementsServiceTest extends TestCase
             'execution_date' => '2026-01-15',
             'period_start' => '2026-01-01',
             'period_end' => '2026-01-31',
-            'sepa_message_id' => 'SEPA-XYZ',
             'total_amount_cents' => 1250,
             'member_count' => 2,
             'is_cancelled' => 0,
@@ -1869,7 +1848,6 @@ class SettlementsServiceTest extends TestCase
         ]);
         $this->stubEligibleSweep([['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]]);
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
 
         $this->settlementsRepository
             ->expects($this->once())
@@ -1882,7 +1860,6 @@ class SettlementsServiceTest extends TestCase
                 'execution_date' => '2026-02-15',
                 'period_start' => '2026-02-01',
                 'period_end' => '2026-02-28',
-                'sepa_message_id' => 'SEPA-XYZ',
                 'total_amount_cents' => 500,
                 'member_count' => 1,
                 'is_cancelled' => 0,
@@ -1934,8 +1911,6 @@ class SettlementsServiceTest extends TestCase
             ->method('findUnsettledByMemberIds')
             ->with(['member-owing'])
             ->willReturn([['id' => 'tx-owing', 'member_id' => 'member-owing', 'amount_cents' => 500]]);
-
-        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository
             ->expects($this->once())
             ->method('create')
@@ -1984,7 +1959,6 @@ class SettlementsServiceTest extends TestCase
             'execution_date' => '2026-01-15',
             'period_start' => null,
             'period_end' => null,
-            'sepa_message_id' => null,
             'total_amount_cents' => 500,
             'member_count' => 1,
             'is_cancelled' => 0,
@@ -2041,7 +2015,6 @@ class SettlementsServiceTest extends TestCase
             'execution_date' => '2026-01-15',
             'period_start' => null,
             'period_end' => null,
-            'sepa_message_id' => null,
             'total_amount_cents' => 500,
             'member_count' => 1,
             'is_cancelled' => 0,

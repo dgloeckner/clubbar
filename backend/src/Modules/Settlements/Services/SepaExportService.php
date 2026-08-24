@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Settlements\Services;
 
 use App\Modules\Settlements\Domain\EndToEndId;
+use App\Modules\Settlements\Domain\SettlementReference;
 use App\Modules\Settlements\DTOs\ExcludedMemberDto;
 use App\Modules\Settlements\DTOs\SepaExportResultDto;
 use App\Modules\Settlements\Enums\SepaExclusionReason;
@@ -133,11 +134,15 @@ class SepaExportService
         }
 
         // Build SEPA XML using digitick/sepa-xml.
-        // ISO 20022 caps MsgId/PmtInfId/EndToEndId at 35 chars, so identifiers
-        // derived from UUIDs use the hyphen-stripped, truncated form.
-        $settlementIdHex = str_replace('-', '', $settlement['id']);
-        $messageId = $settlement['sepa_message_id'] ?? 'MSG-' . substr($settlementIdHex, 0, 31);
-        $paymentId = 'PMT-' . substr($settlementIdHex, 0, 16);
+        //
+        // One identifier, not three. MsgId used to be a random `SEPA-<12 hex>`
+        // stored on the row and PmtInfId the first 16 hex digits of the UUID,
+        // so a single settlement went to the bank under two names, neither of
+        // which was the one in the admin panel. Both are now the canonical
+        // reference, which is 32 characters against the ISO 20022 cap of 35.
+        $reference = SettlementReference::of($settlement['id']);
+        $messageId = $reference;
+        $paymentId = $reference;
         $creditorName = $this->sanitizeName($config['creditor_name']);
 
         $directDebit = \Digitick\Sepa\TransferFile\Factory\TransferFileFacadeFactory::createDirectDebit(
@@ -243,7 +248,7 @@ class SepaExportService
                     'debtorName' => $this->sanitizeName($member['account_holder_name'] ?? ($member['first_name'] . ' ' . $member['last_name'])),
                     'debtorMandate' => $member['mandate_reference'],
                     'debtorMandateSignDate' => $member['mandate_signed_at'] ?? $settlement['settlement_date'],
-                    'remittanceInformation' => $this->buildRemittanceInfo($config, $settlement['settlement_date']),
+                    'remittanceInformation' => $this->buildRemittanceInfo($config, $settlement, $reference),
                 ]
             );
         }
@@ -284,6 +289,10 @@ class SepaExportService
             collectedAmountCents: $collectedAmountCents,
             settlementAmountCents: $settlementAmountCents,
             collectedMemberCount: count($sentEndToEndIds),
+            // Date first so a folder of these sorts chronologically, then the
+            // canonical reference so the file says which run it is. Every one
+            // of them used to be `sepa-<raw uuid>.xml`.
+            downloadName: sprintf('sepa-%s-%s.xml', $settlement['settlement_date'], $reference),
         );
 
         $this->warnAboutShortfall($settlementId, $excludedMembers, $settlementAmountCents, $collectedAmountCents);
@@ -368,13 +377,64 @@ class SepaExportService
         ]);
     }
 
-    private function buildRemittanceInfo(array $config, string $settlementDate): string
+    /**
+     * The Verwendungszweck — the only text about this collection that a member
+     * ever reads, on their own bank statement.
+     *
+     * It used to be `<prefix> <settlement_date>`: no identifier at all, and the
+     * date the run was created rather than the period the drinks were bought
+     * in. A member asking "what was this?" had nothing to recognise and nothing
+     * to quote, and the Kassenwart had nothing to look the question up by.
+     *
+     * Three things now, in the order a member reads them: what it is, what it
+     * covers, and which run collected it.
+     *
+     * The 140-character budget is spent tail-first. The period and the
+     * reference are fixed-width and load-bearing, so the **prefix** is what
+     * gets truncated — the club's own name is the part a member can afford to
+     * see abbreviated. Previously nothing capped the result at all; only the
+     * prefix was sanitised, and with `sanitizeName`, whose limit is 70 rather
+     * than the 140 this field allows.
+     *
+     * @param array<string,mixed> $config    The `sepa_config` row.
+     * @param array<string,mixed> $settlement The settlement row.
+     * @param string $reference The canonical reference, already in SEPA charset.
+     */
+    private function buildRemittanceInfo(array $config, array $settlement, string $reference): string
     {
-        $prefix = $config['payment_reference_prefix'] ?? null;
-        if ($prefix) {
-            return SepaSanitizer::sanitizeName($prefix) . ' ' . $settlementDate;
+        $tail = trim(self::describePeriod($settlement) . ' ' . $reference);
+
+        // A leading space would survive into the field, and a negative budget
+        // would make substr() cut from the right-hand end.
+        $budget = SepaSanitizer::MAX_REMITTANCE - strlen($tail) - 1;
+        $prefix = $budget > 0
+            ? SepaSanitizer::sanitize((string) ($config['payment_reference_prefix'] ?? '') ?: 'Settlement', $budget)
+            : '';
+
+        return SepaSanitizer::sanitizeRemittance(trim($prefix . ' ' . $tail));
+    }
+
+    /**
+     * What the collection covers, for the member's statement.
+     *
+     * `period_start` and `period_end` are nullable and, per ADR-0032 §2, are
+     * descriptive labels rather than a boundary on the run's contents — a run
+     * can sweep a transaction from outside them. They are still the closest
+     * thing to "what you are paying for"; with neither recorded, the run's own
+     * date is all there is to say.
+     *
+     * @param array<string,mixed> $settlement
+     */
+    private static function describePeriod(array $settlement): string
+    {
+        $start = $settlement['period_start'] ?? null;
+        $end = $settlement['period_end'] ?? null;
+
+        if ($start && $end) {
+            return $start . ' - ' . $end;
         }
-        return 'Settlement ' . $settlementDate;
+
+        return (string) ($start ?? $end ?? $settlement['settlement_date']);
     }
 
     public function sanitizeName(string $name): string

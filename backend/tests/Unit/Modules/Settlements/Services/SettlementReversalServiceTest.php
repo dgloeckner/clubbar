@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Settlements\Services;
 
 use App\Modules\Settlements\Enums\ReversalReason;
+use App\Modules\Settlements\Domain\SettlementReference;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\CollectionHoldRepository;
 use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
@@ -129,7 +130,13 @@ class SettlementReversalServiceTest extends TestCase
 
         $this->assertSame([self::ALICE, self::BOB], array_keys($held));
         $this->assertStringContainsString('RET-42', $held[self::ALICE], 'the bank reference is the only thread back to the return');
-        $this->assertStringContainsString('SEPA-MSG-1', $held[self::ALICE]);
+        // The hold reason used to quote a random `SEPA-<12 hex>` that named
+        // nothing the treasurer could look up. It now carries the canonical
+        // reference — the same string in the file, the mail and the UI.
+        $this->assertStringContainsString(
+            SettlementReference::of(self::SETTLEMENT_ID),
+            $held[self::ALICE],
+        );
     }
 
     public function test_a_club_error_holds_nobody(): void
@@ -143,13 +150,24 @@ class SettlementReversalServiceTest extends TestCase
         );
     }
 
-    public function test_the_hold_reason_survives_a_settlement_with_no_sepa_message_id(): void
+    /**
+     * This used to guard the `?? $settlement['id']` fallback for a settlement
+     * with no `sepa_message_id`. There is no fallback any more and no column to
+     * be missing: the reference is derived from the primary key, so a hold
+     * reason can no longer come out anonymous. The test stays, pointed at the
+     * property that replaced the fallback.
+     */
+    public function test_the_hold_reason_always_names_the_settlement(): void
     {
-        $this->stubSubmittedSettlement([self::ALICE], [self::ALICE => 1500], sepaMessageId: null);
+        $this->stubSubmittedSettlement([self::ALICE], [self::ALICE => 1500]);
 
         $this->collectionHoldRepository->expects($this->once())
             ->method('place')
-            ->with(self::ALICE, $this->stringContains(self::SETTLEMENT_ID), self::ADMIN);
+            ->with(
+                self::ALICE,
+                $this->stringContains(SettlementReference::of(self::SETTLEMENT_ID)),
+                self::ADMIN,
+            );
 
         $this->service->reverse(
             self::SETTLEMENT_ID, [self::ALICE], ReversalReason::BANK_RETURN, null, null, self::ADMIN,
@@ -451,7 +469,6 @@ class SettlementReversalServiceTest extends TestCase
     private function stubSubmittedSettlement(
         array $settledMemberIds,
         array $amounts,
-        ?string $sepaMessageId = 'SEPA-MSG-1',
         array $alreadyReversed = [],
     ): void {
         $this->settlementsRepository->method('findById')->willReturn([
@@ -460,7 +477,6 @@ class SettlementReversalServiceTest extends TestCase
             'is_cancelled' => 0,
             'execution_date' => date('Y-m-d', strtotime('+14 days')),
             'submitted_at' => '2026-08-07 11:00:00',
-            'sepa_message_id' => $sepaMessageId,
         ]);
         $this->settlementsRepository->method('findSettledMemberIds')->willReturn($settledMemberIds);
         $this->settlementsRepository->method('sumItemAmountsByMember')->willReturn($amounts);

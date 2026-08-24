@@ -81,8 +81,17 @@ supplied — it is not a request field (issue #113).
   period_start?: string | null;
   /** @nullable */
   period_end?: string | null;
-  /** @nullable */
-  sepa_message_id?: string | null;
+  /**
+   * The canonical, human-quotable name of this settlement: its id with
+the hyphens removed, 32 lowercase hex digits. The same string is the
+pain.008 `MsgId` and `PmtInfId`, appears in the Verwendungszweck the
+member reads on their bank statement, and is shown in the
+Vorabankündigung — so a member can quote it and the Kassenwart can
+look it up. Derived server-side from `id`; never stored, never
+recomputed by a client.
+
+   */
+  reference?: string;
   total_amount_cents?: number;
   member_count?: number;
   is_cancelled?: boolean;
