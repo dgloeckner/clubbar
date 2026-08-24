@@ -516,14 +516,15 @@ jobs:
     # so gating on it just serialized two independent test suites behind
     # each other. Running them concurrently trades "skip E2E compute when
     # PHPUnit already failed" for shorter wall-clock CI time.
-    needs: [changes, lint, build-frontend, build-backend]
+    needs: [changes, lint, lint-e2e, build-frontend, build-backend]
     # A skipped dependency must not cascade into skipping this job (lint is
-    # skipped for a backend-only change), so gate on failure rather than on
-    # the default "all needs succeeded".
+    # skipped for a backend-only change, lint-e2e for an admin-only change),
+    # so gate on failure rather than on the default "all needs succeeded".
     if: |
       always() && !cancelled()
       && needs.changes.outputs.web == 'true'
       && needs.lint.result != 'failure'
+      && needs['lint-e2e'].result != 'failure'
       && needs['build-frontend'].result == 'success'
       && needs['build-backend'].result == 'success'
     runs-on: ubuntu-24.04
