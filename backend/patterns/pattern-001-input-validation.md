@@ -293,5 +293,5 @@ The `Validator` is **shared infrastructure**:
 
 ## References
 
-- [ADR-0017: Input Validation and Injection Prevention](../adr/0017-input-validation-injection-prevention.md)
+- [ADR-0017: Input Validation and Injection Prevention](../../adr/0017-input-validation-injection-prevention.md)
 - [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html)

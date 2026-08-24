@@ -2,7 +2,7 @@
 
 **Implementation Status**: Not implemented
 
-Reversing one specific transaction, in full. This is the **only** way to correct a booking — see [#158](https://github.com/dgloeckner/ruderbar/issues/158) and the `Storno` entry in [CONTEXT.md](../../CONTEXT.md).
+Reversing one specific transaction, in full. This is the **only** way to correct a booking — see [#158](https://github.com/dgloeckner/clubbar/issues/158) and the `Storno` entry in [CONTEXT.md](../../CONTEXT.md).
 
 ## Actor
 Admin

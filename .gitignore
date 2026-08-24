@@ -12,3 +12,7 @@
 /terminal-walkthrough.mp4
 /terminal-walkthrough-output/
 .claude/worktrees/
+
+# JetBrains IDE project files — user-local, not project config
+.idea/
+

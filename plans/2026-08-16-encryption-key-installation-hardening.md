@@ -46,7 +46,7 @@ old mandate and the `UNIQUE` reference cannot be reused.
 
 ## Milestones
 
-### M1 — Proof of possession at activation ([commit 74abc6b](../../commit/74abc6b))
+### M1 — Proof of possession at activation ([commit 74abc6b](https://github.com/dgloeckner/clubbar/commit/74abc6b))
 
 - [x] `EncryptionKeyService::activate()` takes the private half of the key being
       activated and validates it through the existing `validatePrivateKeyFor()` —
@@ -78,7 +78,7 @@ implementation beside TweetNaCl (which has `nacl.box` but not the hash
 exposure per key activation, against a monthly one at export through the same
 wipe-in-`finally` code, did not justify that.
 
-### M2 — Key lifecycle leaves by mail ([commit a7cdebd](../../commit/a7cdebd))
+### M2 — Key lifecycle leaves by mail ([commit a7cdebd](https://github.com/dgloeckner/clubbar/commit/a7cdebd))
 
 - [x] `MailKind::ENCRYPTION_KEY_REGISTERED` / `_ACTIVATED` / `_REVOKED`, subject
       `MailSubject::ENCRYPTION_KEY`, `addressesMember() === false`. Three kinds

@@ -100,8 +100,9 @@ later resolves against the exact string that was sent (ADR-0032 §8, #150).
 
 - [x] **M7 — Docs and specs.** The never-built `SET-{YYYY}-{NNN}` spec and its
   filename examples corrected in `use-cases/sepa/`, `api/admin.yaml`,
-  `docs/erm-master.md` and `docs/datamodel.md`, with an explicit *"do not add a
-  column for it"* note beside the settlements table.
+  `docs/erm-master.md`, with an explicit *"do not add a column for it"* note
+  beside the settlements table. (`docs/datamodel.md` was corrected here too, then
+  deleted wholesale on main by the docs review in #681 as inaccurate.)
 
 ## Open item, needs approval
 

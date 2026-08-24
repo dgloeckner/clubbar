@@ -242,7 +242,7 @@ test('transaction upload', async ({ request, terminalHeaders }) => {
 **Token Generation**:
 ```bash
 # Run seeder to generate token
-docker compose exec backend bash -c "cd /app && php artisan db:seed --class=TerminalSeeder"
+curl -sf -H "X-Install-Key: $INSTALL_KEY" "http://localhost:8080/install.php?action=seed"
 
 # Output includes:
 # API Token: 666f1dced4ea1b797c39dfcdabbd1e62ebbdd8d3014acbb593411948b69dd646
@@ -384,7 +384,7 @@ env:
 steps:
   - name: Run tests
     run: |
-      docker compose exec backend php artisan db:seed --class=TerminalSeeder
+      curl -sf -H "X-Install-Key: $INSTALL_KEY" "http://localhost:8080/install.php?action=seed"
       npx playwright test
 ```
 
@@ -410,7 +410,7 @@ npx playwright test
 **Solution**:
 ```bash
 # Generate token
-docker compose exec backend bash -c "cd /app && php artisan db:seed --class=TerminalSeeder"
+curl -sf -H "X-Install-Key: $INSTALL_KEY" "http://localhost:8080/install.php?action=seed"
 
 # Copy token from output and set it
 export TEST_TERMINAL_TOKEN="<token from output>"

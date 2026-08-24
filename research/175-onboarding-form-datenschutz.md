@@ -1,6 +1,6 @@
 # Research: Onboarding form — Art. 13 notice, legal bases, SEPA mandate vs. consent, Art. 30 / § 38 BDSG, common practice
 
-**Ticket:** [#175](https://github.com/dgloeckner/ruderbar/issues/175)
+**Ticket:** [#175](https://github.com/dgloeckner/clubbar/issues/175)
 **Date:** 2026-08-07
 **Companion:** `research/art9-rfid-display-retention.md` (Art. 9, RFID as personal data, screen display, retention periods) — not repeated here.
 

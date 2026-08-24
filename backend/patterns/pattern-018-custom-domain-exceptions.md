@@ -1,4 +1,4 @@
-# Pattern 009: Custom Domain Exceptions
+# Pattern 018: Custom Domain Exceptions
 
 **Category**: Exception Handling
 **Status**: ✅ Recommended

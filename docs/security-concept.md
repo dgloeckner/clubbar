@@ -32,7 +32,7 @@ flowchart TB
 | Transport | Can traffic be read or tampered with in flight? | [ADR-0016](../adr/0016-transport-security.md), [ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) |
 | Authentication | Is the caller who they claim to be? | [ADR-0015](../adr/0015-authentication-and-authorization-strategy.md), [ADR-0025](../adr/0025-session-fixation-protection.md), [ADR-0026](../adr/0026-mandatory-totp-two-factor-authentication.md) |
 | Authorization | May this caller do this, specifically? | [ADR-0044](../adr/0044-tiered-admin-roles.md) — see [Role-Based Admin Access](./role-based-access.md) |
-| Data protection | If the database is stolen, what does the thief actually get? | [ADR-0036](../adr/0036-iban-encryption-sealed-box.md), [ADR-0038 (crypto)](../adr/0038-shared-symmetric-crypto-abstraction.md) |
+| Data protection | If the database is stolen, what does the thief actually get? | [ADR-0036](../adr/0036-iban-encryption-sealed-box.md), [ADR-0048](../adr/0048-shared-symmetric-crypto-abstraction.md) |
 | Monitoring & response | If something goes wrong anyway, does anyone find out? | [ADR-0013](../adr/0013-audit-logging.md), [ADR-0041](../adr/0041-terminal-credential-anomaly-detection.md), [ADR-0043](../adr/0043-terminal-credential-issuance-is-announced.md) |
 
 ---
@@ -168,7 +168,7 @@ flowchart LR
   ≤30d, CRITICAL ≤7d) delivered by email, not just a dashboard badge nobody
   is looking at.
 - TOTP secrets get the same treatment at a smaller scale: authenticated
-  encryption via libsodium `crypto_secretbox` ([ADR-0038, crypto](../adr/0038-shared-symmetric-crypto-abstraction.md)).
+  encryption via libsodium `crypto_secretbox` ([ADR-0048](../adr/0048-shared-symmetric-crypto-abstraction.md)).
 - **What this does not do:** it doesn't hide an IBAN from a `Kassenwart`,
   who holds a key copy because SEPA collection requires one. That's the
   office doing its job, not a gap — see ADR-0044 §"Consequences" for why
@@ -312,7 +312,7 @@ at install time and in CI. See [ADR-0031](../adr/0031-production-hardening-on-sh
 - [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md) — Two-Tier Retention and Erasure
 - [ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) — Production Hardening on Shared Hosting
 - [ADR-0036](../adr/0036-iban-encryption-sealed-box.md) — IBAN Encryption at Rest
-- [ADR-0038 (crypto)](../adr/0038-shared-symmetric-crypto-abstraction.md) — Shared Symmetric Crypto Abstraction
+- [ADR-0048](../adr/0048-shared-symmetric-crypto-abstraction.md) — Shared Symmetric Crypto Abstraction
 - [ADR-0041](../adr/0041-terminal-credential-anomaly-detection.md) — Terminal Credential Anomaly Detection
 - [ADR-0043](../adr/0043-terminal-credential-issuance-is-announced.md) — Terminal Credential Issuance Is Announced
 - [ADR-0044](../adr/0044-tiered-admin-roles.md) — Tiered Admin Roles

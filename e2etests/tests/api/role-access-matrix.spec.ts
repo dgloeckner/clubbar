@@ -95,8 +95,12 @@ const MATRIX: Entry[] = [
 
   // ── the installation itself ──────────────────────────────────────────────
   { method: 'GET', path: '/admin/security-check', roles: ADMIN_ONLY },
-  { method: 'GET', path: '/admin/scheduler', roles: ADMIN_ONLY },
   { method: 'PATCH', path: '/admin/instance-config', roles: ADMIN_ONLY },
+  // TREASURY since #677: the scheduler gate refuses the treasurer's finalize
+  // button, so the treasurer has to be able to see that it is closed. The
+  // response is redacted for them — what this file asserts is only who may
+  // knock; `scheduler-payload-split.spec.ts` asserts what they hear.
+  { method: 'GET', path: '/admin/scheduler', roles: TREASURY },
 
   // ── the club's financial position ────────────────────────────────────────
   { method: 'GET', path: '/admin/dashboard', roles: TREASURY },

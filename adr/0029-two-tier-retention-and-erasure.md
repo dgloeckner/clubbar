@@ -16,7 +16,7 @@ Two things in the code today are wrong in opposite directions, which is what mak
 
 So the system currently both over-blocks erasure and, when it does run, deletes the wrong fields.
 
-Researched in [#174](https://github.com/dgloeckner/ruderbar/issues/174); decided in [#165](https://github.com/dgloeckner/ruderbar/issues/165).
+Researched in [#174](https://github.com/dgloeckner/clubbar/issues/174); decided in [#165](https://github.com/dgloeckner/clubbar/issues/165).
 
 ## Decision
 
@@ -93,9 +93,9 @@ Note also that **pseudonymising does not help by itself**: `member_id` instead o
 | **No consumption-profile views** | No per-member drink-type breakdowns, leaderboards, "favourite drink", or consumption trend charts. This is where a billing record turns into a behavioural profile, and it is what an authority would seize on |
 | **Aggregate statistics must be anonymous** | *"How much beer did we sell in March"* is legitimate and must be answered from aggregates, never by querying named histories — the § 27 Abs. 3 BDSG anonymise-early pattern |
 | **Line-item access is audit-scoped** | Reachable for a Betriebsprüfung; not a routine admin screen |
-| **Disclose it** | The Art. 13 notice must say plainly what is kept and for how long ([#175](https://github.com/dgloeckner/ruderbar/issues/175)) |
+| **Disclose it** | The Art. 13 notice must say plainly what is kept and for how long ([#175](https://github.com/dgloeckner/clubbar/issues/175)) |
 
-✅ **[UC-A51 Member Ranking](../use-cases/admin/UC-A51-member-ranking.md) complied with the first control on 2026-08-08** ([#177](https://github.com/dgloeckner/ruderbar/issues/177)). It used to ship a *named* "top N members by consumption" from `GET /api/admin/reports/member-ranking` — exactly the feature this control prohibits. The named mode was **removed rather than restricted**: "for internal use only" is no mitigation when the concern is that the profile exists at all. The ranking is now always anonymous, the query no longer reads member names, and rows are labelled by their **ordinal position in the report being rendered** — not by a persistent alias, which anyone able to identify a single row could otherwise carry across every other report.
+✅ **[UC-A51 Member Ranking](../use-cases/admin/UC-A51-member-ranking.md) complied with the first control on 2026-08-08** ([#177](https://github.com/dgloeckner/clubbar/issues/177)). It used to ship a *named* "top N members by consumption" from `GET /api/admin/reports/member-ranking` — exactly the feature this control prohibits. The named mode was **removed rather than restricted**: "for internal use only" is no mitigation when the concern is that the profile exists at all. The ranking is now always anonymous, the query no longer reads member names, and rows are labelled by their **ordinal position in the report being rendered** — not by a persistent alias, which anyone able to identify a single row could otherwise carry across every other report.
 
 ### The mail outbox is a second place the address lives
 
@@ -139,14 +139,14 @@ It is **not** an Art. 18(1) case. Lit. b requires the processing to be *unlawful
 
 **Negative**
 
-- **A departing member cannot be fully erased for up to ten years.** This is the honest consequence and it must be **disclosed to members**, in the privacy notice and on the offboarding screen. Implying erasure is complete when it is not is worse than the delay itself. See [#175](https://github.com/dgloeckner/ruderbar/issues/175).
+- **A departing member cannot be fully erased for up to ten years.** This is the honest consequence and it must be **disclosed to members**, in the privacy notice and on the offboarding screen. Implying erasure is complete when it is not is worse than the delay itself. See [#175](https://github.com/dgloeckner/clubbar/issues/175).
 - Restriction-by-access costs more than a flag, and every new read path must go through it.
 - **Deletion depends on the club, not the software.** If nobody runs the annual review, data outlives its basis and the system will not stop it. That is inherent: the alternative — an unattended sweep — would delete on a date the law can extend. Mitigation is that the review sits on the Kassenprüfung checklist and its outcome is minuted, so a missed year is visible in the club's own records rather than nowhere.
 - The Art. 17(3)(b) reading is settled in practice but unadjudicated.
 
 **Neutral**
 
-- Anonymisation stops being a single `UPDATE`. It becomes: resolve balance → delete operational tier → restrict retention tier → stamp expiry. That is [offboarding](https://github.com/dgloeckner/ruderbar/issues/173), and it is atomic.
+- Anonymisation stops being a single `UPDATE`. It becomes: resolve balance → delete operational tier → restrict retention tier → stamp expiry. That is [offboarding](https://github.com/dgloeckner/clubbar/issues/173), and it is atomic.
 
 ## Related
 
@@ -155,4 +155,4 @@ It is **not** an Art. 18(1) case. Lit. b requires the processing to be *unlawful
 - [ADR-0006](./0006-sepa-mandate-reference-strategy.md) — the mandate record whose fields are Beleg-bearing
 - [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md) — the mail outbox, whose `recipient` snapshot this ADR places in the operational tier
 - `use-cases/dsgvo/uc-dsgvo-02-right-to-erasure.md`
-- [#165](https://github.com/dgloeckner/ruderbar/issues/165) the ruling · [#173](https://github.com/dgloeckner/ruderbar/issues/173) offboarding · [#151](https://github.com/dgloeckner/ruderbar/issues/151) the retention-expiry column
+- [#165](https://github.com/dgloeckner/clubbar/issues/165) the ruling · [#173](https://github.com/dgloeckner/clubbar/issues/173) offboarding · [#151](https://github.com/dgloeckner/clubbar/issues/151) the retention-expiry column

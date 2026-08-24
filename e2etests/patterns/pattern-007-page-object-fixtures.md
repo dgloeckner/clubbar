@@ -1,4 +1,4 @@
-# E2E Testing Pattern 006: Page Object Fixtures
+# Pattern 007: Page Object Fixtures
 
 ## Overview
 
@@ -499,7 +499,7 @@ Before using fixtures in your tests, verify:
 
 ## See Also
 
-- **Pattern 005**: [Page Object Model](005-page-object-model.md) - Create page objects
+- **Pattern 005**: [Page Object Model](pattern-006-page-object-model.md) - Create page objects
 - **Pattern 001**: [Test Data Isolation](pattern-001-test-data-isolation.md) - Isolate test data
 - **Playwright Fixtures**: [Official Documentation](https://playwright.dev/docs/fixtures)
 - **Fixture Composition**: [Playwright Docs](https://playwright.dev/docs/fixtures#fixtures-dependency)

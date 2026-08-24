@@ -170,7 +170,7 @@ amount_cents_remainder: 50
 
 ## Related Decisions
 
-- [ADR-0002: API Response Format](./0002-api-response-format.md) (when created)
+- ADR-0002: API Response Format — never written; the response envelope is documented in `backend/patterns/pattern-017-shared-http-layer.md`
 - Database schema migration: See `/backend/migrations/0001-initial-schema.sql`
 
 ---

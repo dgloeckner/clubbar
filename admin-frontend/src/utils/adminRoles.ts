@@ -56,6 +56,29 @@ export const SECTION_ROLES: Record<string, AdminRole[]> = {
 }
 
 /**
+ * Who the scheduler banner is for (#677).
+ *
+ * Not a section — the banner is layout, and it is above the page on every
+ * route rather than behind a nav entry — so it is not in `SECTION_ROLES` and
+ * deliberately not keyed on a path. It is here because it is the same
+ * question: which offices may see this surface, and therefore which offices
+ * fetch for it.
+ *
+ * `TREASURY`, matching the route's grant. The Kassenwart is the whole point:
+ * finalizing a direct debit is refused until a drain run has been observed,
+ * and learning that when the button refuses is too late. The Getränkewart is
+ * left out on purpose rather than by oversight — the gate never blocks
+ * anything they can do, and including them would put a request that can only
+ * answer 403 on every page they open.
+ */
+export const SCHEDULER_BANNER_ROLES: AdminRole[] = TREASURY
+
+/** Whether `held` includes any of `allowed`. Grants are additive, so: any. */
+export function holdsAnyRole(held: AdminRole[], allowed: AdminRole[]): boolean {
+  return held.some((role) => allowed.includes(role))
+}
+
+/**
  * Settings tab → the roles that may see it (ADR-0047, #562).
  *
  * The second half of opening `/settings` to the treasury. `SECTION_ROLES` says
@@ -162,9 +185,7 @@ export function sameRoleSet(a: AdminRole[], b: AdminRole[]): boolean {
 
 /** Whether an account holding `held` may open `pathname`. */
 export function permitsPath(held: AdminRole[], pathname: string): boolean {
-  const allowed = rolesForPath(pathname)
-
-  return held.some((role) => allowed.includes(role))
+  return holdsAnyRole(held, rolesForPath(pathname))
 }
 
 /**

@@ -1,4 +1,4 @@
-# E2E Testing Pattern 005: Using Test IDs (data-testid)
+# Pattern 005: Using Test IDs (data-testid)
 
 **Version**: 1.0
 **Status**: Active

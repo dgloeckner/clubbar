@@ -1,7 +1,7 @@
 # Research: does German bookkeeping law require a correction to reference the booking it corrects?
 
-Resolves [#159](https://github.com/dgloeckner/ruderbar/issues/159), part of wayfinder map [#139](https://github.com/dgloeckner/ruderbar/issues/139).
-Informs [#158](https://github.com/dgloeckner/ruderbar/issues/158) (linkage) and [#141](https://github.com/dgloeckner/ruderbar/issues/141) (exclude-and-flag payouts).
+Resolves [#159](https://github.com/dgloeckner/clubbar/issues/159), part of wayfinder map [#139](https://github.com/dgloeckner/clubbar/issues/139).
+Informs [#158](https://github.com/dgloeckner/clubbar/issues/158) (linkage) and [#141](https://github.com/dgloeckner/clubbar/issues/141) (exclude-and-flag payouts).
 
 **Setting assumed throughout**: a German `e.V.` (gemeinnütziger Sportverein) runs a member bar as a `wirtschaftlicher Geschäftsbetrieb`. **No cash is handled.** Drinks are booked to an internal member tab (a receivable), collected later by SEPA-Lastschrift. Transactions are append-only; corrections are new reversing rows (ADR-0004).
 
@@ -118,7 +118,7 @@ An append-only table with linked reversals is a textbook Rz. 110 implementation.
 
 For a bank-transfer payout the **Kontoauszug is the Fremdbeleg**, so no Eigenbeleg is strictly required *provided* the `payout` row and the bank line can be tied together. That tie is not optional — Rz. 71–73 govern it, and Rz. 73 expressly warns that **Kontoauszugsnummer alone is generally not a sufficient Zuordnungsmerkmal**. Practically: the payout row must carry a bank reference (EndToEndId / a Verwendungszweck containing the payout's own ID), and the same string must appear on the transfer.
 
-This dovetails with the ruling already recorded in [#149](https://github.com/dgloeckner/ruderbar/issues/149) — a stable, persisted EndToEndId. That decision was made for SEPA-return matching; Rz. 71–73 make it a bookkeeping requirement as well, and for outbound payouts too, not just collections.
+This dovetails with the ruling already recorded in [#149](https://github.com/dgloeckner/clubbar/issues/149) — a stable, persisted EndToEndId. That decision was made for SEPA-return matching; Rz. 71–73 make it a bookkeeping requirement as well, and for outbound payouts too, not just collections.
 
 ### 2.2 Retention: 8 years, but do not hard-delete at 8
 
@@ -136,7 +136,7 @@ Two consequences for the code: (a) 8 years is the number for a payout Beleg, 10 
 
 > (1) Wer verpflichtet ist, über eine mit Einnahmen oder Ausgaben verbundene Verwaltung Rechenschaft abzulegen, hat dem Berechtigten eine **die geordnete Zusammenstellung der Einnahmen oder der Ausgaben enthaltende Rechnung** mitzuteilen und, **soweit Belege erteilt zu werden pflegen**, Belege vorzulegen.
 
-Two duties with different strength: the *geordnete Zusammenstellung* is unconditional; *Belegvorlage* is qualified by a Verkehrsüblichkeits-Vorbehalt. Note also the **Saldierungsverbot** that follows from "geordnet" — income and expenditure may not be netted against one another. That is an argument *against* ever representing a payout as a negative purchase, and *for* the separate `payout` row that [#141](https://github.com/dgloeckner/ruderbar/issues/141) §4 already specifies.
+Two duties with different strength: the *geordnete Zusammenstellung* is unconditional; *Belegvorlage* is qualified by a Verkehrsüblichkeits-Vorbehalt. Note also the **Saldierungsverbot** that follows from "geordnet" — income and expenditure may not be netted against one another. That is an argument *against* ever representing a payout as a negative purchase, and *for* the separate `payout` row that [#141](https://github.com/dgloeckner/clubbar/issues/141) §4 already specifies.
 
 And for gemeinnützigkeit, **§ 63 Abs. 3 AO**:
 > (3) Die Körperschaft hat den Nachweis, dass ihre tatsächliche Geschäftsführung den Erfordernissen des Absatzes 1 entspricht, durch **ordnungsmäßige Aufzeichnungen über ihre Einnahmen und Ausgaben** zu führen.
@@ -224,7 +224,7 @@ Re-read the AEAO passage in §3.1. It extends Kassenfunktion to "**virtuelle (Ku
 
 **I could not find any BMF-Schreiben, Länder-Merkblatt, or BFH decision stating in terms that a post-paid Kunden-/Debitorenkonto is a Forderung and therefore outside § 146a AO.** That proposition is a reading of the AEAO wording, not a sourced holding, and it should not be repeated as though it were one. It is the single point worth putting to a Steuerberater before launch.
 
-Design consequence, and it is a real constraint on the roadmap: **never let a member top up a balance at the terminal.** The moment the ledger can hold prepaid credit taken on site, the out-of-scope argument weakens sharply. Note that this cuts *with* the exclude-and-flag ruling in [#140](https://github.com/dgloeckner/ruderbar/issues/140): a credit balance arising from a *correction* is a residual receivable turned negative, not money the member handed over — a different thing from a top-up, and worth keeping different in the UI language too.
+Design consequence, and it is a real constraint on the roadmap: **never let a member top up a balance at the terminal.** The moment the ledger can hold prepaid credit taken on site, the out-of-scope argument weakens sharply. Note that this cuts *with* the exclude-and-flag ruling in [#140](https://github.com/dgloeckner/clubbar/issues/140): a credit balance arising from a *correction* is a residual receivable turned negative, not money the member handed over — a different thing from a top-up, and worth keeping different in the UI language too.
 
 ### 3.4 What still applies, cashless or not
 
@@ -248,7 +248,7 @@ A proportionality clause, not an exemption — and one that evaporates the momen
 1. **`related_transaction_id` must be mandatory whenever a specific transaction is reversed.** GoBD Rz. 64 is a requirement, not a convention. ADR-0004's "Optional" is below the floor for Scenario A.
 2. **Scenario B survives, but must stop being called a correction.** A goodwill credit is an own Geschäftsvorfall; Rz. 64 does not reach it. Split the type (`reversal` vs `adjustment`) so the FK can be `NOT NULL` on the former — an optional column cannot express the rule.
 3. **Both shapes need the Rz. 77 fields**, and two of ours are weak: "hinreichende Erläuterung des Geschäftsvorfalls" and "verantwortlicher Aussteller". The free-text `notes` field must be non-empty for every non-purchase row, and `created_by_admin_id` must be populated (which #144's ruling already forces to NULL on the *sync* path — correctly, since a terminal purchase has no admin author, but it must be present on every admin-created correction).
-4. **Payouts get a bank reference, not a transaction link** — and `related_transaction_id` should be NULL for them by construction. #149's persisted EndToEndId ([#150](https://github.com/dgloeckner/ruderbar/issues/150)) is a GoBD Rz. 71–73 requirement for outbound payouts too, not only for return matching.
+4. **Payouts get a bank reference, not a transaction link** — and `related_transaction_id` should be NULL for them by construction. #149's persisted EndToEndId ([#150](https://github.com/dgloeckner/clubbar/issues/150)) is a GoBD Rz. 71–73 requirement for outbound payouts too, not only for return matching.
 5. **No countersignature, no four-eyes, no Vorstandsbeschluss is legally required.** If the product offers them, they are a configurable club policy, not a compliance feature. Do not let the UI claim otherwise.
 6. **Retention is 8 years for Belege / 10 for the ledger, with a suspension clause.** Any automated purge or GDPR-anonymisation job must treat these as floors with a hold, never as a deletion trigger.
 7. **Keep the tab strictly post-paid.** A terminal-side top-up would plausibly pull the whole system into § 146a AO. This is the strongest architectural constraint the law places on us, and it is currently satisfied only implicitly.

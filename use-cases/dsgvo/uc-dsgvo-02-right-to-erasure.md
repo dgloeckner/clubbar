@@ -108,7 +108,7 @@ WHERE entity_type = 'member' AND entity_id = ?
 
 > ### ⚠️ Superseded by [ADR-0029](../../adr/0029-two-tier-retention-and-erasure.md) (2026-08-07)
 >
-> Erasure is no longer a standalone action with preconditions to satisfy first. It is one step inside **[member offboarding](https://github.com/dgloeckner/ruderbar/issues/173)**, which resolves the final balance and erases in a single atomic action.
+> Erasure is no longer a standalone action with preconditions to satisfy first. It is one step inside **[member offboarding](https://github.com/dgloeckner/clubbar/issues/173)**, which resolves the final balance and erases in a single atomic action.
 >
 > And erasure **deletes the person, not the record**: contact data goes, the accounting record is *restricted* and retained for up to **10 years** (§ 147 AO), then deleted on a stored expiry date. Both alternate flows below are wrong as written.
 

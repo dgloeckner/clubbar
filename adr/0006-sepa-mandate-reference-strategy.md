@@ -1,6 +1,6 @@
 # ADR-0006: SEPA Mandate Reference Strategy
 
-**Status**: Accepted
+**Status**: Accepted (amended 2026-08-07 — see the note below; corrected 2026-08-23: the XML sample names pain.008.001.08, the format exported since [ADR-0008](./0008-sepa-xml-export-format-selection.md)'s 2026-08-04 amendment)
 
 **Date**: 2025-01-23
 
@@ -28,7 +28,7 @@ The system stores a single editable mandate_reference field per member. All mand
 
 > ### ⚠️ Amended 2026-08-07 — a mandate is now a record
 >
-> **What changed:** the mandate reference moves out of `members` into a dedicated `mandates` record, and the **signature date becomes tracked and required**. See [#164](https://github.com/dgloeckner/ruderbar/issues/164).
+> **What changed:** the mandate reference moves out of `members` into a dedicated `mandates` record, and the **signature date becomes tracked and required**. See [#164](https://github.com/dgloeckner/clubbar/issues/164).
 >
 > ```
 > mandate:  member · reference · iban · signed_at · document (optional) · active
@@ -40,7 +40,7 @@ The system stores a single editable mandate_reference field per member. All mand
 >
 > Two facts unknown when this ADR was written (2025-01-23) settle it:
 > - A collection made **without a valid mandate is reclaimable for 13 months**, not the usual 8 weeks ([ADR-0028](./0028-legal-constraints-on-money-handling.md) §3).
-> - A returned collection is matched by `MREF+`. With the reference mutable on `members`, a member changing bank destroys the only key that resolves a return arriving for the previous collection ([#165](https://github.com/dgloeckner/ruderbar/issues/165)). An append-only mandate record fixes this by construction.
+> - A returned collection is matched by `MREF+`. With the reference mutable on `members`, a member changing bank destroys the only key that resolves a return arriving for the previous collection ([#165](https://github.com/dgloeckner/clubbar/issues/165)). An append-only mandate record fixes this by construction.
 >
 > **What survives.** The auto-generated reference (Core Principles 1, 2, 6) is unchanged — it is simply generated at *mandate* creation rather than member creation, and it stays admin-editable. The instinct behind Principles 4, 5 and 7 also survives: there is still **no status enum, no expiry logic, no amendment history, no revocation reasons, no sequence-type tracking**. Only the three fields that *constitute* a mandate are tracked, plus an active flag.
 >
@@ -75,7 +75,7 @@ The system stores a single editable mandate_reference field per member. All mand
 
 #### SEPA XML Output
 
-Mandate reference appears in SEPA Direct Debit XML (pain.008.001.02) as:
+Mandate reference appears in SEPA Direct Debit XML (pain.008.001.08) as:
 
 ```xml
 <MndtRltdInf>

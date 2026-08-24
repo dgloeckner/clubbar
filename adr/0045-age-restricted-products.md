@@ -95,7 +95,7 @@ the cached side, and that list is amended rather than quietly contradicted. What
 
 An earlier draft had the server reject an underage transaction at sync.
 [ADR-0020](./0020-sepa-mandate-requirement-terminal-access.md) shows that exact behaviour was
-already built and then deliberately removed ([#162](https://github.com/dgloeckner/ruderbar/issues/162)):
+already built and then deliberately removed ([#162](https://github.com/dgloeckner/clubbar/issues/162)):
 
 > "The server must therefore store and flag such transactions, never reject them. Rejecting at
 > sync destroys the record of a sale that actually happened — revenue lost silently,
@@ -212,7 +212,7 @@ would need one; this one does not.
 | **Precomputed `age_years` on the sync payload** | Wrong between birthdays. The failure is silent and lands on the member most likely to complain about it |
 | **A boolean `may_buy_alcohol`** | Bakes one threshold into the wire format; cannot express 16 and 18 at once, let alone another country's number |
 | **Category-level limits** | Categories are presentation and get rearranged during a shift. A legal limit must not move when a tile is dragged |
-| **Server-side rejection of underage transactions** | Destroys the record of a sale that really happened, conflicts with § 146 AO, and was already built and removed once in [#162](https://github.com/dgloeckner/ruderbar/issues/162) |
+| **Server-side rejection of underage transactions** | Destroys the record of a sale that really happened, conflicts with § 146 AO, and was already built and removed once in [#162](https://github.com/dgloeckner/clubbar/issues/162) |
 | **Automatic storno on a detected violation** | The club eats the cost of a drink it already served, and a storno is an admin's decision about a booking, not a legal finding. It would also make the violation *look* resolved |
 | **Blocking terminal access outright for minors** | Disproportionate and wrong: an underage member may buy an Apfelschorle. The limit is on the product, not on membership |
 | **A per-terminal or per-time-of-day rule** | JuSchG § 9 does not vary that way, and every added dimension is another thing that can be misconfigured into permitting a sale |

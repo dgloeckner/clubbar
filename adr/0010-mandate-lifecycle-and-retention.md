@@ -49,13 +49,13 @@ See **[ADR-0006: SEPA Mandate Reference Strategy](./0006-sepa-mandate-reference-
 
 > ### ⚠️ Corrected 2026-08-07 — the table below was wrong
 >
-> Researched directly in [#174](https://github.com/dgloeckner/ruderbar/issues/174). See **[ADR-0028](./0028-legal-constraints-on-money-handling.md) §3 and §5** for the current figures.
+> Researched directly in [#174](https://github.com/dgloeckner/clubbar/issues/174). See **[ADR-0028](./0028-legal-constraints-on-money-handling.md) §3 and §5** for the current figures.
 >
 > - **"14 months (PSD2)" has no authority anywhere** — zero hits in the EPC SDD Core Rulebook. The real 13-month figure is **§ 676b Abs. 2 BGB**: the *debtor's* deadline to claim back an unauthorised transaction. That is a **floor** on mandate storage, never a ceiling, and it is not a PSD2 document-retention rule.
 > - The genuine mandate-lifecycle obligation is **EPC Rulebook §4.2**: a mandate unused for **36 months** must be **cancelled by the creditor**. That is a cancellation duty, not a retention or deletion rule — and it is modelled nowhere.
 > - **10 years** is right for the transaction journal and settlement records (§ 147 Abs. 1 Nr. 1 *Aufzeichnungen*), but Buchungsbelege are **8 years** post-BEG IV, and all periods run from 31.12. of the year of last entry with an Ablaufhemmung on top.
 >
-> Note also that this ADR's supersession rationale is **partly undone**: [#164](https://github.com/dgloeckner/ruderbar/issues/164) brings a minimal mandate lifecycle back *into* the system — a mandate is now one record with reference, IBAN, signature date and an active flag. What stays out is what this ADR originally over-built: no state machine, no expiry logic, no first-use tracking, no health widget.
+> Note also that this ADR's supersession rationale is **partly undone**: [#164](https://github.com/dgloeckner/clubbar/issues/164) brings a minimal mandate lifecycle back *into* the system — a mandate is now one record with reference, IBAN, signature date and an active flag. What stays out is what this ADR originally over-built: no state machine, no expiry logic, no first-use tracking, no health widget.
 
 | Document | Retention | Basis |
 |----------|-----------|-------|

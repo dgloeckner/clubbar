@@ -1246,7 +1246,7 @@ Add after the current plans:
 ### Shared Hosting Package (📍 IN PROGRESS)
 
 **Plan**: [2026-03-01-shared-hosting-package.md](./2026-03-01-shared-hosting-package.md)
-**Design**: [2026-03-01-shared-hosting-package-design.md](../docs/plans/2026-03-01-shared-hosting-package-design.md)
+**Design**: [2026-03-01-shared-hosting-package-design.md](./2026-03-01-shared-hosting-package-design.md)
 
 **Goal**: Ship backend + admin frontend as a single ZIP installable on shared hosting (cPanel/Plesk) via FTP upload.
 

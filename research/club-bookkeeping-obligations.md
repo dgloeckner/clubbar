@@ -1,8 +1,8 @@
 # Research: does this club's bar actually carry bookkeeping obligations — and at what granularity?
 
-Resolves [#174](https://github.com/dgloeckner/ruderbar/issues/174), part of wayfinder map [#139](https://github.com/dgloeckner/ruderbar/issues/139).
-Tests the premise underneath [#159](https://github.com/dgloeckner/ruderbar/issues/159) and [ADR-0028](../adr/0028-legal-constraints-on-money-handling.md).
-Unblocks [#165](https://github.com/dgloeckner/ruderbar/issues/165) (erasure window) and [#173](https://github.com/dgloeckner/ruderbar/issues/173) (offboarding).
+Resolves [#174](https://github.com/dgloeckner/clubbar/issues/174), part of wayfinder map [#139](https://github.com/dgloeckner/clubbar/issues/139).
+Tests the premise underneath [#159](https://github.com/dgloeckner/clubbar/issues/159) and [ADR-0028](../adr/0028-legal-constraints-on-money-handling.md).
+Unblocks [#165](https://github.com/dgloeckner/clubbar/issues/165) (erasure window) and [#173](https://github.com/dgloeckner/clubbar/issues/173) (offboarding).
 
 **Setting**: an eingetragener, gemeinnütziger Ruderverein. The bar sells drinks **to members only, at purchase price** (no margin, by design). It is **unstaffed self-service**, takes **no cash at all**, runs **post-paid tabs** (a Deckel / receivable) collected monthly by **SEPA-Lastschrift**. A few dozen members. It replaces an informal Kaffeekasse that had no bookkeeping whatsoever.
 
@@ -96,7 +96,7 @@ Even here the club loses, because the administration applies a **potential**-com
 
 ### 1.4 Is it a Leistungsaustausch, or a Kostenumlage? — Leistungsaustausch
 
-This retests [#140](https://github.com/dgloeckner/ruderbar/issues/140)'s assertion rather than inheriting it. The operative test:
+This retests [#140](https://github.com/dgloeckner/clubbar/issues/140)'s assertion rather than inheriting it. The operative test:
 
 > „Soweit eine Vereinigung zur Erfüllung ihrer den Gesamtbelangen sämtlicher Mitglieder dienenden satzungsgemäßen Gemeinschaftszwecke tätig wird und dafür echte Mitgliederbeiträge erhebt … fehlt es an einem Leistungsaustausch mit dem einzelnen Mitglied."
 > — Abschn. 1.4 Abs. 1 S. 1 UStAE
@@ -402,7 +402,7 @@ And one genuine scheme rule the repo does not model at all:
 
 > **EPC Rulebook §4.2**: „If a Creditor does not present a Collection under a Mandate for a period of **36 months** … the Creditor **must cancel the Mandate** and is no longer allowed to initiate Collections based on this cancelled Mandate."
 
-That is an obligation to **stop collecting**, not to delete. It bears on [#164](https://github.com/dgloeckner/ruderbar/issues/164)'s mandate lifecycle.
+That is an obligation to **stop collecting**, not to delete. It bears on [#164](https://github.com/dgloeckner/clubbar/issues/164)'s mandate lifecycle.
 
 **Which period governs the mandate?** § 147 AO — the scheme rule is a contractual minimum between Creditor and Creditor PSP and cannot shorten a public-law duty (§ 147 Abs. 3 S. 2 AO: „Kürzere Aufbewahrungsfristen nach außersteuerlichen Gesetzen lassen die in Satz 1 bestimmte Frist unberührt").
 
@@ -582,7 +582,7 @@ So the practice was probably never lawful in the strict sense. It was merely nev
 2. **GoBD Rz. 87 and Rz. 99** — the permission to book aggregates is *conditioned* on retaining the Einzeldaten behind them. This is the single most directly applicable pair of sentences to this architecture.
 3. **The Aufzeichnung/Verbuchung distinction** (AEAO zu § 146 Nr. 2.1.3) — which dissolves the ticket's own false dichotomy.
 4. **The digitisation asymmetry** (GoBD Rz. 119, 129, 157) — a real project cost, currently unrecorded.
-5. **The field-level erasure rule** (GoBD Rz. 113, Rz. 172, OLG Dresden 4 U 1278/21) — this is what [#165](https://github.com/dgloeckner/ruderbar/issues/165) needs, and it is more permissive than a blanket "retain everything": contact data must still be deleted.
+5. **The field-level erasure rule** (GoBD Rz. 113, Rz. 172, OLG Dresden 4 U 1278/21) — this is what [#165](https://github.com/dgloeckner/clubbar/issues/165) needs, and it is more permissive than a blanket "retain everything": contact data must still be deleted.
 6. **A correction to ADR-0010's table**: "14 months (PSD2)" has **no authority whatsoever**. Zero hits in the EPC Rulebook, nothing in PSD2, nothing in the BGB.
 7. **⚠️ The § 55 AO structural-loss risk** (§1.5 above) — out of scope for #174, but the largest live Gemeinnützigkeit exposure found, and it is *created* by the at-cost pricing policy.
 

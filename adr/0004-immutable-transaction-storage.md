@@ -1,6 +1,6 @@
 # ADR-0004: Immutable Storage of Purchase Transactions
 
-**Status**: Accepted
+**Status**: Accepted (corrected 2026-08-23: the settlement sketch below no longer declares `sepa_message_id`, dropped by migration 053 — see [ADR-0008](./0008-sepa-xml-export-format-selection.md))
 
 **Date**: 2025-01-23
 
@@ -54,7 +54,7 @@ UPDATE transactions SET amount_cents = 380 WHERE id = 'uuid1';  -- PROBLEM!
 
 **Purchase transactions are immutable and append-only. Once created, they are never modified or deleted. A booking is corrected by a *storno* — a reverse transaction that names the transaction it reverses and negates it exactly. Settlement marks transactions as "paid" without modifying them; SEPA exports enable external bank processing.**
 
-> **Amended 2026-08-07.** The original decision allowed a free-amount `correction` in two shapes: linked to an original, or standalone. The standalone shape is **removed** — see [#158](https://github.com/dgloeckner/ruderbar/issues/158) and [#170](https://github.com/dgloeckner/ruderbar/issues/170), and [ADR-0028](./0028-legal-constraints-on-money-handling.md) §4 for the GoBD Rz. 64 requirement that made an optional link insufficient. Amended text is marked inline.
+> **Amended 2026-08-07.** The original decision allowed a free-amount `correction` in two shapes: linked to an original, or standalone. The standalone shape is **removed** — see [#158](https://github.com/dgloeckner/clubbar/issues/158) and [#170](https://github.com/dgloeckner/clubbar/issues/170), and [ADR-0028](./0028-legal-constraints-on-money-handling.md) §4 for the GoBD Rz. 64 requirement that made an optional link insufficient. Amended text is marked inline.
 >
 > **Amended 2026-08-09 — corrections include a `payout`, and the principle reaches the settlement layer.** Two additions, both recorded in [ADR-0032](./0032-settlement-lifecycle.md):
 >
@@ -128,7 +128,8 @@ CREATE TABLE settlements (
   cancelled_at DATETIME,                    -- When settlement was cancelled
   cancelled_by_admin_id BINARY(16),         -- Who cancelled
   exported_at DATETIME,                     -- Last export timestamp (audit log entry per export)
-  sepa_message_id VARCHAR(35),              -- SEPA XML message ID
+  -- (no sepa_message_id: dropped by migration 053. The pain.008 MsgId is
+  --  derived from this row's own id -- see ADR-0008, ID Generation Strategy)
   created_at DATETIME DEFAULT NOW(),
   updated_at DATETIME DEFAULT NOW() ON UPDATE NOW(),
 
@@ -270,7 +271,7 @@ There is no partial correction. Reverse the whole booking, then book the right o
 A standalone adjustment with `related_transaction_id = NULL` is **no longer a supported operation**. Two reasons:
 
 - **GoBD Rz. 64** requires a correction be traceable to the booking it corrects, and Rz. 73 rejects a free-text reason as sufficient at volume ([ADR-0028](./0028-legal-constraints-on-money-handling.md) §4). An *optional* foreign key cannot express a mandatory rule.
-- Every real instance turned out to be something else ([#170](https://github.com/dgloeckner/ruderbar/issues/170)): a drink that should be stornoed, a drink that was never booked, a charge that is a manual `purchase`, or a credit returned at offboarding as a `payout`.
+- Every real instance turned out to be something else ([#170](https://github.com/dgloeckner/clubbar/issues/170)): a drink that should be stornoed, a drink that was never booked, a charge that is a manual `purchase`, or a credit returned at offboarding as a `payout`.
 
 The original example — *"Goodwill credit for service issue"* — is the case that does not survive. Beyond the audit-trail objection, crediting a member's tab as a gesture is **Mitgliederbegünstigung** and constrained by § 55 AO for a gemeinnütziger Verein. If the club ever needs it, it gets its own transaction type, as `payout` did; it must never return as a free-amount correction.
 

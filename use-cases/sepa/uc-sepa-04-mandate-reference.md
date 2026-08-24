@@ -10,7 +10,7 @@ Admin manages a mandate's SEPA reference. Auto-generated, and still editable whe
 
 > ### ⚠️ Amended 2026-08-07
 >
-> The reference is generated **when the mandate is created**, not when the member is created ([#164](https://github.com/dgloeckner/ruderbar/issues/164)). A member exists without a mandate — and until one exists they cannot use the bar at all.
+> The reference is generated **when the mandate is created**, not when the member is created ([#164](https://github.com/dgloeckner/clubbar/issues/164)). A member exists without a mandate — and until one exists they cannot use the bar at all.
 >
 > Crucially, **the reference is no longer what makes a member SEPA-valid.** Previously it was auto-generated the moment an IBAN was entered, so both fields went non-NULL together and "has a valid mandate" collapsed to *"somebody typed an IBAN"*. Validity now requires an **active mandate with a signature date** — a real-world event, not data entry.
 >
