@@ -192,7 +192,10 @@
       );
     }
 
-    var start = tail.indexOf(OPEN + '\n');
+    // From the end, for the reason PHP's ConfigSnapshot::extract() gives: the
+    // block is appended last, so the final occurrence is the real one and a row
+    // whose data contained the marker text cannot shadow it.
+    var start = tail.lastIndexOf(OPEN + '\n');
     if (start === -1) {
       return null;
     }

@@ -136,7 +136,12 @@ final class ConfigSnapshot
      */
     public static function extract(string $sql): ?string
     {
-        $start = strpos($sql, self::OPEN_MARKER . "\n");
+        // From the end. The block is always appended after the dump's footer, so
+        // the last occurrence is the real one — and a row whose *data* happened
+        // to contain the marker text could otherwise be found first and shadow
+        // it. Cheap, and it removes the only way a member's note could affect
+        // what a restore believes the configuration to be.
+        $start = strrpos($sql, self::OPEN_MARKER . "\n");
         if ($start === false) {
             return null;
         }
