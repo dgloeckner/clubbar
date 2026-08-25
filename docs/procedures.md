@@ -10,6 +10,8 @@ What someone has to *do*, on what rhythm, to keep the system lawful and the book
 | Monthly | [The settlement run](#monthly-the-settlement-run) | Kassenwart |
 | Annually | [Retention deletion review](./retention-deletion-procedure.md) | Kassenwart |
 | Annually | [Data-protection review](#annually-data-protection-review) | Vorstand |
+| Annually | [The backup restore drill](#annually-the-backup-restore-drill) | Admin |
+| Quarterly | [The offline copy](#quarterly-the-offline-copy) | Admin |
 
 ---
 
@@ -69,6 +71,57 @@ Alongside the deletion review, since the same person is already looking:
 3. **Audit admin-panel logins.** ⚠️ The § 38 BDSG Datenschutzbeauftragter threshold counts people *ständig* working with the automated processing. The club sits at roughly 3–6 against a threshold of **20** — but handing out logins freely would manufacture the obligation.
 4. **Are optional consents still current**, and can withdrawals be demonstrated (Art. 7(1))?
 5. Minute it.
+
+## Annually: the backup restore drill
+
+Runs with the Kassenprüfung, alongside the reviews above. **The Admin owns it**,
+because backup keys are the Admin's and the Kassenwart's are the IBAN keys
+([ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md)
+decision 2).
+
+An untested backup is a belief. This is the hour a year that turns it into a
+backup.
+
+1. **Walk [runbook §1](./runbook-backup-recovery.md#1-restore-end-to-end)** —
+   decrypt a real archive and import it into a scratch database. Not the live
+   one.
+2. **Walk [runbook §2](./runbook-backup-recovery.md#2-repair-one-table)** as
+   well. Drop one table from that scratch restore and bring it back from its
+   section alone. This is the path you are far likelier to need, and the one
+   with a wrong-looking-right failure mode; walking only §1 leaves it untested.
+3. **Test the private-key archive, don't just trust it.** Pull the archived
+   backup private key and confirm it opens the archive you just decrypted. A key
+   corrupted on write, saved with the wrong encoding, or quietly the *previous*
+   rotation's is indistinguishable from a good one until the day it is needed.
+   (Adopts the duty [`deployment.md`](./deployment.md) states for the IBAN key —
+   do both, they are different keys held by different people.)
+4. **Test that the audit log restores.** Confirm `audit_log` came back with its
+   rows: it is the one table whose loss is undetectable from the application,
+   because nothing else references it. (Adopts the annual duty
+   [ADR-0013](../adr/0013-audit-logging.md) states and nobody owned.)
+5. **Minute the result in the club's key register** — which archive, which key,
+   who performed it, and anything that did not work. The application does not
+   track key verification and deliberately never will (ADR-0049 decision 4).
+
+If any step fails, it is an incident now, not at the next Jahresabschluss.
+
+## Quarterly: the offline copy
+
+Download one archive to a medium **the server cannot write to** — a USB stick in
+the club safe, a private laptop, anything not reachable from the host.
+
+This is a duty and not a suggestion, because it is the only thing covering the
+gap the design cannot close on its own: the backup credential can delete what it
+wrote. `Sites.Selected` on Microsoft 365 restricts *which* site, but the per-site
+role is a fixed `read`/`write` enum and `write` includes delete
+([#691](https://github.com/dgloeckner/clubbar/issues/691)). Library retention
+makes such a delete *recoverable*, not impossible, and only where the tenant
+allows it. An attacker holding the webspace holds the upload credential; a copy
+they cannot reach is what survives them.
+
+One archive, once a quarter. Note the date and the filename in the key register.
+No decryption needed — an unopened `.cbb` is still a backup, and opening it
+outside the drill only spreads the plaintext around.
 
 ---
 
