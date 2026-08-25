@@ -170,6 +170,34 @@
     return bytes;
   }
 
+  /**
+   * SHA-256 of the plaintext, or null if this browser will not compute one.
+   *
+   * Deliberately NOT libsodium: the vendored build is the standard one, which
+   * omits crypto_hash_sha256 (only the `sumo` build carries it), so calling it
+   * throws - and this file used to, after a successful decryption, losing the
+   * download link to an exception at the last step. Web Crypto is in every
+   * browser this tool targets and needs no second vendored megabyte.
+   *
+   * It requires a secure context, which file:// is in Chrome and Firefox; where
+   * it is not, the tool says the checksum could not be checked rather than
+   * failing, because the archive has already authenticated by then.
+   */
+  function sha256Hex(bytes) {
+    var subtle = window.crypto && window.crypto.subtle;
+    if (!subtle || typeof subtle.digest !== 'function') {
+      return Promise.resolve(null);
+    }
+
+    return subtle.digest('SHA-256', bytes).then(function (buffer) {
+      return Array.prototype.map.call(new Uint8Array(buffer), function (byte) {
+        return ('0' + byte.toString(16)).slice(-2);
+      }).join('');
+    }).catch(function () {
+      return null;
+    });
+  }
+
   /** A header field the archive did not carry, said as such rather than blank. */
   function saidOrNot(value) {
     return value === null || value === undefined || value === '' ? 'not stated' : String(value);
@@ -269,23 +297,40 @@
       }
 
       var blob = new Blob([plaintext], { type: 'application/sql' });
-      var sha = sodium.to_hex(sodium.crypto_hash_sha256(plaintext));
       var promised = BackupDecryptor.readHeader(archiveBytes).header.plaintext_sha256;
 
       $('download').href = URL.createObjectURL(blob);
       $('size').textContent = plaintext.length.toLocaleString() + ' bytes';
-      $('sha').textContent = sha;
-      // The header promised a checksum; saying whether it holds is the whole
-      // reason it is there. The stream's own tags already refuse a corrupt or
-      // truncated archive, so a mismatch here means the *header* was edited -
-      // worth showing rather than assuming.
-      $('verified').textContent = promised
-        ? (promised === sha
-          ? 'It matches the checksum in the archive header.'
-          : 'It does NOT match the checksum in the archive header (' + promised + '). '
-            + 'The header has been altered - keep this file and ask for help before restoring it.')
-        : 'This archive header states no checksum to compare against.';
       show($('result'), true);
+
+      // Shown as soon as the plaintext exists, then filled in when the digest
+      // resolves: the download link is the thing the holder came for, and it
+      // must never wait on - or be lost to - a checksum.
+      $('sha').textContent = 'computing...';
+      $('verified').textContent = '';
+
+      sha256Hex(plaintext).then(function (sha) {
+        $('sha').textContent = sha === null ? 'not available in this browser' : sha;
+
+        // The header promised a checksum; saying whether it holds is the whole
+        // reason it is there. The stream's own tags already refuse a corrupt or
+        // truncated archive, so a mismatch here means the *header* was edited -
+        // worth showing rather than assuming.
+        if (sha === null) {
+          $('verified').textContent =
+            'This browser exposes no SHA-256, so the checksum in the archive header could not '
+            + 'be checked. The archive decrypted and authenticated, which is the stronger of '
+            + 'the two guarantees.';
+        } else if (!promised) {
+          $('verified').textContent = 'This archive header states no checksum to compare against.';
+        } else if (promised === sha) {
+          $('verified').textContent = 'It matches the checksum in the archive header.';
+        } else {
+          $('verified').textContent =
+            'It does NOT match the checksum in the archive header (' + promised + '). The header '
+            + 'has been altered - keep this file and ask for help before restoring it.';
+        }
+      });
     });
   });
 }());

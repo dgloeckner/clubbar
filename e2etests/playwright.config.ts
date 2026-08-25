@@ -127,6 +127,22 @@ export default defineConfig({
       },
     },
 
+    // The offline tools, as files - no server, no stack, no fixtures.
+    //
+    // tools/backup-decryptor.html is opened from `file://` because that is how
+    // a key holder actually uses it: on a machine they trust, with the network
+    // off. Its crypto half is covered headlessly by
+    // scripts/backup-decryptor-interop.test.mjs; this project covers the page
+    // around it, which is where a bug can decrypt correctly and still show the
+    // holder nothing.
+    {
+      name: 'tools',
+      testDir: './tests/tools',
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
+
     // Terminal - Touch device simulation
     {
       name: 'terminal-touch',
