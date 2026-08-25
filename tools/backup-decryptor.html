@@ -84,6 +84,36 @@
       <tbody id="recipients"></tbody>
     </table>
     <p class="lede">Fetch whichever of these you hold. The others will not work.</p>
+
+    <!--
+      What this archive is, before anyone is asked for a key. There is no
+      backup state in the application's database (ADR-0049 decision 8), so an
+      archive found on a share years later has only its own header to be
+      identified by - which club, which schema, and whether it is whole.
+    -->
+    <p>What is inside, according to the archive itself:</p>
+    <table>
+      <tbody>
+        <tr><th>Club</th><td id="instance"></td></tr>
+        <tr><th>Database</th><td id="database"></td></tr>
+        <tr><th>Schema version</th><td id="schema"></td></tr>
+        <tr><th>Dump format</th><td id="format"></td></tr>
+        <tr><th>Contents</th><td id="contents"></td></tr>
+        <tr><th>Plaintext</th><td id="expected"></td></tr>
+      </tbody>
+    </table>
+    <details id="manifest-detail">
+      <summary>Every table, and how many rows it held</summary>
+      <table>
+        <thead><tr><th>Table</th><th>Rows</th></tr></thead>
+        <tbody id="manifest"></tbody>
+      </table>
+    </details>
+    <p class="lede">
+      The schema version is the highest migration this database had applied. A
+      restore into an installation older than that needs the upgrade run
+      afterwards.
+    </p>
   </div>
 </fieldset>
 
@@ -101,6 +131,7 @@
 <div id="error" class="error hidden"></div>
 <div id="result" class="ok hidden">
   <p>Opened <strong id="size"></strong>. SHA-256 of the plaintext: <code id="sha"></code></p>
+  <p id="verified"></p>
   <p><a id="download" download="clubbar-backup.sql">Download the .sql</a> and import it through your host's database tool.</p>
 </div>
 
@@ -139,6 +170,76 @@
     return bytes;
   }
 
+  /**
+   * SHA-256 of the plaintext, or null if this browser will not compute one.
+   *
+   * Deliberately NOT libsodium: the vendored build is the standard one, which
+   * omits crypto_hash_sha256 (only the `sumo` build carries it), so calling it
+   * throws - and this file used to, after a successful decryption, losing the
+   * download link to an exception at the last step. Web Crypto is in every
+   * browser this tool targets and needs no second vendored megabyte.
+   *
+   * It requires a secure context, which file:// is in Chrome and Firefox; where
+   * it is not, the tool says the checksum could not be checked rather than
+   * failing, because the archive has already authenticated by then.
+   */
+  function sha256Hex(bytes) {
+    var subtle = window.crypto && window.crypto.subtle;
+    if (!subtle || typeof subtle.digest !== 'function') {
+      return Promise.resolve(null);
+    }
+
+    return subtle.digest('SHA-256', bytes).then(function (buffer) {
+      return Array.prototype.map.call(new Uint8Array(buffer), function (byte) {
+        return ('0' + byte.toString(16)).slice(-2);
+      }).join('');
+    }).catch(function () {
+      return null;
+    });
+  }
+
+  /** A header field the archive did not carry, said as such rather than blank. */
+  function saidOrNot(value) {
+    return value === null || value === undefined || value === '' ? 'not stated' : String(value);
+  }
+
+  /**
+   * Version 2 headers describe themselves (ADR-0049 decision 8). Shown before
+   * the key is asked for, because "is this the right archive" is the question
+   * a holder has at that moment - and answering it should not cost a decryption.
+   */
+  function describeArchive(header) {
+    var instance = header.instance || {};
+    var manifest = header.manifest || {};
+    var tables = Object.keys(manifest).sort();
+    var rows = tables.reduce(function (sum, t) { return sum + manifest[t]; }, 0);
+
+    $('instance').textContent = saidOrNot(instance.name)
+      + (instance.id ? ' (' + instance.id + ')' : '');
+    $('database').textContent = saidOrNot(instance.database);
+    $('schema').textContent = saidOrNot(header.schema_version);
+    $('format').textContent = saidOrNot(header.dump_format);
+    $('contents').textContent = tables.length
+      ? tables.length.toLocaleString() + ' tables, ' + rows.toLocaleString() + ' rows'
+      : 'not stated';
+    $('expected').textContent = header.plaintext_bytes
+      ? header.plaintext_bytes.toLocaleString() + ' bytes, SHA-256 ' + header.plaintext_sha256
+      : 'not stated';
+
+    show($('manifest-detail'), tables.length > 0);
+    $('manifest').textContent = '';
+    tables.forEach(function (table) {
+      var row = document.createElement('tr');
+      var name = document.createElement('td');
+      var count = document.createElement('td');
+      name.textContent = table;
+      count.textContent = manifest[table].toLocaleString();
+      row.appendChild(name);
+      row.appendChild(count);
+      $('manifest').appendChild(row);
+    });
+  }
+
   $('archive').addEventListener('change', function (event) {
     var file = event.target.files[0];
     show($('error'), false);
@@ -152,6 +253,7 @@
       var header = BackupDecryptor.readHeader(archiveBytes).header;
 
       $('created').textContent = header.created_at;
+      describeArchive(header);
       $('recipients').textContent = '';
       header.recipients.forEach(function (r) {
         var row = document.createElement('tr');
@@ -195,10 +297,40 @@
       }
 
       var blob = new Blob([plaintext], { type: 'application/sql' });
+      var promised = BackupDecryptor.readHeader(archiveBytes).header.plaintext_sha256;
+
       $('download').href = URL.createObjectURL(blob);
       $('size').textContent = plaintext.length.toLocaleString() + ' bytes';
-      $('sha').textContent = sodium.to_hex(sodium.crypto_hash_sha256(plaintext));
       show($('result'), true);
+
+      // Shown as soon as the plaintext exists, then filled in when the digest
+      // resolves: the download link is the thing the holder came for, and it
+      // must never wait on - or be lost to - a checksum.
+      $('sha').textContent = 'computing...';
+      $('verified').textContent = '';
+
+      sha256Hex(plaintext).then(function (sha) {
+        $('sha').textContent = sha === null ? 'not available in this browser' : sha;
+
+        // The header promised a checksum; saying whether it holds is the whole
+        // reason it is there. The stream's own tags already refuse a corrupt or
+        // truncated archive, so a mismatch here means the *header* was edited -
+        // worth showing rather than assuming.
+        if (sha === null) {
+          $('verified').textContent =
+            'This browser exposes no SHA-256, so the checksum in the archive header could not '
+            + 'be checked. The archive decrypted and authenticated, which is the stronger of '
+            + 'the two guarantees.';
+        } else if (!promised) {
+          $('verified').textContent = 'This archive header states no checksum to compare against.';
+        } else if (promised === sha) {
+          $('verified').textContent = 'It matches the checksum in the archive header.';
+        } else {
+          $('verified').textContent =
+            'It does NOT match the checksum in the archive header (' + promised + '). The header '
+            + 'has been altered - keep this file and ask for help before restoring it.';
+        }
+      });
     });
   });
 }());

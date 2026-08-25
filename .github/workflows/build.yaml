@@ -548,8 +548,8 @@ jobs:
         include:
           - { lane: api, id: api-1, shard: 1/2, browsers: chromium, browser_key: chromium, projects: --project=api-tests }
           - { lane: api, id: api-2, shard: 2/2, browsers: chromium, browser_key: chromium, projects: --project=api-tests }
-          - { lane: ui, id: ui-1, shard: 1/2, browsers: chromium webkit, browser_key: chromium-webkit, projects: --project=admin-chromium --project=admin-mobile }
-          - { lane: ui, id: ui-2, shard: 2/2, browsers: chromium webkit, browser_key: chromium-webkit, projects: --project=admin-chromium --project=admin-mobile }
+          - { lane: ui, id: ui-1, shard: 1/2, browsers: chromium webkit, browser_key: chromium-webkit, projects: --project=admin-chromium --project=admin-mobile --project=tools }
+          - { lane: ui, id: ui-2, shard: 2/2, browsers: chromium webkit, browser_key: chromium-webkit, projects: --project=admin-chromium --project=admin-mobile --project=tools }
           # One job, no shard: every project in it is deliberately serial.
           - { lane: chain, id: chain, shard: 1/1, browsers: chromium, browser_key: chromium, projects: --project=api-ordered --project=api-rotation --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance --project=mail-lifecycle --project=mail-jugendschutz --project=mail-roles --project=mail-digest }
 
@@ -578,7 +578,12 @@ jobs:
           path: backend/vendor/
 
       - name: Prepare writable directories
-        run: chmod -R 777 backend/logs backend/storage
+        # backups/ joins them because the URL backup trigger writes an archive
+        # there when a recipient key is configured (ADR-0049), and the compose
+        # stack configures one.
+        run: |
+          mkdir -p backend/backups
+          chmod -R 777 backend/logs backend/storage backend/backups
 
       - name: Download admin frontend build
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

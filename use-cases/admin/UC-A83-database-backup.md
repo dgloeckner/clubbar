@@ -27,7 +27,9 @@ The Getränkewart sees no member at all and therefore nothing here.
    halves in the configuration, and keeps one private half themselves, giving the
    other to a second board member. Two holders, so one volunteer moving away does
    not take the archives with them — and neither of them is the Kassenwart, for
-   the reason this use case opens with.
+   the reason this use case opens with. **Configuring those keys is what
+   switches backups on**; there is no separate setting, so "keys configured" and
+   "backups running" can never disagree.
 2. **The Admin schedules the backup job**, alongside the existing mail one. The
    installer prints both lines on the same screen.
 3. **Nightly, unattended**: the job dumps the database, seals it so that only the
@@ -39,8 +41,10 @@ The Getränkewart sees no member at all and therefore nothing here.
 
 ## Alternate flows
 
-**No encryption key is configured** — no backup is written at all, and the
-security check reports it as a failure. A plaintext dump is never written as a
+**No encryption key is configured** — backups are simply not on, and nothing is
+attempted: the scheduled job says what to add and the URL trigger is not mounted,
+so a scheduler cannot report success for a club that has never had a backup. A
+run asked for anyway writes nothing at all, and never a plaintext dump as a
 fallback: on this host that would be the easiest possible route to every member's
 data.
 
@@ -64,23 +68,43 @@ disk breaks logging and mandate storage, so a backup must never cause one.
 ## Restoring — the part that has to work on a host with no shell
 
 1. Download an archive from the admin panel, or from the club's storage.
-2. Decrypt it on a trusted machine with the offline browser tool, using one of
-   the archived private keys.
-3. Import the resulting SQL through whatever database tool the host offers.
+2. Open it on a trusted machine with the offline browser tool. Before asking for
+   a key it shows what the archive says about itself — which club and database it
+   came from, which schema version, which keys open it, and every table with its
+   row count — so the holder can tell they have the right file, and which
+   envelope in the safe to fetch.
+3. Decrypt with one of the archived private keys, and import the resulting SQL
+   through whatever database tool the host offers.
 
-No step requires SSH, because the reference host does not offer it.
+No step requires SSH, because the reference host does not offer it, and no step
+needs a repopulation afterwards: the archive holds every table in full.
 
 ## Acceptance criteria
 
 - [ ] A backup is produced without human action, on a host with no shell and no crontab.
 - [ ] The archive cannot be read by anyone holding only the server — including the operator of the storage it is uploaded to.
-- [ ] With no key configured, nothing is written and the security check says so.
+- [ ] With no key configured, nothing is written and the security check says so — and the URL trigger is not mounted.
+- [ ] An archive can be identified — club, schema version, contents — without decrypting it.
+- [ ] A restored installation is complete: no table needs repopulating afterwards.
 - [ ] A dump that cannot complete leaves no file behind.
 - [ ] An interrupted upload resumes rather than restarting.
 - [ ] Archives are pruned by both age and total size.
 - [ ] A backup that has stopped happening is visible without anyone going to look.
 - [ ] A restore has been performed end to end, by a person, at least once.
 - [ ] Only the Admin can list or download archives; Kassenwart and Getränkewart are refused.
+
+## What the application does not track
+
+Whether a key holder has ever proved they can open a real archive, and whether a
+key has been compromised, live in the **club's key register and its minutes** —
+not in a panel. That is a deliberate boundary rather than a missing feature: a
+compromise blocklist kept in the database is reverted by any restore of an
+archive predating it, which would silently un-decide a security decision at
+exactly the moment somebody is restoring because something went wrong.
+
+Stopping a key is removing it from the configuration. Finding what is still
+sealed to it is a scan of the archives, each of which names its own recipients in
+a header anyone can read without a key.
 
 ## Recurring duties this creates
 

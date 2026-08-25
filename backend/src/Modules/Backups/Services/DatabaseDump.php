@@ -6,10 +6,6 @@ namespace App\Modules\Backups\Services;
 
 use App\Modules\Backups\Domain\DumpResult;
 use App\Modules\Backups\Domain\NonUtcDumpSessionException;
-use App\Modules\Backups\Domain\TableClass;
-use App\Modules\Backups\Domain\TableClassification;
-use App\Modules\Backups\Domain\UnclassifiedTableException;
-use App\Modules\Backups\Domain\UnclassifiedTablePolicy;
 use App\Shared\Time\Utc;
 use PDO;
 
@@ -21,6 +17,13 @@ use PDO;
  * through PDO. Output goes to a callback rather than a string or a file, so the
  * caller decides where it lands — #690 pipes it through gzip into a sealed
  * archive without either side holding the whole database in memory.
+ *
+ * **Every base table, in full, enumerated live.** There is no classification,
+ * no skip list and no schema-only class: the dumper asks the database what
+ * tables exist each time it runs, so a table a migration adds next month is in
+ * that night's archive with no backup-side change. An earlier draft kept a
+ * hand-maintained map of every table — and the map *was* the drift it existed
+ * to catch (ADR-0049 decision 1, and its *Alternatives considered*).
  *
  * Things this does that a naive dumper would not:
  *
@@ -42,8 +45,9 @@ use PDO;
  *    UTF-8. {@see SqlValueEmitter} then writes those as hex literals.
  *
  * 4. **Base tables only.** `SHOW TABLES` includes views, so sourcing the list
- *    from it would make the first view added anywhere in the schema take the
- *    whole nightly backup down, from an unrelated migration.
+ *    from it would put a view into the archive as if it were a table, and the
+ *    restore would break on it. This matters *more* under dump-everything,
+ *    because there is no longer a map that would have failed to name it.
  *
  * 5. **Both sessions are pinned to UTC** — this one and the one that restores.
  *    See {@see header()}.
@@ -53,19 +57,28 @@ use PDO;
  *    wrong remedy for one lost table, and on shared hosting phpMyAdmin's upload
  *    limit can make a whole-archive import impossible anyway.
  *
- * ADR-0049 decision 1. Part of #688 and #699, epic #686.
+ * ADR-0049 decision 1. Part of #688, #699 and #703, epic #686.
  */
 final class DatabaseDump
 {
+    /**
+     * The SQL dialect contract between this emitter and whatever restores it.
+     *
+     * Carried in the archive header (ADR-0049 decision 8) so a reader knows
+     * what it is holding before it can open it. Bump it when a change to the
+     * emitted SQL would make an older restore tool wrong rather than merely
+     * out of date — named columns, the session pinning and the per-table
+     * markers are all part of this contract.
+     */
+    public const FORMAT_VERSION = 1;
+
     /** Rows per INSERT statement. Large enough to be fast, small enough to parse back. */
     private const ROWS_PER_INSERT = 100;
 
     private const BINARY_TYPES = ['binary', 'varbinary', 'blob', 'tinyblob', 'mediumblob', 'longblob'];
 
-    public function __construct(
-        private readonly PDO $db,
-        private readonly UnclassifiedTablePolicy $unclassified = UnclassifiedTablePolicy::THROW,
-    ) {
+    public function __construct(private readonly PDO $db)
+    {
     }
 
     /**
@@ -77,7 +90,7 @@ final class DatabaseDump
     {
         $this->assertReadingInUtc();
 
-        [$tables, $unclassifiedTables] = $this->tablesToDump();
+        $tables = $this->baseTables();
         $binaryColumns = $this->binaryColumnsByTable();
         $columns = $this->columnsByTable();
 
@@ -87,13 +100,16 @@ final class DatabaseDump
         $this->db->exec('START TRANSACTION WITH CONSISTENT SNAPSHOT');
 
         try {
-            foreach ($tables as $table => $class) {
+            foreach ($tables as $table) {
                 $write("\n-- >>> TABLE {$table}\n");
                 $write($this->structureOf($table));
 
-                $manifest[$table] = $class === TableClass::FULL
-                    ? $this->writeRows($table, $columns[$table] ?? [], $binaryColumns[$table] ?? [], $write)
-                    : 0;
+                $manifest[$table] = $this->writeRows(
+                    $table,
+                    $columns[$table] ?? [],
+                    $binaryColumns[$table] ?? [],
+                    $write,
+                );
 
                 $write("-- <<< TABLE {$table}\n");
             }
@@ -105,7 +121,72 @@ final class DatabaseDump
 
         $write($this->footer());
 
-        return new DumpResult($manifest, $unclassifiedTables);
+        return new DumpResult($manifest);
+    }
+
+    /**
+     * What this database is, for the archive's own header (ADR-0049 decision 8).
+     *
+     * Read here rather than in {@see \App\Modules\Backups\Services\BackupService}
+     * because every field describes the database being dumped, and this is the
+     * class that holds the connection to it. All of it is cleartext in the
+     * header: a table name, a row count and an instance name are not member
+     * data, and a reader has to be able to tell what they are holding *before*
+     * they can open it.
+     *
+     * Nothing here may take the night's backup down. Branding is a singleton
+     * row somebody can delete and `_migrations` is created by the runner rather
+     * than by a migration, so an absent value reads as `null` — "this archive
+     * does not say" — rather than as a fatal in a job nobody is watching.
+     *
+     * @return array{instance_id: ?string, instance_name: ?string, database: ?string,
+     *               schema_version: ?string, dump_format: int}
+     */
+    public function sourceDescription(): array
+    {
+        $instance = $this->rowOrNull(
+            'SELECT instance_id, instance_name, DATABASE() AS db FROM instance_config WHERE id = 1'
+        );
+
+        return [
+            'instance_id' => self::stringOrNull($instance['instance_id'] ?? null),
+            'instance_name' => self::stringOrNull($instance['instance_name'] ?? null),
+            // From the same row, so the ordinary case is one round trip — and
+            // from a fallback query when there is no branding row, because the
+            // database's own name is knowable either way.
+            'database' => self::stringOrNull(
+                $instance['db'] ?? ($this->rowOrNull('SELECT DATABASE() AS db')['db'] ?? null)
+            ),
+            // The highest applied migration, in one SELECT. Filenames are
+            // zero-padded (`054_credit_limit_digest.sql`), so MAX() over the
+            // column is the order the runner applies them in.
+            'schema_version' => self::stringOrNull(
+                $this->rowOrNull('SELECT MAX(file) AS version FROM _migrations')['version'] ?? null
+            ),
+            'dump_format' => self::FORMAT_VERSION,
+        ];
+    }
+
+    /**
+     * One row, or null when the query cannot be answered at all.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function rowOrNull(string $sql): ?array
+    {
+        try {
+            $statement = $this->db->query($sql);
+            $row = $statement === false ? false : $statement->fetch(PDO::FETCH_ASSOC);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return is_array($row) ? $row : null;
+    }
+
+    private static function stringOrNull(mixed $value): ?string
+    {
+        return $value === null || $value === false || $value === '' ? null : (string) $value;
     }
 
     /**
@@ -132,49 +213,22 @@ final class DatabaseDump
     }
 
     /**
-     * Every table that contributes to the archive, in a stable order.
+     * Every base table in the schema, in a stable order.
      *
-     * Base tables only, and from `information_schema` rather than `SHOW TABLES`,
-     * which also returns views. The class already makes an `information_schema`
-     * trip for column types, so this costs nothing.
+     * From `information_schema` rather than `SHOW TABLES`, which also returns
+     * views — and the class already makes an `information_schema` trip for
+     * column types, so this costs nothing. Name order rather than dependency
+     * order, which is why the header switches foreign-key checks off.
      *
-     * @return array{array<string, TableClass>, list<string>} classified, then the guessed ones
+     * @return list<string>
      */
-    private function tablesToDump(): array
+    private function baseTables(): array
     {
-        $live = $this->db->query(
+        return $this->db->query(
             "SELECT TABLE_NAME FROM information_schema.TABLES
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
              ORDER BY TABLE_NAME"
         )->fetchAll(PDO::FETCH_COLUMN);
-
-        $tables = [];
-        $guessed = [];
-
-        foreach ($live as $table) {
-            try {
-                $class = TableClassification::for($table);
-            } catch (UnclassifiedTableException $e) {
-                // THROW in CI, where a human is present and stopping costs
-                // nothing. At 03:00 the run continues and reports: refusing the
-                // whole night's backup over one unrecognised name would be the
-                // control-that-looks-like-protection failure ADR-0049 opens
-                // with, and an unrecognised table is likelier to be business
-                // data than ephemera.
-                if ($this->unclassified === UnclassifiedTablePolicy::THROW) {
-                    throw $e;
-                }
-
-                $guessed[] = $table;
-                $class = TableClass::FULL;
-            }
-
-            if ($class !== TableClass::SKIP) {
-                $tables[$table] = $class;
-            }
-        }
-
-        return [$tables, $guessed];
     }
 
     /**

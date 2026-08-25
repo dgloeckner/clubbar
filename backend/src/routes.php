@@ -296,12 +296,6 @@ return function (App $app): void {
         // Bank lookup
         $group->get('/bank-lookup', [BankCodesAdminController::class, 'lookup']);
 
-        // Refill the BLZ table after a restore (ADR-0049, #690). bank_codes is
-        // SCHEMA_ONLY in a backup, so a restored installation comes back with
-        // it empty — and install.php 403s once storage/.installed exists while
-        // the CLI importer needs a shell the reference host does not have.
-        $group->post('/bank-codes/reimport', [BankCodesAdminController::class, 'reimport']);
-
         // Terminals. The two endpoints that mint a credential carry a step-up
         // credential in the body and share the step-up rate-limit dimension
         // (#395); revocation deliberately does not, so withdrawing access is

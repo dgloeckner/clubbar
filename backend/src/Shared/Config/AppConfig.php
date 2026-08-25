@@ -59,7 +59,7 @@ class AppConfig
     public readonly ?string $cronHeartbeatUrl;
     /**
      * Who can open a backup archive, as `label:hexkey` entries (ADR-0049
-     * decision 2).
+     * decision 2) — and, by its presence, whether backups happen at all.
      *
      * A list rather than one key, and the reason is organisational: the
      * realistic failure in a Verein is that the one holder moved away. Two
@@ -71,14 +71,16 @@ class AppConfig
      * is the property the whole design exists for: `config.php` plus an
      * unencrypted backup would be the entire member database from one file.
      *
-     * Empty means **no archive is written at all**, not a plaintext one
-     * (ADR-0031 rule 3: refuse and report, never silently degrade).
+     * Empty means **backups are switched off** — there is no separate enabled
+     * flag that could disagree with the keys (decision 2). A run asked for
+     * anyway writes no archive at all, and never a plaintext one (ADR-0031
+     * rule 3: refuse and report, never silently degrade).
      *
      * Kept as the raw string here and parsed by `BackupKeyring`, so a
      * malformed entry becomes one reportable finding rather than a fatal in a
      * constructor every request runs through.
      */
-    public readonly string $backupPublicKeys;
+    public readonly string $backupRecipientPublicKeys;
     /**
      * Where finished archives are pushed (#691). Absent means local-only:
      * archives are still written and still sealed, they simply never leave the
@@ -96,6 +98,21 @@ class AppConfig
      * ignore protects nothing. Two checks, two meanings.
      */
     public readonly ?string $backupHeartbeatUrl;
+    /**
+     * Optional overrides above the compiled retention defaults
+     * ({@see \App\Modules\Backups\Domain\BackupRetention}).
+     *
+     * Absent — the ordinary case — means the shipped policy. There is no
+     * `backup_config` row: the earlier draft's editable table went with the
+     * rest of the backup's database state (ADR-0049 decision 8), and a number
+     * that bounds an ADR-0029 erasure has no business being revertible by a
+     * restore.
+     */
+    public readonly ?int $backupLocalRetentionDays;
+    /** @see $backupLocalRetentionDays */
+    public readonly ?int $backupLocalMaxBytes;
+    /** @see $backupLocalRetentionDays — enforced by #691, which owns the transport. */
+    public readonly ?int $backupRemoteRetentionDays;
     /**
      * The deployment's document root — the directory `backend/` sits in.
      *
@@ -125,15 +142,32 @@ class AppConfig
         $this->mailDsn              = trim(Env::get('MAIL_DSN', '')) ?: null;
         $this->cronSecret           = trim(Env::get('CRON_SECRET', '')) ?: null;
         $this->cronHeartbeatUrl     = trim(Env::get('CRON_HEARTBEAT_URL', '')) ?: null;
-        $this->backupPublicKeys     = trim(Env::get('BACKUP_PUBLIC_KEYS', ''));
+        $this->backupRecipientPublicKeys = trim(Env::get('BACKUP_RECIPIENT_PUBLIC_KEYS', ''));
         $this->backupDsn            = trim(Env::get('BACKUP_DSN', '')) ?: null;
         $this->backupClientSecret   = trim(Env::get('BACKUP_CLIENT_SECRET', '')) ?: null;
         $this->backupHeartbeatUrl   = trim(Env::get('BACKUP_HEARTBEAT_URL', '')) ?: null;
+        $this->backupLocalRetentionDays = self::optionalInt('BACKUP_LOCAL_RETENTION_DAYS');
+        $this->backupLocalMaxBytes  = self::optionalInt('BACKUP_LOCAL_MAX_BYTES');
+        $this->backupRemoteRetentionDays = self::optionalInt('BACKUP_REMOTE_RETENTION_DAYS');
         $this->documentRoot         = self::resolveDocumentRoot();
 
         // Resolved last — the default depends on $this->appUrl.
         $this->sessionCookieSecure  = self::resolveSessionCookieSecure($this->appUrl);
         $this->sessionCookieName    = self::resolveSessionCookieName($this->sessionCookieSecure);
+    }
+
+    /**
+     * An integer setting somebody may simply not have written.
+     *
+     * Absent and unparseable are the same answer — "use the compiled default" —
+     * because a scheduled job is the wrong place to discover that a config file
+     * says `'thirty'`, and the default is a better guess than zero.
+     */
+    private static function optionalInt(string $key): ?int
+    {
+        $raw = trim(Env::get($key, ''));
+
+        return $raw !== '' && ctype_digit($raw) ? (int) $raw : null;
     }
 
     public function isProduction(): bool

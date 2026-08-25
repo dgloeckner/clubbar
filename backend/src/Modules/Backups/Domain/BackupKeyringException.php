@@ -22,14 +22,15 @@ final class BackupKeyringException extends RuntimeException
         return new self(
             'No backup recipient key is configured, so no archive can be written. Generate a '
             . 'keypair with tools/keypair-generator.html and add its public half to '
-            . 'backup.public_keys in config.php. A plaintext backup is never written instead.'
+            . 'backup.recipient_public_keys in config.php — configuring a key is what switches '
+            . 'nightly backups on. A plaintext backup is never written instead.'
         );
     }
 
     public static function malformedEntry(string $entry): self
     {
         return new self(sprintf(
-            'backup.public_keys carries an entry that is not "label:hexkey": "%s". Expected a '
+            'backup.recipient_public_keys carries an entry that is not "label:hexkey": "%s". Expected a '
             . 'label of letters, digits, hyphens or underscores, a colon, then 64 hex '
             . 'characters — as tools/keypair-generator.html prints them.',
             self::redact($entry)
@@ -39,21 +40,10 @@ final class BackupKeyringException extends RuntimeException
     public static function duplicateLabel(string $label): self
     {
         return new self(sprintf(
-            'backup.public_keys names "%s" twice. Two recipients with one label make the '
+            'backup.recipient_public_keys names "%s" twice. Two recipients with one label make the '
             . 'decryptor unable to tell a holder which key to fetch, which is the one job its '
             . 'header does.',
             $label
-        ));
-    }
-
-    /** @param list<string> $labels */
-    public static function everyKeyCompromised(array $labels): self
-    {
-        return new self(sprintf(
-            'Every configured backup key is marked compromised (%s), so no archive can be '
-            . 'written. Add a replacement key before removing the last usable one — a '
-            . 'compromise is when backups matter most.',
-            implode(', ', $labels)
         ));
     }
 

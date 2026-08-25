@@ -228,10 +228,6 @@ final class RouteRoleMap
 
         // ── bank lookup: resolving an IBAN's institute is treasury work ───
         'GET /api/admin/bank-lookup' => self::TREASURY,
-        // But *refilling* the table is not: it reaches a third party over the
-        // network and rewrites ~20k rows, which is server work rather than
-        // treasury work. Narrowed by the same rule that widens the lookup.
-        'POST /api/admin/bank-codes/reimport' => self::ADMIN_ONLY,
 
         // ── terminals: admin only ────────────────────────────────────────
         // A terminal token is a back door into the sync API, which reads the

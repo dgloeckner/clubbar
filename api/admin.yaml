@@ -3090,6 +3090,82 @@ paths:
         '404':
           description: No `cron.secret` configured — the URL trigger is off on this installation
 
+  /cron/backup:
+    get:
+      tags: [Scheduler]
+      summary: Write an encrypted database backup (URL trigger)
+      description: |
+        The fallback trigger for the nightly backup, for hosting with no CLI
+        cron (ADR-0049 decision 5). `backend/bin/backup.php` is the preferred
+        one and both call the same service; this is not a second backup path.
+
+        **A second scheduled job is permitted here because it is separately
+        observed.** ADR-0038's "one scheduled command" is narrowed by ADR-0049
+        to its actual principle: no scheduled path may exist that nothing
+        watches.
+
+        **Authorisation** is the drain's secret — one credential, one rotation,
+        one thing to paste. Two would mean an installation that rotated one and
+        not the other, with the failure showing up as a job that silently
+        stopped.
+
+        **Two ways to be unmounted, both `404`:** no `cron.secret`, and no
+        `backup.recipient_public_keys`. The second is the on-switch (decision
+        2) — configuring a recipient key is what turns backups on — so a club
+        that has not configured one has no backup endpoint either. Answering
+        `204` while writing nothing would report success to the scheduler every
+        night for a club that has never had a backup.
+
+        Heavier than the drain, and treated as such: this **produces and stores
+        a database dump**. It answers `204` with an empty body always — it
+        triggers, it never serves an archive, not even a count — and refuses to
+        run again within an hour of the last *attempt*, so a caller in a loop
+        cannot fill the webspace quota with dumps. There is no URL equivalent
+        of the CLI's `--force`.
+      operationId: writeDatabaseBackup
+      security: []
+      parameters:
+        - name: secret
+          in: query
+          required: false
+          description: |
+            Degraded alternative to the `X-Cron-Secret` header, for panels that
+            cannot send one — the secret is then written verbatim to the
+            webserver's access log.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: |
+            The request was accepted and a run was attempted. Says nothing about
+            whether an archive was written — including when the run was skipped
+            for the minimum interval, or refused because the configured
+            recipient key is malformed. What the run did goes to the journal
+            beside the archives and to the application log.
+        '401':
+          description: Missing or wrong secret
+        '404':
+          description: |
+            No `cron.secret`, or no `backup.recipient_public_keys` — backups are
+            not switched on for this installation
+    post:
+      tags: [Scheduler]
+      summary: Write an encrypted database backup (URL trigger)
+      description: |
+        Identical to `GET /cron/backup`. Both verbs exist because panels differ
+        on which they can schedule.
+      operationId: writeDatabaseBackupPost
+      security: []
+      responses:
+        '204':
+          description: The request was accepted and a run was attempted
+        '401':
+          description: Missing or wrong secret
+        '404':
+          description: |
+            No `cron.secret`, or no `backup.recipient_public_keys` — backups are
+            not switched on for this installation
+
   # ============================================================================
   # ADMIN USERS
   # ============================================================================

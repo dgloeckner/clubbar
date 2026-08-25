@@ -66,44 +66,36 @@ Six requirements follow, and everything else in this ADR is refinement of them.
 | 5 | **Bounded retention** | A backup outliving an [ADR-0029](./0029-two-tier-retention-and-erasure.md) erasure defeats it |
 | 6 | Someone **notices when it stops** | The silent-stall failure [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md) already fears for mail |
 
-### 1. The dump is produced in PHP, and the snapshot is atomic
+### 1. The dump is produced in PHP, is complete, and the snapshot is atomic
 
 There is no `mysqldump` on the target, so the dumper walks the schema itself and
-streams rows to a compressed, sealed file. Tables fall into three classes:
+streams rows to a sealed file.
 
-| Class | Tables | Why |
-|---|---|---|
-| **full** | Business data, and `_migrations` | It is the point. The migration ledger is included because a restore without it leaves the runner believing nothing is applied, so the next upgrade replays every migration against a populated database |
-| **schema-only** | `bank_codes` | Bulk reference data, reimportable from its own importer. Structure is kept so the archive still loads |
-| **skip** | `login_attempts`, `terminal_auth_attempts`, `terminal_ip_sightings` | Ephemeral; restoring them restores nothing |
+**Every base table is dumped in full, and the list comes from the live schema.**
+The dumper enumerates `information_schema.TABLES` at run time, so a table added
+by next month's migration is in that night's archive with no backup-side change.
+There is no per-table classification, no skip list and no schema-only class: an
+earlier draft of this decision maintained one — three classes, a hand-kept map of
+every table, and a CI bijection test policing the map against the live schema —
+and it is rejected under *Alternatives considered*. The application's schema is
+allowed to evolve without the backup knowing or caring; **a backup that holds
+opinions about which parts of the database matter is a backup that can be wrong
+about them**, and the cost of being wrong is asymmetric and silent: a table
+wrongly skipped is missing on the day of a restore, and nothing before that day
+says so.
 
-**A table nobody classified is an error, not a guess.** Defaulting to "back it
-up" would quietly grow the archive with whatever the next migration adds;
-defaulting to "skip it" would quietly lose it. Either mistake is invisible until
-a restore, which is the worst possible moment to find out.
+"Everything" deliberately includes the tables the earlier draft argued out:
+`bank_codes` (~20k reference rows, identical in every installation — compression
+makes them cheap, and dumping them means a restored installation works
+immediately instead of needing a repopulation step and an endpoint to perform
+it) and the rate-limit counters (`login_attempts`, `terminal_auth_attempts`,
+`terminal_ip_sightings` — restoring a few hours of stale counters is harmless).
+What the archive would *lose* by selection is unbounded; what it gains is bytes.
 
-**The check is a bijection against the live schema, in both directions**, and it
-is a feature test — a unit test over a hand-written list would only ever catch a
-typo, never a migration. A new table missing from the map is the direction
-everyone anticipates. The other one earns its place on its own: this ADR's own
-first draft listed `sessions` under **skip**, a table migration `044` had already
-dropped, and nothing but the stale-side assertion would have caught it. A map
-that has drifted in either direction is no longer evidence of anything.
-
-**But CI and the nightly run want opposite things from that rule.** In CI the
-classification must fail closed: an unclassified table is a red build, because
-that is the moment a human is present and the cost of stopping is nil. At 03:00
-it must fail *open*: the table is dumped as **full** and the run records a
-`SecurityFinding` (✕) plus a notice. Refusing the whole night's backup over one
-unrecognised name would be the control-that-looks-like-protection failure this
-ADR opens with — and an unrecognised table is far likelier to be business data
-than ephemera, so including it is also the better guess.
-
-This is the general shape of the rule, and it is worth stating once:
-**confidentiality fails closed, completeness fails open and reports.** No
-recipient key means no archive at all (decision 2). An unknown table means a
-slightly larger archive and a finding. Collapsing the two — as "fail closed"
-alone would — trades a real backup for a tidier invariant.
+Completeness therefore has no runtime failure mode of its own: there is nothing
+to classify, so nothing can be unclassified. **Confidentiality still fails
+closed** — no recipient key means no archive at all (decision 2), and a
+plaintext fallback is never written.
 
 #### What the dumper assumes, and what keeps those assumptions true
 
@@ -113,7 +105,7 @@ one stops holding, CI says so rather than the backup failing at 03:00:
 
 | Assumption | What breaks without it |
 |---|---|
-| Every name is a **base table** | `SHOW TABLES` returns views as well. The first view added anywhere makes the classification throw and takes the entire nightly backup down, from an unrelated migration. The dumper therefore reads `information_schema.TABLES` with `TABLE_TYPE = 'BASE TABLE'` — and the guard test asserts the schema holds no views, triggers, routines or events, because those are silently absent from the archive rather than loudly missing |
+| Every name is a **base table** | `SHOW TABLES` returns views as well, and a view dumped as if it were a table breaks the restore. The dumper therefore reads `information_schema.TABLES` with `TABLE_TYPE = 'BASE TABLE'` — and the guard test asserts the schema holds no views, triggers, routines or events, because a table-only archive would lose those *silently* rather than loudly |
 | Every table is **InnoDB** | `START TRANSACTION WITH CONSISTENT SNAPSHOT` covers InnoDB and nothing else. A non-InnoDB table is read at whatever moment the cursor reaches it, so the archive tears between tables — and looks perfectly normal |
 | The restoring session is **UTC** | See below |
 
@@ -217,6 +209,13 @@ all**, and the security self-check reports it as a failure. A plaintext fallback
 is never written. This is [ADR-0031](./0031-production-hardening-on-shared-hosting.md)
 rule 3 applied unchanged: refuse and report, never silently degrade.
 
+**Configuring a recipient key is also what switches backups on.** There is no
+separate enabled flag (decision 8): "keys configured" and "backups on" are one
+state, named accordingly in `config.php` (`backup.recipient_public_keys`), so the
+two can never disagree — the failure mode a flag would add is an installation
+switched on with no key, which produces a nightly *failure* rather than a nightly
+backup.
+
 ### 3. Rotation is an event, not a calendar entry
 
 Unlike the IBAN key there is no cryptoperiod here and nothing blocks on expiry —
@@ -278,11 +277,17 @@ Order matters and is the thing that goes wrong under pressure: **mark the key,
 rotate, take a fresh backup, prove it opens — and only then destroy.** Destroying
 first trades a confidentiality problem for a total loss.
 
-The application's part is deliberately small: it records which archives were
-sealed to which key, and refuses to seal to a key marked compromised. Enumerating,
-deleting and reporting the residue is a runbook. A purge wizard would be
-machinery for an event a club faces approximately never, and the club would be
-reading a runbook in crisis anyway.
+The application's part is deliberately small — smaller than an earlier draft made
+it. Every archive names the keys it was sealed to **in its own header** (decision
+8), so enumerating the residue of a compromised key is a scan of the local
+directory plus a listing of the remote store, with no register to consult and
+none to have drifted. Stopping the key is removing it from
+`backup.recipient_public_keys`; the record of who holds which key, and of the
+compromise itself, lives where the club's other security decisions live — in its
+minutes and its key register, outside the application. Enumerating, deleting and
+reporting the residue is a runbook. A purge wizard would be machinery for an
+event a club faces approximately never, and the club would be reading a runbook
+in crisis anyway.
 
 ### 5. One scheduled command, re-read
 
@@ -315,9 +320,18 @@ notice to the Admin, not a lockout.
 
 The URL trigger is heavier than the mail drain's and is treated as such: it
 **produces and stores a database dump**. So it requires the shared cron secret,
-is unmounted when no secret is configured, answers with an empty success always —
-it triggers, it never serves an archive — and carries a minimum-interval guard so
-repeated calls cannot fill the webspace quota with dumps.
+answers with an empty success always — it triggers, it never serves an archive —
+and carries a minimum-interval guard so repeated calls cannot fill the webspace
+quota with dumps.
+
+**It is unmounted on either missing precondition: no cron secret, or no
+recipient key.** The second follows from decision 2 rather than being a rule of
+its own — configuring a key *is* switching backups on, so a club that has not
+configured one has no backup endpoint either. The alternative is worse than it
+looks: a route that answered 204 while writing nothing would report success to
+the scheduler every night, and "the backup cron is never added" would be
+replaced by "the backup cron runs and produces nothing", which is the same
+outcome with the alarm disabled.
 
 ### 6. Storage: what a location must offer, and what M365 actually offers
 
@@ -394,12 +408,10 @@ where it does exist would halve the field exposure of the PHP path that is the
 risky one.
 
 **A restore has to end in a working installation, not merely an equal one.**
-Three things are true of a correct restore that a row comparison would not catch:
-the configuration file must travel inside the archive (below); `bank_codes` is
-`schema-only` and comes back empty, so it needs a repopulation path that works
-without a shell; and the archive's own session pinning (decision 1) has to survive
-the operator, since overriding it shifts every `TIMESTAMP` in the database with no
-visible symptom.
+Two things are true of a correct restore that a row comparison would not catch:
+the configuration file must travel inside the archive (below), and the archive's
+own session pinning (decision 1) has to survive the operator, since overriding
+it shifts every `TIMESTAMP` in the database with no visible symptom.
 
 The restore path assumes no shell: download the archive, decrypt it with a
 browser-based offline tool built the same way as the existing keypair generator,
@@ -420,7 +432,56 @@ risk is stated rather than hidden, in the words the deployment guide already use
 for the key archive: the key archive and one backup must never be the only two
 copies of anything sitting in the same building.
 
-## Consequences
+### 8. The archive is the record; the database holds no backup state
+
+**The backup observes the database and writes nothing into it.** No tables, no
+migration, no audit rows. A backup is a procedure that stands outside the system
+it protects — it happens to share the codebase, and that is the whole
+relationship. This decision replaces an earlier draft that gave the backup three
+tables of its own (`backup_runs`, `backup_keys`, `backup_config`); what was wrong
+with them is recorded under *Alternatives considered*, and it is more than tidiness.
+
+**The archive describes itself.** The container's cleartext header — readable
+with no key, which the offline decryptor already relies on — carries everything a
+future reader needs in order to know what they are holding before they can open
+it:
+
+| Field | Why it is a must-have |
+|---|---|
+| format version, algorithm | What this build can read, stated rather than probed |
+| `created_at` (UTC) | When the snapshot was taken — retention and "which archive do I want" both read it |
+| recipients: `{fingerprint, label}` per key | *Which envelope in the safe opens this* — answerable years later, from the file alone, with no register to consult |
+| instance identity and database name | An archive found on a share is attributable — clubs merge, hosts are shared, volunteers keep copies |
+| schema version (highest applied migration) | Which application version can load this, and whether an upgrade must follow the import |
+| dump format version | The SQL dialect contract between emitter and restore tooling |
+| table manifest, `{table: row count}` | What is inside, without decrypting — and the decryptor's per-table split can name its parts |
+| plaintext length and SHA-256 | A restore can prove it decrypted what was sealed |
+
+Nothing in the header is secret — names of tables and a row count are not member
+data — and everything that could change the plaintext is inside the
+authenticated stream.
+
+**Operational state lives beside the archives, not in the database.** The backup
+directory holds the archives, an append-only journal (`index.jsonl` — one line
+per run attempt and outcome), and, while an upload is in flight, a sidecar file
+with its resume state. The interval guard, retention, the panel's history and
+the self-check all read the journal and the directory. The journal is a
+convenience, never a truth: *which keys still open archives that still exist* is
+answered by the archive headers themselves — a scan of the directory locally, a
+listing of the store remotely — so the answer cannot drift from reality the way
+a database row can.
+
+**Configuration is `config.php` only.** `backup.recipient_public_keys` (whose
+presence *is* the on-switch — decision 2), `backup.dsn`, and optional retention
+overrides above compiled defaults. No `backup_config` row: club policy that
+cannot be expressed in the file does not exist for this feature.
+
+**No audit-log entries.** The audit log records what admins do to member data
+inside the system ([ADR-0013](./0013-audit-logging.md)); a scheduled procedure
+that reads everything and writes only to its own directory is not that, and
+threading audit vocabulary through it coupled the backup to the application's
+schema (the migration had to respell the entire `audit_log` action enum to add
+four values). The backup's own record is its journal and its log lines.
 
 **Positive**
 
@@ -429,6 +490,13 @@ copies of anything sitting in the same building.
   to the member database and becomes the hardest.
 - The dumper becomes trustworthy by test rather than by hope, and the restore
   procedure by drill rather than by document.
+- The schema can evolve without the backup knowing: a new table is in the next
+  archive with no backup-side change, and there is no map to fall out of date.
+- A restore cannot corrupt backup state, because there is none in the database.
+  The archives and the journal beside them are the whole record; an archive found
+  anywhere is attributable and self-describing from its header alone.
+- No migration, no data-model change, no audit vocabulary: the feature touches
+  the application's schema nowhere.
 - Two orphaned annual duties acquire an owner by joining the drill.
 - The false claims in `README.md` and the unrunnable procedure in the deployment
   guide are corrected, which is the smallest and most immediate improvement here.
@@ -452,6 +520,17 @@ copies of anything sitting in the same building.
 - **The club can stop doing the manual copy and nobody would know.** Honestly
   unfixable by software. The annual drill is where it surfaces, which is why the
   drill is the duty that must not be cut.
+- **Run history is a flat file.** No relational queries over it, and deleting the
+  backup directory deletes the local history (the archives elsewhere keep their
+  own headers). Accepted at this scale: the journal is a convenience, the headers
+  are the record.
+- **Key custody is tracked outside the application.** Whether a key was ever
+  proved against a real archive, and whether one is compromised, lives in the
+  club's own key register and minutes, not in a panel. The drill is what keeps
+  that record honest.
+- **Full dump means full-size dump.** `bank_codes` and the counters ride along in
+  every archive. Compression absorbs it, and the trade was made knowingly:
+  simplicity and completeness over bytes.
 
 **Neutral**
 
@@ -516,7 +595,35 @@ silently, and retention plus the manual copy already covers the risk at a club's
 
 **An automated compromise purge** with archive enumeration and remote deletes.
 Rejected as machinery for an event a club faces approximately never. The record
-that makes a manual purge *possible* is kept; the wizard is not.
+that makes a manual purge *possible* is kept — in the archive headers themselves;
+the wizard is not.
+
+**A per-table classification (full / schema-only / skip).** Built in the first
+implementation and removed. It kept a hand-maintained copy of the schema inside
+the backup code — every table named, with a CI bijection test in both directions
+policing the map against the live database, a runtime policy for the unclassified
+case, and drift alarms comparing one night's manifest to the last. All of that
+machinery existed to manage a hazard the map itself created: the map *was* the
+drift. Its own first draft listed `sessions` in the skip set — a table migration
+`044` had already dropped — which is the failure in miniature: a second record of
+the schema is wrong the moment nobody notices a migration. Dumping every base
+table, enumerated live, deletes the hazard instead of guarding it, and the bytes
+it saves (chiefly `bank_codes`) are cheaper than the endpoint, the runbook step
+and the CI apparatus the saving cost.
+
+**Backup state in the application database.** Built in the first implementation
+(`backup_runs`, `backup_keys`, `backup_config`, migration `055`) and removed. A
+backup that stores its state inside the thing it backs up is self-referential,
+and the loops are not theoretical: every archive contained its own half-written
+`running` row, so restoring one resurrects a run that never finishes and reads
+as a stalled scheduler; a compromise blocklist kept in `backup_keys` is *reverted
+by any restore* of an archive predating the compromise — a restore silently
+un-deciding a security decision; and rows drift from files the moment an
+operator deletes an archive by hand, after which the row wins arguments it
+should lose. The tables also dragged in hand-written DML, a migration (with the
+respelled audit enum), and a data-model change — none of which a procedure
+outside the system should own. Replaced by decision 8: the self-describing
+archive, the journal beside it, and `config.php`.
 
 **Annual key rotation on a schedule.** Rejected: no cryptoperiod applies, and an
 invented chore nobody performs produces a warning everyone learns to ignore.

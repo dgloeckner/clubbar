@@ -24,14 +24,15 @@ use PHPUnit\Framework\TestCase;
  *
  * A format change that breaks either reader fails that reader's own test,
  * which is what makes "they cannot drift apart silently" a fact rather than an
- * intention. Regenerate the fixture only when the format version changes, and
- * expect both tests to need updating together.
+ * intention. Regenerate the fixture only when the format version changes —
+ * `php8.3 tests/Fixtures/backup/regenerate.php` — and expect both tests to
+ * need updating together.
  *
  * It is sealed to the two keypairs already published in this repository
  * (ADR-0036), so the fixture leaks nothing that was not already public, and
  * {@see BackupSealedBox::seal()} still refuses those keys outside development.
  *
- * Part of #689, epic #686.
+ * Part of #689 and #703, epic #686.
  */
 class BackupSealedBoxGoldenFixtureTest extends TestCase
 {
@@ -57,6 +58,34 @@ class BackupSealedBoxGoldenFixtureTest extends TestCase
         $this->assertSame(BackupSealedBox::VERSION, $header['version']);
         $this->assertSame(BackupSealedBox::ALGORITHM, $header['algorithm']);
         $this->assertSame(['admin', 'vorstand'], array_column($header['recipients'], 'label'));
+    }
+
+    /**
+     * The committed archive describes itself, with no key (ADR-0049 decision 8).
+     *
+     * Asserted on the *fixture* rather than only on a freshly sealed archive
+     * because this is the artifact a key holder actually meets: bytes written
+     * by an earlier build, opened years later, with nothing else to identify
+     * them by. A field silently dropped from the header would still pass a
+     * round-trip test.
+     */
+    public function test_the_committed_archive_says_what_it_holds(): void
+    {
+        $header = BackupSealedBox::readHeader($this->archive());
+
+        $this->assertSame('SV Musterstadt', $header['instance']['name']);
+        $this->assertSame('clubbar', $header['instance']['database']);
+        $this->assertNotNull($header['instance']['id']);
+        $this->assertSame('054_credit_limit_digest.sql', $header['schema_version']);
+        $this->assertSame(1, $header['dump_format']);
+        $this->assertArrayHasKey('members', $header['manifest']);
+
+        $this->assertSame(
+            trim(file_get_contents($this->fixturePath('golden.plaintext.sha256'))),
+            $header['plaintext_sha256'],
+            'The header states the checksum of what was sealed, so a restore can prove it '
+            . 'decrypted that and not something else.'
+        );
     }
 
     /**

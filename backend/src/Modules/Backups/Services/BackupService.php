@@ -7,33 +7,42 @@ namespace App\Modules\Backups\Services;
 use App\Modules\Backups\Domain\BackupKeyringException;
 use App\Modules\Backups\Domain\BackupOutcome;
 use App\Modules\Backups\Domain\BackupRecipient;
-use App\Modules\Backups\Domain\UnclassifiedTablePolicy;
-use App\Modules\Backups\Repositories\BackupConfigRepository;
-use App\Modules\Backups\Repositories\BackupKeysRepository;
-use App\Modules\Backups\Repositories\BackupRunsRepository;
-use App\Shared\Enums\AuditAction;
-use App\Shared\Enums\EntityType;
+use App\Modules\Backups\Domain\BackupRetention;
 use App\Shared\Logging\Logger;
-use App\Shared\Services\AuditService;
 use App\Shared\Security\BackupSealedBox;
-use App\Shared\Utils\Uuid;
 use Throwable;
 
 /**
- * One backup run: dump, seal, write, record, prune.
+ * One backup run: dump, seal, write, journal, prune.
+ *
+ * ### It writes nothing into the database it dumps
+ *
+ * No run table, no key table, no configuration row, no audit entry (ADR-0049
+ * decision 8). A backup is a procedure that stands outside the system it
+ * protects — it happens to share the codebase, and that is the whole
+ * relationship. Its record is the **archive header**, which describes itself
+ * without any key, and the **journal beside the archives**, which carries the
+ * attempts that produced no file. Its configuration is `config.php`.
+ *
+ * That is not tidiness. The earlier draft's three tables were self-referential
+ * in ways that bite: every archive contained its own half-written `running`
+ * row, so restoring one resurrected a run that never finishes; a compromise
+ * blocklist kept in the database was *reverted by any restore* of an archive
+ * predating the compromise; and rows drifted from files the moment an operator
+ * deleted an archive by hand.
  *
  * ### Never throws
  *
  * Every caller is a scheduler nobody is watching, so the run reports rather
  * than raises — the same rule `DrainService` follows for the same reason. What
- * went wrong lands on the `backup_runs` row, in the application log, and in the
- * returned {@see BackupOutcome}; #693 turns that into a self-check row and a
- * mail. A run that threw would produce a non-zero exit, which most panels turn
- * into a mail to the account owner — somebody who cannot fix it.
+ * went wrong lands in the journal, in the application log, and in the returned
+ * {@see BackupOutcome}; #693 turns that into a self-check row and a mail. A run
+ * that threw would produce a non-zero exit, which most panels turn into a mail
+ * to the account owner — somebody who cannot fix it.
  *
  * ### Atomic here, resumable there
  *
- * The dump is written to `<name>.part`, `fsync`ed and `rename()`d. A rename
+ * The archive is written to `<name>.part`, `fsync`ed and `rename()`d. A rename
  * within one filesystem is atomic, so the directory never holds a half-written
  * archive that a later run would count as a backup. The *upload* (#691) is the
  * opposite: resumable across runs, because a slow network should delay a backup
@@ -42,13 +51,13 @@ use Throwable;
  *
  * ### The whole archive is built in memory, and that is a deliberate bound
  *
- * `BackupSealedBox::seal()` takes a string. A club database is single-digit
- * megabytes and gzip takes it further, so this is comfortable at the scale this
- * ships for — and the budget check below is what stops a database that has
- * outgrown it from being discovered at 03:00 by an OOM with no row written.
- * Streaming the seal is #691's problem, when the upload needs a stream anyway.
+ * `BackupSealedBox::seal()` takes a string, and it has to: the header carries
+ * the manifest and the plaintext's checksum, so sealing cannot begin until the
+ * dump has finished. A club database is single-digit megabytes, so this is
+ * comfortable at the scale this ships for. Streaming the seal is #691's
+ * problem, when the upload needs a stream anyway.
  *
- * ADR-0049. Part of #690, epic #686.
+ * ADR-0049. Part of #690 and #703, epic #686.
  */
 final class BackupService
 {
@@ -57,6 +66,9 @@ final class BackupService
 
     /** Sealed-container extension, as `tools/backup-decryptor.html` accepts it. */
     public const EXTENSION = '.cbb';
+
+    /** The archive name this job writes, and the only pattern it will ever prune. */
+    private const FILENAME_PREFIX = 'clubbar-';
 
     /**
      * The floor between two runs, in minutes.
@@ -68,18 +80,37 @@ final class BackupService
      */
     public const MINIMUM_INTERVAL_MINUTES = 60;
 
+    private readonly BackupJournal $journal;
+
     public function __construct(
         private readonly DatabaseDump $dump,
         private readonly BackupKeyring $keyring,
-        private readonly BackupRunsRepository $runs,
-        private readonly BackupKeysRepository $keys,
-        private readonly BackupConfigRepository $config,
-        private readonly AuditService $audit,
         private readonly Logger $logger,
         private readonly string $backupDirectory,
-        private readonly string $configuredPublicKeys,
+        private readonly string $configuredRecipientKeys,
+        private readonly BackupRetention $retention,
         private readonly string $appEnv = 'production',
     ) {
+        $this->journal = new BackupJournal($this->backupDirectory);
+    }
+
+    /**
+     * Has this installation switched backups on?
+     *
+     * Configuring a recipient key *is* the on-switch (ADR-0049 decision 2), so
+     * there is no flag that could disagree with the keys. The entrypoints ask
+     * this before running at all: an installation that has never set up backups
+     * should be silent, not fail nightly.
+     *
+     * The question is deliberately "is there anything there", not "does it
+     * parse". A typo'd key must reach {@see run()} and fail loudly — treating a
+     * malformed entry as "backups are off" would let one wrong character switch
+     * a club's backups off with no complaint, which is the worst outcome
+     * available here.
+     */
+    public function isConfigured(): bool
+    {
+        return trim($this->configuredRecipientKeys) !== '';
     }
 
     /**
@@ -88,60 +119,53 @@ final class BackupService
      */
     public function run(string $triggerSource, bool $force = false): BackupOutcome
     {
-        $settings = $this->config->get();
-
-        if ((int) $settings['enabled'] !== 1) {
-            return BackupOutcome::skipped(
-                'Backups are disabled (Settings → Backups). Nothing was written.'
-            );
-        }
-
         if (!$force && ($tooSoon = $this->tooSoonToRunAgain()) !== null) {
             return BackupOutcome::skipped($tooSoon);
         }
 
         try {
-            $recipients = $this->keyring->recipients($this->configuredPublicKeys);
+            $recipients = $this->keyring->recipients($this->configuredRecipientKeys);
         } catch (BackupKeyringException $e) {
             // Fail closed, and loudly. No archive at all is the correct outcome
             // here; a plaintext one would be the failure ADR-0031 rule 3 names.
+            // Reaching this means somebody called a run on an installation with
+            // no usable key — the entrypoints gate on isConfigured() precisely
+            // so an unconfigured club never gets here.
             $this->logger->error('Backup refused: no usable recipient key', [
                 'message' => $e->getMessage(),
             ]);
 
-            return BackupOutcome::failed($e->getMessage(), null, [$e->getMessage()]);
+            return BackupOutcome::failed($e->getMessage(), [$e->getMessage()]);
         }
 
-        $runId = Uuid::v4();
-        $now = gmdate('Y-m-d H:i:s');
-        $this->runs->start($runId, $triggerSource, $now);
-
         try {
-            return $this->produce($runId, $recipients, $settings);
+            // Inside the try, and this is the point of the ordering: creating
+            // the directory is itself something that fails on shared hosting —
+            // a data directory the cron user does not own — and a run that
+            // threw there would exit non-zero into a panel that mails the
+            // account owner. It reports, like every other failure here.
+            $this->ensureDirectory();
+            $this->journal->started($triggerSource);
+
+            return $this->produce($recipients);
         } catch (Throwable $e) {
-            $this->runs->markFailed($runId, $e->getMessage(), gmdate('Y-m-d H:i:s'));
+            $this->journal->failed($e->getMessage());
             $this->logger->error('Backup run failed', [
-                'run_id' => $runId,
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
             ]);
 
-            return BackupOutcome::failed($e->getMessage(), $runId, [$e->getMessage()]);
+            return BackupOutcome::failed($e->getMessage(), [$e->getMessage()]);
         }
     }
 
     /**
      * @param list<BackupRecipient> $recipients
-     * @param array<string, mixed> $settings
      */
-    private function produce(string $runId, array $recipients, array $settings): BackupOutcome
+    private function produce(array $recipients): BackupOutcome
     {
-        $previous = $this->runs->lastSuccessful();
+        $source = $this->dump->sourceDescription();
 
-        // Fails open by policy (ADR-0049 decision 1): an unrecognised table is
-        // dumped and reported, because refusing the night's backup over one
-        // unknown name is the control-that-looks-like-protection failure. CI is
-        // where the same event is red, via the bijection test.
         $sql = '';
         $result = $this->dump->dump(function (string $chunk) use (&$sql): void {
             $sql .= $chunk;
@@ -155,230 +179,209 @@ final class BackupService
         // at the one moment the design exists to protect. Compression belongs
         // with the upload (#691) — that is where size costs anything — and the
         // decryptor's inflate side ships in the same slice.
+        //
+        // Sealing happens *after* the dump because the header describes the
+        // plaintext: the manifest, its length and its checksum are not knowable
+        // until the last row is written.
         $sealed = BackupSealedBox::seal(
             $sql,
             array_map(static fn (BackupRecipient $r): array => $r->toSealRecipient(), $recipients),
+            $source + ['manifest' => $result->manifest],
             $this->appEnv,
         );
         // The plaintext is the whole database; drop the reference as soon as it
         // is sealed rather than holding both copies until the function returns.
         unset($sql);
 
-        $filename = $this->filenameFor($runId);
+        $filename = $this->filenameFor();
         $bytes = $this->writeAtomically($filename, $sealed);
         $sha256 = hash('sha256', $sealed);
         unset($sealed);
 
-        $finishedAt = gmdate('Y-m-d H:i:s');
-        $fingerprints = array_map(static fn (BackupRecipient $r): string => $r->fingerprint(), $recipients);
-
-        foreach ($recipients as $recipient) {
-            $isNew = $this->keys->recordUse($recipient->fingerprint(), $recipient->label, $finishedAt);
-
-            // Audited from the run rather than from a form, because there is no
-            // form: recipient keys are added by editing `config.php`, which is
-            // not a place that can write an audit row. The first archive sealed
-            // to a key is the earliest moment the application can know it
-            // exists, so the observation *is* the record (pattern-016).
-            if ($isNew) {
-                $this->audit->log(
-                    AuditAction::BACKUP_KEY_ADDED,
-                    EntityType::BACKUP_KEY,
-                    $recipient->fingerprint(),
-                    null,
-                    ['label' => $recipient->label],
-                );
-            }
-        }
-
-        $this->runs->markLocal(
-            $runId,
+        $this->journal->written(
             $filename,
             $bytes,
             $sha256,
-            $fingerprints,
-            $result->manifest,
-            $finishedAt,
+            array_map(static fn (BackupRecipient $r): string => $r->fingerprint(), $recipients),
+            count($result->manifest),
         );
 
-        $drift = $this->manifestDrift($previous, $result->manifest);
-        $findings = $this->findingsFor($result->unclassifiedTables, $drift);
-
-        $pruned = $this->prune($settings, $findings);
-
-        return BackupOutcome::written(
-            $runId,
-            $filename,
-            $bytes,
-            $findings,
-            $drift,
-            $result->unclassifiedTables,
-            $pruned,
-        );
-    }
-
-    /**
-     * Did the set of tables change since the last archive?
-     *
-     * Storing a manifest answers *"what was in that archive?"* after the fact.
-     * Comparing it answers *"did the shape of the database change last night?"*
-     * while somebody can still act on it — which is the runtime half of the
-     * drift guard whose CI half is the bijection test (#699). A table that
-     * appears, disappears or moves between classes is reportable in its own
-     * right: it means a migration ran, and a migration nobody expected is worth
-     * a look before the next one.
-     *
-     * Row *counts* are deliberately not compared. They change every day, by
-     * design, and an alarm that fires every day is one nobody reads.
-     *
-     * @param array<string, mixed>|null $previous
-     * @param array<string, int> $manifest
-     * @return list<string>
-     */
-    private function manifestDrift(?array $previous, array $manifest): array
-    {
-        if ($previous === null || ($previous['table_manifest'] ?? null) === null) {
-            return [];
-        }
-
-        $before = json_decode((string) $previous['table_manifest'], true);
-        if (!is_array($before)) {
-            return [];
-        }
-
-        $drift = [];
-
-        foreach (array_diff(array_keys($manifest), array_keys($before)) as $added) {
-            $drift[] = sprintf('table "%s" is new since the previous archive', $added);
-        }
-
-        foreach (array_diff(array_keys($before), array_keys($manifest)) as $gone) {
-            $drift[] = sprintf('table "%s" was in the previous archive and is not in this one', $gone);
-        }
-
-        return $drift;
-    }
-
-    /**
-     * @param list<string> $unclassified
-     * @param list<string> $drift
-     * @return list<string>
-     */
-    private function findingsFor(array $unclassified, array $drift): array
-    {
         $findings = [];
+        $pruned = $this->prune($filename, $findings);
 
-        if ($unclassified !== []) {
-            $findings[] = sprintf(
-                'Backed up %d table(s) nobody has classified (%s). They were included as full '
-                . 'data, which is the safer guess — but somebody has to decide, in '
-                . 'TableClassification::MAP.',
-                count($unclassified),
-                implode(', ', $unclassified)
-            );
-        }
-
-        foreach ($drift as $change) {
-            $findings[] = 'Backup manifest changed: ' . $change . '.';
-        }
-
-        return $findings;
+        return BackupOutcome::written($filename, $bytes, $findings, $pruned);
     }
 
     /**
      * Remove archives past their age, then past the total byte cap, oldest
-     * first. The row survives both.
+     * first — reading the directory, because the directory is what is true.
+     *
+     * There is no table of what should be there to disagree with what is: an
+     * operator who deleted an archive by hand has deleted it, and a file that
+     * appeared by some other route is still occupying the quota. The journal
+     * records what was removed; it is never consulted about what exists.
      *
      * The byte cap is a **refusal**, not a best effort: if pruning everything
      * eligible still leaves the directory over the cap, that is recorded as a
-     * finding rather than resolved by deleting the newest archives. A full
+     * finding rather than resolved by deleting the newest archive. A full
      * webspace quota breaks logging and mandate storage, neither of which is
      * the backup's to break — but deleting the only recent backup to stay under
      * a number would be worse than reporting it.
      *
-     * @param array<string, mixed> $settings
+     * @param string $justWritten never pruned, whatever the numbers say
      * @param list<string> $findings appended to in place
      */
-    private function prune(array $settings, array &$findings): int
+    private function prune(string $justWritten, array &$findings): int
     {
-        $archives = $this->runs->unprunedArchives();
-        $cutoff = gmdate('Y-m-d H:i:s', time() - ((int) $settings['local_retention_days'] * 86400));
-        $cap = (int) $settings['local_max_bytes'];
-        $prunedAt = gmdate('Y-m-d H:i:s');
+        $archives = $this->archivesOnDisk();
+        $cutoff = time() - ($this->retention->localDays * 86400);
 
         $pruned = 0;
         $keep = [];
 
         foreach ($archives as $archive) {
-            if ((string) $archive['started_at'] < $cutoff) {
-                $this->removeArchive((string) $archive['id'], (string) $archive['filename'], $prunedAt);
-                $pruned++;
-                continue;
+            if ($archive['name'] !== $justWritten && $archive['at'] < $cutoff) {
+                if ($this->removeArchive($archive, 'age') === 1) {
+                    $pruned++;
+                    continue;
+                }
+
+                // Still on disk, so still spending the quota. Falling through
+                // rather than dropping it keeps the byte total honest — an
+                // archive we could not delete must not make the cap look
+                // satisfied.
             }
 
             $keep[] = $archive;
         }
 
         // Oldest first, so the byte cap takes the archive whose loss costs least.
-        $total = array_sum(array_map(static fn (array $a): int => (int) $a['bytes'], $keep));
+        $total = array_sum(array_column($keep, 'bytes'));
         foreach ($keep as $i => $archive) {
-            if ($total <= $cap) {
+            if ($total <= $this->retention->localMaxBytes) {
                 break;
             }
 
             // Never the newest: an installation whose single archive is over the
             // cap must end up reported, not empty.
-            if ($i === count($keep) - 1) {
+            if ($i === count($keep) - 1 || $archive['name'] === $justWritten) {
                 break;
             }
 
-            $this->removeArchive((string) $archive['id'], (string) $archive['filename'], $prunedAt);
-            $total -= (int) $archive['bytes'];
-            $pruned++;
+            $removed = $this->removeArchive($archive, 'cap');
+            if ($removed === 0) {
+                break;
+            }
+
+            $total -= $archive['bytes'];
+            $pruned += $removed;
         }
 
-        if ($total > $cap) {
+        if ($total > $this->retention->localMaxBytes) {
             $findings[] = sprintf(
                 'Backups occupy %s bytes, over the %s byte cap, and pruning further would leave '
                 . 'the club with no recent archive. Raise the cap, shorten retention, or find '
                 . 'the webspace more room — a full quota breaks logging and mandate storage.',
                 number_format($total),
-                number_format($cap)
+                number_format($this->retention->localMaxBytes)
             );
         }
 
         return $pruned;
     }
 
-    private function removeArchive(string $runId, string $filename, string $prunedAt): void
+    /**
+     * Every archive this job wrote, oldest first.
+     *
+     * Dated from the filename, which the run stamped in UTC, and from `mtime`
+     * only when that will not parse. The two agree on every file this job
+     * writes; the fallback matters for one somebody restored from a copy, where
+     * the name is the honest date and the modification time is the day it was
+     * copied.
+     *
+     * Only `clubbar-*.cbb` is considered, so nothing else an operator has put
+     * in the directory — a `.part` from a killed run, the journal itself, a
+     * note to a successor — can be deleted by this.
+     *
+     * @return list<array{name: string, bytes: int, at: int}>
+     */
+    private function archivesOnDisk(): array
     {
-        $path = $this->backupDirectory . '/' . $filename;
+        $pattern = $this->backupDirectory . '/' . self::FILENAME_PREFIX . '*' . self::EXTENSION;
 
-        // A file already gone is pruned as far as anyone cares — an operator
-        // deleting one by hand must not leave a row that says it is still there.
-        if (is_file($path) && !@unlink($path)) {
-            $this->logger->warning('Could not remove a pruned backup archive', ['path' => $path]);
+        $archives = [];
+        foreach (glob($pattern) ?: [] as $path) {
+            if (!is_file($path)) {
+                continue;
+            }
 
-            return;
+            $name = basename($path);
+            $archives[] = [
+                'name' => $name,
+                'bytes' => (int) filesize($path),
+                'at' => $this->dateOf($name) ?? (int) filemtime($path),
+            ];
         }
 
-        $this->runs->markPruned($runId, $prunedAt);
+        usort($archives, static fn (array $a, array $b): int => [$a['at'], $a['name']] <=> [$b['at'], $b['name']]);
+
+        return $archives;
+    }
+
+    /** The UTC instant in `clubbar-20260825-030000-1a2b3c4d.cbb`, or null. */
+    private function dateOf(string $filename): ?int
+    {
+        if (preg_match('/^' . self::FILENAME_PREFIX . '(\d{8}-\d{6})-/', $filename, $m) !== 1) {
+            return null;
+        }
+
+        $at = \DateTimeImmutable::createFromFormat('Ymd-His', $m[1], new \DateTimeZone('UTC'));
+
+        return $at === false ? null : $at->getTimestamp();
     }
 
     /**
-     * `.part` → `fsync` → `rename()`, so the directory never shows a partial
-     * archive. Directory mode 0700, outside the document root (ADR-0031
-     * decision 2) — an archive under it would be a URL the day `.htaccess`
-     * stops being honoured, which has already happened once (#383).
+     * @param array{name: string, bytes: int, at: int} $archive
+     * @return int 1 if the archive is gone, 0 if it could not be removed
      */
-    private function writeAtomically(string $filename, string $contents): int
+    private function removeArchive(array $archive, string $reason): int
     {
-        if (!is_dir($this->backupDirectory) && !@mkdir($this->backupDirectory, 0700, true)
+        $path = $this->backupDirectory . '/' . $archive['name'];
+
+        if (!@unlink($path)) {
+            $this->logger->warning('Could not remove a pruned backup archive', ['path' => $path]);
+
+            return 0;
+        }
+
+        $this->journal->pruned($archive['name'], $archive['bytes'], $reason);
+
+        return 1;
+    }
+
+    /**
+     * Directory mode 0700, outside the document root (ADR-0031 decision 2) — an
+     * archive under it would be a URL the day `.htaccess` stops being honoured,
+     * which has already happened once (#383).
+     */
+    private function ensureDirectory(): void
+    {
+        if (!is_dir($this->backupDirectory)
+            && !@mkdir($this->backupDirectory, 0700, true)
             && !is_dir($this->backupDirectory)) {
             throw new \RuntimeException(
                 'Cannot create the backup directory ' . $this->backupDirectory . '.'
             );
         }
+    }
+
+    /**
+     * `.part` → `fsync` → `rename()`, so the directory never shows a partial
+     * archive.
+     */
+    private function writeAtomically(string $filename, string $contents): int
+    {
+        $this->ensureDirectory();
 
         $final = $this->backupDirectory . '/' . $filename;
         $part = $final . '.part';
@@ -412,20 +415,34 @@ final class BackupService
         return strlen($contents);
     }
 
-    private function filenameFor(string $runId): string
+    /**
+     * `clubbar-<UTC timestamp>-<random>.cbb`.
+     *
+     * The suffix is what keeps two runs in the same second from colliding —
+     * previously the head of a run id, and there is no run id any more. It
+     * identifies the file and nothing else; what the archive *is* is in its
+     * header.
+     */
+    private function filenameFor(): string
     {
-        return sprintf('clubbar-%s-%s%s', gmdate('Ymd-His'), substr($runId, 0, 8), self::EXTENSION);
+        return sprintf(
+            '%s%s-%s%s',
+            self::FILENAME_PREFIX,
+            gmdate('Ymd-His'),
+            bin2hex(random_bytes(4)),
+            self::EXTENSION
+        );
     }
 
     /** @return string|null the reason to skip, or null to go ahead */
     private function tooSoonToRunAgain(): ?string
     {
-        $last = $this->runs->lastStartedAt();
+        $last = $this->journal->lastStartedAt();
         if ($last === null) {
             return null;
         }
 
-        $elapsed = time() - strtotime($last . ' UTC');
+        $elapsed = time() - $last;
         if ($elapsed >= self::MINIMUM_INTERVAL_MINUTES * 60) {
             return null;
         }

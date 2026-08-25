@@ -12,6 +12,12 @@
  *   stream   crypto_secretstream header
  *   keys     per recipient: 4-byte length, then crypto_box_seal(stream key)
  *   body     per chunk: 4-byte length, then a secretstream chunk
+ *
+ * Version 2's header describes the archive as well as naming its recipients:
+ * instance, schema version, dump format, table manifest, and the plaintext's
+ * length and SHA-256. There is no backup state in the application's database,
+ * so this header is the record (ADR-0049 decision 8) - and all of it is
+ * readable here, with no key.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -23,7 +29,7 @@
   'use strict';
 
   var MAGIC = 'CLUBBAR-BACKUP';
-  var VERSION = 1;
+  var VERSION = 2;
 
   function bytesToAscii(bytes) {
     var s = '';
@@ -55,13 +61,21 @@
       throw new Error('Not a Club Bar backup archive (bad magic).');
     }
 
-    var cursor = { at: MAGIC.length + 1 };
+    var cursor = { at: MAGIC.length };
+    var containerVersion = take(archive, cursor, 1)[0];
+
+    if (containerVersion !== VERSION) {
+      throw new Error(
+        'Unsupported archive version ' + containerVersion + '; this tool reads version ' + VERSION + '.'
+      );
+    }
+
     var length = readLength(archive, cursor);
     var header = JSON.parse(bytesToAscii(take(archive, cursor, length)));
 
     if (header.version !== VERSION) {
       throw new Error(
-        'Unsupported archive version ' + header.version + '; this tool reads version ' + VERSION + '.'
+        'Archive header says version ' + header.version + ' but the container says ' + VERSION + '.'
       );
     }
 

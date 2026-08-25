@@ -169,11 +169,11 @@ class ConfigFileTest extends TestCase
     public function test_the_backup_recipient_list_survives_the_flattening(): void
     {
         ConfigFile::applyToEnvironment(
-            $this->config() + ['backup' => ['public_keys' => ['admin:aa', 'vorstand:bb']]],
+            $this->config() + ['backup' => ['recipient_public_keys' => ['admin:aa', 'vorstand:bb']]],
             '/srv/clubbar-data'
         );
 
-        $this->assertSame("admin:aa\nvorstand:bb", $_ENV['BACKUP_PUBLIC_KEYS']);
+        $this->assertSame("admin:aa\nvorstand:bb", $_ENV['BACKUP_RECIPIENT_PUBLIC_KEYS']);
     }
 
     /**
@@ -186,24 +186,52 @@ class ConfigFileTest extends TestCase
     public function test_a_single_recipient_written_as_a_bare_string_still_boots(): void
     {
         ConfigFile::applyToEnvironment(
-            $this->config() + ['backup' => ['public_keys' => 'admin:aa']],
+            $this->config() + ['backup' => ['recipient_public_keys' => 'admin:aa']],
             '/srv/clubbar-data'
         );
 
-        $this->assertSame('admin:aa', $_ENV['BACKUP_PUBLIC_KEYS']);
+        $this->assertSame('admin:aa', $_ENV['BACKUP_RECIPIENT_PUBLIC_KEYS']);
     }
 
     /**
      * An installation that has never configured backups still boots, and the
      * absence reads as "no recipient" rather than as a confidently wrong value.
-     * With no key nothing is written at all — never a plaintext archive.
+     * With no key nothing is written at all — never a plaintext archive, and
+     * (ADR-0049 decision 2) nothing is attempted either: the absence of a key
+     * *is* backups being off.
      */
     public function test_an_installation_without_a_backup_section_publishes_empty_values(): void
     {
         ConfigFile::applyToEnvironment($this->config(), '/srv/clubbar-data');
 
-        $this->assertSame('', $_ENV['BACKUP_PUBLIC_KEYS']);
+        $this->assertSame('', $_ENV['BACKUP_RECIPIENT_PUBLIC_KEYS']);
         $this->assertSame('', $_ENV['BACKUP_DSN']);
         $this->assertSame('', $_ENV['BACKUP_HEARTBEAT_URL']);
+    }
+
+    /**
+     * Retention is compiled in and these override it, so an installation that
+     * says nothing must publish nothing — an empty string, which `AppConfig`
+     * reads as "use the default" rather than as zero. A `0` here would be a
+     * retention of zero days: tonight's archive deleted at the end of tonight's
+     * run.
+     */
+    public function test_absent_retention_overrides_publish_nothing_rather_than_zero(): void
+    {
+        ConfigFile::applyToEnvironment($this->config(), '/srv/clubbar-data');
+
+        $this->assertSame('', $_ENV['BACKUP_LOCAL_RETENTION_DAYS']);
+        $this->assertSame('', $_ENV['BACKUP_LOCAL_MAX_BYTES']);
+        $this->assertSame('', $_ENV['BACKUP_REMOTE_RETENTION_DAYS']);
+    }
+
+    public function test_a_club_that_wants_a_different_window_can_say_so(): void
+    {
+        ConfigFile::applyToEnvironment(
+            $this->config() + ['backup' => ['local_retention_days' => 14]],
+            '/srv/clubbar-data'
+        );
+
+        $this->assertSame('14', $_ENV['BACKUP_LOCAL_RETENTION_DAYS']);
     }
 }

@@ -188,7 +188,7 @@ class BackupSealedBoxTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/published in this repository/i');
 
-        BackupSealedBox::seal('x', [$this->recipient('dev', $published)], 'production');
+        BackupSealedBox::seal('x', [$this->recipient('dev', $published)], [], 'production');
     }
 
     /** @return array{label: string, public_key: string} */
@@ -234,15 +234,96 @@ class BackupSealedBoxTest extends TestCase
     {
         $archive = BackupSealedBox::seal('x', [$this->recipient('admin', $this->pkA)]);
 
-        // Rewrite the version inside the header JSON, keeping the length prefix
-        // intact by substituting an equal-length token.
-        $tampered = str_replace('"version":1', '"version":9', $archive);
-        $this->assertNotSame($archive, $tampered, 'Precondition: the header carries a version.');
+        // The version byte follows the magic, so a later build's archive is
+        // told apart from a corrupt file before anything else is parsed.
+        $tampered = substr_replace($archive, chr(9), strlen(BackupSealedBox::MAGIC), 1);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/version/i');
+        $this->expectExceptionMessageMatches('/version 9.*reads version/i');
 
         BackupSealedBox::open($tampered, $this->skA);
+    }
+
+    /**
+     * The version byte and the JSON say the same thing, and disagreeing is a
+     * refusal rather than a preference for whichever came first. They can only
+     * disagree if somebody edited the header — which is not a corruption the
+     * stream's tags would catch, because the header is deliberately outside the
+     * encryption.
+     */
+    public function test_a_header_whose_version_contradicts_the_container_is_refused(): void
+    {
+        $archive = BackupSealedBox::seal('x', [$this->recipient('admin', $this->pkA)]);
+
+        // Equal length, so the header's own length prefix stays honest.
+        $tampered = str_replace('"version":2', '"version":9', $archive);
+        $this->assertNotSame($archive, $tampered, 'Precondition: the header JSON carries a version.');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/header says version 9 but the container says 2/i');
+
+        BackupSealedBox::open($tampered, $this->skA);
+    }
+
+    /**
+     * Everything a reader needs in order to know what they are holding, before
+     * they can open it.
+     *
+     * This is the half of ADR-0049 decision 8 that replaced three database
+     * tables: there is no `backup_runs` row to look the archive up in, so an
+     * archive found on a share years later has to be self-describing or it is
+     * unidentifiable. None of it is secret — table names and row counts are not
+     * member data — and everything that could change the plaintext is still
+     * inside the authenticated stream.
+     */
+    public function test_the_header_describes_the_archive_without_any_key(): void
+    {
+        $payload = 'INSERT INTO `members` VALUES (1);';
+
+        $archive = BackupSealedBox::seal($payload, [$this->recipient('admin', $this->pkA)], [
+            'instance_id' => 'f0f0f0f0-0000-4000-8000-000000000001',
+            'instance_name' => 'SV Musterstadt',
+            'database' => 'clubbar_prod',
+            'schema_version' => '054_credit_limit_digest.sql',
+            'dump_format' => 1,
+            'manifest' => ['members' => 1, 'transactions' => 42],
+        ]);
+
+        $header = BackupSealedBox::readHeader($archive);
+
+        $this->assertSame('SV Musterstadt', $header['instance']['name']);
+        $this->assertSame('f0f0f0f0-0000-4000-8000-000000000001', $header['instance']['id']);
+        $this->assertSame('clubbar_prod', $header['instance']['database']);
+        $this->assertSame('054_credit_limit_digest.sql', $header['schema_version']);
+        $this->assertSame(1, $header['dump_format']);
+        $this->assertSame(['members' => 1, 'transactions' => 42], $header['manifest']);
+        $this->assertSame(strlen($payload), $header['plaintext_bytes']);
+        $this->assertSame(
+            hash('sha256', $payload),
+            $header['plaintext_sha256'],
+            'A restore proves it decrypted what was sealed by comparing against this.'
+        );
+    }
+
+    /**
+     * A caller that says nothing about the payload still produces a header that
+     * *answers* — with nulls rather than with missing keys.
+     *
+     * A reader must never have to tell "this archive does not say" apart from
+     * "this build did not know to ask". Only the backup job seals archives in
+     * production, and it always describes them; this is about what a header
+     * promises structurally.
+     */
+    public function test_an_undescribed_archive_still_answers_every_header_question(): void
+    {
+        $header = BackupSealedBox::readHeader(
+            BackupSealedBox::seal('x', [$this->recipient('admin', $this->pkA)])
+        );
+
+        $this->assertNull($header['schema_version']);
+        $this->assertNull($header['dump_format']);
+        $this->assertNull($header['instance']['name']);
+        $this->assertSame([], $header['manifest']);
     }
 
     /** A header shorter than its own length prefix claims is a truncated file. */

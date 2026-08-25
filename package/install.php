@@ -1032,11 +1032,23 @@ function renderStep5(): void
         $appUrl = $config['app']['url'] ?? null;
     }
     $drainUrl = ($cronSecret && $appUrl) ? rtrim($appUrl, '/') . '/api/cron/drain' : null;
+
+    // The backup's own entrypoint (ADR-0049). A second job rather than a branch
+    // inside the first, because it is separately observed — and printed *here*,
+    // beside the drain, because the two together are the whole of what a club
+    // has to put into its panel. A volunteer who sets up one scheduled job in a
+    // sitting and is told about the second in a manual sets up one job; the
+    // epic's own risk table names "the backup cron is never added" as the thing
+    // most likely to go wrong.
+    $backupCommand = 'php ' . rtrim(__DIR__, '/') . '/backend/bin/backup.php';
+    $backupUrl = ($cronSecret && $appUrl) ? rtrim($appUrl, '/') . '/api/cron/backup' : null;
     ?>
-    <h2>Step 5: Schedule the mail drain</h2>
+    <h2>Step 5: Schedule the two background jobs</h2>
     <p>Club Bar announces every direct debit by email at least seven days before it is collected. Those emails
     are queued when you finalize a collection and sent by a scheduled task — so <strong>until this task runs,
     Club Bar will not let you finalize a collection</strong>.</p>
+    <p>The second job writes the nightly encrypted backup. It does not block anything, and nothing reminds you
+    about it later — so it is worth pasting both while you are in the panel.</p>
 
     <h3 style="margin: 20px 0 8px; font-size: 16px; color: #374151;">Add this to your hosting panel&rsquo;s cron</h3>
     <p>Run it every <strong>15 minutes</strong>:</p>
@@ -1051,9 +1063,24 @@ function renderStep5(): void
         and is a degraded fallback.</small></p>
     <?php endif; ?>
 
-    <p style="margin-top: 20px;">Once you have saved it, wait for the first run and check here. The first tick can
-    be up to 15 minutes away — you can finish the installation now and check again from the admin panel, which
-    shows the same instructions until a run has been seen.</p>
+    <h3 style="margin: 28px 0 8px; font-size: 16px; color: #374151;">And this one, for the nightly backup</h3>
+    <p>Run it once a day, at a quiet hour (<code>0 3 * * *</code>):</p>
+    <pre id="backupCommand"><?php echo htmlspecialchars($backupCommand); ?></pre>
+
+    <?php if ($backupUrl !== null): ?>
+        <p><small>Again, a URL fetch where your tariff has no CLI cron — the same secret:</small></p>
+        <pre><?php echo htmlspecialchars("curl -sS -H 'X-Cron-Secret: <secret>' " . $backupUrl); ?></pre>
+    <?php endif; ?>
+
+    <p><small><strong>This job writes nothing yet, and that is expected.</strong> A backup is sealed to keys
+    generated on your own machine, so it cannot be set up from here: put at least one public key into
+    <code>backup.recipient_public_keys</code> in <code>config.php</code> and the nightly archives start —
+    configuring a key is what switches backups on. Until then this job says so and exits quietly. The
+    deployment guide walks through generating the keypairs.</small></p>
+
+    <p style="margin-top: 20px;">Once you have saved them, wait for the first drain run and check here. The first
+    tick can be up to 15 minutes away — you can finish the installation now and check again from the admin panel,
+    which shows the same instructions until a run has been seen.</p>
     <button type="button" class="btn btn-secondary" id="cronCheckBtn">Check</button>
     <p id="cronCheckResult"></p>
 
