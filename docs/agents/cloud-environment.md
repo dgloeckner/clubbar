@@ -190,6 +190,29 @@ The 200 is the service document, answered with Microsoft's own `request-id` and
 empty — so this is a real reach, not a proxy-shaped 200. `login.microsoftonline.com`
 was already allowed, so both halves of the transport are now reachable.
 
+**A session older than the change still gets a 403, and that is not a
+contradiction.** The policy is bound when the session starts, so a container
+created before the allowlist was edited keeps the old one for its whole life. On
+2026-08-25 the two observations were minutes apart and both correct: a session
+started after the edit saw `200`, while one started before it saw
+
+```
+kind:   connect_rejected
+detail: gateway answered 403 to CONNECT (policy denial or upstream failure)
+host:   graph.microsoft.com:443
+```
+
+recorded in that session's own `recentRelayFailures`. So a 403 here means **start
+a new session**, not "the allowlist is wrong" and never "retry until it works".
+The proxy's status endpoint is the arbiter for the session you are actually in:
+
+```bash
+curl -sS "$HTTPS_PROXY/__agentproxy/status"   # recentRelayFailures names the host
+```
+
+This generalises past this one host: every entry in the table below describes the
+policy as edited, not necessarily the policy your session is running under.
+
 **What still blocks #691's last task is credentials, not egress.** The
 verification asks a *real Microsoft 365 tenant* whether `Sites.Selected` `write`
 permits delete, and whether library retention makes that delete recoverable.

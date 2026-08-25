@@ -1186,7 +1186,7 @@ Non-default hosts this project needs:
 | `quay.io`, `*.quay.io` | Keycloak |
 | `*.azurecr.io`, `*.blob.core.windows.net` | ACR manifests / layers |
 | `maven.pkg.github.com` | Defaults cover only `npm.pkg.github.com` |
-| `graph.microsoft.com` | The `msgraph://` backup transport (#691, ADR-0049). **Allowed** as of 2026-08-25 — a session reaches the service document on 443 and gets a 200. Egress is therefore no longer what blocks the tenant verification; club credentials are (below) |
+| `graph.microsoft.com` | The `msgraph://` backup transport (#691, ADR-0049). **Allowed** as of 2026-08-25 — a session started *after* that edit reaches the service document on 443 and gets a 200; one started before it still gets a 403, because the policy is bound at session start. Egress is no longer what blocks the tenant verification; club credentials are (below) |
 | `login.microsoftonline.com` | The token endpoint for the same transport. **Allowed** |
 | `ppa.launchpadcontent.net` | The `ondrej/php` PPA — the only source of `php8.4-bcmath`, for the 8.4 that `php` points at. Currently **denied** (403). Not a blocker: `php8.3-bcmath` comes from `archive.ubuntu.com` instead, so run the suite with `php8.3` (above). `.claude/cloud-setup.sh` pins this PPA out so those packages resolve |
 
