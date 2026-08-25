@@ -7,6 +7,7 @@ namespace Tests\Feature\Modules\Backups;
 use App\Modules\Backups\Domain\BackupRetention;
 use App\Modules\Backups\Services\BackupKeyring;
 use App\Modules\Backups\Services\BackupService;
+use App\Modules\Backups\Services\ConfigSnapshot;
 use App\Modules\Backups\Services\DatabaseDump;
 use App\Shared\Logging\Logger;
 use App\Shared\Security\BackupSealedBox;
@@ -61,9 +62,26 @@ class RestoreRoundTripTest extends DatabaseTestCase
     use ScratchSchema;
     use SqlScript;
 
+    /**
+     * A `config.php` whose text is awkward on purpose: it mentions the block's
+     * own close marker, which is exactly what the base64 encoding exists to
+     * survive.
+     */
+    private const CONFIG_FIXTURE = <<<'PHP'
+        <?php
+        // Mentions -- <<< CONFIG deliberately.
+        return [
+            'security' => [
+                'totp_encryption_key' => 'zzzz-not-a-real-key-ümlaut',
+                'iban_fingerprint_key' => 'also-not-real',
+            ],
+        ];
+        PHP;
+
     private string $tempTree = '';
     private string $backupDir = '';
     private string $scratch = '';
+    private string $configPath = '';
 
     private string $publicKeys = '';
     private string $secretKey = '';
@@ -90,6 +108,13 @@ class RestoreRoundTripTest extends DatabaseTestCase
         $keypair = sodium_crypto_box_keypair();
         $this->secretKey = sodium_crypto_box_secretkey($keypair);
         $this->publicKeys = 'admin:' . bin2hex(sodium_crypto_box_publickey($keypair));
+
+        // A stand-in for the installation's `config.php`, inside the temp tree
+        // so nothing outside it is ever read. Its contents carry the two values
+        // whose absence makes a restored database unusable, so the assertion
+        // below is about the bytes a club would actually need back.
+        $this->configPath = $this->tempTree . '/config.php';
+        file_put_contents($this->configPath, self::CONFIG_FIXTURE);
 
         $this->seedTheAwkwardValues();
     }
@@ -256,6 +281,48 @@ class RestoreRoundTripTest extends DatabaseTestCase
         $this->assertSame($before, $this->rowFingerprints($scratch, 'members'), 'The rows came back different.');
     }
 
+    /**
+     * A restored database nobody can log in to is not a restore.
+     *
+     * `security.totp_encryption_key` decrypts every admin's TOTP secret and
+     * lives in `config.php`, not in the database. Restore the rows without it
+     * and every second factor fails, for every admin, with no way back in — and
+     * it cannot be regenerated, because it is the key the stored ciphertext was
+     * written under. `security.iban_fingerprint_key` is the same problem one
+     * level down: mandate-change detection quietly stops recognising an IBAN it
+     * has seen before.
+     *
+     * So the archive carries the file, and this asserts the club gets it back
+     * byte for byte — while the payload stays one importable `.sql`, which is
+     * the property that keeps the phpMyAdmin restore path a single step.
+     */
+    public function test_the_archive_carries_the_config_a_restore_cannot_do_without(): void
+    {
+        [$scratch, $header, $sql] = $this->runBackupAndRestore();
+
+        $this->assertTrue(
+            $header['config_included'],
+            'The header must say whether an archive is a whole installation or only its rows — '
+            . 'readable without a private key, because it changes what a restore still needs.'
+        );
+
+        $this->assertSame(
+            self::CONFIG_FIXTURE,
+            ConfigSnapshot::extract($sql),
+            'The configuration did not survive the round trip. These are keys, not settings: '
+            . 'nearly right is a restore that nearly works.'
+        );
+
+        // The block rode along inside the same payload that was just imported
+        // into $scratch without error, which is the claim that matters for the
+        // runbook: one file, pasted whole, and the comments are inert.
+        $this->assertGreaterThan(
+            0,
+            count($this->baseTablesOf($scratch)),
+            'The dump carrying a config block failed to import.'
+        );
+    }
+
     // -----------------------------------------------------------------------
     // The run itself
     // -----------------------------------------------------------------------
@@ -279,6 +346,7 @@ class RestoreRoundTripTest extends DatabaseTestCase
             $this->publicKeys,
             BackupRetention::defaults(),
             'development',
+            new ConfigSnapshot($this->configPath),
         ))->run('cli');
 
         $this->assertTrue($outcome->producedAnArchive(), 'The backup run produced nothing: ' . $outcome->summary);

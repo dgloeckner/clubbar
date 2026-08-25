@@ -158,5 +158,93 @@
     return out;
   }
 
-  return { MAGIC: MAGIC, VERSION: VERSION, readHeader: readHeader, open: open };
+  /**
+   * The `config.php` a dump carries, or null when it carries none.
+   *
+   * The counterpart of PHP's `ConfigSnapshot::extract()`, and the two have to
+   * agree about one format: a block of SQL comments, appended after the dump's
+   * footer, holding base64. Comments because the payload must stay a single
+   * importable `.sql` - the reference host restores by pasting one file into
+   * phpMyAdmin (ADR-0031). Base64 because `config.php` is PHP and PHP can
+   * contain anything, including a line that looks like the close marker.
+   *
+   * Only the tail is scanned. The block is appended, a club database is
+   * single-digit megabytes and this runs in a browser on somebody's laptop;
+   * turning the whole plaintext into a JS string to find something that is
+   * always in the last few kilobytes is work with no payoff.
+   */
+  function extractConfig(plaintext) {
+    var OPEN = '-- >>> CONFIG config.php (base64)';
+    var CLOSE = '-- <<< CONFIG';
+
+    // Generous enough for any real config.php plus its preamble, small enough
+    // that the string conversion is free.
+    var WINDOW = 1024 * 1024;
+
+    var from = Math.max(0, plaintext.length - WINDOW);
+    var tail = '';
+    // Chunked: String.fromCharCode.apply with a megabyte of arguments blows the
+    // call stack in every browser this tool has to work in.
+    for (var i = from; i < plaintext.length; i += 8192) {
+      tail += String.fromCharCode.apply(
+        null,
+        plaintext.subarray(i, Math.min(i + 8192, plaintext.length))
+      );
+    }
+
+    var start = tail.indexOf(OPEN + '\n');
+    if (start === -1) {
+      return null;
+    }
+    start += OPEN.length + 1;
+
+    var end = tail.indexOf(CLOSE, start);
+    if (end === -1) {
+      return null;
+    }
+
+    var base64 = '';
+    var lines = tail.slice(start, end).split('\n');
+    for (var j = 0; j < lines.length; j++) {
+      if (lines[j].indexOf('-- ') !== 0) {
+        continue;
+      }
+
+      var payload = lines[j].slice(3);
+
+      // The human-readable preamble lines are comments too. Base64's alphabet
+      // has no space, so anything carrying one is prose rather than payload.
+      if (payload === '' || !/^[A-Za-z0-9+/=]+$/.test(payload)) {
+        continue;
+      }
+
+      base64 += payload;
+    }
+
+    if (base64 === '') {
+      return null;
+    }
+
+    var binary;
+    try {
+      binary = atob(base64);
+    } catch (e) {
+      return null;
+    }
+
+    var out = new Uint8Array(binary.length);
+    for (var k = 0; k < binary.length; k++) {
+      out[k] = binary.charCodeAt(k);
+    }
+
+    return out;
+  }
+
+  return {
+    MAGIC: MAGIC,
+    VERSION: VERSION,
+    readHeader: readHeader,
+    open: open,
+    extractConfig: extractConfig
+  };
 }));

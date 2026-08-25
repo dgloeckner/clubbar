@@ -31,6 +31,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Backups\Services\ConfigSnapshot;
 use App\Modules\Backups\Services\DatabaseDump;
 use App\Shared\Security\BackupSealedBox;
 
@@ -95,7 +96,45 @@ function plaintext(): array
     return [$sql . "-- <<< TABLE members\n-- Dump complete\n", $row];
 }
 
+/**
+ * The `config.php` the golden archive carries, and the block that carries it.
+ *
+ * Rendered by {@see ConfigSnapshot} rather than hand-written here, so the
+ * fixture is a *product* of the PHP implementation. That is what makes the JS
+ * side's `extractConfig` test a real cross-check: if the two ever disagree
+ * about the format, the JS test goes red against bytes PHP actually produced,
+ * not against a copy of the format somebody transcribed twice.
+ *
+ * The content mentions the close marker on purpose — the one case base64
+ * exists to survive.
+ *
+ * @return array{0: string, 1: string} the config's own bytes, and the block
+ */
+function configBlock(): array
+{
+    $config = "<?php\n"
+        . "// A golden fixture. Mentions -- <<< CONFIG deliberately.\n"
+        . "return [\n"
+        . "    'security' => ['totp_encryption_key' => 'not-a-real-key-ümlaut'],\n"
+        . "];\n";
+
+    $path = tempnam(sys_get_temp_dir(), 'clubbar-golden-config');
+    file_put_contents($path, $config);
+
+    try {
+        $block = (new ConfigSnapshot($path))->render();
+    } finally {
+        // Named exactly, never globbed, and under the system temp directory
+        // (CLAUDE.md, destructive cleanup).
+        unlink($path);
+    }
+
+    return [$config, $block];
+}
+
 [$payload, $rows] = plaintext();
+[$config, $configBlock] = configBlock();
+$payload .= $configBlock;
 
 $archive = BackupSealedBox::seal(
     $payload,
@@ -107,6 +146,7 @@ $archive = BackupSealedBox::seal(
         'schema_version' => '054_credit_limit_digest.sql',
         'dump_format' => DatabaseDump::FORMAT_VERSION,
         'manifest' => ['members' => $rows],
+        'config_included' => true,
     ],
     'development',
     '2026-08-25T03:00:00+00:00',
@@ -114,6 +154,8 @@ $archive = BackupSealedBox::seal(
 
 file_put_contents(__DIR__ . '/golden.cbb', $archive);
 file_put_contents(__DIR__ . '/golden.plaintext.sha256', hash('sha256', $payload) . "\n");
+// What both readers must get back out of the block above.
+file_put_contents(__DIR__ . '/golden.config.php.txt', $config);
 
 printf(
     "Wrote golden.cbb (%d bytes, container version %d) over a %d-byte plaintext.\n",

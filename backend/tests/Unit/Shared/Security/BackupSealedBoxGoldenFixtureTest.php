@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Shared\Security;
 
+use App\Modules\Backups\Services\ConfigSnapshot;
 use App\Shared\Security\BackupSealedBox;
 use PHPUnit\Framework\TestCase;
 
@@ -100,6 +101,28 @@ class BackupSealedBoxGoldenFixtureTest extends TestCase
             BackupSealedBox::CHUNK_BYTES * 2,
             strlen($plaintext),
             'Shrinking this fixture below three chunks would quietly stop testing the framing.'
+        );
+    }
+
+    /**
+     * The config block, from the PHP side of the same fixture the JS side reads.
+     *
+     * `e2etests/scripts/backup-decryptor-interop.test.mjs` asserts the same
+     * bytes through `tools/backup-decryptor.js`. Two readers, one fixture,
+     * neither its own witness — which is the whole arrangement this file exists
+     * for, extended to the format that carries `config.php` (#692).
+     */
+    public function test_the_fixture_carries_the_config_block_both_readers_must_understand(): void
+    {
+        $plaintext = BackupSealedBox::open($this->archive(), sodium_hex2bin(self::DEV_SECRET_A));
+
+        $this->assertTrue(BackupSealedBox::readHeader($this->archive())['config_included']);
+
+        $this->assertSame(
+            (string) file_get_contents($this->fixturePath('golden.config.php.txt')),
+            ConfigSnapshot::extract($plaintext),
+            'The config block did not survive, so a restore onto a new host would arrive '
+            . 'without the key that decrypts every admin\'s second factor.'
         );
     }
 

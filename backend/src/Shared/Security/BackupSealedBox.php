@@ -98,7 +98,7 @@ final class BackupSealedBox
      * @param list<array{label: string, public_key: string}> $recipients
      * @param array{instance_id?: ?string, instance_name?: ?string, database?: ?string,
      *              schema_version?: ?string, dump_format?: ?int,
-     *              manifest?: array<string, int>} $describes
+     *              manifest?: array<string, int>, config_included?: bool} $describes
      *        what the payload is, as {@see \App\Modules\Backups\Services\DatabaseDump::sourceDescription()}
      *        reports it plus the manifest. Absent fields become explicit nulls
      *        rather than missing keys, so a header always answers the question
@@ -152,6 +152,12 @@ final class BackupSealedBox
             // An object even when empty, so a reader never has to tell an empty
             // list from an empty map.
             'manifest' => (object) ($describes['manifest'] ?? []),
+            // Whether the payload carries the installation's `config.php` as
+            // well as its rows (#692). Readable without a key, because it
+            // changes what a restore still needs: an archive without it
+            // restores a database nobody can log in to, since the TOTP
+            // encryption key is not in the database.
+            'config_included' => (bool) ($describes['config_included'] ?? false),
             'plaintext_bytes' => strlen($payload),
             'plaintext_sha256' => hash('sha256', $payload),
         ];

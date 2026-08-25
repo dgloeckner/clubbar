@@ -45,6 +45,7 @@ const decryptor = require(path.join(repoRoot, 'tools/backup-decryptor.js'))
 const fixtures = path.join(repoRoot, 'backend/tests/Fixtures/backup')
 const archive = new Uint8Array(fs.readFileSync(path.join(fixtures, 'golden.cbb')))
 const expectedSha = fs.readFileSync(path.join(fixtures, 'golden.plaintext.sha256'), 'utf8').trim()
+const expectedConfig = fs.readFileSync(path.join(fixtures, 'golden.config.php.txt'))
 
 // The published development keypairs (ADR-0036). Public by design; the sealing
 // side refuses them outside development, so they can never protect real data.
@@ -133,4 +134,30 @@ test('a tampered archive fails authentication', async () => {
   tampered[tampered.length - 1] ^= 0xff
 
   assert.throws(() => decryptor.open(sodium, tampered, secretKey(DEV_SECRET_A)))
+})
+
+test('JavaScript reads the config.php block PHP wrote (#692)', async () => {
+  await sodium.ready
+  const plaintext = decryptor.open(sodium, archive, secretKey(DEV_SECRET_A))
+
+  const config = decryptor.extractConfig(plaintext)
+
+  assert.notEqual(config, null, 'the golden archive carries a config block and this reader missed it')
+  assert.deepEqual(
+    Buffer.from(config),
+    expectedConfig,
+    'the two implementations disagree about the config block format'
+  )
+})
+
+test('the header says an archive carries a config, without any key', () => {
+  const { header } = decryptor.readHeader(archive)
+
+  // Readable before decrypting, because it changes what a restore still needs:
+  // an archive without it restores a database nobody can log in to.
+  assert.equal(header.config_included, true)
+})
+
+test('a dump with no config block reads as none rather than as empty', () => {
+  assert.equal(decryptor.extractConfig(new TextEncoder().encode('-- dump\nSET NAMES utf8mb4;\n')), null)
 })
