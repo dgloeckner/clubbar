@@ -74,6 +74,7 @@ test('the header describes the archive, so the tool can show it before asking fo
   assert.equal(header.instance.database, 'clubbar')
   assert.equal(header.schema_version, '054_credit_limit_digest.sql')
   assert.equal(header.dump_format, 1)
+  assert.equal(header.compression, 'gzip', 'The body is compressed, and the header says which codec.')
   assert.ok(header.manifest.members > 0, 'The manifest names what is inside without decrypting.')
   assert.equal(
     header.plaintext_sha256,
@@ -95,7 +96,8 @@ test('an archive from a version this tool does not read is refused by version, n
 test('JavaScript opens what PHP sealed', async () => {
   await sodium.ready
 
-  const plaintext = decryptor.open(sodium, archive, secretKey(DEV_SECRET_A))
+  // Async from container version 3 on: inflating uses DecompressionStream.
+  const plaintext = await decryptor.open(sodium, archive, secretKey(DEV_SECRET_A))
   const sha = crypto.createHash('sha256').update(Buffer.from(plaintext)).digest('hex')
 
   assert.equal(
@@ -111,7 +113,7 @@ test('a key the archive was not sealed to is refused by name', async () => {
 
   const stranger = sodium.crypto_box_keypair().privateKey
 
-  assert.throws(
+  await assert.rejects(
     () => decryptor.open(sodium, archive, stranger),
     /not sealed to this key/i,
     'A wrong key must say so, not fail with a decryption error the holder cannot act on.',
@@ -123,7 +125,7 @@ test('a truncated archive is refused rather than partly restored', async () => {
 
   const truncated = archive.subarray(0, Math.floor(archive.length * 0.8))
 
-  assert.throws(() => decryptor.open(sodium, truncated, secretKey(DEV_SECRET_A)))
+  await assert.rejects(() => decryptor.open(sodium, truncated, secretKey(DEV_SECRET_A)))
 })
 
 test('a tampered archive fails authentication', async () => {
@@ -132,5 +134,21 @@ test('a tampered archive fails authentication', async () => {
   const tampered = Uint8Array.from(archive)
   tampered[tampered.length - 1] ^= 0xff
 
-  assert.throws(() => decryptor.open(sodium, tampered, secretKey(DEV_SECRET_A)))
+  await assert.rejects(() => decryptor.open(sodium, tampered, secretKey(DEV_SECRET_A)))
+})
+
+test('an archive whose codec this tool does not know is refused, not guessed at', async () => {
+  await sodium.ready
+
+  // Handing a holder a still-compressed file named `.sql` would give them
+  // something that imports as garbage — the failure this container exists to
+  // prevent, met at the worst moment of the club's year.
+  const { header } = decryptor.readHeader(archive)
+  const fake = Buffer.from(archive).toString('binary').replace('"compression":"gzip"', '"compression":"brot"')
+
+  assert.equal(header.compression, 'gzip', 'Precondition: the fixture is gzip.')
+  await assert.rejects(
+    () => decryptor.open(sodium, Uint8Array.from(Buffer.from(fake, 'binary')), secretKey(DEV_SECRET_A)),
+    /cannot decompress|newer version/i,
+  )
 })

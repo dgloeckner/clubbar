@@ -171,14 +171,13 @@ final class BackupService
             $sql .= $chunk;
         });
 
-        // Sealed uncompressed, deliberately, and this is a departure from
-        // ADR-0049's sketch of `gzip(SQL)` worth stating rather than quietly
-        // making. #689's offline decryptor hands the payload straight to the
-        // browser as `clubbar-backup.sql`; compressing here would hand a club a
-        // gzip stream under a `.sql` name, and the operator would discover it
-        // at the one moment the design exists to protect. Compression belongs
-        // with the upload (#691) — that is where size costs anything — and the
-        // decryptor's inflate side ships in the same slice.
+        // The container compresses the body itself (#691) and flags the codec
+        // in its header, so this call hands it the plain SQL and the decryptor
+        // inflates on the way out — a club never meets a gzip stream under a
+        // `.sql` name. #690 shipped this uncompressed on purpose, because the
+        // decryptor could not yet inflate; that reason expired the moment the
+        // inflate side shipped alongside it, which is why the two travelled in
+        // one slice.
         //
         // Sealing happens *after* the dump because the header describes the
         // plaintext: the manifest, its length and its checksum are not knowable
