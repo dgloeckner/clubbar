@@ -259,6 +259,11 @@ final class MailStrings
                                            . '<strong>{date}</strong> ab — in <strong>{days} Tagen</strong>.',
             'credential_expiry.lede_text.terminal' => 'der Zugang des Terminals {name} läuft am {date} ab — '
                                            . 'in {days} Tagen.',
+            'credential_expiry.lede.backup_secret' => 'das Kennwort, mit dem die nächtliche Sicherung zu '
+                                           . '<strong>{name}</strong> hochgeladen wird, läuft am '
+                                           . '<strong>{date}</strong> ab — in <strong>{days} Tagen</strong>.',
+            'credential_expiry.lede_text.backup_secret' => 'das Kennwort, mit dem die nächtliche Sicherung zu '
+                                           . '{name} hochgeladen wird, läuft am {date} ab — in {days} Tagen.',
 
             // „Art", not „Zugang": the value in this row is already the word
             // Zugang, and a table line reading „Zugang: Terminal-Zugang" says
@@ -270,8 +275,10 @@ final class MailStrings
             'credential_expiry.days'             => '{days} Tage',
             'credential_expiry.credential.key'      => 'Schlüssel für Bankverbindungen',
             'credential_expiry.credential.terminal' => 'Terminal-Zugang',
+            'credential_expiry.credential.backup_secret' => 'Kennwort für die Sicherung',
             'credential_expiry.subject_name.key'      => 'Schlüssel für Bankverbindungen',
             'credential_expiry.subject_name.terminal' => 'Terminal-Zugang „{name}“',
+            'credential_expiry.subject_name.backup_secret' => 'Kennwort für die Sicherung',
 
             'credential_expiry.consequence.key' => 'Läuft er ab, können keine Bankverbindungen mehr gespeichert '
                                            . 'und keine SEPA-Dateien mehr erzeugt werden. Bestehende Daten '
@@ -279,8 +286,17 @@ final class MailStrings
             'credential_expiry.consequence.terminal' => 'Läuft er ab, kann sich das Terminal nicht mehr anmelden '
                                            . 'und an der Theke nichts mehr gebucht werden. Bereits erfasste '
                                            . 'Buchungen bleiben auf dem Gerät erhalten.',
+            // Der Satz, auf den es ankommt: die Sicherung *läuft weiter* und
+            // sieht gesund aus. Nur die Hälfte, die sie aus dem Haus bringt,
+            // hört auf — und darüber sagt Microsoft von sich aus nichts.
+            'credential_expiry.consequence.backup_secret' => 'Läuft es ab, wird die Sicherung weiterhin '
+                                           . 'geschrieben und verschlüsselt, aber nicht mehr hochgeladen. Die '
+                                           . 'Sicherung liegt dann nur noch auf demselben Webspace wie die '
+                                           . 'Datenbank — ein Ausfall des Hosting-Kontos nimmt beide mit. Der '
+                                           . 'nächtliche Lauf meldet den Fehler, sonst weist nichts darauf hin.',
             'credential_expiry.consequence_short.key'      => 'keine SEPA-Dateien mehr',
             'credential_expiry.consequence_short.terminal' => 'keine Buchungen mehr an diesem Terminal',
+            'credential_expiry.consequence_short.backup_secret' => 'keine Sicherung mehr außer Haus',
 
             // Beide Texte benennen den Weg so, wie die Oberfläche ihn
             // beschriftet — Reiter „Schlüssel“, Knopf „Token rotieren“. Eine
@@ -295,6 +311,12 @@ final class MailStrings
                                            . 'bisherige Token funktioniert weiter, bis das neue am Terminal zum '
                                            . 'ersten Mal verwendet wird — die Theke bleibt in der Zwischenzeit '
                                            . 'online.',
+            'credential_expiry.next.backup_secret' => 'Ein neues Kennwort legst Du mit '
+                                           . 'scripts/setup-msgraph-backup.ps1 -RotateSecretOnly an; die '
+                                           . 'Anleitung steht in docs/m365-backup-target.md. Trage es zusammen '
+                                           . 'mit dem neuen Ablaufdatum in die config.php ein, warte einen '
+                                           . 'erfolgreichen Lauf ab und lösche erst danach das alte — bis dahin '
+                                           . 'funktionieren beide.',
             'credential_expiry.no_secret' => 'Diese Nachricht enthält bewusst keinerlei Schlüssel- oder '
                                            . 'Zugangsdaten — nur, worum es geht und bis wann.',
 
@@ -600,6 +622,11 @@ final class MailStrings
                                            . '<strong>{date}</strong> — in <strong>{days} days</strong>.',
             'credential_expiry.lede_text.terminal' => 'the credential for terminal {name} expires on {date} — '
                                            . 'in {days} days.',
+            'credential_expiry.lede.backup_secret' => 'the password the nightly backup uses to upload to '
+                                           . '<strong>{name}</strong> expires on <strong>{date}</strong> — '
+                                           . 'in <strong>{days} days</strong>.',
+            'credential_expiry.lede_text.backup_secret' => 'the password the nightly backup uses to upload to '
+                                           . '{name} expires on {date} — in {days} days.',
 
             'credential_expiry.label_credential' => 'Type',
             'credential_expiry.label_name'       => 'Name',
@@ -608,16 +635,26 @@ final class MailStrings
             'credential_expiry.days'             => '{days} days',
             'credential_expiry.credential.key'      => 'Bank-details encryption key',
             'credential_expiry.credential.terminal' => 'Terminal credential',
+            'credential_expiry.credential.backup_secret' => 'Backup upload password',
             'credential_expiry.subject_name.key'      => 'Bank-details encryption key',
             'credential_expiry.subject_name.terminal' => 'Terminal credential “{name}”',
+            'credential_expiry.subject_name.backup_secret' => 'Backup upload password',
 
             'credential_expiry.consequence.key' => 'Once it expires, no bank details can be stored and no SEPA '
                                            . 'files can be produced. Data already stored is unaffected.',
             'credential_expiry.consequence.terminal' => 'Once it expires, the terminal can no longer sign in and '
                                            . 'nothing can be rung up on it. Transactions already recorded stay '
                                            . 'on the device.',
+            // The sentence that matters: the backup keeps running and keeps
+            // looking healthy. Only the half that gets it out of the building
+            // stops — and Microsoft says nothing about that on its own.
+            'credential_expiry.consequence.backup_secret' => 'Once it expires the backup is still written and '
+                                           . 'still sealed, but no longer uploaded. It then exists only on the '
+                                           . 'same webspace as the database, so one lost hosting account takes '
+                                           . 'both. The nightly run reports the failure; nothing else will.',
             'credential_expiry.consequence_short.key'      => 'no more SEPA files',
             'credential_expiry.consequence_short.terminal' => 'nothing can be rung up on this terminal',
+            'credential_expiry.consequence_short.backup_secret' => 'backups stop leaving the server',
 
             'credential_expiry.next.key' => 'Settings → Credentials is where you register and activate the '
                                            . 'successor, and that part needs no private key. Re-encrypting the '
@@ -626,6 +663,11 @@ final class MailStrings
             'credential_expiry.next.terminal' => 'Settings → Terminals, then “Rotate Token”. The current token '
                                            . 'keeps working until the new one is used at the terminal for the '
                                            . 'first time, so the bar stays online while you walk over.',
+            'credential_expiry.next.backup_secret' => 'Mint a new one with '
+                                           . 'scripts/setup-msgraph-backup.ps1 -RotateSecretOnly; the procedure '
+                                           . 'is in docs/m365-backup-target.md. Put it in config.php together '
+                                           . 'with the new expiry date, wait for one successful run, and only '
+                                           . 'then delete the old one — both work until you do.',
             'credential_expiry.no_secret' => 'This message deliberately carries no key or token material — only '
                                            . 'what is expiring and by when.',
 

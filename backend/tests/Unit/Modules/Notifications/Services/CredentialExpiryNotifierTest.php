@@ -25,6 +25,8 @@ use PHPUnit\Framework\TestCase;
  */
 class CredentialExpiryNotifierTest extends TestCase
 {
+    private const DSN = 'msgraph://t/c@drive/b!x/clubbar';
+
     private \DateTimeImmutable $now;
     private EncryptionKeysRepository $keys;
     private TerminalsRepository $terminals;
@@ -106,7 +108,7 @@ class CredentialExpiryNotifierTest extends TestCase
             });
     }
 
-    private function notifier(): CredentialExpiryNotifier
+    private function notifier(?string $dsn = null, ?string $secretExpiresAt = null): CredentialExpiryNotifier
     {
         return new CredentialExpiryNotifier(
             $this->keys,
@@ -114,7 +116,93 @@ class CredentialExpiryNotifierTest extends TestCase
             $this->notifications,
             $this->mailConfig,
             $this->createMock(Logger::class),
+            $dsn,
+            $secretExpiresAt,
         );
+    }
+
+    /**
+     * The third credential, and the one whose expiry is otherwise invisible.
+     *
+     * An encryption key that lapses blocks the SEPA export the same week; a
+     * terminal token locks a till out of the bar while somebody is standing at
+     * it. **An expired backup secret looks exactly like a working one** —
+     * Entra sends no notification, the nightly job still writes and seals its
+     * archive, and the only thing that stops is the half that gets it off the
+     * host. This warning is the sole mechanism that turns a silent months-long
+     * failure into a dated one.
+     */
+    public function test_a_backup_secret_inside_a_tier_is_warned_about(): void
+    {
+        $this->captureWarnings();
+
+        $this->notifier(self::DSN, $this->inDays(20))->run($this->now);
+
+        $this->assertSame(
+            [MailKind::BACKUP_SECRET_EXPIRY_WARNING],
+            array_column($this->warned, 'kind')
+        );
+        // The installation itself: there is no backup row to point at, and
+        // ADR-0049 decision 8 is why there never will be.
+        $this->assertSame('1', $this->warned[0]['subject_id']);
+    }
+
+    /**
+     * Rotation keeps the subject id — there is only one installation — so the
+     * expiry date is what separates one secret from the next. Without it, a
+     * club warned at 30 days that then rotated would never hear about the
+     * successor's tiers, because they would share a dedup key.
+     */
+    public function test_the_occasion_names_the_secrets_own_expiry_so_a_rotation_is_warned_about_again(): void
+    {
+        $this->captureWarnings();
+        $this->notifier(self::DSN, $this->inDays(20))->run($this->now);
+        $first = $this->warned[0]['occasion'];
+
+        $this->warned = [];
+        $this->notifier(self::DSN, $this->inDays(25))->run($this->now);
+
+        $this->assertNotSame($first, $this->warned[0]['occasion']);
+        $this->assertStringStartsWith('30d:', $first);
+    }
+
+    /** Outside every tier, nothing is said — the same rule as the other two. */
+    public function test_a_backup_secret_with_a_year_left_is_silent(): void
+    {
+        $this->captureWarnings();
+
+        $this->notifier(self::DSN, $this->inDays(365))->run($this->now);
+
+        $this->assertSame([], $this->warned);
+    }
+
+    /**
+     * No remote configured means no upload to lose, so the date — which a club
+     * may well have left behind after removing the DSN — must not produce a
+     * warning about a credential nothing uses.
+     */
+    public function test_an_expiring_secret_with_no_dsn_configured_is_not_warned_about(): void
+    {
+        $this->captureWarnings();
+
+        $this->notifier(null, $this->inDays(20))->run($this->now);
+
+        $this->assertSame([], $this->warned);
+    }
+
+    /** An installation that never set a date is silent, not warned about "now". */
+    public function test_no_expiry_date_configured_is_silence_rather_than_a_guess(): void
+    {
+        $this->captureWarnings();
+
+        $this->notifier(self::DSN, null)->run($this->now);
+
+        $this->assertSame([], $this->warned);
+    }
+
+    private function inDays(int $days): string
+    {
+        return $this->now->modify('+' . $days . ' days')->format('Y-m-d');
     }
 
     public function test_a_key_inside_a_tier_is_warned_about_once_per_tier(): void

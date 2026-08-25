@@ -82,6 +82,15 @@ class CredentialExpiryNotifier
         private AdminNotifier $adminNotifier,
         private MailConfigService $mailConfigService,
         private Logger $logger,
+        /**
+         * The two scalars the backup credential needs, rather than the whole
+         * {@see \App\Shared\Config\AppConfig}: this scan has no other reason
+         * to know about configuration, and `AppConfig`'s properties are
+         * readonly, so a wider dependency would also be one a test cannot
+         * state a value on.
+         */
+        private ?string $backupDsn = null,
+        private ?string $backupSecretExpiresAt = null,
     ) {}
 
     /**
@@ -223,6 +232,20 @@ class CredentialExpiryNotifier
         return $timestamp === false ? '0' : date('YmdHis', $timestamp);
     }
 
+    /**
+     * A backup client secret's generation: the expiry date, compacted.
+     *
+     * The date *is* the identity of the secret here — a new secret always has
+     * a new expiry, and nothing else about it is knowable from configuration
+     * without reading the secret itself, which this must never do.
+     */
+    public static function secretGeneration(string $expiresAt): string
+    {
+        $timestamp = strtotime(trim($expiresAt));
+
+        return $timestamp === false ? '0' : date('Ymd', $timestamp);
+    }
+
     /** The tier a `dedup_key` was queued for, or null if it does not name one. */
     public static function tierFromDedupKey(string $dedupKey): ?int
     {
@@ -273,6 +296,26 @@ class CredentialExpiryNotifier
                 // No generation segment: a rotated key is a new row with a new
                 // id, so `subject_id` already separates the cycles.
                 'generation' => null,
+            ];
+        }
+
+        // Both, not either: a date left behind after the DSN was removed
+        // describes a credential nothing uses any more, and warning about it
+        // is noise in the one channel that must stay worth reading.
+        $backupSecretExpiry = trim((string) $this->backupSecretExpiresAt);
+        if ($backupSecretExpiry !== '' && trim((string) $this->backupDsn) !== '') {
+            $credentials[] = [
+                'kind' => MailKind::BACKUP_SECRET_EXPIRY_WARNING,
+                // The installation itself. There is no backup row to point at
+                // and ADR-0049 decision 8 is why there never will be.
+                'subject_id' => '1',
+                'expires_at' => $backupSecretExpiry,
+                // Rotation keeps the subject id — there is only one
+                // installation — so the expiry date is what separates one
+                // secret from the next. Without it, a club that rotated after
+                // being warned at 30 days would never hear about the
+                // successor's tiers, because they would share a dedup key.
+                'generation' => self::secretGeneration($backupSecretExpiry),
             ];
         }
 

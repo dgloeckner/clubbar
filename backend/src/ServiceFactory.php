@@ -655,6 +655,8 @@ class ServiceFactory implements ContainerInterface
             $this->getEncryptionKeysRepository(),
             $this->getTerminalsRepository(),
             $this->getAdminUsersRepository(),
+            $this->config->backupDsn,
+            $this->config->backupClientSecretExpiresAt,
         ));
     }
 
@@ -708,6 +710,8 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminNotifier(),
             $this->getMailConfigService(),
             $this->getLogger(),
+            $this->config->backupDsn,
+            $this->config->backupClientSecretExpiresAt,
         ));
     }
 
@@ -726,6 +730,8 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminNotifier(),
             $this->getMailConfigService(),
             $this->getLogger(),
+            $this->config->backupDsn,
+            $this->config->backupClientSecretExpiresAt,
         ));
     }
 
