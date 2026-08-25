@@ -148,6 +148,17 @@ final class BackupJournal
         ]);
     }
 
+    /** An archive was removed from the remote store by remote retention. */
+    public function remotePruned(string $filename, string $remote, string $reason): void
+    {
+        $this->append([
+            'event' => 'remote_pruned',
+            'filename' => $filename,
+            'remote' => $remote,
+            'reason' => $reason,
+        ]);
+    }
+
     /** An archive was removed by retention or by the byte cap. */
     public function pruned(string $filename, int $bytes, string $reason): void
     {

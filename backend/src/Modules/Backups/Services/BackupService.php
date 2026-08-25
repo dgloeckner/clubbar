@@ -8,6 +8,8 @@ use App\Modules\Backups\Domain\BackupKeyringException;
 use App\Modules\Backups\Domain\BackupOutcome;
 use App\Modules\Backups\Domain\BackupRecipient;
 use App\Modules\Backups\Domain\BackupRetention;
+use App\Modules\Backups\Domain\RemoteRetention;
+use App\Modules\Backups\Transport\BackupTransportException;
 use App\Modules\Backups\Transport\BackupTransport;
 use App\Modules\Backups\Transport\TransportResult;
 use App\Modules\Backups\Transport\UploadState;
@@ -236,6 +238,14 @@ final class BackupService
 
         $pruned = $this->prune($filename, $findings);
 
+        // Only when tonight's archive actually reached the store. Deleting an
+        // old remote archive on a night the new one did not arrive would take
+        // the club's remote set down by one for no gain — and the nights the
+        // upload fails are exactly the nights the old copies matter.
+        if ($remote?->reachedTheRemote() === true) {
+            $pruned += $this->pruneRemote($findings);
+        }
+
         return BackupOutcome::written($filename, $bytes, $findings, $pruned, $remote?->summary);
     }
 
@@ -309,6 +319,64 @@ final class BackupService
         }
 
         return $result;
+    }
+
+    /**
+     * Age the remote store out, by listing it.
+     *
+     * The remote half of ADR-0049 decision 8's rule that *what is there is what
+     * is true*: there is no table of what was uploaded to disagree with the
+     * store, so an archive somebody removed by hand is removed and one that
+     * arrived by some other route is still occupying the club's quota.
+     *
+     * This is what gives an ADR-0029 erasure a bounded schedule. A member
+     * anonymised today still exists in full inside every archive sealed before
+     * today; at the default window those archives are gone from the remote in
+     * about three months.
+     *
+     * A listing that fails is a finding, never a throw and never a retry storm:
+     * the archive is written, it is sealed, and it is on the remote. Retention
+     * running a night late costs nothing.
+     *
+     * @param list<string> $findings appended to in place
+     */
+    private function pruneRemote(array &$findings): int
+    {
+        $transport = $this->transport;
+        if ($transport === null) {
+            return 0;
+        }
+
+        $remote = $transport->describe();
+
+        try {
+            $expired = RemoteRetention::expiredAmong($transport->list(), $this->retention);
+        } catch (BackupTransportException $e) {
+            $findings[] = 'Could not age out old archives on ' . $remote . ': ' . $e->getMessage();
+
+            return 0;
+        }
+
+        $pruned = 0;
+        foreach ($expired as $archive) {
+            if (!$transport->delete($archive)) {
+                // Reported once, at the end, rather than per archive: a store
+                // that refuses one delete refuses all of them, and a finding
+                // per file would bury the reason.
+                $findings[] = sprintf(
+                    'Could not remove %s from %s. Old archives are accumulating there, and an '
+                    . 'erasure under ADR-0029 has no end date while they do.',
+                    $archive->name,
+                    $remote
+                );
+                break;
+            }
+
+            $this->journal->remotePruned($archive->name, $remote, 'age');
+            $pruned++;
+        }
+
+        return $pruned;
     }
 
     /**
