@@ -174,8 +174,25 @@ Already on the default Trusted allowlist, so never worth "adding":
 `packagist.org`, `repo.packagist.org`, `archive.ubuntu.com`,
 `security.ubuntu.com`.
 
-Non-default hosts this project needs, and the one that is denied, are listed in
+Non-default hosts this project needs, and the two that are denied, are listed in
 [CLAUDE.md](../../CLAUDE.md) under *Container registry and egress allowlist*.
+
+**`graph.microsoft.com` is denied**, which blocks the last task of #691: verifying
+the `msgraph://` backup transport against a real Microsoft 365 tenant. The
+confusing half is that `login.microsoftonline.com` is *allowed*, so a session can
+mint an app-only token and then fail on the first API call:
+
+```
+kind:   connect_rejected
+detail: gateway answered 403 to CONNECT (policy denial or upstream failure)
+host:   graph.microsoft.com:443
+```
+
+It is ordinary HTTPS on 443 — not gRPC, not a WebSocket, not a pinned client — so
+it needs nothing but the allowlist entry. Everything else about the transport is
+tested against a fake (`backend/tests/Support/FakeHttpClient.php`); ADR-0038's rule
+that **no test opens a socket** means CI never wanted this host and never will.
+Only the one-off manual verification does.
 
 ## Where the rest lives
 
