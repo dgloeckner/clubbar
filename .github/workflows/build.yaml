@@ -334,6 +334,17 @@ jobs:
           "
         working-directory: backend
 
+      # The oracle #692 diffs the hand-rolled dumper against. The reference
+      # host has no client binaries — which is the whole reason `DatabaseDump`
+      # exists — but the runner can have one, and a second opinion is what
+      # turns "the dumper is correct" from an assertion into a diff.
+      #
+      # `mariadb-client` from the Ubuntu archive is 10.11, the same series as
+      # the service container above, so the reference dump is produced by the
+      # matching implementation rather than by MySQL's differently-behaved one.
+      - name: Install mariadb-client (the dump oracle)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends mariadb-client
+
       # One combined run so the clover report reflects Unit + Feature
       # together (two runs would overwrite each other's report).
       - name: Run unit & feature tests (with coverage)
@@ -344,6 +355,16 @@ jobs:
           DB_NAME: clubbar
           DB_USER: clubbar
           DB_PASS: clubbar
+          # Root, for the scratch schemas the restore proof imports into.
+          # `CREATE DATABASE` is deliberately not among the application user's
+          # privileges; tests are the one caller that legitimately needs it.
+          DB_ROOT_USER: root
+          DB_ROOT_PASS: root
+          # Having installed the binary above, CI now promises it. With this
+          # set, `DumpOracleTest` fails rather than skipping when it cannot
+          # find one — a data-dependent skip reads as coverage while verifying
+          # nothing, and the oracle is the assertion this job exists for.
+          BACKUP_ORACLE_REQUIRED: '1'
 
       # PHPUnit only reports coverage; this step is the enforcement half.
       # The floor now lives in backend/.coverage-floor rather than in this
