@@ -144,28 +144,49 @@ final class DatabaseDump
      */
     public function sourceDescription(): array
     {
+        $instance = $this->rowOrNull(
+            'SELECT instance_id, instance_name, DATABASE() AS db FROM instance_config WHERE id = 1'
+        );
+
         return [
-            'instance_id' => $this->scalarOrNull('SELECT instance_id FROM instance_config WHERE id = 1'),
-            'instance_name' => $this->scalarOrNull('SELECT instance_name FROM instance_config WHERE id = 1'),
-            'database' => $this->scalarOrNull('SELECT DATABASE()'),
+            'instance_id' => self::stringOrNull($instance['instance_id'] ?? null),
+            'instance_name' => self::stringOrNull($instance['instance_name'] ?? null),
+            // From the same row, so the ordinary case is one round trip — and
+            // from a fallback query when there is no branding row, because the
+            // database's own name is knowable either way.
+            'database' => self::stringOrNull(
+                $instance['db'] ?? ($this->rowOrNull('SELECT DATABASE() AS db')['db'] ?? null)
+            ),
             // The highest applied migration, in one SELECT. Filenames are
-            // zero-padded (`055_backups.sql`), so MAX() over the column is the
-            // ordering the runner applies them in.
-            'schema_version' => $this->scalarOrNull('SELECT MAX(file) FROM _migrations'),
+            // zero-padded (`054_credit_limit_digest.sql`), so MAX() over the
+            // column is the order the runner applies them in.
+            'schema_version' => self::stringOrNull(
+                $this->rowOrNull('SELECT MAX(file) AS version FROM _migrations')['version'] ?? null
+            ),
             'dump_format' => self::FORMAT_VERSION,
         ];
     }
 
-    /** A single value, or null when the query cannot be answered at all. */
-    private function scalarOrNull(string $sql): ?string
+    /**
+     * One row, or null when the query cannot be answered at all.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function rowOrNull(string $sql): ?array
     {
         try {
-            $value = $this->db->query($sql)?->fetchColumn();
+            $statement = $this->db->query($sql);
+            $row = $statement === false ? false : $statement->fetch(PDO::FETCH_ASSOC);
         } catch (\Throwable) {
             return null;
         }
 
-        return $value === false || $value === null ? null : (string) $value;
+        return is_array($row) ? $row : null;
+    }
+
+    private static function stringOrNull(mixed $value): ?string
+    {
+        return $value === null || $value === false || $value === '' ? null : (string) $value;
     }
 
     /**
