@@ -75,12 +75,14 @@ fi
 # checked it out (root, in a cloud session). Without this, writes into the bind
 # mount fail and mandate uploads 500 — the same reason CI has a "Prepare writable
 # directories" step.
-note "Making backend/logs and backend/storage writable by the container user..."
-mkdir -p "$PROJECT_ROOT/backend/logs" "$PROJECT_ROOT/backend/storage/mandates"
+note "Making backend/logs, backend/storage and backend/backups writable by the container user..."
+mkdir -p "$PROJECT_ROOT/backend/logs" "$PROJECT_ROOT/backend/storage/mandates" \
+    "$PROJECT_ROOT/backend/backups"
 # Directories only, deliberately not `chmod -R`: creating files needs the
 # directory bit, and a recursive chmod would rewrite the mode of the tracked
 # .gitkeep files and leave the working tree dirty.
-find "$PROJECT_ROOT/backend/logs" "$PROJECT_ROOT/backend/storage" -type d -exec chmod 777 {} +
+find "$PROJECT_ROOT/backend/logs" "$PROJECT_ROOT/backend/storage" "$PROJECT_ROOT/backend/backups" \
+    -type d -exec chmod 777 {} +
 
 # ---------------------------------------------------------------------------
 step "3/7 Compose stack"

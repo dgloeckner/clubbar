@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Club Bar - Backup Decryptor</title>
+<!--
+  Opens a Club Bar backup archive offline.
+
+  This is the restore path on the hosting this project targets: no shell, no
+  mysqldump, no client binaries (ADR-0031). A key holder - the Admin, or the
+  board member holding the second copy (ADR-0049 decision 2; never the
+  Kassenwart, who holds the IBAN key instead) - downloads the archive, opens it
+  here on a machine they trust, and imports the resulting .sql through whatever
+  database tool the host offers.
+
+  Nothing leaves this page. There is no fetch, no form action and no analytics;
+  the crypto is vendored beside it. Open it from a local copy of the repository
+  with the network off if you want to be sure - the private key you paste in is
+  the one that opens every backup the club has.
+
+  It vendors libsodium.js rather than the TweetNaCl that tools/keypair-generator.html
+  uses, because the container needs crypto_box_seal and crypto_secretstream, and
+  TweetNaCl has neither. Reimplementing them over its primitives would have meant
+  hand-rolling framing that libsodium already does correctly - the mistake
+  ADR-0048 exists to prevent.
+
+  The crypto itself lives in backup-decryptor.js, not in this file, so that the
+  interop test can load exactly the code shipped here.
+-->
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 46rem; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  .lede { color: #666; margin-top: 0; }
+  fieldset { border: 1px solid #ccc; border-radius: 6px; padding: 1rem; margin: 1.25rem 0; }
+  legend { font-weight: 600; padding: 0 .4rem; }
+  textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+  button { font-size: 1rem; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; }
+  button[disabled] { opacity: .5; cursor: not-allowed; }
+  .note { background: #fff8e1; border-left: 4px solid #f0ad4e; padding: .75rem 1rem; margin: 1rem 0; }
+  .error { background: #fdecea; border-left: 4px solid #d9534f; padding: .75rem 1rem; margin: 1rem 0; }
+  .ok { background: #e8f5e9; border-left: 4px solid #4caf50; padding: .75rem 1rem; margin: 1rem 0; }
+  .hidden { display: none; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #ddd; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; color: #eee; }
+    .lede { color: #aaa; }
+    fieldset { border-color: #444; }
+    .note { background: #3a3320; } .error { background: #3a2320; } .ok { background: #1e3320; }
+    th, td { border-bottom-color: #333; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Backup Decryptor</h1>
+<p class="lede">Opens a Club Bar backup archive (<code>.cbb</code>) with one of the private keys it was sealed to.</p>
+
+<div class="note">
+  <strong>Do this on a machine you trust, and offline if you can.</strong>
+  The private key you paste below opens every backup sealed to it. Nothing is
+  sent anywhere from this page - but the only way to be certain of that is to
+  run it from a local copy with the network disconnected.
+</div>
+
+<div id="unavailable" class="error hidden">
+  The vendored crypto library did not load. Open this file from a full checkout
+  so that <code>vendor/libsodium.js</code> sits beside it.
+</div>
+
+<fieldset>
+  <legend>1. The archive</legend>
+  <input type="file" id="archive" accept=".cbb,application/octet-stream">
+  <div id="archive-info" class="hidden">
+    <p>Sealed <strong id="created"></strong>. It can be opened by any one of these keys:</p>
+    <table>
+      <thead><tr><th>Label</th><th>Key fingerprint (SHA-256)</th></tr></thead>
+      <tbody id="recipients"></tbody>
+    </table>
+    <p class="lede">Fetch whichever of these you hold. The others will not work.</p>
+
+    <!--
+      What this archive is, before anyone is asked for a key. There is no
+      backup state in the application's database (ADR-0049 decision 8), so an
+      archive found on a share years later has only its own header to be
+      identified by - which club, which schema, and whether it is whole.
+    -->
+    <p>What is inside, according to the archive itself:</p>
+    <table>
+      <tbody>
+        <tr><th>Club</th><td id="instance"></td></tr>
+        <tr><th>Database</th><td id="database"></td></tr>
+        <tr><th>Schema version</th><td id="schema"></td></tr>
+        <tr><th>Dump format</th><td id="format"></td></tr>
+        <tr><th>Contents</th><td id="contents"></td></tr>
+        <tr><th>Plaintext</th><td id="expected"></td></tr>
+      </tbody>
+    </table>
+    <details id="manifest-detail">
+      <summary>Every table, and how many rows it held</summary>
+      <table>
+        <thead><tr><th>Table</th><th>Rows</th></tr></thead>
+        <tbody id="manifest"></tbody>
+      </table>
+    </details>
+    <p class="lede">
+      The schema version is the highest migration this database had applied. A
+      restore into an installation older than that needs the upgrade run
+      afterwards.
+    </p>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>2. Your private key</legend>
+  <p class="lede">
+    Base64 or hex, as <code>keypair-generator.html</code> produced it. It is
+    never stored and never transmitted.
+  </p>
+  <textarea id="key" rows="3" spellcheck="false" autocomplete="off"></textarea>
+</fieldset>
+
+<button id="decrypt" disabled>Decrypt</button>
+
+<div id="error" class="error hidden"></div>
+<div id="result" class="ok hidden">
+  <p>Opened <strong id="size"></strong>. SHA-256 of the plaintext: <code id="sha"></code></p>
+  <p id="verified"></p>
+  <p><a id="download" download="clubbar-backup.sql">Download the .sql</a> and import it through your host's database tool.</p>
+</div>
+
+<script src="vendor/libsodium.js"></script>
+<script src="vendor/libsodium-wrappers.js"></script>
+<script src="backup-decryptor.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var archiveBytes = null;
+
+  if (typeof sodium === 'undefined' || typeof BackupDecryptor === 'undefined') {
+    $('unavailable').classList.remove('hidden');
+    return;
+  }
+
+  function show(el, on) { el.classList.toggle('hidden', !on); }
+
+  function fail(message) {
+    $('error').textContent = message;
+    show($('error'), true);
+    show($('result'), false);
+  }
+
+  function decodeKey(text) {
+    var trimmed = text.trim().replace(/\s+/g, '');
+    if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+      return sodium.from_hex(trimmed);
+    }
+    var bytes = sodium.from_base64(trimmed, sodium.base64_variants.ORIGINAL);
+    if (bytes.length !== 32) {
+      throw new Error('That is ' + bytes.length + ' bytes; a private key is 32.');
+    }
+    return bytes;
+  }
+
+  /**
+   * SHA-256 of the plaintext, or null if this browser will not compute one.
+   *
+   * Deliberately NOT libsodium: the vendored build is the standard one, which
+   * omits crypto_hash_sha256 (only the `sumo` build carries it), so calling it
+   * throws - and this file used to, after a successful decryption, losing the
+   * download link to an exception at the last step. Web Crypto is in every
+   * browser this tool targets and needs no second vendored megabyte.
+   *
+   * It requires a secure context, which file:// is in Chrome and Firefox; where
+   * it is not, the tool says the checksum could not be checked rather than
+   * failing, because the archive has already authenticated by then.
+   */
+  function sha256Hex(bytes) {
+    var subtle = window.crypto && window.crypto.subtle;
+    if (!subtle || typeof subtle.digest !== 'function') {
+      return Promise.resolve(null);
+    }
+
+    return subtle.digest('SHA-256', bytes).then(function (buffer) {
+      return Array.prototype.map.call(new Uint8Array(buffer), function (byte) {
+        return ('0' + byte.toString(16)).slice(-2);
+      }).join('');
+    }).catch(function () {
+      return null;
+    });
+  }
+
+  /** A header field the archive did not carry, said as such rather than blank. */
+  function saidOrNot(value) {
+    return value === null || value === undefined || value === '' ? 'not stated' : String(value);
+  }
+
+  /**
+   * Version 2 headers describe themselves (ADR-0049 decision 8). Shown before
+   * the key is asked for, because "is this the right archive" is the question
+   * a holder has at that moment - and answering it should not cost a decryption.
+   */
+  function describeArchive(header) {
+    var instance = header.instance || {};
+    var manifest = header.manifest || {};
+    var tables = Object.keys(manifest).sort();
+    var rows = tables.reduce(function (sum, t) { return sum + manifest[t]; }, 0);
+
+    $('instance').textContent = saidOrNot(instance.name)
+      + (instance.id ? ' (' + instance.id + ')' : '');
+    $('database').textContent = saidOrNot(instance.database);
+    $('schema').textContent = saidOrNot(header.schema_version);
+    $('format').textContent = saidOrNot(header.dump_format);
+    $('contents').textContent = tables.length
+      ? tables.length.toLocaleString() + ' tables, ' + rows.toLocaleString() + ' rows'
+      : 'not stated';
+    $('expected').textContent = header.plaintext_bytes
+      ? header.plaintext_bytes.toLocaleString() + ' bytes, SHA-256 ' + header.plaintext_sha256
+      : 'not stated';
+
+    show($('manifest-detail'), tables.length > 0);
+    $('manifest').textContent = '';
+    tables.forEach(function (table) {
+      var row = document.createElement('tr');
+      var name = document.createElement('td');
+      var count = document.createElement('td');
+      name.textContent = table;
+      count.textContent = manifest[table].toLocaleString();
+      row.appendChild(name);
+      row.appendChild(count);
+      $('manifest').appendChild(row);
+    });
+  }
+
+  $('archive').addEventListener('change', function (event) {
+    var file = event.target.files[0];
+    show($('error'), false);
+    show($('result'), false);
+    show($('archive-info'), false);
+    $('decrypt').disabled = true;
+    if (!file) return;
+
+    file.arrayBuffer().then(function (buffer) {
+      archiveBytes = new Uint8Array(buffer);
+      var header = BackupDecryptor.readHeader(archiveBytes).header;
+
+      $('created').textContent = header.created_at;
+      describeArchive(header);
+      $('recipients').textContent = '';
+      header.recipients.forEach(function (r) {
+        var row = document.createElement('tr');
+        var label = document.createElement('td');
+        var fp = document.createElement('td');
+        label.textContent = r.label;
+        fp.innerHTML = '<code></code>';
+        fp.firstChild.textContent = r.fingerprint;
+        row.appendChild(label);
+        row.appendChild(fp);
+        $('recipients').appendChild(row);
+      });
+
+      show($('archive-info'), true);
+      $('decrypt').disabled = false;
+    }).catch(function (e) {
+      archiveBytes = null;
+      fail(e.message);
+    });
+  });
+
+  $('decrypt').addEventListener('click', function () {
+    show($('error'), false);
+    show($('result'), false);
+
+    sodium.ready.then(function () {
+      var key;
+      try {
+        key = decodeKey($('key').value);
+      } catch (e) {
+        return fail('That does not look like a private key: ' + e.message);
+      }
+
+      var plaintext;
+      try {
+        plaintext = BackupDecryptor.open(sodium, archiveBytes, key);
+      } catch (e) {
+        return fail(e.message);
+      } finally {
+        sodium.memzero(key);
+      }
+
+      var blob = new Blob([plaintext], { type: 'application/sql' });
+      var promised = BackupDecryptor.readHeader(archiveBytes).header.plaintext_sha256;
+
+      $('download').href = URL.createObjectURL(blob);
+      $('size').textContent = plaintext.length.toLocaleString() + ' bytes';
+      show($('result'), true);
+
+      // Shown as soon as the plaintext exists, then filled in when the digest
+      // resolves: the download link is the thing the holder came for, and it
+      // must never wait on - or be lost to - a checksum.
+      $('sha').textContent = 'computing...';
+      $('verified').textContent = '';
+
+      sha256Hex(plaintext).then(function (sha) {
+        $('sha').textContent = sha === null ? 'not available in this browser' : sha;
+
+        // The header promised a checksum; saying whether it holds is the whole
+        // reason it is there. The stream's own tags already refuse a corrupt or
+        // truncated archive, so a mismatch here means the *header* was edited -
+        // worth showing rather than assuming.
+        if (sha === null) {
+          $('verified').textContent =
+            'This browser exposes no SHA-256, so the checksum in the archive header could not '
+            + 'be checked. The archive decrypted and authenticated, which is the stronger of '
+            + 'the two guarantees.';
+        } else if (!promised) {
+          $('verified').textContent = 'This archive header states no checksum to compare against.';
+        } else if (promised === sha) {
+          $('verified').textContent = 'It matches the checksum in the archive header.';
+        } else {
+          $('verified').textContent =
+            'It does NOT match the checksum in the archive header (' + promised + '). The header '
+            + 'has been altered - keep this file and ask for help before restoring it.';
+        }
+      });
+    });
+  });
+}());
+</script>
+
+</body>
+</html>
