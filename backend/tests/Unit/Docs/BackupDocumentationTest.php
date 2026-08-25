@@ -278,6 +278,50 @@ class BackupDocumentationTest extends TestCase
         $this->assertSame([], array_map('basename', $creating), 'No migration may create a backup table.');
     }
 
+    /**
+     * The docs say the installer prints the backup cron line beside the
+     * drain's. It has to actually print it.
+     *
+     * This is the same failure as the README claim at the top of this file,
+     * one step further down: `docs/deployment.md` and UC-A83 both told a club
+     * the installer would hand them both lines, and step 5 printed only the
+     * drain's. Nothing else reminds anyone about the backup job — it blocks no
+     * workflow, unlike the drain, which refuses finalize until it has run — so
+     * a volunteer who is told the installer prints it, and does not see it,
+     * adds one cron line and believes they are done.
+     *
+     * Asserted as a *pair*: the claim and the thing claimed. Either may be
+     * changed, but not one without the other.
+     */
+    public function test_the_installer_prints_the_backup_cron_line_the_docs_promise(): void
+    {
+        $installer = self::read('package/install.php');
+
+        $this->assertStringContainsString(
+            'backend/bin/backup.php',
+            $installer,
+            'Step 5 of the installer must print the backup entrypoint, because '
+            . 'docs/deployment.md and UC-A83 both say it does.'
+        );
+        $this->assertStringContainsString(
+            'backup.recipient_public_keys',
+            $installer,
+            'The printed line writes nothing until a recipient key is configured (ADR-0049 '
+            . 'decision 2), and the installer cannot configure one — the keypairs are '
+            . 'generated offline. So it has to say what turns the job on, or it hands the '
+            . 'club a scheduled job that silently does nothing.'
+        );
+
+        foreach ([self::USE_CASE, 'docs/deployment.md'] as $path) {
+            $this->assertMatchesRegularExpression(
+                '/installer prints/i',
+                self::read($path),
+                $path . ' no longer claims the installer prints the cron lines. If that is '
+                . 'deliberate, this guard and the installer step should go together.'
+            );
+        }
+    }
+
     /** Offset of the first heading matching $pattern, or null. */
     private static function headingOffsetMatching(string $haystack, string $pattern): ?int
     {

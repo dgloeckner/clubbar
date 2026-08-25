@@ -25,7 +25,7 @@ final class BackupRecipient
         return (string) sodium_hex2bin($this->publicKeyHex);
     }
 
-    /** As the archive header carries it, and as `backup_keys.fingerprint` stores it. */
+    /** As the archive header carries it — the only place it is recorded (ADR-0049 decision 8). */
     public function fingerprint(): string
     {
         return hash('sha256', $this->publicKey());

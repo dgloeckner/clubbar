@@ -55,9 +55,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *     ({@see BackupService::MINIMUM_INTERVAL_MINUTES}), so a caller in a loop
  *     cannot fill the quota with dumps. It is keyed on *attempts*, not
  *     successes — the quota is spent by an attempt.
- *   - **`--force` has no URL equivalent.** An operator who wants a run now has
- *     a CLI flag or the admin panel; a static credential must not be able to
- *     bypass the guard that protects the quota.
+ *   - **`--force` has no URL equivalent.** An operator who wants a run now runs
+ *     `bin/backup.php --force`; a static credential must not be able to bypass
+ *     the guard that protects the quota.
  *
  * Part of #690 and #703, epic #686.
  */

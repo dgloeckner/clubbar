@@ -320,9 +320,18 @@ notice to the Admin, not a lockout.
 
 The URL trigger is heavier than the mail drain's and is treated as such: it
 **produces and stores a database dump**. So it requires the shared cron secret,
-is unmounted when no secret is configured, answers with an empty success always —
-it triggers, it never serves an archive — and carries a minimum-interval guard so
-repeated calls cannot fill the webspace quota with dumps.
+answers with an empty success always — it triggers, it never serves an archive —
+and carries a minimum-interval guard so repeated calls cannot fill the webspace
+quota with dumps.
+
+**It is unmounted on either missing precondition: no cron secret, or no
+recipient key.** The second follows from decision 2 rather than being a rule of
+its own — configuring a key *is* switching backups on, so a club that has not
+configured one has no backup endpoint either. The alternative is worse than it
+looks: a route that answered 204 while writing nothing would report success to
+the scheduler every night, and "the backup cron is never added" would be
+replaced by "the backup cron runs and produces nothing", which is the same
+outcome with the alarm disabled.
 
 ### 6. Storage: what a location must offer, and what M365 actually offers
 

@@ -279,6 +279,14 @@ test.describe('Package: Install Wizard', () => {
     expect(step5Html).toContain('backend/bin/cron.php');
     expect(step5Html).toContain('cronCheckBtn');
 
+    // Both jobs, on one screen (ADR-0049). The backup is the one nothing
+    // reminds you about afterwards — it blocks no workflow, so a volunteer who
+    // learns about it from a manual instead of from this page does not add it,
+    // and the club's first backup is the one it does not have. The docs claim
+    // the installer prints both; this is what makes that claim true.
+    expect(step5Html).toContain('backend/bin/backup.php');
+    expect(step5Html).toContain('backup.recipient_public_keys');
+
     // The Prüfen button reads cron_heartbeat and reports what it found. A
     // fresh install has never been drained, so the honest answer is "no".
     const check = await request.get(`${PACKAGE_URL}/install.php?action=check_cron`);
