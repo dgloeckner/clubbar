@@ -89,7 +89,9 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A61 | Manage Admins | Implemented | [UC-A61](./admin/UC-A61-manage-admins.md) |
 | UC-A62 | Create Admin | Implemented | [UC-A62](./admin/UC-A62-create-admin.md) |
 | UC-A63 | Reset Admin Password | Implemented | [UC-A63](./admin/UC-A63-reset-admin-password.md) |
+| UC-A64 | Manage Instance Branding | Not Started | [UC-A64](./admin/UC-A64-manage-instance-branding.md) |
 | UC-A65 | Configure Credit Limits | Implemented | [UC-A65](./admin/UC-A65-configure-credit-limits.md) |
+| UC-A66 | Receive the Near-Limit Digest | Implemented | [UC-A66](./admin/UC-A66-credit-limit-digest.md) |
 
 ### RFID Management
 
@@ -147,11 +149,11 @@ Complete index of all use cases across domains, with implementation status.
 
 | Domain | Total | Implemented | Diverges | Partial | Not Impl. | Closed |
 |--------|-------|-------------|----------|---------|-----------|--------|
-| Admin Panel | 45 | 31 | 5 | 2 | 5 | 2 |
+| Admin Panel | 47 | 32 | 5 | 2 | 6 | 2 |
 | Terminal | 7 | 4 | 3 | 0 | 0 | 0 |
 | GDPR | 6 | 3 | 1 | 2 | 0 | 0 |
 | SEPA | 9 | 7 | 2 | 0 | 0 | 0 |
-| **Total** | **67** | **45** | **11** | **4** | **5** | **2** |
+| **Total** | **69** | **46** | **11** | **4** | **6** | **2** |
 
 "Closed" is UC-A21 (rejected, kept as a tombstone) and UC-A51 (removed).
 
