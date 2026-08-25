@@ -176,7 +176,7 @@ For production deployment instructions, see the **[Deployment Guide](./docs/depl
 
 - **Self-hosted package** -- upload ZIP to shared hosting, run the graphical web installer
 - **Security hardening** -- HTTPS, database access
-- **Database backups** -- automated daily backups with 30-day retention
+- **Database backups** -- what to export and encrypt before every upgrade, and how to restore it
 - **Monitoring** -- health endpoint polling and application logs
 - **Upgrading and rollback** -- step-by-step procedures
 
