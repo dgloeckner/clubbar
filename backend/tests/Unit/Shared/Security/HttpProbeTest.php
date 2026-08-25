@@ -7,6 +7,7 @@ namespace Tests\Unit\Shared\Security;
 use App\Shared\Security\HttpProbe;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\LocalWebServer;
 
 /**
  * The probe is what turns "we ship an `.htaccess` denial" into "the webserver
@@ -22,8 +23,7 @@ class HttpProbeTest extends TestCase
 {
     private const DOCUMENT = "clubbar canary\n";
 
-    /** @var resource|null */
-    private $server = null;
+    private ?LocalWebServer $server = null;
     private string $documentRoot;
     private string $baseUrl;
 
@@ -51,10 +51,7 @@ class HttpProbeTest extends TestCase
 
     protected function tearDown(): void
     {
-        if (is_resource($this->server)) {
-            proc_terminate($this->server);
-            proc_close($this->server);
-        }
+        $this->server?->stop();
 
         foreach (glob($this->documentRoot . '/*') ?: [] as $file) {
             unlink($file);
@@ -112,49 +109,12 @@ class HttpProbeTest extends TestCase
 
     private function startServer(): void
     {
-        // Port 0 is not an option for PHP's built-in server, so a high port is
-        // picked and retried: two test processes must not collide.
-        for ($attempt = 0; $attempt < 10; $attempt++) {
-            $port = random_int(20000, 60000);
-            $command = sprintf(
-                '%s -S 127.0.0.1:%d -t %s %s',
-                escapeshellarg(PHP_BINARY),
-                $port,
-                escapeshellarg($this->documentRoot),
-                escapeshellarg($this->documentRoot . '/router.php'),
-            );
-
-            $server = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-            if (!is_resource($server)) {
-                continue;
-            }
-
-            $this->baseUrl = "http://127.0.0.1:{$port}";
-            if ($this->waitForServer()) {
-                $this->server = $server;
-
-                return;
-            }
-
-            proc_terminate($server);
-            proc_close($server);
+        $server = LocalWebServer::start($this->documentRoot . '/router.php', $this->documentRoot);
+        if ($server === null) {
+            $this->markTestSkipped('Could not start a local webserver to probe');
         }
 
-        $this->markTestSkipped('Could not start a local webserver to probe');
-    }
-
-    private function waitForServer(): bool
-    {
-        for ($attempt = 0; $attempt < 50; $attempt++) {
-            $socket = @fsockopen('127.0.0.1', (int) parse_url($this->baseUrl, PHP_URL_PORT), $errno, $error, 0.2);
-            if (is_resource($socket)) {
-                fclose($socket);
-
-                return true;
-            }
-            usleep(100_000);
-        }
-
-        return false;
+        $this->server = $server;
+        $this->baseUrl = $server->baseUrl();
     }
 }

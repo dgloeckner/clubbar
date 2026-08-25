@@ -72,3 +72,17 @@ jobs:
       # because the fallback then hands a container that cannot exec.
       - name: Verify every mirror carries amd64 and arm64
         run: scripts/mirror-images.sh --check
+
+  # This job has no PR to turn red, so a failure is invisible unless something
+  # says so: it failed 9 runs over 15 days before anyone noticed (#696 item 2).
+  # Only on the schedule — a manual or push run is already being watched by
+  # whoever started it.
+  report:
+    needs: [mirror]
+    if: always() && github.event_name == 'schedule'
+    uses: ./.github/workflows/scheduled-failure-issue.yaml
+    with:
+      workflow-name: Mirror images
+      succeeded: ${{ needs.mirror.result == 'success' }}
+    permissions:
+      issues: write

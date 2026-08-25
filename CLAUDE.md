@@ -666,7 +666,9 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    # For new/modified E2E tests
    cd e2etests && npm test -- tests/api/filename.spec.ts --workers=4
 
-   # For new/modified PHP tests (must run inside the container — the host has no bcmath)
+   # For new/modified PHP tests — php8.3, never plain `php` (8.4 has no bcmath)
+   cd backend && php8.3 vendor/bin/phpunit --filter FeatureName
+   # …or in the container, which is what Feature tests need for the database
    docker compose exec -w /app backend ./vendor/bin/phpunit --filter FeatureName
 
    # For entire test suite
@@ -747,6 +749,10 @@ User approved committing for debugging/investigation.
 | **Tests pass with 1 worker, fail with 4** | Test isolation issue: Check Pattern 001 (unique data per test), verify no shared database state |
 | **Test syntax error** | Missing import or typo: Check error output carefully, fix code, retry |
 | **Fixture not found** | Fixture not created: Check `e2etests/fixtures/` for required setup, create if missing |
+| **`Call to undefined function bcmod()`** | You ran `php`, which is 8.4 and has no bcmath. Use `php8.3` (see *Run backend PHP tests*) |
+| **`phpunit` never returns when piped** (`phpunit \| tail`) | A test leaked a `php -S` child that still holds the output pipe, so it never reaches EOF. Start servers only via `Tests\Support\LocalWebServer` — a *string* command to `proc_open()` re-creates this. Check with `pgrep -af '[p]hp -S'` |
+| **`Could not authenticate against github.com`** during `composer install` | Not an auth problem, and a token will not fix it — it is the session's GitHub proxy refusing an out-of-scope repository. Composer dists work; see [`docs/agents/cloud-environment.md`](./docs/agents/cloud-environment.md) |
+| **`access denied by the git proxy: <other>/<repo> is not in this session's authorized repository set`** on `git push` | Reads as permissions, is almost always a **clobbered remote** left by a composer source-install (often one started from the repo root instead of `backend/`). Check `git remote -v`, then `git remote set-url origin https://github.com/dgloeckner/clubbar` |
 
 #### Red Flags (STOP and Debug)
 
@@ -1087,13 +1093,29 @@ Five of those steps exist because a fresh clone fails without them, and none is 
 
 The browser steps are why a local run could once be green on a shard CI failed: CI installs the full browser set, `dev-setup.sh` used to install Chromium only. The verify pass now *launches* each browser rather than looking for its directory — an unpacked WebKit with a missing system library passes a file check and still cannot run a test.
 
-**Run backend PHP tests inside the container, not on the host:**
+**Run backend PHP tests with `php8.3`, or in the container:**
 
 ```bash
-docker compose exec -w /app backend ./vendor/bin/phpunit
+cd backend && php8.3 vendor/bin/phpunit -c phpunit.xml --testsuite Unit   # ~12s, no stack
+docker compose exec -w /app backend ./vendor/bin/phpunit                  # anything needing the database
 ```
 
-The host PHP has no **bcmath**, and `Validator.php` calls `bcmod()` for the IBAN checksum — on the host those tests die with `Call to undefined function bcmod()`. The host also cannot resolve the `database` hostname the feature tests connect to. The container has bcmath and is on the compose network, so both problems disappear. Installing bcmath on the host is not an option here: it lives in the `ondrej/php` PPA, and the egress policy returns 403 for `ppa.launchpadcontent.net` (see below).
+**Not plain `php`.** `php` is 8.4 and has no **bcmath**, so `Validator.php`'s
+`bcmod()` call kills every SEPA/Validator test with `Call to undefined function
+bcmod()` — ten errors that look like broken code. bcmath cannot be added to that
+8.4: `php8.4-bcmath` exists only in the `ondrej/php` PPA, for which the egress
+policy returns 403 (see below).
+
+`php8.3` is the fix, and it is also what the project targets — `composer.json`
+pins the platform to 8.3.30. Both `php8.3-cli` and `php8.3-bcmath` come from
+`archive.ubuntu.com`, which is allowed; `.claude/cloud-setup.sh` installs them,
+and pinning the unreachable PPA out is what makes them resolvable at all. See
+[`docs/agents/cloud-environment.md`](./docs/agents/cloud-environment.md).
+
+The container is still right for **Feature** tests: those need the `database`
+hostname, which only exists on the compose network. Run them there, or start the
+stack and point `DB_HOST` at it. Since #696 the Feature suite fails in 0.2s with
+a message naming the unreachable host, rather than 748 identical PDO traces.
 
 Because of that instruction, the backend service also mounts `./scripts` at `/scripts` read-only. `CheckPatchCoverageScriptTest` shells out to `scripts/check-patch-coverage.php`, which lives *above* `./backend` and is therefore invisible through the `/app` mount — without it those six tests fail with `Could not open input file` in the workflow this file recommends, while passing in CI, where phpunit runs inside a full checkout.
 
@@ -1164,7 +1186,11 @@ Non-default hosts this project needs:
 | `quay.io`, `*.quay.io` | Keycloak |
 | `*.azurecr.io`, `*.blob.core.windows.net` | ACR manifests / layers |
 | `maven.pkg.github.com` | Defaults cover only `npm.pkg.github.com` |
-| `ppa.launchpadcontent.net` | The `ondrej/php` PPA — the only source of `php8.4-bcmath` for the host PHP. Currently **denied** (403), which is why backend PHP tests run in the container |
+| `ppa.launchpadcontent.net` | The `ondrej/php` PPA — the only source of `php8.4-bcmath`, for the 8.4 that `php` points at. Currently **denied** (403). Not a blocker: `php8.3-bcmath` comes from `archive.ubuntu.com` instead, so run the suite with `php8.3` (above). `.claude/cloud-setup.sh` pins this PPA out so those packages resolve |
+
+The `githubusercontent.com` hosts, `codeload.github.com`, `packagist.org`,
+`archive.ubuntu.com` and `security.ubuntu.com` are on the **default** Trusted
+allowlist — there is never anything to add for them.
 
 ### Docker Hub rate limits and the GHCR mirror
 
@@ -1197,7 +1223,7 @@ scripts/mirror-images.sh           # copy (needs docker login ghcr.io)
 
 ### Issue tracker
 
-Issues are tracked as GitHub Issues on `dgloeckner/clubbar` via the `gh` CLI; reuse the repo's existing type/priority/area labels. See `docs/agents/issue-tracker.md`.
+Issues are tracked as GitHub Issues on `dgloeckner/clubbar`. A cloud session has **no `gh`** — use the GitHub MCP tools (`mcp__github__*`); reuse the repo's existing type/priority/area labels. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

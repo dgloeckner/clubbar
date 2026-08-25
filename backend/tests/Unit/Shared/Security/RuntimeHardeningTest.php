@@ -11,6 +11,7 @@ use App\Shared\Security\HttpProbe;
 use App\Shared\Security\RuntimeHardening;
 use App\Shared\Security\SecuritySelfCheck;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\LocalWebServer;
 
 /**
  * ADR-0031 decision 1 rests on a claim that is only worth making if it is
@@ -293,32 +294,8 @@ class RuntimeHardeningTest extends TestCase
             echo 'ok';
             PHP);
 
-        $server = null;
-        $baseUrl = null;
-        for ($attempt = 0; $attempt < 10 && $server === null; $attempt++) {
-            $port = random_int(20000, 60000);
-            $command = sprintf(
-                '%s -S 127.0.0.1:%d %s',
-                escapeshellarg(PHP_BINARY),
-                $port,
-                escapeshellarg($documentRoot . '/router.php'),
-            );
-
-            $candidate = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-            if (!is_resource($candidate)) {
-                continue;
-            }
-
-            if ($this->waitForPort($port)) {
-                $server = $candidate;
-                $baseUrl = "http://127.0.0.1:{$port}";
-            } else {
-                proc_terminate($candidate);
-                proc_close($candidate);
-            }
-        }
-
-        if ($server === null || $baseUrl === null) {
+        $server = LocalWebServer::start($documentRoot . '/router.php');
+        if ($server === null) {
             $this->removeTree($documentRoot);
             $this->markTestSkipped('Could not start a local webserver to probe');
 
@@ -326,7 +303,7 @@ class RuntimeHardeningTest extends TestCase
         }
 
         try {
-            $response = HttpProbe::fetch($baseUrl . '/');
+            $response = HttpProbe::fetch($server->baseUrl() . '/');
             $this->assertSame(200, $response['status']);
 
             $csp  = $response['headers']['content-security-policy'] ?? null;
@@ -339,8 +316,7 @@ class RuntimeHardeningTest extends TestCase
             $this->assertNotNull($hsts, 'Strict-Transport-Security was not sent');
             $this->assertMatchesRegularExpression('/max-age\s*=\s*\d+/', $hsts);
         } finally {
-            proc_terminate($server);
-            proc_close($server);
+            $server->stop();
             $this->removeTree($documentRoot);
         }
     }
@@ -348,21 +324,6 @@ class RuntimeHardeningTest extends TestCase
     private function exportPath(string $path): string
     {
         return var_export($path, true);
-    }
-
-    private function waitForPort(int $port): bool
-    {
-        for ($attempt = 0; $attempt < 50; $attempt++) {
-            $socket = @fsockopen('127.0.0.1', $port, $errno, $error, 0.2);
-            if (is_resource($socket)) {
-                fclose($socket);
-
-                return true;
-            }
-            usleep(100_000);
-        }
-
-        return false;
     }
 
     private function removeTree(string $directory): void
