@@ -1186,8 +1186,8 @@ Non-default hosts this project needs:
 | `quay.io`, `*.quay.io` | Keycloak |
 | `*.azurecr.io`, `*.blob.core.windows.net` | ACR manifests / layers |
 | `maven.pkg.github.com` | Defaults cover only `npm.pkg.github.com` |
-| `graph.microsoft.com` | The `msgraph://` backup transport (#691, ADR-0049). Currently **denied** (403 on CONNECT), so no session can verify a backup upload against a real tenant. Ordinary HTTPS on 443, so it works through the proxy the moment it is allowed — nothing to work around in code |
-| `login.microsoftonline.com` | The token endpoint for the same transport. Already **allowed**, which is the confusing half: a session can mint an app-only token and then do nothing with it |
+| `graph.microsoft.com` | The `msgraph://` backup transport (#691, ADR-0049). **Allowed** as of 2026-08-25 — a session reaches the service document on 443 and gets a 200. Egress is therefore no longer what blocks the tenant verification; club credentials are (below) |
+| `login.microsoftonline.com` | The token endpoint for the same transport. **Allowed** |
 | `ppa.launchpadcontent.net` | The `ondrej/php` PPA — the only source of `php8.4-bcmath`, for the 8.4 that `php` points at. Currently **denied** (403). Not a blocker: `php8.3-bcmath` comes from `archive.ubuntu.com` instead, so run the suite with `php8.3` (above). `.claude/cloud-setup.sh` pins this PPA out so those packages resolve |
 
 The `githubusercontent.com` hosts, `codeload.github.com`, `packagist.org`,
