@@ -8,6 +8,9 @@ use App\Modules\Backups\Domain\BackupKeyringException;
 use App\Modules\Backups\Domain\BackupOutcome;
 use App\Modules\Backups\Domain\BackupRecipient;
 use App\Modules\Backups\Domain\BackupRetention;
+use App\Modules\Backups\Transport\BackupTransport;
+use App\Modules\Backups\Transport\TransportResult;
+use App\Modules\Backups\Transport\UploadState;
 use App\Shared\Logging\Logger;
 use App\Shared\Security\BackupSealedBox;
 use Throwable;
@@ -80,6 +83,18 @@ final class BackupService
      */
     public const MINIMUM_INTERVAL_MINUTES = 60;
 
+    /**
+     * Wall clock one run may spend pushing to the remote, in seconds.
+     *
+     * Compiled in, and chosen to sit inside what a shared tariff gives a cron
+     * process rather than to be generous. Running out is not a failure: the
+     * sidecar beside the archive carries the transfer to the next run, which
+     * is the whole point of ADR-0049's split between an *atomic* snapshot and
+     * a *resumable* transfer. What must not happen is the host killing the
+     * process mid-write because the job decided to keep going.
+     */
+    public const UPLOAD_BUDGET_SECONDS = 240;
+
     private readonly BackupJournal $journal;
 
     public function __construct(
@@ -90,6 +105,13 @@ final class BackupService
         private readonly string $configuredRecipientKeys,
         private readonly BackupRetention $retention,
         private readonly string $appEnv = 'production',
+        /**
+         * Null means local-only, which is a legitimate configuration and says
+         * so out loud rather than silently. A *malformed* `backup.dsn` is not
+         * null — it arrives here as a transport that fails every run, because
+         * a typo must never be able to read as "no remote configured".
+         */
+        private readonly ?BackupTransport $transport = null,
     ) {
         $this->journal = new BackupJournal($this->backupDirectory);
     }
@@ -206,9 +228,87 @@ final class BackupService
         );
 
         $findings = [];
+
+        // Before pruning: the archive that just landed is the one worth having
+        // off-site, and an upload that fails must not also cost the local copy
+        // its slot in the same run.
+        $remote = $this->push($filename, $findings);
+
         $pruned = $this->prune($filename, $findings);
 
-        return BackupOutcome::written($filename, $bytes, $findings, $pruned);
+        return BackupOutcome::written($filename, $bytes, $findings, $pruned, $remote?->summary);
+    }
+
+    /**
+     * Push the new archive, then whatever an earlier run left half-sent.
+     *
+     * Newest first on purpose. A club that can afford one archive off-site
+     * tonight wants tonight's, not the one from the night the line was slow —
+     * and the sweep behind it is what stops a half-sent archive from being
+     * abandoned, since nothing else in the system would ever come back to it.
+     *
+     * @param list<string> $findings appended to in place
+     */
+    private function push(string $filename, array &$findings): ?TransportResult
+    {
+        if ($this->transport === null) {
+            return null;
+        }
+
+        $started = time();
+        $result = $this->send($filename, $findings);
+
+        foreach (UploadState::pendingIn($this->backupDirectory) as $pending) {
+            $remaining = self::UPLOAD_BUDGET_SECONDS - (time() - $started);
+            if ($remaining <= 0) {
+                break;
+            }
+
+            if (basename($pending) === $filename) {
+                continue;
+            }
+
+            $this->send(basename($pending), $findings, $remaining);
+        }
+
+        return $result;
+    }
+
+    /** @param list<string> $findings appended to in place */
+    private function send(string $filename, array &$findings, ?int $budgetSeconds = null): TransportResult
+    {
+        $transport = $this->transport;
+        if ($transport === null) {
+            return TransportResult::notConfigured();
+        }
+
+        $remote = $transport->describe();
+        $result = $transport->upload(
+            $this->backupDirectory . '/' . $filename,
+            $budgetSeconds ?? self::UPLOAD_BUDGET_SECONDS
+        );
+
+        match ($result->status) {
+            'uploaded' => $this->journal->uploaded(
+                $filename,
+                $remote,
+                (string) $result->remotePath,
+                $result->bytesSent
+            ),
+            'partial' => $this->journal->uploadProgress($filename, $remote, $result->bytesSent),
+            default => $this->journal->uploadFailed($filename, $remote, $result->summary),
+        };
+
+        if ($result->needsAttention()) {
+            // A finding rather than a failed run: the archive exists, is sealed
+            // and is on the webspace. Reporting the night as a failure would
+            // hide the fact that the local copy is fine, and a club reading
+            // "backup failed" deletes nothing and trusts nothing.
+            $findings[] = 'The archive was written but could not be pushed to ' . $remote . '. '
+                . $result->summary;
+        }
+
+        return $result;
     }
 
     /**

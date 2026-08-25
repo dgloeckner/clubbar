@@ -39,6 +39,7 @@ final class BackupOutcome
         int $bytes,
         array $findings,
         int $prunedArchives,
+        ?string $remoteSummary = null,
     ): self {
         return new self(
             'written',
@@ -47,6 +48,7 @@ final class BackupOutcome
             $bytes,
             $findings,
             $prunedArchives,
+            $remoteSummary,
         );
     }
 
