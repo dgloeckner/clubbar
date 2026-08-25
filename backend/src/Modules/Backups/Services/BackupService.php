@@ -241,8 +241,15 @@ final class BackupService
 
         foreach ($archives as $archive) {
             if ($archive['name'] !== $justWritten && $archive['at'] < $cutoff) {
-                $pruned += $this->removeArchive($archive, 'age');
-                continue;
+                if ($this->removeArchive($archive, 'age') === 1) {
+                    $pruned++;
+                    continue;
+                }
+
+                // Still on disk, so still spending the quota. Falling through
+                // rather than dropping it keeps the byte total honest — an
+                // archive we could not delete must not make the cap look
+                // satisfied.
             }
 
             $keep[] = $archive;
