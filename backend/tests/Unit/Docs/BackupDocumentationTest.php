@@ -264,7 +264,7 @@ class BackupDocumentationTest extends TestCase
             '/###\s+backup_(runs|keys|config)/',
             self::read('docs/erm-master.md'),
             'The data-model approval for backup_runs/backup_keys/backup_config was withdrawn '
-            . '(#703). The feature touches the application schema nowhere.'
+            . '(#703). The feature keeps no backup state in the database at all.'
         );
 
         $creating = array_values(array_filter(

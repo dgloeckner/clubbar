@@ -27,11 +27,11 @@
 -- what it is about is a value in `config.php` — the one place ADR-0049 says the
 -- backup's configuration lives. Restoring an archive cannot revert any of it.
 --
--- Worth stating plainly all the same: ADR-0049's *Positive* section claims the
--- feature "touches the application's schema nowhere". After this line that is
+-- Worth stating plainly all the same: ADR-0049's *Positive* section used to claim
+-- the feature "touches the application's schema nowhere". After this line that is
 -- true of the backup's own data and no longer true of the mail outbox, whose
 -- schema this widens by one enum value so an existing notification mechanism
--- can carry one more kind of warning. That sentence is the ADR's to correct.
+-- can carry one more kind of warning. That sentence has been corrected to say so.
 --
 -- Rollback: db/rollback/055_mail_outbox_backup_secret_expiry.down.sql
 -- =============================================================================
