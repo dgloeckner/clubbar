@@ -578,7 +578,12 @@ jobs:
           path: backend/vendor/
 
       - name: Prepare writable directories
-        run: chmod -R 777 backend/logs backend/storage
+        # backups/ joins them because the URL backup trigger writes an archive
+        # there when a recipient key is configured (ADR-0049), and the compose
+        # stack configures one.
+        run: |
+          mkdir -p backend/backups
+          chmod -R 777 backend/logs backend/storage backend/backups
 
       - name: Download admin frontend build
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

@@ -21,6 +21,10 @@
 # drain's, so the two scheduled jobs cannot block each other — which is the
 # thing separating them was for.
 /storage/backup.lock
+# Sealed archives a local run writes (ADR-0049). The data directory defaults to
+# backend/ in a development checkout, so every triggered backup lands here —
+# each one is the whole member database, sealed, and none belongs in the repo.
+/backups/
 *.php.disabled
 .DS_Store
 Thumbs.db

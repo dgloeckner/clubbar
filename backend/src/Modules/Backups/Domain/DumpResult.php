@@ -5,30 +5,27 @@ declare(strict_types=1);
 namespace App\Modules\Backups\Domain;
 
 /**
- * What a dump wrote, and what it had to guess about.
+ * What a dump wrote: every base table, and how many rows each contributed.
  *
- * The manifest is the count a later restore is checked against. The second half
- * exists because {@see UnclassifiedTablePolicy::INCLUDE_AND_REPORT} deliberately
- * does *not* stop the run — so the run needs somewhere to learn that it guessed,
- * or the fail-open half of the policy would be silent, which is the failure the
- * policy is trying to avoid rather than a milder version of it.
+ * The manifest travels in the archive's own cleartext header (ADR-0049
+ * decision 8), which is what lets a reader see what is inside a file before
+ * they can open it — and lets the offline decryptor name the parts of its
+ * per-table split.
  *
- * ADR-0049 decision 1. Part of #699, epic #686.
+ * It is **informational**, not an alarm. An earlier draft compared one night's
+ * manifest against the last and reported tables appearing or disappearing; that
+ * went with the classification it was guarding, because under dump-everything a
+ * new table is simply in the archive. A migration ran is not news the backup
+ * has to break.
+ *
+ * ADR-0049 decision 1. Part of #703, epic #686.
  */
 final class DumpResult
 {
     /**
      * @param array<string, int> $manifest table name => rows written
-     * @param list<string> $unclassifiedTables included as FULL without anyone deciding
      */
-    public function __construct(
-        public readonly array $manifest,
-        public readonly array $unclassifiedTables = [],
-    ) {
-    }
-
-    public function guessed(): bool
+    public function __construct(public readonly array $manifest)
     {
-        return $this->unclassifiedTables !== [];
     }
 }

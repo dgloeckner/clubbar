@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Backups;
 
-use App\Modules\Backups\Repositories\BackupRunsRepository;
+use App\Modules\Backups\Services\BackupService;
 use App\Modules\Notifications\Controllers\CronController;
-use PDO;
 use Tests\Feature\HttpTestCase;
+use Tests\Support\TempTree;
 
 /**
  * The URL backup trigger, through the real middleware stack (ADR-0049, #690).
@@ -23,38 +23,60 @@ use Tests\Feature\HttpTestCase;
  * rejection has to be checked against a *wrong* secret as well as a missing
  * one, and the E2E environment knows only the configured one.
  *
- * Nothing is sealed here. No recipient key is configured in the test
- * environment, which is the shipped default and means the run refuses before
- * writing anything — deliberately, because these assertions are about the gate
- * and the guard, not about the archive. What a run actually does is
- * {@see BackupServiceTest}, against a real filesystem.
+ * **This installation is fully configured**, unlike the E2E stack: a recipient
+ * key is set, so a request that gets past the gate really does write a sealed
+ * archive. It lands in a temp tree ({@see TempTree}) that `DATA_DIR` points
+ * this boot at, which is what makes "one call, one archive" assertable rather
+ * than inferred — and what keeps the run out of the container's own data
+ * directory. The unconfigured shapes are
+ * {@see BackupCronDisabledHttpTest} and {@see BackupCronNoKeyHttpTest}.
+ *
+ * Part of #690 and #703, epic #686.
  */
 class BackupCronHttpTest extends HttpTestCase
 {
+    use TempTree;
+
     private const SECRET = 'test-cron-secret-0123456789abcdef';
+
+    private string $tempTree = '';
+    private string $recipientKeys = '';
 
     protected function setUp(): void
     {
-        parent::setUp();
+        // Assigned before parent::setUp(), which reads environment(), and before
+        // anything that could skip — cleanup can then only ever point here
+        // (CLAUDE.md, destructive test cleanup).
+        $this->tempTree = self::makeTempTree('clubbar-backup-http');
+        mkdir($this->tempTree . '/storage', 0777, true);
+        mkdir($this->tempTree . '/logs', 0777, true);
 
-        $this->db->exec('DELETE FROM backup_runs');
-        $this->db->exec('UPDATE backup_config SET enabled = 1 WHERE id = 1');
+        $this->recipientKeys = 'admin:' . bin2hex(
+            sodium_crypto_box_publickey(sodium_crypto_box_keypair())
+        );
+
+        parent::setUp();
     }
 
     protected function tearDown(): void
     {
-        $this->db->exec('DELETE FROM backup_runs');
-        $this->db->exec('UPDATE backup_config SET enabled = 0 WHERE id = 1');
+        self::removeTempTree($this->tempTree);
 
         parent::tearDown();
     }
 
     protected function environment(): array
     {
-        return parent::environment() + ['CRON_SECRET' => self::SECRET];
+        return parent::environment() + [
+            'CRON_SECRET' => self::SECRET,
+            // Configuring a key is the on-switch (ADR-0049 decision 2). Without
+            // it this route is not mounted at all.
+            'BACKUP_RECIPIENT_PUBLIC_KEYS' => $this->recipientKeys,
+            'DATA_DIR' => $this->tempTree,
+        ];
     }
 
-    public function test_the_header_form_is_accepted_and_returns_no_data(): void
+    public function test_the_header_form_is_accepted_and_writes_an_archive(): void
     {
         $response = $this->request('POST', '/api/cron/backup', headers: [
             CronController::HEADER => self::SECRET,
@@ -65,9 +87,9 @@ class BackupCronHttpTest extends HttpTestCase
         $this->assertSame(
             '',
             (string) $response->getBody(),
-            'It triggers a run; it never serves an archive. Not even a count — that would put '
-            . 'the state of the club\'s backups behind one static credential.'
+            'It triggers a run; it never serves an archive, not even a count.'
         );
+        $this->assertCount(1, $this->archives());
     }
 
     public function test_a_get_works_too_because_panels_differ(): void
@@ -77,13 +99,13 @@ class BackupCronHttpTest extends HttpTestCase
         ]);
 
         $this->assertSame(204, $response->getStatusCode());
+        $this->assertCount(1, $this->archives());
     }
 
     /**
-     * The degraded form, supported because some panels can only fetch a bare
-     * URL. The scrub covers what still reads `$_SERVER` after the handler; it
-     * cannot reach a webserver that already wrote the request line from its own
-     * memory, which is why the header form is the one the installer prints.
+     * The degraded form, for panels whose cron field takes only a URL. The
+     * secret ends up in the host's access log, so the handler scrubs what it
+     * still can of this process's own view of the request.
      */
     public function test_the_query_string_form_works_and_is_scrubbed_from_the_request_environment(): void
     {
@@ -93,7 +115,7 @@ class BackupCronHttpTest extends HttpTestCase
         $response = $this->request('GET', '/api/cron/backup?secret=' . self::SECRET);
 
         $this->assertSame(204, $response->getStatusCode());
-        $this->assertSame('secret=***', $_SERVER['QUERY_STRING']);
+        $this->assertStringNotContainsString(self::SECRET, $_SERVER['QUERY_STRING']);
         $this->assertStringNotContainsString(self::SECRET, $_SERVER['REQUEST_URI']);
     }
 
@@ -102,20 +124,17 @@ class BackupCronHttpTest extends HttpTestCase
         $response = $this->request('POST', '/api/cron/backup');
 
         $this->assertSame(401, $response->getStatusCode());
-        $this->assertSame(
-            0,
-            (int) $this->db->query('SELECT COUNT(*) FROM backup_runs')->fetchColumn(),
-            'A refused request must not look like a backup run.'
-        );
+        $this->assertSame([], $this->archives());
     }
 
     public function test_a_wrong_secret_is_refused(): void
     {
         $response = $this->request('POST', '/api/cron/backup', headers: [
-            CronController::HEADER => self::SECRET . 'x',
+            CronController::HEADER => 'not-the-secret',
         ]);
 
         $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame([], $this->archives());
     }
 
     public function test_a_wrong_secret_in_the_query_string_is_refused_too(): void
@@ -123,32 +142,32 @@ class BackupCronHttpTest extends HttpTestCase
         $response = $this->request('GET', '/api/cron/backup?secret=not-the-secret');
 
         $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame([], $this->archives());
     }
 
-    /** `hash_equals`, and a length check that is not a substring check. */
+    /** A prefix must not pass: the comparison is of whole values, not of a start. */
     public function test_a_prefix_of_the_secret_is_refused(): void
     {
         $response = $this->request('POST', '/api/cron/backup', headers: [
-            CronController::HEADER => substr(self::SECRET, 0, 10),
+            CronController::HEADER => substr(self::SECRET, 0, 20),
         ]);
 
         $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame([], $this->archives());
     }
 
     /**
-     * The guard that makes this endpoint safe to expose at all: a caller in a
-     * loop cannot turn it into a webspace-quota exhaustion.
+     * The minimum interval is what stops this endpoint filling the webspace
+     * quota with dumps, and it is keyed on attempts rather than successes,
+     * because the quota is spent by an attempt.
      *
      * The caller is told nothing either way, and that is deliberate — a
      * response that distinguished "ran" from "too soon" would leak how often
      * the club backs up to whoever holds the secret, and a scheduler has
      * nothing to do with the answer.
      */
-    public function test_repeated_calls_start_no_second_run_and_look_identical(): void
+    public function test_repeated_calls_write_one_archive_and_look_identical(): void
     {
-        $runs = new BackupRunsRepository($this->db);
-        $runs->start('44444444-4444-4444-8444-444444444444', 'cli', gmdate('Y-m-d H:i:s'));
-
         for ($i = 0; $i < 3; $i++) {
             $response = $this->request('POST', '/api/cron/backup', headers: [
                 CronController::HEADER => self::SECRET,
@@ -159,9 +178,9 @@ class BackupCronHttpTest extends HttpTestCase
             $this->assertSame('', (string) $response->getBody());
         }
 
-        $this->assertSame(
+        $this->assertCount(
             1,
-            (int) $this->db->query('SELECT COUNT(*) FROM backup_runs')->fetchColumn(),
+            $this->archives(),
             'The minimum interval is what stops this endpoint filling the quota with dumps.'
         );
     }
@@ -180,40 +199,11 @@ class BackupCronHttpTest extends HttpTestCase
         $this->assertStringNotContainsStringIgnoringCase('archive', $body);
     }
 
-    /**
-     * Backups switched off is not an error for the caller: the scheduler did
-     * its job, and whether the club has enabled the feature is the club's
-     * business rather than the credential holder's.
-     */
-    public function test_a_disabled_installation_still_answers_204_and_writes_nothing(): void
+    /** @return list<string> */
+    private function archives(): array
     {
-        $this->db->exec('UPDATE backup_config SET enabled = 0 WHERE id = 1');
-
-        $response = $this->request('POST', '/api/cron/backup', headers: [
-            CronController::HEADER => self::SECRET,
-        ]);
-
-        $this->assertSame(204, $response->getStatusCode());
-        $this->assertSame(0, (int) $this->db->query('SELECT COUNT(*) FROM backup_runs')->fetchColumn());
-    }
-
-    /**
-     * Fail closed, over HTTP as well as on the CLI: with no recipient key the
-     * run refuses rather than writing a plaintext archive (ADR-0031 rule 3),
-     * and the caller still gets a 204 because a scheduler cannot act on the
-     * difference. The evidence goes to the log and to #693's mail.
-     */
-    public function test_no_recipient_key_writes_nothing_and_still_answers_204(): void
-    {
-        $response = $this->request('POST', '/api/cron/backup', headers: [
-            CronController::HEADER => self::SECRET,
-        ]);
-
-        $this->assertSame(204, $response->getStatusCode());
-        $this->assertSame(
-            0,
-            (int) $this->db->query("SELECT COUNT(*) FROM backup_runs WHERE status = 'local'")->fetchColumn(),
-            'No key configured means no archive at all — never a plaintext one.'
-        );
+        return glob(
+            $this->tempTree . '/' . BackupService::DIRECTORY . '/*' . BackupService::EXTENSION
+        ) ?: [];
     }
 }

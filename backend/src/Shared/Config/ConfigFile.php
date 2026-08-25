@@ -88,10 +88,16 @@ final class ConfigFile
         // newline-separated string of `label:hexkey` entries and are parsed
         // back by BackupKeyring. A separator that cannot occur inside either
         // half: a label is [a-z0-9_-] and a key is hex.
-        $publicKeys = $config['backup']['public_keys'] ?? [];
-        $_ENV['BACKUP_PUBLIC_KEYS'] = is_array($publicKeys)
-            ? implode("\n", array_map('strval', $publicKeys))
-            : (string) $publicKeys;
+        //
+        // Their presence is the on-switch (decision 2), which is why the key is
+        // named for what it holds rather than as a bare `public_keys` that
+        // reads like one setting among several: an installation with no entry
+        // here writes no archives and reports nothing, and one with an entry
+        // backs up nightly. There is no third state to configure.
+        $recipientKeys = $config['backup']['recipient_public_keys'] ?? [];
+        $_ENV['BACKUP_RECIPIENT_PUBLIC_KEYS'] = is_array($recipientKeys)
+            ? implode("\n", array_map('strval', $recipientKeys))
+            : (string) $recipientKeys;
 
         // Absent leaves the backup local-only: archives are still written and
         // still sealed, they simply never leave the webspace. Logged, never
@@ -103,6 +109,13 @@ final class ConfigFile
         // Its own monitor, not the mail one (#690): a check guarding a legal
         // deadline must not go red for a storage problem, or it gets ignored.
         $_ENV['BACKUP_HEARTBEAT_URL'] = $config['backup']['heartbeat_url'] ?? '';
+
+        // Retention is compiled in (BackupRetention) and these override it.
+        // Published as strings like everything else here; AppConfig treats an
+        // absent or unparseable value as "use the default" rather than as zero.
+        $_ENV['BACKUP_LOCAL_RETENTION_DAYS'] = (string) ($config['backup']['local_retention_days'] ?? '');
+        $_ENV['BACKUP_LOCAL_MAX_BYTES'] = (string) ($config['backup']['local_max_bytes'] ?? '');
+        $_ENV['BACKUP_REMOTE_RETENTION_DAYS'] = (string) ($config['backup']['remote_retention_days'] ?? '');
 
         // Terminal anomaly detection (ADR-0041). Optional to a fault: every one
         // has a default on the detector, and the scan runs from the cron

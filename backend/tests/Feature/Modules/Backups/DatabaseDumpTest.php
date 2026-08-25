@@ -5,10 +5,6 @@ declare(strict_types=1);
 namespace Tests\Feature\Modules\Backups;
 
 use App\Modules\Backups\Domain\NonUtcDumpSessionException;
-use App\Modules\Backups\Domain\TableClass;
-use App\Modules\Backups\Domain\TableClassification;
-use App\Modules\Backups\Domain\UnclassifiedTableException;
-use App\Modules\Backups\Domain\UnclassifiedTablePolicy;
 use App\Modules\Backups\Services\DatabaseDump;
 use PDO;
 use Tests\Feature\DatabaseTestCase;
@@ -22,7 +18,7 @@ use Tests\Feature\DatabaseTestCase;
  * proves the *emission*: the right tables, the right amount of each, and bytes
  * that come back the bytes they went in as.
  *
- * Part of #688, epic #686.
+ * Part of #688, #699 and #703, epic #686.
  */
 class DatabaseDumpTest extends DatabaseTestCase
 {
@@ -104,29 +100,28 @@ class DatabaseDumpTest extends DatabaseTestCase
     }
 
     /**
-     * The test that makes {@see TableClassification}'s throw reachable by a
-     * migration rather than only by a typo — in both directions, because a
-     * dropped table lingering in the map never fires on its own.
+     * Everything, and the list comes from the database rather than from us.
+     *
+     * This replaces the bijection test that policed a hand-maintained
+     * classification map against the live schema (#703): there is no map to
+     * drift any more, so what is worth asserting is the property the map was
+     * *trying* to buy — that the archive holds every base table the schema has,
+     * whatever the last migration added. A table added tomorrow is in
+     * tomorrow's archive with no backup-side change, and this is what says so.
      */
-    public function test_every_table_in_the_live_schema_is_classified(): void
+    public function test_every_base_table_in_the_live_schema_is_in_the_archive(): void
     {
-        $live = $this->liveTables();
-        $classified = TableClassification::tables();
-
+        $live = $this->liveBaseTables();
         sort($live);
-        $missing = array_values(array_diff($live, $classified));
-        $stale = array_values(array_diff($classified, $live));
 
-        $this->assertSame([], $missing, sprintf(
-            'These tables exist and no one decided whether they belong in a backup: %s. '
-            . 'Add each to TableClassification::MAP.',
-            implode(', ', $missing)
-        ));
+        $manifest = array_keys($this->dump->dump(static fn(string $chunk) => null)->manifest);
+        sort($manifest);
 
-        $this->assertSame([], $stale, sprintf(
-            'These tables are classified but no longer exist: %s. A dropped table left in '
-            . 'the map is drift nothing else would catch.',
-            implode(', ', $stale)
+        $this->assertSame($live, $manifest, sprintf(
+            'The archive covers %d of the schema\'s %d base tables. A table wrongly missing is '
+            . 'missing on the day of a restore, and nothing before that day says so.',
+            count($manifest),
+            count($live)
         ));
     }
 
@@ -141,25 +136,58 @@ class DatabaseDumpTest extends DatabaseTestCase
     }
 
     /**
-     * bank_codes is ~20k rows of reference data. Its structure must be there so
-     * a restore is loadable; its rows must not, or they dominate every archive.
+     * The two kinds of table an earlier draft argued out of the archive, now in
+     * it — and each is a *behaviour* worth pinning rather than a preference.
+     *
+     * `bank_codes` was schema-only, which meant a restored installation came
+     * back with an empty lookup table and needed a re-import endpoint to fill
+     * it (#703 deleted that endpoint along with the class). The rate-limit
+     * counters were skipped, which was harmless and bought nothing. What
+     * selection cost was unbounded — a table wrongly excluded is missing on the
+     * day of a restore — and what it saved was bytes compression absorbs.
      */
-    public function test_a_schema_only_table_contributes_structure_but_no_rows(): void
+    public function test_the_tables_selection_used_to_exclude_ride_along_in_full(): void
     {
         $sql = $this->dumpToString();
 
-        $this->assertStringContainsString('CREATE TABLE `bank_codes`', $sql);
-        $this->assertStringNotContainsString('INSERT INTO `bank_codes`', $sql);
+        foreach (['bank_codes', 'login_attempts', 'terminal_auth_attempts', 'terminal_ip_sightings'] as $table) {
+            $this->assertStringContainsString(
+                "CREATE TABLE `{$table}`",
+                $sql,
+                'A restored installation must come back complete, not needing a repopulation step.'
+            );
+        }
     }
 
-    public function test_a_skipped_table_contributes_nothing_at_all(): void
+    /**
+     * What the archive says about the database it came from (ADR-0049
+     * decision 8).
+     *
+     * There is no `backup_runs` row to look an archive up in any more, so these
+     * three values exist only in the archive's own header. They are read here,
+     * against a real schema, because that is where they can be wrong: the
+     * migration ledger is created by the runner rather than by a migration, and
+     * branding is a singleton row somebody can delete.
+     */
+    public function test_the_dump_can_describe_the_database_it_came_from(): void
     {
-        $sql = $this->dumpToString();
+        $description = $this->dump->sourceDescription();
 
-        foreach (TableClassification::tablesOfClass(TableClass::SKIP) as $skipped) {
-            $this->assertStringNotContainsString("CREATE TABLE `{$skipped}`", $sql);
-            $this->assertStringNotContainsString("INSERT INTO `{$skipped}`", $sql);
-        }
+        $this->assertSame(
+            (string) $this->db->query('SELECT DATABASE()')->fetchColumn(),
+            $description['database']
+        );
+        $this->assertSame(
+            (string) $this->db->query('SELECT MAX(file) FROM _migrations')->fetchColumn(),
+            $description['schema_version'],
+            'The schema version is the highest applied migration, so a reader knows which '
+            . 'application version can load the archive.'
+        );
+        $this->assertSame(DatabaseDump::FORMAT_VERSION, $description['dump_format']);
+        $this->assertNotNull(
+            $description['instance_id'],
+            'An archive found on a share has to be attributable to the club that wrote it.'
+        );
     }
 
     /**
@@ -206,8 +234,12 @@ class DatabaseDumpTest extends DatabaseTestCase
             $manifest['members'],
             'The manifest is what a later restore is checked against; it must count real rows.'
         );
-        $this->assertSame(0, $manifest['bank_codes'], 'A schema-only table contributes no rows.');
-        $this->assertArrayNotHasKey('login_attempts', $manifest);
+        $this->assertSame(
+            (int) $this->db->query('SELECT COUNT(*) FROM bank_codes')->fetchColumn(),
+            $manifest['bank_codes'],
+            'bank_codes is dumped in full like everything else; there is no schema-only class.'
+        );
+        $this->assertArrayHasKey('login_attempts', $manifest);
     }
 
     /**
@@ -317,38 +349,26 @@ class DatabaseDumpTest extends DatabaseTestCase
     }
 
     /**
-     * The asymmetry ADR-0049 decision 1 states: CI fails closed, the 03:00 run
-     * fails open and reports. Both halves are asserted here, because either one
-     * alone is a policy that only appears to exist.
+     * A table nobody has ever heard of is simply backed up.
+     *
+     * The earlier draft met this table with a hand-maintained map, a runtime
+     * policy for the unclassified case, and a CI test policing the map — all of
+     * it managing a hazard the map itself created (ADR-0049 decision 1 as
+     * amended). Enumerating live deletes the hazard: there is nothing to
+     * classify, so nothing can be unclassified, and completeness has no runtime
+     * failure mode of its own. Confidentiality still fails closed, which is
+     * `BackupServiceTest`'s.
      */
-    public function test_an_unclassified_table_is_included_and_reported_rather_than_ending_the_run(): void
+    public function test_a_table_nobody_declared_anywhere_is_simply_backed_up(): void
     {
         $probe = $this->createProbeTable();
 
-        try {
-            $this->dump->dump(static fn(string $chunk) => null);
-            $this->fail('The default policy must refuse a table nobody classified.');
-        } catch (UnclassifiedTableException $expected) {
-            $this->assertStringContainsString($probe, $expected->getMessage());
-        }
-
         $sql = '';
-        $result = (new DatabaseDump($this->db, UnclassifiedTablePolicy::INCLUDE_AND_REPORT))
-            ->dump(function (string $chunk) use (&$sql): void {
-                $sql .= $chunk;
-            });
+        $result = $this->dump->dump(function (string $chunk) use (&$sql): void {
+            $sql .= $chunk;
+        });
 
-        $this->assertSame(
-            [$probe],
-            $result->unclassifiedTables,
-            'A guessed table has to reach the caller, or the fail-open half is simply silent.'
-        );
-        $this->assertTrue($result->guessed());
-        $this->assertStringContainsString(
-            "CREATE TABLE `{$probe}`",
-            $sql,
-            'An unrecognised table is likelier business data than ephemera, so it is included.'
-        );
+        $this->assertStringContainsString("CREATE TABLE `{$probe}`", $sql);
         $this->assertStringContainsString("INSERT INTO `{$probe}`", $sql);
         $this->assertSame(1, $result->manifest[$probe]);
     }
@@ -436,9 +456,20 @@ class DatabaseDumpTest extends DatabaseTestCase
     }
 
     /** @return list<string> */
-    private function liveTables(): array
+    /**
+     * Base tables only — deliberately the same filter the dumper applies, since
+     * what is asserted is that the archive covers what it is *meant* to cover.
+     * That the schema holds no views at all is a separate guard test above, and
+     * it is the one that would fail if that ever changed.
+     *
+     * @return list<string>
+     */
+    private function liveBaseTables(): array
     {
-        return $this->db->query('SHOW TABLES')->fetchAll(\PDO::FETCH_COLUMN);
+        return $this->db->query(
+            "SELECT TABLE_NAME FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'"
+        )->fetchAll(\PDO::FETCH_COLUMN);
     }
 
     /**
@@ -500,8 +531,8 @@ class DatabaseDumpTest extends DatabaseTestCase
     }
 
     /**
-     * A table the classification map cannot know about, so the policy has
-     * something real to meet. One row, so the manifest count is checkable.
+     * A table no map could have named, so "enumerated live" has something real
+     * to meet. One row, so the manifest count is checkable.
      */
     private function createProbeTable(): string
     {

@@ -36,9 +36,8 @@ use InvalidArgumentException;
  *
  * ## Layout
  *
- *   magic      "CLUBBAR-BACKUP\x01"
- *   header     4-byte big-endian length, then JSON: version, created_at,
- *              algorithm, chunk size, and one {fingerprint,label} per recipient
+ *   magic      "CLUBBAR-BACKUP" + one version byte
+ *   header     4-byte big-endian length, then JSON (see below)
  *   keys       per recipient, crypto_box_seal(stream key, their public key)
  *   body       crypto_secretstream_xchacha20poly1305 over the payload
  *
@@ -49,12 +48,45 @@ use InvalidArgumentException;
  * which is why the body is a secretstream rather than a sequence of boxes we
  * would have had to frame ourselves.
  *
- * ADR-0049 decision 2. Part of #689, epic #686.
+ * ## The archive is the record (version 2)
+ *
+ * There is no backup state in the application's database — no run table, no key
+ * table, no configuration row (ADR-0049 decision 8). So the header has to carry
+ * everything a future reader needs in order to know what they are holding, and
+ * it does:
+ *
+ * | Field | Why it is a must-have |
+ * |---|---|
+ * | `version`, `algorithm` | What this build can read, stated rather than probed |
+ * | `created_at` | When the snapshot was taken, UTC |
+ * | `recipients` | *Which envelope in the safe opens this* — answerable years later, from the file alone |
+ * | `instance` | Attribution: id, club name, database. Clubs merge, hosts are shared, volunteers keep copies |
+ * | `schema_version` | Which application version can load this, and whether an upgrade must follow |
+ * | `dump_format` | The SQL dialect contract between emitter and restore tooling |
+ * | `manifest` | What is inside, without decrypting — and the decryptor's per-table split can name its parts |
+ * | `plaintext_bytes`, `plaintext_sha256` | A restore can prove it decrypted what was sealed |
+ *
+ * None of it is secret: table names and row counts are not member data, and
+ * everything that could change the plaintext is still inside the authenticated
+ * stream. The checksum is of the *plaintext*, which is the half a reader cannot
+ * otherwise verify — the ciphertext's own integrity is the stream's job.
+ *
+ * ADR-0049 decisions 2 and 8. Part of #689 and #703, epic #686.
  */
 final class BackupSealedBox
 {
-    public const MAGIC = "CLUBBAR-BACKUP\x01";
-    public const VERSION = 1;
+    /**
+     * The container marker, without its version byte.
+     *
+     * Split from the version deliberately: an archive written by a later build
+     * should be refused with *"this build reads version 2"* rather than with
+     * "bad magic", which reads as a corrupt file and sends the holder looking
+     * for the wrong problem.
+     */
+    public const MAGIC = 'CLUBBAR-BACKUP';
+
+    /** Bumped by #703: the header describes the archive (decision 8). */
+    public const VERSION = 2;
     public const ALGORITHM = 'crypto_box_seal+secretstream_xchacha20poly1305';
 
     /** Plaintext bytes per stream chunk. */
@@ -64,10 +96,18 @@ final class BackupSealedBox
 
     /**
      * @param list<array{label: string, public_key: string}> $recipients
+     * @param array{instance_id?: ?string, instance_name?: ?string, database?: ?string,
+     *              schema_version?: ?string, dump_format?: ?int,
+     *              manifest?: array<string, int>} $describes
+     *        what the payload is, as {@see \App\Modules\Backups\Services\DatabaseDump::sourceDescription()}
+     *        reports it plus the manifest. Absent fields become explicit nulls
+     *        rather than missing keys, so a header always answers the question
+     *        even when the answer is "this archive does not say".
      */
     public static function seal(
         string $payload,
         array $recipients,
+        array $describes = [],
         string $appEnv = 'production',
         ?string $createdAt = null,
     ): string
@@ -102,9 +142,22 @@ final class BackupSealedBox
             'created_at' => $createdAt ?? gmdate('c'),
             'chunk_bytes' => self::CHUNK_BYTES,
             'recipients' => $descriptors,
+            'instance' => [
+                'id' => $describes['instance_id'] ?? null,
+                'name' => $describes['instance_name'] ?? null,
+                'database' => $describes['database'] ?? null,
+            ],
+            'schema_version' => $describes['schema_version'] ?? null,
+            'dump_format' => $describes['dump_format'] ?? null,
+            // An object even when empty, so a reader never has to tell an empty
+            // list from an empty map.
+            'manifest' => (object) ($describes['manifest'] ?? []),
+            'plaintext_bytes' => strlen($payload),
+            'plaintext_sha256' => hash('sha256', $payload),
         ];
 
         $out = self::MAGIC
+            . chr(self::VERSION)
             . self::lengthPrefixed(json_encode($header, JSON_THROW_ON_ERROR))
             . $streamHeader;
 
@@ -169,8 +222,15 @@ final class BackupSealedBox
      * a decryption error and leaving the holder to guess which of the keys in
      * the safe was meant.
      *
+     * Under version 2 it says considerably more than that — see the class
+     * docblock — because the archive is the only record of the run that made it.
+     *
      * @return array{version: int, algorithm: string, created_at: string, chunk_bytes: int,
-     *               recipients: list<array{fingerprint: string, label: string}>}
+     *               recipients: list<array{fingerprint: string, label: string}>,
+     *               instance: array{id: ?string, name: ?string, database: ?string},
+     *               schema_version: ?string, dump_format: ?int,
+     *               manifest: array<string, int>, plaintext_bytes: int,
+     *               plaintext_sha256: string}
      */
     public static function readHeader(string $archive): array
     {
@@ -195,6 +255,16 @@ final class BackupSealedBox
         }
 
         $offset = strlen(self::MAGIC);
+        $containerVersion = ord(self::take($archive, $offset, 1));
+
+        if ($containerVersion !== self::VERSION) {
+            throw new InvalidArgumentException(sprintf(
+                'Unsupported archive version %d; this build reads version %d.',
+                $containerVersion,
+                self::VERSION
+            ));
+        }
+
         $length = self::readLength($archive, $offset);
         $json = self::take($archive, $offset, $length);
 
@@ -204,9 +274,12 @@ final class BackupSealedBox
             throw new InvalidArgumentException('Archive header is not readable JSON.', 0, $e);
         }
 
+        // The version byte and the JSON have to agree. They can only disagree
+        // if somebody edited the header, which is worth refusing loudly rather
+        // than trusting whichever half came first.
         if (!is_array($header) || ($header['version'] ?? null) !== self::VERSION) {
             throw new InvalidArgumentException(sprintf(
-                'Unsupported archive version %s; this build reads version %d.',
+                'Archive header says version %s but the container says %d.',
                 var_export($header['version'] ?? null, true),
                 self::VERSION
             ));

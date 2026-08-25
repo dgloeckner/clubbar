@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
  * Guards the factual claims this repository makes about backups.
  *
  * Prose has no behaviour to test, so most of a documentation change is not
- * testable and should not pretend to be. These four claims are the exception:
+ * testable and should not pretend to be. The claims below are the exception:
  * each is a statement about the world that was **false**, silently, for as long
  * as nobody re-read the file.
  *
@@ -26,7 +26,10 @@ use PHPUnit\Framework\TestCase;
  * "is the wording good" but "does this file still claim something untrue".
  *
  * See #686 (epic), #687 (this slice) and #699, which added the role-word guards
- * after the ADR shipped naming the Kassenwart as a backup key holder.
+ * after the ADR shipped naming the Kassenwart as a backup key holder. #703 adds
+ * the guards over the amended design — the on-switch wording, and the three
+ * things the course correction removed, each of which the documentation
+ * described at length and would otherwise still describe.
  */
 class BackupDocumentationTest extends TestCase
 {
@@ -155,6 +158,124 @@ class BackupDocumentationTest extends TestCase
                 . 'the club says Kassenwart, in code, specs and UI alike.'
             );
         }
+    }
+
+    /**
+     * The on-switch, said in plain words where an operator will meet it.
+     *
+     * `backup.recipient_public_keys` being present *is* what turns nightly
+     * backups on (ADR-0049 decision 2), and the sample config is the file a
+     * club actually edits. A reader who takes it for "one setting among
+     * several" configures a key and then goes looking for the switch — or
+     * worse, does not configure one and waits for backups that were never on.
+     */
+    public function test_the_sample_config_says_that_a_key_is_the_on_switch(): void
+    {
+        $sample = self::read('package/config.sample.php');
+
+        $this->assertStringContainsString(
+            'recipient_public_keys',
+            $sample,
+            'The key was renamed from backup.public_keys by #703; the sample must use the '
+            . 'name the application actually reads.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/CONFIGURING AT LEAST ONE RECIPIENT KEY SWITCHES NIGHTLY BACKUPS ON;\s*\n?\s*\/\/\s*'
+            . 'REMOVE ALL KEYS TO SWITCH THEM OFF/i',
+            $sample,
+            'config.sample.php must say, in plain words, that configuring a recipient key '
+            . 'switches backups on and removing every key switches them off. There is no '
+            . 'enabled flag to find instead.'
+        );
+    }
+
+    /**
+     * The old configuration key must not survive anywhere a club would copy it
+     * from.
+     *
+     * A `config.php` still saying `public_keys` is not a syntax error and not a
+     * warning — it is an installation with no recipient key, which under the
+     * amended design means no backups at all, silently. Exactly the class of
+     * false documentation this file exists for.
+     */
+    public function test_no_document_still_names_the_old_configuration_key(): void
+    {
+        foreach ([self::ADR, self::USE_CASE, 'docs/deployment.md', 'package/config.sample.php'] as $path) {
+            $this->assertDoesNotMatchRegularExpression(
+                '/backup\.public_keys|[\'"]public_keys[\'"]/',
+                self::read($path),
+                $path . ' still names `backup.public_keys`. It was renamed to '
+                . '`backup.recipient_public_keys` by #703, and a config.php carrying the old '
+                . 'name configures no recipient at all — which now means no backups, silently.'
+            );
+        }
+    }
+
+    /**
+     * The three things the course correction removed, each of which the
+     * documentation used to explain at length (#703, ADR-0049 decision 8).
+     *
+     * Prose outlives code by default. A deployment guide that still tells a
+     * club to refill the bank codes after a restore sends a volunteer looking
+     * for a panel button that no longer exists — at the one moment they are
+     * least able to absorb a wrong instruction.
+     */
+    public function test_the_docs_no_longer_describe_the_removed_state_layer(): void
+    {
+        foreach ([self::USE_CASE, 'docs/deployment.md', 'package/config.sample.php'] as $path) {
+            $text = self::read($path);
+
+            $this->assertDoesNotMatchRegularExpression(
+                '/\bbackup_runs\b|\bbackup_keys\b|\bbackup_config\b/',
+                $text,
+                $path . ' still describes the backup tracking tables. #703 removed them: the '
+                . 'archive header is the record and the journal beside it is the history.'
+            );
+
+            $this->assertDoesNotMatchRegularExpression(
+                '/(SCHEMA_ONLY|schema-only|structure-only)/i',
+                $text,
+                $path . ' still describes a table as schema-only. Every base table is dumped in '
+                . 'full (ADR-0049 decision 1 as amended), so a restored installation needs no '
+                . 'repopulation step.'
+            );
+
+            $this->assertDoesNotMatchRegularExpression(
+                '/bank-codes\/reimport|refill the bank codes/i',
+                $text,
+                $path . ' still points at the bank-codes re-import endpoint. It existed only to '
+                . 'compensate for the schema-only class and was deleted with it.'
+            );
+        }
+    }
+
+    /**
+     * The data-model approval for the three tables was withdrawn, so the ERM
+     * must not document them — and no migration may create them.
+     *
+     * `docs/erm-master.md` is the data model per CLAUDE.md, which makes a table
+     * described there a table somebody may reasonably build against. This is
+     * the guard that would catch the tables coming back through a later slice
+     * that only read the ERM.
+     */
+    public function test_the_data_model_carries_no_backup_tables_and_no_migration_creates_one(): void
+    {
+        $this->assertDoesNotMatchRegularExpression(
+            '/###\s+backup_(runs|keys|config)/',
+            self::read('docs/erm-master.md'),
+            'The data-model approval for backup_runs/backup_keys/backup_config was withdrawn '
+            . '(#703). The feature touches the application schema nowhere.'
+        );
+
+        $creating = array_values(array_filter(
+            glob(self::repoRoot() . '/backend/db/migrations/*.sql') ?: [],
+            static fn (string $file): bool => preg_match(
+                '/CREATE TABLE\s+`?backup_/i',
+                (string) file_get_contents($file)
+            ) === 1
+        ));
+
+        $this->assertSame([], array_map('basename', $creating), 'No migration may create a backup table.');
     }
 
     /** Offset of the first heading matching $pattern, or null. */

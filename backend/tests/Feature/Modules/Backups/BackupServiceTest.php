@@ -4,29 +4,32 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Backups;
 
-use App\Modules\Backups\Domain\UnclassifiedTablePolicy;
-use App\Modules\Backups\Repositories\BackupConfigRepository;
-use App\Modules\Backups\Repositories\BackupKeysRepository;
-use App\Modules\Backups\Repositories\BackupRunsRepository;
+use App\Modules\Backups\Domain\BackupRetention;
+use App\Modules\Backups\Services\BackupJournal;
 use App\Modules\Backups\Services\BackupKeyring;
 use App\Modules\Backups\Services\BackupService;
 use App\Modules\Backups\Services\DatabaseDump;
-use App\Shared\Security\BackupSealedBox;
-use App\Shared\Services\AuditService;
 use App\Shared\Logging\Logger;
-use PDO;
+use App\Shared\Security\BackupSealedBox;
 use Tests\Feature\DatabaseTestCase;
 use Tests\Support\TempTree;
 
 /**
  * A backup run against a real database and a real filesystem, because what it
  * can get wrong lives in both: whether the archive actually opens, whether the
- * directory ends up 0700, and whether a run that failed left a row saying so.
+ * directory ends up 0700, and whether a run that failed left a journal line
+ * saying so.
+ *
+ * **Nothing here queries a backup table, because there are none.** The run
+ * writes into the database it dumps exactly nowhere (ADR-0049 decision 8), so
+ * every assertion below reads the artifacts instead: the archive and its
+ * header, the journal beside it, and the directory the two live in. That is
+ * also what a club has after a restore, which is the point.
  *
  * The archive directory is a temp tree ({@see TempTree}), never a path built
  * from a property that might not be set — CLAUDE.md, destructive test cleanup.
  *
- * Part of #690, epic #686.
+ * Part of #690 and #703, epic #686.
  */
 class BackupServiceTest extends DatabaseTestCase
 {
@@ -35,16 +38,6 @@ class BackupServiceTest extends DatabaseTestCase
     private string $tempTree = '';
     private string $backupDir = '';
 
-    /**
-     * Tables this test created with DDL, to be dropped again.
-     *
-     * Names are generated here and never read from the schema, so cleanup can
-     * only point at something this file made; the pattern guard means a
-     * misassignment cannot turn into a DROP of a real table.
-     *
-     * @var list<string>
-     */
-    private array $createdProbeTables = [];
     private string $publicKeys;
     private string $secretKey;
 
@@ -60,26 +53,11 @@ class BackupServiceTest extends DatabaseTestCase
         $keypair = sodium_crypto_box_keypair();
         $this->secretKey = sodium_crypto_box_secretkey($keypair);
         $this->publicKeys = 'admin:' . bin2hex(sodium_crypto_box_publickey($keypair));
-
-        $this->db->exec('DELETE FROM backup_runs');
-        $this->db->exec('DELETE FROM backup_keys');
-        $this->db->exec('UPDATE backup_config SET enabled = 1 WHERE id = 1');
     }
 
     protected function tearDown(): void
     {
-        foreach ($this->createdProbeTables as $table) {
-            if (preg_match('/^zz_backup_probe_[0-9a-f]{8}$/', $table) === 1) {
-                $this->db->exec('DROP TABLE IF EXISTS `' . $table . '`');
-            }
-        }
-        $this->createdProbeTables = [];
-
         self::removeTempTree($this->tempTree);
-
-        $this->db->exec('DELETE FROM backup_runs');
-        $this->db->exec('DELETE FROM backup_keys');
-        $this->db->exec('UPDATE backup_config SET enabled = 0 WHERE id = 1');
 
         parent::tearDown();
     }
@@ -99,6 +77,45 @@ class BackupServiceTest extends DatabaseTestCase
 
         $this->assertStringContainsString('CREATE TABLE `members`', $plaintext);
         $this->assertStringContainsString("SET time_zone = '+00:00'", $plaintext);
+    }
+
+    /**
+     * The archive is the record (ADR-0049 decision 8), so everything a reader
+     * needs in order to know what they are holding has to be in its header —
+     * and readable with no key at all.
+     *
+     * Asserted from a *real* run rather than from a hand-built header, because
+     * the failure this guards against is the service forgetting to describe
+     * what it sealed. `BackupSealedBox` would happily write nulls.
+     */
+    public function test_the_archive_describes_itself_without_any_key(): void
+    {
+        $outcome = $this->service()->run('cli');
+
+        $sealed = (string) file_get_contents($this->backupDir . '/' . $outcome->filename);
+        $header = BackupSealedBox::readHeader($sealed);
+
+        $this->assertSame(
+            (string) $this->db->query('SELECT DATABASE()')->fetchColumn(),
+            $header['instance']['database']
+        );
+        $this->assertSame(
+            (string) $this->db->query('SELECT MAX(file) FROM _migrations')->fetchColumn(),
+            $header['schema_version'],
+            'Which application version can load this archive, without opening it.'
+        );
+        $this->assertSame(DatabaseDump::FORMAT_VERSION, $header['dump_format']);
+        $this->assertArrayHasKey(
+            'members',
+            $header['manifest'],
+            'The manifest is what is inside, answerable without a private key.'
+        );
+
+        $this->assertSame(
+            hash('sha256', BackupSealedBox::open($sealed, $this->secretKey)),
+            $header['plaintext_sha256'],
+            'A restore proves it decrypted what was sealed by comparing against the header.'
+        );
     }
 
     /**
@@ -125,54 +142,95 @@ class BackupServiceTest extends DatabaseTestCase
         $this->assertSame([], glob($this->backupDir . '/*.part') ?: []);
     }
 
-    public function test_the_run_row_records_what_is_needed_after_the_file_is_gone(): void
+    /**
+     * The journal is what the panel and the self-check read, and the only
+     * record of an attempt that produced no file.
+     */
+    public function test_the_journal_records_the_attempt_and_what_it_produced(): void
     {
         $outcome = $this->service()->run('cli');
 
-        $row = $this->db->query('SELECT * FROM backup_runs')->fetch(PDO::FETCH_ASSOC);
+        $entries = $this->journalEntries();
 
-        $this->assertSame('local', $row['status']);
-        $this->assertSame('cli', $row['trigger_source']);
-        $this->assertSame($outcome->filename, $row['filename']);
+        $this->assertSame(['started', 'written'], array_column($entries, 'event'));
+        $this->assertSame('cli', $entries[0]['trigger']);
+        $this->assertSame($outcome->filename, $entries[1]['filename']);
         $this->assertSame(
             hash('sha256', (string) file_get_contents($this->backupDir . '/' . $outcome->filename)),
-            $row['sha256'],
+            $entries[1]['sha256'],
             'The checksum answers "is this the file we wrote" without a private key.'
         );
-        $this->assertNotEmpty(
-            json_decode((string) $row['key_fingerprints'], true),
-            'Which keys open this archive has to outlive the artifact, or nobody can say '
-            . 'which private key may finally be discarded.'
-        );
+        $this->assertNotEmpty($entries[1]['recipients']);
+    }
+
+    /**
+     * The journal sits beside the archives, never inside the database.
+     *
+     * This is the defect that removed the three tables: an archive containing
+     * its own half-written `running` row means restoring one resurrects a run
+     * that never finishes, and reads as a stalled scheduler. A file in the
+     * backup directory cannot be inside the dump it describes.
+     */
+    public function test_the_journal_lives_beside_the_archives_and_not_in_the_database(): void
+    {
+        $this->service()->run('cli');
+
+        $this->assertFileExists($this->backupDir . '/' . BackupJournal::FILENAME);
+
+        $tables = $this->db->query(
+            "SELECT TABLE_NAME FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'backup%'"
+        )->fetchAll(\PDO::FETCH_COLUMN);
+
+        $this->assertSame([], $tables, 'The backup owns no table in the database it dumps.');
     }
 
     /**
      * Fail closed. This is the one refusal that must never degrade into a
      * plaintext archive, and it must never *look* like a successful run.
+     *
+     * Reaching it at all means somebody called a run on an installation with no
+     * key: the entrypoints ask {@see BackupService::isConfigured()} first, so
+     * an unconfigured club is silent rather than failing nightly.
      */
     public function test_a_run_with_no_recipient_key_writes_nothing_at_all(): void
     {
-        $outcome = $this->service(publicKeys: '')->run('cli');
+        $service = $this->service(publicKeys: '');
+
+        $this->assertFalse($service->isConfigured());
+
+        $outcome = $service->run('cli');
 
         $this->assertFalse($outcome->producedAnArchive());
         $this->assertTrue($outcome->needsAttention());
         $this->assertSame([], glob($this->backupDir . '/*') ?: []);
     }
 
-    public function test_a_disabled_installation_writes_nothing_and_does_not_call_it_a_failure(): void
+    /**
+     * A typo is not an off switch.
+     *
+     * `isConfigured()` asks whether anything is there, not whether it parses —
+     * because treating a malformed key as "backups are off" would let one wrong
+     * character silence a club's backups with no complaint anywhere, which is
+     * the worst outcome available here.
+     */
+    public function test_a_malformed_key_fails_loudly_rather_than_reading_as_switched_off(): void
     {
-        $this->db->exec('UPDATE backup_config SET enabled = 0 WHERE id = 1');
+        $service = $this->service(publicKeys: 'admin:not-a-key');
 
-        $outcome = $this->service()->run('cli');
+        $this->assertTrue($service->isConfigured());
 
-        $this->assertSame('skipped', $outcome->status);
-        $this->assertFalse($outcome->needsAttention(), 'Disabled is a choice, not a fault.');
+        $outcome = $service->run('cli');
+
+        $this->assertSame('failed', $outcome->status);
+        $this->assertSame([], glob($this->backupDir . '/*' . BackupService::EXTENSION) ?: []);
     }
 
     /**
      * The guard that stops `/api/cron/backup` filling the webspace quota. Keyed
      * on attempts rather than successes, because an attempt is what spends the
-     * quota.
+     * quota — and read from the journal, which is the only place an attempt
+     * that wrote nothing is recorded.
      */
     public function test_a_second_run_inside_the_interval_writes_no_second_archive(): void
     {
@@ -184,8 +242,9 @@ class BackupServiceTest extends DatabaseTestCase
         $this->assertSame('skipped', $second->status);
         $this->assertCount(1, glob($this->backupDir . '/*' . BackupService::EXTENSION) ?: []);
         $this->assertSame(
-            1,
-            (int) $this->db->query('SELECT COUNT(*) FROM backup_runs')->fetchColumn()
+            ['started', 'written'],
+            array_column($this->journalEntries(), 'event'),
+            'A skipped run appends nothing: it did not start.'
         );
     }
 
@@ -199,87 +258,39 @@ class BackupServiceTest extends DatabaseTestCase
     }
 
     /**
-     * The runtime half of the drift guard (#699's bijection test is the CI
-     * half). A stored manifest answers "what was in that archive?" afterwards;
-     * a compared one answers "did the shape of the database change last night?"
-     * while somebody can still act on it.
+     * Pruning reads the directory, because the directory is what is true.
+     *
+     * There is no table of what *should* be there to disagree with what is: an
+     * operator who deleted an archive by hand has deleted it, and a file that
+     * arrived by some other route is still occupying the quota. The journal
+     * records the removal and is never consulted about what exists.
      */
-    public function test_a_table_vanishing_since_the_previous_archive_is_reported(): void
+    public function test_an_archive_past_its_retention_is_removed_and_the_removal_journalled(): void
     {
-        $previous = $this->db->query('SELECT * FROM backup_runs')->fetch(PDO::FETCH_ASSOC);
-        $this->assertFalse($previous, 'Precondition: this test seeds the previous run itself.');
+        $stale = $this->plantArchive(daysAgo: 40, bytes: 21);
 
-        $runs = new BackupRunsRepository($this->db);
-        $runs->start('11111111-1111-4111-8111-111111111111', 'cli', gmdate('Y-m-d H:i:s', time() - 86400));
-        $runs->markLocal(
-            '11111111-1111-4111-8111-111111111111',
-            'yesterday.cbb',
-            10,
-            str_repeat('0', 64),
-            ['fp'],
-            // The current shape plus one extra, so the *only* difference is the
-            // disappearance — otherwise every real table reads as new and the
-            // assertion would pass for the wrong reason.
-            $this->manifestOfEveryTable(1) + ['a_table_that_has_since_been_dropped' => 3],
-            gmdate('Y-m-d H:i:s', time() - 86400),
-        );
-
-        $outcome = $this->service()->run('cli');
-
-        $this->assertSame(
-            ['table "a_table_that_has_since_been_dropped" was in the previous archive and is not in this one'],
-            $outcome->manifestDrift
-        );
-        $this->assertTrue($outcome->needsAttention());
-    }
-
-    /**
-     * Row counts change every day by design, so comparing them would fire every
-     * day — and an alarm that fires every day is one nobody reads.
-     */
-    public function test_row_counts_changing_is_not_drift(): void
-    {
-        $runs = new BackupRunsRepository($this->db);
-        $runs->start('22222222-2222-4222-8222-222222222222', 'cli', gmdate('Y-m-d H:i:s', time() - 86400));
-        $runs->markLocal(
-            '22222222-2222-4222-8222-222222222222',
-            'yesterday.cbb',
-            10,
-            str_repeat('0', 64),
-            ['fp'],
-            $this->manifestOfEveryTable(999999),
-            gmdate('Y-m-d H:i:s', time() - 86400),
-        );
-
-        $this->assertSame([], $this->service()->run('cli')->manifestDrift);
-    }
-
-    /**
-     * Pruning removes the artifact and keeps the row, because the row is what
-     * says which private key still opens something (ADR-0049 decision 3).
-     */
-    public function test_pruning_removes_the_artifact_and_keeps_the_row(): void
-    {
-        $this->db->exec('UPDATE backup_config SET local_retention_days = 1 WHERE id = 1');
-
-        $stale = '33333333-3333-4333-8333-333333333333';
-        @mkdir($this->backupDir, 0700, true);
-        file_put_contents($this->backupDir . '/stale.cbb', 'not really an archive');
-
-        $runs = new BackupRunsRepository($this->db);
-        $runs->start($stale, 'cli', gmdate('Y-m-d H:i:s', time() - (5 * 86400)));
-        $runs->markLocal($stale, 'stale.cbb', 21, str_repeat('0', 64), ['fp'], ['members' => 1],
-            gmdate('Y-m-d H:i:s', time() - (5 * 86400)));
-
-        $outcome = $this->service()->run('cli');
+        $outcome = $this->service(retention: BackupRetention::fromOverrides(localDays: 30))->run('cli');
 
         $this->assertSame(1, $outcome->prunedArchives);
-        $this->assertFileDoesNotExist($this->backupDir . '/stale.cbb');
+        $this->assertFileDoesNotExist($this->backupDir . '/' . $stale);
 
-        $row = $this->db->query("SELECT pruned_at, key_fingerprints FROM backup_runs WHERE id = '{$stale}'")
-            ->fetch(PDO::FETCH_ASSOC);
-        $this->assertNotNull($row['pruned_at']);
-        $this->assertSame('["fp"]', $row['key_fingerprints']);
+        $pruned = array_values(array_filter(
+            $this->journalEntries(),
+            static fn (array $e): bool => $e['event'] === 'pruned'
+        ));
+        $this->assertSame($stale, $pruned[0]['filename']);
+        $this->assertSame('age', $pruned[0]['reason']);
+    }
+
+    /** An archive inside its window stays, whatever else the run does. */
+    public function test_an_archive_inside_its_retention_is_left_alone(): void
+    {
+        $recent = $this->plantArchive(daysAgo: 3, bytes: 21);
+
+        $outcome = $this->service(retention: BackupRetention::fromOverrides(localDays: 30))->run('cli');
+
+        $this->assertSame(0, $outcome->prunedArchives);
+        $this->assertFileExists($this->backupDir . '/' . $recent);
     }
 
     /**
@@ -290,9 +301,7 @@ class BackupServiceTest extends DatabaseTestCase
      */
     public function test_the_byte_cap_reports_rather_than_leaving_the_club_with_nothing(): void
     {
-        $this->db->exec('UPDATE backup_config SET local_max_bytes = 1 WHERE id = 1');
-
-        $outcome = $this->service()->run('cli');
+        $outcome = $this->service(retention: BackupRetention::fromOverrides(localMaxBytes: 1))->run('cli');
 
         $this->assertTrue($outcome->producedAnArchive());
         $this->assertFileExists($this->backupDir . '/' . $outcome->filename);
@@ -302,171 +311,134 @@ class BackupServiceTest extends DatabaseTestCase
         ));
     }
 
-    /** First use is what the audit row keys on; a second run must not repeat it. */
-    public function test_a_key_is_recorded_once_and_its_last_use_moves(): void
+    /**
+     * Over the cap with room to prune: the oldest goes, the newest never does.
+     */
+    public function test_the_byte_cap_takes_the_oldest_archive_first(): void
     {
-        $service = $this->service();
-        $service->run('cli');
-        $first = $this->db->query('SELECT * FROM backup_keys')->fetch(PDO::FETCH_ASSOC);
+        // The cap has to be expressed relative to a real archive, so the test
+        // states "room for tonight's archive and one more" rather than a magic
+        // number that stops meaning that the moment the schema grows.
+        $sizing = $this->service()->run('cli');
+        unlink($this->backupDir . '/' . $sizing->filename);
+        $cap = $sizing->bytes + 4096 + 512;
 
-        $service->run('cli', force: true);
-        $rows = $this->db->query('SELECT * FROM backup_keys')->fetchAll(PDO::FETCH_ASSOC);
+        $oldest = $this->plantArchive(daysAgo: 5, bytes: 4096);
+        $newer = $this->plantArchive(daysAgo: 2, bytes: 4096);
 
-        $this->assertCount(1, $rows);
-        $this->assertSame($first['first_seen_at'], $rows[0]['first_seen_at']);
+        $outcome = $this->service(
+            retention: BackupRetention::fromOverrides(localDays: 30, localMaxBytes: $cap)
+        )->run('cli', force: true);
+
+        $this->assertFileDoesNotExist(
+            $this->backupDir . '/' . $oldest,
+            'The cap takes the archive whose loss costs least.'
+        );
+        $this->assertFileExists($this->backupDir . '/' . $newer);
+        $this->assertFileExists($this->backupDir . '/' . $outcome->filename);
     }
 
     /**
-     * A run that cannot write must leave a row saying so — not a row still
-     * reading `running`, which the staleness check would report as a stalled
-     * scheduler rather than as the failure it was.
+     * Anything that is not an archive this job wrote is not this job's to
+     * delete — a `.part` from a killed run, the journal itself, a note somebody
+     * left for their successor. Pruning globs one deliberate pattern rather
+     * than emptying a directory.
+     */
+    public function test_pruning_touches_nothing_but_the_archives_it_writes(): void
+    {
+        @mkdir($this->backupDir, 0700, true);
+        file_put_contents($this->backupDir . '/notes-for-my-successor.txt', 'the safe key is with Ute');
+        touch($this->backupDir . '/notes-for-my-successor.txt', time() - (400 * 86400));
+
+        $this->service(retention: BackupRetention::fromOverrides(localDays: 1))->run('cli');
+
+        $this->assertFileExists($this->backupDir . '/notes-for-my-successor.txt');
+    }
+
+    /**
+     * A run that cannot write must leave a journal line saying so — a failure
+     * with no record is indistinguishable from a scheduler that never ran,
+     * which is the silent-stall failure this whole epic exists to prevent.
      *
      * The unwritable path is a *file* where the directory should be, which is
      * the closest reproducible stand-in for the real cause on shared hosting: a
      * data directory the cron user does not own. Running as root, a plain
      * `chmod 0500` would not stop the write.
      */
-    public function test_a_run_that_cannot_write_records_the_failure_on_its_row(): void
+    public function test_a_run_that_cannot_write_reports_the_failure(): void
     {
         file_put_contents($this->tempTree . '/not-a-directory', 'blocking the path');
 
-        $outcome = $this->serviceWritingTo($this->tempTree . '/not-a-directory')->run('cli');
+        $outcome = $this->service(directory: $this->tempTree . '/not-a-directory')->run('cli');
 
         $this->assertSame('failed', $outcome->status);
         $this->assertTrue($outcome->needsAttention());
-
-        $row = $this->db->query('SELECT * FROM backup_runs')->fetch(PDO::FETCH_ASSOC);
-        $this->assertSame('failed', $row['status']);
-        $this->assertNotNull($row['finished_at']);
-        $this->assertNotEmpty($row['last_error']);
+        $this->assertNotEmpty($outcome->summary);
     }
 
     /**
-     * An operator who deleted an archive by hand must not leave a row claiming
-     * it is still on disk — the panel would then offer a private key as "still
-     * needed" for a file nobody has.
+     * Two runs in the same second must not collide on a filename, which is what
+     * the random suffix is for now that there is no run id to take one from.
      */
-    public function test_pruning_an_archive_somebody_already_deleted_still_marks_the_row(): void
+    public function test_two_runs_never_claim_the_same_filename(): void
     {
-        $this->db->exec('UPDATE backup_config SET local_retention_days = 1 WHERE id = 1');
+        $service = $this->service();
 
-        $gone = '55555555-5555-4555-8555-555555555555';
-        $runs = new BackupRunsRepository($this->db);
-        $runs->start($gone, 'cli', gmdate('Y-m-d H:i:s', time() - (5 * 86400)));
-        $runs->markLocal($gone, 'never-existed.cbb', 10, str_repeat('0', 64), ['fp'], ['members' => 1],
-            gmdate('Y-m-d H:i:s', time() - (5 * 86400)));
+        $first = $service->run('cli')->filename;
+        $second = $service->run('cli', force: true)->filename;
 
-        $outcome = $this->service()->run('cli');
+        $this->assertNotSame($first, $second);
+        $this->assertCount(2, glob($this->backupDir . '/*' . BackupService::EXTENSION) ?: []);
+    }
 
-        $this->assertSame(1, $outcome->prunedArchives);
-        $this->assertNotNull(
-            $this->db->query("SELECT pruned_at FROM backup_runs WHERE id = '{$gone}'")->fetchColumn()
+    /**
+     * An archive whose name says when it was written, so retention needs
+     * neither a database row nor a trustworthy `mtime`.
+     *
+     * @return string the filename
+     */
+    private function plantArchive(int $daysAgo, int $bytes): string
+    {
+        @mkdir($this->backupDir, 0700, true);
+
+        $name = sprintf(
+            'clubbar-%s-%s%s',
+            gmdate('Ymd-His', time() - ($daysAgo * 86400)),
+            bin2hex(random_bytes(4)),
+            BackupService::EXTENSION
         );
-    }
 
-    /**
-     * A first-ever run has nothing to compare against, and must not report the
-     * entire schema as new. Silence has to mean "nothing changed", or the
-     * finding is noise from the first night onwards.
-     */
-    public function test_the_first_run_reports_no_drift(): void
-    {
-        $this->assertSame([], $this->service()->run('cli')->manifestDrift);
-    }
-
-    /**
-     * A previous row whose manifest is unreadable — an older format, a
-     * truncated column, a hand-edited row — is treated as "no comparison
-     * available" rather than as drift. Reporting every table as new because a
-     * JSON column would not parse is an alarm nobody would trust twice.
-     */
-    public function test_an_unreadable_previous_manifest_is_not_reported_as_drift(): void
-    {
-        $id = '66666666-6666-4666-8666-666666666666';
-        $runs = new BackupRunsRepository($this->db);
-        $runs->start($id, 'cli', gmdate('Y-m-d H:i:s', time() - 86400));
-        $runs->markLocal($id, 'yesterday.cbb', 10, str_repeat('0', 64), ['fp'], ['members' => 1],
-            gmdate('Y-m-d H:i:s', time() - 86400));
-        $this->db->exec("UPDATE backup_runs SET table_manifest = NULL WHERE id = '{$id}'");
-
-        $this->assertSame([], $this->service()->run('cli')->manifestDrift);
-    }
-
-    /**
-     * The fail-open half of the policy has to reach the caller, or it is just a
-     * silent guess. #690's entrypoint turns this into a finding and #693 into a
-     * mail.
-     */
-    public function test_an_unclassified_table_is_reported_as_a_finding_without_stopping_the_run(): void
-    {
-        $probe = $this->createProbeTable();
-
-        $outcome = $this->service()->run('cli');
-
-        $this->assertTrue($outcome->producedAnArchive(), 'A guess must not cost the night\'s backup.');
-        $this->assertSame([$probe], $outcome->unclassifiedTables);
-        $this->assertNotEmpty(array_filter(
-            $outcome->findings,
-            static fn (string $f): bool => str_contains($f, $probe)
-        ));
-    }
-
-    /**
-     * A table the classification map cannot know about, so the fail-open policy
-     * has something real to meet. Dropped again in tearDown, by a name this
-     * file generated and nothing else (CLAUDE.md, destructive test cleanup).
-     */
-    private function createProbeTable(): string
-    {
-        $name = 'zz_backup_probe_' . substr(bin2hex(random_bytes(4)), 0, 8);
-        $this->createdProbeTables[] = $name;
-
-        $this->db->exec("CREATE TABLE `{$name}` (id INT PRIMARY KEY, note VARCHAR(32)) ENGINE=InnoDB");
-        $this->db->exec("INSERT INTO `{$name}` (id, note) VALUES (1, 'probe')");
+        file_put_contents($this->backupDir . '/' . $name, str_repeat('x', $bytes));
 
         return $name;
     }
 
-    private function serviceWritingTo(string $directory): BackupService
+    /** @return list<array<string, mixed>> */
+    private function journalEntries(): array
     {
-        return new BackupService(
-            new DatabaseDump($this->db, UnclassifiedTablePolicy::INCLUDE_AND_REPORT),
-            new BackupKeyring(new BackupKeysRepository($this->db)),
-            new BackupRunsRepository($this->db),
-            new BackupKeysRepository($this->db),
-            new BackupConfigRepository($this->db),
-            $this->createMock(AuditService::class),
-            $this->createMock(Logger::class),
-            $directory,
-            $this->publicKeys,
-            'development',
-        );
+        $path = $this->backupDir . '/' . BackupJournal::FILENAME;
+        if (!is_file($path)) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn (string $line): array => json_decode($line, true),
+            array_filter(explode("\n", (string) file_get_contents($path)), static fn ($l) => trim($l) !== '')
+        ));
     }
 
-    /** @return array<string, int> */
-    private function manifestOfEveryTable(int $rows): array
-    {
-        $sql = '';
-        $result = (new DatabaseDump($this->db, UnclassifiedTablePolicy::INCLUDE_AND_REPORT))
-            ->dump(function (string $chunk) use (&$sql): void {
-                $sql .= $chunk;
-            });
-
-        return array_map(static fn (): int => $rows, $result->manifest);
-    }
-
-    private function service(?string $publicKeys = null): BackupService
-    {
+    private function service(
+        ?string $publicKeys = null,
+        ?string $directory = null,
+        ?BackupRetention $retention = null,
+    ): BackupService {
         return new BackupService(
-            new DatabaseDump($this->db, UnclassifiedTablePolicy::INCLUDE_AND_REPORT),
-            new BackupKeyring(new BackupKeysRepository($this->db)),
-            new BackupRunsRepository($this->db),
-            new BackupKeysRepository($this->db),
-            new BackupConfigRepository($this->db),
-            $this->createMock(AuditService::class),
+            new DatabaseDump($this->db),
+            new BackupKeyring(),
             $this->createMock(Logger::class),
-            $this->backupDir,
+            $directory ?? $this->backupDir,
             $publicKeys ?? $this->publicKeys,
+            $retention ?? BackupRetention::defaults(),
             'development',
         );
     }

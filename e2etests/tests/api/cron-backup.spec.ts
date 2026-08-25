@@ -19,14 +19,19 @@ import { test, expect, request as playwrightRequest } from '@playwright/test'
  * would mean an installation that rotated one and not the other, with the
  * failure showing up as a job that silently stopped.
  *
+ * The stack configures a recipient public key
+ * (`BACKUP_RECIPIENT_PUBLIC_KEYS` in docker-compose.yml), because configuring
+ * one *is* the on-switch (ADR-0049 decision 2): without it this route is not
+ * mounted at all and every assertion below would be passing against a 404.
+ *
  * **These tests do not assert that an archive was written**, and that is
- * deliberate rather than a gap: the stack ships with backups disabled
- * (`backup_config.enabled = 0`) and with no recipient key configured, which is
- * the shipped default because an installation with no key cannot write an
- * archive at all. A 204 here means "the request was accepted and the run was
- * attempted", which is exactly what the endpoint promises a scheduler. What the
- * run *does* is covered by `BackupServiceTest` against a real database and a
- * real filesystem.
+ * deliberate rather than a gap. A 204 means "the request was accepted and a run
+ * was attempted", which is exactly what the endpoint promises a scheduler — it
+ * never serves an archive, so there is nothing in the response to check. What
+ * the run *does* — the sealed archive, its self-describing header, the journal
+ * beside it, retention — is `BackupServiceTest` against a real database and a
+ * real filesystem, and `BackupCronHttpTest` for the same route through the real
+ * middleware with a data directory of its own.
  */
 test.describe('Cron backup URL trigger', () => {
   const URL = 'http://localhost:8080/api/cron/backup'

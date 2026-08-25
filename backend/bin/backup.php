@@ -52,7 +52,8 @@
  * Exits 0 unless the run could not start at all, for the same reason the drain
  * does: a non-zero exit makes most panels mail the account owner, and "the
  * webspace is nearly full" is not something to wake somebody for at 03:00. It
- * is recorded on the run, in the log, and — per #693 — mailed to the Admin.
+ * is recorded in the journal beside the archives, in the log, and — per #693 —
+ * mailed to the Admin.
  */
 
 declare(strict_types=1);
@@ -170,23 +171,33 @@ try {
         exit(0);
     }
 
-    $outcome = $factory->getBackupService()->run('cli', $force);
+    $backups = $factory->getBackupService();
 
-    $say($outcome->summary);
+    // Configuring a recipient key is the on-switch (ADR-0049 decision 2), so an
+    // installation that has not done it is not misconfigured — it has not asked
+    // for backups. Say what would switch them on, and exit 0: a nightly failure
+    // mail to somebody who never wanted the job teaches them to filter it.
+    if (!$backups->isConfigured()) {
+        $say(
+            'Backups are not configured, so nothing was written. Add a recipient public key '
+            . 'to backup.recipient_public_keys in config.php — generate one offline with '
+            . 'tools/keypair-generator.html — and this job starts writing archives.'
+        );
+    } else {
+        $outcome = $backups->run('cli', $force);
 
-    foreach ($outcome->manifestDrift as $change) {
-        $say('  Note: ' . $change . '.');
-    }
+        $say($outcome->summary);
 
-    if ($outcome->prunedArchives > 0) {
-        $say(sprintf('  Pruned %d expired archive(s).', $outcome->prunedArchives));
-    }
+        if ($outcome->prunedArchives > 0) {
+            $say(sprintf('  Pruned %d expired archive(s).', $outcome->prunedArchives));
+        }
 
-    // Findings go to STDERR even under --quiet: this is the stream a panel's
-    // cron report shows, and it is the only channel that reaches somebody
-    // before #693's mail exists.
-    foreach ($outcome->findings as $finding) {
-        fwrite(STDERR, 'Backup: ' . $finding . "\n");
+        // Findings go to STDERR even under --quiet: this is the stream a
+        // panel's cron report shows, and it is the only channel that reaches
+        // somebody before #693's mail exists.
+        foreach ($outcome->findings as $finding) {
+            fwrite(STDERR, 'Backup: ' . $finding . "\n");
+        }
     }
 } catch (\Throwable $e) {
     // BackupService does not throw; the lock can, on a data directory the cron

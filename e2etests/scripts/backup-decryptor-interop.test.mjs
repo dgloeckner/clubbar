@@ -15,7 +15,7 @@
  * `scripts/*.test.mjs`) — no browser and no database, because the thing under
  * test is a pure format.
  *
- * Part of #689, epic #686.
+ * Part of #689 and #703, epic #686.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -61,6 +61,35 @@ test('the header is readable without any key at all', () => {
     ['admin', 'vorstand'],
     'The decryptor tells a holder which key to fetch before asking for one.',
   )
+})
+
+test('the header describes the archive, so the tool can show it before asking for a key', () => {
+  // ADR-0049 decision 8: there is no backup state in the database, so an
+  // archive found on a share years later has only this to be identified by —
+  // and the JS half has to read all of it, not just the recipients, or the
+  // offline tool shows a holder less than the file actually says.
+  const { header } = decryptor.readHeader(archive)
+
+  assert.equal(header.instance.name, 'SV Musterstadt')
+  assert.equal(header.instance.database, 'clubbar')
+  assert.equal(header.schema_version, '054_credit_limit_digest.sql')
+  assert.equal(header.dump_format, 1)
+  assert.ok(header.manifest.members > 0, 'The manifest names what is inside without decrypting.')
+  assert.equal(
+    header.plaintext_sha256,
+    expectedSha,
+    'The header states the checksum of what was sealed; the decryptor shows whether it holds.',
+  )
+})
+
+test('an archive from a version this tool does not read is refused by version, not as garbage', async () => {
+  // The version byte sits after the magic precisely so a later build's archive
+  // says "this tool reads version N" rather than "bad magic", which would send
+  // a holder looking for a corrupt file that is not corrupt.
+  const future = Uint8Array.from(archive)
+  future[decryptor.MAGIC.length] = 9
+
+  assert.throws(() => decryptor.readHeader(future), /version 9.*reads version/i)
 })
 
 test('JavaScript opens what PHP sealed', async () => {

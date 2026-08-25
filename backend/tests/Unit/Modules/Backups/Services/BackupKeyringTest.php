@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Backups\Services;
 
 use App\Modules\Backups\Domain\BackupKeyringException;
-use App\Modules\Backups\Repositories\BackupKeysRepository;
 use App\Modules\Backups\Services\BackupKeyring;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Who an archive is sealed to, and the two ways that can be nobody.
+ * Who an archive is sealed to, and what happens when the answer is nobody.
  *
  * Every failure here is deliberately fatal, and the tests say so in their
  * names: there is no sealing to whichever entries happened to parse. An archive
@@ -18,7 +17,14 @@ use PHPUnit\Framework\TestCase;
  * no archive — it is a worse one, because it looks like a backup (ADR-0031
  * rule 3).
  *
- * Part of #690, epic #686.
+ * The keyring reads `config.php` and nothing else (#703). An earlier draft
+ * also consulted a `backup_keys.compromised_at` blocklist in the database, and
+ * let it outrank the file; that went with the rest of the backup's database
+ * state, because *a restore reverted it* — importing an archive predating the
+ * compromise silently un-decided a security decision, at exactly the moment
+ * somebody is restoring because something went wrong.
+ *
+ * Part of #690 and #703, epic #686.
  */
 class BackupKeyringTest extends TestCase
 {
@@ -50,7 +56,7 @@ class BackupKeyringTest extends TestCase
     public function test_no_configured_key_means_no_archive_rather_than_a_plaintext_one(): void
     {
         $this->expectException(BackupKeyringException::class);
-        $this->expectExceptionMessageMatches('/plaintext backup is never written/');
+        $this->expectExceptionMessageMatches('/configuring a key is what switches/i');
 
         $this->keyring()->recipients('');
     }
@@ -75,36 +81,6 @@ class BackupKeyringTest extends TestCase
         $this->keyring()->parse("admin:" . self::KEY_A . "\nADMIN:" . self::KEY_B);
     }
 
-    /**
-     * The precedence this class exists for: `config.php` declares, the database
-     * can take away, and the database wins. A key marked compromised has to
-     * stop being sealed to *now* — not once somebody edits a file over FTP.
-     */
-    public function test_a_compromised_key_is_dropped_even_though_config_still_names_it(): void
-    {
-        $blocked = hash('sha256', sodium_hex2bin(self::KEY_A));
-
-        $recipients = $this->keyring($blocked)
-            ->recipients("admin:" . self::KEY_A . "\nvorstand:" . self::KEY_B);
-
-        $this->assertSame(['vorstand'], array_map(fn($r) => $r->label, $recipients));
-    }
-
-    /**
-     * And when that leaves nothing, it is still a refusal rather than a
-     * degraded archive — with the advice that matters, because a compromise is
-     * when backups matter most.
-     */
-    public function test_every_key_compromised_refuses_rather_than_sealing_to_a_blocked_one(): void
-    {
-        $blocked = hash('sha256', sodium_hex2bin(self::KEY_A));
-
-        $this->expectException(BackupKeyringException::class);
-        $this->expectExceptionMessageMatches('/Add a replacement key/');
-
-        $this->keyring($blocked)->recipients('admin:' . self::KEY_A);
-    }
-
     public function test_blank_lines_and_stray_whitespace_are_not_entries(): void
     {
         $recipients = $this->keyring()->parse("\n  admin:" . self::KEY_A . "  \n\n");
@@ -112,11 +88,8 @@ class BackupKeyringTest extends TestCase
         $this->assertCount(1, $recipients);
     }
 
-    private function keyring(string ...$compromised): BackupKeyring
+    private function keyring(): BackupKeyring
     {
-        $keys = $this->createMock(BackupKeysRepository::class);
-        $keys->method('compromisedFingerprints')->willReturn(array_values($compromised));
-
-        return new BackupKeyring($keys);
+        return new BackupKeyring();
     }
 }

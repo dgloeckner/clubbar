@@ -528,14 +528,23 @@ curl -sS -H 'X-Cron-Secret: <secret>' https://your-domain.com/api/cron/backup
 It answers **204 with an empty body, always** — it triggers a run, it never
 serves an archive — and it refuses to run again within an hour of the last
 attempt, so a caller in a loop cannot fill your webspace quota with dumps. Like
-the drain, it is **not mounted at all** without a secret.
+the drain, it is **not mounted at all** without a secret — nor without a
+recipient key, which is the same statement as "this club has not switched
+backups on".
 
-**Before it writes anything, it needs a key.** Generate two keypairs offline with
+**A key is what switches backups on.** Generate two keypairs offline with
 `tools/keypair-generator.html`, put both public halves in `config.php` under
-`backup.public_keys`, and give one private half to whoever holds the server and
-one to a second board member — archived like the key to the safe, and **never
-stored on the server**. Two recipients because the realistic failure in a Verein
-is that the one holder moved away, not that somebody broke the cryptography.
+`backup.recipient_public_keys`, and give one private half to whoever holds the
+server and one to a second board member — archived like the key to the safe, and
+**never stored on the server**. Two recipients because the realistic failure in a
+Verein is that the one holder moved away, not that somebody broke the
+cryptography.
+
+There is no separate on/off setting: configuring a recipient key is what starts
+the nightly archives, and removing every key is what stops them. Until then both
+triggers say so and write nothing — the CLI job prints what to add, and the URL
+trigger is **not mounted at all**, so a scheduler cannot report success for a
+club that has never had a backup.
 
 Not to the Kassenwart, and not the IBAN keypair: a backup carries the audit log,
 every admin's TOTP ciphertext and the database password, and the Kassenwart holds
@@ -548,22 +557,36 @@ has done that, what you have is a belief about a keypair rather than a backup.
 **Where the archives go.** `<data-dir>/backups/`, mode `0700`, outside the
 document root ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md)
 decision 2) — an archive under it would become a URL the day `.htaccess` stops
-being honoured. Retention is 30 days by default and there is a byte cap; when
-pruning to the cap would leave you with no recent archive, the run reports it
-rather than deleting the newest one.
+being honoured. Retention is 30 days by default and there is a 1 GiB cap; both
+are compiled in and can be overridden in `config.php`
+(`backup.local_retention_days`, `backup.local_max_bytes`). When pruning to the
+cap would leave you with no recent archive, the run reports it rather than
+deleting the newest one.
+
+**The archive is the record, and it says so itself.** Nothing about backups is
+stored in the database — no tables, no migration, no audit rows
+([ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md)
+decision 8). Every archive carries a cleartext header, readable with no key at
+all, naming the keys that open it, the club and database it came from, the
+schema version, and what is inside table by table. *Which private keys do we
+still need?* is therefore a scan of that directory rather than a register
+somebody has to keep — and it cannot drift from what is actually there.
+
+Beside the archives sits `index.jsonl`, one line per run attempt and outcome.
+It is a convenience for reading history, never a truth: delete it and you lose
+the log of attempts, not a single backup.
 
 **A local archive is not an off-site backup.** It answers "undo a mistake an
 hour ago" and none of "the hosting account is gone" — that is
 [#691](https://github.com/dgloeckner/clubbar/issues/691). Until then, keep doing
 the quarterly manual copy above.
 
-**After a restore, refill the bank codes.** `bank_codes` is deliberately
-structure-only in an archive (~20k rows identical in every installation would
-dominate every nightly backup), so a restored installation comes back with it
-empty. Existing mandates are unaffected — the bank name is stored on the row —
-but resolution for *new* mandates needs the table. Refill it from the admin panel
-rather than `install.php`, which refuses to run once the installation is marked
-installed.
+**A restore needs no follow-up steps.** Every base table is dumped in full,
+enumerated from the live schema each night, so a restored installation comes back
+complete — including the ~20k Bundesbank BLZ rows, which an earlier design left
+out and then needed a panel button to put back. The archive also has no opinion
+about which tables matter, so a table added by a future upgrade is in the next
+night's archive with nothing to configure.
 
 ### IONOS specifically
 

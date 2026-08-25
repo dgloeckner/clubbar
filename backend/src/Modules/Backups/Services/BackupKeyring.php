@@ -6,21 +6,24 @@ namespace App\Modules\Backups\Services;
 
 use App\Modules\Backups\Domain\BackupKeyringException;
 use App\Modules\Backups\Domain\BackupRecipient;
-use App\Modules\Backups\Repositories\BackupKeysRepository;
 
 /**
  * Who this installation seals archives to, right now.
  *
- * Two sources, and the precedence between them is the whole point of this
- * class. `config.php` declares the recipients; `backup_keys.compromised_at`
- * can take one away, and **the database wins** — the same precedence
- * `mail_config.cron_secret_hash` already has over `cron.secret` (#473).
+ * **One source: `config.php`.** `backup.recipient_public_keys` names the
+ * recipients, and its presence is also what switches backups on (ADR-0049
+ * decision 2) — so "keys configured" and "backups on" are one state and can
+ * never disagree.
  *
- * That direction is deliberate. A compromised key has to stop being sealed to
- * *now*, and on the hosting this targets "now" cannot mean "once somebody
- * edits a file over FTP". It also has to stay gone: a blocklist that the file
- * could override would let a key come back the moment nobody remembered why it
- * was removed.
+ * An earlier draft had a second source: a `backup_keys.compromised_at`
+ * blocklist in the database that outranked the file. It went with the rest of
+ * the backup's database state (decision 8), and the defect that killed it is
+ * specific rather than tidiness — **a restore reverted it.** An archive
+ * predating the compromise carries the pre-compromise table, so importing it
+ * silently un-decides a security decision, at exactly the moment somebody is
+ * restoring because something went wrong. Compromise handling is now removing
+ * the key from `config.php` plus the runbook; who holds which key, and whether
+ * one is compromised, lives in the club's key register and minutes.
  *
  * **Every failure here is fatal to the run.** There is no sealing to whichever
  * entries happened to parse, and no plaintext fallback — ADR-0031 rule 3 says
@@ -28,7 +31,7 @@ use App\Modules\Backups\Repositories\BackupKeysRepository;
  * country is not a smaller problem than no archive, it is a worse one, because
  * it looks like a backup.
  *
- * ADR-0049 decision 2. Part of #690, epic #686.
+ * ADR-0049 decision 2. Part of #690 and #703, epic #686.
  */
 final class BackupKeyring
 {
@@ -38,10 +41,6 @@ final class BackupKeyring
      * so it has to survive a terminal, an HTML table and a phone screen.
      */
     private const ENTRY = '/^(?<label>[A-Za-z0-9_-]{1,64}):(?<key>[0-9a-fA-F]{64})$/';
-
-    public function __construct(private readonly BackupKeysRepository $keys)
-    {
-    }
 
     /**
      * The recipients an archive written now must be sealed to.
@@ -58,26 +57,12 @@ final class BackupKeyring
             throw BackupKeyringException::nothingConfigured();
         }
 
-        $blocked = $this->keys->compromisedFingerprints();
-
-        $usable = array_values(array_filter(
-            $declared,
-            static fn (BackupRecipient $r): bool => !in_array($r->fingerprint(), $blocked, true)
-        ));
-
-        if ($usable === []) {
-            throw BackupKeyringException::everyKeyCompromised(
-                array_map(static fn (BackupRecipient $r): string => $r->label, $declared)
-            );
-        }
-
-        return $usable;
+        return $declared;
     }
 
     /**
-     * Parse without consulting the database, for the self-check and the
-     * installer — both of which want to say "this line is malformed" without
-     * needing a schema.
+     * Parse alone, for the self-check and the installer — both of which want to
+     * say "this line is malformed" without attempting a run.
      *
      * @return list<BackupRecipient>
      * @throws BackupKeyringException on a malformed or duplicated entry

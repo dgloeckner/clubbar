@@ -31,6 +31,15 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * and both routes answer **404 when neither is configured**: an installation on
  * a CLI cron gains no unauthenticated entrance it never asked for.
  *
+ * ### Two ways to be unconfigured, and both are 404
+ *
+ * No cron secret, or no recipient key. The second is new with #703 and follows
+ * from the on-switch: configuring `backup.recipient_public_keys` is what turns
+ * backups on (ADR-0049 decision 2), so an installation that has not done it has
+ * no backup endpoint either — rather than one that answers 204 and writes
+ * nothing, which is indistinguishable from a working backup to the panel
+ * calling it.
+ *
  * ### Why this endpoint is treated as heavier than the drain
  *
  * Draining a queue sends what was already going to be sent. Hitting *this* one
@@ -50,7 +59,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *     a CLI flag or the admin panel; a static credential must not be able to
  *     bypass the guard that protects the quota.
  *
- * Part of #690, epic #686.
+ * Part of #690 and #703, epic #686.
  */
 class BackupCronController
 {
@@ -63,8 +72,10 @@ class BackupCronController
 
     public function trigger(Request $request, Response $response): Response
     {
-        if (!$this->mailConfigService->cronSecretConfigured()) {
+        if (!$this->mailConfigService->cronSecretConfigured() || !$this->backupService->isConfigured()) {
             // Not "forbidden" — on this installation there is no such endpoint.
+            // Checked before the secret is even read, so an unconfigured
+            // installation cannot be probed for whether its secret was right.
             return $response->withStatus(404);
         }
 
@@ -105,10 +116,10 @@ class BackupCronController
 
             $outcome = $this->backupService->run('url');
 
-            // Recorded here as well as on the run row, because a run that was
-            // skipped for the interval writes no row at all — and "nothing
-            // happened and nothing was recorded" is indistinguishable from a
-            // request that never arrived.
+            // Logged here as well as journalled, because a run skipped for the
+            // interval appends no journal line at all — and "nothing happened
+            // and nothing was recorded" is indistinguishable from a request
+            // that never arrived.
             $this->logger->info('Cron backup finished', [
                 'status' => $outcome->status,
                 'summary' => $outcome->summary,
