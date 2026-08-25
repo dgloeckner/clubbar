@@ -8,6 +8,7 @@ use App\Shared\Security\SecurityCheckContext;
 use App\Shared\Security\SecurityFinding;
 use App\Shared\Security\SecuritySelfCheck;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\LocalWebServer;
 
 /**
  * The self-check is only worth having if it *measures* (#247, ADR-0031
@@ -641,33 +642,8 @@ class SecuritySelfCheckTest extends TestCase
             }
             PHP);
 
-        $server = null;
-        $baseUrl = null;
-        for ($attempt = 0; $attempt < 10 && $server === null; $attempt++) {
-            $port = random_int(20000, 60000);
-            $command = sprintf(
-                '%s -S 127.0.0.1:%d -t %s %s',
-                escapeshellarg(PHP_BINARY),
-                $port,
-                escapeshellarg($documentRoot),
-                escapeshellarg($documentRoot . '/router.php'),
-            );
-
-            $candidate = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-            if (!is_resource($candidate)) {
-                continue;
-            }
-
-            if ($this->waitForPort($port)) {
-                $server = $candidate;
-                $baseUrl = "http://127.0.0.1:{$port}";
-            } else {
-                proc_terminate($candidate);
-                proc_close($candidate);
-            }
-        }
-
-        if ($server === null || $baseUrl === null) {
+        $server = LocalWebServer::start($documentRoot . '/router.php', $documentRoot);
+        if ($server === null) {
             $this->removeTree($documentRoot);
             $this->markTestSkipped('Could not start a local webserver to probe');
 
@@ -675,10 +651,9 @@ class SecuritySelfCheckTest extends TestCase
         }
 
         try {
-            $test($baseUrl);
+            $test($server->baseUrl());
         } finally {
-            proc_terminate($server);
-            proc_close($server);
+            $server->stop();
             $this->removeTree($documentRoot);
         }
     }
@@ -710,33 +685,8 @@ class SecuritySelfCheckTest extends TestCase
             }
             PHP);
 
-        $server = null;
-        $baseUrl = null;
-        for ($attempt = 0; $attempt < 10 && $server === null; $attempt++) {
-            $port = random_int(20000, 60000);
-            $command = sprintf(
-                '%s -S 127.0.0.1:%d -t %s %s',
-                escapeshellarg(PHP_BINARY),
-                $port,
-                escapeshellarg($documentRoot),
-                escapeshellarg($documentRoot . '/router.php'),
-            );
-
-            $candidate = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-            if (!is_resource($candidate)) {
-                continue;
-            }
-
-            if ($this->waitForPort($port)) {
-                $server = $candidate;
-                $baseUrl = "http://127.0.0.1:{$port}";
-            } else {
-                proc_terminate($candidate);
-                proc_close($candidate);
-            }
-        }
-
-        if ($server === null || $baseUrl === null) {
+        $server = LocalWebServer::start($documentRoot . '/router.php', $documentRoot);
+        if ($server === null) {
             $this->removeTree($documentRoot);
             $this->markTestSkipped('Could not start a local webserver to probe');
 
@@ -744,27 +694,11 @@ class SecuritySelfCheckTest extends TestCase
         }
 
         try {
-            $test($baseUrl);
+            $test($server->baseUrl());
         } finally {
-            proc_terminate($server);
-            proc_close($server);
+            $server->stop();
             $this->removeTree($documentRoot);
         }
-    }
-
-    private function waitForPort(int $port): bool
-    {
-        for ($attempt = 0; $attempt < 50; $attempt++) {
-            $socket = @fsockopen('127.0.0.1', $port, $errno, $error, 0.2);
-            if (is_resource($socket)) {
-                fclose($socket);
-
-                return true;
-            }
-            usleep(100_000);
-        }
-
-        return false;
     }
 
     private function removeTree(string $directory): void

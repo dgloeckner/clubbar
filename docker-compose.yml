@@ -135,9 +135,9 @@ services:
     volumes:
       - ./backend:/app
       - ./docker/apache-slim.conf:/opt/docker/etc/httpd/vhost.common.d/01-slim.conf:ro
-      # Repo-root scripts, read-only. CLAUDE.md tells you to run the backend
-      # suite in this container (the host has no bcmath), and
-      # CheckPatchCoverageScriptTest shells out to
+      # Repo-root scripts, read-only. The backend suite is often run in this
+      # container — always for Feature tests, which need the `database` host —
+      # and CheckPatchCoverageScriptTest shells out to
       # scripts/check-patch-coverage.php — which lives above ./backend and so is
       # not reachable through the /app mount. Without this the whole file fails
       # with "Could not open input file" in the documented workflow while passing
@@ -147,15 +147,20 @@ services:
       # finds it the same way it finds the real checkout's scripts/ on a host —
       # the test needs no knowledge that Docker is involved.
       - ./scripts:/scripts:ro
-      # The documentation this repository makes claims in, read-only, for the
-      # same reason as scripts/ above: BackupDocumentationTest guards the
-      # factual claims in README.md and docs/deployment.md, and those files live
-      # above ./backend. Mounted under one root so the test resolves them the
-      # same way it does inside a real checkout (see its repoRoot()).
-      - ./adr:/repo/adr:ro
-      - ./docs:/repo/docs:ro
-      - ./use-cases:/repo/use-cases:ro
-      - ./README.md:/repo/README.md:ro
+      # The repository itself, read-only, for the same reason as scripts/ above:
+      # two suites make assertions about files that live above ./backend, and
+      # neither is reachable through the /app mount. DocumentationIndexTest
+      # asserts that every ADR and use case is linked from its index;
+      # BackupDocumentationTest guards the factual claims in README.md and
+      # docs/deployment.md, and the office named by tools/backup-decryptor.html.
+      #
+      # One whole-repo mount rather than a line per directory: this started as
+      # four narrow mounts under the same /repo root and grew a fifth within a
+      # week, which is a list that only ever grows and silently breaks a test
+      # the day somebody guards a file nobody thought to mount.
+      #
+      # Read-only because no test may write to the checkout.
+      - ./:/repo:ro
     depends_on:
       database:
         condition: service_healthy

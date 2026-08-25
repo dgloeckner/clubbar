@@ -7,6 +7,12 @@
          beStrictAboutOutputDuringTests="true"
          cacheDirectory=".phpunit.cache"
          requireCoverageMetadata="false">
+    <!-- Reports "the database is not running" once, before the Feature suite
+         starts, instead of letting all 748 of its tests fail one by one on the
+         same unreachable host. Unit runs are unaffected. -->
+    <extensions>
+        <bootstrap class="Tests\Support\RequireDatabase"/>
+    </extensions>
     <testsuites>
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
