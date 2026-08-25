@@ -94,18 +94,37 @@ table and the ERM documents none.
 - [x] Sealed body compressed, with the decryptor's inflate side in the same slice
 - [x] Remote retention enforced by **listing** the store
 - [x] Client-secret expiry rides `CredentialExpiryNotifier` (migration `055`)
-- [!] **Verify against a real tenant** — blocked, see below
+- [~] **Verify against a real tenant** — the provisioning half is done; one run of
+      the application's own transport is not
 
-**Blocked, not failed.** `graph.microsoft.com` came off the egress denylist on
-2026-08-25 and is reachable from a session. That was never the whole blocker:
-the verification asks a *real* Microsoft 365 tenant whether `Sites.Selected`
-`write` permits delete and whether library retention makes that delete
-recoverable. It needs a tenant, an app registration a Global Administrator has
-consented to, and the resulting client id, secret and site id. None exists in an
-agent session and none should — a credential that can write to the club's backup
-library must not live in one. **Owner action**, using
-`scripts/setup-msgraph-backup.ps1`; the result is written into
-`docs/m365-backup-target.md` as *observed*, not as the docs imply.
+The task is two questions and one exercise, and they are not in the same state.
+
+**Observed already**, from the owner's live-tenant provisioning run and recorded
+in [`docs/m365-backup-target.md`](../docs/m365-backup-target.md):
+
+- **`Sites.Selected` `write` does permit delete.** `scripts/setup-msgraph-backup.ps1`
+  ends with a real upload-then-delete probe, so this is measured rather than
+  inferred — and it is the premise of the gap the epic names, which makes it the
+  one worth having measured.
+- **A delete is recoverable, not impossible.** Deleted items land in the site
+  recycle bin for **93 days** and keep consuming quota there; Graph v1.0 has no
+  permanent delete for `driveItems`, and second-stage emptying needs SharePoint
+  PowerShell. So remote retention reduces what the library *shows* long before it
+  reduces what the library *costs* — which is why §5 caps version history and §4.1
+  sets a storage limit.
+
+**Not yet done**: one end-to-end run of **`MsGraphTransport` itself** against the
+real library. The probe above exercised PowerShell's code path, not the
+application's, so the resumable upload session, the `Content-Range` framing and
+the unauthenticated session URL are still only proved against
+`FakeHttpClient`. #691's *Verify* asks for that one manual run before the task is
+marked done, and it is the half a fake genuinely cannot stand in for.
+
+Egress is not the obstacle: `graph.microsoft.com` and `login.microsoftonline.com`
+both answer 200 from a session. Credentials are — a tenant id, client id, client
+secret and drive id. Note that **egress policy binds at session start**, so a
+session older than the allowlist edit still gets a 403 on that host and the
+remedy is a new session, never a retry.
 
 PR [#706](https://github.com/dgloeckner/clubbar/pull/706) carries the rest.
 
