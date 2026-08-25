@@ -34,7 +34,13 @@ class IbanSealedBox
         '0000000000000000000000000000000000000000000000000000000000000002',
     ];
 
-    private const PUBLISHED_PUBLIC_KEYS = [
+    /**
+     * Public so {@see BackupSealedBox} can enforce the same blocklist rather
+     * than keeping a second copy that would drift (#689). These are the
+     * keypairs published in this repository; a club that sealed real data to
+     * one would be sealing it to everybody.
+     */
+    public const PUBLISHED_PUBLIC_KEYS = [
         '7479840773cdbd0f57bacf5c8488818e55845ee19207aaf685b74869c1682155',
         // The key the rotation e2e test rotates *onto* (#394). Published for
         // the same reason as the first one and blocked for the same reason: a

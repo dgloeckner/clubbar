@@ -17,6 +17,7 @@ use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\CreditLimits\Controllers\CreditLimitConfigController;
 use App\Modules\CreditLimits\Controllers\SyncController as CreditLimitSyncController;
+use App\Modules\Backups\Controllers\BackupCronController;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
@@ -60,6 +61,18 @@ return function (App $app): void {
     // for the same reason it is deliberately outside the CSRF middleware: there
     // is no browser and no session cookie for a CSRF token to protect.
     $app->map(['GET', 'POST'], '/api/cron/drain', [CronController::class, 'drain']);
+
+    // The backup's own URL trigger (ADR-0049, #690), same secret and same
+    // shape. A second scheduled job is legitimate because it is separately
+    // observed — ADR-0038 decision 3's load-bearing half is "nothing watches",
+    // not "one command".
+    //
+    // Heavier than the drain, though, because hitting it produces and stores a
+    // database dump rather than sending what was already queued. Hence: 204
+    // with an empty body always (it triggers, it never serves an archive), and
+    // a minimum interval in the service so a caller in a loop cannot fill the
+    // webspace quota with dumps.
+    $app->map(['GET', 'POST'], '/api/cron/backup', [BackupCronController::class, 'trigger']);
 
     // Auth endpoints (login and mfa are public, rest require session).
     // Both password and second factor are rate-limited on IP and account (#78,

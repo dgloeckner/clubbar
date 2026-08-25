@@ -119,6 +119,11 @@ use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\CreditLimits\Controllers\CreditLimitConfigController;
 use App\Modules\CreditLimits\Controllers\SyncController as CreditLimitSyncController;
+use App\Modules\Backups\Controllers\BackupCronController;
+use App\Modules\Backups\Domain\BackupRetention;
+use App\Modules\Backups\Services\BackupKeyring;
+use App\Modules\Backups\Services\BackupService;
+use App\Modules\Backups\Services\DatabaseDump;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
@@ -185,6 +190,7 @@ class ServiceFactory implements ContainerInterface
         MailConfigController::class => 'getMailConfigController',
         NotificationsController::class => 'getNotificationsController',
         SchedulerController::class => 'getSchedulerController',
+        BackupCronController::class => 'getBackupCronController',
         CronController::class => 'getCronController',
 
         // AdminUsers
@@ -1314,6 +1320,46 @@ class ServiceFactory implements ContainerInterface
     public function getSchedulerController(): SchedulerController
     {
         return $this->resolve(SchedulerController::class, fn() => new SchedulerController($this->getSchedulerStatusService()));
+    }
+
+    public function getBackupKeyring(): BackupKeyring
+    {
+        return $this->resolve(BackupKeyring::class, fn() => new BackupKeyring());
+    }
+
+    /**
+     * The backup, wired from `config.php` and nothing else.
+     *
+     * No repositories: the run writes nothing into the database it dumps
+     * (ADR-0049 decision 8). Its record is the archive header and the journal
+     * beside the archives; its configuration is the four values below, of which
+     * only the recipient keys are ever set on an ordinary installation.
+     */
+    public function getBackupService(): BackupService
+    {
+        return $this->resolve(BackupService::class, fn() => new BackupService(
+            new DatabaseDump($this->pdo),
+            $this->getBackupKeyring(),
+            $this->getLogger(),
+            $this->config->dataDir . '/' . BackupService::DIRECTORY,
+            $this->config->backupRecipientPublicKeys,
+            BackupRetention::fromOverrides(
+                $this->config->backupLocalRetentionDays,
+                $this->config->backupLocalMaxBytes,
+                $this->config->backupRemoteRetentionDays,
+            ),
+            $this->config->env,
+        ));
+    }
+
+    public function getBackupCronController(): BackupCronController
+    {
+        return $this->resolve(BackupCronController::class, fn() => new BackupCronController(
+            $this->getBackupService(),
+            $this->config,
+            $this->getLogger(),
+            $this->getMailConfigService(),
+        ));
     }
 
     public function getCronController(): CronController

@@ -141,4 +141,107 @@ return [
         // Leave empty and nothing is pinged.
         'heartbeat_url' => '',
     ],
+
+    // -------------------------------------------------------------------------
+    // Encrypted off-site backups (ADR-0049)
+    // -------------------------------------------------------------------------
+    // Nothing here is filled in by the installer, and the first value is the
+    // reason: the keypairs are generated on a laptop, and their private halves
+    // must never reach this server. Everything else has a working default —
+    // this whole section can stay as it is until the club is ready to set up
+    // backups, at which point one key switches them on.
+    'backup' => [
+        // WHO CAN OPEN AN ARCHIVE — AND WHETHER THERE ARE ANY.
+        //
+        // A list of `label:public_key_hex`, one entry per recipient, generated
+        // offline with tools/keypair-generator.html.
+        //
+        //   'recipient_public_keys' => [
+        //       'admin:3d1f…',      // 64 hex characters
+        //       'vorstand:9a02…',
+        //   ],
+        //
+        // CONFIGURING AT LEAST ONE RECIPIENT KEY SWITCHES NIGHTLY BACKUPS ON;
+        // REMOVE ALL KEYS TO SWITCH THEM OFF. There is no separate enabled
+        // flag, deliberately: a flag could disagree with the keys, and the way
+        // it would disagree is an installation switched on with no key, which
+        // produces a nightly *failure* instead of a nightly backup. With no
+        // key here, nothing is written and nothing is attempted.
+        //
+        // TWO ENTRIES, NOT ONE, and the reason is organisational rather than
+        // cryptographic: the realistic failure in a Verein is "der Vorstand hat
+        // gewechselt und niemand hat den Schlüssel". Each costs about 48 bytes
+        // in every archive. One private half goes to the **Admin** — whoever
+        // holds the server — and one to a second board member, archived like
+        // the key to the safe.
+        //
+        // NOT TO THE KASSENWART, and not the IBAN keypair either. A backup
+        // carries the audit log, every admin's TOTP ciphertext and the database
+        // password; the Kassenwart holds the IBAN private key because SEPA
+        // collection is impossible without it, and handing them a backup key
+        // would re-cross that boundary through a different keypair.
+        //
+        // ROTATION IS ADDITIVE. Add the successor's key, let both open new
+        // archives, prove the new one opens a real archive, then remove the
+        // departing one. **Delete no archives**, and do not discard the retired
+        // *private* key: "rotated" means dead for writing, not for reading, and
+        // archives sealed to it exist until retention has drained (about four
+        // months). Every archive names the keys it was sealed to in its own
+        // cleartext header, so what still needs an old key is a directory scan
+        // — no register to keep, and none to have drifted.
+        //
+        // A COMPROMISED KEY is removed from this list, and that is the whole of
+        // the software's part: rotate, take a fresh backup, prove it opens, and
+        // only then destroy the exposed archives. Who holds which key, and that
+        // one was compromised, belongs in the club's key register and minutes —
+        // outside the application, where a restore cannot revert it.
+        'recipient_public_keys' => [],
+
+        // Where finished archives are pushed. Empty means local-only: archives
+        // are written to the data directory and pruned there, which satisfies
+        // "undo a mistake an hour ago" and none of "the webspace is gone".
+        //
+        //   'dsn' => 'msgraph://<tenant-id>/<client-id>@<site>/<library>/<path>',
+        //
+        'dsn' => '',
+
+        // The secret half of the DSN's credential, kept out of it for the same
+        // reason the SMTP password is kept out of a URL that gets pasted into
+        // support threads.
+        'client_secret' => '',
+
+        // A push monitor for the backup job, and deliberately NOT the mail one
+        // (`cron.heartbeat_url` above). Turning a check that guards a legal
+        // deadline red for a storage problem teaches the operator to ignore it.
+        //
+        // Recommended check settings: period 1 day, grace 6 hours — a nightly
+        // job that misses one night is worth knowing about in the morning, not
+        // at 03:05.
+        //
+        // The ping body carries counts and a closed set of reasons: never a
+        // table name, never a filename, never a key.
+        'heartbeat_url' => '',
+
+        // RETENTION. Every value below is compiled in with the default shown,
+        // so an installation that says nothing gets the shipped policy — these
+        // exist for the club that wants a different window, not for the one
+        // that wants to think about it.
+        //
+        // They bound how long a backup can outlive an erasure (ADR-0029), which
+        // is why the numbers belong in the club's Verzeichnis: 30 days here and
+        // 90 on the remote, plus whatever the storage provider's own recycle
+        // bin keeps after that.
+        //
+        //   'local_retention_days' => 30,
+        //   'local_max_bytes' => 1073741824,   // 1 GiB
+        //   'remote_retention_days' => 90,
+        //
+        // The byte cap is a refusal, not a licence to delete: when pruning to
+        // stay under it would leave the club with no recent archive, the run
+        // reports that instead of deleting the newest one.
+        //
+        // The minimum interval between runs is deliberately NOT here. It exists
+        // only to stop the URL trigger being called in a loop until the webspace
+        // quota is full — a club that could raise it could disable the guard.
+    ],
 ];
