@@ -297,13 +297,12 @@ class RuntimeHardeningTest extends TestCase
         $baseUrl = null;
         for ($attempt = 0; $attempt < 10 && $server === null; $attempt++) {
             $port = random_int(20000, 60000);
-            // An array command, not a string: proc_open() with a string runs
-            // it through `sh -c`, so proc_terminate() below signals the shell
-            // and the `php -S` child is orphaned rather than stopped. Those
-            // orphans keep the port, the memory *and the inherited stdout
-            // pipe*, which is why `phpunit | tail` — the command CLAUDE.md
-            // prescribes — used to hang after the suite had already finished.
-            $command = [PHP_BINARY, '-S', "127.0.0.1:{$port}", $documentRoot . '/router.php'];
+            $command = sprintf(
+                '%s -S 127.0.0.1:%d %s',
+                escapeshellarg(PHP_BINARY),
+                $port,
+                escapeshellarg($documentRoot . '/router.php'),
+            );
 
             $candidate = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
             if (!is_resource($candidate)) {
