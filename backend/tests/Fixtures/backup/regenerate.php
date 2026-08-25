@@ -154,6 +154,10 @@ $archive = BackupSealedBox::seal(
 
 file_put_contents(__DIR__ . '/golden.cbb', $archive);
 file_put_contents(__DIR__ . '/golden.plaintext.sha256', hash('sha256', $payload) . "\n");
+// The plaintext's length, so no test has to hardcode it. `backup-decryptor.spec.ts`
+// asserts what the page prints, and a fixture change would otherwise turn into a
+// failing assertion about a byte count that looks like a decryptor bug and is not.
+file_put_contents(__DIR__ . '/golden.plaintext.bytes', strlen($payload) . "\n");
 // What both readers must get back out of the block above.
 file_put_contents(__DIR__ . '/golden.config.php.txt', $config);
 

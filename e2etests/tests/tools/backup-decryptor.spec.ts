@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import fs from 'node:fs'
 import path from 'node:path'
 
 /**
@@ -29,8 +30,29 @@ const REPO = path.resolve(__dirname, '../../..')
 const TOOL = 'file://' + path.join(REPO, 'tools/backup-decryptor.html')
 const ARCHIVE = path.join(REPO, 'backend/tests/Fixtures/backup/golden.cbb')
 
+const FIXTURES = path.join(REPO, 'backend/tests/Fixtures/backup')
+
 /** The published development private key (ADR-0036) the golden fixture is sealed to. */
 const DEV_SECRET = 'f678fb17b592c29db54e43f808ee74fd67f7dd5c6c405b24e3e31ead38f3058a'
+
+/**
+ * The plaintext's length, read from the fixture rather than written here.
+ *
+ * It used to be a literal, and the literal broke the moment the golden archive
+ * legitimately changed (#692 appended a `config.php` block to it) — presenting
+ * as a failed assertion about a byte count, which reads like a decryptor bug
+ * and is not one. `regenerate.php` now emits this alongside the checksum, so the
+ * fixture states its own size and the spec cannot disagree with it.
+ */
+const PLAINTEXT_BYTES = Number(
+  fs.readFileSync(path.join(FIXTURES, 'golden.plaintext.bytes'), 'utf8').trim()
+)
+
+/** What the page prints — `Number.toLocaleString()`, the same call the tool makes. */
+const EXPECTED_SIZE = `${PLAINTEXT_BYTES.toLocaleString('en-US')} bytes`
+
+/** The config the golden archive carries, which the page must offer separately. */
+const EXPECTED_CONFIG = fs.readFileSync(path.join(FIXTURES, 'golden.config.php.txt'), 'utf8')
 
 test.describe('Offline backup decryptor', () => {
   test('describes the archive before asking for a key', async ({ page }) => {
@@ -67,7 +89,7 @@ test.describe('Offline backup decryptor', () => {
 
     await expect(page.locator('#result')).toBeVisible()
     await expect(page.locator('#error')).toBeHidden()
-    await expect(page.locator('#size')).toContainText('135,248 bytes')
+    await expect(page.locator('#size')).toContainText(EXPECTED_SIZE)
 
     // The download link is what the holder came for; it must exist and point at
     // the decrypted bytes rather than at nothing.
@@ -84,6 +106,34 @@ test.describe('Offline backup decryptor', () => {
         + 'how the crypto_hash_sha256 bug survived: the archive opened and the holder '
         + 'was shown nothing.',
     ).toEqual([])
+  })
+
+  test('offers config.php as a second download, with the bytes the archive carries', async ({ page }) => {
+    // #692 put the installation's `config.php` inside the archive, because
+    // restoring the rows alone yields a database nobody can log in to:
+    // `security.totp_encryption_key` decrypts every admin's TOTP secret, is not
+    // in the database, and cannot be regenerated.
+    //
+    // `backup-decryptor-interop.test.mjs` proves the *module* can find the
+    // block. This proves the *page* wires it to a link the holder can click —
+    // the same gap that once left a correct decryption with no download at all.
+    await page.goto(TOOL)
+    await page.setInputFiles('#archive', ARCHIVE)
+    await page.fill('#key', DEV_SECRET)
+    await page.click('#decrypt')
+
+    await expect(page.locator('#config-row')).toBeVisible()
+    await expect(page.locator('#download-config')).toHaveAttribute('href', /^blob:/)
+    await expect(page.locator('#download-config')).toHaveAttribute('download', 'config.php')
+
+    // Not merely present — the right bytes. A link to the wrong blob is worse
+    // than no link: it is discovered on the new host, after the migration.
+    const served = await page.evaluate(async () => {
+      const href = (document.getElementById('download-config') as HTMLAnchorElement).href
+      return await (await fetch(href)).text()
+    })
+
+    expect(served).toBe(EXPECTED_CONFIG)
   })
 
   test('a key the archive was not sealed to is refused by name', async ({ page }) => {
