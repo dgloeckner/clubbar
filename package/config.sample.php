@@ -201,14 +201,38 @@ return [
         // are written to the data directory and pruned there, which satisfies
         // "undo a mistake an hour ago" and none of "the webspace is gone".
         //
-        //   'dsn' => 'msgraph://<tenant-id>/<client-id>@<site>/<library>/<path>',
+        //   'dsn' => 'msgraph://<tenant-id>/<client-id>@drive/<drive-id>/clubbar',
         //
+        // The whole value comes out of scripts/setup-msgraph-backup.ps1;
+        // docs/m365-backup-target.md is the procedure, including the several
+        // approaches that look reasonable and are not.
+        //
+        // A SITE AND LIBRARY may be written instead of a drive id —
+        // `…@contoso.sharepoint.com:sites:Backups/Backups/clubbar` — which is
+        // readable but matches on a library's *display* name, and that name is
+        // localised per tenant. Prefer the drive id: it needs no lookups and
+        // cannot be renamed out from under you.
+        //
+        // A MALFORMED VALUE HERE IS NOT "NO REMOTE". It is a failure every
+        // night, on purpose. The belief this feature exists to destroy is "we
+        // have off-site backups" held by a club that does not, and a typo must
+        // not be able to re-create it.
         'dsn' => '',
 
         // The secret half of the DSN's credential, kept out of it for the same
         // reason the SMTP password is kept out of a URL that gets pasted into
         // support threads.
         'client_secret' => '',
+
+        // YYYY-MM-DD — when that secret stops working.
+        //
+        // THE SINGLE MOST LIKELY CAUSE OF A SILENT BACKUP FAILURE. An Entra
+        // client secret lasts at most 24 months, Entra warns nobody when one
+        // expires, and an unattended nightly job can go months before anyone
+        // notices. Written down here so the run can warn in advance. Put a
+        // calendar reminder 60 days out as well: the code warning only helps
+        // somebody who is reading the backup output.
+        'client_secret_expires_at' => '',
 
         // A push monitor for the backup job, and deliberately NOT the mail one
         // (`cron.heartbeat_url` above). Turning a check that guards a legal

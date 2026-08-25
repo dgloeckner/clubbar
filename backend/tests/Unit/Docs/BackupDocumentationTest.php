@@ -332,6 +332,137 @@ class BackupDocumentationTest extends TestCase
         return $m[0][1];
     }
 
+    /**
+     * The remote destination has a procedure, and it is findable.
+     *
+     * Provisioning it is a dozen portal steps across two admin centres, with a
+     * PowerShell script in the middle. A procedure that exists only in the head
+     * of whoever ran it once is the same failure this file was written about:
+     * documentation that describes a world nobody can reach.
+     */
+    public function test_the_m365_onboarding_procedure_exists_and_is_linked(): void
+    {
+        $this->assertFileExists(
+            self::repoRoot() . '/docs/m365-backup-target.md',
+            'The Microsoft 365 destination has to be provisioned before backup.dsn means anything.'
+        );
+
+        $this->assertFileExists(
+            self::repoRoot() . '/scripts/setup-msgraph-backup.ps1',
+            'docs/m365-backup-target.md tells the reader to run this script.'
+        );
+
+        $this->assertStringContainsString(
+            'm365-backup-target.md',
+            self::read('docs/README.md'),
+            'A document nobody can find from the index is a document nobody reads.'
+        );
+
+        $this->assertStringContainsString(
+            'm365-backup-target.md',
+            self::read('docs/deployment.md'),
+            'deployment.md is where an operator configures backup.dsn; it must point at the '
+            . 'procedure that produces the value.'
+        );
+    }
+
+    /**
+     * The two mistakes that are silent.
+     *
+     * Both were learned by running this against a real tenant, and both fail in
+     * the worst available way: padding the final fragment produces an archive
+     * that uploads cleanly and is corrupt, discoverable only by a restore; an
+     * Authorization header on the pre-authorised session URL makes an otherwise
+     * correct upload fail. Neither is guessable from Microsoft's documentation,
+     * and one of them is actively suggested by answers circulating on Q&A.
+     *
+     * The code gets them right. This asserts the *reasons* survive in the
+     * document, because the next person to touch the transport reads that
+     * before they read the code.
+     */
+    public function test_the_two_silent_graph_mistakes_stay_written_down(): void
+    {
+        $doc = self::read('docs/m365-backup-target.md');
+
+        $this->assertMatchesRegularExpression(
+            '/do not pad the final upload fragment/i',
+            $doc,
+            'Padding the last chunk to a 320 KiB multiple corrupts the archive silently.'
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/do not send an `?Authorization`? header to the upload session/i',
+            $doc,
+            'The upload session URL is pre-authorised and fails with the header attached.'
+        );
+    }
+
+    /**
+     * The date that prevents the most likely silent failure of this feature.
+     *
+     * Entra sends no notification when a client secret expires, so an
+     * unattended nightly job can go months before anyone notices. The date has
+     * to be somewhere the run can read it, and the sample config is where an
+     * operator learns it exists at all.
+     */
+    public function test_the_client_secret_expiry_is_configurable_and_explained(): void
+    {
+        $sample = self::read('package/config.sample.php');
+
+        $this->assertStringContainsString('client_secret_expires_at', $sample);
+        $this->assertMatchesRegularExpression(
+            '/warns nobody|no notification|does not warn/i',
+            $sample,
+            'The sample config must say *why* the date is being asked for — Entra will not '
+            . 'tell anybody when the secret dies.'
+        );
+    }
+
+    /**
+     * The off-site half has shipped, so the documentation must stop deferring it.
+     *
+     * `deployment.md` told the reader off-site backups were issue #691 and to
+     * keep doing the manual copy "until then". Leaving that in place after the
+     * transport shipped would send every operator past the one setting that
+     * makes their backups off-site.
+     */
+    public function test_the_deployment_guide_no_longer_defers_offsite_backups_to_an_issue(): void
+    {
+        $deployment = self::read('docs/deployment.md');
+
+        $this->assertStringNotContainsString(
+            'that is\n[#691]',
+            $deployment
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/issues\/691\)\. Until then/',
+            $deployment,
+            'The transport shipped; deployment.md must document backup.dsn rather than defer it.'
+        );
+        $this->assertStringContainsString(
+            "'dsn'",
+            $deployment,
+            'deployment.md must show what a configured backup.dsn looks like.'
+        );
+    }
+
+    /**
+     * The manual copy survives the transport shipping.
+     *
+     * Microsoft 365 has no add-only app role — `Sites.Selected` write includes
+     * delete — so the credential on the webspace can delete what it wrote. The
+     * periodic manual copy is the only copy no credential can reach, and the
+     * temptation once uploads work is to quietly drop it.
+     */
+    public function test_the_manual_copy_survives_the_remote_being_configured(): void
+    {
+        $this->assertMatchesRegularExpression(
+            '/keep the periodic manual copy|manual\s+copy remains/i',
+            self::read('docs/deployment.md'),
+            'An automated remote the app can delete from does not replace a copy it cannot reach.'
+        );
+    }
+
     private static function read(string $relativePath): string
     {
         $path = self::repoRoot() . '/' . $relativePath;

@@ -106,6 +106,11 @@ final class ConfigFile
         $_ENV['BACKUP_DSN'] = $config['backup']['dsn'] ?? '';
         $_ENV['BACKUP_CLIENT_SECRET'] = $config['backup']['client_secret'] ?? '';
 
+        // When that secret stops working. Entra warns nobody, so an unattended
+        // nightly job can go months before anyone notices — this is the date
+        // the run warns against in advance (#691).
+        $_ENV['BACKUP_CLIENT_SECRET_EXPIRES_AT'] = $config['backup']['client_secret_expires_at'] ?? '';
+
         // Its own monitor, not the mail one (#690): a check guarding a legal
         // deadline must not go red for a storage problem, or it gets ignored.
         $_ENV['BACKUP_HEARTBEAT_URL'] = $config['backup']['heartbeat_url'] ?? '';

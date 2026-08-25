@@ -20,7 +20,7 @@ namespace App\Modules\Backups\Domain;
  *
  * `drive/<drive-id>` is what the onboarding script prints, and it is preferred
  * for two reasons learned from running it against a real tenant
- * ([`docs/operations/m365-backup-target.md`](../../../../../docs/operations/m365-backup-target.md)):
+ * ([`docs/m365-backup-target.md`](../../../../../docs/m365-backup-target.md)):
  * a drive id needs **no resolution at all**, so a run makes two fewer requests
  * and cannot fail on a name; and a library's *display* name is localised by the
  * tenant, so `Dokumente` and `Documents` are the same library in two tenants
