@@ -147,6 +147,8 @@ final class ConfigWriter
             return [];
         }
 
+        self::forgetCompiled($path);
+
         /** @var mixed $config */
         $config = require $path;
 
@@ -212,6 +214,32 @@ final class ConfigWriter
         }
 
         return $existing;
+    }
+
+    /**
+     * Drop any compiled copy of `$path` before it is `require`d.
+     *
+     * **Without this, a read straight after a write returns the previous
+     * contents.** `opcache.revalidate_freq` defaults to 2 seconds, so for two
+     * seconds after {@see writeTo()} the compiled file is served from cache and
+     * the mtime is not even consulted.
+     *
+     * That is not a theoretical window. Every installer screen writes the
+     * *whole* file: it reads the current config, merges its own answers, writes
+     * the result. Two screens submitted within two seconds of each other — or
+     * one screen submitted twice, which is what a double-click is — make the
+     * second read stale, and it then writes the stale values back. The screen
+     * reports success and has silently undone the previous step.
+     *
+     * Found by driving the installer rather than by reading it: a blank mail
+     * field, which means "keep what is stored", restored a DSN that had been
+     * replaced moments earlier.
+     */
+    private static function forgetCompiled(string $path): void
+    {
+        if (function_exists('opcache_invalidate')) {
+            @opcache_invalidate($path, true);
+        }
     }
 
     /**
@@ -356,6 +384,7 @@ final class ConfigWriter
 
         try {
             file_put_contents($path, $rendered);
+            self::forgetCompiled($path);
 
             /** @var mixed $config */
             $config = require $path;

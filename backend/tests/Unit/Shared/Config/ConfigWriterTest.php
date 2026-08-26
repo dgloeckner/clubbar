@@ -323,6 +323,59 @@ class ConfigWriterTest extends TestCase
         $this->assertSame('shh', $config['backup']['client_secret']);
     }
 
+    /**
+     * A read that follows a write sees the write.
+     *
+     * Obvious, and it was not true. `read()` uses `require`, and
+     * `opcache.revalidate_freq` defaults to **2 seconds** — for that window the
+     * compiled file is served from cache and the mtime is never consulted. So a
+     * screen that read, merged and wrote could read a copy of the file from
+     * before the previous screen's write and put the stale values back, having
+     * reported success.
+     *
+     * Note this test cannot fail on a runner with `opcache.enable_cli=Off`,
+     * which is the default — hence the companion test below, which asserts the
+     * mechanism rather than the outcome.
+     */
+    public function test_a_read_that_follows_a_write_sees_the_write(): void
+    {
+        $dir = self::makeTempTree('config-reread');
+
+        try {
+            $path = $dir . '/config.php';
+
+            $this->writer->writeTo($path, ['mail' => ['dsn' => 'smtp://one.example.org']]);
+            $this->assertSame('smtp://one.example.org', ConfigWriter::read($path)['mail']['dsn']);
+
+            // Immediately, inside opcache's revalidate window.
+            $this->writer->writeTo($path, ['mail' => ['dsn' => 'native://default']]);
+            $this->assertSame('native://default', ConfigWriter::read($path)['mail']['dsn'], 'read served a stale compiled copy');
+        } finally {
+            self::removeTempTree($dir);
+        }
+    }
+
+    /**
+     * The mechanism, because the outcome is untestable where it matters.
+     *
+     * The staleness above only appears with opcache enabled, which is every
+     * production host and no CLI test runner. Asserting the source keeps the
+     * invalidation from being "cleaned up" by someone who reads `require` as
+     * self-evidently reading the file.
+     */
+    public function test_reading_drops_any_compiled_copy_first(): void
+    {
+        $source = (string) file_get_contents(
+            (string) (new \ReflectionClass(ConfigWriter::class))->getFileName()
+        );
+
+        $this->assertStringContainsString(
+            'opcache_invalidate',
+            $source,
+            'ConfigWriter no longer invalidates before require; a read can serve a pre-write copy'
+        );
+    }
+
     /** @return array<string,mixed> */
     private function evaluate(string $rendered): array
     {

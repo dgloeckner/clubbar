@@ -121,6 +121,45 @@ class InstallerStructureTest extends TestCase
     }
 
     /**
+     * The mail step, for the same reason as the backup one.
+     *
+     * `mail.dsn` and `backup.*` were the two `config.php` sections the
+     * installer never wrote — and they are exactly the two a club configures
+     * *after* installing, which is what made "hand-edit a PHP file on a live
+     * site" the only answer to switching either on.
+     */
+    public function test_the_mail_step_validates_the_dsn_before_writing_it(): void
+    {
+        $post = self::postSection();
+        $at = strpos($post, "case '5':");
+
+        $this->assertIsInt($at, 'the mail step lost its POST handler');
+
+        $handler = substr($post, $at, strpos($post, "case '6':") - $at);
+
+        $this->assertStringContainsString('MailDsn::parse(', $handler, 'the mail step is not validating the DSN');
+        $this->assertStringContainsString('ConfigWriter::merge(', $handler, 'the mail step is not carrying the existing config forward');
+    }
+
+    /**
+     * Neither optional step may be a dead end: a club that skips mail has to
+     * still reach backups, and one that skips backups has to still reach the
+     * end. Both are legitimate states — mail off and backups off are normal,
+     * not failures — so skipping must cost nothing.
+     */
+    public function test_both_optional_steps_can_be_skipped(): void
+    {
+        $source = self::source();
+
+        $this->assertMatchesRegularExpression(
+            '/Skip for now/',
+            $source,
+            'an optional step lost its skip link'
+        );
+        $this->assertSame(2, substr_count($source, 'Skip for now'), 'expected a skip link on mail and on backups');
+    }
+
+    /**
      * The backup step is the reason `?update=1` matters: a club configures
      * backups long after installing, and the alternative is hand-editing
      * `config.php` on a live site.

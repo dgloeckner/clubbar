@@ -591,6 +591,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             break;
 
+        case '5': // Mail transport (ADR-0038) — reachable after install via ?update=1
+            if (!file_exists($configFile)) {
+                $error = 'config.php not found. Please complete step 2 first.';
+                break;
+            }
+
+            $mailDsn = trim($_POST['mail_dsn'] ?? '');
+            $existing = ConfigWriter::read($configFile);
+
+            if (($_POST['mail_clear'] ?? '') === '1') {
+                // Turning mail off is the deliberate opposite of leaving the
+                // field blank, and merge() cannot tell them apart: it reads a
+                // blank answer as "unchanged", which is the rule that lets this
+                // screen decline to echo an SMTP password back into the HTML.
+                // So an erase removes the key here rather than blanking it
+                // through merge, which would silently keep the old transport.
+                unset($existing['mail']['dsn']);
+                $mailDsn = '';
+            } elseif ($mailDsn === '') {
+                // Blank and not clearing: keep what is stored, the same rule the
+                // backup step's client secret follows, for the same reason.
+                $mailDsn = (string) ($existing['mail']['dsn'] ?? '');
+            }
+
+            // Refused here rather than at the first send. A transport that
+            // cannot be parsed does not throw when mail is queued — the queue
+            // fills and the drain fails, in a job nobody watches, which is the
+            // failure mode ADR-0038 exists to avoid.
+            if ($mailDsn !== '') {
+                require_once __DIR__ . '/backend/vendor/autoload.php';
+
+                try {
+                    App\Shared\Mail\MailDsn::parse($mailDsn);
+                } catch (\Throwable $e) {
+                    $error = $e->getMessage();
+                    break;
+                }
+            }
+
+            try {
+                $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+                $writer->writeTo($configTarget ?? $configFile, ConfigWriter::merge(
+                    $existing,
+                    ['mail' => ['dsn' => $mailDsn]]
+                ));
+            } catch (ConfigWriterException $e) {
+                $error = $e->getMessage();
+                break;
+            }
+
+            header('Location: ?step=6' . ($isUpdate ? '&update=1' : ''));
+            exit;
+
         case '6': // Backups (ADR-0049) — reachable after install via ?update=1
             if (!file_exists($configFile)) {
                 $error = 'config.php not found. Please complete step 2 first.';
@@ -906,7 +959,7 @@ function renderPage(string $step, ?string $error, bool $isUpdate): void
 
             <?php if (!$isUpdate): ?>
             <div class="steps">
-                <?php for ($i = 1; $i <= 6; $i++): ?>
+                <?php for ($i = 1; $i <= 8; $i++): ?>
                     <span class="step <?php echo $i == (int)$step ? 'active' : ($i < (int)$step ? 'done' : ''); ?>">
                         <?php echo $i; ?>
                     </span>
@@ -934,13 +987,16 @@ function renderPage(string $step, ?string $error, bool $isUpdate): void
                     renderStep4($isUpdate);
                     break;
                 case '5':
-                    renderStep5();
+                    renderStep5($isUpdate);
                     break;
                 case '6':
-                    renderStep6($isUpdate, $configFile);
+                    renderStep6($isUpdate);
                     break;
                 case '7':
                     renderStep7();
+                    break;
+                case '8':
+                    renderStep8();
                     break;
                 default:
                     renderStep1($isUpdate);
@@ -1117,7 +1173,7 @@ function renderStep4(bool $isUpdate): void
  * away, and holding the wizard on a spinner for that is not acceptable; the
  * outcome is recorded either way and repeated on the completion page.
  */
-function renderStep5(): void
+function renderStep7(): void
 {
     $cronCommand = 'php ' . rtrim(__DIR__, '/') . '/backend/bin/cron.php';
 
@@ -1146,7 +1202,7 @@ function renderStep5(): void
     $backupCommand = 'php ' . rtrim(__DIR__, '/') . '/backend/bin/backup.php';
     $backupUrl = ($cronSecret && $appUrl) ? rtrim($appUrl, '/') . '/api/cron/backup' : null;
     ?>
-    <h2>Step 5: Schedule the two background jobs</h2>
+    <h2>Step 7: Schedule the two background jobs</h2>
     <p>Club Bar announces every direct debit by email at least seven days before it is collected. Those emails
     are queued when you finalize a collection and sent by a scheduled task — so <strong>until this task runs,
     Club Bar will not let you finalize a collection</strong>.</p>
@@ -1187,7 +1243,122 @@ function renderStep5(): void
     <button type="button" class="btn btn-secondary" id="cronCheckBtn">Check</button>
     <p id="cronCheckResult"></p>
 
-    <p style="margin-top: 20px;"><a href="?step=6" class="btn">Finish</a></p>
+    <p style="margin-top: 20px;"><a href="?step=8" class="btn">Finish</a></p>
+    <?php
+}
+
+/**
+ * Step 5 — the mail transport, and why it is here rather than in the panel.
+ *
+ * Everything about a mail that is *not* secret — sender name, reply-to, footer,
+ * header style, drain batch size and budget — is configured under Settings →
+ * Mail, in the database, by whoever runs the club. `mail.dsn` is the one piece
+ * that is not: it carries an SMTP password, so it lives in `config.php` beside
+ * the database password (ADR-0038).
+ *
+ * That split left a gap this screen closes. The installer wrote six of the
+ * eight sections and omitted `mail` and `backup` — the two a club configures
+ * *later* — so the answer to "how do I switch mail on?" was "hand-edit a PHP
+ * file on a live site". The same question, and the same answer, that #710 came
+ * from.
+ *
+ * Skippable: mail off is a legitimate state. Nothing is sent, nothing throws,
+ * and the security self-check reports the transport as unconfigured rather than
+ * pretending it works.
+ */
+function renderStep5(bool $isUpdate): void
+{
+    // Resolved here rather than passed in: renderPage() does not have it, and a
+    // screen that reads config.php is the only thing that needs it. Same as the
+    // schedule screen below.
+    $stored = trim((string) (ConfigWriter::read(DataDirectory::configPath(__DIR__))['mail']['dsn'] ?? ''));
+    $updateParam = $isUpdate ? '&update=1' : '';
+
+    // Shown redacted rather than not at all. Unlike the backup client secret,
+    // a DSN's useful half — scheme, host, port, user — is not the secret half,
+    // and an operator who cannot see what is configured cannot tell a working
+    // transport from a typo they are about to re-enter.
+    $summary = null;
+    if ($stored !== '') {
+        require_once __DIR__ . '/backend/vendor/autoload.php';
+
+        try {
+            $summary = App\Shared\Mail\MailDsn::parse($stored)->redacted();
+        } catch (\Throwable) {
+            $summary = App\Shared\Mail\MailDsn::redactValue($stored) . ' — which this build cannot parse';
+        }
+    }
+    ?>
+    <h2>Step 5: Sending mail</h2>
+
+    <p>
+        Club Bar sends Deckel statements, credential mails and notices to the
+        board. <strong>This step is optional</strong> — leave it empty and no
+        mail is sent, which is a normal state, not a failure. You can come back
+        to this screen at any time.
+    </p>
+
+    <p>
+        One line selects the transport. Everything else about a mail — the
+        sender name, the reply-to, the footer, the logo — is configured later
+        under <em>Settings → Mail</em> in the admin panel. Only this line is
+        here, because it carries a password.
+    </p>
+
+    <table>
+        <tr>
+            <td><code>smtp://user:password@mail.example.org:587</code></td>
+            <td>the club's own mailbox — what most clubs want</td>
+        </tr>
+        <tr>
+            <td><code>native://default</code></td>
+            <td>hand off to the host's local mail server</td>
+        </tr>
+        <tr>
+            <td><code>null://null</code></td>
+            <td>configured, and silently discards — for a test install</td>
+        </tr>
+    </table>
+
+    <?php if ($summary !== null): ?>
+    <p class="hint">Currently configured: <code><?= htmlspecialchars($summary, ENT_QUOTES) ?></code></p>
+    <?php endif; ?>
+
+    <form method="POST" action="?step=5<?= $updateParam ?>">
+        <input type="hidden" name="step" value="5">
+
+        <label for="mail_dsn">Mail DSN</label>
+        <input type="text" id="mail_dsn" name="mail_dsn"
+               autocomplete="off" spellcheck="false"
+               placeholder="<?= $stored !== ''
+                   ? 'stored — leave blank to keep it'
+                   : 'smtp://user:password@mail.example.org:587' ?>">
+        <p class="hint">
+            Never shown back in full: the password in it does not belong in a
+            page a browser may cache or a password manager may offer to save.
+            Leave it blank to keep what is stored.
+            <?php if ($stored !== ''): ?>
+            To turn mail off entirely, tick the box below.
+            <?php endif; ?>
+        </p>
+
+        <?php if ($stored !== ''): ?>
+        <label style="font-weight:normal">
+            <input type="checkbox" name="mail_clear" value="1">
+            Remove the stored transport and stop sending mail
+        </label>
+        <?php endif; ?>
+
+        <p class="hint">
+            Sending also needs a scheduler: the queue is drained by cron and by
+            nothing else. Step 7 shows the command for this installation.
+        </p>
+
+        <div class="actions">
+            <button type="submit" class="btn">Save and continue</button>
+            <a class="btn-link" href="?step=6<?= $updateParam ?>">Skip for now</a>
+        </div>
+    </form>
     <?php
 }
 
@@ -1213,9 +1384,9 @@ function renderStep5(): void
  * the server produces archives it structurally cannot read, which is only true
  * if the private half never reaches it.
  */
-function renderStep6(bool $isUpdate, string $configFile): void
+function renderStep6(bool $isUpdate): void
 {
-    $existing = ConfigWriter::read($configFile);
+    $existing = ConfigWriter::read(DataDirectory::configPath(__DIR__));
     $backup = $existing['backup'] ?? [];
     $keys = $backup['recipient_public_keys'] ?? [];
     $updateParam = $isUpdate ? '&update=1' : '';
@@ -1322,7 +1493,7 @@ function renderStep6(bool $isUpdate, string $configFile): void
     <?php
 }
 
-function renderStep7(): void
+function renderStep8(): void
 {
     // Resolved live rather than remembered: .installer-data is deleted when the
     // install completes, and what matters on this page is where the data
