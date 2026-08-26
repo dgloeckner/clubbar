@@ -262,6 +262,54 @@ Expect **exactly one row** against Microsoft Graph. Anything else — in
 particular `Sites.ReadWrite.All` or any `Files.*` — means somebody widened the
 permissions, and the blast-radius argument in §1 no longer holds.
 
+### 6.1 What a run against a real tenant actually did (2026-08-26)
+
+`MsGraphTransport` was driven against a live tenant and library, through the
+same code path the nightly job takes. Recorded here as **observed**, because
+until this run every one of these behaviours was proved only against
+`FakeHttpClient` — and the whole reason #691 asked for a live run is that a fake
+agrees with whatever the code believes.
+
+| | Observed |
+|---|---|
+| Upload, 9,442,329 bytes (2.9 fragments) | `uploaded` in 7.1s through a real resumable session |
+| Listing | The archive appears with a byte size exactly equal to the file written |
+| Delete, by the app credential | Returns true; the item leaves the listing |
+| Resume after a 1-second budget | `partial` after **exactly** 3,276,800 bytes — one `CHUNK_BYTES` fragment, not a byte more |
+| The next run | `uploaded`, sending 9,312,743 bytes |
+| The two runs summed | 3,276,800 + 9,312,743 = 12,589,543 — **exactly** the archive's size |
+| Final size on the remote | Equal to the local size |
+| Sidecar | Written on the partial run (`uploadUrl`, `uploaded`), cleared on success |
+
+Three of those rows are worth reading twice.
+
+**The byte counts sum to the file size exactly.** No range was re-sent and none
+was skipped, which is the property that makes resuming cheaper than restarting
+rather than merely different from it.
+
+**The remote size equals the local size.** That is the observable form of §8's
+warning that the final fragment must not be padded to a 320 KiB multiple: a
+padded upload would list as larger than the file, and the corruption would then
+be discoverable only by attempting a restore.
+
+**`Sites.Selected` `write` does permit delete** — now confirmed twice, and the
+second time through the application's own path rather than the setup script's.
+This is the premise of the gap the epic names, and it is measured, not inferred.
+
+**What this run could not observe: whether that delete is recoverable.** Graph
+v1.0 exposes no read of the site recycle bin for `driveItems`, so the 93-day
+retention that makes a delete recoverable rather than final cannot be confirmed
+through the API the application uses. Confirming it needs the SharePoint UI or
+PowerShell, and it stays an *unverified* claim here until somebody does that.
+The quarterly offline copy in [`procedures.md`](./procedures.md) is the mitigation
+that does not depend on the answer.
+
+The DSN handed over for this run was missing its first two segments — it began
+`msgraph://drive/…` rather than
+`msgraph://<tenant-id>/<client-id>@drive/…`. `BackupDsn` refused it by name,
+which is the parser behaving as §2 says it should: the error named the missing
+part rather than failing at the first request.
+
 ---
 
 ## 7. The recurring task: rotating the secret
