@@ -31,6 +31,12 @@ Every slice is cut from and merged into the long-lived integration branch
 that branch once M6 has proved a restore** — nothing ships before then, because
 without a proved restore the rest is a file-writing feature.
 
+"Proved a restore" means **proved in CI**, which M6 does. It cannot mean the
+manual runbook walk: integration is deployed only from `main`
+(`deploy-integration` is guarded by `github.ref == 'refs/heads/main'`), so a gate
+requiring the walk first would be waiting on a deployment that the merge is what
+produces. The walk is the step *after* the merge.
+
 ---
 
 ## Milestones
@@ -153,7 +159,8 @@ PR [#706](https://github.com/dgloeckner/clubbar/pull/706) carries the rest.
 - [x] `docs/runbook-backup-recovery.md` — restore, repair one table, rotation on handover, compromise
 - [x] `docs/procedures.md` gains exactly two rhythms — the annual restore drill and the quarterly offline copy
 - [x] This plan and `plans/INDEX.md`
-- [ ] The runbook walked once by hand against the integration installation — **owner action**, see below
+- [ ] The runbook walked once by hand against the integration installation —
+      **owner action, and it happens _after_ the merge to `main`**, see below
 
 **Verified** (PR [#707](https://github.com/dgloeckner/clubbar/pull/707)):
 
@@ -163,8 +170,9 @@ PR [#706](https://github.com/dgloeckner/clubbar/pull/706) carries the rest.
 | `DumpOracleTest` | 1 test, 6 assertions |
 | `ScratchSchemaTest` | 3 tests, 6 assertions |
 | `ConfigSnapshotTest` | 4 tests, 18 assertions |
-| Backend Unit + Feature | **3182 tests, 10836 assertions** |
-| JS decryptor interop | 10/10 |
+| Backend Unit + Feature | **3264 tests, 11,054 assertions** (after merging #691) |
+| `--project=tools` over `file://` | 4/4 |
+| JS decryptor interop | 11/11 |
 
 Both new assertions were **mutation-tested rather than assumed**: a probe
 stripping plain `KEY` lines from the emitted DDL turns the round trip red naming
@@ -176,10 +184,31 @@ becoming rhythms of their own: the audit-log restore test
 ([ADR-0013](../adr/0013-audit-logging.md)) and the private-key archive test
 (`docs/deployment.md`).
 
-**Still owner action**: walking the runbook by hand against the integration
-installation, including the phpMyAdmin import — the step most likely to be wrong
-on paper. Section 2 (repair one table) is exercised in CI, so the manual walk is
-about the *host's* panel, not about the archive format.
+**Still owner action, and the ordering here was wrong when first written.**
+#692's *Verify* asks for the runbook to be walked against the integration
+installation *before* the merge to `main`. That gate cannot be satisfied:
+`deploy-integration` in `.github/workflows/build.yaml` is guarded by
+`github.ref == 'refs/heads/main'`, so integration only ever runs code that has
+already merged. Requiring the walk first makes the merge wait on a deployment
+that the merge is what produces.
+
+So the real order is: **merge, deploy, walk, then close #692.** The merge is not
+the finish line for this milestone; it is the step that makes the last check
+possible.
+
+What still protects `main` is that the *code* path is proved without a human:
+the round trip restores into a second schema and compares rows, schema DDL and
+the header's own claims; the oracle diffs the whole thing against
+`mariadb-dump`; and both assertions were mutation-tested rather than trusted.
+The walk tests the **prose** — the host's phpMyAdmin, its upload limit, its
+session time zone — and a wrong step there is a documentation fix, not a code
+defect. That asymmetry is why merging first costs little and waiting costs
+everything.
+
+Walk both sections when the time comes. §1 is the obvious one; §2 (repair one
+table) is the commoner disaster and the one with a wrong-looking-right failure
+mode — it is exercised in CI, so the manual walk is about the *host's* panel
+rather than the archive format.
 
 ### M7 — self-check, failure mail, backups page ([#693](https://github.com/dgloeckner/clubbar/issues/693))
 
