@@ -1275,17 +1275,17 @@ function renderStep6(bool $isUpdate, string $configFile): void
     </p>
 
     <p>
-        <button type="button" class="btn-secondary" onclick="clubbarGenerateKeypair()">
-            Generate a keypair
-        </button>
+        <a class="btn-secondary" href="tools/keypair-generator.html" target="_blank" rel="noopener">
+            Open the key generator
+        </a>
     </p>
 
-    <div id="keypair-output" style="display:none">
-        <label>Public key — this goes in the box below</label>
-        <pre id="keypair-public"></pre>
-        <label style="color:#b00">Private key — shown once. Print this now.</label>
-        <pre id="keypair-private"></pre>
-    </div>
+    <p class="hint">
+        It opens in a new tab and runs entirely in your browser — nothing is sent
+        anywhere, which is the point. Use the <strong>hex</strong> output under
+        <em>Backup archive keys</em>; the base64 boxes above it are the IBAN
+        keypair the admin panel registers, and the two are not interchangeable.
+    </p>
 
     <form method="POST" action="?step=6<?= $updateParam ?>">
         <input type="hidden" name="step" value="6">

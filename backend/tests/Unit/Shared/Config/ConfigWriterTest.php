@@ -201,6 +201,54 @@ class ConfigWriterTest extends TestCase
         }
     }
 
+/**
+     * **The scenario this whole change exists for.**
+     *
+     * The installer writes the *whole* file on every screen. So reaching the
+     * backup step on a working installation — months after install, which is
+     * when a club actually thinks about backups — must not cost it the database
+     * password, the TOTP encryption key or the cron secret.
+     *
+     * Getting this wrong produces a `config.php` that still loads and a site
+     * that no longer starts, with nothing pointing at the installer as the
+     * cause.
+     */
+    public function test_a_later_screen_adds_its_values_without_dropping_the_earlier_ones(): void
+    {
+        $dir = self::makeTempTree('config-two-steps');
+
+        try {
+            $path = $dir . '/config.php';
+            $password = "p'w\\x";
+
+            // Step 2, at install time.
+            $this->writer->writeTo($path, [
+                'db' => ['host' => 'db.example.org', 'name' => 'clubbar', 'user' => 'u', 'pass' => $password],
+                'security' => ['totp_encryption_key' => str_repeat('a', 64)],
+                'cron' => ['secret' => str_repeat('c', 64)],
+            ]);
+
+            // Step 6, months later, through ?update=1 — carrying the existing
+            // file forward the way install.php's configValuesToWrite() does.
+            $existing = ConfigWriter::read($path);
+            $existing['backup'] = array_merge($existing['backup'] ?? [], [
+                'dsn' => 'msgraph://tenant/client@drive/b!x/clubbar',
+                'recipient_public_keys' => ['admin:' . str_repeat('d', 64)],
+            ]);
+            $this->writer->writeTo($path, $existing);
+
+            $config = require $path;
+
+            $this->assertSame($password, $config['db']['pass'], 'the database password was lost');
+            $this->assertSame(str_repeat('a', 64), $config['security']['totp_encryption_key']);
+            $this->assertSame(str_repeat('c', 64), $config['cron']['secret']);
+            $this->assertSame('msgraph://tenant/client@drive/b!x/clubbar', $config['backup']['dsn']);
+            $this->assertCount(1, $config['backup']['recipient_public_keys']);
+        } finally {
+            self::removeTempTree($dir);
+        }
+    }
+
     /** @return array<string,mixed> */
     private function evaluate(string $rendered): array
     {
