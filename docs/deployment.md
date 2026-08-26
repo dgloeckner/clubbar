@@ -592,6 +592,17 @@ by [`m365-backup-target.md`](./m365-backup-target.md) and
 ],
 ```
 
+**Configure this from the installer, not a text editor.** Step 6 of
+`install.php` is *Backups*, and it is reachable long after the install through
+the same `?update=1` route the updater uses — which is the point, because a club
+sets backups up in the week it thinks about backups, not in the hour it
+installs. The screen generates the keypair in your browser, shows the private
+half once, validates the DSN through the application's own parser, and rewrites
+`config.php` **preserving everything it is not asking about**. The security
+self-check in the admin panel then reports what the file actually says: a key in
+the wrong encoding, a DSN that will not parse, a client secret that expired last
+month.
+
 Leaving `backup.dsn` empty is a legitimate configuration and the run says so
 out loud rather than silently — but a `backup.dsn` that is *filled in and
 malformed* is a failure every night, never a quiet fall back to local-only. The

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Shared\Services;
 
+use App\Modules\Backups\Services\BackupConfigCheck;
 use App\Modules\Notifications\Services\MailDeliveryCheck;
 use App\Shared\Config\AppConfig;
 use App\Shared\Config\DataDirectory;
@@ -44,6 +45,7 @@ class SecurityCheckService
         $findings = [
             ...SecuritySelfCheck::run($this->context($serverParams)),
             ...$this->deliveryFindings(),
+            ...$this->backupFindings(),
         ];
 
         return new SecurityReportDto(
@@ -73,6 +75,27 @@ class SecurityCheckService
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    /**
+     * The backup-configuration rows (#710).
+     *
+     * Here rather than inside {@see SecuritySelfCheck} because `install.php`
+     * loads that class **by path, before Composer's autoloader exists** — a
+     * `use App\Modules\...` in it would break the installer on the screen that
+     * reports why the host is unsuitable. Same reason `deliveryFindings()` lives
+     * out here.
+     *
+     * @return list<\App\Shared\Security\SecurityFinding>
+     */
+    private function backupFindings(): array
+    {
+        return (new BackupConfigCheck(
+            $this->config->backupRecipientPublicKeys,
+            $this->config->backupDsn,
+            $this->config->backupClientSecret,
+            $this->config->backupClientSecretExpiresAt,
+        ))->findings();
     }
 
     /**
