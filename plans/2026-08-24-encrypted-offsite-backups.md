@@ -94,10 +94,11 @@ table and the ERM documents none.
 - [x] Sealed body compressed, with the decryptor's inflate side in the same slice
 - [x] Remote retention enforced by **listing** the store
 - [x] Client-secret expiry rides `CredentialExpiryNotifier` (migration `055`)
-- [~] **Verify against a real tenant** — the provisioning half is done; one run of
-      the application's own transport is not
+- [x] **Verify against a real tenant** — done 2026-08-26, through the
+      application's own transport
 
-The task is two questions and one exercise, and they are not in the same state.
+The task was two questions and one exercise. All three are now answered, and
+one of the answers is "cannot be observed from here", which is recorded as such.
 
 **Observed already**, from the owner's live-tenant provisioning run and recorded
 in [`docs/m365-backup-target.md`](../docs/m365-backup-target.md):
@@ -113,18 +114,32 @@ in [`docs/m365-backup-target.md`](../docs/m365-backup-target.md):
   reduces what the library *costs* — which is why §5 caps version history and §4.1
   sets a storage limit.
 
-**Not yet done**: one end-to-end run of **`MsGraphTransport` itself** against the
-real library. The probe above exercised PowerShell's code path, not the
-application's, so the resumable upload session, the `Content-Range` framing and
-the unauthenticated session URL are still only proved against
-`FakeHttpClient`. #691's *Verify* asks for that one manual run before the task is
-marked done, and it is the half a fake genuinely cannot stand in for.
+**Observed 2026-08-26**, driving `MsGraphTransport` itself against the live
+library — the half a fake cannot stand in for, since a fake agrees with whatever
+the code believes. Full table in §6.1 of
+[`docs/m365-backup-target.md`](../docs/m365-backup-target.md); the three results
+that carry weight:
 
-Egress is not the obstacle: `graph.microsoft.com` and `login.microsoftonline.com`
-both answer 200 from a session. Credentials are — a tenant id, client id, client
-secret and drive id. Note that **egress policy binds at session start**, so a
-session older than the allowlist edit still gets a 403 on that host and the
-remedy is a new session, never a retry.
+- **Resume is exact.** A 1-second budget stopped the run after precisely one
+  `CHUNK_BYTES` fragment (3,276,800 bytes); the next run sent 9,312,743; the two
+  sum to 12,589,543, which is exactly the archive. No range re-sent, none
+  skipped — the sidecar-versus-`nextExpectedRanges` reconciliation is right.
+- **The remote size equals the local size**, which is the observable form of the
+  rule that the final fragment must not be padded. A padded upload would list as
+  larger, and that corruption is otherwise found only by attempting a restore.
+- **`Sites.Selected` `write` permits delete**, now via the application's own
+  path as well as the setup script's probe.
+
+**Recorded as unverified rather than assumed**: whether that delete is
+recoverable. Graph v1.0 exposes no read of the site recycle bin for
+`driveItems`, so the 93-day retention cannot be confirmed through the API the
+application uses; it needs the SharePoint UI or PowerShell. The quarterly
+offline copy is the mitigation that does not depend on the answer.
+
+Egress was not the obstacle by the end: `graph.microsoft.com` and
+`login.microsoftonline.com` both answer 200. Note that **egress policy binds at
+session start**, so a session older than the allowlist edit still gets a 403 on
+that host and the remedy is a new session, never a retry.
 
 PR [#706](https://github.com/dgloeckner/clubbar/pull/706) carries the rest.
 
