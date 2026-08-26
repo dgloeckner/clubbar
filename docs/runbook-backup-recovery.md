@@ -74,33 +74,29 @@ happens by accident.
 1. Create an empty database, or empty the existing one. The archive contains
    `DROP TABLE IF EXISTS` per table, so importing over a populated schema works,
    but starting empty makes "what did I just get" answerable.
-2. **Confirm the session is UTC.** This is the step that bites, and it bites
-   silently. The archive pins `SET time_zone = '+00:00'` itself, but an
-   operator or a panel that overrides it shifts **every `TIMESTAMP` column** by
-   the host's offset — settlement dates, announcement distances, audit
-   timestamps and the seven-day SEPA window all moving together, consistently,
-   with nothing about the result looking wrong.
+2. **Confirm the file starts with the session settings.** Open it and look at
+   the first dozen lines; they must include
 
-   **How to check it, in phpMyAdmin.** Open the **SQL** tab and run:
-
-   ```sql
-   SELECT TIMEDIFF(NOW(), UTC_TIMESTAMP()) AS utc_offset,
-          @@session.time_zone, @@global.time_zone, @@system_time_zone;
+   ```
+   SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';
+   SET FOREIGN_KEY_CHECKS = 0;
+   SET time_zone = '+00:00';
    ```
 
-   `utc_offset` must be `00:00:00`. **Judge the offset, not the name** — a session
-   reads UTC as `UTC`, as `+00:00` or as `SYSTEM` on a UTC-configured server,
-   and all three are correct, while `SYSTEM` on a Berlin server is not. This is
-   the same check `DatabaseDump` makes before it will dump at all. If it is not
-   zero: `SET time_zone = '+00:00';`
+   **This is the only thing that protects the import, and it needs no action
+   from you** — the archive pins its own time zone in its header, ahead of any
+   data, whatever zone your panel happens to be in. You cannot set it from
+   outside: phpMyAdmin opens a new database connection per request, so a
+   `SET time_zone` typed into the SQL tab does not reach the Import tab.
 
-   **But that fixes the tab, not the import.** phpMyAdmin opens a new database
-   connection per request, so a `SET time_zone` typed into the SQL tab does not
-   carry into the Import tab. What protects the import is the archive's *own*
-   `SET time_zone` line, executed as the first statement in the file — which is
-   why a per-table piece must keep the header lines in front of it, and why
-   the decryptor's pieces already have them.
-3. Import the `.sql`.
+   So there is exactly one way to lose it: importing a **piece** of the file
+   that does not carry those lines. A whole `.sql` always does, and so does
+   every piece the decryptor cuts. A piece somebody cut by hand may not — and
+   that failure is silent. Every `TIMESTAMP` in it lands in the host's own
+   zone: settlement dates, announcement distances, audit timestamps and the
+   seven-day SEPA window all shifting together, consistently, with nothing
+   about the result looking wrong.
+3. Import the `.sql`. §1.3 is where you prove the pinning took.
 
 **If the file exceeds phpMyAdmin's upload limit** — which on a club-sized
 database it eventually will — import **per table**, and let the decryptor cut
@@ -140,7 +136,22 @@ rows, so any run of them is valid on its own.
 
 ### 1.3 Check afterwards
 
-Compare against the manifest the decryptor showed you:
+**First, put this session in UTC** — not to fix anything, but because every
+check below is read *through* the session's zone, and a shifted one would
+report a good restore as bad and hide the bad one. In the **SQL** tab:
+
+```sql
+SELECT TIMEDIFF(NOW(), UTC_TIMESTAMP()) AS utc_offset,
+       @@session.time_zone, @@global.time_zone, @@system_time_zone;
+```
+
+`utc_offset` must be `00:00:00`. **Judge the offset, not the name** — a session
+reads UTC as `UTC`, as `+00:00` or as `SYSTEM` on a UTC-configured server, and
+all three are correct, while `SYSTEM` on a Berlin server is not. It is the same
+check `DatabaseDump` makes before it will dump at all. If it is not zero:
+`SET time_zone = '+00:00';` and stay in this tab for the rest of §1.3.
+
+Then compare against the manifest the decryptor showed you:
 
 ```sql
 SELECT COUNT(*) FROM members;
@@ -170,7 +181,8 @@ literal straight back. What does not move is `DATETIME`, which is stored exactly
 as written. The schema uses both, so the two disagree by exactly the offset:
 
 ```sql
--- Run this in a session you have just confirmed is UTC, per §1.2 step 2.
+-- In the UTC session established at the top of §1.3 — this comparison is
+-- meaningless read through a shifted one.
 SELECT (SELECT MAX(received_at) FROM transactions) AS timestamp_side,
        (SELECT MAX(created_at)  FROM audit_log)    AS datetime_side;
 ```

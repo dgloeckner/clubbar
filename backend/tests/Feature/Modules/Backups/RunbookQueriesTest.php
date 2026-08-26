@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Backups;
 
+use App\Modules\Backups\Services\DatabaseDump;
 use PDO;
 use Tests\Feature\DatabaseTestCase;
 
@@ -117,6 +118,50 @@ class RunbookQueriesTest extends DatabaseTestCase
             $types['audit_log.created_at'] ?? null,
             'A DATETIME is the fixed half of the comparison; two TIMESTAMPs would move together.'
         );
+    }
+
+    /**
+     * The lines §1.2 tells an operator to look for, against the ones the dumper
+     * actually writes.
+     *
+     * Step 2 is now "confirm the file starts with the session settings", and it
+     * quotes three of them verbatim. That is only useful while those are the
+     * settings a dump carries: if {@see DatabaseDump::header()} ever renames or
+     * drops one, the operator looks for a line that is not there and concludes
+     * the archive is broken. So the quoted lines are checked against a real
+     * dump rather than against the last time somebody read both files.
+     */
+    public function test_the_lines_the_runbook_says_to_look_for_are_the_lines_a_dump_carries(): void
+    {
+        $sql = '';
+        (new DatabaseDump($this->db))->dump(static function (string $chunk) use (&$sql): void {
+            $sql .= $chunk;
+        });
+
+        $end = strpos($sql, '-- >>> TABLE');
+        $this->assertIsInt($end, 'The dump has no table markers, so it has no header to check.');
+        $header = substr($sql, 0, $end);
+
+        $runbook = self::runbook();
+
+        foreach (
+            [
+                "SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';",
+                'SET FOREIGN_KEY_CHECKS = 0;',
+                "SET time_zone = '+00:00';",
+            ] as $line
+        ) {
+            $this->assertStringContainsString(
+                $line,
+                $runbook,
+                'The runbook stopped telling the operator to look for a line the dump still writes.'
+            );
+            $this->assertStringContainsString(
+                $line,
+                $header,
+                'The runbook tells the operator to look for a line the dump no longer writes.'
+            );
+        }
     }
 
     private static function runbook(): string
