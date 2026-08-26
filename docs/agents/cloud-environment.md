@@ -177,6 +177,57 @@ Already on the default Trusted allowlist, so never worth "adding":
 Non-default hosts this project needs, and the one that is denied, are listed in
 [CLAUDE.md](../../CLAUDE.md) under *Container registry and egress allowlist*.
 
+### `graph.microsoft.com` is open — and that was never the whole blocker
+
+It was denied when #691 was written, and it is allowed as of **2026-08-25**:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' https://graph.microsoft.com/v1.0/   # 200
+```
+
+The 200 is the service document, answered with Microsoft's own `request-id` and
+`x-ms-ags-diagnostic` headers, and `recentRelayFailures` in the proxy status is
+empty — so this is a real reach, not a proxy-shaped 200. `login.microsoftonline.com`
+was already allowed, so both halves of the transport are now reachable.
+
+**A session older than the change still gets a 403, and that is not a
+contradiction.** The policy is bound when the session starts, so a container
+created before the allowlist was edited keeps the old one for its whole life. On
+2026-08-25 the two observations were minutes apart and both correct: a session
+started after the edit saw `200`, while one started before it saw
+
+```
+kind:   connect_rejected
+detail: gateway answered 403 to CONNECT (policy denial or upstream failure)
+host:   graph.microsoft.com:443
+```
+
+recorded in that session's own `recentRelayFailures`. So a 403 here means **start
+a new session**, not "the allowlist is wrong" and never "retry until it works".
+The proxy's status endpoint is the arbiter for the session you are actually in:
+
+```bash
+curl -sS "$HTTPS_PROXY/__agentproxy/status"   # recentRelayFailures names the host
+```
+
+This generalises past this one host: every entry in the table below describes the
+policy as edited, not necessarily the policy your session is running under.
+
+**What still blocks #691's last task is credentials, not egress.** The
+verification asks a *real Microsoft 365 tenant* whether `Sites.Selected` `write`
+permits delete, and whether library retention makes that delete recoverable.
+Answering it needs a tenant, an app registration consented by a Global
+Administrator (`scripts/setup-msgraph-backup.ps1` performs it) and the resulting
+client id, client secret and site id. None of those exist in a session, and none
+should: a credential that could write to the club's backup library is exactly the
+kind of secret that must not live in an agent environment. It is a task for
+somebody holding the tenant, and its result is written down in
+`docs/m365-backup-target.md` as *observed*, not as the docs imply.
+
+Everything else about the transport is tested against a fake
+(`backend/tests/Support/FakeHttpClient.php`); ADR-0038's rule that **no test opens
+a socket** means CI never wanted this host and never will.
+
 ## Where the rest lives
 
 | Concern | File |

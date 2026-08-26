@@ -91,6 +91,17 @@ class AppConfig
     /** The secret half of {@see $backupDsn}'s credential, kept out of a URL that gets pasted around. */
     public readonly ?string $backupClientSecret;
     /**
+     * `YYYY-MM-DD`: when that secret stops working.
+     *
+     * **The single most likely cause of a silent backup failure.** An Entra
+     * client secret lasts at most 24 months, Entra warns nobody when one
+     * expires, and the failure surfaces only when the thing depending on it
+     * stops working — for an unattended nightly job that can be months of no
+     * backups before anyone notices. Written down here so the run can say so
+     * in advance (#691) instead of the club finding out from a restore.
+     */
+    public readonly ?string $backupClientSecretExpiresAt;
+    /**
      * The backup job's own push monitor, deliberately not {@see $cronHeartbeatUrl}.
      *
      * Turning a check that guards a legal deadline red for a storage problem
@@ -145,6 +156,7 @@ class AppConfig
         $this->backupRecipientPublicKeys = trim(Env::get('BACKUP_RECIPIENT_PUBLIC_KEYS', ''));
         $this->backupDsn            = trim(Env::get('BACKUP_DSN', '')) ?: null;
         $this->backupClientSecret   = trim(Env::get('BACKUP_CLIENT_SECRET', '')) ?: null;
+        $this->backupClientSecretExpiresAt = trim(Env::get('BACKUP_CLIENT_SECRET_EXPIRES_AT', '')) ?: null;
         $this->backupHeartbeatUrl   = trim(Env::get('BACKUP_HEARTBEAT_URL', '')) ?: null;
         $this->backupLocalRetentionDays = self::optionalInt('BACKUP_LOCAL_RETENTION_DAYS');
         $this->backupLocalMaxBytes  = self::optionalInt('BACKUP_LOCAL_MAX_BYTES');

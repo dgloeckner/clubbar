@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Docs;
 
+use App\Modules\Backups\Domain\BackupDsn;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -264,7 +265,7 @@ class BackupDocumentationTest extends TestCase
             '/###\s+backup_(runs|keys|config)/',
             self::read('docs/erm-master.md'),
             'The data-model approval for backup_runs/backup_keys/backup_config was withdrawn '
-            . '(#703). The feature touches the application schema nowhere.'
+            . '(#703). The feature keeps no backup state in the database at all.'
         );
 
         $creating = array_values(array_filter(
@@ -330,6 +331,196 @@ class BackupDocumentationTest extends TestCase
         }
 
         return $m[0][1];
+    }
+
+    /**
+     * The remote destination has a procedure, and it is findable.
+     *
+     * Provisioning it is a dozen portal steps across two admin centres, with a
+     * PowerShell script in the middle. A procedure that exists only in the head
+     * of whoever ran it once is the same failure this file was written about:
+     * documentation that describes a world nobody can reach.
+     */
+    public function test_the_m365_onboarding_procedure_exists_and_is_linked(): void
+    {
+        $this->assertFileExists(
+            self::repoRoot() . '/docs/m365-backup-target.md',
+            'The Microsoft 365 destination has to be provisioned before backup.dsn means anything.'
+        );
+
+        $this->assertFileExists(
+            self::repoRoot() . '/scripts/setup-msgraph-backup.ps1',
+            'docs/m365-backup-target.md tells the reader to run this script.'
+        );
+
+        $this->assertStringContainsString(
+            'm365-backup-target.md',
+            self::read('docs/README.md'),
+            'A document nobody can find from the index is a document nobody reads.'
+        );
+
+        $this->assertStringContainsString(
+            'm365-backup-target.md',
+            self::read('docs/deployment.md'),
+            'deployment.md is where an operator configures backup.dsn; it must point at the '
+            . 'procedure that produces the value.'
+        );
+    }
+
+    /**
+     * The DSN the setup script prints must be one `BackupDsn` accepts.
+     *
+     * The script is the *only* place a club gets this value from, and nothing
+     * downstream re-derives it: whatever line 9 of §9 prints is pasted into
+     * `config.php` verbatim. So a segment dropped from that template is not a
+     * cosmetic error — it is an installation whose backups fail every night,
+     * discovered weeks later, with a message about a malformed DSN rather than
+     * about the script that produced it.
+     *
+     * Nothing caught that before this test. The script's own probe (§7 of the
+     * document) uploads and deletes through raw Graph calls, so it proves the
+     * *tenant* is provisioned correctly while never touching the string it is
+     * about to hand over. The two halves can disagree silently, and only the
+     * club finds out.
+     *
+     * Filling the PowerShell interpolations with plausible values and handing
+     * the result to the real parser is the cheapest way to make them agree.
+     */
+    public function test_the_setup_script_prints_a_dsn_the_parser_accepts(): void
+    {
+        $script = self::read('scripts/setup-msgraph-backup.ps1');
+
+        $this->assertSame(
+            1,
+            preg_match("/'dsn'\s*=>\s*'(msgraph:\/\/[^']+)'/", $script, $m),
+            'The setup script no longer prints a single msgraph:// DSN for config.php. '
+            . 'If the output moved, move this guard with it — the value it emits is the one '
+            . 'thing between a provisioned tenant and a working backup.'
+        );
+
+        // The script's own variable names, filled with values of the right
+        // shape. Mapped by name rather than blanked wholesale, so a *renamed*
+        // variable fails here loudly instead of being papered over.
+        $filled = strtr($m[1], [
+            '$TenantId' => '1111a1a1-1111-1111-1111-111111111111',
+            '$($app.appId)' => '2222b2b2-2222-2222-2222-222222222222',
+            '$driveId' => 'b!ZXhhbXBsZS1kcml2ZS1pZGVudGlmaWVy',
+            '$folderClean' => 'clubbar',
+        ]);
+
+        $this->assertStringNotContainsString(
+            '$',
+            $filled,
+            'The DSN template carries a PowerShell variable this guard does not know about, so '
+            . 'it cannot say whether the printed value parses. Add the new variable above: '
+            . 'printing an unparseable DSN is exactly the failure this test exists to prevent.'
+        );
+
+        $dsn = BackupDsn::parse($filled);
+
+        $this->assertTrue(
+            $dsn->addressesDriveDirectly(),
+            'The script must print the drive-id form. The site/library form matches on a '
+            . 'library display name, which is localised per tenant — and the script knows the '
+            . 'drive id, so there is no reason to hand over the fragile one.'
+        );
+    }
+
+    /**
+     * The two mistakes that are silent.
+     *
+     * Both were learned by running this against a real tenant, and both fail in
+     * the worst available way: padding the final fragment produces an archive
+     * that uploads cleanly and is corrupt, discoverable only by a restore; an
+     * Authorization header on the pre-authorised session URL makes an otherwise
+     * correct upload fail. Neither is guessable from Microsoft's documentation,
+     * and one of them is actively suggested by answers circulating on Q&A.
+     *
+     * The code gets them right. This asserts the *reasons* survive in the
+     * document, because the next person to touch the transport reads that
+     * before they read the code.
+     */
+    public function test_the_two_silent_graph_mistakes_stay_written_down(): void
+    {
+        $doc = self::read('docs/m365-backup-target.md');
+
+        $this->assertMatchesRegularExpression(
+            '/do not pad the final upload fragment/i',
+            $doc,
+            'Padding the last chunk to a 320 KiB multiple corrupts the archive silently.'
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/do not send an `?Authorization`? header to the upload session/i',
+            $doc,
+            'The upload session URL is pre-authorised and fails with the header attached.'
+        );
+    }
+
+    /**
+     * The date that prevents the most likely silent failure of this feature.
+     *
+     * Entra sends no notification when a client secret expires, so an
+     * unattended nightly job can go months before anyone notices. The date has
+     * to be somewhere the run can read it, and the sample config is where an
+     * operator learns it exists at all.
+     */
+    public function test_the_client_secret_expiry_is_configurable_and_explained(): void
+    {
+        $sample = self::read('package/config.sample.php');
+
+        $this->assertStringContainsString('client_secret_expires_at', $sample);
+        $this->assertMatchesRegularExpression(
+            '/warns nobody|no notification|does not warn/i',
+            $sample,
+            'The sample config must say *why* the date is being asked for — Entra will not '
+            . 'tell anybody when the secret dies.'
+        );
+    }
+
+    /**
+     * The off-site half has shipped, so the documentation must stop deferring it.
+     *
+     * `deployment.md` told the reader off-site backups were issue #691 and to
+     * keep doing the manual copy "until then". Leaving that in place after the
+     * transport shipped would send every operator past the one setting that
+     * makes their backups off-site.
+     */
+    public function test_the_deployment_guide_no_longer_defers_offsite_backups_to_an_issue(): void
+    {
+        $deployment = self::read('docs/deployment.md');
+
+        $this->assertStringNotContainsString(
+            'that is\n[#691]',
+            $deployment
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/issues\/691\)\. Until then/',
+            $deployment,
+            'The transport shipped; deployment.md must document backup.dsn rather than defer it.'
+        );
+        $this->assertStringContainsString(
+            "'dsn'",
+            $deployment,
+            'deployment.md must show what a configured backup.dsn looks like.'
+        );
+    }
+
+    /**
+     * The manual copy survives the transport shipping.
+     *
+     * Microsoft 365 has no add-only app role — `Sites.Selected` write includes
+     * delete — so the credential on the webspace can delete what it wrote. The
+     * periodic manual copy is the only copy no credential can reach, and the
+     * temptation once uploads work is to quietly drop it.
+     */
+    public function test_the_manual_copy_survives_the_remote_being_configured(): void
+    {
+        $this->assertMatchesRegularExpression(
+            '/keep the periodic manual copy|manual\s+copy remains/i',
+            self::read('docs/deployment.md'),
+            'An automated remote the app can delete from does not replace a copy it cannot reach.'
+        );
     }
 
     private static function read(string $relativePath): string

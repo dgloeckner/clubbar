@@ -11,7 +11,10 @@ use App\Modules\Backups\Services\BackupService;
 use App\Modules\Backups\Services\DatabaseDump;
 use App\Shared\Logging\Logger;
 use App\Shared\Security\BackupSealedBox;
+use App\Modules\Backups\Transport\BackupTransport;
+use App\Modules\Backups\Transport\RemoteArchive;
 use Tests\Feature\DatabaseTestCase;
+use Tests\Support\FakeBackupTransport;
 use Tests\Support\TempTree;
 
 /**
@@ -427,10 +430,122 @@ class BackupServiceTest extends DatabaseTestCase
         ));
     }
 
+    /**
+     * The archive is pushed off the host, which is the point: a backup on the
+     * same webspace as the database is not off-site.
+     */
+    public function test_a_written_archive_is_offered_to_the_remote(): void
+    {
+        $transport = new FakeBackupTransport();
+
+        $outcome = $this->service(transport: $transport)->run('cli');
+
+        $this->assertSame([$outcome->filename], $transport->uploaded);
+        $this->assertStringContainsString('Uploaded', (string) $outcome->remoteSummary);
+        $this->assertSame([], $outcome->findings);
+        $this->assertStringContainsString('"event":"uploaded"', $this->journalContents());
+    }
+
+    /**
+     * A failed upload is a **finding**, not a failed run. The archive exists,
+     * is sealed and is on the webspace; reporting the night as a failure would
+     * hide that the local copy is fine, and a club reading "backup failed"
+     * deletes nothing and trusts nothing.
+     */
+    public function test_a_remote_that_refuses_does_not_turn_the_run_into_a_failure(): void
+    {
+        $outcome = $this->service(transport: new FakeBackupTransport('failed'))->run('cli');
+
+        $this->assertTrue($outcome->producedAnArchive(), $outcome->summary);
+        $this->assertTrue($outcome->needsAttention());
+        $this->assertNotSame([], $outcome->findings);
+        $this->assertStringContainsString('"event":"upload_failed"', $this->journalContents());
+    }
+
+    /**
+     * A club on a slow uplink whose archive needs three nights to leave the
+     * building is working correctly. Recording that as a failure would teach
+     * its operator to skip the lines that matter.
+     */
+    public function test_an_upload_that_ran_out_of_budget_is_progress_rather_than_a_finding(): void
+    {
+        $outcome = $this->service(transport: new FakeBackupTransport('partial'))->run('cli');
+
+        $this->assertTrue($outcome->producedAnArchive(), $outcome->summary);
+        $this->assertSame([], $outcome->findings);
+        $this->assertStringContainsString('"event":"upload_progress"', $this->journalContents());
+    }
+
+    /**
+     * Remote retention is what gives an ADR-0029 erasure an end date: a member
+     * anonymised today still exists in full inside every archive sealed before
+     * today, and those have to age out of the remote as well as the disk.
+     */
+    public function test_expired_remote_archives_are_deleted_after_a_successful_push(): void
+    {
+        $transport = (new FakeBackupTransport())->holding([
+            new RemoteArchive('i1', 'clubbar-20200101-030000-aaaa.cbb', 10, 'd1'),
+            new RemoteArchive('i2', 'clubbar-20200201-030000-bbbb.cbb', 10, 'd1'),
+        ]);
+
+        $this->service(transport: $transport)->run('cli');
+
+        // The newest is never deleted, whatever the arithmetic says: an
+        // installation whose backups stopped must end up reported, not empty.
+        $this->assertSame(
+            ['clubbar-20200101-030000-aaaa.cbb'],
+            array_map(static fn (RemoteArchive $a): string => $a->name, $transport->deleted)
+        );
+        $this->assertStringContainsString('"event":"remote_pruned"', $this->journalContents());
+    }
+
+    /**
+     * The nights the upload fails are exactly the nights the old remote copies
+     * matter, so retention does not run on them.
+     */
+    public function test_nothing_is_deleted_remotely_on_a_night_the_upload_failed(): void
+    {
+        $transport = (new FakeBackupTransport('failed'))->holding([
+            new RemoteArchive('i1', 'clubbar-20200101-030000-aaaa.cbb', 10, 'd1'),
+            new RemoteArchive('i2', 'clubbar-20200201-030000-bbbb.cbb', 10, 'd1'),
+        ]);
+
+        $this->service(transport: $transport)->run('cli');
+
+        $this->assertSame([], $transport->deleted);
+    }
+
+    /** A store that cannot be listed costs a night of retention, never the run. */
+    public function test_a_store_that_cannot_be_listed_is_reported_rather_than_fatal(): void
+    {
+        $outcome = $this->service(
+            transport: (new FakeBackupTransport())->refusingToList('the library is gone')
+        )->run('cli');
+
+        $this->assertTrue($outcome->producedAnArchive(), $outcome->summary);
+        $this->assertStringContainsString('the library is gone', implode(' ', $outcome->findings));
+    }
+
+    /** With no DSN configured nothing is attempted and nothing is said. */
+    public function test_no_remote_configured_leaves_the_run_exactly_as_it_was(): void
+    {
+        $outcome = $this->service()->run('cli');
+
+        $this->assertTrue($outcome->producedAnArchive(), $outcome->summary);
+        $this->assertNull($outcome->remoteSummary);
+        $this->assertStringNotContainsString('upload', $this->journalContents());
+    }
+
+    private function journalContents(): string
+    {
+        return (string) @file_get_contents($this->backupDir . '/' . BackupJournal::FILENAME);
+    }
+
     private function service(
         ?string $publicKeys = null,
         ?string $directory = null,
         ?BackupRetention $retention = null,
+        ?BackupTransport $transport = null,
     ): BackupService {
         return new BackupService(
             new DatabaseDump($this->db),
@@ -440,6 +555,7 @@ class BackupServiceTest extends DatabaseTestCase
             $publicKeys ?? $this->publicKeys,
             $retention ?? BackupRetention::defaults(),
             'development',
+            $transport,
         );
     }
 }

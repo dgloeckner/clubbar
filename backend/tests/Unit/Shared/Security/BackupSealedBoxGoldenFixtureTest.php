@@ -89,17 +89,42 @@ class BackupSealedBoxGoldenFixtureTest extends TestCase
     }
 
     /**
-     * The fixture spans three chunks on purpose: a single-chunk archive would
-     * pass even if the framing between chunks were wrong.
+     * The fixture's **compressed** body spans three chunks on purpose.
+     *
+     * The size that matters is the compressed one, because that is what the
+     * stream cipher frames — and this is the assertion #691 nearly turned
+     * vacuous: the old fixture was sized by its plaintext, and 135 KB of
+     * repetitive SQL gzips to 5 KB, which is a single chunk. A single-chunk
+     * archive passes even if the framing between chunks is wrong, which is the
+     * one thing this fixture is here to catch.
+     *
+     * Asserted on the archive itself rather than on the plaintext, so it stays
+     * true whatever the compression ratio turns out to be.
      */
     public function test_the_fixture_is_large_enough_to_exercise_chunk_framing(): void
     {
-        $plaintext = BackupSealedBox::open($this->archive(), sodium_hex2bin(self::DEV_SECRET_A));
-
         $this->assertGreaterThan(
             BackupSealedBox::CHUNK_BYTES * 2,
-            strlen($plaintext),
-            'Shrinking this fixture below three chunks would quietly stop testing the framing.'
+            strlen($this->archive()),
+            'Shrinking this fixture below three chunks would quietly stop testing the framing. '
+            . 'Regenerate with tests/Fixtures/backup/regenerate.php, which sizes it by the '
+            . 'compressed body for exactly this reason.'
+        );
+    }
+
+    /**
+     * The body is compressed, and the header says so rather than leaving a
+     * reader to sniff it (#691).
+     */
+    public function test_the_committed_archive_is_compressed_and_says_which_codec(): void
+    {
+        $header = BackupSealedBox::readHeader($this->archive());
+
+        $this->assertSame(BackupSealedBox::COMPRESSION, $header['compression']);
+        $this->assertLessThan(
+            $header['plaintext_bytes'],
+            strlen($this->archive()),
+            'A compressed archive must be smaller than what went into it.'
         );
     }
 

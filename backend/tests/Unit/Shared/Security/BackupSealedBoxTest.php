@@ -17,7 +17,7 @@ use PHPUnit\Framework\TestCase;
  * either proves that, or proves the multi-recipient behaviour that makes a
  * volunteer's disappearance survivable.
  *
- * Part of #689, epic #686.
+ * Part of #689, #703 and #691, epic #686.
  */
 class BackupSealedBoxTest extends TestCase
 {
@@ -256,13 +256,83 @@ class BackupSealedBoxTest extends TestCase
         $archive = BackupSealedBox::seal('x', [$this->recipient('admin', $this->pkA)]);
 
         // Equal length, so the header's own length prefix stays honest.
-        $tampered = str_replace('"version":2', '"version":9', $archive);
+        $tampered = str_replace('"version":' . BackupSealedBox::VERSION, '"version":9', $archive);
         $this->assertNotSame($archive, $tampered, 'Precondition: the header JSON carries a version.');
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/header says version 9 but the container says 2/i');
+        $this->expectExceptionMessageMatches('/header says version 9 but the container says 3/i');
 
         BackupSealedBox::open($tampered, $this->skA);
+    }
+
+    /**
+     * The body is compressed before it is sealed (#691).
+     *
+     * A dump is SQL: highly repetitive, and the thing being paid for is upload
+     * bandwidth on a club's connection and quota on the club's storage. This is
+     * the slice where size costs something, which is why the compression lands
+     * here and not in #690 — and why the decryptor's inflate side ships in the
+     * same slice, so no archive ever exists that the shipped tool cannot open.
+     */
+    public function test_a_compressible_payload_produces_a_materially_smaller_archive(): void
+    {
+        // Shaped like a dump rather than random bytes, which would not compress
+        // at all and would make this assertion vacuous.
+        $payload = str_repeat("INSERT INTO `members` (`id`,`last_name`) VALUES (1,'Muster');\n", 2000);
+
+        $archive = BackupSealedBox::seal($payload, [$this->recipient('admin', $this->pkA)]);
+
+        $this->assertLessThan(
+            strlen($payload) / 4,
+            strlen($archive),
+            'A repetitive SQL payload must compress; if this ever fails the body is going out raw.'
+        );
+    }
+
+    public function test_a_compressed_archive_still_opens_to_exactly_what_went_in(): void
+    {
+        // Every byte class a dump carries: multibyte, the escapes the emitter
+        // writes, NUL inside a hex literal's neighbourhood, and enough length
+        // to span more than one stream chunk once compressed.
+        $payload = str_repeat("Müller-Lüdenscheidt O\\'Brien \x00\x1a\n", 5000);
+
+        $archive = BackupSealedBox::seal($payload, [$this->recipient('admin', $this->pkA)]);
+
+        $this->assertSame($payload, BackupSealedBox::open($archive, $this->skA));
+    }
+
+    public function test_the_header_says_how_the_body_was_compressed(): void
+    {
+        // Stated rather than assumed: a reader must not have to infer the
+        // codec from the bytes, and a future archive that is not compressed
+        // has to be able to say so in the same field.
+        $header = BackupSealedBox::readHeader(
+            BackupSealedBox::seal('x', [$this->recipient('admin', $this->pkA)])
+        );
+
+        $this->assertSame('gzip', $header['compression']);
+    }
+
+    /**
+     * The checksum describes the **plaintext**, not the compressed bytes.
+     *
+     * This is the one that would be easy to get wrong and hard to notice. What
+     * a restore holds in its hands is the `.sql` the decryptor hands back, so
+     * that is what the header's promise has to be about. A checksum of the
+     * compressed intermediate would verify a thing nobody ever sees, and would
+     * silently start disagreeing with the decryptor the day the compression
+     * level changed.
+     */
+    public function test_the_header_checksum_describes_the_plaintext_not_the_compressed_bytes(): void
+    {
+        $payload = str_repeat('compress me, and then tell me about me. ', 500);
+
+        $header = BackupSealedBox::readHeader(
+            BackupSealedBox::seal($payload, [$this->recipient('admin', $this->pkA)])
+        );
+
+        $this->assertSame(strlen($payload), $header['plaintext_bytes']);
+        $this->assertSame(hash('sha256', $payload), $header['plaintext_sha256']);
     }
 
     /**

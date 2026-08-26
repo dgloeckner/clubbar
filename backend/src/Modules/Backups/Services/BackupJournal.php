@@ -101,6 +101,64 @@ final class BackupJournal
         $this->append(['event' => 'failed', 'error' => mb_substr($error, 0, 1000)]);
     }
 
+    /**
+     * An archive reached the remote store.
+     *
+     * The line that answers the only question the journal is uniquely able to
+     * answer about the remote: *when did this stop working?* The store itself
+     * says what is there now; nothing but this says an archive from three
+     * weeks ago went up and the ones since did not.
+     */
+    public function uploaded(string $filename, string $remote, string $remotePath, int $bytesSent): void
+    {
+        $this->append([
+            'event' => 'uploaded',
+            'filename' => $filename,
+            'remote' => $remote,
+            'remotePath' => $remotePath,
+            'bytes_sent' => $bytesSent,
+        ]);
+    }
+
+    /**
+     * An upload got part of the way and will continue next run.
+     *
+     * Recorded as its own event rather than as a failure: a club on a slow
+     * uplink whose archive needs three nights to leave the building is working
+     * correctly, and a journal that called that a failure would teach its
+     * reader to skip the lines that matter.
+     */
+    public function uploadProgress(string $filename, string $remote, int $bytesSent): void
+    {
+        $this->append([
+            'event' => 'upload_progress',
+            'filename' => $filename,
+            'remote' => $remote,
+            'bytes_sent' => $bytesSent,
+        ]);
+    }
+
+    public function uploadFailed(string $filename, string $remote, string $error): void
+    {
+        $this->append([
+            'event' => 'upload_failed',
+            'filename' => $filename,
+            'remote' => $remote,
+            'error' => mb_substr($error, 0, 1000),
+        ]);
+    }
+
+    /** An archive was removed from the remote store by remote retention. */
+    public function remotePruned(string $filename, string $remote, string $reason): void
+    {
+        $this->append([
+            'event' => 'remote_pruned',
+            'filename' => $filename,
+            'remote' => $remote,
+            'reason' => $reason,
+        ]);
+    }
+
     /** An archive was removed by retention or by the byte cap. */
     public function pruned(string $filename, int $bytes, string $reason): void
     {

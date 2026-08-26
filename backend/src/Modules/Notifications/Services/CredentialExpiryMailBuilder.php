@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\Services;
 
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\Backups\Domain\BackupDsn;
+use App\Modules\Backups\Domain\BackupDsnException;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\DTOs\CredentialExpiryDataDto;
 use App\Modules\Notifications\DTOs\MailConfigDto;
@@ -48,12 +50,16 @@ class CredentialExpiryMailBuilder implements MailContentBuilder
         private EncryptionKeysRepository $encryptionKeysRepository,
         private TerminalsRepository $terminalsRepository,
         private AdminUsersRepository $adminUsersRepository,
+        /** @see CredentialExpiryNotifier — the two scalars, not the whole config. */
+        private ?string $backupDsn = null,
+        private ?string $backupSecretExpiresAt = null,
     ) {}
 
     public function supports(MailKind $kind): bool
     {
         return $kind === MailKind::KEY_EXPIRY_WARNING
-            || $kind === MailKind::TERMINAL_TOKEN_EXPIRY_WARNING;
+            || $kind === MailKind::TERMINAL_TOKEN_EXPIRY_WARNING
+            || $kind === MailKind::BACKUP_SECRET_EXPIRY_WARNING;
     }
 
     /**
@@ -80,9 +86,14 @@ class CredentialExpiryMailBuilder implements MailContentBuilder
 
         $language = MailLanguage::fromPreferred((string) ($outboxRow['language'] ?? null));
 
-        [$credential, $name, $expiresAt] = $kind === MailKind::KEY_EXPIRY_WARNING
-            ? $this->encryptionKey($subjectId)
-            : $this->terminal($subjectId);
+        [$credential, $name, $expiresAt] = match ($kind) {
+            MailKind::KEY_EXPIRY_WARNING => $this->encryptionKey($subjectId),
+            MailKind::TERMINAL_TOKEN_EXPIRY_WARNING => $this->terminal($subjectId),
+            MailKind::BACKUP_SECRET_EXPIRY_WARNING => $this->backupSecret(),
+            default => throw new \RuntimeException(
+                'CredentialExpiryMailBuilder was handed ' . $kind->value . ', which it does not build.'
+            ),
+        };
 
         return CredentialExpiryMail::render(new CredentialExpiryDataDto(
             language: $language,
@@ -134,6 +145,44 @@ class CredentialExpiryMailBuilder implements MailContentBuilder
         }
 
         return ['terminal', (string) $terminal['name'], $terminal['token_expires_at'] ?? null];
+    }
+
+    /**
+     * The backup app's client secret.
+     *
+     * Read from configuration rather than from a table, because there is no
+     * table: ADR-0049 decision 8 keeps the backup out of the database it dumps
+     * entirely. That is also why this is the one credential here with no
+     * `subject_id` to look up — the subject is the installation.
+     *
+     * The name shown is the **remote**, never the secret and never the DSN in
+     * full: what an operator needs in order to act is which store has stopped
+     * accepting uploads. A DSN that will not parse still produces a warning
+     * with a placeholder name, because the expiry is real either way and a
+     * broken DSN is a second problem, not a reason to stay silent about the
+     * first.
+     *
+     * @return array{0: string, 1: string, 2: ?string}
+     */
+    private function backupSecret(): array
+    {
+        $expiresAt = trim((string) $this->backupSecretExpiresAt);
+
+        if ($expiresAt === '') {
+            throw new \RuntimeException(
+                'Cannot build a backup secret expiry warning: backup.client_secret_expires_at is no '
+                . 'longer configured.'
+            );
+        }
+
+        $name = 'the backup remote';
+        try {
+            $name = BackupDsn::parse((string) $this->backupDsn)->describe();
+        } catch (BackupDsnException) {
+            // Deliberately swallowed: see the docblock.
+        }
+
+        return ['backup_secret', $name, $expiresAt];
     }
 
     /** @param array<string,mixed> $outboxRow */

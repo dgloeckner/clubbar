@@ -45,6 +45,11 @@ class CredentialExpiryMailBuilderTest extends TestCase
             $this->keys,
             $this->terminals,
             $this->adminUsers,
+            'msgraph://tenant/client@drive/b!driveid/clubbar',
+            // Relative, never a literal: a fixed date stops describing "a
+            // credential with time left" the moment it passes, and then quietly
+            // exercises the floored-at-zero path instead of the one intended.
+            self::inDays(200),
         );
     }
 
@@ -75,7 +80,7 @@ class CredentialExpiryMailBuilderTest extends TestCase
         ];
     }
 
-    public function test_it_claims_both_expiry_kinds_and_nothing_else(): void
+    public function test_it_claims_every_expiry_kind_and_nothing_else(): void
     {
         $claimed = array_values(array_filter(
             MailKind::cases(),
@@ -85,7 +90,18 @@ class CredentialExpiryMailBuilderTest extends TestCase
         // Stated as the whole set rather than as two assertions: a kind added to
         // the enum and quietly picked up here would pass those and fail this.
         $this->assertSame(
-            [MailKind::KEY_EXPIRY_WARNING, MailKind::TERMINAL_TOKEN_EXPIRY_WARNING],
+            [
+                MailKind::KEY_EXPIRY_WARNING,
+                MailKind::TERMINAL_TOKEN_EXPIRY_WARNING,
+                // The third credential to ride the 90/30/7 tiers (#691), and
+                // the one whose expiry is invisible: an encryption key that
+                // lapses blocks the SEPA export the same week, a terminal
+                // token locks a till out of the bar — an expired backup secret
+                // looks exactly like a working one, because the nightly job
+                // still writes and seals its archive and only the half that
+                // takes it off the host stops.
+                MailKind::BACKUP_SECRET_EXPIRY_WARNING,
+            ],
             $claimed,
         );
     }
@@ -200,5 +216,69 @@ class CredentialExpiryMailBuilderTest extends TestCase
         $this->expectExceptionMessage('no known warning tier');
 
         $this->builder->build(self::row(['dedup_key' => '45d:admin-1']), $this->mailConfig);
+    }
+
+    /**
+     * The backup secret renders from configuration, because there is no table
+     * to render it from: ADR-0049 decision 8 keeps the backup out of the
+     * database it dumps entirely.
+     */
+    public function test_it_renders_a_backup_secret_warning_naming_the_remote_rather_than_the_secret(): void
+    {
+        $mail = $this->builder->build(
+            [
+                'kind' => 'backup_secret_expiry_warning',
+                'subject_id' => '1',
+                'dedup_key' => '30d:20270301:admin-1',
+                'recipient' => 'admin@example.org',
+                'language' => 'en',
+                'admin_user_id' => null,
+            ],
+            $this->mailConfig,
+        );
+
+        $body = $mail->text . ' ' . $mail->subject;
+
+        // What an operator needs is which store has stopped accepting uploads.
+        $this->assertStringContainsString('clubbar', $body);
+        // Never the credential, and never the ids in the DSN: this mail is
+        // exactly the shape a phishing attempt imitates, so it carries the
+        // fact and the date and nothing that could be used.
+        $this->assertStringNotContainsString('b!driveid', $body);
+        $this->assertStringNotContainsString('tenant/client', $body);
+        // The sentence that matters: the backup keeps looking healthy.
+        $this->assertStringContainsString('still sealed', $body);
+    }
+
+    /**
+     * A broken DSN is a second problem, not a reason to stay silent about the
+     * first: the expiry is real either way.
+     */
+    public function test_a_dsn_that_will_not_parse_still_produces_the_warning(): void
+    {
+        $builder = new CredentialExpiryMailBuilder(
+            $this->keys,
+            $this->terminals,
+            $this->adminUsers,
+            'not-a-dsn',
+            // Relative, never a literal: a fixed date stops describing "a
+            // credential with time left" the moment it passes, and then quietly
+            // exercises the floored-at-zero path instead of the one intended.
+            self::inDays(200),
+        );
+
+        $mail = $builder->build(
+            [
+                'kind' => 'backup_secret_expiry_warning',
+                'subject_id' => '1',
+                'dedup_key' => '7d:20270301:admin-1',
+                'recipient' => 'admin@example.org',
+                'language' => 'de',
+                'admin_user_id' => null,
+            ],
+            $this->mailConfig,
+        );
+
+        $this->assertNotSame('', $mail->subject);
     }
 }

@@ -144,7 +144,18 @@ final class MailRetention
             // and once a human has been told, the copy holding their address
             // has done its work. Keeping it longer would retain an address
             // against a youth-protection matter for no added evidentiary value.
-            MailKind::JUGENDSCHUTZ_VIOLATION => self::DEFAULT_SENT_DAYS,
+            MailKind::JUGENDSCHUTZ_VIOLATION,
+            // The backup secret warning (#691) keeps the default, and here the
+            // reasoning runs the other way from the kinds above: there is no
+            // audit entry behind it to be the durable record, because ADR-0049
+            // decision 8 keeps the backup out of the application's schema
+            // entirely. What it holds is still only an address and a date, and
+            // the durable record of *whether the secret was rotated* is the
+            // secret working — visible every night in the run's own output and
+            // in the journal beside the archives. Ninety days is well past the
+            // last tier, so a club is never pruning a warning it has not yet
+            // had the chance to act on.
+            MailKind::BACKUP_SECRET_EXPIRY_WARNING => self::DEFAULT_SENT_DAYS,
             MailKind::DECKEL_STATEMENT => self::STATEMENT_SENT_DAYS,
             MailKind::CREDIT_LIMIT_DIGEST => self::DIGEST_SENT_DAYS,
         };

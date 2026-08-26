@@ -577,9 +577,38 @@ It is a convenience for reading history, never a truth: delete it and you lose
 the log of attempts, not a single backup.
 
 **A local archive is not an off-site backup.** It answers "undo a mistake an
-hour ago" and none of "the hosting account is gone" — that is
-[#691](https://github.com/dgloeckner/clubbar/issues/691). Until then, keep doing
-the quarterly manual copy above.
+hour ago" and none of "the hosting account is gone". Set `backup.dsn` and the
+run pushes each finished archive to storage the club owns — today that is a
+SharePoint document library in the club's own Microsoft 365 tenant, provisioned
+by [`m365-backup-target.md`](./m365-backup-target.md) and
+[`scripts/setup-msgraph-backup.ps1`](../scripts/setup-msgraph-backup.ps1):
+
+```php
+'backup' => [
+    'recipient_public_keys'    => ['admin:…', 'vorstand:…'],
+    'dsn'                      => 'msgraph://<tenant-id>/<client-id>@drive/<driveId>/clubbar',
+    'client_secret'            => '…',
+    'client_secret_expires_at' => '2027-08-25',
+],
+```
+
+Leaving `backup.dsn` empty is a legitimate configuration and the run says so
+out loud rather than silently — but a `backup.dsn` that is *filled in and
+malformed* is a failure every night, never a quiet fall back to local-only. The
+belief this whole feature exists to destroy is *"we have off-site backups"* held
+by a club that does not, and a typo must not be able to re-create it.
+
+An upload is **resumable and the dump is not**, deliberately: a transfer cut
+short by the host's execution limit continues the next night from a small
+sidecar file beside the archive, while a *dump* resumed across runs would
+produce a torn snapshot that looks exactly like a backup and is not one. A club
+on a slow uplink whose archive needs three nights to leave the building is
+working correctly; the run reports progress, not failure.
+
+**Even with a remote configured, keep the periodic manual copy.** The credential
+on the webspace can delete what it wrote — Microsoft 365 has no add-only app
+role, which `m365-backup-target.md` §1 states rather than hides — so the manual
+copy remains the one copy no credential can reach.
 
 **A restore needs no follow-up steps.** Every base table is dumped in full,
 enumerated from the live schema each night, so a restored installation comes back
