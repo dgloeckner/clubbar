@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Docs;
 
+use App\Modules\Backups\Domain\BackupDsn;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -363,6 +364,65 @@ class BackupDocumentationTest extends TestCase
             self::read('docs/deployment.md'),
             'deployment.md is where an operator configures backup.dsn; it must point at the '
             . 'procedure that produces the value.'
+        );
+    }
+
+    /**
+     * The DSN the setup script prints must be one `BackupDsn` accepts.
+     *
+     * The script is the *only* place a club gets this value from, and nothing
+     * downstream re-derives it: whatever line 9 of §9 prints is pasted into
+     * `config.php` verbatim. So a segment dropped from that template is not a
+     * cosmetic error — it is an installation whose backups fail every night,
+     * discovered weeks later, with a message about a malformed DSN rather than
+     * about the script that produced it.
+     *
+     * Nothing caught that before this test. The script's own probe (§7 of the
+     * document) uploads and deletes through raw Graph calls, so it proves the
+     * *tenant* is provisioned correctly while never touching the string it is
+     * about to hand over. The two halves can disagree silently, and only the
+     * club finds out.
+     *
+     * Filling the PowerShell interpolations with plausible values and handing
+     * the result to the real parser is the cheapest way to make them agree.
+     */
+    public function test_the_setup_script_prints_a_dsn_the_parser_accepts(): void
+    {
+        $script = self::read('scripts/setup-msgraph-backup.ps1');
+
+        $this->assertSame(
+            1,
+            preg_match("/'dsn'\s*=>\s*'(msgraph:\/\/[^']+)'/", $script, $m),
+            'The setup script no longer prints a single msgraph:// DSN for config.php. '
+            . 'If the output moved, move this guard with it — the value it emits is the one '
+            . 'thing between a provisioned tenant and a working backup.'
+        );
+
+        // The script's own variable names, filled with values of the right
+        // shape. Mapped by name rather than blanked wholesale, so a *renamed*
+        // variable fails here loudly instead of being papered over.
+        $filled = strtr($m[1], [
+            '$TenantId' => '1111a1a1-1111-1111-1111-111111111111',
+            '$($app.appId)' => '2222b2b2-2222-2222-2222-222222222222',
+            '$driveId' => 'b!ZXhhbXBsZS1kcml2ZS1pZGVudGlmaWVy',
+            '$folderClean' => 'clubbar',
+        ]);
+
+        $this->assertStringNotContainsString(
+            '$',
+            $filled,
+            'The DSN template carries a PowerShell variable this guard does not know about, so '
+            . 'it cannot say whether the printed value parses. Add the new variable above: '
+            . 'printing an unparseable DSN is exactly the failure this test exists to prevent.'
+        );
+
+        $dsn = BackupDsn::parse($filled);
+
+        $this->assertTrue(
+            $dsn->addressesDriveDirectly(),
+            'The script must print the drive-id form. The site/library form matches on a '
+            . 'library display name, which is localised per tenant — and the script knows the '
+            . 'drive id, so there is no reason to hand over the fragile one.'
         );
     }
 
