@@ -495,8 +495,14 @@ four values). The backup's own record is its journal and its log lines.
 - A restore cannot corrupt backup state, because there is none in the database.
   The archives and the journal beside them are the whole record; an archive found
   anywhere is attributable and self-describing from its header alone.
-- No migration, no data-model change, no audit vocabulary: the feature touches
-  the application's schema nowhere.
+- No backup state in the database and no audit vocabulary: there is no backup
+  table, no backup row, no backup id, and nothing a restore could revert. The
+  single schema line the feature does touch is `mail_outbox.kind`, widened by one
+  value (migration `055`) so the existing expiry notifier can carry one more kind
+  of warning — that notice's subject is the installation and its content is a
+  `config.php` value, not backup state. The distinction is the one that matters
+  here: the backup keeps no state the application could disagree with, which is
+  what makes an archive self-describing and a restore incapable of corrupting it.
 - Two orphaned annual duties acquire an owner by joining the drill.
 - The false claims in `README.md` and the unrunnable procedure in the deployment
   guide are corrected, which is the smallest and most immediate improvement here.

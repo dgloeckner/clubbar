@@ -18,6 +18,11 @@
  * length and SHA-256. There is no backup state in the application's database,
  * so this header is the record (ADR-0049 decision 8) - and all of it is
  * readable here, with no key.
+ *
+ * Version 3 gzips the body before sealing it (#691), and the header says so in
+ * `compression`. open() is async from that version on, because inflating uses
+ * DecompressionStream - which is native in every browser this tool targets and
+ * needs no second vendored library.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -29,7 +34,7 @@
   'use strict';
 
   var MAGIC = 'CLUBBAR-BACKUP';
-  var VERSION = 2;
+  var VERSION = 3;
 
   function bytesToAscii(bytes) {
     var s = '';
@@ -92,9 +97,24 @@
    * @param sodium    an initialised libsodium-wrappers
    * @param archive   Uint8Array
    * @param secretKey Uint8Array, 32 bytes
-   * @returns Uint8Array plaintext
+   * @returns Promise<Uint8Array> the plaintext, inflated if the header says so
    */
   function open(sodium, archive, secretKey) {
+    // Always a promise, never a synchronous throw. Every refusal below - a
+    // wrong key, a truncated file, a tampered chunk - happens before the
+    // inflate, so without this wrapper they would escape past a caller's
+    // .then(ok, fail) and be swallowed as an unhandled rejection. The holder
+    // would see nothing at all, which is the same failure as an archive that
+    // decrypts and shows nothing: a tool that has an answer and does not
+    // give it.
+    try {
+      return openOrThrow(sodium, archive, secretKey);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  function openOrThrow(sodium, archive, secretKey) {
     var parsed = readHeader(archive);
     var header = parsed.header;
     var cursor = { at: parsed.bodyStart };
@@ -155,7 +175,45 @@
       at += parts[j].length;
     }
 
-    return out;
+    return decompress(out, header.compression);
+  }
+
+  /**
+   * Turn the decrypted body back into SQL, driven by what the header says
+   * rather than by sniffing the bytes.
+   *
+   * An unknown codec is refused rather than guessed at: handing a holder a
+   * still-compressed file named `.sql` would give them something that imports
+   * as garbage, which is the failure this container exists to prevent - and
+   * they would meet it at the worst moment of the club's year.
+   *
+   * @returns Promise<Uint8Array>
+   */
+  function decompress(body, compression) {
+    if (compression === 'none' || compression === undefined) {
+      return Promise.resolve(body);
+    }
+
+    if (compression !== 'gzip') {
+      return Promise.reject(new Error(
+        'This archive says its body is compressed with "' + compression + '", which this tool '
+        + 'cannot decompress. It was written by a newer version of Club Bar - use the '
+        + 'decryptor that shipped with it.'
+      ));
+    }
+
+    if (typeof DecompressionStream !== 'function') {
+      return Promise.reject(new Error(
+        'This archive is gzip-compressed and this browser has no DecompressionStream. '
+        + 'Open it in a current Firefox, Chrome, Edge or Safari.'
+      ));
+    }
+
+    var stream = new Blob([body]).stream().pipeThrough(new DecompressionStream('gzip'));
+
+    return new Response(stream).arrayBuffer().then(function (buffer) {
+      return new Uint8Array(buffer);
+    });
   }
 
   /**

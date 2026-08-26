@@ -62,6 +62,7 @@ use App\Modules\Auth\Services\TokenService;
 use App\Modules\Auth\Services\TotpService;
 use App\Modules\Products\Services\CategoriesService;
 use App\Shared\Services\HealthCheckService;
+use App\Modules\Backups\Transport\BackupTransportFactory;
 use App\Shared\Http\CurlHttpClient;
 use App\Shared\Services\SecurityCheckService;
 use App\Modules\Members\Services\MembersService;
@@ -656,6 +657,8 @@ class ServiceFactory implements ContainerInterface
             $this->getEncryptionKeysRepository(),
             $this->getTerminalsRepository(),
             $this->getAdminUsersRepository(),
+            $this->config->backupDsn,
+            $this->config->backupClientSecretExpiresAt,
         ));
     }
 
@@ -709,6 +712,8 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminNotifier(),
             $this->getMailConfigService(),
             $this->getLogger(),
+            $this->config->backupDsn,
+            $this->config->backupClientSecretExpiresAt,
         ));
     }
 
@@ -727,6 +732,8 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminNotifier(),
             $this->getMailConfigService(),
             $this->getLogger(),
+            $this->config->backupDsn,
+            $this->config->backupClientSecretExpiresAt,
         ));
     }
 
@@ -1351,6 +1358,12 @@ class ServiceFactory implements ContainerInterface
                 $this->config->backupRemoteRetentionDays,
             ),
             $this->config->env,
+            BackupTransportFactory::fromConfig(
+                $this->config->backupDsn,
+                $this->config->backupClientSecret,
+                new CurlHttpClient(),
+                $this->getLogger(),
+            ),
             // The installation's own `config.php`, carried inside the archive.
             // Restoring the rows without it produces a database every admin is
             // locked out of: `security.totp_encryption_key` decrypts their TOTP

@@ -346,7 +346,12 @@ class RestoreRoundTripTest extends DatabaseTestCase
             $this->publicKeys,
             BackupRetention::defaults(),
             'development',
-            new ConfigSnapshot($this->configPath),
+            // Named, not positional. #691 landed a `$transport` parameter ahead
+            // of this one, and a positional argument silently became a
+            // transport — a `TypeError` here, but the same edit in production
+            // code would have been a wiring bug. The name is stable in a way
+            // the position is not.
+            config: new ConfigSnapshot($this->configPath),
         ))->run('cli');
 
         $this->assertTrue($outcome->producedAnArchive(), 'The backup run produced nothing: ' . $outcome->summary);

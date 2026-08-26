@@ -20,6 +20,14 @@ import path from 'node:path'
  * and then refuses to hand over the file is indistinguishable, to the holder,
  * from one that cannot open the archive at all.
  *
+ * It has since caught a second bug of the same family, in the other direction.
+ * #691 made `open()` return a promise (inflating gzip is async), but every
+ * refusal — a wrong key, a truncated file, a tampered chunk — was still thrown
+ * *synchronously*, so it escaped past the page's `.then(ok, fail)` and became
+ * an unhandled rejection. A holder with the wrong key would have been shown
+ * nothing at all. `open()` now always returns a promise; the third test below
+ * is what says so from the page's side.
+ *
  * No stack, no fixtures, no database: the page and the committed golden archive
  * are the whole system under test.
  */
@@ -71,6 +79,7 @@ test.describe('Offline backup decryptor', () => {
     await expect(page.locator('#schema')).toHaveText('054_credit_limit_digest.sql')
     await expect(page.locator('#format')).toHaveText('1')
     await expect(page.locator('#contents')).toContainText('1 tables')
+    await expect(page.locator('#contents')).toContainText('2,978 rows')
     await expect(page.locator('#expected')).toContainText('SHA-256')
 
     // The per-table split the manifest exists for.
@@ -136,9 +145,15 @@ test.describe('Offline backup decryptor', () => {
     expect(served).toBe(EXPECTED_CONFIG)
   })
 
-  test('a key the archive was not sealed to is refused by name', async ({ page }) => {
+  test('a key the archive was not sealed to is refused by name, visibly', async ({ page }) => {
     // A wrong key must say which envelope to fetch instead, not fail with a
-    // decryption error the holder cannot act on.
+    // decryption error the holder cannot act on — and it must reach the page
+    // at all, which is the part #691 nearly broke: the refusal is thrown
+    // before the inflate, so a synchronous throw would sail past the promise
+    // handler and show the holder nothing.
+    const pageErrors: string[] = []
+    page.on('pageerror', (error) => pageErrors.push(error.message))
+
     await page.goto(TOOL)
     await page.setInputFiles('#archive', ARCHIVE)
     await page.fill('#key', '11'.repeat(32))
@@ -147,5 +162,7 @@ test.describe('Offline backup decryptor', () => {
     await expect(page.locator('#error')).toBeVisible()
     await expect(page.locator('#error')).toContainText('not sealed to this key')
     await expect(page.locator('#result')).toBeHidden()
+
+    expect(pageErrors, 'A refusal must be shown, not escape as an uncaught error.').toEqual([])
   })
 })

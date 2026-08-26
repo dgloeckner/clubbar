@@ -297,15 +297,23 @@
         return fail('That does not look like a private key: ' + e.message);
       }
 
-      var plaintext;
-      try {
-        plaintext = BackupDecryptor.open(sodium, archiveBytes, key);
-      } catch (e) {
-        return fail(e.message);
-      } finally {
+      // open() is a promise from container version 3 on: inflating the body
+      // uses DecompressionStream, which is async. The key is wiped as soon as
+      // it settles either way - it is used synchronously inside open(), long
+      // before the inflate, but tying the wipe to the outcome keeps it to one
+      // place that cannot be skipped by an early return.
+      BackupDecryptor.open(sodium, archiveBytes, key).then(function (plaintext) {
         sodium.memzero(key);
-      }
+        present(plaintext);
+      }, function (e) {
+        sodium.memzero(key);
+        fail(e.message);
+      });
+    });
+  });
 
+  /** The decrypted SQL, offered as a download and checked against the header. */
+  function present(plaintext) {
       var blob = new Blob([plaintext], { type: 'application/sql' });
       var promised = BackupDecryptor.readHeader(archiveBytes).header.plaintext_sha256;
 
@@ -354,8 +362,7 @@
             + 'has been altered - keep this file and ask for help before restoring it.';
         }
       });
-    });
-  });
+  }
 }());
 </script>
 

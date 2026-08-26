@@ -64,6 +64,7 @@ use InvalidArgumentException;
  * | `schema_version` | Which application version can load this, and whether an upgrade must follow |
  * | `dump_format` | The SQL dialect contract between emitter and restore tooling |
  * | `manifest` | What is inside, without decrypting — and the decryptor's per-table split can name its parts |
+ * | `compression` | How to turn the decrypted body back into SQL — stated, never sniffed |
  * | `plaintext_bytes`, `plaintext_sha256` | A restore can prove it decrypted what was sealed |
  *
  * None of it is secret: table names and row counts are not member data, and
@@ -85,12 +86,40 @@ final class BackupSealedBox
      */
     public const MAGIC = 'CLUBBAR-BACKUP';
 
-    /** Bumped by #703: the header describes the archive (decision 8). */
-    public const VERSION = 2;
+    /**
+     * Bumped by #703 (the header describes the archive, decision 8) and again
+     * by #691 (the body is compressed before it is sealed).
+     */
+    public const VERSION = 3;
     public const ALGORITHM = 'crypto_box_seal+secretstream_xchacha20poly1305';
 
-    /** Plaintext bytes per stream chunk. */
+    /**
+     * Bytes per stream chunk, measured on the **compressed** body — the stream
+     * cipher sees what compression produced, not what the dump wrote.
+     */
     public const CHUNK_BYTES = 65536;
+
+    /**
+     * How the body is compressed before sealing (#691).
+     *
+     * `gzip` because the payload is SQL — highly repetitive — and this is the
+     * slice where size costs something: a club's upload bandwidth and its
+     * storage quota. Level 6 rather than 9: on a few megabytes of SQL the
+     * marginal gain is a couple of per cent for several times the CPU, and this
+     * runs at 03:00 on a tariff that counts it.
+     *
+     * **Compress-then-encrypt is safe here**, which is worth stating because
+     * the reflex says otherwise. CRIME and BREACH need an attacker who can
+     * inject chosen plaintext into the compressed stream and observe the length
+     * repeatedly; an archive is written once, from the club's own database,
+     * with no attacker input and no oracle to query. What compression leaks is
+     * a rough size, which the file already has.
+     */
+    public const COMPRESSION = 'gzip';
+    private const COMPRESSION_LEVEL = 6;
+
+    /** What the flag says when this host could not compress at all. */
+    public const COMPRESSION_NONE = 'none';
 
     private const HEADER_LENGTH_BYTES = 4;
 
@@ -136,6 +165,8 @@ final class BackupSealedBox
 
         [$state, $streamHeader] = self::initStream($streamKey);
 
+        [$body, $compression] = self::compress($payload);
+
         $header = [
             'version' => self::VERSION,
             'algorithm' => self::ALGORITHM,
@@ -158,6 +189,12 @@ final class BackupSealedBox
             // restores a database nobody can log in to, since the TOTP
             // encryption key is not in the database.
             'config_included' => (bool) ($describes['config_included'] ?? false),
+            'compression' => $compression,
+            // Of the **plaintext**, never of the compressed intermediate. What
+            // a restore holds is the `.sql` the decryptor hands back, so that
+            // is what this promise has to be about — and a checksum over the
+            // intermediate would start disagreeing with the decryptor the day
+            // the compression level changed, while still looking correct.
             'plaintext_bytes' => strlen($payload),
             'plaintext_sha256' => hash('sha256', $payload),
         ];
@@ -171,7 +208,7 @@ final class BackupSealedBox
             $out .= self::lengthPrefixed($sealed);
         }
 
-        $out .= self::encryptBody($state, $payload);
+        $out .= self::encryptBody($state, $body);
 
         sodium_memzero($streamKey);
 
@@ -214,7 +251,10 @@ final class BackupSealedBox
         }
 
         try {
-            return self::decryptBody($streamKey, $streamHeader, substr($archive, $offset));
+            return self::decompress(
+                self::decryptBody($streamKey, $streamHeader, substr($archive, $offset)),
+                (string) ($header['compression'] ?? self::COMPRESSION_NONE),
+            );
         } finally {
             sodium_memzero($streamKey);
         }
@@ -235,8 +275,8 @@ final class BackupSealedBox
      *               recipients: list<array{fingerprint: string, label: string}>,
      *               instance: array{id: ?string, name: ?string, database: ?string},
      *               schema_version: ?string, dump_format: ?int,
-     *               manifest: array<string, int>, plaintext_bytes: int,
-     *               plaintext_sha256: string}
+     *               manifest: array<string, int>, compression: string,
+     *               plaintext_bytes: int, plaintext_sha256: string}
      */
     public static function readHeader(string $archive): array
     {
@@ -292,6 +332,75 @@ final class BackupSealedBox
         }
 
         return [$header, $offset];
+    }
+
+    /**
+     * The body as it goes into the stream cipher, and the codec that made it.
+     *
+     * Degrades rather than refuses when this host has no zlib. That is a
+     * departure from ADR-0031 rule 3's "refuse and report" and it is
+     * deliberate: rule 3 governs **confidentiality**, and an uncompressed
+     * archive is sealed exactly as tightly as a compressed one. Refusing here
+     * would trade a larger file for no file, which is the worse outcome — and
+     * the header says which happened, so nothing is silent.
+     *
+     * @return array{0: string, 1: string} body, and the value for the header's
+     *         `compression` field
+     */
+    private static function compress(string $payload): array
+    {
+        if (!function_exists('gzencode')) {
+            return [$payload, self::COMPRESSION_NONE];
+        }
+
+        $compressed = @gzencode($payload, self::COMPRESSION_LEVEL);
+
+        return $compressed === false
+            ? [$payload, self::COMPRESSION_NONE]
+            : [$compressed, self::COMPRESSION];
+    }
+
+    /**
+     * The reverse, driven by what the header says rather than by sniffing.
+     *
+     * An unknown codec is refused instead of guessed at: handing back a
+     * still-compressed body as if it were SQL would give the operator a file
+     * that imports as garbage, which is the failure this whole container exists
+     * to prevent.
+     */
+    private static function decompress(string $body, string $compression): string
+    {
+        if ($compression === self::COMPRESSION_NONE) {
+            return $body;
+        }
+
+        if ($compression !== self::COMPRESSION) {
+            throw new InvalidArgumentException(sprintf(
+                'This archive says its body is compressed with "%s", which this build cannot '
+                . 'decompress. It was written by a newer version of Club Bar.',
+                $compression
+            ));
+        }
+
+        if (!function_exists('gzdecode')) {
+            throw new InvalidArgumentException(
+                'This archive is gzip-compressed and this PHP has no zlib, so it cannot be '
+                . 'opened here. tools/backup-decryptor.html opens it in a browser instead.'
+            );
+        }
+
+        $plain = @gzdecode($body);
+
+        if ($plain === false) {
+            // The stream's own tags already refuse a corrupt or truncated
+            // archive, so reaching this means the *codec* disagreed — worth its
+            // own message rather than a generic decryption failure.
+            throw new InvalidArgumentException(
+                'The archive decrypted and authenticated, but its body is not valid gzip.'
+            );
+        }
+
+        return $plain;
     }
 
     /** @return array{0: string, 1: string} state and stream header */

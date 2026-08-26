@@ -51,6 +51,24 @@ enum MailKind: string
     case TERMINAL_TOKEN_EXPIRY_WARNING = 'terminal_token_expiry_warning';
 
     /**
+     * The backup app's client secret is running out (#691, ADR-0049).
+     *
+     * The third credential to ride the 90/30/7 tiers, and the one with the
+     * least visible failure. An encryption key that lapses blocks the SEPA
+     * export the same week; a terminal token that lapses locks a till out of
+     * the bar while somebody is standing at it. **An expired backup secret
+     * looks exactly like a working one** — Entra sends no notification, the
+     * nightly job still writes and seals its archive, and the only thing that
+     * stops is the half that makes the archive off-site. A club can be months
+     * into that before anything says so.
+     *
+     * So this warning is not a convenience. It is the only mechanism that
+     * turns a silent months-long failure into a dated one, and it is why the
+     * expiry date is asked for in `config.php` at all.
+     */
+    case BACKUP_SECRET_EXPIRY_WARNING = 'backup_secret_expiry_warning';
+
+    /**
      * A key moved through its lifecycle: registered, put in force, or revoked.
      *
      * Not a warning about time passing but a report that somebody acted, and
@@ -266,6 +284,7 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
+            self::BACKUP_SECRET_EXPIRY_WARNING,
             self::ADMIN_EMAIL_CHANGED,
             // Not a lifecycle event, and not for a Vorstand list. Who is near
             // their Deckel ceiling is operational detail with member names in
@@ -320,6 +339,14 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
+            // Backups belong to the Admin — *whoever holds the server* — and
+            // deliberately not to the Kassenwart, who holds the IBAN key
+            // because SEPA collection needs it. An archive carries the audit
+            // log, every admin's TOTP ciphertext and the database password;
+            // ADR-0049 draws that office boundary for custody of the key, and
+            // the same boundary decides who hears that the credential
+            // protecting it is running out.
+            self::BACKUP_SECRET_EXPIRY_WARNING,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED,
             // Never actually fanned out — it goes to one address, the one the
@@ -361,6 +388,18 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED => MailSubject::TERMINAL,
+
+            // The installation itself, `subject_id` the literal `1`, the way
+            // CREDIT_LIMIT_DIGEST files under its singleton config row.
+            //
+            // There is no backup entity to point at, and inventing one is
+            // exactly what ADR-0049 decision 8 forbids: the backup writes
+            // nothing into the database it dumps, has no table, no migration
+            // and no audit vocabulary of its own — the last attempt at that
+            // had to respell the entire audit_log action enum to add four
+            // values. What this notice is *about* is a setting in config.php,
+            // and `instance_config` is where this schema already files those.
+            self::BACKUP_SECRET_EXPIRY_WARNING => MailSubject::INSTANCE_CONFIG,
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED => MailSubject::ADMIN_USER,
@@ -399,6 +438,7 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
+            self::BACKUP_SECRET_EXPIRY_WARNING,
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED,

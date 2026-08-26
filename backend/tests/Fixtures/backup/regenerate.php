@@ -58,11 +58,20 @@ function recipients(): array
 }
 
 /**
- * A payload that spans three stream chunks on purpose: a single-chunk archive
- * would pass even if the framing *between* chunks were wrong.
+ * A payload whose **compressed** body spans three stream chunks.
  *
- * Shaped like a real dump rather than filled with one repeated byte, so the
- * fixture also exercises the sizes and the escaping a dump actually produces.
+ * The size that matters is the compressed one, because that is what the stream
+ * cipher frames — and #691's compression is exactly what made the old
+ * plaintext-sized fixture stop testing framing at all: 135 KB of repetitive
+ * SQL gzips to 5 KB, which is one chunk, and a single-chunk archive passes
+ * even if the framing between chunks is wrong.
+ *
+ * So the payload is shaped like a real dump rather than filled with one
+ * repeated byte: repetitive `INSERT` lines that compress the way SQL does, and
+ * hex literals standing in for `mandates.iban_ciphertext`, which are sealed
+ * boxes and therefore compress hardly at all. The mix is what gives a
+ * believable ratio; the loop is what guarantees the framing is exercised
+ * whatever that ratio turns out to be.
  *
  * @return array{0: string, 1: int} the SQL, and the rows it holds — so the
  *         header's manifest describes the payload rather than merely
@@ -80,15 +89,24 @@ function plaintext(): array
         . "\n-- >>> TABLE members\n"
         . "DROP TABLE IF EXISTS `members`;\n"
         . "CREATE TABLE `members` (`id` char(36) NOT NULL, `last_name` varchar(100) NOT NULL,"
-        . " PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;\n";
+        . " `sealed` varbinary(512) DEFAULT NULL, PRIMARY KEY (`id`)) ENGINE=InnoDB"
+        . " DEFAULT CHARSET=utf8mb4;\n";
 
+    // Deterministic rather than random: re-running this script without a format
+    // change must produce a byte-identical fixture, or every regeneration is a
+    // diff nobody can review.
     $row = 0;
-    while (strlen($sql) < BackupSealedBox::CHUNK_BYTES * 2 + 4096) {
+    $target = BackupSealedBox::CHUNK_BYTES * 2;
+
+    while (strlen((string) gzencode($sql, 6)) <= $target) {
         $sql .= sprintf(
-            "INSERT INTO `members` (`id`,`last_name`) VALUES\n('%s','%s');\n",
+            "INSERT INTO `members` (`id`,`last_name`,`sealed`) VALUES\n('%s','%s',X'%s');\n",
             sprintf('00000000-0000-4000-8000-%012d', $row),
             // A name that needs escaping, and one that needs multibyte handling.
-            $row % 2 === 0 ? "O\\'Brien" : 'Müller-Lüdenscheidt'
+            $row % 2 === 0 ? "O\\'Brien" : 'Müller-Lüdenscheidt',
+            // Stands in for a sealed box: high-entropy, so it resists
+            // compression the way real ciphertext does.
+            strtoupper(hash('sha256', 'clubbar-fixture-' . $row))
         );
         $row++;
     }
@@ -162,8 +180,10 @@ file_put_contents(__DIR__ . '/golden.plaintext.bytes', strlen($payload) . "\n");
 file_put_contents(__DIR__ . '/golden.config.php.txt', $config);
 
 printf(
-    "Wrote golden.cbb (%d bytes, container version %d) over a %d-byte plaintext.\n",
+    "Wrote golden.cbb (%d bytes, container version %d, %s) over a %d-byte plaintext in %d rows.\n",
     strlen($archive),
     BackupSealedBox::VERSION,
-    strlen($payload)
+    BackupSealedBox::COMPRESSION,
+    strlen($payload),
+    $rows
 );

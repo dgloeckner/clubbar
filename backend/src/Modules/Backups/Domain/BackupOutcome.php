@@ -28,6 +28,8 @@ final class BackupOutcome
         public readonly int $bytes = 0,
         public readonly array $findings = [],
         public readonly int $prunedArchives = 0,
+        /** What the push to the remote store did, or null when there is no remote. */
+        public readonly ?string $remoteSummary = null,
     ) {
     }
 
@@ -39,6 +41,7 @@ final class BackupOutcome
         int $bytes,
         array $findings,
         int $prunedArchives,
+        ?string $remoteSummary = null,
     ): self {
         return new self(
             'written',
@@ -47,6 +50,7 @@ final class BackupOutcome
             $bytes,
             $findings,
             $prunedArchives,
+            $remoteSummary,
         );
     }
 
