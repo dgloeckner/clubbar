@@ -46,7 +46,10 @@ class CredentialExpiryMailBuilderTest extends TestCase
             $this->terminals,
             $this->adminUsers,
             'msgraph://tenant/client@drive/b!driveid/clubbar',
-            '2027-03-01',
+            // Relative, never a literal: a fixed date stops describing "a
+            // credential with time left" the moment it passes, and then quietly
+            // exercises the floored-at-zero path instead of the one intended.
+            self::inDays(200),
         );
     }
 
@@ -258,7 +261,10 @@ class CredentialExpiryMailBuilderTest extends TestCase
             $this->terminals,
             $this->adminUsers,
             'not-a-dsn',
-            '2027-03-01',
+            // Relative, never a literal: a fixed date stops describing "a
+            // credential with time left" the moment it passes, and then quietly
+            // exercises the floored-at-zero path instead of the one intended.
+            self::inDays(200),
         );
 
         $mail = $builder->build(

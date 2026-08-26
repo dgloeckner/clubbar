@@ -29,6 +29,22 @@ class UploadStateTest extends TestCase
 
     private string $dir;
 
+    /**
+     * A session that has not expired yet — **relative to now**, never a literal.
+     *
+     * A fixed timestamp here is a time bomb, and this file shipped with three
+     * of them. `read()` treats an expired session as absent by design, so a
+     * date written eight hours in the future passed on the day it was written
+     * and failed every run after it, with an assertion message —
+     * *"Failed asserting that null is not null"* — that says nothing about
+     * clocks. The one thing this class is *about* is a timestamp, which is
+     * exactly where a literal one cannot be allowed to live.
+     */
+    private static function inAnHour(): string
+    {
+        return gmdate('c', time() + 3600);
+    }
+
     protected function setUp(): void
     {
         $this->dir = $this->makeTempTree('upload-state');
@@ -51,7 +67,7 @@ class UploadStateTest extends TestCase
         $archive = $this->dir . '/clubbar-20260825-030000-1a2b3c4d.cbb';
         $state = new UploadState($archive);
 
-        $state->write('https://upload.example/session/abc', '2026-08-26T03:00:00Z', 3276800, 9000000);
+        $state->write('https://upload.example/session/abc', self::inAnHour(), 3276800, 9000000);
 
         $read = (new UploadState($archive))->read();
 
@@ -65,7 +81,7 @@ class UploadStateTest extends TestCase
     public function test_the_sidecar_is_named_after_the_archive_it_belongs_to(): void
     {
         $state = new UploadState($this->dir . '/clubbar-20260825-030000-1a2b3c4d.cbb');
-        $state->write('https://upload.example/s', '2026-08-26T03:00:00Z', 0, 10);
+        $state->write('https://upload.example/s', self::inAnHour(), 0, 10);
 
         $this->assertFileExists($this->dir . '/clubbar-20260825-030000-1a2b3c4d.cbb.upload.json');
     }
@@ -79,7 +95,7 @@ class UploadStateTest extends TestCase
     {
         $archive = $this->dir . '/clubbar-20260825-030000-1a2b3c4d.cbb';
         $state = new UploadState($archive);
-        $state->write('https://upload.example/s', '2026-08-26T03:00:00Z', 5, 10);
+        $state->write('https://upload.example/s', self::inAnHour(), 5, 10);
 
         $state->clear();
 
