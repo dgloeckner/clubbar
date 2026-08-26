@@ -301,11 +301,164 @@
     return out;
   }
 
+
+  /*
+   * ---------------------------------------------------------------------
+   * Splitting a dump into per-table pieces
+   *
+   * The reference host restores through phpMyAdmin (ADR-0031), which has an
+   * upload limit a club-sized database eventually exceeds. `DatabaseDump`
+   * brackets every table with terminated markers precisely so the archive
+   * stays addressable when that happens - and until now the runbook asked the
+   * *operator* to cut the file at those markers and paste the header lines in
+   * front of each piece, by hand, at the worst moment of the club's year.
+   *
+   * That instruction had a silent failure mode, which is why this exists: a
+   * piece imported without the preamble runs in whatever zone the panel
+   * happens to be in, and every `TIMESTAMP` in it shifts by that offset,
+   * consistently, with nothing about the result looking wrong.
+   *
+   * `Tests\Support\SqlScript` is the same split on the PHP side, and
+   * `RestoreRoundTripTest` proves the pieces it cuts restore into a real
+   * database. These two must agree byte for byte: `golden.split.sql` and the
+   * expected pieces beside it are produced by PHP, and the interop test asserts
+   * this implementation reproduces them.
+   *
+   * Everything here works on bytes, never on a decoded string. A dump holds
+   * member names in utf8mb4 and hex literals standing in for sealed boxes;
+   * decoding it to slice it and re-encoding to save it is a round trip with no
+   * upside and a real chance of mangling exactly the data a restore exists to
+   * recover.
+   * ---------------------------------------------------------------------
+   */
+
+  var TABLE_OPEN = '-- >>> TABLE ';
+  var TABLE_CLOSE = '-- <<< TABLE ';
+  var NEWLINE = 10;
+
+  function asciiBytes(text) {
+    var out = new Uint8Array(text.length);
+    for (var i = 0; i < text.length; i++) out[i] = text.charCodeAt(i) & 0xff;
+    return out;
+  }
+
+  function decodeUtf8(bytes) {
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  /** Uint8Array has no indexOf for a subsequence, and a dump is too big to stringify. */
+  function findBytes(haystack, needle, from) {
+    if (needle.length === 0) return from;
+
+    var last = haystack.length - needle.length;
+    for (var i = from; i <= last; i++) {
+      if (haystack[i] !== needle[0]) continue;
+
+      var j = 1;
+      while (j < needle.length && haystack[i + j] === needle[j]) j++;
+      if (j === needle.length) return i;
+    }
+
+    return -1;
+  }
+
+  function concatBytes(a, b) {
+    var out = new Uint8Array(a.length + b.length);
+    out.set(a, 0);
+    out.set(b, a.length);
+    return out;
+  }
+
+  /**
+   * The dump's session settings, without its data.
+   *
+   * A section imported on its own still needs them. `SQL_MODE` is what keeps
+   * backslash escapes meaning what the emitter meant, and `time_zone` is the
+   * one whose absence has no symptom.
+   *
+   * The `ALTER DATABASE` line is dropped, for the reason PHP's
+   * `sessionPreamble()` gives: it names no database, so it would retarget
+   * whichever schema the operator happens to have open.
+   *
+   * @returns string
+   */
+  function sessionPreamble(plaintext) {
+    var first = findBytes(plaintext, asciiBytes('\n' + TABLE_OPEN), 0);
+
+    if (first === -1) {
+      throw new Error('This does not look like a Club Bar dump: it has no table markers.');
+    }
+
+    return decodeUtf8(plaintext.subarray(0, first)).replace(/^ALTER DATABASE .*\n?/gm, '');
+  }
+
+  /**
+   * Every table's section, each already carrying the preamble it needs.
+   *
+   * Sections are returned in the order the dumper wrote them, which is name
+   * order rather than dependency order - importable in any order because the
+   * preamble switches foreign-key checks off.
+   *
+   * @returns {{preamble: string, tables: Array<{name: string, rows: ?number,
+   *            bytes: number, sql: Uint8Array}>}}
+   */
+  function splitByTable(plaintext, manifest) {
+    var preamble = sessionPreamble(plaintext);
+    var preambleBytes = new TextEncoder().encode(preamble);
+    var openMarker = asciiBytes('\n' + TABLE_OPEN);
+
+    var tables = [];
+    var at = 0;
+
+    for (;;) {
+      var found = findBytes(plaintext, openMarker, at);
+      if (found === -1) break;
+
+      var start = found + 1; // past the newline, at the marker itself
+      var nameEnd = plaintext.indexOf(NEWLINE, start);
+      if (nameEnd === -1) {
+        throw new Error('This dump is truncated: a table marker has no end of line.');
+      }
+
+      var name = decodeUtf8(plaintext.subarray(start + TABLE_OPEN.length, nameEnd));
+      var close = asciiBytes(TABLE_CLOSE + name + '\n');
+      var end = findBytes(plaintext, close, nameEnd);
+
+      // The archive is authenticated, so a missing close marker cannot be
+      // corruption in transit - it means this reader and the dumper disagree
+      // about the format. Refuse the table rather than hand over a piece that
+      // silently stops somewhere in the middle of its rows.
+      if (end === -1) {
+        throw new Error(
+          'The section for `' + name + '` has no closing marker; this dump was written in a '
+          + 'format this tool does not know. Import the whole .sql instead.'
+        );
+      }
+
+      var section = plaintext.subarray(start, end + close.length);
+
+      tables.push({
+        name: name,
+        rows: manifest && Object.prototype.hasOwnProperty.call(manifest, name)
+          ? manifest[name]
+          : null,
+        bytes: preambleBytes.length + section.length,
+        sql: concatBytes(preambleBytes, section)
+      });
+
+      at = end + close.length;
+    }
+
+    return { preamble: preamble, tables: tables };
+  }
+
   return {
     MAGIC: MAGIC,
     VERSION: VERSION,
     readHeader: readHeader,
     open: open,
-    extractConfig: extractConfig
+    extractConfig: extractConfig,
+    sessionPreamble: sessionPreamble,
+    splitByTable: splitByTable
   };
 }));

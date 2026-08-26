@@ -143,6 +143,24 @@
     password. The `.sql` above already contains it as inert comments, so there is
     nothing extra to import.
   </p>
+  <details id="split-row" class="hidden">
+    <summary>Import table by table &mdash; when the <code>.sql</code> is over the upload limit</summary>
+    <p class="lede">
+      A club-sized database eventually outgrows what phpMyAdmin will accept in
+      one upload. Each piece below is that table's section with the dump's own
+      session settings already in front of it, so it imports on its own, in any
+      order &mdash; foreign-key checks are off and the time zone is pinned to
+      UTC. That pinning is the reason to take these rather than cut the file by
+      hand: a piece imported without it lands every <code>TIMESTAMP</code> in
+      the host's own zone, consistently, with nothing about the result looking
+      wrong.
+    </p>
+    <table>
+      <thead><tr><th>Table</th><th>Rows</th><th>Size</th><th></th></tr></thead>
+      <tbody id="pieces"></tbody>
+    </table>
+    <p class="lede" id="split-note"></p>
+  </details>
 </div>
 
 <script src="vendor/libsodium.js"></script>
@@ -312,6 +330,69 @@
     });
   });
 
+  /**
+   * The same dump, cut into pieces small enough to upload.
+   *
+   * The runbook used to ask the operator to do this by hand at the worst moment
+   * of the club's year: find the markers, cut there, and remember to paste the
+   * header lines in front of every piece. The last of those is the one with no
+   * symptom when it is forgotten, so the tool does all three.
+   *
+   * Never a reason to fail the decryption. A dump this cannot split is still a
+   * dump the holder can import whole, and the link above already offers it -
+   * so a refusal here hides the section rather than replacing the result panel
+   * with an error about a convenience.
+   */
+  function offerPerTablePieces(plaintext) {
+    var manifest = BackupDecryptor.readHeader(archiveBytes).header.manifest || {};
+    var split;
+
+    try {
+      split = BackupDecryptor.splitByTable(plaintext, manifest);
+    } catch (e) {
+      show($('split-row'), false);
+      return;
+    }
+
+    var biggest = 0;
+    $('pieces').textContent = '';
+
+    split.tables.forEach(function (table) {
+      if (table.bytes > biggest) biggest = table.bytes;
+
+      var row = document.createElement('tr');
+      var name = document.createElement('td');
+      var rows = document.createElement('td');
+      var size = document.createElement('td');
+      var get = document.createElement('td');
+      var link = document.createElement('a');
+
+      name.textContent = table.name;
+      rows.textContent = table.rows === null ? 'not stated' : table.rows.toLocaleString();
+      size.textContent = table.bytes.toLocaleString() + ' bytes';
+
+      link.textContent = 'Download';
+      link.download = 'clubbar-' + table.name + '.sql';
+      link.href = URL.createObjectURL(new Blob([table.sql], { type: 'application/sql' }));
+      link.setAttribute('data-table', table.name);
+
+      get.appendChild(link);
+      [name, rows, size, get].forEach(function (cell) { row.appendChild(cell); });
+      $('pieces').appendChild(row);
+    });
+
+    // Splitting per table is not always enough, and the operator should learn
+    // that here rather than from a rejected upload. Every INSERT names its
+    // columns and carries at most a hundred rows, so a section can be cut
+    // again at any `INSERT INTO` line - keeping the lines above the first one.
+    $('split-note').textContent =
+      'The largest piece is ' + biggest.toLocaleString() + ' bytes. If that is still over your '
+      + 'panel\'s limit, cut that one file again at any line beginning INSERT INTO, keeping '
+      + 'everything above the first INSERT at the top of each part.';
+
+    show($('split-row'), true);
+  }
+
   /** The decrypted SQL, offered as a download and checked against the header. */
   function present(plaintext) {
       var blob = new Blob([plaintext], { type: 'application/sql' });
@@ -331,6 +412,8 @@
       } else {
         show($('config-row'), false);
       }
+      offerPerTablePieces(plaintext);
+
       $('size').textContent = plaintext.length.toLocaleString() + ' bytes';
       show($('result'), true);
 

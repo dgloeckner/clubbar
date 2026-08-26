@@ -80,11 +80,44 @@ happens by accident.
    the host's offset — settlement dates, announcement distances, audit
    timestamps and the seven-day SEPA window all moving together, consistently,
    with nothing about the result looking wrong.
+
+   **How to check it, in phpMyAdmin.** Open the **SQL** tab and run:
+
+   ```sql
+   SELECT TIMEDIFF(NOW(), UTC_TIMESTAMP()) AS utc_offset,
+          @@session.time_zone, @@global.time_zone, @@system_time_zone;
+   ```
+
+   `utc_offset` must be `00:00:00`. **Judge the offset, not the name** — a session
+   reads UTC as `UTC`, as `+00:00` or as `SYSTEM` on a UTC-configured server,
+   and all three are correct, while `SYSTEM` on a Berlin server is not. This is
+   the same check `DatabaseDump` makes before it will dump at all. If it is not
+   zero: `SET time_zone = '+00:00';`
+
+   **But that fixes the tab, not the import.** phpMyAdmin opens a new database
+   connection per request, so a `SET time_zone` typed into the SQL tab does not
+   carry into the Import tab. What protects the import is the archive's *own*
+   `SET time_zone` line, executed as the first statement in the file — which is
+   why a per-table piece must keep the header lines in front of it, and why
+   the decryptor's pieces already have them.
 3. Import the `.sql`.
 
 **If the file exceeds phpMyAdmin's upload limit** — which on a club-sized
-database it eventually will — import **per table**. The archive is built for
-this: each table is bracketed by
+database it eventually will — import **per table**, and let the decryptor cut
+the pieces. Under the download link it offers *Import table by table*: one
+ready-to-import `.sql` per table, each already carrying the session settings,
+with its size shown so you can see which ones your panel will accept. Import
+them in any order; foreign-key checks are off.
+
+Take those rather than cutting the file yourself. Splitting by hand is three
+steps, and the third — pasting the header lines in front of **every** piece —
+is the one with no symptom when it is forgotten: the piece imports cleanly, in
+the host's own zone, and every `TIMESTAMP` in it is silently wrong.
+
+<details>
+<summary>Cutting it by hand, if you are not using the decryptor</summary>
+
+The archive is built for this: each table is bracketed by
 
 ```
 -- >>> TABLE members
@@ -94,9 +127,16 @@ this: each table is bracketed by
 
 and every `INSERT` names its columns. Split the file at those markers, and put
 the archive's own header lines (everything above the first `-- >>> TABLE`,
-except the `ALTER DATABASE` line) in front of **each** piece — that is what
-carries `SET NAMES`, `SQL_MODE`, `FOREIGN_KEY_CHECKS` and the time zone. Import
-in any order; foreign-key checks are off.
+except the `ALTER DATABASE` line, which names no database and would retarget
+whichever schema you have open) in front of **each** piece — that is what
+carries `SET NAMES`, `SQL_MODE`, `FOREIGN_KEY_CHECKS` and the time zone.
+
+</details>
+
+**If one table alone is still too big**, cut that piece again at any line
+beginning `INSERT INTO`, keeping everything above the first `INSERT` at the top
+of each part. Every `INSERT` names its columns and carries at most a hundred
+rows, so any run of them is valid on its own.
 
 ### 1.3 Check afterwards
 
@@ -112,7 +152,9 @@ Then check the two things that are wrong-looking-right rather than absent:
 
 ```sql
 -- Timestamps: does the newest transaction sit where you expect in UTC?
-SELECT MAX(created_at) FROM transactions;
+-- `received_at` (when the server learned of it), not `occurred_at` (when the
+-- bar sold it) — an offline terminal legitimately backdates the latter.
+SELECT MAX(received_at) FROM transactions;
 
 -- Encrypted IBANs: present and non-empty. This does not prove they decrypt —
 -- only the Kassenwart's key can — but an empty column here is a mangled import.
@@ -120,6 +162,23 @@ SELECT COUNT(*) FROM mandates WHERE iban_ciphertext IS NULL OR LENGTH(iban_ciphe
 ```
 
 That last query must return **0**.
+
+**And one check for the failure with no symptom.** A shifted import cannot be
+seen in a `TIMESTAMP` column by itself: MariaDB converts a `TIMESTAMP` on the
+way in *and* on the way out, so reading it back in the same wrong zone gives the
+literal straight back. What does not move is `DATETIME`, which is stored exactly
+as written. The schema uses both, so the two disagree by exactly the offset:
+
+```sql
+-- Run this in a session you have just confirmed is UTC, per §1.2 step 2.
+SELECT (SELECT MAX(received_at) FROM transactions) AS timestamp_side,
+       (SELECT MAX(created_at)  FROM audit_log)    AS datetime_side;
+```
+
+For a club that was in use when the backup was taken these sit close together —
+minutes, not hours. **Hours apart, by a round number that looks like a
+timezone, means the import ran in a shifted session.** Re-import; there is
+nothing to repair in place, because every affected value moved consistently.
 
 ### 1.4 You need `config.php` too, when the host is new
 

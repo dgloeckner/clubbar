@@ -145,6 +145,58 @@ test.describe('Offline backup decryptor', () => {
     expect(served).toBe(EXPECTED_CONFIG)
   })
 
+  test('offers each table as its own importable piece, with the session settings in front', async ({ page }) => {
+    // phpMyAdmin has an upload limit a club-sized database eventually exceeds,
+    // and the runbook used to answer that by asking the operator to cut the
+    // file at the table markers and paste the header lines in front of every
+    // piece — by hand, at the worst moment of the club's year. The last of
+    // those three steps is the one with no symptom when it is forgotten.
+    //
+    // `backup-decryptor-interop.test.mjs` proves the *module* cuts the same
+    // bytes PHP does. This proves the *page* turns them into links, which is
+    // the half that has twice been where this tool actually broke.
+    await page.goto(TOOL)
+    await page.setInputFiles('#archive', ARCHIVE)
+    await page.fill('#key', DEV_SECRET)
+    await page.click('#decrypt')
+
+    await expect(page.locator('#result')).toBeVisible()
+    await expect(page.locator('#pieces tr')).toHaveCount(1)
+
+    const piece = page.locator('#pieces tr').first()
+    await expect(piece.locator('td').nth(0)).toHaveText('members')
+
+    // Read from the manifest the page already showed rather than written here,
+    // so a regenerated fixture cannot turn into a failing assertion about a row
+    // count that reads like a decryptor bug and is not one.
+    const manifestRows = await page.locator('#manifest tr td').nth(1).textContent()
+    await expect(piece.locator('td').nth(1)).toHaveText(manifestRows ?? '')
+
+    const link = piece.locator('a')
+    await expect(link).toHaveAttribute('download', 'clubbar-members.sql')
+    await expect(link).toHaveAttribute('href', /^blob:/)
+
+    const served = await page.evaluate(async () => {
+      const href = document.querySelector('#pieces a') as HTMLAnchorElement
+      return await (await fetch(href.href)).text()
+    })
+
+    // Importable on its own: the settings first, then exactly one section.
+    expect(served).toMatch(/^-- Club Bar database dump/)
+    expect(served, 'the setting whose absence has no symptom').toContain("SET time_zone = '+00:00'")
+    expect(served).toContain('SET FOREIGN_KEY_CHECKS = 0;')
+    expect(served).toContain('-- >>> TABLE members')
+    expect(served.trimEnd()).toMatch(/-- <<< TABLE members$/)
+
+    // It would retarget whichever schema the operator has open, because it
+    // names no database.
+    expect(served).not.toContain('ALTER DATABASE')
+
+    // The config block trails the dump's footer and is not a table; it is
+    // offered as its own download, above.
+    expect(served).not.toContain('CONFIG config.php')
+  })
+
   test('a key the archive was not sealed to is refused by name, visibly', async ({ page }) => {
     // A wrong key must say which envelope to fetch instead, not fail with a
     // decryption error the holder cannot act on — and it must reach the page

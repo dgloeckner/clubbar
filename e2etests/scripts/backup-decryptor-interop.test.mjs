@@ -183,3 +183,102 @@ test('the header says an archive carries a config, without any key', () => {
 test('a dump with no config block reads as none rather than as empty', () => {
   assert.equal(decryptor.extractConfig(new TextEncoder().encode('-- dump\nSET NAMES utf8mb4;\n')), null)
 })
+
+/*
+ * ---------------------------------------------------------------------------
+ * The per-table split (#692)
+ *
+ * `DatabaseDump` brackets every table with terminated markers so a restore can
+ * address one table, and so an archive too large for phpMyAdmin's upload limit
+ * can still be imported. Cutting at those markers is now something the browser
+ * tool does for the holder rather than something the runbook asks them to do by
+ * hand.
+ *
+ * Which makes it a second format with two implementations, and the same rule
+ * applies: neither is its own witness. `golden.split.sql` and the pieces beside
+ * it are cut by PHP's `Tests\Support\SqlScript` — the helper whose pieces
+ * `RestoreRoundTripTest` restores into a real database — so what is asserted
+ * here is not "the splitter is self-consistent" but "it reproduces bytes that
+ * are known to restore".
+ * ---------------------------------------------------------------------------
+ */
+
+const splitSource = new Uint8Array(fs.readFileSync(path.join(fixtures, 'golden.split.sql')))
+
+test('the per-table split reproduces, byte for byte, the pieces PHP cuts', () => {
+  const split = decryptor.splitByTable(splitSource, { categories: 2, members: 2 })
+
+  assert.deepEqual(split.tables.map((t) => t.name), ['categories', 'members'])
+
+  for (const table of split.tables) {
+    assert.deepEqual(
+      Buffer.from(table.sql),
+      fs.readFileSync(path.join(fixtures, `golden.split.${table.name}.sql`)),
+      `the two implementations disagree about the ${table.name} section`
+    )
+  }
+})
+
+test('a section stops at its own marker instead of swallowing the table after it', () => {
+  const [categories] = decryptor.splitByTable(splitSource, {}).tables
+  const sql = Buffer.from(categories.sql).toString('utf8')
+
+  // The fixture's first table holds a row whose *value* is `-- >>> TABLE
+  // getranke`. It must survive in the piece — cutting on the marker text
+  // wherever it appears would truncate this section mid-row, and the row that
+  // did it would be a legitimate category name.
+  assert.match(sql, /'-- >>> TABLE getranke'/)
+
+  // And the next table must not be in it. This is the property one table
+  // cannot test, and the reason `golden.split.sql` exists beside the
+  // single-table golden archive.
+  assert.doesNotMatch(sql, /TABLE members/)
+  assert.doesNotMatch(sql, /INSERT INTO `members`/)
+})
+
+test('every piece carries the session settings, without the ALTER DATABASE line', () => {
+  for (const table of decryptor.splitByTable(splitSource, {}).tables) {
+    const sql = Buffer.from(table.sql).toString('utf8')
+
+    // The one with no symptom when it is missing: a piece imported in the
+    // host's own zone shifts every TIMESTAMP in it, consistently.
+    assert.match(sql, /^SET time_zone = '\+00:00';/m)
+    assert.match(sql, /^SET FOREIGN_KEY_CHECKS = 0;/m)
+    assert.match(sql, /^SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';/m)
+
+    // Dropped because it names no database, so it would retarget whichever
+    // schema the operator happens to have open.
+    assert.doesNotMatch(sql, /ALTER DATABASE/)
+  }
+})
+
+test('the split reports each table row count from the header, and says so when it cannot', () => {
+  const stated = decryptor.splitByTable(splitSource, { categories: 2 }).tables
+
+  assert.equal(stated[0].rows, 2)
+  // An archive whose header manifest does not name a table still yields the
+  // table; the count reads as unknown rather than as zero, which would be a
+  // claim about the data.
+  assert.equal(stated[1].rows, null)
+})
+
+test('splitting the golden archive gives back a piece that is a prefix-free whole', async () => {
+  await sodium.ready
+  const plaintext = await decryptor.open(sodium, archive, secretKey(DEV_SECRET_A))
+  const split = decryptor.splitByTable(plaintext, decryptor.readHeader(archive).header.manifest)
+
+  assert.deepEqual(split.tables.map((t) => t.name), ['members'])
+
+  // The config block trails the dump's footer and is not a table. A splitter
+  // that scanned for anything marker-shaped would offer it as one.
+  const sql = Buffer.from(split.tables[0].sql).toString('utf8')
+  assert.doesNotMatch(sql, /CONFIG config\.php/)
+  assert.match(sql, /^-- <<< TABLE members\n$/m)
+})
+
+test('something that is not a dump is refused rather than split into nothing', () => {
+  assert.throws(
+    () => decryptor.splitByTable(new TextEncoder().encode('SET NAMES utf8mb4;\n'), {}),
+    /no table markers/
+  )
+})

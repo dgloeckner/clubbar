@@ -150,9 +150,93 @@ function configBlock(): array
     return [$config, $block];
 }
 
+/**
+ * A dump shaped for the per-table split, and the pieces PHP cuts out of it.
+ *
+ * The golden archive holds one table, which cannot test the property that
+ * matters most: that a section stops at *its own* closing marker instead of
+ * swallowing the table after it. So this is a second, plaintext-only fixture —
+ * two tables, an `ALTER DATABASE` line to be dropped, a value containing the
+ * marker text, and a trailing config block that must not be mistaken for a
+ * table.
+ *
+ * The expected pieces are cut here, by {@see \Tests\Support\SqlScript} — the
+ * same helper {@see \Tests\Feature\Modules\Backups\RestoreRoundTripTest}
+ * uses to restore one table into a real database. That is what makes the
+ * browser tool's splitter answerable to something: `backup-decryptor.js`
+ * reproduces these bytes or its interop test goes red, and these bytes are
+ * known to restore.
+ */
+function writeSplitFixture(string $configBlock): void
+{
+    $sql = "-- Club Bar database dump\n"
+        . "-- Restore with a client that honours the session settings below.\n"
+        . "--\n\n"
+        . "SET NAMES utf8mb4;\n"
+        . "SET @OLD_SQL_MODE = @@SQL_MODE;\n"
+        . "SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';\n"
+        . "SET @OLD_FOREIGN_KEY_CHECKS = @@FOREIGN_KEY_CHECKS;\n"
+        . "SET FOREIGN_KEY_CHECKS = 0;\n"
+        . "SET @OLD_TIME_ZONE = @@TIME_ZONE;\n"
+        . "SET time_zone = '+00:00';  -- TIMESTAMP is converted by the session zone\n"
+        . "ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n"
+        . "\n-- >>> TABLE categories\n"
+        . "DROP TABLE IF EXISTS `categories`;\n"
+        . "CREATE TABLE `categories` (`id` char(36) NOT NULL, `name` varchar(100) NOT NULL,"
+        . " PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;\n"
+        . "INSERT INTO `categories` (`id`,`name`) VALUES\n"
+        // A row whose data reads like a marker. It must not end the section:
+        // the markers are anchored to line starts and terminated by name.
+        . "('00000000-0000-4000-8000-000000000001','-- >>> TABLE getranke'),\n"
+        . "('00000000-0000-4000-8000-000000000002','Süßwaren');\n"
+        . "-- <<< TABLE categories\n"
+        . "\n-- >>> TABLE members\n"
+        . "DROP TABLE IF EXISTS `members`;\n"
+        . "CREATE TABLE `members` (`id` char(36) NOT NULL, `last_name` varchar(100) NOT NULL,"
+        . " `sealed` varbinary(512) DEFAULT NULL, PRIMARY KEY (`id`)) ENGINE=InnoDB"
+        . " DEFAULT CHARSET=utf8mb4;\n"
+        . "INSERT INTO `members` (`id`,`last_name`,`sealed`) VALUES\n"
+        . "('00000000-0000-4000-8000-000000000003','Müller-Lüdenscheidt',X'DEADBEEF'),\n"
+        . "('00000000-0000-4000-8000-000000000004','O\\'Brien',NULL);\n"
+        . "-- <<< TABLE members\n"
+        . "\nSET time_zone = @OLD_TIME_ZONE;\n"
+        . "SET FOREIGN_KEY_CHECKS = @OLD_FOREIGN_KEY_CHECKS;\n"
+        . "SET SQL_MODE = @OLD_SQL_MODE;\n"
+        . "-- Dump complete\n"
+        . $configBlock;
+
+    $cutter = new class {
+        use \Tests\Support\SqlScript;
+
+        public static function preamble(string $sql): string
+        {
+            return self::sessionPreamble($sql);
+        }
+
+        public static function section(string $sql, string $table): string
+        {
+            return self::tableSection($sql, $table);
+        }
+    };
+
+    file_put_contents(__DIR__ . '/golden.split.sql', $sql);
+
+    foreach (['categories', 'members'] as $table) {
+        $piece = $cutter::preamble($sql) . $cutter::section($sql, $table);
+
+        if (str_contains($piece, 'ALTER DATABASE') || $piece === $cutter::preamble($sql)) {
+            throw new RuntimeException("The split fixture for {$table} came out wrong.");
+        }
+
+        file_put_contents(__DIR__ . "/golden.split.{$table}.sql", $piece);
+    }
+}
+
 [$payload, $rows] = plaintext();
 [$config, $configBlock] = configBlock();
 $payload .= $configBlock;
+
+writeSplitFixture($configBlock);
 
 $archive = BackupSealedBox::seal(
     $payload,
