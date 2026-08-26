@@ -165,6 +165,56 @@ final class ConfigWriter
     }
 
     /**
+     * An existing config plus one screen's answers, with the screen winning.
+     *
+     * Every installer screen writes the *whole* file, so anything a screen does
+     * not ask about has to be carried across explicitly. Without this, reaching
+     * the backup step on a working installation would rewrite `config.php` with
+     * no database password in it — the file loads, the site does not, and
+     * nothing points at the installer.
+     *
+     * Merged one section deep on purpose. A section is a coherent group whose
+     * keys are independent, so `backup` gaining a DSN must not disturb
+     * `backup`'s recipient keys; replacing a whole section wholesale would be
+     * the same bug one level up.
+     *
+     * An answer of `''` never overwrites a stored value: on a re-run a blank
+     * field means "unchanged", not "erase this". That rule is what lets the
+     * backup screen decline to echo a live client secret back into the HTML.
+     *
+     * @param array<string, array<string, mixed>> $existing
+     * @param array<string, array<string, mixed>> $answers
+     * @return array<string, array<string, mixed>>
+     */
+    public static function merge(array $existing, array $answers): array
+    {
+        foreach ($answers as $section => $keys) {
+            foreach ($keys as $key => $value) {
+                if ($value === '' && ($existing[$section][$key] ?? '') !== '') {
+                    continue;
+                }
+
+                $existing[$section][$key] = $value;
+            }
+        }
+
+        // Nothing gains a key it did not have just to hold an empty string.
+        foreach ($existing as $section => $keys) {
+            foreach ($keys as $key => $value) {
+                if ($value === '') {
+                    unset($existing[$section][$key]);
+                }
+            }
+
+            if ($existing[$section] === []) {
+                unset($existing[$section]);
+            }
+        }
+
+        return $existing;
+    }
+
+    /**
      * Where each top-level section begins and ends, as line indices.
      *
      * Matched on the template's own indentation — a section opens at four

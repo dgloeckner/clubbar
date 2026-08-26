@@ -330,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // cost an installation something it is not being asked about.
                 try {
                     $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
-                    $writer->writeTo($configTarget, configValuesToWrite(
+                    $writer->writeTo($configTarget, ConfigWriter::merge(
                         ConfigWriter::read($configFile),
                         [
                             'db' => [
@@ -590,6 +590,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             break;
+
+        case '6': // Backups (ADR-0049) — reachable after install via ?update=1
+            if (!file_exists($configFile)) {
+                $error = 'config.php not found. Please complete step 2 first.';
+                break;
+            }
+
+            // What the file already says, so a blank field can mean "unchanged"
+            // rather than "erase this" — see the client-secret handling below.
+            $existingBackup = ConfigWriter::read($configFile)['backup'] ?? [];
+
+            $recipientKeys = array_values(array_filter(array_map(
+                'trim',
+                preg_split('/[\r\n]+/', (string) ($_POST['recipient_public_keys'] ?? '')) ?: []
+            ), static fn (string $line): bool => $line !== ''));
+
+            $backupDsn = trim($_POST['backup_dsn'] ?? '');
+            $clientSecret = trim($_POST['backup_client_secret'] ?? '');
+            $secretExpires = trim($_POST['backup_secret_expires_at'] ?? '');
+            $backupHeartbeat = trim($_POST['backup_heartbeat_url'] ?? '');
+
+            // Validated through the application's own parsers rather than a
+            // second copy of the rules here. Both already refuse in sentences
+            // written for the person reading this screen — BackupKeyring names
+            // the malformed entry, BackupDsn names the missing part — and a
+            // rule that lived in two places would eventually disagree with
+            // itself.
+            require_once __DIR__ . '/backend/vendor/autoload.php';
+
+            if ($recipientKeys !== []) {
+                try {
+                    (new App\Modules\Backups\Services\BackupKeyring())
+                        ->recipients(implode("\n", $recipientKeys));
+                } catch (\Throwable $e) {
+                    $error = $e->getMessage();
+                    break;
+                }
+            }
+
+            if ($backupDsn !== '') {
+                try {
+                    App\Modules\Backups\Domain\BackupDsn::parse($backupDsn);
+                } catch (\Throwable $e) {
+                    $error = $e->getMessage();
+                    break;
+                }
+
+                // The field is deliberately not pre-filled — a live credential
+                // does not belong in an HTML value attribute — so blank means
+                // "keep what is there", and only an installation with no secret
+                // at all is refused. A DSN that cannot sign in produces a
+                // nightly failure naming Microsoft rather than this screen.
+                if ($clientSecret === '') {
+                    $clientSecret = (string) ($existingBackup['client_secret'] ?? '');
+                }
+
+                if ($clientSecret === '') {
+                    $error = 'A remote is configured but no client secret is stored. '
+                        . 'The secret is shown once by scripts/setup-msgraph-backup.ps1 and '
+                        . 'cannot be retrieved afterwards — mint a new one with -RotateSecretOnly.';
+                    break;
+                }
+            }
+
+            try {
+                $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+                $writer->writeTo($configTarget ?? $configFile, ConfigWriter::merge(
+                    ConfigWriter::read($configFile),
+                    ['backup' => [
+                        'recipient_public_keys' => $recipientKeys,
+                        'dsn' => $backupDsn,
+                        'client_secret' => $clientSecret,
+                        'client_secret_expires_at' => $secretExpires,
+                        'heartbeat_url' => $backupHeartbeat,
+                    ]]
+                ));
+            } catch (ConfigWriterException $e) {
+                $error = $e->getMessage();
+                break;
+            }
+
+            header('Location: ?step=7' . ($isUpdate ? '&update=1' : ''));
+            exit;
     }
 }
 
@@ -604,46 +687,6 @@ renderPage($step, $error, $isUpdate);
  * True when the browser reached this script over TLS — directly, or through a
  * reverse proxy that terminated it (common on shared hosting).
  */
-/**
- * The existing config plus this screen's answers, with the screen winning.
- *
- * Every installer screen writes the *whole* file, so anything it does not ask
- * about has to be carried across explicitly. Without this, reaching the backup
- * step on a working installation would rewrite `config.php` with no database
- * password in it — the file loads, the site does not, and nothing says why.
- *
- * Merged one section deep on purpose. A section is a coherent group and its
- * keys are independent, so `backup` gaining a DSN must not disturb `backup`'s
- * recipient keys; but replacing a whole section wholesale would be the same
- * bug one level up.
- *
- * @param array<string, array<string, mixed>> $existing
- * @param array<string, array<string, mixed>> $answers
- * @return array<string, array<string, mixed>>
- */
-function configValuesToWrite(array $existing, array $answers): array
-{
-    foreach ($answers as $section => $keys) {
-        $existing[$section] = array_merge($existing[$section] ?? [], $keys);
-    }
-
-    // `db.pass` and the security keys are the values whose loss is silent and
-    // expensive, so an empty string never overwrites something already there:
-    // a blank field on a re-run means "unchanged", not "erase this".
-    foreach ($existing as $section => $keys) {
-        foreach ($keys as $key => $value) {
-            if ($value === '' && ($answers[$section][$key] ?? null) === '') {
-                unset($existing[$section][$key]);
-            }
-        }
-        if ($existing[$section] === []) {
-            unset($existing[$section]);
-        }
-    }
-
-    return $existing;
-}
-
 function installerRequestIsHttps(): bool
 {
     return SecurityCheckContext::requestIsHttps($_SERVER);
@@ -890,79 +933,7 @@ function renderPage(string $step, ?string $error, bool $isUpdate): void
                 case '4':
                     renderStep4($isUpdate);
                     break;
-                case '6': // Backups (ADR-0049) — reachable after install via ?update=1
-            if (!file_exists($configFile)) {
-                $error = 'config.php not found. Please complete step 2 first.';
-                break;
-            }
-
-            $recipientKeys = array_values(array_filter(array_map(
-                'trim',
-                preg_split('/[\r\n]+/', (string) ($_POST['recipient_public_keys'] ?? '')) ?: []
-            ), static fn (string $line): bool => $line !== ''));
-
-            $backupDsn = trim($_POST['backup_dsn'] ?? '');
-            $clientSecret = trim($_POST['backup_client_secret'] ?? '');
-            $secretExpires = trim($_POST['backup_secret_expires_at'] ?? '');
-            $backupHeartbeat = trim($_POST['backup_heartbeat_url'] ?? '');
-
-            // Validated through the application's own parsers rather than a
-            // second copy of the rules here. Both already refuse in sentences
-            // written for the person reading this screen — BackupKeyring names
-            // the malformed entry, BackupDsn names the missing part — and a
-            // rule that lived in two places would eventually disagree with
-            // itself.
-            require_once __DIR__ . '/backend/vendor/autoload.php';
-
-            if ($recipientKeys !== []) {
-                try {
-                    (new App\Modules\Backups\Services\BackupKeyring())
-                        ->recipients(implode("\n", $recipientKeys));
-                } catch (\Throwable $e) {
-                    $error = $e->getMessage();
-                    break;
-                }
-            }
-
-            if ($backupDsn !== '') {
-                try {
-                    App\Modules\Backups\Domain\BackupDsn::parse($backupDsn);
-                } catch (\Throwable $e) {
-                    $error = $e->getMessage();
-                    break;
-                }
-
-                // A DSN with no secret cannot sign in, and the resulting
-                // nightly failure names Microsoft rather than this screen.
-                if ($clientSecret === '' && empty($existingBackup['client_secret'])) {
-                    $error = 'A remote is configured but the client secret is empty. '
-                        . 'The secret is shown once by scripts/setup-msgraph-backup.ps1 and '
-                        . 'cannot be retrieved afterwards — mint a new one with -RotateSecretOnly.';
-                    break;
-                }
-            }
-
-            try {
-                $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
-                $writer->writeTo($configTarget ?? $configFile, configValuesToWrite(
-                    ConfigWriter::read($configFile),
-                    ['backup' => [
-                        'recipient_public_keys' => $recipientKeys,
-                        'dsn' => $backupDsn,
-                        'client_secret' => $clientSecret,
-                        'client_secret_expires_at' => $secretExpires,
-                        'heartbeat_url' => $backupHeartbeat,
-                    ]]
-                ));
-            } catch (ConfigWriterException $e) {
-                $error = $e->getMessage();
-                break;
-            }
-
-            header('Location: ?step=7' . ($isUpdate ? '&update=1' : ''));
-            exit;
-
-        case '5':
+                case '5':
                     renderStep5();
                     break;
                 case '6':
@@ -1315,7 +1286,15 @@ function renderStep6(bool $isUpdate, string $configFile): void
 
         <label for="backup_client_secret">Client secret</label>
         <input type="password" id="backup_client_secret" name="backup_client_secret"
-               value="<?= htmlspecialchars((string) ($backup['client_secret'] ?? ''), ENT_QUOTES) ?>">
+               autocomplete="new-password"
+               placeholder="<?= ($backup['client_secret'] ?? '') !== ''
+                   ? 'stored — leave blank to keep it'
+                   : '' ?>">
+        <p class="hint">
+            Never shown back: a live credential does not belong in a page that a
+            browser may cache or a password manager may offer to save. Leave it
+            blank to keep the secret already stored.
+        </p>
 
         <label for="backup_secret_expires_at">
             Client secret expires on — <strong>the most likely cause of a silent

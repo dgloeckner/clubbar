@@ -249,6 +249,80 @@ class ConfigWriterTest extends TestCase
         }
     }
 
+    /**
+     * A blank field on a re-run means "unchanged", never "erase this".
+     *
+     * This is what lets the backup screen decline to echo a live client secret
+     * back into an HTML value attribute: the field renders empty, the club
+     * submits it empty, and the stored secret survives. Without the rule, the
+     * safe rendering choice would silently delete the credential the screen
+     * exists to manage.
+     */
+    public function test_a_blank_answer_keeps_the_stored_value(): void
+    {
+        $merged = ConfigWriter::merge(
+            ['backup' => ['dsn' => 'msgraph://t/c@drive/b!x/clubbar', 'client_secret' => 'stored']],
+            ['backup' => ['dsn' => 'msgraph://t/c@drive/b!y/archive', 'client_secret' => '']]
+        );
+
+        $this->assertSame('msgraph://t/c@drive/b!y/archive', $merged['backup']['dsn']);
+        $this->assertSame('stored', $merged['backup']['client_secret']);
+    }
+
+    /**
+     * Merged one section deep, not one level: `backup` gaining a DSN must not
+     * cost it the recipient keys that were already there. Replacing a whole
+     * section wholesale would be the same bug one level up from the one this
+     * class exists to prevent.
+     */
+    public function test_answers_merge_into_a_section_rather_than_replacing_it(): void
+    {
+        $merged = ConfigWriter::merge(
+            ['db' => ['host' => 'db.example.org', 'pass' => 'p'], 'backup' => ['recipient_public_keys' => ['admin:x']]],
+            ['backup' => ['dsn' => 'msgraph://t/c@drive/b!x/clubbar']]
+        );
+
+        $this->assertSame(['admin:x'], $merged['backup']['recipient_public_keys']);
+        $this->assertSame('msgraph://t/c@drive/b!x/clubbar', $merged['backup']['dsn']);
+        $this->assertSame('p', $merged['db']['pass'], 'an untouched section was disturbed');
+    }
+
+    /**
+     * An empty answer for something never configured writes nothing at all.
+     *
+     * Every key the writer is handed has to exist in the template, so a screen
+     * that dutifully passed `'' ` for each of its skipped fields would turn a
+     * blank optional field into a rendered `'heartbeat_url' => ''` — noise in
+     * the file the club reads, and, for a key the template ships commented out,
+     * a line that now claims to be set.
+     */
+    public function test_a_blank_answer_for_something_unset_adds_no_key(): void
+    {
+        $merged = ConfigWriter::merge(
+            ['db' => ['pass' => 'p']],
+            ['backup' => ['dsn' => '', 'client_secret' => '', 'heartbeat_url' => '']]
+        );
+
+        $this->assertArrayNotHasKey('backup', $merged);
+        $this->assertSame(['db' => ['pass' => 'p']], $merged);
+    }
+
+    /**
+     * The merged result is what the writer is actually handed, so it has to be
+     * a shape the writer accepts — every key still a real template key.
+     */
+    public function test_a_merged_result_renders(): void
+    {
+        $config = $this->evaluate($this->writer->render(ConfigWriter::merge(
+            ['db' => ['host' => 'db.example.org', 'pass' => "p'w\\x"], 'cron' => ['secret' => 'abc']],
+            ['backup' => ['dsn' => 'msgraph://t/c@drive/b!x/clubbar', 'client_secret' => 'shh']]
+        )));
+
+        $this->assertSame("p'w\\x", $config['db']['pass']);
+        $this->assertSame('abc', $config['cron']['secret']);
+        $this->assertSame('shh', $config['backup']['client_secret']);
+    }
+
     /** @return array<string,mixed> */
     private function evaluate(string $rendered): array
     {
