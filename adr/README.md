@@ -73,6 +73,7 @@ Each ADR follows this structure:
 | [0046](./0046-project-license-apache-2-0.md) | Project License is Apache-2.0, Not AGPL-3.0 | Accepted | 2026-08-23 |
 | [0047](./0047-configurable-credit-limits.md) | Configurable Credit Limits — a Club Default, a Per-Member Override | Accepted | 2026-08-23 |
 | [0048](./0048-shared-symmetric-crypto-abstraction.md) | Shared Symmetric Crypto Abstraction for TOTP Secrets | Accepted (amends 0036) | 2026-08-14 |
+| [0049](./0049-encrypted-offsite-backups-on-shared-hosting.md) | Encrypted Off-Site Backups on Shared Hosting | Accepted (amends 0031, 0038, 0029, 0036) | 2026-08-24 |
 
 ## Creating a New ADR
 

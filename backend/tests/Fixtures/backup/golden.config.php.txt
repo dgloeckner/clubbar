@@ -1,0 +1,5 @@
+<?php
+// A golden fixture. Mentions -- <<< CONFIG deliberately.
+return [
+    'security' => ['totp_encryption_key' => 'not-a-real-key-ümlaut'],
+];

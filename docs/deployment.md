@@ -207,18 +207,59 @@ curl -I https://your-domain.com/api/health
 
 ## Database Backup & Restore
 
-**A dump is no longer the whole secret, but it is still personal data
-([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)).** Every IBAN in it is
-now a libsodium sealed box the dump alone cannot open — but names, emails,
-addresses and the last four digits of every IBAN are still in there in the
-clear. Encrypt the dump at rest the same as you would have before; the
-commands below pipe through `gpg -c` (a passphrase, not a keypair — the
-libsodium keypair discussed further down is a separate secret with a separate
-job).
+**Club Bar backs itself up, once you have given it a key to seal the archive
+with.** Encrypted, off-site backups are specified in
+[ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md) and
+tracked in [#686](https://github.com/dgloeckner/clubbar/issues/686). The local
+half — a nightly sealed archive in the data directory, with bounded retention —
+is described under [Scheduling the backup](#scheduling-the-backup) below; pushing
+it off the host is [#691](https://github.com/dgloeckner/clubbar/issues/691) and
+until that lands the quarterly manual copy in this section is what gets an
+archive off the webspace.
 
-### Automated Daily Backups (Cron)
+**Until you configure a recipient key, nothing is written at all**, and that is
+deliberate rather than a bug: there is no plaintext fallback
+([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) rule 3 — refuse
+and report, never silently degrade). So the manual recipe below is still the
+whole story on an installation that has not been set up, and is worth knowing
+either way, because it is also the *restore* path.
 
-Create a backup script at `/opt/clubbar/backup.sh`:
+**A dump is personal data ([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)).**
+Every IBAN in it is a libsodium sealed box the dump alone cannot open — but
+names, addresses, birth dates, the whole transaction history and the last four
+digits of every IBAN are in there in the clear. Encrypt it at rest, wherever you
+put it.
+
+### On shared hosting (the reference target)
+
+There is no shell, no `crontab` and no `mysqldump` binary — see
+[IONOS specifically](#ionos-specifically) further down, which is the same reason
+the mail scheduler is driven by a URL. So today the backup is manual:
+
+1. Open your hosting panel's database tool (phpMyAdmin on most tariffs).
+2. Export the whole database as SQL, with structure **and** data.
+3. Encrypt the file before you put it anywhere — `gpg -c backup.sql` asks for a
+   passphrase and produces `backup.sql.gpg`. Do not skip this because the file is
+   "just going in Drive": that is exactly where it will still be in three years.
+4. Keep it somewhere that is **not** the hosting account, and keep more than one.
+
+**Do this before every upgrade**, without exception if the release carries a
+migration that drops or alters a column — the deploy workflow prints a reminder
+precisely because it cannot do this for you (see
+[Automated Production Deployment](#automated-production-deployment)).
+
+To restore: create an empty database (or drop the tables), then import the SQL
+through the same panel tool. If you encrypted it, `gpg -d backup.sql.gpg >
+backup.sql` first.
+
+### On a VPS or root server
+
+If your hosting gives you SSH and a crontab — an IONOS VPS or Cloud Server rather
+than a webhosting contract, a Hetzner root server, your own machine — then the
+ordinary shell recipe applies and is much better than the manual route above,
+because it actually happens without you.
+
+Create `/opt/clubbar/backup.sh`:
 
 ```bash
 #!/bin/bash
@@ -247,13 +288,17 @@ Add to crontab (`crontab -e`):
 0 3 * * * /opt/clubbar/backup.sh >> /var/log/clubbar-backup.log 2>&1
 ```
 
-### Manual Backup
+⚠️ **`$BACKUP_DIR` is on the same machine as the database.** That covers a bad
+migration; it does not cover losing the server. Copy the archives somewhere else
+as well.
+
+### Manual backup (any host with a shell)
 
 ```bash
 mysqldump -u clubbar_prod -p clubbar | gpg -c > backup.sql.gpg
 ```
 
-### Restore from Backup
+### Restore from backup
 
 ```bash
 gpg -d backup.sql.gz.gpg | gunzip | mysql -u clubbar_prod -p clubbar
@@ -270,9 +315,11 @@ rather than piggybacking on this one.
 
 ### Pre-Upgrade Backup
 
-Always create a backup before upgrading:
+Always create a backup before upgrading — by whichever of the two routes above
+applies to your host:
+
 ```bash
-# 1. Backup database
+# 1. Backup database (shell hosts; on shared hosting export via the panel)
 mysqldump -u clubbar_prod -p clubbar | gpg -c > pre-upgrade-backup.sql.gpg
 
 # 2. Backup config file
@@ -322,7 +369,7 @@ What this means operationally:
   a phone, or anything else with its own backup/sync story you have not
   vetted.
 - **Archive it like the safe key, not like a password.** At minimum: one
-  copy with the treasurer, one copy offsite (a second board member, a safe
+  copy with the Kassenwart, one copy offsite (a second board member, a safe
   deposit box). The DB backup and the key archive should never be the *only*
   two copies of anything sitting in the same building.
 - **Test the archive, don't just trust it.** A private key file that was
@@ -453,6 +500,122 @@ web-reachable. A panel-rotated secret supersedes `config.php`'s entirely —
 the old value stops working the moment a new one is generated, rather than
 staying valid alongside it — and it is shown exactly once; only its hash is
 stored, the same way terminal API tokens are kept.
+
+### Scheduling the backup
+
+**A second cron line, not a second sending path.** ADR-0038's *"one scheduled
+command"* is narrowed by
+[ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md) to its
+actual principle: **no scheduled path may exist that nothing observes.** The
+backup has its own observation, so it gets its own job — which also means each
+job gets the whole 60-second abort instead of splitting it, and a backup dying
+on a huge `audit_log` cannot delay the mail drain.
+
+```
+php /path/to/htdocs/backend/bin/backup.php
+```
+
+Nightly is the recommendation (`0 3 * * *`). The installer prints this line next
+to the drain's, on the same screen, so both go into the panel in one sitting.
+
+**No CLI cron?** The same `cron.secret` authorises a URL trigger, so there is one
+credential and one rotation for both jobs:
+
+```bash
+curl -sS -H 'X-Cron-Secret: <secret>' https://your-domain.com/api/cron/backup
+```
+
+It answers **204 with an empty body, always** — it triggers a run, it never
+serves an archive — and it refuses to run again within an hour of the last
+attempt, so a caller in a loop cannot fill your webspace quota with dumps. Like
+the drain, it is **not mounted at all** without a secret — nor without a
+recipient key, which is the same statement as "this club has not switched
+backups on".
+
+**A key is what switches backups on.** Generate two keypairs offline with
+`tools/keypair-generator.html`, put both public halves in `config.php` under
+`backup.recipient_public_keys`, and give one private half to whoever holds the
+server and one to a second board member — archived like the key to the safe, and
+**never stored on the server**. Two recipients because the realistic failure in a
+Verein is that the one holder moved away, not that somebody broke the
+cryptography.
+
+There is no separate on/off setting: configuring a recipient key is what starts
+the nightly archives, and removing every key is what stops them. Until then both
+triggers say so and write nothing — the CLI job prints what to add, and the URL
+trigger is **not mounted at all**, so a scheduler cannot report success for a
+club that has never had a backup.
+
+Not to the Kassenwart, and not the IBAN keypair: a backup carries the audit log,
+every admin's TOTP ciphertext and the database password, and the Kassenwart holds
+the IBAN private key because SEPA collection is impossible without it.
+
+**Then prove it.** Download one archive and open it with
+`tools/backup-decryptor.html` — offline, on a machine you trust. Until somebody
+has done that, what you have is a belief about a keypair rather than a backup.
+
+**Where the archives go.** `<data-dir>/backups/`, mode `0700`, outside the
+document root ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md)
+decision 2) — an archive under it would become a URL the day `.htaccess` stops
+being honoured. Retention is 30 days by default and there is a 1 GiB cap; both
+are compiled in and can be overridden in `config.php`
+(`backup.local_retention_days`, `backup.local_max_bytes`). When pruning to the
+cap would leave you with no recent archive, the run reports it rather than
+deleting the newest one.
+
+**The archive is the record, and it says so itself.** Nothing about backups is
+stored in the database — no tables, no migration, no audit rows
+([ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md)
+decision 8). Every archive carries a cleartext header, readable with no key at
+all, naming the keys that open it, the club and database it came from, the
+schema version, and what is inside table by table. *Which private keys do we
+still need?* is therefore a scan of that directory rather than a register
+somebody has to keep — and it cannot drift from what is actually there.
+
+Beside the archives sits `index.jsonl`, one line per run attempt and outcome.
+It is a convenience for reading history, never a truth: delete it and you lose
+the log of attempts, not a single backup.
+
+**A local archive is not an off-site backup.** It answers "undo a mistake an
+hour ago" and none of "the hosting account is gone". Set `backup.dsn` and the
+run pushes each finished archive to storage the club owns — today that is a
+SharePoint document library in the club's own Microsoft 365 tenant, provisioned
+by [`m365-backup-target.md`](./m365-backup-target.md) and
+[`scripts/setup-msgraph-backup.ps1`](../scripts/setup-msgraph-backup.ps1):
+
+```php
+'backup' => [
+    'recipient_public_keys'    => ['admin:…', 'vorstand:…'],
+    'dsn'                      => 'msgraph://<tenant-id>/<client-id>@drive/<driveId>/clubbar',
+    'client_secret'            => '…',
+    'client_secret_expires_at' => '2027-08-25',
+],
+```
+
+Leaving `backup.dsn` empty is a legitimate configuration and the run says so
+out loud rather than silently — but a `backup.dsn` that is *filled in and
+malformed* is a failure every night, never a quiet fall back to local-only. The
+belief this whole feature exists to destroy is *"we have off-site backups"* held
+by a club that does not, and a typo must not be able to re-create it.
+
+An upload is **resumable and the dump is not**, deliberately: a transfer cut
+short by the host's execution limit continues the next night from a small
+sidecar file beside the archive, while a *dump* resumed across runs would
+produce a torn snapshot that looks exactly like a backup and is not one. A club
+on a slow uplink whose archive needs three nights to leave the building is
+working correctly; the run reports progress, not failure.
+
+**Even with a remote configured, keep the periodic manual copy.** The credential
+on the webspace can delete what it wrote — Microsoft 365 has no add-only app
+role, which `m365-backup-target.md` §1 states rather than hides — so the manual
+copy remains the one copy no credential can reach.
+
+**A restore needs no follow-up steps.** Every base table is dumped in full,
+enumerated from the live schema each night, so a restored installation comes back
+complete — including the ~20k Bundesbank BLZ rows, which an earlier design left
+out and then needed a panel button to put back. The archive also has no opinion
+about which tables matter, so a table added by a future upgrade is in the next
+night's archive with nothing to configure.
 
 ### IONOS specifically
 
@@ -661,7 +824,7 @@ rows.** It permanently removes every scanned mandate document under
 `storage/mandates/` along with the `mandate_documents` table. A database backup
 does not cover this — the files live outside MariaDB. Before approving a
 release that carries this migration, download and archive any stored scans (or
-confirm the treasurer already holds the paper originals); there is no
+confirm the Kassenwart already holds the paper originals); there is no
 migration-side undo once it has run.
 
 **The upgrade secret is generated per run** and is not stored as a GitHub

@@ -107,6 +107,7 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A80 | Dashboard | Partial — action needed | [UC-A80](./admin/UC-A80-dashboard.md) |
 | UC-A81 | Audit Log | Implemented | [UC-A81](./admin/UC-A81-audit-log.md) |
 | UC-A82 | Members Needing SEPA Data | Implemented (diverges) | [UC-A82](./admin/UC-A82-sepa-invalid-report.md) |
+| UC-A83 | Database Backup | Not implemented — in progress ([#686](https://github.com/dgloeckner/clubbar/issues/686)) | [UC-A83](./admin/UC-A83-database-backup.md) |
 
 ## Terminal App
 

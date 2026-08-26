@@ -97,6 +97,22 @@ enum MailSubject: string
      */
     case CREDIT_LIMIT_CONFIG = 'credit_limit_config';
 
+    /**
+     * This installation itself — `subject_id` is the literal `1`.
+     *
+     * Used by the backup client-secret warning (#691), which is about a value
+     * in `config.php` and about nothing else. There is deliberately no backup
+     * entity to name: ADR-0049 decision 8 keeps the backup out of the database
+     * it dumps entirely — no table, no migration, no audit vocabulary — and
+     * adding one here to give a mail a subject would undo that for the sake of
+     * a foreign key `subject_id` does not have anyway.
+     *
+     * Like {@see CREDIT_LIMIT_CONFIG}, filing here also keeps the erasure
+     * scrub out of it: that scrub keys on a member's own `entity_id`, and a
+     * warning about a credential has nothing to do with any member.
+     */
+    case INSTANCE_CONFIG = 'instance_config';
+
     public function auditEntityType(): EntityType
     {
         return match ($this) {
@@ -107,6 +123,7 @@ enum MailSubject: string
             self::MEMBER => EntityType::MEMBER,
             self::TRANSACTION => EntityType::TRANSACTION,
             self::CREDIT_LIMIT_CONFIG => EntityType::CREDIT_LIMIT_CONFIG,
+            self::INSTANCE_CONFIG => EntityType::INSTANCE_CONFIG,
         };
     }
 }
