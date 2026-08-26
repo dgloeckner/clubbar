@@ -523,6 +523,83 @@ class BackupDocumentationTest extends TestCase
         );
     }
 
+/**
+     * The release must contain the tools the documentation sends people to.
+     *
+     * `tools/` was in the repository and **not in the release package** until
+     * #710. The consequence is the worst kind: `runbook-backup-recovery.md` §1
+     * — the procedure a club follows on the worst day of its year — says to
+     * open the archive in `tools/backup-decryptor.html`, and a club that
+     * installed from a download did not have that file. An encrypted archive
+     * and no decryptor is not a backup.
+     */
+    public function test_the_release_package_ships_the_offline_tools(): void
+    {
+        $build = self::read('scripts/build-package.sh');
+
+        $this->assertMatchesRegularExpression(
+            '#cp -R "\$PROJECT_ROOT/tools"#',
+            $build,
+            'build-package.sh must copy tools/ into the release: the restore runbook '
+            . 'sends the operator to tools/backup-decryptor.html, and a package without '
+            . 'it leaves a club holding an archive it cannot open.'
+        );
+    }
+
+    /**
+     * The generator has to print what the keyring parses.
+     *
+     * It printed base64 only, while `backup.recipient_public_keys` is 64 hex
+     * characters — and four places, including `BackupKeyringException`'s own
+     * refusal, told the operator that this page produced hex. A club following
+     * the documentation was refused and sent back to the tool that caused it.
+     */
+    public function test_the_keypair_generator_prints_hex_for_backup_keys(): void
+    {
+        $generator = self::read('tools/keypair-generator.html');
+
+        $this->assertStringContainsString(
+            'Backup archive keys',
+            $generator,
+            'The generator must have a section producing keys in the encoding '
+            . 'backup.recipient_public_keys accepts.'
+        );
+        $this->assertStringContainsString('pk-hex', $generator);
+        $this->assertStringContainsString('sk-hex', $generator);
+    }
+
+    /**
+     * Anything that names the generator must say *which* output.
+     *
+     * The page prints two encodings for two different channels — base64 for the
+     * IBAN keypair the admin panel registers, hex for backups. A reference that
+     * says only "generate it with keypair-generator.html" is the ambiguity that
+     * cost the original evening.
+     */
+    public function test_every_backup_key_reference_names_the_hex_output(): void
+    {
+        $sources = [
+            'backend/src/Modules/Backups/Domain/BackupKeyringException.php',
+            'package/config.sample.php',
+            'docs/runbook-backup-recovery.md',
+        ];
+
+        foreach ($sources as $path) {
+            $text = self::read($path);
+
+            if (!str_contains($text, 'keypair-generator.html')) {
+                continue;
+            }
+
+            $this->assertMatchesRegularExpression(
+                '/hex|Backup archive keys/i',
+                $text,
+                $path . ' names tools/keypair-generator.html without saying which of its two '
+                . 'outputs to use. The base64 one is refused by BackupKeyring.'
+            );
+        }
+    }
+
     private static function read(string $relativePath): string
     {
         $path = self::repoRoot() . '/' . $relativePath;

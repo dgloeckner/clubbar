@@ -86,6 +86,51 @@
   <button class="copy" data-target="sk">Copy</button>
 </div>
 
+<hr>
+
+<h2>Backup archive keys</h2>
+
+<p>
+  The same keypair, in the encoding <code>backup.recipient_public_keys</code>
+  needs. <strong>These are not interchangeable with the boxes above</strong>: the
+  IBAN keypair is registered in the admin panel as base64, while
+  <code>config.php</code> wants 64 hex characters. Using the wrong one is
+  refused, so nothing breaks silently &mdash; but it wastes an evening.
+</p>
+
+<p>
+  Generate <strong>two</strong> keypairs for backups: one private half for
+  whoever holds the server, one for a second board member. The realistic failure
+  in a club is not a broken cipher &mdash; it is one volunteer leaving with the
+  only key. Neither goes to the Kassenwart: an archive carries the audit log,
+  every admin's TOTP ciphertext and the database password.
+</p>
+
+<div class="key-block">
+  <label>Public key (hex) &mdash; put this in <code>config.php</code>, prefixed with a label</label>
+  <div class="value" id="pk-hex"></div>
+  <button class="copy" data-target="pk-hex">Copy</button>
+  <p class="muted">
+    As one entry of <code>backup.recipient_public_keys</code>, for example
+    <code>'admin:&lt;the value above&gt;'</code>. The label may hold letters,
+    digits, hyphens and underscores.
+  </p>
+</div>
+
+<div class="key-block">
+  <label>Private key (hex) &mdash; opens the archive in <code>backup-decryptor.html</code>. NEVER upload it</label>
+  <div class="value" id="sk-hex"></div>
+  <button class="copy" data-target="sk-hex">Copy</button>
+</div>
+
+<div class="warn">
+  <strong>A backup private key is the only way to ever open the club's
+  archives.</strong> Print it, put it where the club keeps its other
+  irreplaceable documents, and minute who holds it. It is never stored on the
+  server &mdash; that is precisely what lets the server write archives it
+  cannot itself read.
+</div>
+
 <div class="warn">
   <strong>The private key is the only way to ever read the club's IBANs again.</strong>
   Store it in the club's secure archive (password manager entry or sealed
@@ -123,6 +168,15 @@
 
     document.getElementById('pk').textContent = b64(pair.publicKey);
     document.getElementById('sk').textContent = b64(pair.secretKey);
+
+    // The same key material in the encoding config.php expects. Two channels,
+    // two encodings, one keypair: the IBAN key is registered in the admin panel
+    // as base64, while backup.recipient_public_keys is parsed as 64 hex
+    // characters. Printing only base64 is what sent clubs round in a circle —
+    // the refusal message named this page as the source of a hex value it did
+    // not produce (#710).
+    document.getElementById('pk-hex').textContent = hex(pair.publicKey);
+    document.getElementById('sk-hex').textContent = hex(pair.secretKey);
 
     var fpEl = document.getElementById('fp');
     if (window.crypto && crypto.subtle) {

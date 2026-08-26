@@ -272,7 +272,7 @@ the separation of custody that decision exists to create.
 ### The sequence: add → verify → remove
 
 1. **Add.** The incoming holder generates a keypair with
-   `tools/keypair-generator.html` and gives you the **public** half. Append it
+   `tools/keypair-generator.html` — the **hex** output under *Backup archive keys* — and gives you the **public** half. Append it
    to `backup.recipient_public_keys` in `config.php`, keeping the outgoing
    holder's entry.
 2. **Verify.** Wait for the next nightly run, then have the *incoming* holder

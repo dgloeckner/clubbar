@@ -181,6 +181,21 @@ cp "$PROJECT_ROOT/package/README.txt"        "$PKG_DIR/README.txt"
 cp "$PROJECT_ROOT/LICENSE"                   "$PKG_DIR/LICENSE"
 cp "$PROJECT_ROOT/package/THIRD-PARTY-NOTICES.txt" "$PKG_DIR/THIRD-PARTY-NOTICES.txt"
 
+# The offline tools, which the release was shipping without (#710).
+#
+# This is not a convenience. `docs/runbook-backup-recovery.md` §1 — the restore
+# procedure a club follows on the worst day of its year — says to open the
+# archive in `tools/backup-decryptor.html`, and until now that file was in the
+# git repository and not in the release. A club that installed from a download
+# had an encrypted archive and no way to open it, which makes the backup
+# feature unrestorable for exactly the people it was built for.
+#
+# `keypair-generator.html` is the other half: `config.sample.php` tells the
+# operator to generate backup recipient keys with it, and the installer's
+# backup step links to it. Both pages are self-contained and run from file://,
+# so they carry their own vendored libsodium.
+cp -R "$PROJECT_ROOT/tools"                  "$PKG_DIR/tools"
+
 # ------------------------------------------------------------------
 # 9. Apply the modes the release carries, and prove it carries them
 # ------------------------------------------------------------------

@@ -154,7 +154,9 @@ return [
         // WHO CAN OPEN AN ARCHIVE — AND WHETHER THERE ARE ANY.
         //
         // A list of `label:public_key_hex`, one entry per recipient, generated
-        // offline with tools/keypair-generator.html.
+        // offline with tools/keypair-generator.html — the **hex** output under
+        // "Backup archive keys". The base64 output above it is the IBAN keypair,
+        // registered in the admin panel; the two are not interchangeable.
         //
         //   'recipient_public_keys' => [
         //       'admin:3d1f…',      // 64 hex characters
