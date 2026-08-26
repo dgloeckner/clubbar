@@ -8,6 +8,7 @@ use App\Modules\Backups\Domain\BackupDsn;
 use App\Modules\Backups\Domain\BackupDsnException;
 use App\Modules\Backups\Domain\BackupKeyringException;
 use App\Shared\Security\SecurityFinding;
+use App\Shared\Security\SecuritySelfCheck;
 
 /**
  * What `config.php`'s backup section actually says, measured rather than assumed.
@@ -40,7 +41,7 @@ use App\Shared\Security\SecurityFinding;
  */
 final class BackupConfigCheck
 {
-    private const CATEGORY = 'backup';
+    private const CATEGORY = SecuritySelfCheck::CATEGORY_BACKUP;
 
     /** Warn this far ahead of a client secret's expiry, matching ADR-0036's tiers. */
     private const EXPIRY_WARN_DAYS = 30;

@@ -22,8 +22,7 @@ import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getSecurity } from '../../api/generated/security/security'
 import { getApiErrorMessage } from '../../utils/apiErrors'
 import type { SecurityFinding, SecurityReport } from '../../api/generated'
-
-const CATEGORY_ORDER = ['exposure', 'data', 'transport', 'session', 'runtime'] as const
+import { orderedCategories } from './securityCategories'
 
 const STATUS_COLOR: Record<string, string> = {
   pass: theme.colors.semantic.success,
@@ -69,9 +68,7 @@ export function SecurityCheckTab() {
   }, [load, request])
 
   const findings = report?.findings ?? []
-  const categories = CATEGORY_ORDER.filter((category) =>
-    findings.some((finding) => finding.category === category)
-  )
+  const categories = orderedCategories(findings)
 
   return (
     <div data-testid="security-check-tab">

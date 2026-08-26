@@ -757,7 +757,9 @@
       "categories": {
         "exposure": "Was der Webserver herausgibt",
         "data": "Wo die Daten liegen",
+        "backup": "Ob es etwas zum Wiederherstellen gibt",
         "transport": "Verbindung",
+        "delivery": "Ob Nachrichten ankommen",
         "session": "Sitzungen",
         "runtime": "PHP-Laufzeit"
       },

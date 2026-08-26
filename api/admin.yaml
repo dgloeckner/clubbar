@@ -8137,7 +8137,7 @@ components:
           example: session_strict_mode
         category:
           type: string
-          enum: [runtime, session, data, exposure, transport, delivery]
+          enum: [runtime, session, data, exposure, transport, delivery, backup]
         label:
           type: string
           description: What the check asserts, in English
