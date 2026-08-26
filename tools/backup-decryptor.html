@@ -133,6 +133,16 @@
   <p>Opened <strong id="size"></strong>. SHA-256 of the plaintext: <code id="sha"></code></p>
   <p id="verified"></p>
   <p><a id="download" download="clubbar-backup.sql">Download the .sql</a> and import it through your host's database tool.</p>
+  <p id="config-row" class="hidden">
+    This archive also carries the installation's configuration.
+    <a id="download-config" download="config.php">Download config.php</a> —
+    you need it only when restoring onto a <em>different</em> host. Without
+    <code>security.totp_encryption_key</code> every admin's second factor fails
+    against the database you just restored, and nobody can log in.
+    Treat it as you would the private key you just used: it holds the database
+    password. The `.sql` above already contains it as inert comments, so there is
+    nothing extra to import.
+  </p>
 </div>
 
 <script src="vendor/libsodium.js"></script>
@@ -308,6 +318,19 @@
       var promised = BackupDecryptor.readHeader(archiveBytes).header.plaintext_sha256;
 
       $('download').href = URL.createObjectURL(blob);
+
+      // The configuration rides inside the .sql as a block of comments (#692),
+      // so importing the file whole is still safe and still one step. Offering
+      // it separately is what makes a restore onto a new host possible without
+      // asking an operator to hand-extract base64 from a comment.
+      var config = BackupDecryptor.extractConfig(plaintext);
+      if (config !== null) {
+        $('download-config').href =
+          URL.createObjectURL(new Blob([config], { type: 'application/x-php' }));
+        show($('config-row'), true);
+      } else {
+        show($('config-row'), false);
+      }
       $('size').textContent = plaintext.length.toLocaleString() + ' bytes';
       show($('result'), true);
 

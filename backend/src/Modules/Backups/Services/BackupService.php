@@ -114,6 +114,13 @@ final class BackupService
          * a typo must never be able to read as "no remote configured".
          */
         private readonly ?BackupTransport $transport = null,
+        /**
+         * `config.php`, carried inside the archive so a restore onto a new host
+         * can be logged into at all. Null where a caller does not care; an
+         * absent or unreadable file is carried as "nothing", never as a failed
+         * run ({@see ConfigSnapshot}).
+         */
+        private readonly ?ConfigSnapshot $config = null,
     ) {
         $this->journal = new BackupJournal($this->backupDirectory);
     }
@@ -206,10 +213,24 @@ final class BackupService
         // Sealing happens *after* the dump because the header describes the
         // plaintext: the manifest, its length and its checksum are not knowable
         // until the last row is written.
+        // Appended after the dump's footer, so the payload is still one `.sql`
+        // an operator can paste whole into phpMyAdmin — every line of the block
+        // is a comment. A restore onto a *new* host needs it: without
+        // `security.totp_encryption_key` every admin's second factor fails
+        // against the rows that were just restored, and nobody can log in.
+        $config = $this->config ?? new ConfigSnapshot();
+        $sql .= $config->render();
+
         $sealed = BackupSealedBox::seal(
             $sql,
             array_map(static fn (BackupRecipient $r): array => $r->toSealRecipient(), $recipients),
-            $source + ['manifest' => $result->manifest],
+            $source + [
+                'manifest' => $result->manifest,
+                // Answerable with no private key: a holder can see whether an
+                // archive is a whole installation or only its rows before
+                // working out what a restore will still need.
+                'config_included' => $config->isAvailable(),
+            ],
             $this->appEnv,
         );
         // The plaintext is the whole database; drop the reference as soon as it

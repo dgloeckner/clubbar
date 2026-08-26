@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App;
 
+use App\Shared\Config\DataDirectory;
 use App\Shared\Config\AppConfig;
 use App\Shared\Config\Env;
 use App\Shared\Logging\Logger;
@@ -124,6 +125,7 @@ use App\Modules\Backups\Controllers\BackupCronController;
 use App\Modules\Backups\Domain\BackupRetention;
 use App\Modules\Backups\Services\BackupKeyring;
 use App\Modules\Backups\Services\BackupService;
+use App\Modules\Backups\Services\ConfigSnapshot;
 use App\Modules\Backups\Services\DatabaseDump;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
@@ -1362,6 +1364,14 @@ class ServiceFactory implements ContainerInterface
                 new CurlHttpClient(),
                 $this->getLogger(),
             ),
+            // The installation's own `config.php`, carried inside the archive.
+            // Restoring the rows without it produces a database every admin is
+            // locked out of: `security.totp_encryption_key` decrypts their TOTP
+            // secrets and is not itself in the database (#692).
+            new ConfigSnapshot(DataDirectory::configPathIn(
+                $this->config->documentRoot,
+                $this->config->dataDir
+            )),
         ));
     }
 
