@@ -73,8 +73,14 @@ final class BackupService
     /** Sealed-container extension, as `tools/backup-decryptor.html` accepts it. */
     public const EXTENSION = '.cbb';
 
-    /** The archive name this job writes, and the only pattern it will ever prune. */
-    private const FILENAME_PREFIX = 'clubbar-';
+    /**
+     * The archive name this job writes.
+     *
+     * Kept as an alias of {@see ArchiveDirectory::FILENAME_PREFIX} so the
+     * matching rule has exactly one home: a report that counted different files
+     * from the prune that deletes them would be worse than either being wrong.
+     */
+    private const FILENAME_PREFIX = ArchiveDirectory::FILENAME_PREFIX;
 
     /**
      * The floor between two runs, in minutes.
@@ -584,37 +590,13 @@ final class BackupService
      */
     private function archivesOnDisk(): array
     {
-        $pattern = $this->backupDirectory . '/' . self::FILENAME_PREFIX . '*' . self::EXTENSION;
-
-        $archives = [];
-        foreach (glob($pattern) ?: [] as $path) {
-            if (!is_file($path)) {
-                continue;
-            }
-
-            $name = basename($path);
-            $archives[] = [
-                'name' => $name,
-                'bytes' => (int) filesize($path),
-                'at' => $this->dateOf($name) ?? (int) filemtime($path),
-            ];
-        }
-
-        usort($archives, static fn (array $a, array $b): int => [$a['at'], $a['name']] <=> [$b['at'], $b['name']]);
-
-        return $archives;
+        return (new ArchiveDirectory($this->backupDirectory))->oldestFirst();
     }
 
     /** The UTC instant in `clubbar-20260825-030000-1a2b3c4d.cbb`, or null. */
     private function dateOf(string $filename): ?int
     {
-        if (preg_match('/^' . self::FILENAME_PREFIX . '(\d{8}-\d{6})-/', $filename, $m) !== 1) {
-            return null;
-        }
-
-        $at = \DateTimeImmutable::createFromFormat('Ymd-His', $m[1], new \DateTimeZone('UTC'));
-
-        return $at === false ? null : $at->getTimestamp();
+        return ArchiveDirectory::instantIn($filename);
     }
 
     /**
