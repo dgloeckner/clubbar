@@ -294,10 +294,18 @@ test.describe('Package: Install Wizard', () => {
     expect(step5Post.status()).toBe(302);
     expect(step5Post.headers()['location']).toContain('step=6');
 
-    // Read back through config.php, redacted. This is the end-to-end proof
-    // that the value reached the file and was loaded from it again — and it is
-    // the assertion that catches the opcache staleness #710 found, where a read
-    // straight after a write could serve the pre-write copy for two seconds.
+    // Read back through config.php, redacted: end-to-end proof that the value
+    // reached the file and was loaded from it again.
+    //
+    // **This is also the only place the ADR-0050 rule is observable.** The POST
+    // above wrote config.php and this GET re-reads it milliseconds later —
+    // inside opcache's 2-second window, where the compiled copy is served and
+    // the mtime is never consulted. It passes because the *writer* announced
+    // the change (`ConfigWriter::writeTo()`), not because this read checked:
+    // reads deliberately pay nothing, since `index.php` does one on every
+    // request. Move that invalidation back to `read()` and this still passes
+    // while `index.php` quietly loses opcache for the file; delete it from both
+    // and this fails. No unit test can cover it — `opcache.enable_cli` is Off.
     const step5Again = await request.get(`${PACKAGE_URL}/install.php?step=5`);
     const step5AgainHtml = await step5Again.text();
     expect(step5AgainHtml).toContain('smtp://ci:***@mail.example.test:587');
