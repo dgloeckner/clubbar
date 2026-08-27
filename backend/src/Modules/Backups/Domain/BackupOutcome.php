@@ -30,6 +30,25 @@ final class BackupOutcome
         public readonly int $prunedArchives = 0,
         /** What the push to the remote store did, or null when there is no remote. */
         public readonly ?string $remoteSummary = null,
+        /**
+         * Does the push need somebody to look at it? `null` when there is no
+         * remote configured — a legitimate local-only setup, not a failure.
+         *
+         * The machine-readable companion to {@see $remoteSummary}, which is
+         * prose for a human. The external monitor (#712) has to tell "no
+         * archive at all" from "an archive that is still only on this webspace"
+         * without reading English, because the two have different urgency: the
+         * second still restores an accidental deletion, it just does not
+         * survive losing the hosting account.
+         *
+         * Deliberately `needsAttention()` and not `reachedTheRemote()`: a
+         * **partial** upload has not reached the store either, but it resumes
+         * on the next run, and alarming nightly for a large database on a slow
+         * line is how a monitor gets switched off. This mirrors the question
+         * the panel and the failure mail already ask, so the alarm can never be
+         * noisier than they are.
+         */
+        public readonly ?bool $remoteNeedsAttention = null,
     ) {
     }
 
@@ -42,6 +61,7 @@ final class BackupOutcome
         array $findings,
         int $prunedArchives,
         ?string $remoteSummary = null,
+        ?bool $remoteNeedsAttention = null,
     ): self {
         return new self(
             'written',
@@ -51,6 +71,7 @@ final class BackupOutcome
             $findings,
             $prunedArchives,
             $remoteSummary,
+            $remoteNeedsAttention,
         );
     }
 

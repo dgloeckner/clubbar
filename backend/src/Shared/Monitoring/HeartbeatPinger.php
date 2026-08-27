@@ -59,16 +59,44 @@ final class HeartbeatPinger
      *
      * A closed set on purpose — see the class docblock. Adding a reason here is
      * a deliberate act; interpolating one is not possible.
+     *
+     * Two scheduled jobs feed this, and their reasons are kept in one list
+     * rather than one per module: the property that matters is that the set is
+     * *closed*, and a second list is a second place for somebody to add a
+     * `$e->getMessage()` to. A monitor URL only ever belongs to one of the two
+     * jobs (ADR-0049 keeps `backup.heartbeat_url` separate from
+     * `cron.heartbeat_url` deliberately), so the vocabularies never mix on the
+     * wire.
      */
     public const REASONS = [
         self::REASON_TRANSPORT_UNAVAILABLE => 'no usable mail transport is configured',
         self::REASON_QUEUE_STALLED => 'a message has been due for three scheduler ticks and nothing took it',
         self::REASON_RUN_ABORTED => 'the drain run ended abnormally',
+        self::REASON_KEYS_UNUSABLE => 'no usable backup recipient key is configured, so no archive was written',
+        self::REASON_BACKUP_FAILED => 'the backup run could not write an archive',
+        self::REASON_UPLOAD_FAILED => 'an archive was written but did not reach the off-site store',
     ];
 
     public const REASON_TRANSPORT_UNAVAILABLE = 'transport_unavailable';
     public const REASON_QUEUE_STALLED = 'queue_stalled';
     public const REASON_RUN_ABORTED = 'run_aborted';
+
+    /**
+     * Configured but unusable — never "none configured", which is a legitimate
+     * state (ADR-0049 decision 2) and must not raise an alarm. An alarm that
+     * fires for a club that simply has not set backups up is an alarm that club
+     * switches off, and then the real one is silent too.
+     */
+    public const REASON_KEYS_UNUSABLE = 'backup_keys_unusable';
+    public const REASON_BACKUP_FAILED = 'backup_failed';
+
+    /**
+     * The archive exists on the webspace but is not off-site yet. Distinct from
+     * {@see REASON_BACKUP_FAILED} because the remedies differ and so does the
+     * urgency: a local archive still restores an accidental deletion, it just
+     * does not survive losing the hosting account.
+     */
+    public const REASON_UPLOAD_FAILED = 'backup_upload_failed';
 
     /**
      * @param string|null $checkUrl The monitor's check URL; null switches the alarm off

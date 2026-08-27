@@ -1372,6 +1372,16 @@ class ServiceFactory implements ContainerInterface
                 $this->config->documentRoot,
                 $this->config->dataDir
             )),
+            // Its own monitor, deliberately not the mail one (ADR-0049): a
+            // check that guards a legal announcement deadline must not go red
+            // because a storage upload failed, or the operator learns to
+            // ignore it. A separate HeartbeatPinger instance rather than the
+            // shared one for the same reason — different URL, different job.
+            new HeartbeatPinger(
+                new CurlHttpClient(),
+                $this->getLogger(),
+                $this->config->backupHeartbeatUrl,
+            ),
         ));
     }
 

@@ -14,7 +14,9 @@ use App\Shared\Security\BackupSealedBox;
 use App\Modules\Backups\Transport\BackupTransport;
 use App\Modules\Backups\Transport\RemoteArchive;
 use Tests\Feature\DatabaseTestCase;
+use App\Shared\Monitoring\HeartbeatPinger;
 use Tests\Support\FakeBackupTransport;
+use Tests\Support\SpyHttpClient;
 use Tests\Support\TempTree;
 
 /**
@@ -36,6 +38,9 @@ use Tests\Support\TempTree;
  */
 class BackupServiceTest extends DatabaseTestCase
 {
+    /** The backup's own monitor, deliberately not the mail one (ADR-0049). */
+    private const MONITOR_URL = 'https://monitor.example/backup-8f14e45f';
+
     use TempTree;
 
     private string $tempTree = '';
@@ -536,6 +541,138 @@ class BackupServiceTest extends DatabaseTestCase
         $this->assertStringNotContainsString('upload', $this->journalContents());
     }
 
+    /**
+     * ## The external alarm (#712)
+     *
+     * Everything else the backup reports — the journal, the log, the self-check
+     * row, the failure mail — lives *inside* the installation being protected.
+     * A run that stops on a webspace about to be lost is therefore silent in
+     * every channel except this one.
+     *
+     * `backup.heartbeat_url` was read into config, collected by installer step
+     * 6, and documented down to the recommended grace window, and **nothing
+     * pinged it**: a club that followed the documentation got a check that went
+     * red on day one and stayed red, which is worse than no monitoring, because
+     * the club deletes it and believes it is covered.
+     */
+    public function test_a_successful_run_pings_start_then_the_base_url(): void
+    {
+        $http = new SpyHttpClient();
+
+        $outcome = $this->service(heartbeat: $this->pinger($http))->run('cli');
+
+        $this->assertTrue($outcome->producedAnArchive());
+        $this->assertSame([self::MONITOR_URL . '/start', self::MONITOR_URL], $http->urls());
+    }
+
+    /** Counts travel with it, so the monitor shows what the run did. */
+    public function test_the_success_ping_carries_counts_and_nothing_else(): void
+    {
+        $http = new SpyHttpClient();
+
+        $this->service(heartbeat: $this->pinger($http))->run('cli');
+
+        $body = $http->lastBody();
+        $this->assertStringContainsString('result=ok', $body);
+        $this->assertStringContainsString('bytes=', $body);
+        // The filename names the club's instance and the date; it is not an
+        // integer, so HeartbeatPinger drops it on the way out.
+        $this->assertStringNotContainsString('clubbar-', $body);
+    }
+
+    /**
+     * **The state a liveness check cannot see**, and the one that lasts:
+     * uploads fail quietly for weeks while the job keeps reporting that it ran.
+     * The archive is real and restores an accidental deletion — it just does
+     * not survive losing the hosting account, so it is a different alarm from
+     * "no archive", not the same one.
+     */
+    public function test_an_archive_that_did_not_reach_the_remote_pings_fail(): void
+    {
+        $http = new SpyHttpClient();
+
+        $outcome = $this->service(
+            transport: new FakeBackupTransport('failed'),
+            heartbeat: $this->pinger($http),
+        )->run('cli');
+
+        $this->assertTrue($outcome->producedAnArchive(), 'the local archive is still written');
+        $this->assertSame([self::MONITOR_URL . '/start', self::MONITOR_URL . '/fail'], $http->urls());
+        $this->assertStringContainsString('reason=' . HeartbeatPinger::REASON_UPLOAD_FAILED, $http->lastBody());
+    }
+
+    /**
+     * **A partial upload is not an alarm.** It resumes on the next run, and a
+     * large database on a slow line would otherwise turn the check red every
+     * single night — which is how a monitor gets switched off, taking the real
+     * alarm with it. This mirrors `TransportResult::needsAttention()`, so the
+     * check can never be noisier than the panel and the failure mail.
+     */
+    public function test_a_partial_upload_pings_success_rather_than_crying_wolf(): void
+    {
+        $http = new SpyHttpClient();
+
+        $outcome = $this->service(
+            transport: new FakeBackupTransport('partial'),
+            heartbeat: $this->pinger($http),
+        )->run('cli');
+
+        $this->assertTrue($outcome->producedAnArchive());
+        $this->assertSame([self::MONITOR_URL . '/start', self::MONITOR_URL], $http->urls());
+        $this->assertStringContainsString('result=ok', $http->lastBody());
+    }
+
+    /**
+     * A key that will not parse is an installation that believes it has backups
+     * and produces none. The reason is a vocabulary key rather than the
+     * exception message, which quotes the offending key back — a recipient key
+     * has no business leaving the host through a third-party monitor.
+     */
+    public function test_an_unusable_recipient_key_pings_fail_without_quoting_the_key(): void
+    {
+        $http = new SpyHttpClient();
+        $badKey = 'admin:' . str_repeat('z', 64);
+
+        $outcome = $this->service(publicKeys: $badKey, heartbeat: $this->pinger($http))->run('cli');
+
+        $this->assertFalse($outcome->producedAnArchive());
+        $this->assertSame([self::MONITOR_URL . '/start', self::MONITOR_URL . '/fail'], $http->urls());
+        $this->assertStringContainsString('reason=' . HeartbeatPinger::REASON_KEYS_UNUSABLE, $http->lastBody());
+        $this->assertStringNotContainsString('zzz', $http->lastBody());
+    }
+
+    /**
+     * **A skip is not a run.** The URL trigger can be called repeatedly, and a
+     * skip that pinged success would hold the check green while no archive was
+     * written. Pinging `/start` and then nothing would be worse — that reads as
+     * a hung run. So the interval guard is evaluated before any ping at all,
+     * and the check stays where the last real run left it.
+     */
+    public function test_a_skipped_run_pings_nothing_at_all(): void
+    {
+        $http = new SpyHttpClient();
+        $service = $this->service(heartbeat: $this->pinger($http));
+
+        $service->run('cli');
+        $http->calls = [];
+
+        $second = $service->run('url');
+
+        $this->assertFalse($second->producedAnArchive(), 'the interval guard should have skipped this');
+        $this->assertSame([], $http->urls());
+    }
+
+    /** No monitor configured is a legitimate state, and pings nothing. */
+    public function test_no_configured_monitor_pings_nothing(): void
+    {
+        $http = new SpyHttpClient();
+        $unconfigured = new HeartbeatPinger($http, $this->createMock(Logger::class), null);
+
+        $this->service(heartbeat: $unconfigured)->run('cli');
+
+        $this->assertSame([], $http->urls());
+    }
+
     private function journalContents(): string
     {
         return (string) @file_get_contents($this->backupDir . '/' . BackupJournal::FILENAME);
@@ -546,6 +683,7 @@ class BackupServiceTest extends DatabaseTestCase
         ?string $directory = null,
         ?BackupRetention $retention = null,
         ?BackupTransport $transport = null,
+        ?HeartbeatPinger $heartbeat = null,
     ): BackupService {
         return new BackupService(
             new DatabaseDump($this->db),
@@ -556,6 +694,13 @@ class BackupServiceTest extends DatabaseTestCase
             $retention ?? BackupRetention::defaults(),
             'development',
             $transport,
+            null,
+            $heartbeat,
         );
+    }
+
+    private function pinger(SpyHttpClient $http): HeartbeatPinger
+    {
+        return new HeartbeatPinger($http, $this->createMock(Logger::class), self::MONITOR_URL);
     }
 }

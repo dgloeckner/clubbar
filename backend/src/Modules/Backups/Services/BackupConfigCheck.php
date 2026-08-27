@@ -51,6 +51,7 @@ final class BackupConfigCheck
         private readonly ?string $dsn,
         private readonly ?string $clientSecret,
         private readonly ?string $clientSecretExpiresAt,
+        private readonly ?string $heartbeatUrl = null,
     ) {
     }
 
@@ -60,6 +61,7 @@ final class BackupConfigCheck
         return [
             $this->recipientKeysFinding(),
             ...$this->remoteFindings(),
+            ...$this->monitorFindings(),
         ];
     }
 
@@ -119,6 +121,42 @@ final class BackupConfigCheck
             'Backup recipient keys',
             $count . ' recipients configured'
         );
+    }
+
+    /**
+     * A monitor watching a job that never runs (#712).
+     *
+     * Only one state is worth a row, and it is invisible from everywhere else:
+     * a `heartbeat_url` configured while `recipient_public_keys` is empty. The
+     * club created a check, pasted the URL in, and backups are off — so nothing
+     * ever pings it, the check goes red on day one and **stays red for ever**.
+     * The club then either chases a failure that is not happening or, far more
+     * likely, deletes the check and believes it is monitored.
+     *
+     * The reverse — backups on with no monitor — is deliberately *not* a row
+     * here. It is already the point of the `backup_recipients` and
+     * `backup_remote` rows above, and a report that repeats itself is a report
+     * people stop reading.
+     *
+     * @return list<SecurityFinding>
+     */
+    private function monitorFindings(): array
+    {
+        $monitor = trim((string) $this->heartbeatUrl);
+
+        if ($monitor === '' || trim($this->recipientPublicKeys) !== '') {
+            return [];
+        }
+
+        return [SecurityFinding::warn(
+            'backup_monitor',
+            self::CATEGORY,
+            'Backup monitor',
+            'a monitor URL is configured but backups are off, so it is never pinged',
+            'The check will stay red for ever and tell you nothing. Either switch backups on by '
+            . 'configuring a recipient key, or remove backup.heartbeat_url — a red check nobody '
+            . 'can fix is one people learn to ignore.'
+        )];
     }
 
     /** @return list<SecurityFinding> */

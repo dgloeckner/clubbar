@@ -181,13 +181,60 @@ class BackupConfigCheckTest extends TestCase
         ));
     }
 
+    /**
+     * **A monitor watching a job that never runs** (#712).
+     *
+     * The club created a healthchecks.io check, pasted the URL in, and backups
+     * are off — so nothing ever pings it. The check goes red on day one and
+     * stays red for ever, and the club either chases a failure that is not
+     * happening or deletes the check and believes it is monitored. Invisible
+     * from everywhere else, because both halves look individually fine.
+     */
+    public function test_a_monitor_configured_while_backups_are_off_is_reported(): void
+    {
+        $finding = $this->findingById(
+            $this->check(keys: '', monitor: 'https://hc-ping.com/8f14e45f'),
+            'backup_monitor'
+        );
+
+        $this->assertSame(SecurityFinding::WARN, $finding->status);
+        $this->assertStringContainsString('never pinged', $finding->observed);
+    }
+
+    /** Backups on and a monitor configured is the intended state; no row. */
+    public function test_a_monitor_with_backups_on_produces_no_row(): void
+    {
+        $ids = array_map(
+            static fn (SecurityFinding $f): string => $f->id,
+            $this->check(monitor: 'https://hc-ping.com/8f14e45f')
+        );
+
+        $this->assertNotContains('backup_monitor', $ids);
+    }
+
+    /**
+     * Backups off and no monitor is a club that has not set backups up. The
+     * `backup_recipients` row already says so; a second row saying it again is
+     * how a report teaches people to skim it.
+     */
+    public function test_no_monitor_and_no_backups_produces_no_monitor_row(): void
+    {
+        $ids = array_map(
+            static fn (SecurityFinding $f): string => $f->id,
+            $this->check(keys: '')
+        );
+
+        $this->assertNotContains('backup_monitor', $ids);
+    }
+
     /** @return list<SecurityFinding> */
     private function check(
         string $keys = self::KEY_A . "\n" . self::KEY_B,
         ?string $dsn = self::DSN,
         ?string $secret = 'a-secret',
         ?string $expires = '2099-01-01',
+        ?string $monitor = null,
     ): array {
-        return (new BackupConfigCheck($keys, $dsn, $secret, $expires))->findings();
+        return (new BackupConfigCheck($keys, $dsn, $secret, $expires, $monitor))->findings();
     }
 }

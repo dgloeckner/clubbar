@@ -14,6 +14,7 @@ use App\Modules\Backups\Transport\BackupTransport;
 use App\Modules\Backups\Transport\TransportResult;
 use App\Modules\Backups\Transport\UploadState;
 use App\Shared\Logging\Logger;
+use App\Shared\Monitoring\HeartbeatPinger;
 use App\Shared\Security\BackupSealedBox;
 use Throwable;
 
@@ -121,6 +122,17 @@ final class BackupService
          * run ({@see ConfigSnapshot}).
          */
         private readonly ?ConfigSnapshot $config = null,
+        /**
+         * The external alarm (#712), and the only part of this feature that can
+         * speak after the host is gone. Everything else the backup reports —
+         * the journal, the log, the self-check row, the failure mail — lives
+         * *inside* the installation being protected, so a run that stops on a
+         * webspace about to be lost is silent exactly when it matters.
+         *
+         * Null, or an unconfigured pinger, means no monitor: a legitimate
+         * state that pings nothing rather than failing.
+         */
+        private readonly ?HeartbeatPinger $heartbeat = null,
     ) {
         $this->journal = new BackupJournal($this->backupDirectory);
     }
@@ -150,9 +162,21 @@ final class BackupService
      */
     public function run(string $triggerSource, bool $force = false): BackupOutcome
     {
+        // Before any ping, deliberately. A skipped run is not a run: the URL
+        // trigger can be called repeatedly and every call would otherwise ping,
+        // and pinging *success* for a skip would hold the check green while no
+        // archive was written. Pinging /start and then nothing would be worse
+        // still — it reads as a hung run. So a skip is silent, and the check
+        // stays where the last real run left it.
         if (!$force && ($tooSoon = $this->tooSoonToRunAgain()) !== null) {
             return BackupOutcome::skipped($tooSoon);
         }
+
+        // Sent before any work, so a run that dies mid-dump is distinguishable
+        // from a cron that never fired. That matters more here than for the
+        // mail drain: this job holds a flock, and every following run queues
+        // behind a hung one.
+        $this->heartbeat?->start();
 
         try {
             $recipients = $this->keyring->recipients($this->configuredRecipientKeys);
@@ -166,6 +190,12 @@ final class BackupService
                 'message' => $e->getMessage(),
             ]);
 
+            // The reason is a vocabulary key, never $e->getMessage(): that
+            // message names the tool and quotes the offending entry, and a
+            // recipient key has no business leaving the host through a
+            // third-party monitor.
+            $this->heartbeat?->fail(HeartbeatPinger::REASON_KEYS_UNUSABLE);
+
             return BackupOutcome::failed($e->getMessage(), [$e->getMessage()]);
         }
 
@@ -178,7 +208,7 @@ final class BackupService
             $this->ensureDirectory();
             $this->journal->started($triggerSource);
 
-            return $this->produce($recipients);
+            return $this->tellTheMonitor($this->produce($recipients));
         } catch (Throwable $e) {
             $this->journal->failed($e->getMessage());
             $this->logger->error('Backup run failed', [
@@ -186,8 +216,60 @@ final class BackupService
                 'message' => $e->getMessage(),
             ]);
 
+            $this->heartbeat?->fail(HeartbeatPinger::REASON_BACKUP_FAILED);
+
             return BackupOutcome::failed($e->getMessage(), [$e->getMessage()]);
         }
+    }
+
+    /**
+     * Report a completed run to the external monitor, and hand the outcome back.
+     *
+     * ## Why the outcome alone decides
+     *
+     * The alarm has to distinguish three states a club would act on
+     * differently, and none of them is "the script ran":
+     *
+     * | State | Ping | What the club should do |
+     * |---|---|---|
+     * | Archive written, push fine | base URL | nothing |
+     * | Archive written, the push failed | `/fail` | fix the remote; the local copy is fine meanwhile |
+     * | No archive | `/fail` | fix it tonight |
+     *
+     * A pure liveness check cannot see the middle row, and it is the one that
+     * lasts: uploads fail quietly for weeks while the nightly job keeps
+     * reporting that it ran.
+     *
+     * **Only an upload *failure* escalates**, per `TransportResult::needsAttention()`
+     * — a **partial** upload resumes on the next run and is not an alarm, or a
+     * large database on a slow line would turn the check red every night. Other
+     * findings — a remote whose old archives could not be pruned, say — stay
+     * findings. They reach the club
+     * through the self-check row and the failure mail, which are the channels
+     * for "look at this soon". Turning them red here would make the check cry
+     * wolf, and a check that cries wolf gets deleted, taking the real alarm
+     * with it.
+     */
+    private function tellTheMonitor(BackupOutcome $outcome): BackupOutcome
+    {
+        if ($this->heartbeat === null) {
+            return $outcome;
+        }
+
+        // Counts only, and HeartbeatPinger drops anything that is not an
+        // integer on the way out — no filename, which names the club's
+        // instance, and no table names.
+        $counts = ['bytes' => $outcome->bytes, 'pruned' => $outcome->prunedArchives];
+
+        if ($outcome->remoteNeedsAttention === true) {
+            $this->heartbeat->fail(HeartbeatPinger::REASON_UPLOAD_FAILED, $counts);
+
+            return $outcome;
+        }
+
+        $this->heartbeat->success($counts);
+
+        return $outcome;
     }
 
     /**
@@ -267,7 +349,14 @@ final class BackupService
             $pruned += $this->pruneRemote($findings);
         }
 
-        return BackupOutcome::written($filename, $bytes, $findings, $pruned, $remote?->summary);
+        return BackupOutcome::written(
+            $filename,
+            $bytes,
+            $findings,
+            $pruned,
+            $remote?->summary,
+            $remote?->needsAttention(),
+        );
     }
 
     /**
