@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto'
+import type { APIRequestContext } from '@playwright/test'
 import { test, expect } from '../../fixtures/auth.fixture'
 
 /**
@@ -26,7 +27,14 @@ import { test, expect } from '../../fixtures/auth.fixture'
 
 const API_BASE = 'http://localhost:8080/api'
 
-async function createMember(authenticatedRequest) {
+interface ReportRow {
+  dimension: string | null
+  dimension_id: string
+  revenue_cents: number
+  count: number
+}
+
+async function createMember(authenticatedRequest: APIRequestContext) {
   const uniqueId = randomUUID().substring(0, 8)
 
   const response = await authenticatedRequest.post('/api/admin/members', {
@@ -45,7 +53,7 @@ async function createMember(authenticatedRequest) {
   return await response.json()
 }
 
-async function createProduct(authenticatedRequest, germanName: string) {
+async function createProduct(authenticatedRequest: APIRequestContext, germanName: string) {
   const category = await authenticatedRequest.post('/api/admin/categories', {
     data: { names: { de: `Kategorie ${randomUUID().substring(0, 8)}`, en: 'Category' } },
   })
@@ -98,7 +106,7 @@ test.describe('Reports: sales whose product no longer resolves', () => {
       `${API_BASE}/admin/reports/revenue?group_by=product&product_ids=${known.id},${gone},${alsoGone}`,
     )
     expect(response.status()).toBe(200)
-    const rows = (await response.json()).data
+    const rows: ReportRow[] = (await response.json()).data
 
     const rowFor = (productId: string) =>
       rows.find((row) => row.dimension_id === productId)
