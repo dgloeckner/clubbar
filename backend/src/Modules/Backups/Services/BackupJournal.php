@@ -197,6 +197,55 @@ final class BackupJournal
     }
 
     /**
+     * When an archive last *reached the remote store*, or null if none has in
+     * the window.
+     *
+     * Distinct from "when did a backup last succeed", and both rows exist
+     * because local and remote are both kept — 30 days here, 90 there, and an
+     * upload is a copy rather than a move. A host whose uploads have failed for
+     * six weeks still writes a perfectly good local archive every night, so a
+     * single "backups are fine" row would be green throughout.
+     *
+     * Unlike the last successful backup, **only the journal knows this**: the
+     * archive on disk looks identical whether or not it was ever pushed. The
+     * caller must therefore treat null as *unknown*, never as "never uploaded"
+     * — see {@see tailLines()} for why the window can miss an older success.
+     */
+    public function lastUploadedAt(): ?int
+    {
+        foreach (array_reverse($this->tailLines()) as $line) {
+            $entry = json_decode($line, true);
+
+            if (is_array($entry) && ($entry['event'] ?? null) === 'uploaded') {
+                $at = strtotime((string) ($entry['at'] ?? ''));
+
+                return $at === false ? null : $at;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Has this installation ever run the backup job at all?
+     *
+     * The question behind the row that matters most: a cron never added, or
+     * dropped in a tariff migration, must read as **"no backup ever"** rather
+     * than as silence. Any line answers it — a failed attempt is still a run —
+     * and the caller pairs this with "is there an archive?", because either one
+     * alone is enough to prove the job has executed.
+     *
+     * Deliberately not `lastStartedAt() !== null`: that reads a bounded window
+     * and parses timestamps, so a journal older than the window, or one whose
+     * recent lines have unparseable dates, would answer "never" to a club that
+     * has been backing up for a year.
+     */
+    public function hasAnyEntry(): bool
+    {
+        return $this->tailLines() !== [];
+    }
+
+    /**
      * One line, JSON, atomically appended. Never throws.
      *
      * @param array<string, mixed> $entry

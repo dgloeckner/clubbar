@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/auth.fixture'
+import { request as playwrightRequest } from '@playwright/test'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -43,6 +44,43 @@ type Finding = {
 const CATEGORIES = ['runtime', 'session', 'data', 'exposure', 'transport', 'delivery', 'backup']
 
 test.describe('Security self-check API', () => {
+  /**
+   * **Give the observation rows something to observe** (#693).
+   *
+   * Four of the `backup` rows read `config.php` and hold on any stack. Three
+   * more measure what the job has actually *done*, and on a stack whose
+   * recipient key is configured (docker-compose.yml, because configuring one is
+   * the on-switch) but whose nightly cron does not exist, the honest answer is
+   * `backup_ever_ran: no backup has ever been observed to run` — a fail, and
+   * the right one on a real installation whose scheduler entry was never added.
+   *
+   * That would make the "no failing row" assertion below depend on whether
+   * `cron-backup.spec.ts` happened to land in the same shard and run first, so
+   * this triggers a run itself rather than tolerating either state. It also
+   * buys the thing no test had: proof that the rows observe a *real* run
+   * through the whole stack, not a fixture directory.
+   *
+   * The trigger shares the drain's secret (`CRON_SECRET` in
+   * docker-compose.yml) and returns 204 whether it ran or skipped the
+   * minimum-interval floor; either way a journal entry exists afterwards.
+   */
+  test.beforeAll(async () => {
+    const anonymous = await playwrightRequest.newContext()
+
+    try {
+      const response = await anonymous.post('http://localhost:8080/api/cron/backup', {
+        headers: { 'X-Cron-Secret': process.env.CRON_SECRET || 'dev-cron-secret-x' },
+      })
+
+      // Asserted rather than ignored: a 401 here would leave the backup rows
+      // red further down with a message about the scheduler, sending whoever
+      // reads it to look at the wrong thing entirely.
+      expect(response.status(), 'the backup trigger must be reachable for the backup rows to mean anything').toBe(204)
+    } finally {
+      await anonymous.dispose()
+    }
+  })
+
   test('requires an authenticated admin session', async ({ request }) => {
     const response = await request.get(`${API_BASE}/admin/security-check`)
 
@@ -145,17 +183,61 @@ test.describe('Security self-check API', () => {
     expect(byId.get('mail_scheduler_run')?.observed).toContain('last run')
   })
 
-  test('exposes no failing row on the environment the suite runs against', async ({
+  test('carries the backup rows that observe the job, not just its configuration', async ({
     authenticatedRequest,
   }) => {
     const findings: Finding[] = (await (
       await authenticatedRequest.get(`${API_BASE}/admin/security-check`)
     ).json()).findings
 
-    // A `fail` means credentials or member documents are reachable. The
-    // development stack keeps its data outside the document root, so a red row
-    // here is a regression in the deployment, not a property of the host.
-    const failing = findings.filter((finding) => finding.status === 'fail')
-    expect(failing.map((finding) => `${finding.id}: ${finding.observed}`)).toEqual([])
+    const byId = new Map(findings.map((finding) => [finding.id, finding]))
+
+    // ADR-0038's rule — no scheduled path may exist that nothing observes — is
+    // the only reason ADR-0049 was allowed a backup cron of its own, and until
+    // #693 nothing met it: every backup row read `config.php` and reported what
+    // the club *intended*. A cron never added read exactly like one running
+    // nightly.
+    for (const id of ['backup_last_run', 'backup_last_upload', 'backup_local_size']) {
+      const row = byId.get(id)
+      expect(row, `${id} is part of the report`).toBeTruthy()
+      expect(row?.category).toBe('backup')
+      expect(row?.observed.length, `${id} reports what was observed`).toBeGreaterThan(0)
+    }
+
+    // The beforeAll ran one, so the never-ran row must have stood down. It is
+    // returned *instead of* the three above rather than beside them: a club
+    // with no run yet has one thing to fix, and three more rows restating it
+    // would be the noise that teaches an admin to skim the section.
+    expect(byId.get('backup_ever_ran'), 'a run was triggered, so this row must stand down').toBeFalsy()
+  })
+
+  test('exposes no failing row on the environment the suite runs against', async ({
+    authenticatedRequest,
+  }) => {
+    // A `fail` means credentials or member documents are reachable, or that the
+    // backup job has stopped producing archives. The development stack keeps
+    // its data outside the document root and the beforeAll leaves it a fresh
+    // archive, so a red row here is a regression in the deployment, not a
+    // property of the host.
+    //
+    // Polled rather than read once: `cron-backup.spec.ts` triggers runs against
+    // the same stack, and a run in flight has already journalled its start
+    // while its archive is still being written — a window of milliseconds in
+    // which `backup_last_run` is legitimately red. Failing on it would be
+    // reporting a race as a regression.
+    await expect
+      .poll(
+        async () => {
+          const findings: Finding[] = (await (
+            await authenticatedRequest.get(`${API_BASE}/admin/security-check`)
+          ).json()).findings
+
+          return findings
+            .filter((finding) => finding.status === 'fail')
+            .map((finding) => `${finding.id}: ${finding.observed}`)
+        },
+        { timeout: 10_000 }
+      )
+      .toEqual([])
   })
 })

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Shared\Services;
 
 use App\Modules\Backups\Services\BackupConfigCheck;
+use App\Modules\Backups\Domain\BackupRetention;
+use App\Modules\Backups\Services\BackupService;
+use App\Modules\Backups\Services\BackupStatusCheck;
 use App\Modules\Notifications\Services\MailDeliveryCheck;
 use App\Shared\Config\AppConfig;
 use App\Shared\Config\DataDirectory;
@@ -46,6 +49,7 @@ class SecurityCheckService
             ...SecuritySelfCheck::run($this->context($serverParams)),
             ...$this->deliveryFindings(),
             ...$this->backupFindings(),
+            ...$this->backupStatusFindings(),
         ];
 
         return new SecurityReportDto(
@@ -96,6 +100,34 @@ class SecurityCheckService
             $this->config->backupClientSecret,
             $this->config->backupClientSecretExpiresAt,
             $this->config->backupHeartbeatUrl,
+        ))->findings();
+    }
+
+    /**
+     * What the backup job has *done*, as opposed to what it is configured to do.
+     *
+     * Separate from {@see backupFindings()} because the two fail differently: a
+     * flawless configuration whose cron was dropped in a tariff migration
+     * passes every config row and has produced nothing for eight months.
+     *
+     * **Takes no transport, deliberately.** This report renders on the page an
+     * admin opens to find out what is broken; a call to the storage provider
+     * here would let a tenant outage break exactly that page, and the
+     * transport's timeouts are sized for a nightly chunk upload rather than for
+     * somebody waiting. See {@see BackupStatusCheck} for the whole argument.
+     *
+     * @return list<\App\Shared\Security\SecurityFinding>
+     */
+    private function backupStatusFindings(): array
+    {
+        return (new BackupStatusCheck(
+            $this->config->dataDir . '/' . BackupService::DIRECTORY,
+            $this->config->backupRecipientPublicKeys,
+            BackupRetention::fromOverrides(
+                $this->config->backupLocalRetentionDays,
+                $this->config->backupLocalMaxBytes,
+                $this->config->backupRemoteRetentionDays,
+            ),
         ))->findings();
     }
 
