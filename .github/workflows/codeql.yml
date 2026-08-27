@@ -2,8 +2,8 @@
 #
 # Scanned languages are scoped to what actually carries first-party logic:
 #   - javascript-typescript: admin-frontend (React SPA) and e2etests (Playwright)
-#   - python: terminal-frontend/scripts/ kiosk helpers (blackscreen.py, screen-idle.py)
-#             and scripts/codacy_sarif.py
+#   - python: the terminal-frontend/scripts/ kiosk helpers (blackscreen.py,
+#             screen-idle.py)
 #   - actions: this repo's own GitHub Actions workflows
 #
 # Not scanned, and not omitted by oversight:

@@ -1,0 +1,85 @@
+# Supply-chain vulnerability scanning for every ecosystem this repository locks.
+#
+# Why this exists alongside the `audit` job in build.yaml, which already runs
+# `npm audit` and `composer audit`: those two cover three of the four lockfiles,
+# and the fourth is the one with no tooling at all. `audit` says so itself —
+#
+#     # pub has no audit command, which is why the terminal's only advisory
+#     # signal is a Dependabot version bump (#649).
+#
+# OSV-Scanner reads `pubspec.lock` directly, so the terminal's Dart dependencies
+# get the same advisory signal as everything else rather than waiting for a
+# version bump to imply one. One scanner covers all four:
+#
+#   backend/composer.lock          admin-frontend/package-lock.json
+#   terminal-frontend/pubspec.lock e2etests/package-lock.json
+#
+# It reports CVEs from the OSV database and nothing else — no style rules, no
+# opinions — so it adds signal without adding a triage burden.
+#
+# Two lanes, because a pull request and a schedule want different questions
+# answered:
+#
+#   * On a pull request, `osv-scanner-reusable-pr` scans the base branch and the
+#     PR head and reports only what the PR *introduces*. A vulnerability the
+#     branch inherited from main is main's problem, and failing a contributor's
+#     PR for it is how a check gets ignored.
+#   * On a schedule, the full scan answers "what is true today", which is the
+#     half a PR cannot see: an advisory published after the code merged. That is
+#     the whole point — most advisories arrive long after the dependency does.
+#
+# The scheduled lane reports through scheduled-failure-issue.yaml, for the reason
+# that file documents: a scheduled workflow has no pull request to turn red, and
+# `mirror-images.yaml` failed nine runs over fifteen days before anyone noticed.
+#
+# `fail-on-vuln` is left at its default (true) rather than lowered to a severity
+# threshold, matching the rule build.yaml states for npm audit: tolerating a
+# *specific* advisory is a recorded exception, never a lower threshold for
+# everything. The exception mechanism here is an `osv-scanner.toml` with an
+# `[[IgnoredVulns]]` entry naming the id and the reason.
+name: OSV-Scanner
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Wednesday 07:11 UTC. Off the hour because every cron on the hour competes
+    # for runners, and offset from codeql.yml's 11:34 so a red morning has one
+    # cause to look at rather than two.
+    - cron: '11 7 * * 3'
+
+permissions: {}
+
+jobs:
+  # Pull requests: report only what this branch introduces.
+  scan-pr:
+    if: github.event_name == 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+  # main and the weekly schedule: the full picture, including advisories
+  # published after the dependency was merged.
+  scan-full:
+    if: github.event_name != 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+  # A scheduled failure has no pull request to turn red, so it becomes an issue
+  # that closes itself on the next green run.
+  report:
+    needs: [scan-full]
+    if: always() && github.event_name == 'schedule'
+    uses: ./.github/workflows/scheduled-failure-issue.yaml
+    with:
+      workflow-name: OSV-Scanner
+      succeeded: ${{ needs.scan-full.result == 'success' }}
+    permissions:
+      issues: write
