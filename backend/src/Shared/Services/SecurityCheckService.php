@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Shared\Services;
 
 use App\Modules\Backups\Services\BackupConfigCheck;
-use App\Modules\Backups\Domain\BackupRetention;
-use App\Modules\Backups\Services\BackupService;
 use App\Modules\Backups\Services\BackupStatusCheck;
 use App\Modules\Notifications\Services\MailDeliveryCheck;
 use App\Shared\Config\AppConfig;
@@ -38,6 +36,15 @@ class SecurityCheckService
     public function __construct(
         private readonly AppConfig $config,
         private readonly ?MailDeliveryCheck $mailDeliveryCheck = null,
+        /**
+         * The measured backup rows (#693). Optional for the same reason as the
+         * delivery check above, and injected rather than built here since #693's
+         * mail arm: {@see \App\Modules\Notifications\Services\BackupHealthNotifier}
+         * and {@see \App\Modules\Notifications\Services\BackupHealthMailBuilder}
+         * need the same object, and three places assembling its four arguments
+         * from configuration is three places for them to drift.
+         */
+        private readonly ?BackupStatusCheck $backupStatusCheck = null,
     ) {}
 
     /**
@@ -120,15 +127,7 @@ class SecurityCheckService
      */
     private function backupStatusFindings(): array
     {
-        return (new BackupStatusCheck(
-            $this->config->dataDir . '/' . BackupService::DIRECTORY,
-            $this->config->backupRecipientPublicKeys,
-            BackupRetention::fromOverrides(
-                $this->config->backupLocalRetentionDays,
-                $this->config->backupLocalMaxBytes,
-                $this->config->backupRemoteRetentionDays,
-            ),
-        ))->findings();
+        return $this->backupStatusCheck?->findings() ?? [];
     }
 
     /**

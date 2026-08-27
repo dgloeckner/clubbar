@@ -268,11 +268,31 @@ export default defineConfig({
       dependencies: orderedAfter(['api-tests', 'admin-chromium']),
     },
 
+    // The backup alarm (#693): an empty backup directory → bin/cron.php →
+    // Mailpit.
+    //
+    // **First among the chains, and that ordering is load-bearing.** The scan
+    // reads one directory shared by the whole stack and every `bin/cron.php`
+    // run scans before it drains — so on a stack whose backup has never run,
+    // every later drain would queue a warning to every admin, into the very
+    // mailboxes the projects below count exactly.
+    //
+    // So this project owns the broken state: it creates it, asserts on it, and
+    // its last test triggers a real backup so everything after it scans a
+    // directory with an archive in it and queues nothing. The same containment
+    // `mail-digest` uses for its cadence, for the same reason.
+    {
+      name: 'mail-backup',
+      testDir: './tests/mail-backup',
+      fullyParallel: false,
+      dependencies: ['quiet mail backlog'],
+    },
+
     {
       name: 'mail-chain',
       testDir: './tests/mail',
       fullyParallel: false,
-      dependencies: ['quiet mail backlog'],
+      dependencies: ['mail-backup'],
     },
 
     // The Deckelauszug chain (#463): cadence on → bin/cron.php → Mailpit.

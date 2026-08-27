@@ -379,6 +379,46 @@ class SchedulerStatusServiceTest extends TestCase
         }
     }
 
+    /**
+     * **A missing backup cron must never block a settlement** (#693).
+     *
+     * ADR-0038 decision 7 blocks finalize because an unannounced collection is
+     * one the club promised not to make. No such promise rides on a backup, and
+     * refusing to let the Kassenwart collect over a storage problem would be the
+     * worse failure — so `assertVerified()` answers for the drain alone.
+     *
+     * Asserted rather than assumed, because it holds today only by omission: the
+     * gate is one call in `SettlementsService`, and an arm added here would pass
+     * every other test in this file. This is the test that fails instead.
+     */
+    public function test_a_missing_backup_cron_does_not_block_a_settlement(): void
+    {
+        $dir = self::makeTempTree('scheduler-backup-gate');
+
+        try {
+            $service = $this->service(
+                // The drain has run — the only condition the gate is about.
+                ['last_run_at' => '2026-08-15 11:00:00'],
+                'a-secret',
+                // …and the backup never has, in an empty directory.
+                backup: $this->backupSchedule($dir),
+            );
+
+            $this->assertFalse(
+                $service->status()->backup?->verified,
+                'the fixture must be an installation whose backup has never run'
+            );
+
+            $service->assertVerified();
+
+            // Reaching here is the assertion: assertVerified() throws when it
+            // refuses, and it must not refuse for this reason.
+            $this->addToAssertionCount(1);
+        } finally {
+            self::removeTempTree($dir);
+        }
+    }
+
     /** No Backups module wired — install.php and the package smoke test. */
     public function test_without_a_backup_schedule_there_is_no_backup_section(): void
     {
