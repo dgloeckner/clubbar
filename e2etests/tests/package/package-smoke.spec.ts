@@ -321,6 +321,17 @@ test.describe('Package: Install Wizard', () => {
     expect(base64Key.status()).toBe(200);
     expect(await base64Key.text()).toMatch(/64 hex characters/);
 
+    // A DSN with a segment missing is the worst state this screen can let
+    // through: the club types one, believes archives are leaving the host, and
+    // they never do. Refused by BackupDsn::parse(), which names the missing
+    // part rather than saying "invalid".
+    const badBackupDsn = await request.post(`${PACKAGE_URL}/install.php?step=6`, {
+      form: { step: '6', backup_dsn: 'msgraph://tenant-only' },
+      maxRedirects: 0,
+    });
+    expect(badBackupDsn.status()).toBe(200);
+    expect(await badBackupDsn.text()).toContain('backup.dsn');
+
     const recipients = [
       `admin:${'a1b2c3d4'.repeat(8)}`,
       `vorstand:${'9f8e7d6c'.repeat(8)}`,
@@ -348,6 +359,55 @@ test.describe('Package: Install Wizard', () => {
     // The client secret is not echoed back, for the same reason as the DSN's
     // password.
     expect(step6AgainHtml).not.toContain('ci-secret');
+
+    // **The mode these two screens exist for.** Configuring backups during the
+    // install is the easy half; the half that matters is a club coming back
+    // months later, through the updater route, on a working installation. That
+    // is a different code path — ?update=1 — and if it did not work, the answer
+    // to "how do I add backup credentials after install?" would still be "hand
+    // -edit config.php on a live site", which is the question #710 came from.
+    const step6Update = await request.get(`${PACKAGE_URL}/install.php?step=6&update=1`);
+    expect(step6Update.status()).toBe(200);
+    const step6UpdateHtml = await step6Update.text();
+    expect(step6UpdateHtml).toContain('Backups');
+    // It reads the live file, so what was saved above is here.
+    expect(step6UpdateHtml).toContain(recipients[0]);
+
+    // A blank client secret on a re-run means "keep the stored one", which is
+    // what lets the screen decline to echo a live credential back. Changing the
+    // expiry date alone must not silently delete the secret the whole remote
+    // depends on — a failure that would surface as uploads stopping, weeks
+    // later, in a job nobody reads.
+    const step6Reentry = await request.post(`${PACKAGE_URL}/install.php?step=6&update=1`, {
+      form: {
+        step: '6',
+        recipient_public_keys: recipients.join('\n'),
+        backup_dsn: 'msgraph://tenant/client@drive/b!ci/clubbar',
+        backup_client_secret: '',
+        backup_secret_expires_at: '2098-06-30',
+      },
+      maxRedirects: 0,
+    });
+    expect(step6Reentry.status()).toBe(302);
+    expect(step6Reentry.headers()['location']).toContain('step=7');
+
+    // The new date took, and the secret survived — the screen still refuses to
+    // show it, so the proof it is there is that the save was accepted at all:
+    // a remote with no stored secret is rejected by name.
+    const afterReentry = await request.get(`${PACKAGE_URL}/install.php?step=6&update=1`);
+    const afterReentryHtml = await afterReentry.text();
+    expect(afterReentryHtml).toContain('2098-06-30');
+    expect(afterReentryHtml).not.toContain('ci-secret');
+    // The placeholder only renders when a secret is actually stored, so this
+    // says "there is one" rather than merely "the page mentions secrets" — the
+    // hint paragraph below the field says that unconditionally.
+    expect(afterReentryHtml).toContain('placeholder="stored');
+
+    // The mail transport two screens back is still what step 5 wrote. Both
+    // optional screens rewrite the *whole* config.php, so this is where losing
+    // an earlier screen's value would show up.
+    const mailAfterBackup = await request.get(`${PACKAGE_URL}/install.php?step=5&update=1`);
+    expect(await mailAfterBackup.text()).toContain('smtp://ci:***@mail.example.test:587');
 
     // Every earlier screen's values are still in the file. Two optional steps
     // each rewrite the *whole* config.php, so what this guards against is a

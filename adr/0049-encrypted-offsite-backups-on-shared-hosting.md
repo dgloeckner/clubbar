@@ -472,9 +472,69 @@ listing of the store remotely — so the answer cannot drift from reality the wa
 a database row can.
 
 **Configuration is `config.php` only.** `backup.recipient_public_keys` (whose
-presence *is* the on-switch — decision 2), `backup.dsn`, and optional retention
-overrides above compiled defaults. No `backup_config` row: club policy that
-cannot be expressed in the file does not exist for this feature.
+presence *is* the on-switch — decision 2), `backup.dsn`, the client secret and
+its expiry date, and optional retention overrides above compiled defaults. No
+`backup_config` row: club policy that cannot be expressed in the file does not
+exist for this feature.
+
+#### Why there is no admin screen for it
+
+Every other configurable thing in this system has one — `mail_config`,
+`instance_config`, `credit_limit_config` — so its absence here reads as an
+oversight unless the reasoning is written down. It is not an oversight, and the
+reasons are of unequal strength; they are given strongest first.
+
+**1. A restore would revert it.** This is the argument that decides it. Backup
+settings kept in the database travel inside every archive, so restoring one
+reinstates the settings as they were when it was taken. A club recovering from a
+six-month-old archive would silently get back six-month-old recipient keys —
+including one whose private half was destroyed when its holder left the board —
+and a `dsn` naming a tenant it no longer has. **The thing the club relies on to
+recover is the thing recovery breaks**, and it stays broken silently until the
+next nightly run fails in a job nobody reads, or until the next disaster. This is
+the same loop the withdrawn `backup_keys` blocklist fell into (see *Alternatives
+considered*): a restore un-deciding a decision made after the archive was
+written.
+
+**2. A "change where backups are sent" control is an exfiltration primitive.**
+Writing `config.php` requires filesystem access. Reaching an admin screen
+requires a password. Those are deliberately different credentials, and collapsing
+them here would be the worst place in the system to do it: an attacker holding
+one phished admin password could redirect every future copy of the entire member
+database to storage they control, sealed to a key only they hold, while the panel
+continues to report successful backups. That is a larger capability than anything
+else an admin account confers, and it would be reachable without touching the
+server at all. Keeping the setting in a file means acquiring it costs what
+acquiring the webspace costs — at which point the attacker has the database
+anyway, and has gained nothing.
+
+**3. The bootstrap is circular.** The backup exists for the case where the
+database is gone or untrustworthy. A switch that turns it on, stored in that
+database, is unavailable in precisely the situation it was built for.
+
+**The rule this follows is not "config in files".** It is *a secret, or a
+setting whose corruption is only discovered during a recovery, stays in the
+file; everything else belongs to whoever runs the club.* Mail is the worked
+example of the same rule landing differently: `mail.dsn` carries an SMTP
+password and lives in `config.php`, while the sender name, reply-to, footer,
+header style, drain batch size and run budget are all in `mail_config` and
+edited under Settings → Mail by a Kassenwart who has never seen the server
+([ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md)). Backups
+have no panel half at all only because they have no such half to give: every
+backup setting is either a credential or something a restore must not be able to
+rewrite.
+
+**What this costs, and what pays for it.** An admin who is not also the server
+administrator cannot turn backups on, and the honest reading of that is a real
+loss — for two years it made *"how do I add backup credentials after install?"* a
+question with no good answer but "hand-edit a PHP file on a live site". The
+mitigation is not a panel; it is that **the installer owns the file**. Its
+Backups step writes `config.php` through a verifying writer, validates the keys
+and the DSN with the same parsers the nightly run uses, and is reachable long
+after the install through the updater route — so configuring backups later is a
+supported operation performed by the person who already has the credential that
+guards it (#710). What a panel would have made convenient, the installer makes
+possible without moving the secret.
 
 **No audit-log entries.** The audit log records what admins do to member data
 inside the system ([ADR-0013](./0013-audit-logging.md)); a scheduled procedure
@@ -530,6 +590,15 @@ four values). The backup's own record is its journal and its log lines.
   backup directory deletes the local history (the archives elsewhere keep their
   own headers). Accepted at this scale: the journal is a convenience, the headers
   are the record.
+- **Backups cannot be configured by an admin who lacks filesystem access.** The
+  Kassenwart who runs the club is often not the volunteer who holds the hosting
+  login, and no admin screen will let the former switch backups on. Accepted
+  deliberately, for the three reasons under decision 8 — chiefly that a restore
+  must not be able to revert backup configuration. Mitigation: the installer's
+  Backups step writes the file, validates what it writes, and stays reachable
+  after the install (#710), so the operation is supported rather than a
+  hand-edit; and the security self-check reports a misconfiguration to the panel
+  even though the panel cannot fix it.
 - **Key custody is tracked outside the application.** Whether a key was ever
   proved against a real archive, and whether one is compromised, lives in the
   club's own key register and minutes, not in a panel. The drill is what keeps
