@@ -68,6 +68,39 @@ test.describe('Scheduler status is split by office', () => {
   })
 
   /**
+   * The second scheduled job (#693), and it is the operator's whole.
+   *
+   * ADR-0044's rule is to mirror the grant on the surface the thing points at.
+   * Every backup surface is `admin`: the measured rows render on
+   * `GET /api/admin/security-check`, which is `ADMIN_ONLY`, and the command
+   * below names this installation's document root.
+   *
+   * The stack configures a recipient key (docker-compose.yml), which is what
+   * switches backups on, so `configured` is true here. `verified` is not
+   * asserted — `cron-backup.spec.ts` and `security-check.spec.ts` both trigger
+   * real runs against this stack, so whether one has happened yet is not this
+   * file's business.
+   */
+  test('an admin reads the backup job beside the drain', async ({ authenticatedRequest }) => {
+    const body = await (await authenticatedRequest.get(SCHEDULER)).json()
+
+    expect(body.backup, 'the backup section is part of the admin payload').toBeTruthy()
+    expect(typeof body.backup.configured).toBe('boolean')
+    expect(typeof body.backup.verified).toBe('boolean')
+    expect(body.backup.cli_command).toContain('backend/bin/backup.php')
+
+    // Triggering is external — a hosting panel fires this job and the
+    // application never reads a cadence. A schedule here would read as
+    // configuration we honour.
+    expect(Object.keys(body.backup).sort()).toEqual([
+      'cli_command',
+      'configured',
+      'trigger_url',
+      'verified',
+    ])
+  })
+
+  /**
    * The half the banner needs, and the reason the grant moved: without this the
    * treasurer first learns the scheduler is missing from the refusal their own
    * finalize button returns.
@@ -96,6 +129,10 @@ test.describe('Scheduler status is split by office', () => {
     const encoded = JSON.stringify(body)
     expect(encoded).not.toContain('cron.php')
     expect(encoded).not.toContain('cron/drain')
+    // Not even the word (#693). A Kassenwart cannot open a hosting panel, so a
+    // missing backup cron is not theirs to fix, and the command would carry the
+    // server's document root — the exposure this allow-list exists to prevent.
+    expect(encoded).not.toContain('backup')
   })
 
   /**

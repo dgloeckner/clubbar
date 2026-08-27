@@ -212,12 +212,34 @@ rather than the archive format.
 
 ### M7 — self-check, failure mail, backups page ([#693](https://github.com/dgloeckner/clubbar/issues/693))
 
-- [ ] Self-check row and failure mail to the Admin — requirement 6, "someone notices when it stops"
+- [x] **Measured self-check rows** — `BackupStatusCheck`, four rows read from the
+      journal and the archives on disk: whether the job has ever run at all, the
+      age of the newest archive, the age of the last off-site copy, and local
+      size against the cap. Until this, every `backup` row read `config.php` and
+      reported what the club *intended*; a cron never added was indistinguishable
+      from one running nightly. Verified: 12 unit tests, container suite 3332/0.
+      ([PR #721](https://github.com/dgloeckner/clubbar/pull/721))
+- [x] **The panel banner prints both cron lines** — `SchedulerStatusService` gains
+      a backup section and the banner carries one notice per missing job. The
+      drain keeps its "collections are blocked"; the backup notice does not
+      borrow it, because nothing is blocked. Silent when backups are switched
+      off, since no recipient key is a legitimate state (ADR-0049 decision 2).
+      Admin-only: `GET /api/admin/security-check` is `ADMIN_ONLY`, so the section
+      mirrors it and never reaches a Kassenwart.
+      ([PR #724](https://github.com/dgloeckner/clubbar/pull/724))
+- [ ] Failure mail to the Admin — requirement 6, "someone notices when it stops"
 - [ ] A backups page reading the archive headers, locally and on the remote
 
-Until this ships, "which keys are still needed" is answered by opening each
+Until the page ships, "which keys are still needed" is answered by opening each
 archive's header in the decryptor. The runbook says so rather than describing a
 screen that does not exist.
+
+**No cron expression is shipped anywhere in this milestone.** Triggering is
+external — a hosting panel fires both jobs and the application never reads a
+cadence — so the recommended `0 3 * * *` lives in the panel's own strings rather
+than in a payload field that would read as configuration we honour. The same
+argument produced [#723](https://github.com/dgloeckner/clubbar/issues/723)
+against the drain's existing `recommended_interval_minutes`.
 
 ### M8 — pre-migration backup during upgrade ([#694](https://github.com/dgloeckner/clubbar/issues/694))
 

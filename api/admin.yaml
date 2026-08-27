@@ -2850,7 +2850,9 @@ paths:
         `drain_url` names its trigger endpoint, and `php_version`,
         `missing_extensions` and the interval pair are the self-check's reading
         of a host no club office can reach. That stays behind `admin`
-        (ADR-0031).
+        (ADR-0031), and so does the whole `backup` section (#693) — its command
+        names the same document root, and a missing backup cron is fixed in a
+        hosting panel a club office cannot open.
 
         A `getraenkewart` is out of the grant deliberately rather than by
         omission: nothing they can do is blocked by the gate. The panel does
@@ -7311,8 +7313,12 @@ components:
       description: |
         What a `kassenwart` receives is `verified` and
         `setup.recommended_interval_minutes` only — every other field here is
-        `admin`-only and simply absent from their response (#677). Nothing is
-        marked required for that reason; read defensively.
+        `admin`-only and simply absent from their response (#677), the `backup`
+        section included (#693). Nothing is marked required for that reason;
+        read defensively.
+
+        `backup` is absent from an `admin`'s response too when no backup half
+        was assembled, so its presence is the test — never a null value.
       properties:
         verified:
           type: boolean
@@ -7396,6 +7402,59 @@ components:
                 Sent to every role granted this route, so a banner without the
                 command can still say how often the missing task has to fire.
               example: 15
+        backup:
+          type: object
+          description: |
+            The nightly encrypted backup — the second scheduled job an
+            installation needs (#693, ADR-0049).
+
+            **`admin` only, and absent entirely for any other role.** It mirrors
+            the surfaces it points at: `GET /api/admin/security-check`, where the
+            measured backup rows render, is `admin`-only, and backup
+            configuration is the operator's throughout. A Kassenwart cannot
+            reach a hosting panel and cannot act on a missing backup cron.
+
+            Also absent when the caller assembled no backup half at all — the
+            installer and the package smoke test read this status without the
+            module wired.
+
+            **No schedule is carried here.** Triggering is external: a hosting
+            panel fires the job, the application never reads a cadence and could
+            not act on one. The recommended `0 3 * * *` is identical on every
+            installation, so it lives in the panel's own strings rather than in a
+            field that would dress advice up as configuration.
+          properties:
+            configured:
+              type: boolean
+              description: |
+                Whether backups are switched on. Configuring a recipient public
+                key *is* the on-switch (ADR-0049 decision 2) — there is no
+                separate flag that could disagree with the keys.
+            verified:
+              type: boolean
+              description: |
+                Whether a backup run has ever been observed on this
+                installation, read from the journal and the archives on disk.
+                No backup run history exists in the database, by decision
+                (ADR-0049 decision 8).
+
+                `false` while `configured` is `true` is the state this field
+                exists for: backups are on and the nightly job was never added
+                to the panel, which is otherwise indistinguishable from silence.
+              example: false
+            cli_command:
+              type: string
+              description: |
+                The line to paste into a hosting panel's cron form. Names this
+                installation's document root, like the drain's.
+              example: php /var/www/htdocs/backend/bin/backup.php
+            trigger_url:
+              type: string
+              nullable: true
+              description: |
+                The URL trigger, or `null` when the route is not mounted — which
+                needs a cron secret **and** a recipient key. Offering a URL that
+                answers 404 is worse than offering none.
 
     MailConfig:
       type: object

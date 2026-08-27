@@ -59,6 +59,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type { SchedulerStatusDeclaredInterval } from './schedulerStatusDeclaredInterval';
 import type { SchedulerStatusObservedInterval } from './schedulerStatusObservedInterval';
+import type { SchedulerStatusBackup } from './schedulerStatusBackup';
 import type { SchedulerStatusSetup } from './schedulerStatusSetup';
 import type { SchedulerStatusSource } from './schedulerStatusSource';
 
@@ -117,4 +118,24 @@ only makes every threshold conservative.
  */
   interval_disagrees?: boolean;
   setup?: SchedulerStatusSetup;
+  /** The nightly encrypted backup — the second scheduled job an
+installation needs (#693, ADR-0049).
+
+**`admin` only, and absent entirely for any other role.** It mirrors
+the surfaces it points at: `GET /api/admin/security-check`, where the
+measured backup rows render, is `admin`-only, and backup
+configuration is the operator's throughout. A Kassenwart cannot
+reach a hosting panel and cannot act on a missing backup cron.
+
+Also absent when the caller assembled no backup half at all — the
+installer and the package smoke test read this status without the
+module wired.
+
+**No schedule is carried here.** Triggering is external: a hosting
+panel fires the job, the application never reads a cadence and could
+not act on one. The recommended `0 3 * * *` is identical on every
+installation, so it lives in the panel's own strings rather than in a
+field that would dress advice up as configuration.
+ */
+  backup?: SchedulerStatusBackup;
 }

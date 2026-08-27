@@ -284,6 +284,7 @@ export * from './rotateEncryptionKeyBatch200';
 export * from './rotateEncryptionKeyBatchBody';
 export * from './rotateTerminalTokenRequest';
 export * from './schedulerStatus';
+export * from './schedulerStatusBackup';
 export * from './schedulerStatusDeclaredInterval';
 export * from './schedulerStatusObservedInterval';
 export * from './schedulerStatusSetup';

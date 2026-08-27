@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\Services;
 
+use App\Modules\Backups\Services\BackupSchedule;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\CronInterval;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
@@ -12,6 +13,7 @@ use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Shared\Config\AppConfig;
 use App\Shared\Exceptions\SchedulerNotVerifiedException;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\TempTree;
 
 /**
  * The gate's own behaviour (#405): what it answers, what it refuses, and what
@@ -19,12 +21,18 @@ use PHPUnit\Framework\TestCase;
  */
 class SchedulerStatusServiceTest extends TestCase
 {
+    use TempTree;
+
     private ?string $originalCronSecret = null;
+
+    /** Recipient keys switch backups on (ADR-0049 decision 2); any key will do. */
+    private const BACKUP_KEYS = 'admin:bb637d8ec1cb92bca0467e59faa6d61f6b7f8088103e5b89d7afdc01f1efa45c';
 
     private function service(
         ?array $row,
         ?string $cronSecret = null,
         CronInterval $declared = CronInterval::HOURLY,
+        ?BackupSchedule $backup = null,
     ): SchedulerStatusService {
         $heartbeat = $this->createMock(CronHeartbeatRepository::class);
         $heartbeat->method('get')->willReturn($row);
@@ -45,7 +53,13 @@ class SchedulerStatusServiceTest extends TestCase
         // real MailConfigService's derivation from getConfig() (#473).
         $mailConfig->method('cronSecretConfigured')->willReturn($cronSecret !== null);
 
-        return new SchedulerStatusService($heartbeat, new AppConfig(), $mailConfig);
+        return new SchedulerStatusService($heartbeat, new AppConfig(), $mailConfig, $backup);
+    }
+
+    /** A backup job pointed at a directory this test owns. */
+    private function backupSchedule(string $dir, string $keys = self::BACKUP_KEYS): BackupSchedule
+    {
+        return new BackupSchedule('/srv/htdocs', 'https://verein.example', $dir, $keys);
     }
 
     /** The declared interval is the only field these tests care about. */
@@ -286,5 +300,90 @@ class SchedulerStatusServiceTest extends TestCase
             SchedulerStatusService::RECOMMENDED_INTERVAL_MINUTES,
             $payload['setup']['recommended_interval_minutes'],
         );
+    }
+
+    /**
+     * **The second job, reported beside the first (#693).**
+     *
+     * ADR-0038's rule is that no scheduled path may exist that nothing
+     * observes, and it is the only reason ADR-0049 was allowed a backup cron of
+     * its own. Until this, the panel asked for one job and the installer asked
+     * for two — so a volunteer who set up what the panel kept nagging about set
+     * up exactly one.
+     */
+    public function test_the_status_carries_the_backup_job_beside_the_drain(): void
+    {
+        $dir = self::makeTempTree('scheduler-backup');
+
+        try {
+            $payload = $this->service(
+                ['last_run_at' => null],
+                'a-secret',
+                backup: $this->backupSchedule($dir),
+            )->status()->toArray();
+
+            $this->assertTrue($payload['backup']['configured']);
+            $this->assertFalse($payload['backup']['verified'], 'an empty directory has never been backed up');
+            $this->assertStringEndsWith('/backend/bin/backup.php', $payload['backup']['cli_command']);
+            $this->assertStringEndsWith('/api/cron/backup', $payload['backup']['trigger_url']);
+        } finally {
+            self::removeTempTree($dir);
+        }
+    }
+
+    /**
+     * Backups off is a legitimate state, so the section says so rather than
+     * going missing — the banner needs to tell "switched off" apart from "this
+     * reader is not the operator", and only a present `configured: false` does
+     * that. The directory is not scanned to answer a question nobody renders.
+     */
+    public function test_backups_switched_off_are_reported_as_off_and_not_as_unrun(): void
+    {
+        $dir = self::makeTempTree('scheduler-backup-off');
+
+        try {
+            $payload = $this->service(
+                ['last_run_at' => null],
+                'a-secret',
+                backup: $this->backupSchedule($dir, keys: ''),
+            )->status()->toArray();
+
+            $this->assertFalse($payload['backup']['configured']);
+            $this->assertFalse($payload['backup']['verified']);
+            $this->assertNull($payload['backup']['trigger_url'], 'the route is not mounted without a key');
+        } finally {
+            self::removeTempTree($dir);
+        }
+    }
+
+    /**
+     * The office half is untouched by any of this. Asserted here as well as in
+     * `SchedulerStatusDtoTest` because this is where the section is *built*: a
+     * future assembly that reached into `toOfficeArray()` would pass the DTO's
+     * own test by simply not being exercised.
+     */
+    public function test_the_backup_section_never_reaches_a_club_office(): void
+    {
+        $dir = self::makeTempTree('scheduler-backup-office');
+
+        try {
+            $office = $this->service(
+                ['last_run_at' => null],
+                'a-secret',
+                backup: $this->backupSchedule($dir),
+            )->status()->toOfficeArray();
+
+            $this->assertArrayNotHasKey('backup', $office);
+        } finally {
+            self::removeTempTree($dir);
+        }
+    }
+
+    /** No Backups module wired — install.php and the package smoke test. */
+    public function test_without_a_backup_schedule_there_is_no_backup_section(): void
+    {
+        $payload = $this->service(['last_run_at' => null], 'a-secret')->status()->toArray();
+
+        $this->assertArrayNotHasKey('backup', $payload);
     }
 }
