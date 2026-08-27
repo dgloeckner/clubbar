@@ -177,6 +177,47 @@ class BackupHealthNotifierTest extends TestCase
         $this->assertStringStartsWith('scan failed:', (string) $result->reason);
     }
 
+    /**
+     * **The line an operator actually reads.** This scan is unattended, and its
+     * one-line summary is what appears in the cron's own output and in the
+     * application log — so it has to say enough to tell "queued a warning" apart
+     * from "had nothing to say" without opening the database.
+     */
+    public function test_the_summary_distinguishes_silence_from_work(): void
+    {
+        $healthy = $this->notifier($this->expectingNoCall());
+        file_put_contents($this->dir . '/clubbar-' . gmdate('Ymd-His') . '-1a2b3c4d.cbb', 'sealed');
+
+        $quiet = $healthy->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+        $this->assertSame(
+            'failing_rows=0 queued=0 already_queued=0 admins_without_email=0',
+            $quiet->summary()
+        );
+        $this->assertSame(0, $quiet->toArray()['failing_rows']);
+        $this->assertNull($quiet->toArray()['reason']);
+
+        // A pass that declined to scan says *why*, in one phrase — otherwise
+        // "queued nothing" reads the same whether backups are healthy or the
+        // scan never looked.
+        $off = $this->notifier($this->expectingNoCall(), keys: '')
+            ->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+
+        $this->assertSame('nothing due (backups not configured)', $off->summary());
+        $this->assertSame('backups not configured', $off->toArray()['reason']);
+    }
+
+    /** The counts a repeating caller needs: told once, then silent all day. */
+    public function test_an_already_queued_day_is_counted_rather_than_hidden(): void
+    {
+        $notifier = $this->notifier($this->expectingAlreadyQueued(3));
+
+        $result = $notifier->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+
+        $this->assertSame(0, $result->queued);
+        $this->assertSame(3, $result->alreadyQueued);
+        $this->assertStringContainsString('already_queued=3', $result->summary());
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private function notifier(
@@ -219,6 +260,14 @@ class BackupHealthNotifierTest extends TestCase
                 'stale:2026-08-27',
             )
             ->willReturn(new EnqueueResultDto(queued: $queued));
+
+        return $notifier;
+    }
+
+    private function expectingAlreadyQueued(int $count): AdminNotifier
+    {
+        $notifier = $this->createMock(AdminNotifier::class);
+        $notifier->method('warnAdmins')->willReturn(new EnqueueResultDto(queued: 0, alreadyQueued: $count));
 
         return $notifier;
     }
