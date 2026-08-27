@@ -1,0 +1,6 @@
+# CocoaPods files for the (unused) Flutter macOS build target are the only
+# Ruby content in this repository. Without this, GitHub's language detection
+# counts the repo as containing Ruby, which makes CodeQL's default setup
+# auto-enable a Ruby scan that then fails with "No Ruby code found".
+terminal-frontend/macos/Podfile linguist-detectable=false
+terminal-frontend/macos/Podfile.lock linguist-generated=true
