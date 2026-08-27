@@ -95,6 +95,7 @@ class SecurityCheckService
             $this->config->backupDsn,
             $this->config->backupClientSecret,
             $this->config->backupClientSecretExpiresAt,
+            $this->config->backupHeartbeatUrl,
         ))->findings();
     }
 

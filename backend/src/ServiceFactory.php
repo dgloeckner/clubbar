@@ -78,7 +78,7 @@ use App\Modules\Notifications\Services\DeckelStatementMailBuilder;
 use App\Modules\Notifications\Services\DeckelStatementService;
 use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Notifications\Services\DrainService;
-use App\Modules\Notifications\Services\HeartbeatPinger;
+use App\Shared\Monitoring\HeartbeatPinger;
 use App\Modules\Notifications\Services\MailDeliveryCheck;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\CreditLimitDigestMailBuilder;
@@ -1372,6 +1372,16 @@ class ServiceFactory implements ContainerInterface
                 $this->config->documentRoot,
                 $this->config->dataDir
             )),
+            // Its own monitor, deliberately not the mail one (ADR-0049): a
+            // check that guards a legal announcement deadline must not go red
+            // because a storage upload failed, or the operator learns to
+            // ignore it. A separate HeartbeatPinger instance rather than the
+            // shared one for the same reason — different URL, different job.
+            new HeartbeatPinger(
+                new CurlHttpClient(),
+                $this->getLogger(),
+                $this->config->backupHeartbeatUrl,
+            ),
         ));
     }
 

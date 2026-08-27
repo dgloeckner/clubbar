@@ -708,6 +708,49 @@ on every single missed tick.
 The ping body carries counts only. No address and no name ever leaves the host
 through the monitor.
 
+### The backup's own heartbeat
+
+`backup.heartbeat_url` is a **second, separate** check URL, and the separation
+is deliberate: a check that guards a legal announcement deadline must not go red
+because a storage upload failed. Turn one alarm into two jobs' alarm and the
+operator learns to ignore both.
+
+Point it at its own check on the same monitor, and configure it from installer
+step 6 rather than by hand.
+
+| Event | What is pinged |
+|---|---|
+| A run starts | `<url>/start` — a start with no finish is a hung run, and this job holds a lock every later run queues behind |
+| An archive is written and reached the remote | `<url>`, with `bytes`/`pruned` in the body |
+| An archive is written but is **still only on this webspace** | `<url>/fail` |
+| No archive was written | `<url>/fail` |
+| The run was skipped by the minimum-interval guard | **nothing at all** |
+
+Two of those rows are the whole point.
+
+**"Written but not off-site" is its own alarm**, because a pure liveness check
+cannot see it and it is the failure that lasts: uploads fail quietly for weeks
+while the nightly job keeps reporting that it ran. The local archive still
+restores an accidental deletion — it just does not survive losing the hosting
+account, which is what the off-site copy was for.
+
+**A skip pings nothing**, because a skip is not a run. The URL trigger can be
+called repeatedly, and pinging success for a skip would hold the check green
+while no archive exists; pinging `/start` and then nothing would read as a hung
+run. So the check simply stays where the last real run left it.
+
+Backups being *off* is never an alarm — configuring a recipient key is the
+on-switch (ADR-0049), and a club that has not set backups up has not broken
+anything. The one state that does get a row in the self-check is a monitor URL
+configured **while** backups are off: nothing will ever ping it, so the check
+goes red on day one and stays there.
+
+**Recommended check settings: period 1 day, grace 6 hours.** A nightly job that
+misses one night is worth knowing about in the morning, not at 03:05.
+
+The ping body carries counts and a fixed set of reasons. Never a table name,
+never a filename, never a key.
+
 ### Diagnosing it
 
 The security self-check (admin panel) carries a **delivery** section with five

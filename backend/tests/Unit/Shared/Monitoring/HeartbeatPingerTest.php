@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Modules\Notifications\Services;
+namespace Tests\Unit\Shared\Monitoring;
 
-use App\Modules\Notifications\Services\HeartbeatPinger;
+use App\Shared\Monitoring\HeartbeatPinger;
 use App\Shared\Http\OutboundHttpClient;
 use App\Shared\Logging\Logger;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\SpyHttpClient;
 
 /**
  * The alarm channel (#406, ADR-0038 rule 6).
@@ -143,27 +144,5 @@ class HeartbeatPingerTest extends TestCase
         $this->pinger($http)->start();
 
         $this->assertCount(1, $http->calls, 'the next tick pings again; retrying here holds the drain open');
-    }
-}
-
-/** Records the requests instead of making them. */
-final class SpyHttpClient implements OutboundHttpClient
-{
-    /** @var list<array{url:string,body:string,timeout:int}> */
-    public array $calls = [];
-
-    public function __construct(private bool $accept = true) {}
-
-    public function post(string $url, string $body = '', int $timeoutSeconds = 3): bool
-    {
-        $this->calls[] = ['url' => $url, 'body' => $body, 'timeout' => $timeoutSeconds];
-
-        return $this->accept;
-    }
-
-    /** @return list<string> */
-    public function urls(): array
-    {
-        return array_map(static fn (array $call): string => $call['url'], $this->calls);
     }
 }
