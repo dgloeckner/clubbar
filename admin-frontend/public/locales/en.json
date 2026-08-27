@@ -925,7 +925,7 @@
         "weekly": "Weekly",
         "monthly": "Monthly"
       },
-      "digestCadenceHint": "One aggregate email to admins and the Kassenwart listing every member whose Deckel has reached the warning band, with their name, what they currently owe and the limit that applies to them. It only goes out when somebody is actually in the band \u2014 a quiet week means no email at all. Members never receive this digest.",
+      "digestCadenceHint": "One aggregate email to admins and the Kassenwart listing every member whose Deckel has reached the warning band, with their name, what they currently owe and the limit that applies to them. It only goes out when somebody is actually in the band — a quiet week means no email at all. Members never receive this digest.",
       "saved": "Mail settings saved.",
       "cronSecretTitle": "URL-trigger secret",
       "cronSecretConfigured": "Configured",
@@ -1345,7 +1345,10 @@
       "title": "Scheduled mail delivery is missing — collections are blocked",
       "body": "Every collection is announced by email at least seven days in advance. A scheduled task sends those announcements, and it has never run on this installation. Add the following command to your hosting panel as a cron job, every {{minutes}} minutes. This notice disappears once the first run has been recorded.",
       "bodyForOffice": "Every collection is announced by email at least seven days in advance. A scheduled task sends those announcements, and it has never run on this installation — so finalizing a collection is refused until it does. Ask whoever administers this installation to set the task up; it needs to run every {{minutes}} minutes. This notice disappears once the first run has been recorded.",
-      "urlFallback": "No CLI cron? A scheduled URL fetch works too: {{url}} — with the secret from config.php in the X-Cron-Secret header."
+      "urlFallback": "No CLI cron? A scheduled URL fetch works too: {{url}} — with the secret from config.php in the X-Cron-Secret header.",
+      "backupTitle": "The scheduled backup is missing",
+      "backupBody": "Club Bar writes an encrypted archive of the database every night and puts it somewhere off this server. Backups are switched on, but the job has never run on this installation — so there is no backup. Add the following command to your hosting panel as a cron job, once a day at a quiet hour (0 3 * * *). Nothing is blocked by this, which is exactly why nothing else will remind you.",
+      "backupUrlFallback": "No CLI cron here either? A scheduled URL fetch works: {{url}} — with the same secret in the X-Cron-Secret header."
     }
   },
   "notifications": {

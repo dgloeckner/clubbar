@@ -1345,7 +1345,10 @@
       "title": "Geplanter Mailversand fehlt — Einzüge sind gesperrt",
       "body": "Jeder Einzug wird mindestens sieben Tage vorher per E-Mail angekündigt. Diese Ankündigungen verschickt eine geplante Aufgabe, und auf dieser Installation lief sie noch nie. Trage den folgenden Befehl im Hosting-Panel als Cronjob ein, alle {{minutes}} Minuten. Der Hinweis verschwindet, sobald der erste Lauf erfasst ist.",
       "bodyForOffice": "Jeder Einzug wird mindestens sieben Tage vorher per E-Mail angekündigt. Diese Ankündigungen verschickt eine geplante Aufgabe, und auf dieser Installation lief sie noch nie — deshalb wird das Abschließen eines Einzugs abgelehnt, bis sie läuft. Bitte die Person, die diese Installation betreut, die Aufgabe einzurichten; sie muss alle {{minutes}} Minuten laufen. Der Hinweis verschwindet, sobald der erste Lauf erfasst ist.",
-      "urlFallback": "Ohne CLI-Cron geht es auch per URL-Abruf: {{url}} — mit dem Secret aus config.php im Header X-Cron-Secret."
+      "urlFallback": "Ohne CLI-Cron geht es auch per URL-Abruf: {{url}} — mit dem Secret aus config.php im Header X-Cron-Secret.",
+      "backupTitle": "Geplante Datensicherung fehlt",
+      "backupBody": "Club Bar schreibt jede Nacht ein verschlüsseltes Archiv der Datenbank und legt es außerhalb dieses Servers ab. Die Sicherung ist eingeschaltet, lief auf dieser Installation aber noch nie — es gibt also keine Sicherung. Trage den folgenden Befehl im Hosting-Panel als Cronjob ein, einmal täglich zu einer ruhigen Stunde (0 3 * * *). Es wird dadurch nichts gesperrt — und genau deshalb erinnert dich sonst nichts daran.",
+      "backupUrlFallback": "Auch hier geht es ohne CLI-Cron per URL-Abruf: {{url}} — mit demselben Secret im Header X-Cron-Secret."
     }
   },
   "notifications": {

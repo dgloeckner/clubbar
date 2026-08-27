@@ -124,6 +124,7 @@ use App\Modules\CreditLimits\Controllers\SyncController as CreditLimitSyncContro
 use App\Modules\Backups\Controllers\BackupCronController;
 use App\Modules\Backups\Domain\BackupRetention;
 use App\Modules\Backups\Services\BackupKeyring;
+use App\Modules\Backups\Services\BackupSchedule;
 use App\Modules\Backups\Services\BackupService;
 use App\Modules\Backups\Services\ConfigSnapshot;
 use App\Modules\Backups\Services\DatabaseDump;
@@ -582,6 +583,7 @@ class ServiceFactory implements ContainerInterface
             $this->getCronHeartbeatRepository(),
             $this->config,
             $this->getMailConfigService(),
+            $this->getBackupSchedule(),
         ));
     }
 
@@ -1344,6 +1346,26 @@ class ServiceFactory implements ContainerInterface
      * beside the archives; its configuration is the four values below, of which
      * only the recipient keys are ever set on an ordinary installation.
      */
+    /**
+     * The backup job as a scheduled job — configuration and the filesystem, and
+     * nothing else (#693).
+     *
+     * Deliberately not {@see getBackupService()}, which carries the storage
+     * transport and the database. This one is constructed to answer a banner
+     * that renders on every page of the panel, so it must not be able to reach
+     * a storage provider: a tenant outage would otherwise sit between an admin
+     * and every screen they own.
+     */
+    public function getBackupSchedule(): BackupSchedule
+    {
+        return $this->resolve(BackupSchedule::class, fn() => new BackupSchedule(
+            $this->config->documentRoot,
+            $this->config->appUrl,
+            $this->config->dataDir . '/' . BackupService::DIRECTORY,
+            $this->config->backupRecipientPublicKeys,
+        ));
+    }
+
     public function getBackupService(): BackupService
     {
         return $this->resolve(BackupService::class, fn() => new BackupService(

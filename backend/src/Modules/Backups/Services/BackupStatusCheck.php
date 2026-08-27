@@ -86,9 +86,11 @@ final class BackupStatusCheck
         $archives = (new ArchiveDirectory($this->backupDirectory))->newestFirst();
         $journal = new BackupJournal($this->backupDirectory);
 
-        $everRan = $journal->hasAnyEntry() || $archives !== [];
-
-        if (!$everRan) {
+        // The rule itself lives in BackupSchedule, which asks the same question
+        // for the panel banner. Two readers disagreeing about whether anything
+        // has ever happened here would show a club a banner and a green row at
+        // the same time.
+        if (!BackupSchedule::everRan($journal, $archives)) {
             // The row this whole milestone exists for. Silence and "the cron
             // was never added" are indistinguishable without it.
             return [SecurityFinding::fail(

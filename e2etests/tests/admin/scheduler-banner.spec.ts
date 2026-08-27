@@ -43,7 +43,24 @@ function officeStatusBody(verified: boolean) {
 test.describe('Scheduler banner', () => {
   const CLI_COMMAND = 'php /srv/htdocs/backend/bin/cron.php'
 
-  function statusBody(verified: boolean) {
+  const BACKUP_COMMAND = 'php /srv/htdocs/backend/bin/backup.php'
+
+  /**
+   * The backup half (#693). `backup` absent means either "this reader is not
+   * the operator" or "no backup module was wired", and both must read as
+   * nothing to say — which is what keeps every fixture below that omits it
+   * valid unchanged.
+   */
+  function backupBody(configured: boolean, verified: boolean) {
+    return {
+      configured,
+      verified,
+      cli_command: BACKUP_COMMAND,
+      trigger_url: null,
+    }
+  }
+
+  function statusBody(verified: boolean, backup?: ReturnType<typeof backupBody>) {
     return {
       verified,
       last_run_at: verified ? '2026-08-14T09:15:00Z' : null,
@@ -57,6 +74,7 @@ test.describe('Scheduler banner', () => {
         drain_url: null,
         recommended_interval_minutes: 15,
       },
+      ...(backup ? { backup } : {}),
     }
   }
 
@@ -83,6 +101,71 @@ test.describe('Scheduler banner', () => {
 
     // Waiting for the page itself first: asserting "not visible" against a page
     // that has not rendered yet would pass for the wrong reason.
+    await expect(page.getByTestId('members-page')).toBeVisible()
+    await expect(page.getByTestId('scheduler-banner')).toBeHidden()
+  })
+
+  /**
+   * **The state the second notice exists for** (#693): the drain was set up,
+   * the backup cron never was, and nothing else in the product will ever
+   * mention it again. Before this, a club that fixed the drain saw a clean
+   * panel and had no backups.
+   */
+  test('warns about the backup job on its own, once the drain is healthy', async ({ page }) => {
+    await page.route('**/api/admin/scheduler', (route) =>
+      route.fulfill({ json: statusBody(true, backupBody(true, false)) }),
+    )
+
+    await page.goto('/members')
+
+    await expect(page.getByTestId('scheduler-banner')).toBeVisible()
+    await expect(page.getByTestId('scheduler-banner-backup-command')).toHaveText(BACKUP_COMMAND)
+    // And it does not borrow the drain's "collections are blocked": nothing is.
+    await expect(page.getByTestId('scheduler-banner-drain')).toBeHidden()
+  })
+
+  /**
+   * Both missing is the common case in the hour after an install, and it gets
+   * one box with two notices rather than two stacked coloured bars.
+   */
+  test('carries both notices in one box when neither job has run', async ({ page }) => {
+    await page.route('**/api/admin/scheduler', (route) =>
+      route.fulfill({ json: statusBody(false, backupBody(true, false)) }),
+    )
+
+    await page.goto('/members')
+
+    await expect(page.getByTestId('scheduler-banner')).toHaveCount(1)
+    await expect(page.getByTestId('scheduler-banner-command')).toHaveText(CLI_COMMAND)
+    await expect(page.getByTestId('scheduler-banner-backup-command')).toHaveText(BACKUP_COMMAND)
+  })
+
+  /**
+   * **Backups off is a legitimate state**, not a fault (ADR-0049 decision 2):
+   * configuring a recipient key is the on-switch, and a club that has not
+   * generated a keypair has chosen this. A warning nobody can clear is one
+   * people learn to ignore, and `BackupConfigCheck` already reports it on the
+   * security page for the admin who goes looking.
+   */
+  test('says nothing about backups that are switched off', async ({ page }) => {
+    await page.route('**/api/admin/scheduler', (route) =>
+      route.fulfill({ json: statusBody(true, backupBody(false, false)) }),
+    )
+
+    await page.goto('/members')
+
+    await expect(page.getByTestId('members-page')).toBeVisible()
+    await expect(page.getByTestId('scheduler-banner')).toBeHidden()
+  })
+
+  /** Both jobs seen: the state every healthy installation stays in. */
+  test('is gone once both jobs have been observed', async ({ page }) => {
+    await page.route('**/api/admin/scheduler', (route) =>
+      route.fulfill({ json: statusBody(true, backupBody(true, true)) }),
+    )
+
+    await page.goto('/members')
+
     await expect(page.getByTestId('members-page')).toBeVisible()
     await expect(page.getByTestId('scheduler-banner')).toBeHidden()
   })
