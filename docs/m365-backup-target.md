@@ -80,7 +80,9 @@ the one that is, and it belongs in `config.php` and nowhere else.
 | `driveId` | | script output |
 | Client secret expires | | script output — **see §7** |
 
-The resulting `config.php`:
+Put these into `config.php` through **installer step 6** (`install.php?step=6&update=1`)
+rather than by hand: it validates the DSN before writing and preserves every
+value it is not asking about. The resulting `config.php`:
 
 ```php
 'backup' => [

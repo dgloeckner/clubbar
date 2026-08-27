@@ -268,24 +268,171 @@ test.describe('Package: Install Wizard', () => {
     expect(adminRow!.password_hash).toMatch(/^\$2y\$/);
     expect(adminRow!.password_hash).not.toContain('Password123');
 
-    // Step 5: the scheduler (#405). A prerequisite step, not a suggestion —
-    // the drain is the only thing that sends announcement emails, and until a
-    // run has been observed the panel refuses to finalize a collection.
+    // Step 5: mail (#710). The one config.php line that cannot live in the
+    // admin panel, because it carries an SMTP password — everything else about
+    // a mail is under Settings → Mail. Before this step existed, switching mail
+    // on meant hand-editing a PHP file on a live site.
     const step5 = await request.get(`${PACKAGE_URL}/install.php?step=5`);
     expect(step5.status()).toBe(200);
-    const step5Html = await step5.text();
+    expect(await step5.text()).toContain('Sending mail');
+
+    // Refused by the application's own parser, not by a second copy of the
+    // rules here. An unparseable transport does not throw when mail is
+    // *queued*, so without this the queue fills and the drain fails in a job
+    // nobody watches.
+    const badDsn = await request.post(`${PACKAGE_URL}/install.php?step=5`, {
+      form: { step: '5', mail_dsn: 'mail.example.test' },
+      maxRedirects: 0,
+    });
+    expect(badDsn.status()).toBe(200);
+    expect(await badDsn.text()).toContain('is missing a scheme');
+
+    const step5Post = await request.post(`${PACKAGE_URL}/install.php?step=5`, {
+      form: { step: '5', mail_dsn: 'smtp://ci:hunter2@mail.example.test:587' },
+      maxRedirects: 0,
+    });
+    expect(step5Post.status()).toBe(302);
+    expect(step5Post.headers()['location']).toContain('step=6');
+
+    // Read back through config.php, redacted. This is the end-to-end proof
+    // that the value reached the file and was loaded from it again — and it is
+    // the assertion that catches the opcache staleness #710 found, where a read
+    // straight after a write could serve the pre-write copy for two seconds.
+    const step5Again = await request.get(`${PACKAGE_URL}/install.php?step=5`);
+    const step5AgainHtml = await step5Again.text();
+    expect(step5AgainHtml).toContain('smtp://ci:***@mail.example.test:587');
+    // Never the password, in a page a browser may cache.
+    expect(step5AgainHtml).not.toContain('hunter2');
+
+    // Step 6: backups (ADR-0049, #710). Also optional, also reachable long
+    // after the install — a club sets backups up in the week it thinks about
+    // backups, not in the hour it installs.
+    const step6 = await request.get(`${PACKAGE_URL}/install.php?step=6`);
+    expect(step6.status()).toBe(200);
+    expect(await step6.text()).toContain('Backups');
+
+    // The mismatch this step was built around: the key generator printed
+    // base64 while the keyring needs hex, and four documents promised the
+    // opposite. The refusal has to name the encoding, not merely refuse.
+    const base64Key = await request.post(`${PACKAGE_URL}/install.php?step=6`, {
+      form: { step: '6', recipient_public_keys: 'admin:yeMcz7Ncmobf9EuVwTkeR+DOf3focDz4UV0c9/CIjk4=' },
+      maxRedirects: 0,
+    });
+    expect(base64Key.status()).toBe(200);
+    expect(await base64Key.text()).toMatch(/64 hex characters/);
+
+    // A DSN with a segment missing is the worst state this screen can let
+    // through: the club types one, believes archives are leaving the host, and
+    // they never do. Refused by BackupDsn::parse(), which names the missing
+    // part rather than saying "invalid".
+    const badBackupDsn = await request.post(`${PACKAGE_URL}/install.php?step=6`, {
+      form: { step: '6', backup_dsn: 'msgraph://tenant-only' },
+      maxRedirects: 0,
+    });
+    expect(badBackupDsn.status()).toBe(200);
+    expect(await badBackupDsn.text()).toContain('backup.dsn');
+
+    const recipients = [
+      `admin:${'a1b2c3d4'.repeat(8)}`,
+      `vorstand:${'9f8e7d6c'.repeat(8)}`,
+    ];
+    const step6Post = await request.post(`${PACKAGE_URL}/install.php?step=6`, {
+      form: {
+        step: '6',
+        recipient_public_keys: recipients.join('\n'),
+        backup_dsn: 'msgraph://tenant/client@drive/b!ci/clubbar',
+        backup_client_secret: 'ci-secret',
+        backup_secret_expires_at: '2099-01-01',
+      },
+      maxRedirects: 0,
+    });
+    expect(step6Post.status()).toBe(302);
+    expect(step6Post.headers()['location']).toContain('step=7');
+
+    // Both recipients survived the round trip through config.php — these are
+    // public keys, so this screen does pre-fill them.
+    const step6Again = await request.get(`${PACKAGE_URL}/install.php?step=6`);
+    const step6AgainHtml = await step6Again.text();
+    for (const recipient of recipients) {
+      expect(step6AgainHtml).toContain(recipient);
+    }
+    // The client secret is not echoed back, for the same reason as the DSN's
+    // password.
+    expect(step6AgainHtml).not.toContain('ci-secret');
+
+    // **The mode these two screens exist for.** Configuring backups during the
+    // install is the easy half; the half that matters is a club coming back
+    // months later, through the updater route, on a working installation. That
+    // is a different code path — ?update=1 — and if it did not work, the answer
+    // to "how do I add backup credentials after install?" would still be "hand
+    // -edit config.php on a live site", which is the question #710 came from.
+    const step6Update = await request.get(`${PACKAGE_URL}/install.php?step=6&update=1`);
+    expect(step6Update.status()).toBe(200);
+    const step6UpdateHtml = await step6Update.text();
+    expect(step6UpdateHtml).toContain('Backups');
+    // It reads the live file, so what was saved above is here.
+    expect(step6UpdateHtml).toContain(recipients[0]);
+
+    // A blank client secret on a re-run means "keep the stored one", which is
+    // what lets the screen decline to echo a live credential back. Changing the
+    // expiry date alone must not silently delete the secret the whole remote
+    // depends on — a failure that would surface as uploads stopping, weeks
+    // later, in a job nobody reads.
+    const step6Reentry = await request.post(`${PACKAGE_URL}/install.php?step=6&update=1`, {
+      form: {
+        step: '6',
+        recipient_public_keys: recipients.join('\n'),
+        backup_dsn: 'msgraph://tenant/client@drive/b!ci/clubbar',
+        backup_client_secret: '',
+        backup_secret_expires_at: '2098-06-30',
+      },
+      maxRedirects: 0,
+    });
+    expect(step6Reentry.status()).toBe(302);
+    expect(step6Reentry.headers()['location']).toContain('step=7');
+
+    // The new date took, and the secret survived — the screen still refuses to
+    // show it, so the proof it is there is that the save was accepted at all:
+    // a remote with no stored secret is rejected by name.
+    const afterReentry = await request.get(`${PACKAGE_URL}/install.php?step=6&update=1`);
+    const afterReentryHtml = await afterReentry.text();
+    expect(afterReentryHtml).toContain('2098-06-30');
+    expect(afterReentryHtml).not.toContain('ci-secret');
+    // The placeholder only renders when a secret is actually stored, so this
+    // says "there is one" rather than merely "the page mentions secrets" — the
+    // hint paragraph below the field says that unconditionally.
+    expect(afterReentryHtml).toContain('placeholder="stored');
+
+    // The mail transport two screens back is still what step 5 wrote. Both
+    // optional screens rewrite the *whole* config.php, so this is where losing
+    // an earlier screen's value would show up.
+    const mailAfterBackup = await request.get(`${PACKAGE_URL}/install.php?step=5&update=1`);
+    expect(await mailAfterBackup.text()).toContain('smtp://ci:***@mail.example.test:587');
+
+    // Every earlier screen's values are still in the file. Two optional steps
+    // each rewrite the *whole* config.php, so what this guards against is a
+    // club reaching the backup screen months later and losing its database
+    // password — a file that still loads and a site that no longer starts.
+    expect(queryInstallAdminRow('admin@example.com')).not.toBeNull();
+
+    // Step 7: the scheduler (#405). A prerequisite step, not a suggestion —
+    // the drain is the only thing that sends announcement emails, and until a
+    // run has been observed the panel refuses to finalize a collection.
+    const step7 = await request.get(`${PACKAGE_URL}/install.php?step=7`);
+    expect(step7.status()).toBe(200);
+    const step7Html = await step7.text();
     // The command has to be printed with an absolute path: a hosting panel's
     // cron form has no working directory to resolve a relative one against.
-    expect(step5Html).toContain('backend/bin/cron.php');
-    expect(step5Html).toContain('cronCheckBtn');
+    expect(step7Html).toContain('backend/bin/cron.php');
+    expect(step7Html).toContain('cronCheckBtn');
 
     // Both jobs, on one screen (ADR-0049). The backup is the one nothing
     // reminds you about afterwards — it blocks no workflow, so a volunteer who
     // learns about it from a manual instead of from this page does not add it,
     // and the club's first backup is the one it does not have. The docs claim
     // the installer prints both; this is what makes that claim true.
-    expect(step5Html).toContain('backend/bin/backup.php');
-    expect(step5Html).toContain('backup.recipient_public_keys');
+    expect(step7Html).toContain('backend/bin/backup.php');
+    expect(step7Html).toContain('backup.recipient_public_keys');
 
     // The Prüfen button reads cron_heartbeat and reports what it found. A
     // fresh install has never been drained, so the honest answer is "no".
@@ -295,11 +442,11 @@ test.describe('Package: Install Wizard', () => {
     expect(checkBody.verified).toBe(false);
     expect(checkBody.error).toBeUndefined();
 
-    // Step 6: the completion page, which repeats the outcome rather than
+    // Step 8: the completion page, which repeats the outcome rather than
     // letting an unverified scheduler pass silently.
-    const step6 = await request.get(`${PACKAGE_URL}/install.php?step=6`);
-    expect(step6.status()).toBe(200);
-    expect(await step6.text()).toContain('Installation Complete');
+    const step8 = await request.get(`${PACKAGE_URL}/install.php?step=8`);
+    expect(step8.status()).toBe(200);
+    expect(await step8.text()).toContain('Installation Complete');
   });
 });
 

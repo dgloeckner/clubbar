@@ -52,6 +52,17 @@ final class SecuritySelfCheck
     public const CATEGORY_DELIVERY  = 'delivery';
 
     /**
+     * Whether an archive would exist to restore from (ADR-0049).
+     *
+     * Same arrangement as {@see CATEGORY_DELIVERY}: the rows come from
+     * {@see \App\Modules\Backups\Services\BackupConfigCheck}, which needs
+     * `config.php` and the backup module's own parsers, and are appended by
+     * {@see \App\Shared\Services\SecurityCheckService}. Only the name lives
+     * here, so there stays one list of categories rather than two.
+     */
+    public const CATEGORY_BACKUP    = 'backup';
+
+    /**
      * The `PHP_INI_ALL` directives this deployment depends on, and the state
      * they must be observed in.
      *

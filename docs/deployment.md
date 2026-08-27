@@ -445,6 +445,41 @@ consequences follow, and both are operational rather than technical:
 - **A scheduler that dies later is silent.** Nothing in the application errors;
   announcements simply accumulate. That is what the heartbeat below is for.
 
+### Choosing a transport
+
+One line in `config.php` selects how mail leaves the host:
+
+```php
+'mail' => [
+    'dsn' => 'smtp://user:password@mail.example.org:587',
+],
+```
+
+| DSN | What it does |
+|---|---|
+| `smtp://user:pass@host:587` | the club's own mailbox — what most clubs want |
+| `native://default` | hand off to the host's local mail server |
+| `null://null` | configured, and silently discards — for a test install |
+| *(empty)* | mail off: nothing is sent, nothing throws, and the self-check says so |
+
+**Configure this from the installer, not a text editor.** Step 5 of
+`install.php` is *Sending mail*, reachable long after the install through the
+same `?update=1` route as the backup step. It validates the DSN through the
+application's own parser — a transport that cannot be parsed does not throw when
+mail is *queued*, so without this the queue fills and the drain fails in a job
+nobody watches — and rewrites `config.php` with every other value preserved.
+
+The stored DSN is shown back redacted (`smtp://club:***@mail.example.org:587`),
+and a blank field means "keep what is stored"; there is a checkbox to turn mail
+off deliberately.
+
+**Why this one line and not the rest.** Everything about a mail that is *not*
+secret — sender name, reply-to, footer, header style, batch size, run budget —
+lives in the database and is edited under Settings → Mail by whoever runs the
+club. The DSN carries an SMTP password, so it sits in `config.php` beside the
+database password instead (ADR-0038). The same split explains why backups have
+no admin screen at all: nothing about them is both non-secret and club policy.
+
 ### Scheduling the drain
 
 The CLI entrypoint is preferred: no gateway timeout, and no secret in a URL.
@@ -591,6 +626,17 @@ by [`m365-backup-target.md`](./m365-backup-target.md) and
     'client_secret_expires_at' => '2027-08-25',
 ],
 ```
+
+**Configure this from the installer, not a text editor.** Step 6 of
+`install.php` is *Backups*, and it is reachable long after the install through
+the same `?update=1` route the updater uses — which is the point, because a club
+sets backups up in the week it thinks about backups, not in the hour it
+installs. The screen generates the keypair in your browser, shows the private
+half once, validates the DSN through the application's own parser, and rewrites
+`config.php` **preserving everything it is not asking about**. The security
+self-check in the admin panel then reports what the file actually says: a key in
+the wrong encoding, a DSN that will not parse, a client secret that expired last
+month.
 
 Leaving `backup.dsn` empty is a legitimate configuration and the run says so
 out loud rather than silently — but a `backup.dsn` that is *filled in and

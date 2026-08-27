@@ -31,10 +31,16 @@ type Finding = {
   remedy: string | null
 }
 
-// `delivery` is appended by SecurityCheckService rather than produced by the
-// engine (#406): those rows need the database, and the engine is dependency-free
-// because install.php loads it before Composer's autoloader exists.
-const CATEGORIES = ['runtime', 'session', 'data', 'exposure', 'transport', 'delivery']
+// `delivery` (#406) and `backup` (#710) are appended by SecurityCheckService
+// rather than produced by the engine: those rows need the database or the
+// backup module's parsers, and the engine is dependency-free because
+// install.php loads it before Composer's autoloader exists.
+//
+// This list, SecuritySelfCheck's CATEGORY_* constants, admin.yaml's enum and
+// the admin panel's CATEGORY_ORDER have to agree. They are checked separately
+// because disagreeing costs something different in each place: here a red
+// build, in the panel a row that was measured and never shown.
+const CATEGORIES = ['runtime', 'session', 'data', 'exposure', 'transport', 'delivery', 'backup']
 
 test.describe('Security self-check API', () => {
   test('requires an authenticated admin session', async ({ request }) => {

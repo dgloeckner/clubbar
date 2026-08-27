@@ -29,6 +29,8 @@ declare(strict_types=1);
 // inside it where it does not (#245, ADR-0031 decision 2). Required by path:
 // this script runs long before Composer's autoloader is available.
 require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
+require_once __DIR__ . '/backend/src/Shared/Config/ConfigWriter.php';
+require_once __DIR__ . '/backend/src/Shared/Config/ConfigWriterException.php';
 
 // The prerequisite step measures the effective hardening rather than assuming
 // it applied (#247, ADR-0031 decision 3). Same requirement: these run before
@@ -49,6 +51,8 @@ require_once __DIR__ . '/backend/src/Shared/Security/FileModes.php';
 require_once __DIR__ . '/backend/src/Shared/Time/Utc.php';
 
 use App\Shared\Config\DataDirectory;
+use App\Shared\Config\ConfigWriter;
+use App\Shared\Config\ConfigWriterException;
 use App\Shared\Security\FileModes;
 use App\Shared\Security\SecurityCheckContext;
 use App\Shared\Security\SecurityFinding;
@@ -311,41 +315,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]
                 );
 
-                // Connection works — write config
-                $configContent = "<?php\n\nreturn " . var_export([
-                    'db' => [
-                        'host' => $dbHost,
-                        'port' => $dbPort,
-                        'name' => $dbName,
-                        'user' => $dbUser,
-                        'pass' => $dbPass,
-                    ],
-                    'app' => [
-                        'env' => 'production',
-                        'debug' => false,
-                        // The scheme decides more than link building: AppConfig
-                        // derives the session cookie's Secure flag from it.
-                        'url' => (installerRequestIsHttps() ? 'https' : 'http')
-                            . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'),
-                    ],
-                    'session' => [
-                        'max_age' => 7200,
-                        'regeneration_interval' => 900,
-                    ],
-                    'api_token' => [
-                        'ttl_days' => 365,
-                    ],
-                    'security' => [
-                        'totp_encryption_key' => $totpKey,
-                        'iban_fingerprint_key' => $ibanFingerprintKey,
-                    ],
-                    'cron' => [
-                        'secret' => $cronSecret,
-                    ],
-                ], true) . ";\n";
-
-                if (file_put_contents($configTarget, $configContent) === false) {
-                    $error = "Failed to write {$configTarget}. Check the directory's permissions.";
+                // Connection works — write config.
+                //
+                // Through ConfigWriter, which substitutes into the commented
+                // template rather than generating the file from scratch. The
+                // club therefore gets the same guidance config.sample.php
+                // carries, including the two sections this screen does not ask
+                // about — `mail` and `backup` — which are exactly the two
+                // configured later. Before #710 this was var_export(), and a
+                // club that used the installer never saw a single comment.
+                //
+                // Every value already in the file is carried across: re-running
+                // this step, or reaching it from the backup step, must never
+                // cost an installation something it is not being asked about.
+                try {
+                    $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+                    $writer->writeTo($configTarget, ConfigWriter::merge(
+                        ConfigWriter::read($configFile),
+                        [
+                            'db' => [
+                                'host' => $dbHost,
+                                'port' => $dbPort,
+                                'name' => $dbName,
+                                'user' => $dbUser,
+                                'pass' => $dbPass,
+                            ],
+                            'app' => [
+                                'env' => 'production',
+                                'debug' => false,
+                                // The scheme decides more than link building:
+                                // AppConfig derives the session cookie's Secure
+                                // flag from it.
+                                'url' => (installerRequestIsHttps() ? 'https' : 'http')
+                                    . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'),
+                            ],
+                            'security' => [
+                                'totp_encryption_key' => $totpKey,
+                                'iban_fingerprint_key' => $ibanFingerprintKey,
+                            ],
+                            'cron' => [
+                                'secret' => $cronSecret,
+                            ],
+                        ]
+                    ));
+                } catch (ConfigWriterException $e) {
+                    // Never a partial write: ConfigWriter refuses rather than
+                    // producing a file that looks right and is missing a
+                    // credential.
+                    $error = $e->getMessage();
                     break;
                 }
 
@@ -573,6 +590,142 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             break;
+
+        case '5': // Mail transport (ADR-0038) — reachable after install via ?update=1
+            if (!file_exists($configFile)) {
+                $error = 'config.php not found. Please complete step 2 first.';
+                break;
+            }
+
+            $mailDsn = trim($_POST['mail_dsn'] ?? '');
+            $existing = ConfigWriter::read($configFile);
+
+            if (($_POST['mail_clear'] ?? '') === '1') {
+                // Turning mail off is the deliberate opposite of leaving the
+                // field blank, and merge() cannot tell them apart: it reads a
+                // blank answer as "unchanged", which is the rule that lets this
+                // screen decline to echo an SMTP password back into the HTML.
+                // So an erase removes the key here rather than blanking it
+                // through merge, which would silently keep the old transport.
+                unset($existing['mail']['dsn']);
+                $mailDsn = '';
+            } elseif ($mailDsn === '') {
+                // Blank and not clearing: keep what is stored, the same rule the
+                // backup step's client secret follows, for the same reason.
+                $mailDsn = (string) ($existing['mail']['dsn'] ?? '');
+            }
+
+            // Refused here rather than at the first send. A transport that
+            // cannot be parsed does not throw when mail is queued — the queue
+            // fills and the drain fails, in a job nobody watches, which is the
+            // failure mode ADR-0038 exists to avoid.
+            if ($mailDsn !== '') {
+                require_once __DIR__ . '/backend/vendor/autoload.php';
+
+                try {
+                    App\Shared\Mail\MailDsn::parse($mailDsn);
+                } catch (\Throwable $e) {
+                    $error = $e->getMessage();
+                    break;
+                }
+            }
+
+            try {
+                $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+                $writer->writeTo($configTarget ?? $configFile, ConfigWriter::merge(
+                    $existing,
+                    ['mail' => ['dsn' => $mailDsn]]
+                ));
+            } catch (ConfigWriterException $e) {
+                $error = $e->getMessage();
+                break;
+            }
+
+            header('Location: ?step=6' . ($isUpdate ? '&update=1' : ''));
+            exit;
+
+        case '6': // Backups (ADR-0049) — reachable after install via ?update=1
+            if (!file_exists($configFile)) {
+                $error = 'config.php not found. Please complete step 2 first.';
+                break;
+            }
+
+            // What the file already says, so a blank field can mean "unchanged"
+            // rather than "erase this" — see the client-secret handling below.
+            $existingBackup = ConfigWriter::read($configFile)['backup'] ?? [];
+
+            $recipientKeys = array_values(array_filter(array_map(
+                'trim',
+                preg_split('/[\r\n]+/', (string) ($_POST['recipient_public_keys'] ?? '')) ?: []
+            ), static fn (string $line): bool => $line !== ''));
+
+            $backupDsn = trim($_POST['backup_dsn'] ?? '');
+            $clientSecret = trim($_POST['backup_client_secret'] ?? '');
+            $secretExpires = trim($_POST['backup_secret_expires_at'] ?? '');
+            $backupHeartbeat = trim($_POST['backup_heartbeat_url'] ?? '');
+
+            // Validated through the application's own parsers rather than a
+            // second copy of the rules here. Both already refuse in sentences
+            // written for the person reading this screen — BackupKeyring names
+            // the malformed entry, BackupDsn names the missing part — and a
+            // rule that lived in two places would eventually disagree with
+            // itself.
+            require_once __DIR__ . '/backend/vendor/autoload.php';
+
+            if ($recipientKeys !== []) {
+                try {
+                    (new App\Modules\Backups\Services\BackupKeyring())
+                        ->recipients(implode("\n", $recipientKeys));
+                } catch (\Throwable $e) {
+                    $error = $e->getMessage();
+                    break;
+                }
+            }
+
+            if ($backupDsn !== '') {
+                try {
+                    App\Modules\Backups\Domain\BackupDsn::parse($backupDsn);
+                } catch (\Throwable $e) {
+                    $error = $e->getMessage();
+                    break;
+                }
+
+                // The field is deliberately not pre-filled — a live credential
+                // does not belong in an HTML value attribute — so blank means
+                // "keep what is there", and only an installation with no secret
+                // at all is refused. A DSN that cannot sign in produces a
+                // nightly failure naming Microsoft rather than this screen.
+                if ($clientSecret === '') {
+                    $clientSecret = (string) ($existingBackup['client_secret'] ?? '');
+                }
+
+                if ($clientSecret === '') {
+                    $error = 'A remote is configured but no client secret is stored. '
+                        . 'The secret is shown once by scripts/setup-msgraph-backup.ps1 and '
+                        . 'cannot be retrieved afterwards — mint a new one with -RotateSecretOnly.';
+                    break;
+                }
+            }
+
+            try {
+                $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+                $writer->writeTo($configTarget ?? $configFile, ConfigWriter::merge(
+                    ConfigWriter::read($configFile),
+                    ['backup' => [
+                        'recipient_public_keys' => $recipientKeys,
+                        'dsn' => $backupDsn,
+                        'client_secret' => $clientSecret,
+                        'client_secret_expires_at' => $secretExpires,
+                        'heartbeat_url' => $backupHeartbeat,
+                    ]]
+                ));
+            } catch (ConfigWriterException $e) {
+                $error = $e->getMessage();
+                break;
+            }
+
+            header('Location: ?step=7' . ($isUpdate ? '&update=1' : ''));
+            exit;
     }
 }
 
@@ -806,7 +959,7 @@ function renderPage(string $step, ?string $error, bool $isUpdate): void
 
             <?php if (!$isUpdate): ?>
             <div class="steps">
-                <?php for ($i = 1; $i <= 6; $i++): ?>
+                <?php for ($i = 1; $i <= 8; $i++): ?>
                     <span class="step <?php echo $i == (int)$step ? 'active' : ($i < (int)$step ? 'done' : ''); ?>">
                         <?php echo $i; ?>
                     </span>
@@ -834,10 +987,16 @@ function renderPage(string $step, ?string $error, bool $isUpdate): void
                     renderStep4($isUpdate);
                     break;
                 case '5':
-                    renderStep5();
+                    renderStep5($isUpdate);
                     break;
                 case '6':
-                    renderStep6();
+                    renderStep6($isUpdate);
+                    break;
+                case '7':
+                    renderStep7();
+                    break;
+                case '8':
+                    renderStep8();
                     break;
                 default:
                     renderStep1($isUpdate);
@@ -1014,7 +1173,7 @@ function renderStep4(bool $isUpdate): void
  * away, and holding the wizard on a spinner for that is not acceptable; the
  * outcome is recorded either way and repeated on the completion page.
  */
-function renderStep5(): void
+function renderStep7(): void
 {
     $cronCommand = 'php ' . rtrim(__DIR__, '/') . '/backend/bin/cron.php';
 
@@ -1043,7 +1202,7 @@ function renderStep5(): void
     $backupCommand = 'php ' . rtrim(__DIR__, '/') . '/backend/bin/backup.php';
     $backupUrl = ($cronSecret && $appUrl) ? rtrim($appUrl, '/') . '/api/cron/backup' : null;
     ?>
-    <h2>Step 5: Schedule the two background jobs</h2>
+    <h2>Step 7: Schedule the two background jobs</h2>
     <p>Club Bar announces every direct debit by email at least seven days before it is collected. Those emails
     are queued when you finalize a collection and sent by a scheduled task — so <strong>until this task runs,
     Club Bar will not let you finalize a collection</strong>.</p>
@@ -1084,11 +1243,257 @@ function renderStep5(): void
     <button type="button" class="btn btn-secondary" id="cronCheckBtn">Check</button>
     <p id="cronCheckResult"></p>
 
-    <p style="margin-top: 20px;"><a href="?step=6" class="btn">Finish</a></p>
+    <p style="margin-top: 20px;"><a href="?step=8" class="btn">Finish</a></p>
     <?php
 }
 
-function renderStep6(): void
+/**
+ * Step 5 — the mail transport, and why it is here rather than in the panel.
+ *
+ * Everything about a mail that is *not* secret — sender name, reply-to, footer,
+ * header style, drain batch size and budget — is configured under Settings →
+ * Mail, in the database, by whoever runs the club. `mail.dsn` is the one piece
+ * that is not: it carries an SMTP password, so it lives in `config.php` beside
+ * the database password (ADR-0038).
+ *
+ * That split left a gap this screen closes. The installer wrote six of the
+ * eight sections and omitted `mail` and `backup` — the two a club configures
+ * *later* — so the answer to "how do I switch mail on?" was "hand-edit a PHP
+ * file on a live site". The same question, and the same answer, that #710 came
+ * from.
+ *
+ * Skippable: mail off is a legitimate state. Nothing is sent, nothing throws,
+ * and the security self-check reports the transport as unconfigured rather than
+ * pretending it works.
+ */
+function renderStep5(bool $isUpdate): void
+{
+    // Resolved here rather than passed in: renderPage() does not have it, and a
+    // screen that reads config.php is the only thing that needs it. Same as the
+    // schedule screen below.
+    $stored = trim((string) (ConfigWriter::read(DataDirectory::configPath(__DIR__))['mail']['dsn'] ?? ''));
+    $updateParam = $isUpdate ? '&update=1' : '';
+
+    // Shown redacted rather than not at all. Unlike the backup client secret,
+    // a DSN's useful half — scheme, host, port, user — is not the secret half,
+    // and an operator who cannot see what is configured cannot tell a working
+    // transport from a typo they are about to re-enter.
+    $summary = null;
+    if ($stored !== '') {
+        require_once __DIR__ . '/backend/vendor/autoload.php';
+
+        try {
+            $summary = App\Shared\Mail\MailDsn::parse($stored)->redacted();
+        } catch (\Throwable) {
+            $summary = App\Shared\Mail\MailDsn::redactValue($stored) . ' — which this build cannot parse';
+        }
+    }
+    ?>
+    <h2>Step 5: Sending mail</h2>
+
+    <p>
+        Club Bar sends Deckel statements, credential mails and notices to the
+        board. <strong>This step is optional</strong> — leave it empty and no
+        mail is sent, which is a normal state, not a failure. You can come back
+        to this screen at any time.
+    </p>
+
+    <p>
+        One line selects the transport. Everything else about a mail — the
+        sender name, the reply-to, the footer, the logo — is configured later
+        under <em>Settings → Mail</em> in the admin panel. Only this line is
+        here, because it carries a password.
+    </p>
+
+    <table>
+        <tr>
+            <td><code>smtp://user:password@mail.example.org:587</code></td>
+            <td>the club's own mailbox — what most clubs want</td>
+        </tr>
+        <tr>
+            <td><code>native://default</code></td>
+            <td>hand off to the host's local mail server</td>
+        </tr>
+        <tr>
+            <td><code>null://null</code></td>
+            <td>configured, and silently discards — for a test install</td>
+        </tr>
+    </table>
+
+    <?php if ($summary !== null): ?>
+    <p class="hint">Currently configured: <code><?= htmlspecialchars($summary, ENT_QUOTES) ?></code></p>
+    <?php endif; ?>
+
+    <form method="POST" action="?step=5<?= $updateParam ?>">
+        <input type="hidden" name="step" value="5">
+
+        <label for="mail_dsn">Mail DSN</label>
+        <input type="text" id="mail_dsn" name="mail_dsn"
+               autocomplete="off" spellcheck="false"
+               placeholder="<?= $stored !== ''
+                   ? 'stored — leave blank to keep it'
+                   : 'smtp://user:password@mail.example.org:587' ?>">
+        <p class="hint">
+            Never shown back in full: the password in it does not belong in a
+            page a browser may cache or a password manager may offer to save.
+            Leave it blank to keep what is stored.
+            <?php if ($stored !== ''): ?>
+            To turn mail off entirely, tick the box below.
+            <?php endif; ?>
+        </p>
+
+        <?php if ($stored !== ''): ?>
+        <label style="font-weight:normal">
+            <input type="checkbox" name="mail_clear" value="1">
+            Remove the stored transport and stop sending mail
+        </label>
+        <?php endif; ?>
+
+        <p class="hint">
+            Sending also needs a scheduler: the queue is drained by cron and by
+            nothing else. Step 7 shows the command for this installation.
+        </p>
+
+        <div class="actions">
+            <button type="submit" class="btn">Save and continue</button>
+            <a class="btn-link" href="?step=6<?= $updateParam ?>">Skip for now</a>
+        </div>
+    </form>
+    <?php
+}
+
+/**
+ * Step 6 — Backups (ADR-0049), and the reason this screen exists.
+ *
+ * Before #710 the installer wrote six of the eight config sections, and the two
+ * it omitted were `mail` and `backup` — exactly the two a club configures
+ * *later*. So "how do I add backup credentials after install?" had one answer:
+ * hand-edit `config.php`, a file where a missing comma is a fatal error on a
+ * live site, with no template in front of you.
+ *
+ * Reached during a fresh install, and afterwards through `?update=1` — which is
+ * the half that matters, because a club sets backups up in the week it thinks
+ * about backups, not in the hour it installs.
+ *
+ * **Skippable on purpose.** Configuring a recipient key is what switches
+ * backups on (ADR-0049 decision 2); leaving this screen empty leaves them off,
+ * which is a legitimate state and not a nightly failure.
+ *
+ * The keypair is generated **in the browser** and its private half is shown
+ * once, never posted back. That is the whole security property of this feature:
+ * the server produces archives it structurally cannot read, which is only true
+ * if the private half never reaches it.
+ */
+function renderStep6(bool $isUpdate): void
+{
+    $existing = ConfigWriter::read(DataDirectory::configPath(__DIR__));
+    $backup = $existing['backup'] ?? [];
+    $keys = $backup['recipient_public_keys'] ?? [];
+    $updateParam = $isUpdate ? '&update=1' : '';
+    ?>
+    <h2>Backups</h2>
+
+    <p>
+        Club Bar can write a nightly encrypted archive of the database and push it
+        to storage the club owns. <strong>This step is optional</strong> — leave it
+        empty and no backups are written, which is a normal state, not a failure.
+        You can come back to this screen at any time.
+    </p>
+
+    <h3>1. Who can open an archive</h3>
+
+    <p>
+        Archives are sealed to one or more public keys. The matching
+        <strong>private</strong> halves never touch this server — that is what
+        makes an archive something the server can produce and cannot read.
+        Generate a keypair here, then <strong>print or write down the private
+        half</strong>: it is shown once and cannot be recovered.
+    </p>
+
+    <p>
+        Make <strong>two</strong> keypairs — one for whoever holds the server, one
+        for a second board member. The realistic failure in a club is not a broken
+        cipher; it is one volunteer leaving with the only key.
+    </p>
+
+    <p>
+        <a class="btn-secondary" href="tools/keypair-generator.html" target="_blank" rel="noopener">
+            Open the key generator
+        </a>
+    </p>
+
+    <p class="hint">
+        It opens in a new tab and runs entirely in your browser — nothing is sent
+        anywhere, which is the point. Use the <strong>hex</strong> output under
+        <em>Backup archive keys</em>; the base64 boxes above it are the IBAN
+        keypair the admin panel registers, and the two are not interchangeable.
+    </p>
+
+    <form method="POST" action="?step=6<?= $updateParam ?>">
+        <input type="hidden" name="step" value="6">
+
+        <label for="recipient_public_keys">
+            Recipient keys — one <code>label:key</code> per line
+        </label>
+        <textarea id="recipient_public_keys" name="recipient_public_keys" rows="4"
+                  placeholder="admin:3d1f8a06…&#10;vorstand:9a02b4d6…"><?=
+            htmlspecialchars(implode("\n", array_map('strval', (array) $keys)), ENT_QUOTES)
+        ?></textarea>
+
+        <h3>2. Where archives are pushed <span style="font-weight:normal">(optional)</span></h3>
+
+        <p>
+            Leave empty and archives stay on this webspace. That undoes a mistake
+            from an hour ago and nothing else: one lost hosting account takes the
+            database and its backups together. To push them off the host, run
+            <code>scripts/setup-msgraph-backup.ps1</code> and paste what it prints.
+            The procedure is in <code>docs/m365-backup-target.md</code>.
+        </p>
+
+        <label for="backup_dsn">Backup DSN</label>
+        <input type="text" id="backup_dsn" name="backup_dsn"
+               value="<?= htmlspecialchars((string) ($backup['dsn'] ?? ''), ENT_QUOTES) ?>"
+               placeholder="msgraph://tenant/client@drive/driveid/clubbar">
+
+        <label for="backup_client_secret">Client secret</label>
+        <input type="password" id="backup_client_secret" name="backup_client_secret"
+               autocomplete="new-password"
+               placeholder="<?= ($backup['client_secret'] ?? '') !== ''
+                   ? 'stored — leave blank to keep it'
+                   : '' ?>">
+        <p class="hint">
+            Never shown back: a live credential does not belong in a page that a
+            browser may cache or a password manager may offer to save. Leave it
+            blank to keep the secret already stored.
+        </p>
+
+        <label for="backup_secret_expires_at">
+            Client secret expires on — <strong>the most likely cause of a silent
+            backup failure</strong>
+        </label>
+        <input type="date" id="backup_secret_expires_at" name="backup_secret_expires_at"
+               value="<?= htmlspecialchars((string) ($backup['client_secret_expires_at'] ?? ''), ENT_QUOTES) ?>">
+        <p class="hint">
+            Microsoft warns nobody when a client secret expires. The nightly job
+            keeps writing and sealing its archive; only the half that gets it off
+            this server stops. With this date set, the run warns 90, 30 and 7 days
+            ahead. Put a calendar reminder in as well.
+        </p>
+
+        <label for="backup_heartbeat_url">Backup monitor URL (optional)</label>
+        <input type="text" id="backup_heartbeat_url" name="backup_heartbeat_url"
+               value="<?= htmlspecialchars((string) ($backup['heartbeat_url'] ?? ''), ENT_QUOTES) ?>"
+               placeholder="https://hc-ping.com/…">
+
+        <div class="actions">
+            <button type="submit" class="btn">Save and continue</button>
+            <a class="btn-link" href="?step=7<?= $updateParam ?>">Skip for now</a>
+        </div>
+    </form>
+    <?php
+}
+
+function renderStep8(): void
 {
     // Resolved live rather than remembered: .installer-data is deleted when the
     // install completes, and what matters on this page is where the data

@@ -757,7 +757,9 @@
       "categories": {
         "exposure": "What the webserver hands out",
         "data": "Where the data lives",
+        "backup": "Whether there is anything to restore from",
         "transport": "Connection",
+        "delivery": "Whether messages get out",
         "session": "Sessions",
         "runtime": "PHP runtime"
       },

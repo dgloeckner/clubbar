@@ -21,7 +21,7 @@ final class BackupKeyringException extends RuntimeException
     {
         return new self(
             'No backup recipient key is configured, so no archive can be written. Generate a '
-            . 'keypair with tools/keypair-generator.html and add its public half to '
+            . 'keypair with tools/keypair-generator.html — the **hex** output under "Backup archive keys", not the base64 one above it — and add its public half to '
             . 'backup.recipient_public_keys in config.php — configuring a key is what switches '
             . 'nightly backups on. A plaintext backup is never written instead.'
         );
@@ -32,7 +32,7 @@ final class BackupKeyringException extends RuntimeException
         return new self(sprintf(
             'backup.recipient_public_keys carries an entry that is not "label:hexkey": "%s". Expected a '
             . 'label of letters, digits, hyphens or underscores, a colon, then 64 hex '
-            . 'characters — as tools/keypair-generator.html prints them.',
+            . 'characters — as the "Backup archive keys" section of tools/keypair-generator.html prints them. The base64 output higher up that page is the IBAN keypair, which the admin panel registers; the two are not interchangeable.',
             self::redact($entry)
         ));
     }
