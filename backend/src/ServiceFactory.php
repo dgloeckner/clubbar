@@ -78,7 +78,7 @@ use App\Modules\Notifications\Services\DeckelStatementMailBuilder;
 use App\Modules\Notifications\Services\DeckelStatementService;
 use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Notifications\Services\DrainService;
-use App\Modules\Notifications\Services\HeartbeatPinger;
+use App\Shared\Monitoring\HeartbeatPinger;
 use App\Modules\Notifications\Services\MailDeliveryCheck;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\CreditLimitDigestMailBuilder;

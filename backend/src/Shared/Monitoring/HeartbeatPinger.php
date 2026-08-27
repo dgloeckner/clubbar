@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Modules\Notifications\Services;
+namespace App\Shared\Monitoring;
 
 use App\Shared\Http\OutboundHttpClient;
 use App\Shared\Logging\Logger;

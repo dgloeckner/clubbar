@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Services;
 
+use App\Shared\Monitoring\HeartbeatPinger;
 use App\Modules\Notifications\DTOs\DrainResultDto;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\CronInterval;

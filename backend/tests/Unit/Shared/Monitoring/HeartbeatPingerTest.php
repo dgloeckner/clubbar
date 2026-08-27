@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Modules\Notifications\Services;
+namespace Tests\Unit\Shared\Monitoring;
 
-use App\Modules\Notifications\Services\HeartbeatPinger;
+use App\Shared\Monitoring\HeartbeatPinger;
 use App\Shared\Http\OutboundHttpClient;
 use App\Shared\Logging\Logger;
 use PHPUnit\Framework\TestCase;

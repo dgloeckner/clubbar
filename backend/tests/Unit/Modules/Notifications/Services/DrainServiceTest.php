@@ -10,7 +10,7 @@ use App\Modules\Notifications\Enums\DrainSource;
 use App\Modules\Notifications\Enums\MailStatus;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Services\DrainService;
-use App\Modules\Notifications\Services\HeartbeatPinger;
+use App\Shared\Monitoring\HeartbeatPinger;
 use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
