@@ -1,4 +1,4 @@
-import type { APIRequestContext, Playwright } from '@playwright/test'
+import type { APIRequestContext, PlaywrightWorkerArgs } from '@playwright/test'
 import { test, expect } from '../../fixtures/auth.fixture'
 import { loginAs } from '../../utils/csrf'
 import { generateTotp, waitForFreshTotpWindow } from '../../utils/totp'
@@ -58,7 +58,7 @@ class SessionContext {
  */
 async function createEnrolledAdmin(
   authenticatedRequest: APIRequestContext,
-  playwright: Playwright,
+  playwright: PlaywrightWorkerArgs['playwright'],
   prefix: string,
 ): Promise<EnrolledAdmin> {
   const email = `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}@test.example.com`

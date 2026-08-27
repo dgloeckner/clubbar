@@ -14,6 +14,7 @@
     "walkthrough": "playwright test --project=walkthrough --workers=1",
     "walkthrough:screenshots": "playwright test --project=walkthrough-screenshots --workers=1",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test:lint-rules": "node --test eslint-rules/*.test.js scripts/*.test.mjs",
     "check:ci-lanes": "node scripts/check-ci-lanes.mjs",
     "check:dependabot-groups": "node scripts/check-dependabot-groups.mjs"

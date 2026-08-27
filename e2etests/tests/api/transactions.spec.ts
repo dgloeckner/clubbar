@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from '../../fixtures/auth.fixture';
 
 /**
@@ -14,7 +15,7 @@ import { test, expect } from '../../fixtures/auth.fixture';
  */
 
 // Helper to create test member
-async function createMember(authenticatedRequest) {
+async function createMember(authenticatedRequest: APIRequestContext) {
   const uniqueId = randomUUID().substring(0, 8);
 
   // Format date for MySQL (YYYY-MM-DD HH:MM:SS)
@@ -43,7 +44,7 @@ async function createMember(authenticatedRequest) {
 // Helper to create a member with no IBAN and no SEPA mandate.
 // A storno must still be possible for them: it reduces what they owe, and
 // gating a debt reduction on the ability to collect is inverted (#158 §1).
-async function createMemberWithoutMandate(authenticatedRequest) {
+async function createMemberWithoutMandate(authenticatedRequest: APIRequestContext) {
   const uniqueId = randomUUID().substring(0, 8);
 
   const response = await authenticatedRequest.post('/api/admin/members', {
@@ -64,7 +65,7 @@ async function createMemberWithoutMandate(authenticatedRequest) {
 }
 
 // Helper to create test category
-async function createCategory(authenticatedRequest) {
+async function createCategory(authenticatedRequest: APIRequestContext) {
   const response = await authenticatedRequest.post('/api/admin/categories', {
     data: {
       names: {
@@ -82,7 +83,7 @@ async function createCategory(authenticatedRequest) {
 }
 
 // Helper to create test product
-async function createProduct(authenticatedRequest) {
+async function createProduct(authenticatedRequest: APIRequestContext) {
   const category = await createCategory(authenticatedRequest);
 
   const response = await authenticatedRequest.post('/api/admin/products', {
@@ -118,7 +119,7 @@ function createValidTransaction(memberId: string, productId: string, overrides =
 // Helper to create a purchase transaction for a member and return its id.
 // A storno must name the transaction it reverses via `related_transaction_id`
 // (GoBD Rz. 64), so storno tests need a real purchase to point at.
-async function createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, memberId: string, amountCents = 1000) {
+async function createPurchaseTransaction(authenticatedRequest: APIRequestContext, authenticatedTerminalRequest: APIRequestContext, memberId: string, amountCents = 1000) {
   const product = await createProduct(authenticatedRequest);
   const transaction = createValidTransaction(memberId, product.id, { amount_cents: amountCents });
 
@@ -287,7 +288,7 @@ test.describe('Transactions Upload Endpoint', () => {
     const history = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}`);
     expect(history.status()).toBe(200);
     const stored = await history.json();
-    expect(stored.transactions.map((t) => t.id).sort()).toEqual(good.map((t) => t.id).sort());
+    expect(stored.transactions.map((t: any) => t.id).sort()).toEqual(good.map((t) => t.id).sort());
   });
 
   /**
@@ -723,7 +724,7 @@ test.describe('Sync idempotency (#99)', () => {
   // contract, only its contents.
   const sortedIds = (ids: string[]) => [...ids].sort();
 
-  async function historyFor(authenticatedTerminalRequest, memberId: string) {
+  async function historyFor(authenticatedTerminalRequest: APIRequestContext, memberId: string) {
     const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=100`);
     expect(response.ok()).toBeTruthy();
     return await response.json();
@@ -1587,7 +1588,7 @@ test.describe('Transaction Export Endpoint', () => {
     expect(journalResponse.ok()).toBeTruthy();
 
     const journal = await journalResponse.json();
-    const storedTx = journal.data.find(tx => tx.id === transaction.id);
+    const storedTx = journal.data.find((tx: any) => tx.id === transaction.id);
     expect(storedTx).toBeDefined();
     expect(storedTx.created_by_terminal_id).not.toBeNull();
   });
@@ -1641,7 +1642,7 @@ test.describe('Transaction Export Endpoint', () => {
     expect(historyResponse.ok()).toBeTruthy();
 
     const history = await historyResponse.json();
-    const storedTransaction = history.transactions.find(tx => tx.id === transaction.id);
+    const storedTransaction = history.transactions.find((tx: any) => tx.id === transaction.id);
 
     expect(storedTransaction).toBeDefined();
     expect(storedTransaction.dispenser_tx_id).toBe('abc123ef');
@@ -1670,7 +1671,7 @@ test.describe('Transaction Export Endpoint', () => {
     expect(historyResponse.ok()).toBeTruthy();
 
     const history = await historyResponse.json();
-    const storedTransaction = history.transactions.find(tx => tx.id === transaction.id);
+    const storedTransaction = history.transactions.find((tx: any) => tx.id === transaction.id);
 
     expect(storedTransaction).toBeDefined();
     expect(storedTransaction.dispenser_tx_id).toBeNull();
@@ -1694,12 +1695,12 @@ test.describe('Transaction Export Endpoint', () => {
  * batch writing something other than what the contract says it may write.
  */
 test.describe('Terminal sync field authority (#79)', () => {
-  async function storedTransaction(authenticatedRequest, memberId: string, transactionId: string) {
+  async function storedTransaction(authenticatedRequest: APIRequestContext, memberId: string, transactionId: string) {
     const response = await authenticatedRequest.get(`/api/admin/members/${memberId}/transactions`);
     expect(response.ok()).toBeTruthy();
 
     const history = await response.json();
-    const stored = history.transactions.find((tx) => tx.id === transactionId);
+    const stored = history.transactions.find((tx: any) => tx.id === transactionId);
     expect(stored).toBeDefined();
     return stored;
   }
@@ -1864,7 +1865,7 @@ test.describe('Terminal sync field authority (#79)', () => {
   // ------------------------------------------------------------------
 
   /** Price-divergence entries filed under one transaction, newest first. */
-  async function divergenceEntriesFor(authenticatedRequest, transactionId: string) {
+  async function divergenceEntriesFor(authenticatedRequest: APIRequestContext, transactionId: string) {
     const response = await authenticatedRequest.get(
       `/api/admin/audit-log?action=transaction_price_divergence&entity_id=${transactionId}`,
     );

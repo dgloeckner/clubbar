@@ -102,6 +102,10 @@ export class MembersPage extends BasePage {
   private readonly changeMandateReferenceButton = () => this.page.getByTestId('members-form-mandate-reference-change')
   private readonly cancelMandateReferenceButton = () => this.page.getByTestId('members-form-mandate-reference-cancel')
 
+  // Row action buttons (GDPR anonymize replaces delete, UC-DSGVO-02)
+  private readonly anonymizeButtons = () => this.page.locator('[data-testid^="members-table-action-anonymize-"]')
+  private readonly deleteButtons = () => this.page.locator('[data-testid^="members-table-action-delete-"]')
+
   // Filter controls
   private readonly clearFiltersBtn = () => this.page.getByTestId('members-clear-filters')
 
@@ -1304,6 +1308,21 @@ export class MembersPage extends BasePage {
 
   async cancelAnonymize() {
     await this.page.getByTestId('members-anonymize-confirm-cancel').click()
+  }
+
+  /** Whichever row's anonymize action is showing — used when the table's
+   *  population is not test-controlled (#146), so no specific member ID is known. */
+  async expectAnyAnonymizeButtonVisible() {
+    await expect(this.anonymizeButtons().first()).toBeVisible()
+  }
+
+  async getAnonymizeButtonCount(): Promise<number> {
+    return await this.anonymizeButtons().count()
+  }
+
+  /** GDPR anonymize replaces delete outright — a delete action must never render (UC-DSGVO-02). */
+  async getDeleteButtonCount(): Promise<number> {
+    return await this.deleteButtons().count()
   }
 
   /**

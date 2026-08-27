@@ -140,7 +140,11 @@ class ServiceFactoryTest extends TestCase
 
     public function test_getRateLimitMiddleware_is_active_by_default(): void
     {
-        unset($_ENV['DISABLE_LOGIN_RATE_LIMITING']);
+        // unset($_ENV[...]) cannot clear DISABLE_LOGIN_RATE_LIMITING: docker-compose
+        // sets it as a real process env var, which Env::get() falls through to once
+        // the $_ENV entry is gone. Set $_ENV explicitly so it shadows that fallback
+        // instead of hoping the process environment stays quiet.
+        $_ENV['DISABLE_LOGIN_RATE_LIMITING'] = 'false';
 
         $this->assertFalse($this->isDisabled($this->factory()->getRateLimitMiddleware()));
     }

@@ -11,10 +11,12 @@
  */
 
 import { test } from '@playwright/test'
-import type { Page, APIRequestContext, Playwright } from '@playwright/test'
+import type { Page, APIRequestContext, PlaywrightWorkerArgs } from '@playwright/test'
 import path from 'path'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
 import { generateTotp, submitTotpWithRetry } from './totp'
+
+type Playwright = PlaywrightWorkerArgs['playwright']
 
 const API_BASE = 'http://localhost:8080/api'
 // Same path auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
