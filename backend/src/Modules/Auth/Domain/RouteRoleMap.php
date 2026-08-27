@@ -77,6 +77,14 @@ final class RouteRoleMap
         // The report names this installation's weak points, and the branding
         // is an operator surface rather than a club office.
         'GET /api/admin/security-check' => self::ADMIN_ONLY,
+        // The backups page (#693). An archive carries the audit log, every
+        // admin's TOTP ciphertext and the database password, and ADR-0049 draws
+        // that office boundary for custody of the key — the Kassenwart holds
+        // the IBAN key because SEPA collection needs it, which is a different
+        // key and a different remit.
+        'GET /api/admin/backups' => self::ADMIN_ONLY,
+        'GET /api/admin/backups/remote' => self::ADMIN_ONLY,
+        'GET /api/admin/backups/{name}' => self::ADMIN_ONLY,
         'PATCH /api/admin/instance-config' => self::ADMIN_ONLY,
         // The one row where the grant is wider than the payload (#677).
         // `SchedulerController` redacts the operator half — the cron command

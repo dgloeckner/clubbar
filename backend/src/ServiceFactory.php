@@ -126,7 +126,11 @@ use App\Modules\CreditLimits\Controllers\SyncController as CreditLimitSyncContro
 use App\Modules\Backups\Controllers\BackupCronController;
 use App\Modules\Backups\Domain\BackupRetention;
 use App\Modules\Backups\Services\BackupKeyring;
+use App\Modules\Backups\Controllers\BackupsController;
 use App\Modules\Backups\Services\BackupSchedule;
+use App\Modules\Backups\Services\BackupsInventory;
+use App\Modules\Backups\Services\RemoteInventory;
+use App\Modules\Backups\Services\RemoteLookup;
 use App\Modules\Backups\Services\BackupStatusCheck;
 use App\Modules\Backups\Services\BackupService;
 use App\Modules\Backups\Services\ConfigSnapshot;
@@ -172,6 +176,7 @@ class ServiceFactory implements ContainerInterface
         // Shared
         HealthController::class => 'getHealthController',
         SecurityCheckController::class => 'getSecurityCheckController',
+        BackupsController::class => 'getBackupsController',
         EncryptionKeysController::class => 'getEncryptionKeysController',
 
         // Members
@@ -1417,6 +1422,48 @@ class ServiceFactory implements ContainerInterface
                 $this->config->backupLocalMaxBytes,
                 $this->config->backupRemoteRetentionDays,
             ),
+        ));
+    }
+
+    /**
+     * The backups page's local half (#693): the directory and each archive's
+     * header, and nothing that can block.
+     */
+    public function getBackupsInventory(): BackupsInventory
+    {
+        return $this->resolve(BackupsInventory::class, fn() => new BackupsInventory(
+            $this->config->dataDir . '/' . BackupService::DIRECTORY,
+        ));
+    }
+
+    /**
+     * The enrichment half, on its own route (#693).
+     *
+     * Built with {@see BackupTransportFactory::forBrowsing()} rather than the
+     * nightly transport: eight seconds and no retries, because somebody is
+     * waiting. A call that does not answer inside that falls back to the
+     * snapshot the nightly run left, and the response says which it is showing.
+     */
+    public function getRemoteLookup(): RemoteLookup
+    {
+        return $this->resolve(RemoteLookup::class, fn() => new RemoteLookup(
+            new RemoteInventory($this->config->dataDir . '/' . BackupService::DIRECTORY),
+            $this->logger,
+            BackupTransportFactory::forBrowsing(
+                $this->config->backupDsn,
+                $this->config->backupClientSecret,
+                new CurlHttpClient(),
+                $this->logger,
+            ),
+        ));
+    }
+
+    public function getBackupsController(): BackupsController
+    {
+        return $this->resolve(BackupsController::class, fn() => new BackupsController(
+            $this->getBackupsInventory(),
+            $this->getRemoteLookup(),
+            $this->config->dataDir . '/' . BackupService::DIRECTORY,
         ));
     }
 
