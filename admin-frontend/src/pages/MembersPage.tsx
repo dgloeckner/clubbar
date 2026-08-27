@@ -466,9 +466,8 @@ export function MembersPage() {
     if (!editingMember?.id) return
     setExporting(true)
     try {
-      const data = await getMembersFactory().exportMemberData(editingMember.id, { format: 'json', export_type: 'gdpr_access' })
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-      downloadBlob(blob, `gdpr-export-${editingMember.id}.json`)
+      const blob = await getMembersFactory().exportMemberData(editingMember.id, { format: 'json', export_type: 'gdpr_access' })
+      downloadBlob(blob as unknown as Blob, `gdpr-export-${editingMember.id}.json`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('members.errors.exportData'))
     } finally {

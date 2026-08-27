@@ -34,7 +34,10 @@ Browser-level tests live in [`../e2etests/`](../e2etests/), not here.
 ## The API client is generated
 
 Do not hand-write API calls. [`../api/admin.yaml`](../api/admin.yaml) is the
-contract; orval generates the typed client from it:
+contract; orval generates the typed client from it. `src/api/generated/` is
+git-ignored, not committed, and `npm install`/`npm ci` regenerate it via a
+`postinstall` hook, so a fresh clone typechecks with no extra step. Run it by
+hand after editing the spec, without a full reinstall:
 
 ```bash
 npm run generate     # api/admin.yaml -> src/api/generated/
