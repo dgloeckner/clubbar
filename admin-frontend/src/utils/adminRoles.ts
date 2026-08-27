@@ -51,6 +51,10 @@ export const SECTION_ROLES: Record<string, AdminRole[]> = {
   '/reports': EVERY_ROLE,
   '/notifications': TREASURY,
   '/settings': TREASURY,
+  // An archive carries the audit log, every admin's TOTP ciphertext and the
+  // database password (#693, ADR-0049) — the same custody boundary that decides
+  // who holds the private key.
+  '/backups': ADMIN_ONLY,
   '/audit-log': ADMIN_ONLY,
   '/profile': EVERY_ROLE,
 }

@@ -16,6 +16,7 @@ import { BottomTabBar } from './BottomTabBar'
 import { SchedulerBanner } from './SchedulerBanner'
 import {
   AuditLogIcon,
+  DatabaseIcon,
   MailIcon,
   HomeIcon,
   UsersIcon,
@@ -64,6 +65,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     { label: t('nav.reports'), path: '/reports', icon: <ChartIcon size={20} />, testId: 'nav-reports' },
     { label: t('nav.settings'), path: '/settings', icon: <SettingsIcon size={20} />, testId: 'nav-settings' },
     { label: t('nav.notifications'), path: '/notifications', icon: <MailIcon size={20} />, testId: 'nav-notifications' },
+    { label: t('nav.backups'), path: '/backups', icon: <DatabaseIcon size={20} />, testId: 'nav-backups' },
     { label: t('nav.auditLog'), path: '/audit-log', icon: <AuditLogIcon size={20} />, testId: 'nav-audit-log' },
   ].filter((item) => permitsPath(roles, item.path))
 

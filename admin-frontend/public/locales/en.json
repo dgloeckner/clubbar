@@ -14,7 +14,8 @@
     "more": "More",
     "journalShort": "Journal",
     "settlementsShort": "Settlem.",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "backups": "Backups"
   },
   "common": {
     "save": "Save",
@@ -1391,6 +1392,43 @@
     "errors": {
       "load": "The queue could not be loaded.",
       "retry": "The message could not be queued again."
+    }
+  },
+  "backups": {
+    "title": "Backups",
+    "subtitle": "What this server holds, and which keys open it",
+    "loading": "Loading …",
+    "loadFailed": "The overview could not be loaded.",
+    "archives": {
+      "heading": "Archives",
+      "name": "File",
+      "size": "Size",
+      "keys": "Keys",
+      "offsite": "Off-site",
+      "download": "Download",
+      "empty": "There is no archive on this server.",
+      "unreadable": "unreadable",
+      "withConfig": "with config.php"
+    },
+    "offsite": {
+      "yes": "yes",
+      "no": "no",
+      "unknown": "unknown"
+    },
+    "remote": {
+      "checking": "Checking the store …",
+      "live": "Checked just now: {{remote}}",
+      "snapshot": "The store could not be reached. Showing what it held on {{when}}.",
+      "unavailable": "No answer about the store — the nightly run has never listed it."
+    },
+    "keys": {
+      "heading": "Keys",
+      "label": "Label",
+      "fingerprint": "Fingerprint",
+      "archives": "Archives",
+      "span": "Span",
+      "empty": "No archive names a key.",
+      "note": "Derived from the archive headers — a list to walk your own key register against, never a replacement for it. A key with no archives opens nothing that is still here."
     }
   }
 }

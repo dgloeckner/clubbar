@@ -21,6 +21,7 @@ import { JournalPage } from './pages/JournalPage'
 import { SettlementsPage } from './pages/SettlementsPage'
 import { NewSettlementPage } from './pages/NewSettlementPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { BackupsPage } from './pages/BackupsPage'
 import { AuditLogPage } from './pages/AuditLogPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -231,6 +232,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <NotificationsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/backups"
+        element={
+          <ProtectedRoute>
+            <BackupsPage />
           </ProtectedRoute>
         }
       />

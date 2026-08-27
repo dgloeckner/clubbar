@@ -13,6 +13,7 @@ import {
   ChartIcon,
   SettingsIcon,
   AuditLogIcon,
+  DatabaseIcon,
   MailIcon,
   UserIcon,
 } from '../icons'
@@ -54,6 +55,7 @@ export function BottomTabBar() {
     { label: t('nav.reports'), path: '/reports', icon: ChartIcon, testId: 'tab-reports' },
     { label: t('nav.settings'), path: '/settings', icon: SettingsIcon, testId: 'tab-settings' },
     { label: t('nav.notifications'), path: '/notifications', icon: MailIcon, testId: 'tab-notifications' },
+    { label: t('nav.backups'), path: '/backups', icon: DatabaseIcon, testId: 'tab-backups' },
     { label: t('nav.auditLog'), path: '/audit-log', icon: AuditLogIcon, testId: 'tab-audit-log' },
     { label: t('nav.profile'), path: '/profile', icon: UserIcon, testId: 'tab-profile' },
   ].filter((item) => permitsPath(roles, item.path))

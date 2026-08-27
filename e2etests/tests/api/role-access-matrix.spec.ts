@@ -95,6 +95,11 @@ const MATRIX: Entry[] = [
 
   // ── the installation itself ──────────────────────────────────────────────
   { method: 'GET', path: '/admin/security-check', roles: ADMIN_ONLY },
+  // The backups page (#693). An archive carries the audit log, every admin's
+  // TOTP ciphertext and the database password.
+  { method: 'GET', path: '/admin/backups', roles: ADMIN_ONLY },
+  { method: 'GET', path: '/admin/backups/remote', roles: ADMIN_ONLY },
+  { method: 'GET', path: `/admin/backups/clubbar-19700101-000000-${NOWHERE.slice(0, 8)}.cbb`, roles: ADMIN_ONLY },
   { method: 'PATCH', path: '/admin/instance-config', roles: ADMIN_ONLY },
   // TREASURY since #677: the scheduler gate refuses the treasurer's finalize
   // button, so the treasurer has to be able to see that it is closed. The
