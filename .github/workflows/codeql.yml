@@ -1,0 +1,72 @@
+# CodeQL configuration for Club Bar.
+#
+# Scanned languages are scoped to what actually carries first-party logic:
+#   - javascript-typescript: admin-frontend (React SPA) and e2etests (Playwright)
+#   - python: terminal-frontend/scripts/ kiosk helpers (blackscreen.py, screen-idle.py)
+#             and scripts/codacy_sarif.py
+#   - actions: this repo's own GitHub Actions workflows
+#
+# Not scanned, and not omitted by oversight:
+#   - PHP (backend/, the majority of the codebase) — CodeQL has no PHP extractor.
+#   - Dart (terminal-frontend/lib/, the terminal app's actual logic) — CodeQL has
+#     no Dart extractor.
+#   - swift / c-cpp: terminal-frontend's linux/ and macos/ directories only hold
+#     Flutter's generated desktop-embedding boilerplate (AppDelegate.swift,
+#     generated_plugin_registrant.cc, my_application.cc, ...); there is no
+#     first-party Swift or C/C++ to analyze, and Swift would otherwise force a
+#     macos-latest runner + autobuild for no security benefit.
+name: "CodeQL Advanced"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '34 11 * * 3'
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # required for all workflows
+      security-events: write
+
+      # required to fetch internal or private CodeQL packs
+      packages: read
+
+      # only required for workflows in private repositories
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: actions
+          build-mode: none
+        - language: javascript-typescript
+          build-mode: none
+        - language: python
+          build-mode: none
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+        # security-extended adds broader coverage (e.g. additional injection,
+        # crypto and data-flow checks) than the default query pack, which is
+        # worth the extra runtime given this project handles member PII and
+        # SEPA/financial data.
+        queries: security-extended
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v4
+      with:
+        category: "/language:${{matrix.language}}"
