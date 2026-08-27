@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\DTOs;
 
+use App\Modules\Backups\Domain\BackupScheduleStatus;
+
 /**
  * Whether a drain run has ever been observed, and what to schedule if not
  * (#405, ADR-0038 rule 3).
@@ -70,6 +72,15 @@ final readonly class SchedulerStatusDto
          * quietly re-deriving it would hide exactly that.
          */
         public bool $intervalDisagrees = false,
+        /**
+         * The nightly backup, the second scheduled job this installation needs
+         * (#693). Null when the caller assembled no backup half — `install.php`
+         * and the package smoke test both read this status without the module.
+         *
+         * Admin-only, and enforced by omission: {@see toOfficeArray()} does not
+         * mention it. Every reason is on {@see BackupScheduleStatus}.
+         */
+        public ?BackupScheduleStatus $backup = null,
     ) {}
 
     /** Everything, for the office that holds the server. */
@@ -91,6 +102,11 @@ final readonly class SchedulerStatusDto
                 'drain_url' => $this->drainUrl,
                 'recommended_interval_minutes' => $this->recommendedIntervalMinutes,
             ],
+            // Absent rather than null when there is no backup half to report:
+            // a key whose value is always null teaches a reader to stop looking
+            // at it, and the banner's test is "is there a backup section",
+            // which an absent key answers honestly.
+            ...($this->backup === null ? [] : ['backup' => $this->backup->toArray()]),
         ];
     }
 

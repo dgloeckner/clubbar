@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\DTOs;
 
+use App\Modules\Backups\Domain\BackupScheduleStatus;
 use App\Modules\Notifications\DTOs\SchedulerStatusDto;
 use PHPUnit\Framework\TestCase;
 
@@ -22,7 +23,7 @@ use PHPUnit\Framework\TestCase;
  */
 class SchedulerStatusDtoTest extends TestCase
 {
-    private function dto(bool $verified = false): SchedulerStatusDto
+    private function dto(bool $verified = false, ?BackupScheduleStatus $backup = null): SchedulerStatusDto
     {
         return new SchedulerStatusDto(
             verified: $verified,
@@ -38,6 +39,17 @@ class SchedulerStatusDtoTest extends TestCase
             declaredInterval: 'hourly',
             observedInterval: 'daily',
             intervalDisagrees: true,
+            backup: $backup ?? self::backup(),
+        );
+    }
+
+    private static function backup(bool $configured = true, bool $verified = false): BackupScheduleStatus
+    {
+        return new BackupScheduleStatus(
+            configured: $configured,
+            verified: $verified,
+            cliCommand: 'php /var/www/vhosts/example.org/httpdocs/backend/bin/backup.php',
+            triggerUrl: 'https://bar.example.org/api/cron/backup',
         );
     }
 
@@ -55,6 +67,49 @@ class SchedulerStatusDtoTest extends TestCase
         $this->assertStringEndsWith('/backend/bin/cron.php', $array['setup']['cli_command']);
         $this->assertSame('https://bar.example.org/api/cron/drain', $array['setup']['drain_url']);
         $this->assertSame(15, $array['setup']['recommended_interval_minutes']);
+        $this->assertTrue($array['backup']['configured']);
+        $this->assertFalse($array['backup']['verified']);
+        $this->assertStringEndsWith('/backend/bin/backup.php', $array['backup']['cli_command']);
+        $this->assertSame('https://bar.example.org/api/cron/backup', $array['backup']['trigger_url']);
+    }
+
+    /**
+     * **The second job carries no schedule.** Triggering is external — a
+     * hosting panel fires the backup and the application never reads a cadence.
+     * A field here would read as configuration the application honours, and the
+     * recommendation is the same on every installation anyway, so the panel's
+     * own strings carry it.
+     */
+    public function test_the_backup_section_ships_exactly_four_fields_and_no_schedule(): void
+    {
+        $backup = $this->dto()->toArray()['backup'];
+
+        $this->assertSame(['configured', 'verified', 'cli_command', 'trigger_url'], array_keys($backup));
+        $this->assertStringNotContainsString('* * *', json_encode($backup, JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Absent, not null. A key whose value is always null teaches a reader to
+     * stop looking at it; the banner's test is "is there a backup section",
+     * and an absent key answers that honestly. `install.php` and the package
+     * smoke test both read this status with no Backups module wired.
+     */
+    public function test_no_backup_half_means_no_backup_key(): void
+    {
+        $dto = new SchedulerStatusDto(
+            verified: false,
+            lastRunAt: null,
+            source: null,
+            lastSent: null,
+            lastFailed: null,
+            phpVersion: null,
+            missingExtensions: null,
+            cliCommand: 'php /srv/htdocs/backend/bin/cron.php',
+            drainUrl: null,
+            recommendedIntervalMinutes: 15,
+        );
+
+        $this->assertArrayNotHasKey('backup', $dto->toArray());
     }
 
     /**
@@ -91,6 +146,28 @@ class SchedulerStatusDtoTest extends TestCase
         $this->assertStringNotContainsString('last_run_at', $encoded);
         $this->assertStringNotContainsString('declared_interval', $encoded);
         $this->assertStringNotContainsString('observed_interval', $encoded);
+    }
+
+    /**
+     * **The backup half is the operator's, whole.**
+     *
+     * ADR-0044's rule is to mirror the grant on the surface the thing points
+     * at, and every backup surface is `admin`: the measured rows render on
+     * `GET /api/admin/security-check`, which is `ADMIN_ONLY`. A Kassenwart
+     * cannot open a hosting panel, so a missing backup cron is not theirs to
+     * fix — and the command names this installation's document root, which is
+     * exactly what #677's allow-list exists to keep back.
+     */
+    public function test_the_office_array_carries_no_backup_section_at_all(): void
+    {
+        $office = $this->dto()->toOfficeArray();
+
+        $this->assertArrayNotHasKey('backup', $office);
+        $this->assertStringNotContainsString(
+            'backup',
+            json_encode($office, JSON_THROW_ON_ERROR),
+            'not even the word: a club office has nothing to do here'
+        );
     }
 
     /**
