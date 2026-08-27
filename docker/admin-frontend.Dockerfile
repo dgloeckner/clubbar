@@ -6,14 +6,16 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY admin-frontend/package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
+# orval's postinstall (#725) needs the OAS spec at a path relative to
+# admin-frontend/ (orval.config.ts: '../api/admin.yaml') and the mutator
+# file orval.config.ts points at (src/api/client.ts, which itself imports
+# from src/utils/), so the full source tree has to be in place before
+# `npm ci` runs — package files alone are not enough anymore.
+COPY api/ /api/
 COPY admin-frontend/ ./
+
+# Install dependencies (also regenerates src/api/generated/ via postinstall)
+RUN npm ci
 
 # Build for production
 RUN npm run build

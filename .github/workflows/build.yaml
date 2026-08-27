@@ -24,8 +24,9 @@ env:
   # `^22.22.2 || ^24.15.0 || >=26.0.0` and dies under Node 20 with
   # `webidl.util.markAsUncloneable is not a function` — Node 20's bundled
   # undici predates the function jsdom's CacheStorage calls (#619). orval had
-  # already moved past Node 20 too (`>=22.18.0`); nothing noticed because CI
-  # never runs the generator.
+  # already moved past Node 20 too (`>=22.18.0`); every `npm ci` below now
+  # runs it via postinstall (#725), so a floor below that would fail loudly
+  # instead of silently.
   #
   # Not 24, yet. Node 24 ships npm 11, which refuses both committed lockfiles:
   #
