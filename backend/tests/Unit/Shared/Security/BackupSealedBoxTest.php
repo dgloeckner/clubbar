@@ -405,4 +405,74 @@ class BackupSealedBoxTest extends TestCase
 
         BackupSealedBox::open(substr($archive, 0, strlen(BackupSealedBox::MAGIC) + 6), $this->skA);
     }
+
+    /**
+     * Reading a header from a path without loading the archive (#693).
+     *
+     * The backups page lists every archive a club holds, and reading each one
+     * whole to learn its recipients would mean holding a month of database
+     * dumps in memory to render a table.
+     */
+    public function test_a_header_reads_from_a_path_without_loading_the_archive(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'cbb');
+        file_put_contents($path, BackupSealedBox::seal('-- SQL dump --', [$this->recipient('vorstand', $this->pkA)]));
+
+        try {
+            $header = BackupSealedBox::readHeaderFromFile($path);
+
+            $this->assertSame(['vorstand'], array_column($header['recipients'], 'label'));
+            // Identical to what the whole-string reader answers: one parser,
+            // one set of rules, two ways in.
+            $this->assertSame(
+                BackupSealedBox::readHeader((string) file_get_contents($path)),
+                $header
+            );
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    /**
+     * **The cap is a refusal, not a tuning knob.** A truncated or hand-edited
+     * archive can claim any length in its four length bytes, and a reader that
+     * believed it would allocate whatever a corrupt file asked for — on shared
+     * hosting, from a page anyone with an admin session can load.
+     */
+    public function test_an_absurd_declared_header_length_is_refused_rather_than_allocated(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'cbb');
+        file_put_contents(
+            $path,
+            BackupSealedBox::MAGIC . chr(BackupSealedBox::VERSION) . pack('N', 0x7FFFFFFF) . 'x'
+        );
+
+        try {
+            $this->expectException(\InvalidArgumentException::class);
+            BackupSealedBox::readHeaderFromFile($path);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    /** A file too short to carry even the framing is refused, not guessed at. */
+    public function test_a_truncated_file_is_refused(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'cbb');
+        file_put_contents($path, 'CLUB');
+
+        try {
+            $this->expectException(\InvalidArgumentException::class);
+            BackupSealedBox::readHeaderFromFile($path);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_a_missing_file_is_refused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        BackupSealedBox::readHeaderFromFile('/nonexistent/clubbar-nope.cbb');
+    }
 }

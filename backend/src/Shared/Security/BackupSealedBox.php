@@ -123,6 +123,12 @@ final class BackupSealedBox
 
     private const HEADER_LENGTH_BYTES = 4;
 
+    /** Magic, the version byte and the length — enough to learn the rest (#693). */
+    private const HEADER_PREFIX_BYTES = 19;
+
+    /** A real header is a few hundred bytes; this is the refusal, not a target. */
+    private const HEADER_MAX_BYTES = 1048576;
+
     /**
      * @param list<array{label: string, public_key: string}> $recipients
      * @param array{instance_id?: ?string, instance_name?: ?string, database?: ?string,
@@ -281,6 +287,63 @@ final class BackupSealedBox
     public static function readHeader(string $archive): array
     {
         return self::parseHeader($archive)[0];
+    }
+
+    /**
+     * The same header, read from a path without loading the archive (#693).
+     *
+     * The backups page lists every archive a club holds, and reading each one
+     * whole to learn its recipients would mean holding a month of database
+     * dumps in memory to render a table. The framing makes that unnecessary:
+     * the magic, a version byte and a four-byte length are the first
+     * {@see HEADER_PREFIX_BYTES} bytes, and they say exactly how much more to
+     * read.
+     *
+     * The cap is a refusal, not a tuning knob. A truncated or hand-edited
+     * archive can claim any length in those four bytes, and a reader that
+     * believed it would allocate whatever a corrupt file asked for — on shared
+     * hosting, from a page anyone with an admin session can load. A real header
+     * is a few hundred bytes; a megabyte is already absurd.
+     *
+     * @throws InvalidArgumentException when the file cannot be read, or its
+     *         header is not one this build understands — the same refusals
+     *         {@see readHeader()} makes, so a caller handles one set.
+     */
+    public static function readHeaderFromFile(string $path): array
+    {
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
+            throw new InvalidArgumentException(sprintf('Cannot open archive %s.', basename($path)));
+        }
+
+        try {
+            $prefix = (string) fread($handle, self::HEADER_PREFIX_BYTES);
+            if (strlen($prefix) < self::HEADER_PREFIX_BYTES) {
+                throw new InvalidArgumentException(sprintf('Archive %s is truncated.', basename($path)));
+            }
+
+            $offset = strlen(self::MAGIC) + 1;
+            $length = self::readLength($prefix, $offset);
+
+            if ($length < 1 || $length > self::HEADER_MAX_BYTES) {
+                throw new InvalidArgumentException(sprintf(
+                    'Archive %s declares a %d-byte header, which is not credible.',
+                    basename($path),
+                    $length
+                ));
+            }
+
+            $json = (string) fread($handle, $length);
+        } finally {
+            fclose($handle);
+        }
+
+        // Handed to the one parser rather than decoded here: the magic check,
+        // the version agreement and the JSON refusals are the format's rules,
+        // and a second implementation of them is a second thing to get wrong.
+        // `[0]` because parseHeader also returns the body offset, which is
+        // meaningless against a buffer holding only the header.
+        return self::parseHeader($prefix . $json)[0];
     }
 
     /**
