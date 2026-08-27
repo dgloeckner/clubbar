@@ -84,6 +84,8 @@ use App\Modules\Notifications\Services\MailConfigService;
 use App\Modules\Notifications\Services\CreditLimitDigestMailBuilder;
 use App\Modules\Notifications\Services\CreditLimitDigestNotifier;
 use App\Modules\Notifications\Services\CreditLimitDigestService;
+use App\Modules\Notifications\Services\BackupHealthMailBuilder;
+use App\Modules\Notifications\Services\BackupHealthNotifier;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\PeriodicEnqueueService;
@@ -125,6 +127,7 @@ use App\Modules\Backups\Controllers\BackupCronController;
 use App\Modules\Backups\Domain\BackupRetention;
 use App\Modules\Backups\Services\BackupKeyring;
 use App\Modules\Backups\Services\BackupSchedule;
+use App\Modules\Backups\Services\BackupStatusCheck;
 use App\Modules\Backups\Services\BackupService;
 use App\Modules\Backups\Services\ConfigSnapshot;
 use App\Modules\Backups\Services\DatabaseDump;
@@ -622,6 +625,40 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalTokenIssuedMailBuilder(),
             $this->getEncryptionKeyEventMailBuilder(),
             $this->getCreditLimitDigestMailBuilder(),
+            $this->getBackupHealthMailBuilder(),
+        ));
+    }
+
+    /**
+     * #693. Like the digest builder above, the queue row carries no content:
+     * `subject_id` is the installation and the message is a live reading of the
+     * backup directory. See {@see BackupHealthMailBuilder} for why a problem
+     * that cleared between the scan and the drain renders as good news rather
+     * than as a failed build.
+     */
+    public function getBackupHealthMailBuilder(): BackupHealthMailBuilder
+    {
+        return $this->resolve(BackupHealthMailBuilder::class, fn() => new BackupHealthMailBuilder(
+            $this->getBackupStatusCheck(),
+            $this->getAdminUsersRepository(),
+        ));
+    }
+
+    /**
+     * The scan that queues it, riding the mail tick (#693).
+     *
+     * Not the backup cron — a notice sent by the backup job cannot report a
+     * backup job that was never added, which is the failure the epic's own risk
+     * table calls most likely. See {@see BackupHealthNotifier}.
+     */
+    public function getBackupHealthNotifier(): BackupHealthNotifier
+    {
+        return $this->resolve(BackupHealthNotifier::class, fn() => new BackupHealthNotifier(
+            $this->getBackupStatusCheck(),
+            $this->getBackupSchedule(),
+            $this->getAdminNotifier(),
+            $this->getMailConfigService(),
+            $this->logger,
         ));
     }
 
@@ -1198,7 +1235,11 @@ class ServiceFactory implements ContainerInterface
     public function getSecurityCheckController(): SecurityCheckController
     {
         return $this->resolve(SecurityCheckController::class, fn() => new SecurityCheckController(
-            new SecurityCheckService($this->config, $this->getMailDeliveryCheck()),
+            new SecurityCheckService(
+                $this->config,
+                $this->getMailDeliveryCheck(),
+                $this->getBackupStatusCheck(),
+            ),
         ));
     }
 
@@ -1356,6 +1397,29 @@ class ServiceFactory implements ContainerInterface
      * a storage provider: a tenant outage would otherwise sit between an admin
      * and every screen they own.
      */
+    /**
+     * The measured backup rows, built once (#693).
+     *
+     * Three readers want the same answer — the security self-check page, the
+     * scan that queues the health warning, and the builder that renders it —
+     * and each assembling these four arguments from configuration would be
+     * three places for the retention overrides to drift apart. It reads the
+     * backup directory and the journal and nothing else; the class docblock
+     * says why no storage provider may appear here.
+     */
+    public function getBackupStatusCheck(): BackupStatusCheck
+    {
+        return $this->resolve(BackupStatusCheck::class, fn() => new BackupStatusCheck(
+            $this->config->dataDir . '/' . BackupService::DIRECTORY,
+            $this->config->backupRecipientPublicKeys,
+            BackupRetention::fromOverrides(
+                $this->config->backupLocalRetentionDays,
+                $this->config->backupLocalMaxBytes,
+                $this->config->backupRemoteRetentionDays,
+            ),
+        ));
+    }
+
     public function getBackupSchedule(): BackupSchedule
     {
         return $this->resolve(BackupSchedule::class, fn() => new BackupSchedule(

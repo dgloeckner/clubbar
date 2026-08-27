@@ -282,6 +282,26 @@ try {
         fwrite(STDERR, "Warning: credential expiry scan failed: {$e->getMessage()}\n");
     }
 
+    // The backup job's observer (#693). It belongs on *this* tick rather than
+    // on the backup cron for a reason that is the whole point of it: a notice
+    // sent by the backup job is silent when the backup job was never added to
+    // the hosting panel, which the epic's own risk table calls the failure most
+    // likely to happen. This tick is mandatory (ADR-0038), so it is the one that
+    // can still speak.
+    //
+    // Before the drain below, deliberately: a warning queued now goes out on
+    // this same run rather than waiting fifteen minutes for the next one.
+    try {
+        $backupHealth = $factory->getBackupHealthNotifier()->run(new \DateTimeImmutable('now'));
+        $say('Backup health scan: ' . $backupHealth->summary());
+
+        if ($backupHealth->queued > 0) {
+            fwrite(STDERR, "Backup health warnings queued: {$backupHealth->summary()}\n");
+        }
+    } catch (\Throwable $e) {
+        fwrite(STDERR, "Warning: backup health scan failed: {$e->getMessage()}\n");
+    }
+
     $result = $factory->getDrainService()->run(DrainSource::CLI, $batchSize, $budgetSeconds);
 
     $say($result->summary());

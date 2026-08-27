@@ -179,6 +179,31 @@ final class MailStrings
             // Der Deckel-Übersicht (ADR-0047, Migration 054). Sie-Form wäre hier
             // ebenso falsch wie überall sonst in dieser Tabelle: es ist dieselbe
             // Ansprache wie am Tresen, nur an den Vorstand statt an das Mitglied.
+
+            // The backup job has stopped (#693, ADR-0049). Row ids in, whole
+            // sentences out: the self-check's own text is English, and this
+            // mail goes to each admin in their own language.
+            'backup_health.subject'          => 'Die Datensicherung funktioniert nicht',
+            'backup_health.subject_cleared'  => 'Datensicherung: das Problem hat sich erledigt',
+            'backup_health.preheader'        => 'Es gibt derzeit keine verwendbare Sicherung dieser Installation.',
+            'backup_health.preheader_cleared' => 'Die Warnung war berechtigt, die Sicherung läuft inzwischen wieder.',
+            'backup_health.eyebrow'          => 'Datensicherung',
+            'backup_health.title'            => 'Die Datensicherung funktioniert nicht',
+            'backup_health.lede'             => 'Die nächtliche verschlüsselte Sicherung dieser Installation ist eingeschaltet, tut aber nicht, was sie soll. Solange das so bleibt, gibt es im Ernstfall nichts, worauf zurückgegriffen werden kann.',
+            'backup_health.cleared_lede'     => 'Diese Nachricht wurde verschickt, weil die Sicherung nicht lief. Inzwischen läuft sie wieder — es ist nichts zu tun.',
+            'backup_health.where'            => 'Die gemessenen Werte — wie alt das jüngste Archiv ist, wann zuletzt etwas den Server verlassen hat, wie viel Platz belegt ist — stehen im Admin-Bereich unter Einstellungen → Sicherheit.',
+            'backup_health.no_detail'        => 'Diese E-Mail nennt bewusst keine Pfade, Dateinamen oder Größen.',
+            'backup_health.row.backup_ever_ran.problem'      => 'Die Sicherung ist eingeschaltet, wurde aber noch nie ausgeführt',
+            'backup_health.row.backup_ever_ran.consequence'  => 'Sehr wahrscheinlich fehlt der nächtliche Cronjob im Hosting-Panel. Der letzte Schritt des Installationsassistenten zeigt den Befehl, der dort einzutragen ist.',
+            'backup_health.row.backup_last_run.problem'      => 'Es liegt kein aktuelles Archiv vor',
+            'backup_health.row.backup_last_run.consequence'  => 'Entweder läuft die geplante Aufgabe nicht mehr, oder jeder Lauf bricht ab, bevor etwas geschrieben wird. Der Sicherungsordner enthält ein Journal, das den Grund nennt.',
+            'backup_health.row.backup_last_upload.problem'     => 'Es geht nichts mehr außer Haus',
+            'backup_health.row.backup_last_upload.consequence' => 'Lokal wird weiter gesichert, die Kopie außerhalb des Servers veraltet aber. Das ist der Ausfall, der am längsten unbemerkt bleibt: Wer den Webspace verliert, verliert dann beides.',
+            'backup_health.row.backup_local_size.problem'      => 'Die Archive überschreiten das eingestellte Limit',
+            'backup_health.row.backup_local_size.consequence'  => 'Ein volles Webspace nimmt gar nichts mehr an — keine Mandate, keine Protokolle, keine weitere Sicherung. Die Aufräumroutine kommt offenbar nicht hinterher.',
+            'backup_health.row.unknown.problem'      => 'Eine Prüfung der Datensicherung schlägt fehl',
+            'backup_health.row.unknown.consequence'  => 'Welche, steht im Admin-Bereich unter Einstellungen → Sicherheit.',
+
             'credit_digest.subject'        => '{count} Mitglieder nahe am Deckel-Limit',
             'credit_digest.subject_empty'  => 'Deckel-Übersicht: derzeit niemand nahe am Limit',
             'credit_digest.preheader'      => '{count} Mitglieder, zusammen {total} offen',
@@ -553,6 +578,29 @@ final class MailStrings
                 . 'number above leads to the record.',
 
             // The near-limit digest (ADR-0047, migration 054).
+
+            // The backup job has stopped (#693, ADR-0049).
+            'backup_health.subject'          => 'The backup is not working',
+            'backup_health.subject_cleared'  => 'Backup: the problem has cleared',
+            'backup_health.preheader'        => 'There is currently no usable backup of this installation.',
+            'backup_health.preheader_cleared' => 'The warning was justified; the backup is running again.',
+            'backup_health.eyebrow'          => 'Backup',
+            'backup_health.title'            => 'The backup is not working',
+            'backup_health.lede'             => 'The nightly encrypted backup of this installation is switched on but is not doing its job. While that stays true, there is nothing to fall back on if something goes wrong.',
+            'backup_health.cleared_lede'     => 'This message was sent because the backup was not running. It is running again — there is nothing to do.',
+            'backup_health.where'            => 'The measured detail — how old the newest archive is, when anything last left this server, how much space is in use — is in the admin panel under Settings → Security.',
+            'backup_health.no_detail'        => 'This email deliberately names no paths, filenames or sizes.',
+            'backup_health.row.backup_ever_ran.problem'      => 'Backups are switched on but have never run',
+            'backup_health.row.backup_ever_ran.consequence'  => 'The nightly cron job is almost certainly missing from the hosting panel. The installer\'s last step prints the exact command to paste there.',
+            'backup_health.row.backup_last_run.problem'      => 'There is no recent archive',
+            'backup_health.row.backup_last_run.consequence'  => 'Either the scheduled job has stopped, or every run is failing before it writes anything. The journal beside the backup directory names the reason.',
+            'backup_health.row.backup_last_upload.problem'     => 'Nothing is leaving this server any more',
+            'backup_health.row.backup_last_upload.consequence' => 'Local archives are still being written, but the off-site copy is ageing out. This is the failure that survives longest unnoticed: losing the webspace then loses both.',
+            'backup_health.row.backup_local_size.problem'      => 'The archives are over the configured limit',
+            'backup_health.row.backup_local_size.consequence'  => 'A full webspace stops accepting everything — mandate uploads, logs, the next backup. Retention is evidently not keeping up.',
+            'backup_health.row.unknown.problem'      => 'A backup check is failing',
+            'backup_health.row.unknown.consequence'  => 'Which one is shown in the admin panel under Settings → Security.',
+
             'credit_digest.subject'        => '{count} members near their Deckel limit',
             'credit_digest.subject_empty'  => 'Deckel overview: nobody near their limit',
             'credit_digest.preheader'      => '{count} members, {total} outstanding between them',

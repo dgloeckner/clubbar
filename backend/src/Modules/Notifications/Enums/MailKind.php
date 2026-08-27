@@ -69,6 +69,27 @@ enum MailKind: string
     case BACKUP_SECRET_EXPIRY_WARNING = 'backup_secret_expiry_warning';
 
     /**
+     * The backup job is failing, or has gone quiet (#693).
+     *
+     * The companion to the warning above, and the one that covers the case that
+     * warning cannot: an expiry date says a credential *will* stop working, this
+     * says something already has. A cron never added to the hosting panel, a
+     * job dying before it writes, an upload that stopped reaching the store
+     * while the local archive still looks healthy — none of those has a date
+     * attached, and none of them produces an error anybody sees.
+     *
+     * **For a club this mail is the alarm, not an external monitor.**
+     * `backup.heartbeat_url` exists and is better where somebody has set one up
+     * (#712), but it is optional and most clubs will not have one. This is the
+     * mechanism that assumes nothing beyond an address.
+     *
+     * Nothing is sent while the job is healthy. A recipient who receives "0
+     * problems" fifty times has learned to file the fifty-first unread, and the
+     * scheduler's own health is the heartbeat's job rather than this one's.
+     */
+    case BACKUP_HEALTH_WARNING = 'backup_health_warning';
+
+    /**
      * A key moved through its lifecycle: registered, put in force, or revoked.
      *
      * Not a warning about time passing but a report that somebody acted, and
@@ -285,6 +306,7 @@ enum MailKind: string
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
             self::BACKUP_SECRET_EXPIRY_WARNING,
+            self::BACKUP_HEALTH_WARNING,
             self::ADMIN_EMAIL_CHANGED,
             // Not a lifecycle event, and not for a Vorstand list. Who is near
             // their Deckel ceiling is operational detail with member names in
@@ -347,6 +369,11 @@ enum MailKind: string
             // the same boundary decides who hears that the credential
             // protecting it is running out.
             self::BACKUP_SECRET_EXPIRY_WARNING,
+            // The same office, for the same reason, one step further along: the
+            // warning above says the credential guarding the archive is running
+            // out, this one says the archive is not being written. Both are
+            // fixed in a hosting panel the Kassenwart cannot open.
+            self::BACKUP_HEALTH_WARNING,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED,
             // Never actually fanned out — it goes to one address, the one the
@@ -399,7 +426,10 @@ enum MailKind: string
             // had to respell the entire audit_log action enum to add four
             // values. What this notice is *about* is a setting in config.php,
             // and `instance_config` is where this schema already files those.
-            self::BACKUP_SECRET_EXPIRY_WARNING => MailSubject::INSTANCE_CONFIG,
+            self::BACKUP_SECRET_EXPIRY_WARNING,
+            // The installation itself. There is no backup row to point at and
+            // ADR-0049 decision 8 is why there never will be.
+            self::BACKUP_HEALTH_WARNING => MailSubject::INSTANCE_CONFIG,
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED => MailSubject::ADMIN_USER,
@@ -439,6 +469,7 @@ enum MailKind: string
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
             self::BACKUP_SECRET_EXPIRY_WARNING,
+            self::BACKUP_HEALTH_WARNING,
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED,

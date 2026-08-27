@@ -227,7 +227,16 @@ rather than the archive format.
       Admin-only: `GET /api/admin/security-check` is `ADMIN_ONLY`, so the section
       mirrors it and never reaches a Kassenwart.
       ([PR #724](https://github.com/dgloeckner/clubbar/pull/724))
-- [ ] Failure mail to the Admin — requirement 6, "someone notices when it stops"
+- [x] **Failure mail to the Admin** — requirement 6, *"someone notices when it
+      stops"*. `MailKind::BACKUP_HEALTH_WARNING`, `[ADMIN]`, riding the **mail**
+      tick rather than the backup cron: a notice sent by the backup job is
+      silent when the backup job is what was never added, which is the failure
+      the risk table calls most likely. Reads `BackupStatusCheck`'s `fail` rows
+      so the mail, the self-check row and the banner cannot disagree; queues
+      nothing at all while healthy; at most one a day per admin
+      (`dedup_key` = `stale:<date>:<adminUserId>`). Migration 056 widens the
+      outbox enum by one value — still no backup table, no backup row, no audit
+      vocabulary.
 - [ ] A backups page reading the archive headers, locally and on the remote
 
 Until the page ships, "which keys are still needed" is answered by opening each

@@ -155,7 +155,13 @@ final class MailRetention
             // in the journal beside the archives. Ninety days is well past the
             // last tier, so a club is never pruning a warning it has not yet
             // had the chance to act on.
-            MailKind::BACKUP_SECRET_EXPIRY_WARNING => self::DEFAULT_SENT_DAYS,
+            MailKind::BACKUP_SECRET_EXPIRY_WARNING,
+            // The same window, and the same reasoning one step further along.
+            // What this row is durable evidence *of* is narrow: that somebody
+            // was told, on a given day, that the backup job had stopped. The
+            // durable record of the job itself is the journal beside the
+            // archives, which ADR-0049 decision 8 keeps out of the schema.
+            MailKind::BACKUP_HEALTH_WARNING => self::DEFAULT_SENT_DAYS,
             MailKind::DECKEL_STATEMENT => self::STATEMENT_SENT_DAYS,
             MailKind::CREDIT_LIMIT_DIGEST => self::DIGEST_SENT_DAYS,
         };
