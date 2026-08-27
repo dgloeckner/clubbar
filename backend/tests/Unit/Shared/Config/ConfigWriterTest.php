@@ -334,8 +334,10 @@ class ConfigWriterTest extends TestCase
      * reported success.
      *
      * Note this test cannot fail on a runner with `opcache.enable_cli=Off`,
-     * which is the default — hence the companion test below, which asserts the
-     * mechanism rather than the outcome.
+     * which is the default — hence the companion test below, which asserts
+     * *where* the mechanism lives rather than the outcome. Under ADR-0050 that
+     * placement is the decision: the writer announces, the reader pays
+     * nothing.
      */
     public function test_a_read_that_follows_a_write_sees_the_write(): void
     {
@@ -363,17 +365,42 @@ class ConfigWriterTest extends TestCase
      * invalidation from being "cleaned up" by someone who reads `require` as
      * self-evidently reading the file.
      */
-    public function test_reading_drops_any_compiled_copy_first(): void
+    public function test_the_writer_announces_the_change_and_the_reader_pays_nothing(): void
     {
         $source = (string) file_get_contents(
             (string) (new \ReflectionClass(ConfigWriter::class))->getFileName()
         );
 
+        $writeTo = self::bodyOf($source, 'public function writeTo');
+        $read = self::bodyOf($source, 'public static function read');
+
         $this->assertStringContainsString(
-            'opcache_invalidate',
-            $source,
-            'ConfigWriter no longer invalidates before require; a read can serve a pre-write copy'
+            'forgetCompiled',
+            $writeTo,
+            'writeTo() no longer announces the change; every reader can serve a pre-write copy'
         );
+
+        // The other half of ADR-0050, and the one a well-meaning change would
+        // undo: config.php is read on every request, so an invalidation here
+        // is levied forever to serve a writer that runs twice in a
+        // deployment's life — and in index.php it would defeat compilation
+        // caching for this file permanently.
+        $this->assertStringNotContainsString(
+            'forgetCompiled',
+            $read,
+            'read() invalidates again; freshness is the writer\'s job (ADR-0050)'
+        );
+    }
+
+    /** The body of one method, for a test asserting where something lives. */
+    private static function bodyOf(string $source, string $signature): string
+    {
+        $start = strpos($source, $signature);
+        self::assertIsInt($start, "no method matching \"{$signature}\"");
+
+        $next = strpos($source, "\n    /**", $start);
+
+        return substr($source, $start, $next === false ? null : $next - $start);
     }
 
     /** @return array<string,mixed> */

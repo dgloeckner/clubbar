@@ -129,6 +129,11 @@ final class ConfigWriter
 
             throw ConfigWriterException::notWritable($path);
         }
+
+        // Publication, and part of the write rather than a step a caller could
+        // forget (ADR-0050). After the rename, so what any reader compiles next
+        // is the finished file and never the half-written temporary.
+        self::forgetCompiled($path);
     }
 
     /**
@@ -147,8 +152,10 @@ final class ConfigWriter
             return [];
         }
 
-        self::forgetCompiled($path);
-
+        // No invalidation here, deliberately — see ADR-0050. This is the hot
+        // side: `index.php` loads config.php on every request, and a check
+        // here would be levied forever to serve a writer that runs twice in a
+        // deployment's life. Freshness is {@see writeTo()}'s job.
         /** @var mixed $config */
         $config = require $path;
 
@@ -217,19 +224,34 @@ final class ConfigWriter
     }
 
     /**
-     * Drop any compiled copy of `$path` before it is `require`d.
+     * Announce that `$path` has changed, by dropping its compiled copy.
      *
      * **Without this, a read straight after a write returns the previous
-     * contents.** `opcache.revalidate_freq` defaults to 2 seconds, so for two
-     * seconds after {@see writeTo()} the compiled file is served from cache and
-     * the mtime is not even consulted.
+     * contents.** `opcache.revalidate_freq` defaults to 2 seconds, and during
+     * that window the compiled file is served from cache with the mtime never
+     * consulted.
      *
-     * That is not a theoretical window. Every installer screen writes the
-     * *whole* file: it reads the current config, merges its own answers, writes
-     * the result. Two screens submitted within two seconds of each other — or
-     * one screen submitted twice, which is what a double-click is — make the
-     * second read stale, and it then writes the stale values back. The screen
-     * reports success and has silently undone the previous step.
+     * Not a theoretical window. `install.php` step 2 writes the database
+     * credentials and redirects to step 3, which re-reads the file
+     * *milliseconds later* to open the connection it migrates through — so on a
+     * re-run through `?update=1`, the step that changes the database migrates
+     * the **previous** one and reports success (#714). The same window makes
+     * two screens submitted in quick succession, or one screen double-clicked,
+     * read stale and write the stale values back.
+     *
+     * ## Why this is called from the writer and not the reader
+     *
+     * ADR-0050: **coherence is the writer's responsibility.** A reader never
+     * asks whether the configuration changed — it is told, by the only
+     * participant that can know. `config.php` is loaded on every request and
+     * written a handful of times in a deployment's life, so a check on the read
+     * side would be levied forever to serve something that almost never
+     * happens; in `index.php` it would defeat compilation caching for this file
+     * permanently, on the shared hosting ADR-0031 commits to.
+     *
+     * The compiled cache is shared across the worker pool, so one writer
+     * announcing reaches every reader in it — which is what lets a single call
+     * here serve call sites that are never modified.
      *
      * Found by driving the installer rather than by reading it: a blank mail
      * field, which means "keep what is stored", restored a DSN that had been
