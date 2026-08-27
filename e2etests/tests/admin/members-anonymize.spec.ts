@@ -17,8 +17,7 @@ test.describe('Members Anonymize Button', () => {
     // eslint-disable-next-line clubbar/no-data-dependent-skip -- #146: ambient member data may be absent; fixture work tracked separately, not fixed here
     test.skip(rowCount === 0, 'No members in table to test')
 
-    const anonymizeButtons = authenticatedMembersPage.page.locator('[data-testid^="members-table-action-anonymize-"]')
-    await expect(anonymizeButtons.first()).toBeVisible()
+    await authenticatedMembersPage.expectAnyAnonymizeButtonVisible()
   })
 
   test('clicking anonymize shows confirmation dialog and cancel works', async ({ page, authenticatedMembersPage }) => {
@@ -91,11 +90,9 @@ test.describe('Members Anonymize Button', () => {
     test.skip(rowCount === 0, 'No members in table to test')
 
     // Delete button should NOT exist
-    const deleteButtons = authenticatedMembersPage.page.locator('[data-testid^="members-table-action-delete-"]')
-    expect(await deleteButtons.count()).toBe(0)
+    expect(await authenticatedMembersPage.getDeleteButtonCount()).toBe(0)
 
     // Anonymize button SHOULD exist
-    const anonymizeButtons = authenticatedMembersPage.page.locator('[data-testid^="members-table-action-anonymize-"]')
-    expect(await anonymizeButtons.count()).toBeGreaterThan(0)
+    expect(await authenticatedMembersPage.getAnonymizeButtonCount()).toBeGreaterThan(0)
   })
 })

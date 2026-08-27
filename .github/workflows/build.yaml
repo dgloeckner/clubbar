@@ -434,6 +434,13 @@ jobs:
         run: npm run lint
         working-directory: e2etests
 
+      # ESLint's TypeScript parser reports style violations, not type errors —
+      # it never asks the compiler anything. Without this, type errors (missing
+      # exports, protected-member reaches, implicit any) accumulate silently (#715).
+      - name: Typecheck E2E specs
+        run: npm run typecheck
+        working-directory: e2etests
+
   # 80% of the lines this branch changed must be covered (#168 §3, ruling
   # #146). This coexists with the never-decrease floor and fails differently:
   # the floor blocks regression, patch coverage blocks new untested code.

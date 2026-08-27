@@ -15,7 +15,7 @@
  *  - Pattern 008: Playwright assertions (expect().toBeVisible()), no visibility helpers
  */
 
-import { Playwright } from '@playwright/test'
+import type { PlaywrightWorkerArgs } from '@playwright/test'
 import { test, expect } from '../../fixtures/pageObjects'
 import { TEST_CREDENTIALS } from '../../config/test-credentials'
 import { generateTotp } from '../../utils/totp'
@@ -35,7 +35,7 @@ function uniqueEmail(prefix: string): string {
  * test never gains a session — it must still show the real login form.
  */
 async function createUnenrolledAdmin(
-  playwright: Playwright,
+  playwright: PlaywrightWorkerArgs['playwright'],
   emailPrefix: string
 ): Promise<{ email: string; password: string }> {
   const ctx = await loginAs(playwright, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
