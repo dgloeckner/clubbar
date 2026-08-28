@@ -163,6 +163,7 @@ Products that require dispensing are flagged with `requires_dispenser` in the pr
 | [Data Model](./docs/) | Entity-Relationship diagrams |
 | [Role-Based Admin Access](./docs/role-based-access.md) | `admin` / `Kassenwart` / `Getränkewart` roles, authorization flow, diagrams |
 | [Security Concept](./docs/security-concept.md) | Defense-in-depth overview — transport, auth, authorization, encryption at rest, monitoring |
+| [Backups](./docs/backup.md) | Encrypted, off-site backups with no complex dependencies — nightly dump, sealed-box encryption, key custody, restore |
 | [Notifications & the Mail Outbox](./docs/notifications-and-mail.md) | Reliable email delivery on shared hosting — queueing, retries, the periodic Deckelauszug |
 | [Deployment Guide](./docs/deployment.md) | Production deployment, backups, and security |
 | [Terminal Install](./terminal-frontend/INSTALL.md) | Terminal app deployment on Raspberry Pi |
@@ -176,7 +177,7 @@ For production deployment instructions, see the **[Deployment Guide](./docs/depl
 
 - **Self-hosted package** -- upload ZIP to shared hosting, run the graphical web installer
 - **Security hardening** -- HTTPS, database access
-- **Database backups** -- what to export and encrypt before every upgrade, and how to restore it
+- **Automated encrypted backups** -- see [Backups](./docs/backup.md): a nightly job dumps, seals, and pushes the database off the host, with no server-side decryption key
 - **Monitoring** -- health endpoint polling and application logs
 - **Upgrading and rollback** -- step-by-step procedures
 
@@ -196,6 +197,7 @@ no single layer is trusted to carry the whole system.
 | Authentication | Mandatory TOTP 2FA for admins; 256-bit bearer tokens for terminals |
 | Authorization | Role-based access (`admin` / `Kassenwart` / `Getränkewart`), fail-closed on every request |
 | Data at rest | IBANs encrypted with a libsodium sealed box — the server holds only the public key, never a decryptable copy |
+| Backups | Nightly database dumps sealed with the same sealed-box construction to a set of recipient keys the server cannot decrypt — see [Backups](./docs/backup.md) |
 | Monitoring | Append-only audit log, terminal credential anomaly detection, an announced (never silent) token-issuance flow |
 
 See the **[Security Concept](./docs/security-concept.md)** for the full
