@@ -101,6 +101,24 @@ export class MainLayoutPage extends BasePage {
 
   private readonly navMore = () => this.page.locator('[data-testid="nav-more"]')
   private readonly navMoreMenu = () => this.page.locator('[data-testid="nav-more-menu"]')
+  private readonly desktopNav = () => this.page.locator('[data-testid="desktop-nav"]')
+
+  /**
+   * Wait until the row has rendered its entries.
+   *
+   * The element exists before the session's roles have arrived, so a bare
+   * `waitFor('visible')` can hand back an empty nav — and a `count()` on that
+   * reads "the entry is not inline" when the truth is "nothing is, yet". The
+   * first `nav-*` child is either an entry or the More button, so its presence
+   * is the signal that the row is settled: overflow is computed in a layout
+   * effect, before the browser paints.
+   */
+  private async waitForNavReady() {
+    await this.desktopNav().waitFor({ state: 'visible', timeout: 10000 })
+    await expect(this.desktopNav().locator('[data-testid^="nav-"]').first()).toBeVisible({
+      timeout: 10000,
+    })
+  }
 
   /**
    * Run `body` with the header's overflow menu open, if there is one (#742).
@@ -112,6 +130,7 @@ export class MainLayoutPage extends BasePage {
    * answer, rather than "did it happen to fit".
    */
   private async withNavOverflowOpen<T>(body: () => Promise<T>): Promise<T> {
+    await this.waitForNavReady()
     const opened = (await this.navMore().count()) > 0
     if (opened) {
       await this.navMore().click()
@@ -139,7 +158,6 @@ export class MainLayoutPage extends BasePage {
    * would make the set a function of the window width.
    */
   async getVisibleNavTestIds(): Promise<string[]> {
-    await this.page.locator('[data-testid="desktop-nav"]').waitFor({ state: 'visible', timeout: 10000 })
     return this.withNavOverflowOpen(() =>
       this.page
         .locator('[data-testid="desktop-nav"] [data-testid^="nav-"]')
@@ -155,7 +173,7 @@ export class MainLayoutPage extends BasePage {
 
   /** The inline entries only — what the header shows without opening "More". */
   async getInlineNavTestIds(): Promise<string[]> {
-    await this.page.locator('[data-testid="desktop-nav"]').waitFor({ state: 'visible', timeout: 10000 })
+    await this.waitForNavReady()
     return this.page
       .locator('[data-testid="desktop-nav"] [data-testid^="nav-"]')
       .evaluateAll((nodes) =>
@@ -170,7 +188,8 @@ export class MainLayoutPage extends BasePage {
    * behind "More" (#742).
    */
   async openNavItem(testId: string) {
-    const entry = this.page.locator(`[data-testid="desktop-nav"] [data-testid="${testId}"]`)
+    await this.waitForNavReady()
+    const entry = this.desktopNav().locator(`[data-testid="${testId}"]`)
     if ((await entry.count()) === 0) {
       await this.navMore().click()
       await this.navMoreMenu().waitFor({ state: 'visible', timeout: 5000 })
