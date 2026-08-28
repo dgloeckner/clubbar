@@ -112,6 +112,10 @@ flowchart TB
     Magic --> Header --> KeyA & KeyB --> Chunks
 ```
 
+The arrows above are **byte order, not data flow** — the two sealed slots do
+not feed the body, they sit beside it. How the pieces actually relate is
+[§3.1](#31-one-archive-two-holders).
+
 **Why the header sits outside the encryption.** It carries no secret — table
 names and row counts are not member data — and a future holder needs to know
 *which key opens this* before being asked to produce one. Everything that
@@ -142,6 +146,97 @@ The realistic failure in a Verein is *"der Vorstand hat gewechselt und niemand
 hat den Schlüssel"* — the one holder moved away. The Admin and a second board
 member each hold a private half, generated offline and never uploaded to the
 server, so one volunteer disappearing does not take the archives with them.
+
+### 3.1 One archive, two holders
+
+Two recipients does **not** mean two archives, two dumps, or two copies of the
+data. There is one random **stream key** per archive; the body is encrypted
+once under it, and only that 32-byte key is sealed separately to each holder.
+
+```mermaid
+flowchart TB
+    Dump[("SQL dump<br/>every table, gzipped")]
+    Gen["stream key<br/>32 random bytes,<br/>fresh for THIS archive"]
+
+    Gen --> Body["body<br/>secretstream_xchacha20poly1305<br/>encrypted ONCE"]
+    Dump --> Body
+    Gen -->|"crypto_box_seal(key, public A)"| SlotA["slot A<br/>80 bytes"]
+    Gen -->|"crypto_box_seal(key, public B)"| SlotB["slot B<br/>80 bytes"]
+
+    Gen -.->|"sodium_memzero() before the job returns"| Gone(["gone<br/>never stored, never logged,<br/>not in the database"])
+
+    SlotA --> File
+    SlotB --> File
+    Body --> File[/"one archive.cbb"/]
+
+    style Gone fill:#fee,stroke:#a00
+    style File fill:#eef,stroke:#33a
+```
+
+A second holder costs **84 bytes** — an 80-byte sealed key plus its length
+prefix — not a second archive. The cost is constant, whatever the database
+weighs.
+
+Opening runs the same picture backwards, and either holder does it **alone**:
+
+```mermaid
+flowchart LR
+    File[/"the same archive.cbb"/]
+
+    subgraph LaneA["Admin, alone"]
+        A(["private key A"]) --> TryA["slot A opens<br/>slot B returns false"]
+    end
+    subgraph LaneB["Board member, alone"]
+        B(["private key B"]) --> TryB["slot A returns false<br/>slot B opens"]
+    end
+
+    File --> TryA
+    File --> TryB
+
+    TryA --> Key["the identical stream key"]
+    TryB --> Key
+    Key --> SQL[("the identical SQL dump")]
+
+    style File fill:#eef,stroke:#33a
+    style SQL fill:#dfd,stroke:#0a0
+```
+
+Three consequences worth stating plainly:
+
+- **Neither holder needs the other.** No key-splitting, no threshold, no
+  coordination — and neither can read the other's slot. A private half that
+  fits no slot is refused with a message naming the archive's recipients from
+  the cleartext header, so a wrong envelope from the safe is obvious.
+- **You supply only your own private key.** The decryptor derives the matching
+  public half itself (`crypto_scalarmult_base`) and finds your slot by trying
+  each one, so you never have to know which recipient you are.
+- **Either private half alone reads the whole database** — audit log, every
+  admin's TOTP ciphertext, the database password ([§5](#5-whats-in-an-archive)).
+  Two holders therefore doubles the places a full compromise can start. That is
+  the accepted trade against *"niemand hat den Schlüssel"*, and it is why the
+  two private halves belong in separate physical custody, not in two entries of
+  one shared password manager.
+
+**Two is a recommendation, not a requirement.** One recipient backs up
+perfectly well; the security self-check simply raises a warning against it
+(*"one key holder leaving, or one lost envelope, currently makes every
+existing archive unreadable forever"*). Only sealing to **nobody** is refused
+outright. So a club may start with one key and add the second later — rotation
+is additive, and archives written in between stay sealed to whoever was
+configured at the time.
+
+| Recipients | Behaviour |
+|---|---|
+| 0 | Backups off — nothing written, nothing attempted |
+| 1 | Works; self-check **warns** |
+| 2 or more | Works; self-check passes |
+
+**The server can never open what it just wrote.** It holds the public keys
+only; the stream key it needed existed in RAM for one function call and was
+zeroed before it returned. That is the whole property in one sentence — and
+the reason there is no escrow and no reset: anything able to recover an
+archive without a private half would also be reachable by whoever compromises
+the host.
 
 ### Key lifecycle
 
