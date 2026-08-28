@@ -74,6 +74,43 @@ test.describe('Backups page', () => {
   })
 
   /**
+   * The key column is a range of *archive creation dates*, and a key named by
+   * exactly one archive therefore has one date, not a window (#736). The old
+   * rendering printed the same timestamp either side of a dash, which reads as
+   * a validity window of zero length — and validity is the one thing a backup
+   * key does not have.
+   */
+  test('shows one timestamp for a single archive and a range for several', async ({ page }) => {
+    const TWO_KEYS = {
+      ...INVENTORY,
+      keys: [
+        ...INVENTORY.keys,
+        {
+          label: 'kassenwart',
+          fingerprint: 'b'.repeat(64),
+          archives: 2,
+          first_seen: '2026-08-24T03:00:00+00:00',
+          last_seen: '2026-08-25T03:00:00+00:00',
+        },
+      ],
+    }
+    await page.route('**/api/admin/backups', (route) => route.fulfill({ json: TWO_KEYS }))
+    await page.route('**/api/admin/backups/remote', (route) =>
+      route.fulfill({ json: { source: 'unavailable', remote: null, taken_at: null, names: [], error: null } })
+    )
+
+    await page.goto('/backups')
+
+    const ranges = page.getByTestId('backups-key-archive-range')
+    await expect(ranges).toHaveCount(2)
+    // One archive: one timestamp, and no dash to suggest a second bound.
+    await expect(ranges.first()).not.toContainText('–')
+    await expect(ranges.first()).toContainText('2026')
+    // Two archives that differ: both bounds, in that order.
+    await expect(ranges.last()).toContainText('–')
+  })
+
+  /**
    * **The property the two-route split exists for.** The remote call is left
    * hanging; the archive table must still be on screen.
    */

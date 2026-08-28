@@ -1404,7 +1404,7 @@
       "name": "Datei",
       "size": "Größe",
       "keys": "Schlüssel",
-      "offsite": "Außer Haus",
+      "offsite": "Ausgelagert",
       "download": "Herunterladen",
       "empty": "Es liegt kein Archiv auf diesem Server.",
       "unreadable": "nicht lesbar",
@@ -1426,9 +1426,9 @@
       "label": "Bezeichnung",
       "fingerprint": "Fingerabdruck",
       "archives": "Archive",
-      "span": "Zeitraum",
+      "archiveRange": "Ältestes – neuestes Archiv",
       "empty": "Kein Archiv nennt einen Schlüssel.",
-      "note": "Abgeleitet aus den Archiv-Kopfdaten — eine Liste zum Abgleich mit eurem eigenen Schlüsselverzeichnis, kein Ersatz dafür. Ein Schlüssel ohne Archive öffnet nichts mehr, was hier liegt."
+      "note": "Abgeleitet aus den Archiv-Kopfdaten — eine Liste zum Abgleich mit eurem eigenen Schlüsselverzeichnis, kein Ersatz dafür. Ein Schlüssel ohne Archive öffnet nichts mehr, was hier liegt. Die Archivspanne sagt, wie lange der private Teil eines zurückgezogenen Schlüssels noch aufzubewahren ist: bis auch das neueste hier genannte Archiv aus der Aufbewahrung gefallen ist."
     }
   }
 }

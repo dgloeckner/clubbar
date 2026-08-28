@@ -49,6 +49,20 @@ function humanBytes(bytes: number): string {
   return `${bytes} B`
 }
 
+/**
+ * The creation dates of the oldest and newest archive a key opens — the span a
+ * withdrawn key's private half still has to be kept for.
+ *
+ * A key named by exactly one archive gets that one timestamp. Printing it twice
+ * either side of a dash reads as a validity window of zero length, which is the
+ * opposite of what one archive means.
+ */
+function archiveRange(firstSeen?: string | null, lastSeen?: string | null): string {
+  if (!firstSeen || !lastSeen) return '—'
+  if (firstSeen === lastSeen) return formatDateTime(firstSeen)
+  return `${formatDateTime(firstSeen)} – ${formatDateTime(lastSeen)}`
+}
+
 export function BackupsPage() {
   const { t } = useTranslation()
 
@@ -216,7 +230,7 @@ export function BackupsPage() {
                 <th style={headerCellBaseStyle}>{t('backups.keys.label')}</th>
                 <th style={headerCellBaseStyle}>{t('backups.keys.fingerprint')}</th>
                 <th style={headerCellBaseStyle}>{t('backups.keys.archives')}</th>
-                <th style={headerCellBaseStyle}>{t('backups.keys.span')}</th>
+                <th style={headerCellBaseStyle}>{t('backups.keys.archiveRange')}</th>
               </tr>
             </thead>
             <tbody>
@@ -238,10 +252,11 @@ export function BackupsPage() {
                     </span>
                   </td>
                   <td style={cellStyle}>{key.archives}</td>
-                  <td style={cellStyle}>
-                    {key.first_seen && key.last_seen
-                      ? `${formatDateTime(key.first_seen)} – ${formatDateTime(key.last_seen)}`
-                      : '—'}
+                  <td style={cellStyle} data-testid="backups-key-archive-range">
+                    {/* One archive is one date, not the same date twice: a
+                        repeated timestamp reads as a zero-length window, which
+                        is not what a single archive means. */}
+                    {archiveRange(key.first_seen, key.last_seen)}
                   </td>
                 </tr>
               ))}
