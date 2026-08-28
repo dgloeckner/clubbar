@@ -225,6 +225,11 @@ if ($isInstalled && !$isUpdate && $step === null) {
 $step = $_GET['step'] ?? ($_POST['step'] ?? '1');
 $error = null;
 
+// Set only by a failed step-6 POST, so a mistake in one recipient row never
+// costs the operator the rest of what they typed (#735) — the mail and DB
+// steps have no equivalent because they have nothing this repeatable to lose.
+$step6Repost = null;
+
 // --- Enforce step ordering on GET ---
 // Prevent jumping ahead to steps whose prerequisites haven't been completed.
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -654,15 +659,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // rather than "erase this" — see the client-secret handling below.
             $existingBackup = ConfigWriter::read($configFile)['backup'] ?? [];
 
-            $recipientKeys = array_values(array_filter(array_map(
-                'trim',
-                preg_split('/[\r\n]+/', (string) ($_POST['recipient_public_keys'] ?? '')) ?: []
-            ), static fn (string $line): bool => $line !== ''));
+            // Repeating label/key rows (#735) rather than one freeform textarea
+            // the operator hand-assembles "label:key" into. Assembled into that
+            // format below, still the only shape BackupKeyring understands.
+            $labelInputs = (array) ($_POST['recipient_label'] ?? []);
+            $keyInputs = (array) ($_POST['recipient_key'] ?? []);
+            $rowCount = max(count($labelInputs), count($keyInputs));
+            $recipientRows = [];
+            for ($i = 0; $i < $rowCount; $i++) {
+                $recipientRows[] = [
+                    'label' => trim((string) ($labelInputs[$i] ?? '')),
+                    // Normalized the way a sloppy paste needs it — whitespace
+                    // and newlines stripped, hex lowercased — the same rule
+                    // applied client-side, so a value accepted there also
+                    // survives here.
+                    'key' => strtolower(preg_replace('/\s+/', '', (string) ($keyInputs[$i] ?? '')) ?? ''),
+                ];
+            }
 
             $backupDsn = trim($_POST['backup_dsn'] ?? '');
             $clientSecret = trim($_POST['backup_client_secret'] ?? '');
             $secretExpires = trim($_POST['backup_secret_expires_at'] ?? '');
             $backupHeartbeat = trim($_POST['backup_heartbeat_url'] ?? '');
+
+            // Captured before any validation runs, and used on every failure
+            // path below — a bad DSN must not cost the operator the recipient
+            // rows any more than a bad recipient row should cost the DSN.
+            $step6Repost = [
+                'rows' => $recipientRows,
+                'errorRowIndex' => null,
+                'dsn' => $backupDsn,
+                'expires' => $secretExpires,
+                'heartbeat' => $backupHeartbeat,
+            ];
 
             // Validated through the application's own parsers rather than a
             // second copy of the rules here. Both already refuse in sentences
@@ -672,14 +701,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // itself.
             require_once __DIR__ . '/backend/vendor/autoload.php';
 
-            if ($recipientKeys !== []) {
+            // Fed to the parser one row at a time, cumulatively, rather than
+            // all at once: the exception BackupKeyring already throws names
+            // the malformed entry or the duplicate label, and doing it this
+            // way tells us which *row* introduced it — a duplicate is only
+            // detectable once the second occurrence joins the string.
+            $recipientKeys = [];
+            $accumulated = [];
+            foreach ($recipientRows as $i => $row) {
+                if ($row['label'] === '' && $row['key'] === '') {
+                    continue; // an untouched row is not a mistake
+                }
+
+                $accumulated[] = $row['label'] . ':' . $row['key'];
+
                 try {
                     (new App\Modules\Backups\Services\BackupKeyring())
-                        ->recipients(implode("\n", $recipientKeys));
+                        ->parse(implode("\n", $accumulated));
                 } catch (\Throwable $e) {
                     $error = $e->getMessage();
-                    break;
+                    $step6Repost['errorRowIndex'] = $i;
+                    break 2; // out of this foreach AND the switch — nothing here saves
                 }
+
+                $recipientKeys[] = end($accumulated);
             }
 
             if ($backupDsn !== '') {
@@ -730,7 +775,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // --- Render page ---
-renderPage($step, $error, $isUpdate);
+renderPage($step, $error, $isUpdate, $step6Repost);
 
 // ============================================================================
 // Functions
@@ -941,7 +986,7 @@ function showAlreadyInstalled(): void
     <?php
 }
 
-function renderPage(string $step, ?string $error, bool $isUpdate): void
+function renderPage(string $step, ?string $error, bool $isUpdate, ?array $step6Repost = null): void
 {
     $title = $isUpdate ? 'Club Bar Update' : 'Club Bar Installation';
     ?>
@@ -990,7 +1035,7 @@ function renderPage(string $step, ?string $error, bool $isUpdate): void
                     renderStep5($isUpdate);
                     break;
                 case '6':
-                    renderStep6($isUpdate);
+                    renderStep6($isUpdate, $error, $step6Repost);
                     break;
                 case '7':
                     renderStep7();
@@ -1379,17 +1424,62 @@ function renderStep5(bool $isUpdate): void
  * backups on (ADR-0049 decision 2); leaving this screen empty leaves them off,
  * which is a legitimate state and not a nightly failure.
  *
- * The keypair is generated **in the browser** and its private half is shown
- * once, never posted back. That is the whole security property of this feature:
- * the server produces archives it structurally cannot read, which is only true
- * if the private half never reaches it.
+ * The keypair is generated **offline**, from a local copy of
+ * `tools/keypair-generator.html` — never from this server, which refuses to
+ * serve that file at all (#733). The private half is shown once, in that
+ * browser, and never posted back. That is the whole security property of
+ * this feature: the server produces archives it structurally cannot read,
+ * which is only true if the private half never reaches it — including via a
+ * server-hosted copy of the tool that made it.
+ *
+ * Recipient rows post as `recipient_label[]` / `recipient_key[]` — repeating
+ * label/key pairs assembled into `label:key` below, rather than one freeform
+ * textarea the operator hand-assembles that syntax into (#735). A row that
+ * fails validation is attributed by index (`$step6Repost['errorRowIndex']`
+ * at the call site) and every row, plus the DSN/expiry/heartbeat fields, is
+ * preserved on the re-render — a malformed second key must not cost the
+ * operator a correctly-pasted first one.
  */
-function renderStep6(bool $isUpdate): void
+function renderStep6(bool $isUpdate, ?string $error = null, ?array $repost = null): void
 {
+    require_once __DIR__ . '/backend/vendor/autoload.php';
+
     $existing = ConfigWriter::read(DataDirectory::configPath(__DIR__));
     $backup = $existing['backup'] ?? [];
-    $keys = $backup['recipient_public_keys'] ?? [];
     $updateParam = $isUpdate ? '&update=1' : '';
+
+    $errorRowIndex = $repost['errorRowIndex'] ?? null;
+    // A fingerprint is only meaningful for a key that is actually saved — on a
+    // failed POST nothing has been written yet, so there is nothing to show
+    // beside a row still being corrected.
+    $fingerprints = [];
+
+    if ($repost !== null) {
+        $rows = $repost['rows'];
+        $dsnValue = $repost['dsn'];
+        $expiresValue = $repost['expires'];
+        $heartbeatValue = $repost['heartbeat'];
+    } else {
+        $rows = [];
+        foreach ((array) ($backup['recipient_public_keys'] ?? []) as $line) {
+            [$label, $key] = array_pad(explode(':', (string) $line, 2), 2, '');
+            $rows[] = ['label' => $label, 'key' => $key];
+            if (preg_match('/^[0-9a-f]{64}$/', $key) === 1) {
+                $fingerprints[array_key_last($rows)] =
+                    (new App\Modules\Backups\Domain\BackupRecipient($label, $key))->fingerprint();
+            }
+        }
+        $dsnValue = (string) ($backup['dsn'] ?? '');
+        $expiresValue = (string) ($backup['client_secret_expires_at'] ?? '');
+        $heartbeatValue = (string) ($backup['heartbeat_url'] ?? '');
+    }
+
+    // Two rows by default, even with nothing saved yet — the recommendation to
+    // hold two keys belongs in the shape of the form, not only in a paragraph
+    // above it (#735). Still submits fine with just one filled in.
+    while (count($rows) < 2) {
+        $rows[] = ['label' => '', 'key' => ''];
+    }
     ?>
     <h2>Backups</h2>
 
@@ -1406,8 +1496,6 @@ function renderStep6(bool $isUpdate): void
         Archives are sealed to one or more public keys. The matching
         <strong>private</strong> halves never touch this server — that is what
         makes an archive something the server can produce and cannot read.
-        Generate a keypair here, then <strong>print or write down the private
-        half</strong>: it is shown once and cannot be recovered.
     </p>
 
     <p>
@@ -1416,29 +1504,64 @@ function renderStep6(bool $isUpdate): void
         cipher; it is one volunteer leaving with the only key.
     </p>
 
-    <p>
-        <a class="btn-secondary" href="tools/keypair-generator.html" target="_blank" rel="noopener">
-            Open the key generator
-        </a>
-    </p>
-
     <p class="hint">
-        It opens in a new tab and runs entirely in your browser — nothing is sent
-        anywhere, which is the point. Use the <strong>hex</strong> output under
-        <em>Backup archive keys</em>; the base64 boxes above it are the IBAN
-        keypair the admin panel registers, and the two are not interchangeable.
+        Generate them <strong>offline</strong>, from your own copy of the
+        downloaded package — never from this server. Extract
+        <code>tools/keypair-generator.html</code> and open it directly in your
+        browser (a <code>file://</code> page, no server involved); this server
+        refuses to serve it, because a compromised host could otherwise hand out
+        a modified generator that steals the private half it just showed you.
+        Paste the <strong>hex</strong> output under <em>Backup archive keys</em>
+        below — the base64 boxes above it on that page are the IBAN keypair the
+        admin panel registers, and the two are not interchangeable.
     </p>
 
-    <form method="POST" action="?step=6<?= $updateParam ?>">
+    <form method="POST" action="?step=6<?= $updateParam ?>" id="backupForm">
         <input type="hidden" name="step" value="6">
 
-        <label for="recipient_public_keys">
-            Recipient keys — one <code>label:key</code> per line
-        </label>
-        <textarea id="recipient_public_keys" name="recipient_public_keys" rows="4"
-                  placeholder="admin:3d1f8a06…&#10;vorstand:9a02b4d6…"><?=
-            htmlspecialchars(implode("\n", array_map('strval', (array) $keys)), ENT_QUOTES)
-        ?></textarea>
+        <div id="recipient-rows">
+            <?php foreach ($rows as $i => $row): ?>
+            <div class="recipient-row<?= $errorRowIndex === $i ? ' recipient-row-error' : '' ?>">
+                <div class="recipient-row-fields">
+                    <div class="recipient-field recipient-field-label">
+                        <label for="recipient_label_<?= $i ?>">Label</label>
+                        <input type="text" id="recipient_label_<?= $i ?>" name="recipient_label[]"
+                               value="<?= htmlspecialchars($row['label'], ENT_QUOTES) ?>"
+                               placeholder="admin" maxlength="64" autocomplete="off">
+                    </div>
+                    <div class="recipient-field recipient-field-key">
+                        <label for="recipient_key_<?= $i ?>">Public key (hex)</label>
+                        <input type="text" id="recipient_key_<?= $i ?>" name="recipient_key[]"
+                               class="recipient-key-input"
+                               value="<?= htmlspecialchars($row['key'], ENT_QUOTES) ?>"
+                               placeholder="64 hex characters" autocomplete="off" spellcheck="false">
+                    </div>
+                    <button type="button" class="recipient-remove" aria-label="Remove this recipient"
+                            <?= count($rows) <= 1 ? 'hidden' : '' ?>>&times;</button>
+                </div>
+                <?php if ($errorRowIndex === $i && $error): ?>
+                    <p class="error-inline" data-role="feedback"><?= htmlspecialchars($error) ?></p>
+                <?php elseif (isset($fingerprints[$i])): ?>
+                    <p class="recipient-key-feedback muted" data-role="feedback">
+                        Fingerprint: <code><?= htmlspecialchars($fingerprints[$i]) ?></code>
+                    </p>
+                <?php else: ?>
+                    <p class="recipient-key-feedback muted" data-role="feedback"></p>
+                <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+        <p class="hint">
+            Label: letters, digits, hyphens and underscores, up to 64 characters —
+            it is what the offline decryptor prints to tell a holder which
+            envelope in the safe to fetch. Key: the 64-character hex string from
+            the generator's <em>Backup archive keys</em> section.
+        </p>
+
+        <p>
+            <button type="button" id="add-recipient-row" class="btn-secondary">Add another recipient</button>
+        </p>
 
         <h3>2. Where archives are pushed <span style="font-weight:normal">(optional)</span></h3>
 
@@ -1452,7 +1575,7 @@ function renderStep6(bool $isUpdate): void
 
         <label for="backup_dsn">Backup DSN</label>
         <input type="text" id="backup_dsn" name="backup_dsn"
-               value="<?= htmlspecialchars((string) ($backup['dsn'] ?? ''), ENT_QUOTES) ?>"
+               value="<?= htmlspecialchars($dsnValue, ENT_QUOTES) ?>"
                placeholder="msgraph://tenant/client@drive/driveid/clubbar">
 
         <label for="backup_client_secret">Client secret</label>
@@ -1472,7 +1595,7 @@ function renderStep6(bool $isUpdate): void
             backup failure</strong>
         </label>
         <input type="date" id="backup_secret_expires_at" name="backup_secret_expires_at"
-               value="<?= htmlspecialchars((string) ($backup['client_secret_expires_at'] ?? ''), ENT_QUOTES) ?>">
+               value="<?= htmlspecialchars($expiresValue, ENT_QUOTES) ?>">
         <p class="hint">
             Microsoft warns nobody when a client secret expires. The nightly job
             keeps writing and sealing its archive; only the half that gets it off
@@ -1482,7 +1605,7 @@ function renderStep6(bool $isUpdate): void
 
         <label for="backup_heartbeat_url">Backup monitor URL (optional)</label>
         <input type="text" id="backup_heartbeat_url" name="backup_heartbeat_url"
-               value="<?= htmlspecialchars((string) ($backup['heartbeat_url'] ?? ''), ENT_QUOTES) ?>"
+               value="<?= htmlspecialchars($heartbeatValue, ENT_QUOTES) ?>"
                placeholder="https://hc-ping.com/…">
 
         <div class="actions">
@@ -1739,6 +1862,45 @@ pre {
     margin-bottom: 0;
 }
 .reset-link a { color: #9ca3af; }
+.muted { color: #6b7280; }
+.recipient-row {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+.recipient-row-error {
+    border-color: #dc2626;
+    background: #fef2f2;
+}
+.recipient-row-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+}
+.recipient-field { flex: 1 1 200px; }
+.recipient-field label { margin-bottom: 4px; }
+.recipient-field input { margin-top: 0; }
+.recipient-remove {
+    flex: 0 0 auto;
+    background: none;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    width: 38px;
+    height: 38px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    color: #6b7280;
+}
+.recipient-remove:hover { color: #dc2626; border-color: #dc2626; }
+.recipient-key-feedback {
+    font-size: 12px;
+    margin: 6px 0 0;
+    min-height: 14px;
+}
+#add-recipient-row { margin-bottom: 4px; }
 @media (max-width: 640px) {
     .container { margin: 20px auto; }
     .card { padding: 20px; }

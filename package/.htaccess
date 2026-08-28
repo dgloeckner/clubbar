@@ -58,6 +58,16 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 # Block direct access to backend internals (source, vendor, storage, logs)
 RewriteRule ^backend/ - [F,L]
 
+# Block direct access to the offline-only backup tools (#733). Both pages are
+# meant to be opened from a local copy (file://), never fetched from the
+# server they exist to protect — a compromised host could otherwise serve a
+# modified keypair generator that steals the private half it just displayed.
+# They also do not work when served: script-src 'self' with no unsafe-inline
+# (below) refuses their inline <script>, so the buttons would look present
+# and do nothing. Shipped in the release ZIP regardless — see
+# scripts/build-package.sh — for opening locally.
+RewriteRule ^tools/ - [F,L]
+
 # If the file exists on disk, serve it directly (SPA assets, install.php)
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]

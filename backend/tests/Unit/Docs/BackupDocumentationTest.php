@@ -600,6 +600,58 @@ class BackupDocumentationTest extends TestCase
         }
     }
 
+    /**
+     * The installer must not point at a server-hosted copy of the generator
+     * (#733). The private half is shown once, in the browser, and the whole
+     * security property depends on it never leaving that browser — a link
+     * back to the same server undermines that even before considering that a
+     * compromised host could serve a modified copy that exfiltrates the key
+     * it just displayed. Separately, a served copy would not even work: the
+     * CSP below refuses its inline `<script>`.
+     */
+    public function test_the_installer_does_not_link_a_server_hosted_generator(): void
+    {
+        $installer = self::read('package/install.php');
+
+        $this->assertDoesNotMatchRegularExpression(
+            '#href=["\']tools/keypair-generator\.html["\']#',
+            $installer,
+            'The Backups step must not link tools/keypair-generator.html on this server '
+            . '(#733) — generate keys offline, from a locally extracted copy of the package.'
+        );
+
+        $this->assertStringContainsString(
+            'tools/keypair-generator.html',
+            $installer,
+            'The step must still name where to find the generator, even without linking it.'
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/offline/i',
+            $installer,
+            'The Backups step must say the generator is run offline, matching docs/backup.md.'
+        );
+    }
+
+    /**
+     * `.htaccess` is the only thing standing between the offline tools and a
+     * URL once they ship inside the document root (#733) — the CSP already
+     * makes a served copy non-functional, but a refusal at the webserver is
+     * the belt: it holds even for a request that never triggers the inline
+     * `<script>` refusal at all (curl, a stale cached response, a host that
+     * ignores CSP).
+     */
+    public function test_the_htaccess_denies_the_offline_tools(): void
+    {
+        $htaccess = self::read('package/.htaccess');
+
+        $this->assertMatchesRegularExpression(
+            '#RewriteRule\s+\^tools/\s+-\s+\[F,L\]#',
+            $htaccess,
+            'package/.htaccess must deny direct HTTP access to tools/ (#733).'
+        );
+    }
+
     private static function read(string $relativePath): string
     {
         $path = self::repoRoot() . '/' . $relativePath;
