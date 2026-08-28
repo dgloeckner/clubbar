@@ -10,6 +10,7 @@ import 'package:clubbar_terminal/services/transaction_history_service.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/utils/transaction_grouping.dart';
 import 'package:clubbar_terminal/utils/app_logger.dart';
 import 'package:clubbar_terminal/database/database.dart';
 
@@ -458,19 +459,68 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
     return _transactionsListView(locale);
   }
 
+  /// The list, as day sections: a heading per day and one line per product
+  /// under it (see [groupTransactionsByDay]).
+  ///
+  /// Flattened into a single [ListView] rather than nested scrollables so the
+  /// whole history keeps one scroll position and one physics — a list of lists
+  /// on a kiosk gives a member two things to flick and no way to tell which one
+  /// they just moved.
   Widget _transactionsListView(String locale) {
-    return ListView.separated(
+    final rows = <Widget>[];
+
+    for (final day in groupTransactionsByDay(_transactions)) {
+      rows.add(_dayHeading(day, locale));
+      for (var i = 0; i < day.entries.length; i++) {
+        if (i > 0) {
+          rows.add(Divider(
+            color: AppColors.borderMuted.withValues(alpha: 0.2),
+            height: 1,
+          ));
+        }
+        rows.add(_buildTransactionRow(day.entries[i], locale));
+      }
+    }
+
+    return ListView.builder(
       controller: _listScrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _transactions.length,
-      separatorBuilder: (context, index) => Divider(
-        color: AppColors.borderMuted.withValues(alpha: 0.2),
-        height: 1,
+      itemCount: rows.length,
+      itemBuilder: (context, index) => rows[index],
+    );
+  }
+
+  /// `Fr, 28.08.` on the left, the day's total on the right.
+  ///
+  /// The total is the reason a heading earns its vertical space rather than
+  /// merely separating: "what did Friday cost me" was previously a sum the
+  /// member had to do in their head, down a column that repeated the date on
+  /// every line.
+  Widget _dayHeading(TransactionDay day, String locale) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 18, bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            day.heading(locale),
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: AppFontSizes.sm,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
+          ),
+          Text(
+            formatPrice(day.totalCents, locale),
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: AppFontSizes.sm,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
-      itemBuilder: (context, index) {
-        final transaction = _transactions[index];
-        return _buildTransactionRow(transaction, locale);
-      },
     );
   }
 
@@ -501,7 +551,14 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
     );
   }
 
-  Widget _buildTransactionRow(TransactionListItem transaction, String locale) {
+  /// One product line: `4 x Helles` with what one costs beneath it, and the
+  /// line's total on the right.
+  ///
+  /// The date that used to sit under every name has moved into the day heading,
+  /// and the count that used to be four repeated rows is now a multiplier — so
+  /// the space the timestamp occupied is spent on the unit price instead, which
+  /// is the number a member checks against the shelf.
+  Widget _buildTransactionRow(TransactionGroup group, String locale) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
@@ -516,48 +573,80 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
             ),
             child: Center(
               child: getProductIcon(
-                transaction.productIcon,
+                group.productIcon,
                 size: 27,
               ),
             ),
           ),
           const SizedBox(width: 12),
-          // Details and timestamp
+          // Name, with its count, and what one of them cost
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  transaction.details,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: AppFontSizes.base,
-                    fontWeight: FontWeight.w500,
-                  ),
+                Row(
+                  children: [
+                    // A count only when there is one to state. A leading "1 x"
+                    // on every single line is the noise this screen was
+                    // redesigned to remove.
+                    if (group.isMultiple) ...[
+                      Text(
+                        '${group.count}',
+                        style: TextStyle(
+                          color: AppColors.brandBeerGold,
+                          fontSize: AppFontSizes.base,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        ' x ',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: AppFontSizes.sm,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                    Flexible(
+                      child: Text(
+                        group.details,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: AppFontSizes.base,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  formatTransactionTimestamp(transaction.timestamp, locale),
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: AppFontSizes.sm,
+                // Only where it says something the total does not: on a line of
+                // one, the unit price *is* the total already on the right.
+                if (group.isMultiple) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    formatPrice(group.unitCents, locale),
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: AppFontSizes.sm,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
-          // Amount
+          // Amount — the line's total, which is what the day heading sums
           Text(
-            formatPrice(transaction.amountCents, locale),
+            formatPrice(group.totalCents, locale),
             style: TextStyle(
-              color: transactionAmountColor(transaction.amountCents),
+              color: transactionAmountColor(group.totalCents),
               fontSize: AppFontSizes.lg,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(width: 12),
           // Status badge
-          _buildStatusBadge(transaction.syncStatus),
+          _buildStatusBadge(group.syncStatus),
         ],
       ),
     );
