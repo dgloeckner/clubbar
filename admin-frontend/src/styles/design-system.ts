@@ -296,6 +296,11 @@ export const theme = {
     // ListLoadingOverlay's spinner border. Reimplemented identically at
     // every call site (#289).
     profileActive: withAlpha('#3b82f6', 0.25),
+    // The header nav's hover background: the secondary text colour at a tenth,
+    // so hovering an inactive entry reads as neutral rather than as a second
+    // kind of "active" beside the blue tints above. Was the last raw `rgba()`
+    // literal in the layout (#289, moved to DesktopNav in #742).
+    neutralHover: withAlpha('#94a3b8', 0.1),
   },
 
   // Soft, translucent color-coded backgrounds at a shared 0.15 alpha —

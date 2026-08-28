@@ -756,6 +756,43 @@ its own is a page that will drift, so it renders `PageHeader` instead.
 
 ---
 
+#### DesktopNav Component
+
+The header navigation, with the entries that do not fit moved into a "More"
+menu (issue #742).
+
+**File**: `src/components/layout/DesktopNav.tsx` (arithmetic in
+`src/utils/navOverflow.ts`, unit-tested in `navOverflow.test.ts`)
+
+**Rules**:
+- **A permitted section is never nowhere.** The row used to be a scroller with
+  `nav::-webkit-scrollbar { display: none }` on top of it, so an entry past the
+  right edge had no link, no scrollbar and no hint that the section existed —
+  on a 1713px window in German that entry was the audit log. An entry is now
+  either in the row or in the menu.
+- **The count is measured, never guessed.** None of the three inputs is fixed:
+  labels are translated (`Benachrichtigungen` is twice `Notifications`), the
+  set depends on which offices the account holds (ADR-0044), and the space left
+  over depends on how long the club named itself. An off-screen copy of every
+  entry supplies the widths; `fitNavItems` turns them into a count.
+- **Role filtering happens before the component.** `MainLayout` filters with
+  `permitsPath`, so overflow can never resurrect an entry a role may not see.
+- **Test IDs do not move.** An entry keeps its `nav-*` ID in the menu, so a test
+  asks whether a section is reachable rather than whether it happened to fit.
+  `MainLayoutPage.openNavItem()` follows an entry in either place, and
+  `getVisibleNavTestIds()` opens the menu before reading the set.
+
+**Props**:
+- `items` (DesktopNavItem[], required): `{ label, path, icon, testId }`, in nav
+  order, already filtered by role
+- `iconOnly` (boolean, required): Tablet widths show the icon alone
+- `isActive` ((path: string) => boolean, required): Sub-routes keep their parent
+  lit; the More button is lit while an overflowed section is open
+
+**Test IDs**: `desktop-nav`, `nav-more`, `nav-more-menu`, and each item's own.
+
+---
+
 ### Table Components
 
 #### PageActionButton Component

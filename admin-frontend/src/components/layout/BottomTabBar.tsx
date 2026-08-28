@@ -16,23 +16,8 @@ import {
   DatabaseIcon,
   MailIcon,
   UserIcon,
+  MoreIcon,
 } from '../icons'
-
-function GridDotsIcon({ size = 20, color = 'currentColor' }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <circle cx="5" cy="5" r="2" />
-      <circle cx="12" cy="5" r="2" />
-      <circle cx="19" cy="5" r="2" />
-      <circle cx="5" cy="12" r="2" />
-      <circle cx="12" cy="12" r="2" />
-      <circle cx="19" cy="12" r="2" />
-      <circle cx="5" cy="19" r="2" />
-      <circle cx="12" cy="19" r="2" />
-      <circle cx="19" cy="19" r="2" />
-    </svg>
-  )
-}
 
 export function BottomTabBar() {
   const { t } = useTranslation()
@@ -128,7 +113,7 @@ export function BottomTabBar() {
           onClick={() => setShowMore(!showMore)}
           style={tabStyle(isMoreActive)}
         >
-          <GridDotsIcon size={22} />
+          <MoreIcon size={22} />
           <span>{t('nav.more')}</span>
         </button>
 
