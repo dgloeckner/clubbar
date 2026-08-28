@@ -875,94 +875,92 @@ SET GLOBAL slow_query_log_file = '/var/log/mysql/slow-query.log';
 
 ---
 
-## Automated Production Deployment
+## Automating Deployment
 
-The production site is deployed by the **Deploy to Production** workflow
-(`.github/workflows/deploy-production.yaml`), run manually from the Actions tab.
+Everything under [Upgrading](#upgrading) can be automated, and on a host with no
+shell it is worth doing: the manual path is a ZIP upload followed by two URLs
+opened in the right order, which is exactly the kind of sequence a person gets
+wrong at 23:00 on a Friday.
 
-**To deploy:** pick the workflow, click *Run workflow*, and fill in two fields —
-the release tag (or `latest`) and the production hostname as a confirmation. The
-run then waits for an approval on the `ionos-production` environment before it
-touches anything.
+This repository ships the server half — `upgrade.php`, and
+`scripts/deploy-request.sh` to call it and name what went wrong — but not a
+workflow that points at a live site. **The reference instance is deployed from a
+private repository**, because the SFTP credentials for a club's production site
+and the button that can touch it should not live where the world can read them.
+The recipe below is what to build for your own.
 
-What it does, in order:
+The one deployment this repository *does* run is
+[`deploy-integration`](../.github/workflows/build.yaml), which ships every green
+`main` to a throwaway integration site. It is the same mechanism against a
+different account, and it is the working example to copy.
 
-1. Validates the confirmation and resolves the tag, failing before any upload if
-   the release does not exist or does not carry exactly one package ZIP
-2. Downloads that ZIP **from the release** — the exact bytes CI smoke-tested,
-   not a rebuild
-3. Uploads three files over SFTP: `upgrade.php`, the ZIP, and a one-time secret
-4. Calls `upgrade.php?action=extract` to unpack it server-side
-5. Calls `upgrade.php` to run migrations; the script then deletes itself
-6. Deletes `install.php`, which every extract re-creates
-7. Asserts `/api/health` reports `status: ok` **and** the version equals the
-   deployed tag
+### The recipe
 
-**Deploying an older tag fails.** `upgrade.php` compares the package version
-against the installed one and answers `409`, so a mistaken tag cannot silently
-roll the code back underneath a newer database schema. Recovery from a bad
-release is a restore, not a redeploy.
+1. Validate whatever guards the operator gave you — a typed hostname
+   confirmation, an environment with a required reviewer — and resolve the
+   release **before** any upload. A half-uploaded site is the outcome to avoid,
+   so everything that can fail cheaply should fail first
+2. Take the package ZIP **from a release**, not a fresh build: those are the
+   exact bytes CI smoke-tested
+3. Upload three files over SFTP into the **document root** — `upgrade.php`, the
+   ZIP as `.upgrade-package.zip`, and a one-time secret as `.upgrade-secret`.
+   `upgrade.php` has to travel alongside, because an installation that predates
+   it has nothing to run
+4. `GET upgrade.php?key=<secret>&action=extract` to unpack it server-side
+5. `GET upgrade.php?key=<secret>` to run migrations. The script deletes itself
+   and the secret on the way out
+6. Delete `install.php` and `install.js` — every extract re-creates them
+7. Assert `/api/health` reports `status: ok` **and** that `version` equals the
+   tag you deployed. `backend/VERSION` is written at package time and read back
+   by the health endpoint, so this proves what is *serving*, not merely what was
+   unpacked
+8. Sweep `upgrade.php`, `.upgrade-secret` and `.upgrade-package.zip` whatever
+   happens. A run that dies between upload and migrate otherwise leaves a
+   ZIP-upload wizard sitting in a served directory
 
-**Back up the database first.** Shared hosting gives the workflow no shell, so
-no pre-migration dump is taken automatically. The run prints a reminder in its
-summary. If the release contains a migration that drops or alters a column, take
-a backup before approving it.
+Four properties are worth keeping when you write your own:
 
-**Migration `023_drop_mandate_documents.php` (ADR-0037) deletes files, not just
-rows.** It permanently removes every scanned mandate document under
-`storage/mandates/` along with the `mandate_documents` table. A database backup
-does not cover this — the files live outside MariaDB. Before approving a
-release that carries this migration, download and archive any stored scans (or
-confirm the Kassenwart already holds the paper originals); there is no
-migration-side undo once it has run.
+**Generate the upgrade secret per run.** Nothing on the server pre-shares it:
+the job uploads `.upgrade-secret`, and `upgrade.php` compares the request key
+against whatever that file holds. So there is no long-lived credential pointing
+at a live migration trigger, and nothing to rotate. A run that dies half-way
+leaves a value nobody knows, which the next run overwrites.
 
-**The upgrade secret is generated per run** and is not stored as a GitHub
-secret. Nothing on the server pre-shares it: the workflow uploads
-`.upgrade-secret`, and `upgrade.php` compares the request key against whatever
-that file holds. A successful run deletes both.
+**Do not pass `force=1` to a production site.** `upgrade.php` compares the
+package version against the installed one and answers `409` on a downgrade,
+which is what you want when someone deploys an older tag by mistake — code must
+not roll back underneath a newer schema. Recovery from a bad release is a
+restore, not a redeploy. (`deploy-integration` does pass it, deliberately: that
+site is disposable and is often pointed backwards on purpose.)
+
+**Never two deploys at once, and never cancel one half-way.** The window
+between "files extracted" and "migrations applied" must close.
+
+**Back up the database first — by hand.** Shared hosting gives a workflow no
+shell, so no pre-migration dump can be taken automatically. If a release carries
+a migration that drops or alters a column, export before you approve it. And
+note that migration `023_drop_mandate_documents.php`
+([ADR-0037](../adr/0037-mandate-documents-not-retained.md)) permanently removes
+every scanned mandate under `storage/mandates/` along with its table — files a
+database backup does not cover, with no migration-side undo.
 
 **Nothing of the installation is overwritten.** `config.php`, `data-path.php`,
 `backend/storage/` and `backend/logs/` are excluded from extraction; everything
 else is replaced, and files the new package does not ship are swept away.
 
-> The integration site deploys automatically from `main` via the
-> `deploy-integration` job in `build.yaml`, using the same mechanism against a
-> separate SFTP account.
-
 ### Reading a Failed Deploy
 
-Both workflows call `upgrade.php` through `scripts/deploy-request.sh`, which
-turns the server's answer into a named cause rather than a parse error. What the
-job log says, and what each one means:
+Call `upgrade.php` through `scripts/deploy-request.sh` rather than a bare
+`curl`: it turns the server's answer into a named cause rather than a parse
+error. What it prints, and what each one means:
 
 | Message | What happened |
 |---------|---------------|
-| `served HTML, not JSON` | The request reached the site but not `upgrade.php`. `.htaccess` hands any path that is not a file on disk to `index.php`, which answers with the SPA shell at HTTP **200** — so this is what a missing `upgrade.php` looks like. Either the upload did not land, or the SFTP account's login directory is not the document root the site URL serves. The **List the deploy target** step prints `pwd`, the login directory and a two-level `find`, which settles which of the two it is — and names the directory holding `index.php` |
+| `served HTML, not JSON` | The request reached the site but not `upgrade.php`. `.htaccess` hands any path that is not a file on disk to `index.php`, which answers with the SPA shell at HTTP **200** — so this is what a missing `upgrade.php` looks like. Either the upload did not land, or the SFTP account's login directory is not the document root the site URL serves. A listing step that prints `pwd` and the directory contents settles which of the two it is — and names the directory holding `index.php` |
 | `answered HTTP 3xx (redirect to …)` | The request never reached PHP. Usually the forced-HTTPS rule in `.htaccess` answering an `http://` site URL |
 | `failed (HTTP 403): Invalid upgrade key.` | `.upgrade-secret` on the server does not match the key in the request |
-| `refused a downgrade` | The package is older than what is installed (production only; integration passes `force=1`) |
+| `refused a downgrade` | The package is older than what is installed, and `force=1` was not passed |
 | `could not be reached` | DNS, TLS or connectivity — the response never arrived |
-
-Uploads fail loudly: both workflows set `cmd:fail-exit yes`, without which lftp
-prints a failed `put`, carries on and exits `0` — an upload step that goes green
-having transferred nothing.
-
-**Where integration uploads to.** The integration account logs in at
-`/clubbar-integration` and the site is served one level below that, from its
-`root/` — so the upload `cd`s into `root` before it `put`s anything. The path is
-kept **relative** to the login directory on purpose, so it holds whether the
-account is chrooted at `/clubbar-integration` (what it is today) or lands in the
-webspace directory above it.
-
-This is what caused the three-day outage in August 2026: the workflow was
-written when login directory and document root were the same, kept uploading
-into the login directory after they diverged, and every extract was answered by
-the SPA shell because `upgrade.php` was never in the directory the site serves.
-
-Set the **`IONOS_SFTP_PATH`** variable on the `ionos-integration` environment to
-override the directory without a commit, should the site move again. The symptom
-to watch for is the listing showing the three uploaded files with no
-`index.php`, `spa.html` or `.htaccess` beside them.
 
 Run the same request by hand with the same diagnosis:
 
@@ -971,12 +969,35 @@ scripts/deploy-request.sh "Extract" \
   "https://your-site.example/upgrade.php?key=<secret>&action=extract&force=1"
 ```
 
+**Make uploads fail loudly.** `deploy-integration` sets `cmd:fail-exit yes`,
+without which lftp prints a failed `put`, carries on and exits `0` — an upload
+step that goes green having transferred nothing, whose failure only surfaces one
+step later as an unexplained non-JSON answer from an `upgrade.php` that was
+never uploaded.
+
+**Upload into the document root, which is not necessarily where you land.** The
+integration account logs in at `/clubbar-integration` and the site is served one
+level below that, from its `root/` — so the upload `cd`s into `root` before it
+`put`s anything, and the path is kept **relative** to the login directory on
+purpose, so it holds whether the account is chrooted at `/clubbar-integration`
+(what it is today) or lands in the webspace directory above it. Set the
+`IONOS_SFTP_PATH` variable on the `ionos-integration` environment to override it
+without a commit, should the site move again.
+
+This is what caused the three-day outage in August 2026: the workflow was
+written when login directory and document root were the same, kept uploading
+into the login directory after they diverged, and every extract was answered by
+the SPA shell because `upgrade.php` was never in the directory the site serves.
+The symptom to watch for is a listing showing the uploaded files with no
+`index.php`, `spa.html` or `.htaccess` beside them.
+
 ---
 
 ## Upgrading
 
-> Manual steps, for a self-hosted installation. The project's own production
-> site uses the automated workflow above.
+> Manual steps. Everything here can be automated — see
+> [Automating Deployment](#automating-deployment) for the recipe and the
+> properties worth keeping when you do.
 
 1. Create a pre-upgrade backup (see above)
 
