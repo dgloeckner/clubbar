@@ -682,11 +682,20 @@ Declare **every 15 minutes** under Settings → Mail to match the schedule you s
 
 ### The heartbeat check
 
-Configure `cron.heartbeat_url` in `config.php` with a push monitor's check URL —
+Configure `cron.heartbeat_url` with a push monitor's check URL —
 healthchecks.io is the reference; Uptime Kuma, Cronitor and Better Stack take
 the same shape and self-hosting one is fine. The alarm must live outside this
 installation: a report that "SMTP is dead", delivered over the dead SMTP, never
 arrives.
+
+**Configure this from the installer, not a text editor.** Step 7 of
+`install.php` is *Schedule the two background jobs*, and it asks for this URL on
+the same screen as the cron line it watches — reachable long after the install
+through the same `?update=1` route as the mail and backup steps
+(`install.php?step=7&update=1`), because a club sets up monitoring in the week it
+thinks about monitoring, not in the hour it installs. It refuses anything that is
+not an `http`/`https` URL, since a mistyped monitor is an alarm nobody ever hears,
+and clearing the field switches the alarm off again.
 
 | Event | What is pinged |
 |---|---|

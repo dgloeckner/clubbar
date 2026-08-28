@@ -522,6 +522,59 @@ test.describe('Package: Install Wizard', () => {
     expect(checkBody.verified).toBe(false);
     expect(checkBody.error).toBeUndefined();
 
+    // The alarm that outlives the wizard (#743). The Check button above answers
+    // for today; `cron.heartbeat_url` is what reports every run to a monitor
+    // outside this installation — and until this field existed, the installer
+    // wrote every other key of the `cron` section and left this one to a club
+    // hand-editing config.php on a live site.
+    expect(step7Html).toContain('name="cron_heartbeat_url"');
+
+    // Refused rather than stored. This is the one field on the wizard whose
+    // mistake is completely silent: a monitor URL that goes nowhere pings
+    // nowhere, and looks exactly like a working alarm until the outage it was
+    // meant to catch.
+    const badHeartbeat = await request.post(`${PACKAGE_URL}/install.php?step=7`, {
+      form: { step: '7', cron_heartbeat_url: 'hc-ping.com/not-a-url' },
+      maxRedirects: 0,
+    });
+    expect(badHeartbeat.status()).toBe(200);
+    const badHeartbeatHtml = await badHeartbeat.text();
+    expect(badHeartbeatHtml).toContain('does not look like a check URL');
+    // And handed back as typed, so the operator can see the typo instead of
+    // retyping the URL from the monitor's page.
+    expect(badHeartbeatHtml).toContain('hc-ping.com/not-a-url');
+
+    const step7Post = await request.post(`${PACKAGE_URL}/install.php?step=7`, {
+      form: { step: '7', cron_heartbeat_url: 'https://hc-ping.com/ci-drain-canary' },
+      maxRedirects: 0,
+    });
+    expect(step7Post.status()).toBe(302);
+    expect(step7Post.headers()['location']).toContain('step=8');
+
+    // Read back through config.php: end-to-end proof the value reached the file
+    // and was loaded from it again. Not a secret, unlike the mail DSN, so this
+    // screen does pre-fill it — an operator who cannot see the configured
+    // monitor cannot tell a live alarm from one pointing at a deleted check.
+    const step7Again = await request.get(`${PACKAGE_URL}/install.php?step=7&update=1`);
+    expect(await step7Again.text()).toContain('https://hc-ping.com/ci-drain-canary');
+
+    // The mail transport four screens back is still what step 5 wrote — this
+    // screen rewrites the whole of config.php too.
+    const mailAfterSchedule = await request.get(`${PACKAGE_URL}/install.php?step=5&update=1`);
+    expect(await mailAfterSchedule.text()).toContain('smtp://ci:***@mail.example.test:587');
+
+    // An emptied field is an erase, not "unchanged" — the rule that lets the
+    // mail and backup screens keep a stored secret when their field is blank
+    // would otherwise keep an alarm the operator has just switched off, and
+    // report success for it.
+    const clearHeartbeat = await request.post(`${PACKAGE_URL}/install.php?step=7&update=1`, {
+      form: { step: '7', cron_heartbeat_url: '' },
+      maxRedirects: 0,
+    });
+    expect(clearHeartbeat.status()).toBe(302);
+    const afterClear = await request.get(`${PACKAGE_URL}/install.php?step=7&update=1`);
+    expect(await afterClear.text()).not.toContain('ci-drain-canary');
+
     // Step 8: the completion page, which repeats the outcome rather than
     // letting an unverified scheduler pass silently.
     const step8 = await request.get(`${PACKAGE_URL}/install.php?step=8`);
