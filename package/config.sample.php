@@ -139,6 +139,10 @@ return [
         //
         // The ping body carries counts only: never an address, never a name.
         // Leave empty and nothing is pinged.
+        //
+        // Asked for by the installer, on the same screen as the cron line it
+        // watches (`install.php?step=7&update=1`), so switching the alarm on
+        // later never means hand-editing this file on a live site (#743).
         'heartbeat_url' => '',
     ],
 

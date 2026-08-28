@@ -14,8 +14,11 @@ declare(strict_types=1);
  * 2. Database credentials (form + AJAX test connection)
  * 3. Run migrations
  * 4. Create admin user
- * 5. Scheduler (setup instructions + AJAX heartbeat check)
- * 6. Done
+ * 5. Mail transport (optional; #710)
+ * 6. Backups (optional; ADR-0049)
+ * 7. Scheduler — the two cron lines, the AJAX "has it run yet" check, and the
+ *    monitor URL that answers that question every day afterwards (#743)
+ * 8. Done
  *
  * State is tracked in .installer-data (JSON):
  *   {"key": "<random hex>", "completed_step": <0|2|3>}
@@ -229,6 +232,11 @@ $error = null;
 // costs the operator the rest of what they typed (#735) — the mail and DB
 // steps have no equivalent because they have nothing this repeatable to lose.
 $step6Repost = null;
+
+// The same idea, one field wide: a rejected monitor URL is handed back to the
+// screen rather than replaced by whatever config.php still says, so the
+// operator can see the typo they made instead of retyping the whole URL (#743).
+$step7Repost = null;
 
 // --- Enforce step ordering on GET ---
 // Prevent jumping ahead to steps whose prerequisites haven't been completed.
@@ -771,15 +779,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             header('Location: ?step=7' . ($isUpdate ? '&update=1' : ''));
             exit;
+
+        case '7': // The drain's monitor (ADR-0038 rule 6) — reachable after
+                  // install via ?update=1
+            if (!file_exists($configFile)) {
+                $error = 'config.php not found. Please complete step 2 first.';
+                break;
+            }
+
+            $cronHeartbeat = trim($_POST['cron_heartbeat_url'] ?? '');
+
+            // Refused here rather than at the first run, and this is the one
+            // field on the wizard where a typo is *completely* silent: a
+            // monitor URL that goes nowhere pings nowhere, and the club learns
+            // it configured an alarm only when the outage it was meant to catch
+            // has already run for a fortnight.
+            if ($cronHeartbeat !== '') {
+                $heartbeatError = installerHeartbeatUrlError($cronHeartbeat);
+                if ($heartbeatError !== null) {
+                    $error = $heartbeatError;
+                    $step7Repost = $cronHeartbeat;
+                    break;
+                }
+            }
+
+            $existingCron = ConfigWriter::read($configFile);
+
+            // A blank field here means erase, and merge() reads a blank answer
+            // as "unchanged" — the rule that lets the mail and backup screens
+            // decline to echo a secret back into the HTML. A monitor URL is not
+            // a secret, so this screen *does* show what is stored, and an
+            // operator who clears the field is asking for the alarm to go away
+            // rather than leaving a question unanswered. So the key is removed
+            // here rather than blanked through merge, which would keep the old
+            // URL and report success.
+            if ($cronHeartbeat === '') {
+                unset($existingCron['cron']['heartbeat_url']);
+            }
+
+            try {
+                $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+                $writer->writeTo($configTarget ?? $configFile, ConfigWriter::merge(
+                    $existingCron,
+                    ['cron' => ['heartbeat_url' => $cronHeartbeat]]
+                ));
+            } catch (ConfigWriterException $e) {
+                $error = $e->getMessage();
+                $step7Repost = $cronHeartbeat;
+                break;
+            }
+
+            header('Location: ?step=8' . ($isUpdate ? '&update=1' : ''));
+            exit;
     }
 }
 
 // --- Render page ---
-renderPage($step, $error, $isUpdate, $step6Repost);
+renderPage($step, $error, $isUpdate, $step6Repost, $step7Repost);
 
 // ============================================================================
 // Functions
 // ============================================================================
+
+/**
+ * What is wrong with a monitor's check URL, or null when nothing is.
+ *
+ * The alarm channel is the one setting on this wizard whose failure is
+ * *completely* silent (ADR-0038 rule 6). A mistyped SMTP host produces failed
+ * rows somebody can see; a mistyped check URL produces a monitor that was never
+ * pinged and a club that believes it is being watched — and the first time that
+ * is discovered is the outage the alarm existed to catch. So the shape is
+ * checked before it is written, in the one place the operator is still looking
+ * at the field.
+ *
+ * Deliberately shallow: a scheme and a host, nothing more. The wizard cannot
+ * know whether the check exists, and refusing anything but a known vendor's
+ * URL would lock out the self-hosted Uptime Kuma that ADR-0038 explicitly
+ * allows for.
+ */
+function installerHeartbeatUrlError(string $url): ?string
+{
+    $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+    if (!in_array($scheme, ['http', 'https'], true) || filter_var($url, FILTER_VALIDATE_URL) === false) {
+        return 'That does not look like a check URL. Paste the monitor\'s full ping URL, '
+            . 'starting with https:// — for example https://hc-ping.com/<uuid> — or leave '
+            . 'the field empty to run without an alarm.';
+    }
+
+    return null;
+}
 
 /**
  * True when the browser reached this script over TLS — directly, or through a
@@ -986,7 +1075,13 @@ function showAlreadyInstalled(): void
     <?php
 }
 
-function renderPage(string $step, ?string $error, bool $isUpdate, ?array $step6Repost = null): void
+function renderPage(
+    string $step,
+    ?string $error,
+    bool $isUpdate,
+    ?array $step6Repost = null,
+    ?string $step7Repost = null
+): void
 {
     $title = $isUpdate ? 'Club Bar Update' : 'Club Bar Installation';
     ?>
@@ -1038,7 +1133,7 @@ function renderPage(string $step, ?string $error, bool $isUpdate, ?array $step6R
                     renderStep6($isUpdate, $error, $step6Repost);
                     break;
                 case '7':
-                    renderStep7();
+                    renderStep7($isUpdate, $step7Repost);
                     break;
                 case '8':
                     renderStep8();
@@ -1206,7 +1301,7 @@ function renderStep4(bool $isUpdate): void
 }
 
 /**
- * Step 5: the scheduler (#405).
+ * Step 7: the scheduler (#405) and its alarm (#743).
  *
  * A prerequisite step rather than a suggestion. The drain is the only thing
  * that sends announcement emails, and until a run has been observed the admin
@@ -1217,8 +1312,19 @@ function renderStep4(bool $isUpdate): void
  * It does not block. The first scheduled tick can be up to fifteen minutes
  * away, and holding the wizard on a spinner for that is not acceptable; the
  * outcome is recorded either way and repeated on the completion page.
+ *
+ * **And the check that survives the wizard.** The Check button below answers
+ * one question once: has a run been seen *today*. What answers it every day
+ * afterwards is `cron.heartbeat_url`, and until #743 the installer wrote every
+ * other value of this section — the secret among them — and left that one to a
+ * club hand-editing `config.php` on a live site. Which is the shape of the
+ * failure it guards: nothing in this application reports a scheduler that
+ * stopped, because the queue is the only sending path, so the report would go
+ * out through the thing that died. It is asked for *here*, beside the job it
+ * watches, rather than on the mail screen, because a monitor for a scheduler
+ * nobody has scheduled yet is a check that is red from the minute it is made.
  */
-function renderStep7(): void
+function renderStep7(bool $isUpdate, ?string $repost = null): void
 {
     $cronCommand = 'php ' . rtrim(__DIR__, '/') . '/backend/bin/cron.php';
 
@@ -1228,6 +1334,7 @@ function renderStep7(): void
     // fresh install this is present; an upgrade from before ADR-0038 may not
     // have it yet.
     $configFile = DataDirectory::configPath(__DIR__);
+    $config = [];
     $cronSecret = null;
     $appUrl = null;
     if (file_exists($configFile)) {
@@ -1246,6 +1353,14 @@ function renderStep7(): void
     // most likely to go wrong.
     $backupCommand = 'php ' . rtrim(__DIR__, '/') . '/backend/bin/backup.php';
     $backupUrl = ($cronSecret && $appUrl) ? rtrim($appUrl, '/') . '/api/cron/backup' : null;
+
+    // A refused URL is shown back as it was typed, so the operator can see the
+    // typo rather than the value it failed to replace. Otherwise: whatever is
+    // configured, pre-filled — this one is not a secret, and an operator who
+    // cannot see the current monitor cannot tell a working alarm from one
+    // pointing at a check that was deleted last year.
+    $heartbeatValue = $repost ?? (string) ($config['cron']['heartbeat_url'] ?? '');
+    $updateParam = $isUpdate ? '&update=1' : '';
     ?>
     <h2>Step 7: Schedule the two background jobs</h2>
     <p>Club Bar announces every direct debit by email at least seven days before it is collected. Those emails
@@ -1288,7 +1403,37 @@ function renderStep7(): void
     <button type="button" class="btn btn-secondary" id="cronCheckBtn">Check</button>
     <p id="cronCheckResult"></p>
 
-    <p style="margin-top: 20px;"><a href="?step=8" class="btn">Finish</a></p>
+    <h3 style="margin: 28px 0 8px; font-size: 16px; color: #374151;">Get told when the mail job stops</h3>
+    <p>The check above answers for today. A scheduled job that dies six months from now announces nothing, breaks
+    nothing visibly, and reports nothing &mdash; Club Bar cannot email you about it, because email is the thing
+    that stopped. So the drain reports to a monitor <em>outside</em> this installation, which raises the alarm
+    when a report fails to arrive.</p>
+    <p><small>Create a check on any push monitor &mdash; healthchecks.io, Uptime Kuma, Cronitor, Better Stack
+    &mdash; and paste its ping URL. Recommended settings: <strong>period 1 day, grace 1&ndash;2 hours</strong>.
+    The announcement is queued at finalize and collected at least seven days later, so a one-day alarm still
+    leaves six days to react, while a tighter one fires on every single missed tick.</small></p>
+
+    <form method="POST" action="?step=7<?= $updateParam ?>">
+        <input type="hidden" name="step" value="7">
+
+        <label for="cron_heartbeat_url">Mail monitor URL (optional)</label>
+        <input type="text" id="cron_heartbeat_url" name="cron_heartbeat_url"
+               autocomplete="off" spellcheck="false"
+               value="<?= htmlspecialchars($heartbeatValue, ENT_QUOTES) ?>"
+               placeholder="https://hc-ping.com/&hellip;">
+        <p class="hint">
+            Each run pings <code>&lt;url&gt;/start</code> when it begins and <code>&lt;url&gt;</code> when it
+            finishes; an unusable transport, or a message left sitting for three ticks, pings
+            <code>&lt;url&gt;/fail</code>. A single rejected address does not &mdash; an alarm that fires on
+            every typo&rsquo;d address is one that gets switched off. The ping carries counts only: never an
+            address, never a name. Clear the field to switch the alarm off again.
+        </p>
+
+        <div class="actions">
+            <button type="submit" class="btn">Save and finish</button>
+            <a class="btn-link" href="?step=8<?= $updateParam ?>">Finish without a monitor</a>
+        </div>
+    </form>
     <?php
 }
 

@@ -36,15 +36,24 @@ class InstallerStructureTest extends TestCase
 {
     private static function source(): string
     {
-        $path = dirname(__DIR__, 3) . '/../package/install.php';
+        return (string) file_get_contents(self::repositoryPath('package/install.php'));
+    }
+
+    /**
+     * A path in the repository, whether phpunit runs from a checkout or from
+     * the container the workflow documents — which mounts the repo at /repo and
+     * the backend at /app, so `../` out of the backend resolves to neither.
+     */
+    private static function repositoryPath(string $relative): string
+    {
+        $path = dirname(__DIR__, 3) . '/../' . $relative;
         $real = realpath($path);
 
         if ($real === false || !is_file($real)) {
-            // The documented container workflow mounts the repo at /repo.
-            $real = '/repo/package/install.php';
+            $real = '/repo/' . $relative;
         }
 
-        return (string) file_get_contents($real);
+        return $real;
     }
 
     /** The acting half: from the POST guard to the render call. */
@@ -160,6 +169,85 @@ class InstallerStructureTest extends TestCase
     }
 
     /**
+     * The scheduler step must ask for the drain's monitor URL, and validate it.
+     *
+     * `cron.heartbeat_url` is the alarm that says a scheduler stopped (ADR-0038
+     * rule 6) — and the installer wrote every other key of that section, the
+     * secret included, while leaving this one to a club hand-editing
+     * `config.php` on a live site (#743). Its failure mode is the worst of the
+     * three optional screens: a monitor that was never configured, or was
+     * configured with a typo, is silent in exactly the same way a working one
+     * is, right up until the outage it existed to catch.
+     */
+    public function test_the_scheduler_step_writes_and_validates_the_heartbeat_url(): void
+    {
+        $post = self::postSection();
+        $at = strpos($post, "case '7':");
+
+        $this->assertIsInt($at, 'the scheduler step lost its POST handler, so its monitor URL is discarded');
+
+        $handler = substr($post, $at);
+
+        $this->assertStringContainsString(
+            'installerHeartbeatUrlError(',
+            $handler,
+            'the scheduler step is not validating the monitor URL — a mistyped one pings nowhere, silently'
+        );
+        $this->assertStringContainsString(
+            'ConfigWriter::merge(',
+            $handler,
+            'the scheduler step is not carrying the existing config forward'
+        );
+        $this->assertStringContainsString(
+            'heartbeat_url',
+            $handler,
+            'the scheduler step is not writing cron.heartbeat_url'
+        );
+    }
+
+    /**
+     * And the field has to exist on the page that submits it.
+     *
+     * A handler with nothing posting to it is the same defect as a form with
+     * no handler, one direction over: the value can never be set.
+     */
+    public function test_the_scheduler_step_renders_the_heartbeat_field(): void
+    {
+        $source = self::source();
+
+        $this->assertStringContainsString(
+            'name="cron_heartbeat_url"',
+            $source,
+            'step 7 must offer the monitor URL field its own handler reads'
+        );
+        $this->assertMatchesRegularExpression(
+            '/action="\?step=7/',
+            $source,
+            'the monitor URL field must post back to step 7'
+        );
+    }
+
+    /**
+     * The claim and the thing claimed, as a pair.
+     *
+     * `docs/deployment.md` tells a club the installer asks for this URL. A doc
+     * that says "configure it from the installer, not a text editor" while the
+     * installer does not ask is worse than no doc: the club looks for a field
+     * that is not there and concludes it configured monitoring when it did not.
+     */
+    public function test_the_docs_claim_matches_what_the_installer_offers(): void
+    {
+        $deployment = (string) file_get_contents(self::repositoryPath('docs/deployment.md'));
+
+        $this->assertMatchesRegularExpression(
+            '/step=7&update=1/',
+            $deployment,
+            'docs/deployment.md no longer points at the installer for cron.heartbeat_url. If that '
+            . 'is deliberate, the field on step 7 goes with it.'
+        );
+    }
+
+    /**
      * The backup step is the reason `?update=1` matters: a club configures
      * backups long after installing, and the alternative is hand-editing
      * `config.php` on a live site.
@@ -171,7 +259,10 @@ class InstallerStructureTest extends TestCase
 
         $this->assertIsInt($at, 'the backup step lost its POST handler');
 
-        $handler = substr($post, $at);
+        // Bounded by the next case rather than running to the end of the
+        // section: the scheduler step below writes through the same writer, and
+        // an unbounded slice would let this guard pass on *its* call.
+        $handler = substr($post, $at, strpos($post, "case '7':") - $at);
 
         $this->assertStringContainsString('ConfigWriter::merge(', $handler, 'the backup step is not carrying the existing config forward');
         $this->assertStringContainsString('BackupDsn::parse(', $handler, 'the backup step is not validating the DSN');
