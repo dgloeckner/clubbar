@@ -21,7 +21,7 @@
 # jq's way of saying "this is HTML", and HTML has one overwhelmingly likely
 # source here: .htaccess sends every path it cannot find on disk to index.php,
 # which answers with the SPA shell at HTTP 200 (the same behaviour
-# deploy-production.yaml's verify step relies on to prove install.php is gone).
+# a deploy's verify step relies on to prove install.php is gone).
 # So an HTML answer to upgrade.php means upgrade.php is not in the document
 # root this URL serves — and the deploy should say exactly that.
 set -uo pipefail
