@@ -72,7 +72,14 @@ flowchart TB
         D1 --> D2
     end
 
+    subgraph Backup["Backup Job (bin/backup.php, own cron)"]
+        BK1[Dump database - PHP]
+        BK2[Seal to recipient keys]
+    end
+
     Mail[["Mail server (SMTP)"]]
+    LocalArchive[("Local archive\n(backups/, encrypted)")]
+    RemoteArchive[["Remote storage (optional)\nmsgraph://"]]
 
     Terminal <-->|"Sync API"| Backend
     Admin <-->|"REST API"| Backend
@@ -80,13 +87,17 @@ flowchart TB
     Scheduler -->|"drains"| Outbox
     Outbox --> Mail
     Scheduler --> DB
+    Backup --> DB
+    Backup --> LocalArchive
+    Backup -->|"resumable upload"| RemoteArchive
 ```
 
 See [Role-Based Admin Access](./docs/role-based-access.md),
-[Security Concept](./docs/security-concept.md), and
-[Notifications & the Mail Outbox](./docs/notifications-and-mail.md) for how
-the pieces above enforce access control, protect data at rest, and deliver
-mail reliably.
+[Security Concept](./docs/security-concept.md),
+[Notifications & the Mail Outbox](./docs/notifications-and-mail.md), and
+[Backups](./docs/backup.md) for how the pieces above enforce access control,
+protect data at rest, deliver mail reliably, and keep an encrypted copy of
+the database off the host.
 
 ---
 
