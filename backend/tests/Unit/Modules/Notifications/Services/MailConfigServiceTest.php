@@ -70,7 +70,12 @@ class MailConfigServiceTest extends TestCase
         $this->assertTrue($this->service(null, 'file-secret')->cronSecretConfigured());
     }
 
-    public function test_configured_via_a_rotated_hash_alone(): void
+    /**
+     * Only an installation that used the removed panel rotation (#473) has a
+     * hash, and it is still what its scheduler sends — so it still counts as
+     * configured, and still mounts the route (#744).
+     */
+    public function test_configured_via_a_legacy_rotated_hash_alone(): void
     {
         $this->assertTrue($this->service(CronSecret::hash('rotated'), null)->cronSecretConfigured());
     }
@@ -84,11 +89,16 @@ class MailConfigServiceTest extends TestCase
     }
 
     /**
-     * The file value stops being a live credential the moment a hash exists —
-     * one accepted secret at a time, the same rule a rotated terminal token
-     * follows once the replacement is in use.
+     * The file value stops being a live credential while a hash exists — one
+     * accepted secret at a time.
+     *
+     * Nothing can write that column any more (#744). It is kept authoritative
+     * precisely because it cannot be rewritten: the installation that has one
+     * scheduled a URL fetch with it years ago, and reading `config.php`
+     * instead would stop that job dead. The installer's own rotation clears
+     * the row, which is the one moment somebody is being handed a replacement.
      */
-    public function test_a_rotated_hash_supersedes_the_file_secret_entirely(): void
+    public function test_a_legacy_rotated_hash_supersedes_the_file_secret_entirely(): void
     {
         $service = $this->service(CronSecret::hash('rotated-secret'), 'file-secret');
 
@@ -103,47 +113,5 @@ class MailConfigServiceTest extends TestCase
     {
         $this->assertFalse($this->service(null, 'file-secret')->verifyCronSecret(''));
         $this->assertFalse($this->service(CronSecret::hash('x'), null)->verifyCronSecret(''));
-    }
-
-    public function test_rotate_returns_a_plaintext_and_persists_only_its_hash(): void
-    {
-        $repository = $this->createMock(MailConfigRepository::class);
-        $repository->method('getConfig')->willReturn(['sender_address' => 'bar@example.org']);
-        $repository->expects($this->once())
-            ->method('rotateCronSecret')
-            ->with($this->matchesRegularExpression('/^[0-9a-f]{64}$/'), 'admin-1')
-            ->willReturn([]);
-
-        $auditService = $this->createMock(AuditService::class);
-        $auditService->expects($this->once())->method('log');
-
-        $service = new MailConfigService(
-            $repository,
-            $this->createMock(InstanceConfigService::class),
-            $this->createMock(MailTransportFactory::class),
-            $auditService,
-            new AppConfig(),
-        );
-
-        $plaintext = $service->rotateCronSecret('admin-1');
-
-        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $plaintext);
-    }
-
-    public function test_two_rotations_produce_different_secrets(): void
-    {
-        $repository = $this->createMock(MailConfigRepository::class);
-        $repository->method('getConfig')->willReturn(['sender_address' => 'bar@example.org']);
-        $repository->method('rotateCronSecret')->willReturn([]);
-
-        $service = new MailConfigService(
-            $repository,
-            $this->createMock(InstanceConfigService::class),
-            $this->createMock(MailTransportFactory::class),
-            $this->createMock(AuditService::class),
-            new AppConfig(),
-        );
-
-        $this->assertNotSame($service->rotateCronSecret('admin-1'), $service->rotateCronSecret('admin-1'));
     }
 }

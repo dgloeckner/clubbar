@@ -166,39 +166,36 @@ class MailConfigDtoTest extends TestCase
     }
 
     /**
-     * A fresh row (or one that predates migration 034) has no rotation on
-     * record — the file fallback in config.php is what CronController falls
-     * back to, and this is what tells the admin panel there is nothing to
-     * show but a "not yet rotated" state (#473).
+     * The URL-trigger secret is not this payload's business (#744).
+     *
+     * It used to report `cron_secret_configured`, and it could only ever see
+     * one of the two places a secret lives: this table. An installation whose
+     * installer wrote `config.php`'s `cron.secret` on day one — which is every
+     * installation — was told by the admin panel that no secret was
+     * configured. The panel that asked the question is gone; so is the answer.
      */
-    public function test_no_secret_rotation_reads_as_not_configured(): void
+    public function test_says_nothing_about_the_cron_secret_in_either_direction(): void
     {
-        $dto = MailConfigDto::fromRow(['sender_address' => 'bar@example.org']);
+        $fresh = MailConfigDto::fromRow(['sender_address' => 'bar@example.org'])->toArray();
 
-        $this->assertNull($dto->cronSecretHash);
-        $this->assertNull($dto->cronSecretRotatedAt);
-        $payload = $dto->toArray();
-        $this->assertFalse($payload['cron_secret_configured']);
-        $this->assertNull($payload['cron_secret_rotated_at']);
-    }
+        $this->assertArrayNotHasKey('cron_secret_configured', $fresh);
+        $this->assertArrayNotHasKey('cron_secret_rotated_at', $fresh);
 
-    /**
-     * The hash is never part of the API payload — only whether one exists.
-     * There is no operator value in a hash once past the comparison it exists
-     * for, so there is no reason to widen a secret's exposure by returning it.
-     */
-    public function test_a_rotated_secret_reports_configured_but_never_the_hash(): void
-    {
-        $dto = MailConfigDto::fromRow([
+        // And still nothing where a legacy panel rotation left a hash behind:
+        // the hash itself was never in the payload, and now neither is the
+        // fact that one exists.
+        $rotated = MailConfigDto::fromRow([
             'sender_address' => 'bar@example.org',
             'cron_secret_hash' => hash('sha256', 'some-secret'),
             'cron_secret_rotated_at' => '2026-08-15 12:00:00',
         ]);
 
-        $payload = $dto->toArray();
-        $this->assertTrue($payload['cron_secret_configured']);
-        $this->assertSame('2026-08-15 12:00:00', $payload['cron_secret_rotated_at']);
+        $this->assertSame(hash('sha256', 'some-secret'), $rotated->cronSecretHash);
+
+        $payload = $rotated->toArray();
+        $this->assertArrayNotHasKey('cron_secret_configured', $payload);
+        $this->assertArrayNotHasKey('cron_secret_rotated_at', $payload);
         $this->assertArrayNotHasKey('cron_secret_hash', $payload);
-        $this->assertStringNotContainsString(hash('sha256', 'some-secret'), json_encode($payload));
+        $this->assertStringNotContainsString(hash('sha256', 'some-secret'), (string) json_encode($payload));
     }
 }

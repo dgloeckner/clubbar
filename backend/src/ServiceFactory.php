@@ -1345,7 +1345,6 @@ class ServiceFactory implements ContainerInterface
             $this->getMailConfigService(),
             $this->getValidator(),
             $this->getTestMailService(),
-            $this->getStepUpAuthService(),
         ));
     }
 

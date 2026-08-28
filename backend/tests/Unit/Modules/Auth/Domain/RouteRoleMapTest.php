@@ -129,7 +129,6 @@ class RouteRoleMapTest extends TestCase
         $this->assertFalse(RouteRoleMap::permits($kassenwart, 'GET', '/api/admin/audit-log'));
         $this->assertFalse(RouteRoleMap::permits($kassenwart, 'GET', '/api/admin/mail-config'));
         $this->assertFalse(RouteRoleMap::permits($kassenwart, 'PATCH', '/api/admin/mail-config'));
-        $this->assertFalse(RouteRoleMap::permits($kassenwart, 'POST', '/api/admin/mail-config/cron-secret/rotate'));
         $this->assertFalse(RouteRoleMap::permits($kassenwart, 'GET', '/api/admin/security-check'));
         $this->assertFalse(RouteRoleMap::permits($kassenwart, 'PATCH', '/api/admin/instance-config'));
     }

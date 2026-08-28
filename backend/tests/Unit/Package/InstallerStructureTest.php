@@ -248,6 +248,110 @@ class InstallerStructureTest extends TestCase
     }
 
     /**
+     * The cron secret has exactly one writer, and this is it (#744).
+     *
+     * Until #744 there were two: this file, and a rotate button in Settings →
+     * Mail that stored a hash which *superseded* `config.php` entirely. So the
+     * wizard could print scheduler instructions for a secret the application
+     * had stopped accepting, and the panel could report "no secret configured"
+     * over an installation whose `config.php` had carried one since step 2.
+     * The panel half is gone; what makes that safe is that the surviving half
+     * can both write the value and hand it to the operator.
+     */
+    public function test_the_scheduler_step_can_rotate_the_cron_secret(): void
+    {
+        $post = self::postSection();
+        $at = strpos($post, "case '7':");
+
+        $this->assertIsInt($at, 'the scheduler step lost its POST handler');
+
+        $handler = substr($post, $at);
+
+        $this->assertStringContainsString(
+            "'rotate_cron_secret'",
+            $handler,
+            'step 7 no longer handles the rotate action, so config.php\'s cron.secret has no writer '
+            . 'after step 2 — and no admin-panel one either, since #744 removed it'
+        );
+        $this->assertStringContainsString(
+            'installerRotateCronSecret(',
+            $handler,
+            'the rotate action is not going through installerRotateCronSecret()'
+        );
+        $this->assertStringContainsString(
+            "\$_SESSION['installer_cron_secret']",
+            $handler,
+            'the new secret must be handed to the render through the session — a query string would '
+            . 'write it into the access log the header form exists to keep it out of'
+        );
+    }
+
+    /**
+     * The button that posts that action, and the one-time display.
+     *
+     * A generated secret nobody is shown is worse than none: `config.php` has
+     * the only copy, the operator cannot paste it into a hosting panel, and
+     * whatever URL trigger they had already scheduled has just stopped working.
+     */
+    public function test_the_scheduler_step_renders_the_rotate_control(): void
+    {
+        $render = self::source();
+
+        $this->assertStringContainsString(
+            'name="action" value="rotate_cron_secret"',
+            $render,
+            'step 7 must offer the button its own handler reads'
+        );
+        $this->assertStringContainsString(
+            'id="cronSecretValue"',
+            $render,
+            'a rotated secret must be printed once — config.php keeps the only other copy'
+        );
+        $this->assertStringContainsString(
+            "unset(\$_SESSION['installer_cron_secret']",
+            $render,
+            'the secret must be cleared from the session as it is rendered, so a refresh does not reprint it'
+        );
+    }
+
+    /**
+     * Rotation retires a legacy panel-rotated hash in the same action.
+     *
+     * `mail_config.cron_secret_hash` still wins where an installation has one
+     * (see MailConfigService::verifyCronSecret) — deliberately, because that is
+     * what its scheduler is sending. Which means a rotation that writes only
+     * the file hands the operator a secret the application will refuse: the
+     * precise failure #744 is about, reintroduced by the fix for it.
+     */
+    public function test_rotating_retires_a_panel_rotated_secret(): void
+    {
+        $source = self::source();
+        $at = strpos($source, 'function installerRotateCronSecret(');
+
+        $this->assertIsInt($at, 'installerRotateCronSecret() is gone');
+
+        $body = substr($source, $at, strpos($source, "\n/**", $at) - $at);
+
+        $this->assertStringContainsString(
+            'cron_secret_hash = NULL',
+            $body,
+            'a rotation that leaves mail_config.cron_secret_hash in place hands the operator a secret '
+            . 'that an older panel rotation still overrides'
+        );
+        $write = strpos($body, 'writeTo(');
+        $clear = strpos($body, 'cron_secret_hash = NULL');
+
+        $this->assertIsInt($write, 'the rotation no longer writes config.php through ConfigWriter');
+        $this->assertIsInt($clear);
+        $this->assertLessThan(
+            $clear,
+            $write,
+            'the file is written before the row is cleared: a failure between the two must leave the '
+            . 'working credential working, not retire it with no replacement published'
+        );
+    }
+
+    /**
      * The backup step is the reason `?update=1` matters: a club configures
      * backups long after installing, and the alternative is hand-editing
      * `config.php` on a live site.

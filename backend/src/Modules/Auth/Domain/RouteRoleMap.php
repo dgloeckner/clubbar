@@ -221,7 +221,6 @@ final class RouteRoleMap
         'GET /api/admin/mail-config' => self::ADMIN_ONLY,
         'PATCH /api/admin/mail-config' => self::ADMIN_ONLY,
         'POST /api/admin/mail-config/test-mail' => self::ADMIN_ONLY,
-        'POST /api/admin/mail-config/cron-secret/rotate' => self::ADMIN_ONLY,
 
         // ── the queue of what was announced to members ───────────────────
         'GET /api/admin/notifications' => self::TREASURY,

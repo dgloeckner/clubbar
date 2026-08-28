@@ -184,7 +184,6 @@ const MATRIX: Entry[] = [
   { method: 'GET', path: '/admin/mail-config', roles: ADMIN_ONLY },
   { method: 'PATCH', path: '/admin/mail-config', roles: ADMIN_ONLY },
   { method: 'POST', path: '/admin/mail-config/test-mail', roles: ADMIN_ONLY },
-  { method: 'POST', path: '/admin/mail-config/cron-secret/rotate', roles: ADMIN_ONLY },
 
   // ── the queue of what was announced to members ──────────────────────────
   { method: 'GET', path: '/admin/notifications', roles: TREASURY },
