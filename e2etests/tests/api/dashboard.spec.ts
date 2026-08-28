@@ -384,6 +384,33 @@ test.describe("Dashboard API", () => {
     }
   });
 
+  test("should name which half of the SEPA setup is missing", async ({
+    authenticatedRequest,
+  }) => {
+    // #741: the admin panel renders this banner in the admin's chosen
+    // language, so it needs the fact rather than the backend's English
+    // sentence. Read-only on purpose — `sepa_config` is a singleton row every
+    // other suite shares, so this asserts the shape of whatever state the run
+    // happens to be in rather than forcing one.
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/dashboard`
+    );
+
+    expect(response.status()).toBe(200);
+    const sepaConfigAlert = (await response.json()).alerts.sepa_config;
+
+    expect(sepaConfigAlert).toHaveProperty("state");
+    expect(["ok", "creditor_missing", "mandate_template_missing"]).toContain(
+      sepaConfigAlert.state
+    );
+
+    // The state and the severity are two readings of one check; a banner that
+    // is silent while a state says something is missing is the failure mode.
+    expect(sepaConfigAlert.severity).toBe(
+      sepaConfigAlert.state === "ok" ? "none" : "error"
+    );
+  });
+
   // ========== AUTHENTICATION & PERFORMANCE ==========
 
   test("should allow authenticated requests", async ({

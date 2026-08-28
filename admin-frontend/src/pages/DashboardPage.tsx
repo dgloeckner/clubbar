@@ -21,6 +21,7 @@ import { StatCard } from '../components/common/StatCard'
 import { UsersIcon, ReceiptIcon, BookIcon } from '../components/icons'
 import { HomeIcon } from '../components/icons/HomeIcon'
 import { getTransactionAmountColor } from '../utils/transactions'
+import { encryptionKeyMessage, sepaConfigMessage } from '../utils/dashboardAlerts'
 
 const AUTO_REFRESH_INTERVAL = 10_000 // 10 seconds
 
@@ -162,8 +163,13 @@ export function DashboardPage() {
   // An alert whose severity the API left out is treated as nothing to say,
   // rather than as an unstyled banner shouting a blank message.
   const encryptionKeySeverity = encryptionKeyAlert?.severity ?? 'none'
+  // Built here rather than shown from `alert.message`: the backend's string is
+  // always English, and this page renders in the admin's chosen language.
+  const encryptionKeyText = encryptionKeyMessage(encryptionKeyAlert ?? {})
   const sepaConfigAlert = alerts.sepa_config
   const sepaConfigSeverity = sepaConfigAlert?.severity ?? 'none'
+  // Same again (#741) — this banner used to read English on a German page.
+  const sepaConfigText = sepaConfigMessage(sepaConfigAlert ?? {})
   const jugendschutzAlert = alerts.jugendschutz_violation
   const jugendschutzSeverity = jugendschutzAlert?.severity ?? 'none'
   const jugendschutzCount = jugendschutzAlert?.count ?? 0
@@ -287,7 +293,7 @@ export function DashboardPage() {
             flexWrap: 'wrap',
           }}
         >
-          <span>{encryptionKeyAlert.message}</span>
+          <span>{t(encryptionKeyText.key, encryptionKeyText.values)}</span>
           <Link
             data-testid="dashboard-encryption-key-link"
             to="/settings"
@@ -332,7 +338,7 @@ export function DashboardPage() {
             flexWrap: 'wrap',
           }}
         >
-          <span>{sepaConfigAlert.message}</span>
+          <span>{t(sepaConfigText.key, sepaConfigText.values)}</span>
           <Link
             data-testid="dashboard-sepa-config-link"
             to="/settings"

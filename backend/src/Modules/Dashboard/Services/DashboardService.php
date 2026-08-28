@@ -308,14 +308,21 @@ class DashboardService
      * either. Unlike `sepaAlert()`, which counts individual members with
      * missing mandate data, this is a single club-wide setup state.
      *
+     * `state` names which of the two halves is missing, and rides alongside
+     * `message` for the same reason `terminal_anomaly` carries its counts: the
+     * admin frontend renders this banner in the admin's chosen language, not
+     * English, so it needs the fact rather than the sentence. Callers with no
+     * translations of their own keep reading `message`.
+     *
      * @param array<string, mixed>|null $config the sepa_config row, or null
      *     if the singleton row is somehow missing
-     * @return array{severity: string, message: string}
+     * @return array{state: string, severity: string, message: string}
      */
     public static function sepaConfigAlert(?array $config): array
     {
         if (!$config || empty($config['creditor_id']) || empty($config['creditor_name']) || empty($config['creditor_iban'])) {
             return [
+                'state' => 'creditor_missing',
                 'severity' => 'error',
                 'message' => 'SEPA creditor details are not configured — settlements cannot be exported to the bank',
             ];
@@ -323,12 +330,13 @@ class DashboardService
 
         if (empty($config['mandate_template_url'])) {
             return [
+                'state' => 'mandate_template_missing',
                 'severity' => 'error',
                 'message' => 'No mandate template URL configured — settlements cannot be exported until members have a form to sign',
             ];
         }
 
-        return ['severity' => 'none', 'message' => 'SEPA configuration is complete'];
+        return ['state' => 'ok', 'severity' => 'none', 'message' => 'SEPA configuration is complete'];
     }
 
     /**

@@ -371,6 +371,7 @@ class DashboardServiceTest extends TestCase
     {
         $alert = DashboardService::sepaConfigAlert(null);
 
+        $this->assertSame('creditor_missing', $alert['state']);
         $this->assertSame('error', $alert['severity']);
         $this->assertStringContainsString('creditor details', $alert['message']);
     }
@@ -384,6 +385,7 @@ class DashboardServiceTest extends TestCase
             'mandate_template_url' => 'https://club.example/anmeldung',
         ]);
 
+        $this->assertSame('creditor_missing', $alert['state']);
         $this->assertSame('error', $alert['severity']);
         $this->assertStringContainsString('creditor details', $alert['message']);
     }
@@ -397,6 +399,7 @@ class DashboardServiceTest extends TestCase
             'mandate_template_url' => null,
         ]);
 
+        $this->assertSame('mandate_template_missing', $alert['state']);
         $this->assertSame('error', $alert['severity']);
         $this->assertStringContainsString('mandate template URL', $alert['message']);
     }
@@ -410,7 +413,39 @@ class DashboardServiceTest extends TestCase
             'mandate_template_url' => 'https://club.example/anmeldung',
         ]);
 
+        $this->assertSame('ok', $alert['state']);
         $this->assertSame('none', $alert['severity']);
+    }
+
+    /**
+     * The admin frontend renders this banner in the admin's chosen language,
+     * so it words the sentence itself from `state` and never shows `message`
+     * (#741). A state that stopped being distinct — or stopped being there —
+     * would collapse two different instructions into one.
+     */
+    public function test_every_sepa_config_outcome_names_a_distinct_state(): void
+    {
+        $complete = [
+            'creditor_id' => 'DE98ZZZ09999999999',
+            'creditor_name' => 'Musterverein e.V.',
+            'creditor_iban' => 'DE89370400440532013000',
+            'mandate_template_url' => 'https://club.example/anmeldung',
+        ];
+
+        $states = [
+            DashboardService::sepaConfigAlert(null)['state'],
+            DashboardService::sepaConfigAlert(['creditor_id' => ''] + $complete)['state'],
+            DashboardService::sepaConfigAlert(['mandate_template_url' => ''] + $complete)['state'],
+            DashboardService::sepaConfigAlert($complete)['state'],
+        ];
+
+        // The empty row and the incomplete one are the same state on purpose:
+        // a club that configured nothing and one missing its creditor id are
+        // sent to the same screen to do the same thing.
+        $this->assertSame(
+            ['creditor_missing', 'creditor_missing', 'mandate_template_missing', 'ok'],
+            $states,
+        );
     }
 
     // ── Product display name ────────────────────────────────────────────────
