@@ -8794,7 +8794,10 @@ components:
                   nullable: true
                 message:
                   type: string
-                  description: Human-readable alert message
+                  description: |
+                    Human-readable alert message. Always English — the admin
+                    frontend builds its own wording from `state`,
+                    `key_identifier` and `days_until_expiry`.
             sepa_config:
               type: object
               description: |
@@ -8805,6 +8808,19 @@ components:
                 either is missing — this is the same completeness check,
                 surfaced before an admin hits that block.
               properties:
+                state:
+                  type: string
+                  enum: [ok, creditor_missing, mandate_template_missing]
+                  description: |
+                    Which half is missing, as a fact rather than a sentence, so
+                    a client that renders in its own language does not have to
+                    parse `message`:
+
+                    - `creditor_missing`: no `sepa_config` row, or one without
+                      creditor id, name or IBAN
+                    - `mandate_template_missing`: creditor details are set but
+                      no mandate template URL is
+                    - `ok`: both are set
                 severity:
                   type: string
                   enum: [none, error]
@@ -8813,7 +8829,9 @@ components:
                     - error: something required for SEPA export is missing
                 message:
                   type: string
-                  description: Human-readable alert message
+                  description: |
+                    Human-readable alert message. Always English — the admin
+                    frontend builds its own wording from `state`.
             jugendschutz_violation:
               type: object
               description: |
