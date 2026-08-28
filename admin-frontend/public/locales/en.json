@@ -1426,9 +1426,9 @@
       "label": "Label",
       "fingerprint": "Fingerprint",
       "archives": "Archives",
-      "span": "Span",
+      "archiveRange": "Oldest – newest archive",
       "empty": "No archive names a key.",
-      "note": "Derived from the archive headers — a list to walk your own key register against, never a replacement for it. A key with no archives opens nothing that is still here."
+      "note": "Derived from the archive headers — a list to walk your own key register against, never a replacement for it. A key with no archives opens nothing that is still here. The archive range says how long a withdrawn key's private half still has to be kept: until even the newest archive named here has fallen out of retention."
     }
   }
 }
