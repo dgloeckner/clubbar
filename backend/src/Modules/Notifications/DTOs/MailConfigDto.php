@@ -89,14 +89,22 @@ final readonly class MailConfigDto
          */
         public DigestCadence $creditLimitDigestCadence = DigestCadence::OFF,
         /**
-         * SHA-256 hex, never a plaintext secret. `null` means no rotation from
-         * the admin panel has ever happened — `config.php`'s `cron.secret` is
-         * still the fallback (#473). Not part of {@see toArray()}: a hash has
-         * no operator value once past the constant-time comparison it exists
-         * for, and there is no reason to widen its exposure.
+         * SHA-256 hex, never a plaintext secret, and never part of
+         * {@see toArray()}: a hash has no operator value once past the
+         * constant-time comparison it exists for.
+         *
+         * A **legacy** value since #744. The admin panel used to mint one
+         * (#473) and it superseded `config.php`'s `cron.secret` entirely;
+         * that half of the feature is gone — the secret is written by the
+         * installer, beside the scheduler instructions that quote it — but an
+         * installation that rotated before the upgrade still has this row, and
+         * it is still what its scheduler sends. So it keeps its precedence in
+         * {@see \App\Modules\Notifications\Services\MailConfigService::verifyCronSecret()}
+         * rather than being ignored or cleared underneath a working cron job.
+         * The installer's own rotation clears it, because that is the one
+         * moment an operator is being handed a replacement that has to work.
          */
         public ?string $cronSecretHash = null,
-        public ?string $cronSecretRotatedAt = null,
         /**
          * A club-level address that also receives admin lifecycle mail
          * (ADR-0044 rule 3) — a Vorstand list, the Kassenwart's inbox.
@@ -130,7 +138,6 @@ final readonly class MailConfigDto
             statementCadence: StatementCadence::fromDeclared($row['statement_cadence'] ?? null),
             creditLimitDigestCadence: DigestCadence::fromDeclared($row['credit_limit_digest_cadence'] ?? null),
             cronSecretHash: self::nullIfBlank($row['cron_secret_hash'] ?? null),
-            cronSecretRotatedAt: self::nullIfBlank($row['cron_secret_rotated_at'] ?? null),
         );
     }
 
@@ -189,11 +196,11 @@ final readonly class MailConfigDto
             'drain_budget_seconds' => $this->drainBudgetSeconds,
             'statement_cadence' => $this->statementCadence->value,
             'credit_limit_digest_cadence' => $this->creditLimitDigestCadence->value,
-            // Never the hash — only whether one exists and when it was made,
-            // which is what the admin panel needs to show a rotate button
-            // and a "last rotated" line without any secret value at all.
-            'cron_secret_configured' => $this->cronSecretHash !== null,
-            'cron_secret_rotated_at' => $this->cronSecretRotatedAt,
+            // Nothing about the URL-trigger secret. Not the hash, obviously,
+            // but not its existence or its age either: this row knows about
+            // one of the two places a secret can live, and a panel that
+            // reported "not configured" over an installation whose
+            // `config.php` had one all along is what #744 was.
             'is_complete' => $this->isComplete(),
         ];
     }

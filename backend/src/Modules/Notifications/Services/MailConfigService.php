@@ -22,8 +22,11 @@ use App\Shared\Services\AuditService;
  * either one missing means nothing useful is sent. Reporting them together is
  * the only way that reads as one answer instead of two amber rows.
  *
- * It also owns the URL-trigger secret's precedence (#473): a rotated value in
- * `mail_config` beats `config.php`'s `cron.secret`, which is why both
+ * It also owns the URL-trigger secret's precedence: `config.php`'s
+ * `cron.secret` is where a secret is written and rotated (by the installer,
+ * beside the scheduler instructions that quote it), and a hash left in
+ * `mail_config` by the admin panel that used to mint one (#473, removed in
+ * #744) still wins where an installation has one. Both
  * {@see \App\Modules\Notifications\Controllers\CronController} and
  * {@see SchedulerStatusService} ask this class rather than each re-deriving
  * the same fallback logic against `AppConfig` directly.
@@ -113,10 +116,14 @@ class MailConfigService
      * Authorise a URL-trigger request against whichever source is
      * authoritative right now.
      *
-     * Once a secret has been rotated from the panel, `config.php`'s stops
-     * being checked at all — rotating supersedes the file value instead of
-     * leaving two live credentials, the same way a terminal token retires the
-     * one it replaces once the new one is used for the first time.
+     * `config.php`'s `cron.secret` is the normal answer. A hash in
+     * `mail_config` still beats it, and only an installation that rotated from
+     * the old admin panel has one: while that panel existed, rotating
+     * superseded the file value rather than leaving two live credentials, and
+     * the scheduler such an installation set up is sending the panel's secret
+     * to this day. Nothing can write that column any more — but silently
+     * ignoring it would stop a working cron job, so it keeps its precedence
+     * until the installer's rotation clears it (#744).
      */
     public function verifyCronSecret(string $provided): bool
     {
@@ -131,29 +138,6 @@ class MailConfigService
 
         $fileSecret = $this->appConfig->cronSecret;
         return $fileSecret !== null && hash_equals($fileSecret, $provided);
-    }
-
-    /**
-     * Generate a replacement, store only its hash, and return the plaintext —
-     * exactly once, to whichever caller just proved they are an admin. Nothing
-     * short of the database row itself remembers it after this call returns.
-     */
-    public function rotateCronSecret(string $adminUserId): string
-    {
-        $plaintext = CronSecret::generate();
-        $this->mailConfigRepository->rotateCronSecret(CronSecret::hash($plaintext), $adminUserId);
-        $this->cachedConfig = null;
-
-        // No oldValues/newValues: the event is the fact, and there is no
-        // truthful "before" to show that is not itself a secret.
-        $this->auditService->log(
-            action: AuditAction::CRON_SECRET_ROTATED,
-            entityType: EntityType::MAIL_CONFIG,
-            entityId: '1',
-            adminUserId: $adminUserId,
-        );
-
-        return $plaintext;
     }
 
     /**

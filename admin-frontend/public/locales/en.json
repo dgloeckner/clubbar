@@ -928,22 +928,10 @@
       },
       "digestCadenceHint": "One aggregate email to admins and the Kassenwart listing every member whose Deckel has reached the warning band, with their name, what they currently owe and the limit that applies to them. It only goes out when somebody is actually in the band — a quiet week means no email at all. Members never receive this digest.",
       "saved": "Mail settings saved.",
-      "cronSecretTitle": "URL-trigger secret",
-      "cronSecretConfigured": "Configured",
-      "cronSecretNotConfigured": "Not configured — /api/cron/drain is switched off unless config.php sets cron.secret.",
-      "cronSecretRotatedAt": "Last rotated {{date}}.",
-      "cronSecretNeverRotated": "Never rotated from this panel — config.php's cron.secret, if set, is what the URL trigger still checks.",
-      "cronSecretHint": "Authorises the URL fallback for the mail scheduler when a hosting panel can only fetch a URL. Rotating replaces it everywhere at once — the old value, panel-rotated or from config.php, stops working immediately.",
-      "generateCronSecret": "Generate secret",
-      "rotateCronSecret": "Rotate secret",
-      "rotateCronSecretConfirm": "Generate a new URL-trigger secret? The previous one — including config.php's, if this installation had one — stops working immediately.",
-      "cronSecretGenerated": "Secret generated",
-      "cronSecretWarning": "This is the only time this secret is shown. Copy it into your scheduler now — the server keeps only a hash and cannot show it again.",
       "errors": {
         "load": "Mail settings could not be loaded.",
         "save": "Mail settings could not be saved.",
-        "test": "The test mail could not be sent.",
-        "rotateCronSecret": "The secret could not be rotated."
+        "test": "The test mail could not be sent."
       }
     },
     "limits": {

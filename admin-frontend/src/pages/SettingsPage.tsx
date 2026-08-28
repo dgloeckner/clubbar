@@ -1177,9 +1177,9 @@ export function SettingsPage() {
 
       {/* Mail settings (#407, ADR-0038). Self-contained like SecurityCheckTab:
           it owns a form, a measured transport panel and the test-mail action.
-          callerTotpEnabled is threaded through for the cron-secret rotate
-          dialog (#473), same as CredentialsTab below. */}
-      {activeTab === 'mail' && <MailSettingsTab callerTotpEnabled={callerTotpEnabled} />}
+          Nothing is threaded in: it stopped needing callerTotpEnabled when the
+          cron-secret rotation left it for the installer (#744). */}
+      {activeTab === 'mail' && <MailSettingsTab />}
 
       {/* Credit Limits Tab (ADR-0047, UC-A65) */}
       {activeTab === 'limits' && (

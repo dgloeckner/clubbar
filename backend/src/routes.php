@@ -286,10 +286,6 @@ return function (App $app): void {
         // requesting admin's own address and nowhere else — see TestMailService
         // for why that does not make it a second sending path.
         $group->post('/mail-config/test-mail', [MailConfigController::class, 'sendTestMail']);
-        // Mints a credential — the URL-trigger secret CronController checks —
-        // so it carries a step-up in the body and shares the step-up
-        // rate-limit dimension, same as terminal tokens (#395, #473).
-        $group->post('/mail-config/cron-secret/rotate', [MailConfigController::class, 'rotateCronSecret'])->add($stepUpRateLimit);
 
         // The mail queue (#407). Read, and exactly one state change: a failed
         // message can go back to `pending`. Nothing here drains, and nothing

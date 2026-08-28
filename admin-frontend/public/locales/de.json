@@ -928,22 +928,10 @@
       },
       "digestCadenceHint": "Eine Sammel-E-Mail an Administratoren und den Kassenwart mit allen Mitgliedern, deren Deckel den Warnbereich erreicht hat — mit Name, aktuellem Betrag und dem jeweils geltenden Limit. Sie geht nur raus, wenn tatsächlich jemand im Warnbereich ist; ist niemand betroffen, kommt keine E-Mail. Mitglieder erhalten diese Übersicht nie.",
       "saved": "Mail-Einstellungen gespeichert.",
-      "cronSecretTitle": "URL-Trigger-Geheimnis",
-      "cronSecretConfigured": "Konfiguriert",
-      "cronSecretNotConfigured": "Nicht konfiguriert — /api/cron/drain ist deaktiviert, sofern nicht cron.secret in der config.php gesetzt ist.",
-      "cronSecretRotatedAt": "Zuletzt erneuert am {{date}}.",
-      "cronSecretNeverRotated": "Noch nie über dieses Panel erneuert — der URL-Trigger prüft weiterhin cron.secret aus der config.php, sofern gesetzt.",
-      "cronSecretHint": "Berechtigt den URL-Fallback des Mail-Schedulers, wenn ein Hosting-Panel nur eine URL abrufen kann. Ein neues Geheimnis ersetzt alle bisherigen sofort — auch ein etwaiges cron.secret aus der config.php funktioniert danach nicht mehr.",
-      "generateCronSecret": "Geheimnis erzeugen",
-      "rotateCronSecret": "Geheimnis erneuern",
-      "rotateCronSecretConfirm": "Neues URL-Trigger-Geheimnis erzeugen? Das bisherige — auch ein etwaiges aus der config.php — funktioniert danach sofort nicht mehr.",
-      "cronSecretGenerated": "Geheimnis erzeugt",
-      "cronSecretWarning": "Dieses Geheimnis wird nur dieses eine Mal angezeigt. Jetzt in den Scheduler kopieren — der Server speichert nur einen Hash und kann es nicht erneut anzeigen.",
       "errors": {
         "load": "Mail-Einstellungen konnten nicht geladen werden.",
         "save": "Mail-Einstellungen konnten nicht gespeichert werden.",
-        "test": "Die Testmail konnte nicht versendet werden.",
-        "rotateCronSecret": "Das Geheimnis konnte nicht erneuert werden."
+        "test": "Die Testmail konnte nicht versendet werden."
       }
     },
     "limits": {

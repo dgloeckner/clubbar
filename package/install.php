@@ -787,6 +787,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
 
+            // Rotating the URL trigger's secret (#744). A separate button in
+            // the same step rather than a step of its own: it is one field of
+            // `config.php`, it belongs beside the `curl` line that quotes it,
+            // and on an install nobody is rotating anything — the secret step 2
+            // wrote is simply shown for the first time.
+            if (($_POST['action'] ?? '') === 'rotate_cron_secret') {
+                $rotation = installerRotateCronSecret($configFile, $configTarget ?? $configFile);
+
+                if ($rotation['secret'] === null) {
+                    $error = $rotation['error'];
+                    break;
+                }
+
+                // Through the session, not the query string: the secret must
+                // not reach the access log the header form exists to keep it
+                // out of. Shown once by renderStep7(), which unsets it.
+                $_SESSION['installer_cron_secret'] = $rotation['secret'];
+                $_SESSION['installer_cron_secret_warning'] = $rotation['error'];
+
+                header('Location: ?step=7' . ($isUpdate ? '&update=1' : ''));
+                exit;
+            }
+
             $cronHeartbeat = trim($_POST['cron_heartbeat_url'] ?? '');
 
             // Refused here rather than at the first run, and this is the one
@@ -868,6 +891,80 @@ function installerHeartbeatUrlError(string $url): ?string
     }
 
     return null;
+}
+
+/**
+ * Mint a new URL-trigger secret and write it to `config.php` (#744).
+ *
+ * This is the *only* place a cron secret is generated after step 2, and since
+ * #744 the only place at all: the admin panel used to mint one too (#473),
+ * store its hash, and supersede this file entirely — which left the wizard
+ * printing scheduler instructions for a secret the application no longer
+ * accepted, and the panel reporting "not configured" over an installation
+ * whose `config.php` had one from the first minute. One writer, one reader.
+ *
+ * Two things have to happen together for the returned secret to be true:
+ *
+ * 1. `config.php` gets the new value — through `ConfigWriter`, so the rest of
+ *    the file survives untouched, the same way every other step writes.
+ * 2. `mail_config.cron_secret_hash` is cleared. Only an installation that used
+ *    the removed panel rotation has one, and while it is there it *wins* —
+ *    handing an operator a secret that a stale row silently overrides is the
+ *    exact failure this whole change is about.
+ *
+ * In that order, deliberately. If the write succeeds and the clear does not,
+ * nothing has broken: the scheduler that was working carries on working, and
+ * the caller is told the new secret is not live yet. The reverse order would
+ * retire a working credential and then fail to publish its replacement.
+ *
+ * @return array{secret: ?string, error: ?string} `secret` null means nothing
+ *         was written and `error` says why; a secret *with* an error means the
+ *         file was written but an older panel-rotated secret is still in force.
+ */
+function installerRotateCronSecret(string $configFile, string $configTarget): array
+{
+    // Same scheme as step 2 and as the removed CronSecret::generate(): 256
+    // bits, hex. Nothing here reads the old value — a rotation that needs to
+    // know the secret it replaces is a rotation that can leak it.
+    $secret = bin2hex(random_bytes(32));
+
+    try {
+        $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+        $writer->writeTo($configTarget, ConfigWriter::merge(
+            ConfigWriter::read($configFile),
+            ['cron' => ['secret' => $secret]]
+        ));
+    } catch (ConfigWriterException $e) {
+        return ['secret' => null, 'error' => $e->getMessage()];
+    }
+
+    $config = require $configFile;
+
+    try {
+        $pdo = new PDO(
+            sprintf(
+                'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+                $config['db']['host'] ?? 'localhost',
+                (int) ($config['db']['port'] ?? 3306),
+                $config['db']['name'] ?? ''
+            ),
+            $config['db']['user'] ?? '',
+            $config['db']['pass'] ?? '',
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '" . Utc::SQL_OFFSET . "'",
+            ]
+        );
+        $pdo->exec('UPDATE mail_config SET cron_secret_hash = NULL, cron_secret_rotated_at = NULL WHERE id = 1');
+    } catch (\PDOException $e) {
+        return [
+            'secret' => $secret,
+            'error' => 'The new secret is in config.php, but an older secret rotated from the admin panel '
+                . 'could not be retired, so the URL trigger still checks that one: ' . $e->getMessage(),
+        ];
+    }
+
+    return ['secret' => $secret, 'error' => null];
 }
 
 /**
@@ -1301,7 +1398,7 @@ function renderStep4(bool $isUpdate): void
 }
 
 /**
- * Step 7: the scheduler (#405) and its alarm (#743).
+ * Step 7: the scheduler (#405), its secret (#744) and its alarm (#743).
  *
  * A prerequisite step rather than a suggestion. The drain is the only thing
  * that sends announcement emails, and until a run has been observed the admin
@@ -1323,6 +1420,17 @@ function renderStep4(bool $isUpdate): void
  * out through the thing that died. It is asked for *here*, beside the job it
  * watches, rather than on the mail screen, because a monitor for a scheduler
  * nobody has scheduled yet is a check that is red from the minute it is made.
+ *
+ * **And the secret both URL triggers need.** Same argument, one screen later:
+ * the two `curl` lines above are useless without it, and until #744 the only
+ * way to see it was to open `config.php` over FTP — while a second button, in
+ * the admin panel, could mint a *different* one that silently superseded this
+ * file (#473), leaving the wizard printing instructions for a secret the
+ * application no longer accepted. That is now the panel's former feature and
+ * this screen's job, because this is where the secret is quoted and where an
+ * operator is already pasting things into a hosting form. Generating one
+ * prints it exactly once: `config.php` keeps the only copy afterwards, and
+ * this page will not repeat it on a refresh.
  */
 function renderStep7(bool $isUpdate, ?string $repost = null): void
 {
@@ -1361,6 +1469,13 @@ function renderStep7(bool $isUpdate, ?string $repost = null): void
     // pointing at a check that was deleted last year.
     $heartbeatValue = $repost ?? (string) ($config['cron']['heartbeat_url'] ?? '');
     $updateParam = $isUpdate ? '&update=1' : '';
+
+    // Shown once, then gone from the session — the same contract the panel's
+    // rotate dialog used to carry, for the same reason: `config.php` is the
+    // only copy, and this page will not print it again on a refresh.
+    $issuedSecret = $_SESSION['installer_cron_secret'] ?? null;
+    $issuedWarning = $_SESSION['installer_cron_secret_warning'] ?? null;
+    unset($_SESSION['installer_cron_secret'], $_SESSION['installer_cron_secret_warning']);
     ?>
     <h2>Step 7: Schedule the two background jobs</h2>
     <p>Club Bar announces every direct debit by email at least seven days before it is collected. Those emails
@@ -1396,6 +1511,28 @@ function renderStep7(bool $isUpdate, ?string $repost = null): void
     <code>backup.recipient_public_keys</code> in <code>config.php</code> and the nightly archives start —
     configuring a key is what switches backups on. Until then this job says so and exits quietly. The
     deployment guide walks through generating the keypairs.</small></p>
+
+    <h3 style="margin: 28px 0 8px; font-size: 16px; color: #374151;">The secret those two URLs need</h3>
+    <p><small>It is <code>cron.secret</code> in <code>config.php</code><?php if ($cronSecret !== null): ?>, written when
+    you set up the database<?php endif; ?> — the URL trigger checks that and nothing else. Read it out of the file, or
+    generate a new one here and copy it straight into your scheduler. <strong>Generating replaces the old value
+    immediately</strong>, so a URL fetch you have already scheduled stops working until you paste the new secret into it.
+    A job that uses the CLI command above is unaffected: it needs no secret at all.</small></p>
+
+    <?php if ($issuedSecret !== null): ?>
+        <p class="check-warn"><small><strong>Copy this now — it is not shown again.</strong> The installer prints it
+        once; after that it is only in <code>config.php</code>.</small></p>
+        <pre id="cronSecretValue"><?php echo htmlspecialchars($issuedSecret); ?></pre>
+        <?php if ($issuedWarning !== null): ?>
+            <div class="error"><?php echo htmlspecialchars($issuedWarning); ?></div>
+        <?php endif; ?>
+    <?php endif; ?>
+
+    <form method="POST" action="?step=7<?= $updateParam ?>">
+        <input type="hidden" name="step" value="7">
+        <input type="hidden" name="action" value="rotate_cron_secret">
+        <button type="submit" class="btn btn-secondary"><?= $cronSecret === null ? 'Generate a secret' : 'Generate a new secret' ?></button>
+    </form>
 
     <p style="margin-top: 20px;">Once you have saved them, wait for the first drain run and check here. The first
     tick can be up to 15 minutes away — you can finish the installation now and check again from the admin panel,

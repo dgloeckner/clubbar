@@ -217,7 +217,7 @@ sequenceDiagram
 | Sender name/address, reply-to, footer/branding | Settings → Mail (admin panel) | Reply-to is typically the Kassenwart's address — bounces land there unparsed |
 | `cron_interval` | Settings → Mail | Declare what actually runs (15 min / hourly / daily) — the stall alarm's timing depends on this being honest |
 | `drain_batch_size`, `drain_budget_seconds` | Settings → Mail | Budget defaults to 25s; lower it to fit a tighter external scheduler timeout |
-| Cron secret (for the URL trigger) | Settings → Mail | Rotatable from the panel without file access; a rotated secret supersedes any value in `config.php` |
+| Cron secret (for the URL trigger) | `backend/config.php` (`cron.secret`) | Written by the installer; the scheduler step (`install.php?step=7&update=1`) generates a replacement and shows it once. **Not** admin-editable since #744 — a second writer meant the panel and the installer could disagree about which secret was live |
 | SMTP transport (`mail.dsn`) | `backend/config.php` | **Not** admin-editable from the panel — same tier as the DB password, changing it is a file operation |
 | `CLUB_TIMEZONE` | `backend/.env` | The clock a mail's dates and times are written in. Defaults to `Europe/Berlin`; an unknown name falls back to it rather than failing a send |
 

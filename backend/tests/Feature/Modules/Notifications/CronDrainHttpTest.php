@@ -143,16 +143,24 @@ class CronDrainHttpTest extends HttpTestCase
         $this->assertStringNotContainsString(self::SECRET, $body);
     }
 
-    /* ──────────────────── A panel-rotated secret (#473) ──────────────────── */
+    /* ────────────── A legacy panel-rotated secret (#473, #744) ────────────── */
 
     /**
      * `config.php`'s secret is what {@see self::environment()} configures for
-     * this whole suite; once `mail_config.cron_secret_hash` is rotated it is
-     * meant to take over completely rather than adding a second live
-     * credential — the same precedence MailConfigServiceTest pins at the unit
-     * level, exercised here through the real route.
+     * this whole suite; where `mail_config.cron_secret_hash` holds a value it
+     * takes over completely rather than adding a second live credential — the
+     * same precedence MailConfigServiceTest pins at the unit level, exercised
+     * here through the real route.
+     *
+     * Nothing can write that column since #744 removed the panel that did.
+     * This test is what keeps an installation that used it working: its
+     * scheduler has been sending the panel's secret for as long as it has
+     * existed, and reading `config.php` instead would stop that job dead with
+     * no way to notice — the drain is the thing that would have mailed about
+     * it. The installer's rotation clears the row, which is the one moment an
+     * operator is being handed a replacement that has to work.
      */
-    public function test_a_rotated_secret_works_and_supersedes_the_file_one(): void
+    public function test_a_legacy_rotated_secret_works_and_supersedes_the_file_one(): void
     {
         $rotated = 'panel-rotated-secret-0123456789';
         $this->db->prepare(

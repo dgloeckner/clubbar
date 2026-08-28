@@ -110,7 +110,9 @@ return [
         // setup: the request line, secret and all, is written verbatim to the
         // webserver's access log, where backups and log-shipping take it along.
         // Rotate it by changing this value; it takes effect on the next request
-        // and nothing else depends on it.
+        // and nothing else depends on it. The installer's scheduler step
+        // (install.php?step=7&update=1) does the same thing without a text
+        // editor, and prints the new secret once.
         //
         // Leave empty and the URL route is not mounted at all: an installation
         // on a CLI cron carries no second, unauthenticated entrance.

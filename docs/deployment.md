@@ -525,16 +525,25 @@ The header form is the supported one. The query-string variant works and is
 degraded: the secret lands verbatim in the webserver's access log. Without
 `cron.secret` the route is not mounted at all.
 
-**Rotating the secret without file access.** Settings → Mail in the admin
-panel can generate and rotate this secret too (#473), for exactly the
-situation above: an external scheduler that only offers a bare URL field
-forces the degraded query-string form, and if that secret leaks into an
-access log, rotating it from `config.php` needs file access the "relocated
-data directory" layout (decision 2 below) may not expose to anything
-web-reachable. A panel-rotated secret supersedes `config.php`'s entirely —
-the old value stops working the moment a new one is generated, rather than
-staying valid alongside it — and it is shown exactly once; only its hash is
-stored, the same way terminal API tokens are kept.
+**Reading it, and rotating it.** The installer writes `cron.secret` at the
+database step and never shows it, so the scheduler step
+(`install.php?step=7&update=1`) carries a **Generate a new secret** button:
+it writes a fresh value through `ConfigWriter`, prints it once, and that is
+the copy you paste into the hosting panel. Rotating matters most in exactly
+the situation above — an external scheduler that only offers a bare URL field
+forces the degraded query-string form, and the secret then sits in an access
+log — and it is immediate: a URL trigger you have already scheduled stops
+working until you update it. A CLI cron job is unaffected; it sends no secret.
+
+Until #744 the admin panel could mint one too, under Settings → Mail, and a
+panel-rotated secret superseded `config.php`'s entirely. That is gone: two
+writers for one credential meant the installer could print instructions for a
+secret the application no longer accepted, and the panel — which could only
+see its own half — reported "no secret configured" over an installation whose
+`config.php` had carried one since day one. An installation that *did* rotate
+from the panel keeps working, because the stored hash keeps its precedence
+until the installer's rotation clears it (which it does, in the same action
+that writes the new value).
 
 ### Scheduling the backup
 
