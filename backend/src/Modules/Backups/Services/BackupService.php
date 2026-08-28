@@ -466,12 +466,26 @@ final class BackupService
         $remote = $transport->describe();
 
         try {
-            $expired = RemoteRetention::expiredAmong($transport->list(), $this->retention);
+            $listing = $transport->list();
         } catch (BackupTransportException $e) {
             $findings[] = 'Could not age out old archives on ' . $remote . ': ' . $e->getMessage();
 
+            // The previous snapshot is deliberately left alone (#693). Last
+            // night's answer is imperfect; no answer at all sends an admin to
+            // the provider's portal to establish something they were told a
+            // day ago, and the reader is given the timestamp to judge with.
             return 0;
         }
+
+        // Written down rather than thrown away, which is all this line is
+        // (#693). The run has to list the store to age archives out, and that
+        // listing is the only answer to "is this archive still off-site" that
+        // the panel is allowed to have — a page may not call the provider, for
+        // the reasons BackupStatusCheck and BackupSchedule assert on their own
+        // constructors.
+        (new RemoteInventory($this->backupDirectory))->record($listing, $remote);
+
+        $expired = RemoteRetention::expiredAmong($listing, $this->retention);
 
         $pruned = 0;
         foreach ($expired as $archive) {

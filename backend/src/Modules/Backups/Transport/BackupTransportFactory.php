@@ -29,11 +29,43 @@ use App\Shared\Logging\Logger;
  */
 final class BackupTransportFactory
 {
+    /**
+     * A transport sized for somebody waiting, not for a nightly upload (#693).
+     *
+     * The backups page may ask the store — the store is its subject — but the
+     * nightly budget is exactly wrong for a request a person is sitting in
+     * front of: 120 seconds per call and three retries honouring `Retry-After`
+     * can run for minutes on a throttled tenant, while shared hosting kills the
+     * request at 30–60 seconds and hands the admin a blank error.
+     *
+     * So this one answers quickly or not at all, and **not at all is a fine
+     * outcome**: the caller falls back to the nightly snapshot and says which
+     * it is showing. A slow store costs one stale column, never a broken page.
+     */
+    public static function forBrowsing(
+        ?string $dsn,
+        ?string $clientSecret,
+        HttpClient $http,
+        Logger $logger,
+    ): ?BackupTransport {
+        return self::fromConfig($dsn, $clientSecret, $http, $logger, self::BROWSE_TIMEOUT_SECONDS, 0);
+    }
+
+    /**
+     * Seconds a page-triggered call may spend.
+     *
+     * Under every shared-hosting gateway timeout in the supported set, so the
+     * fallback is ours to choose rather than the webserver's to impose.
+     */
+    public const BROWSE_TIMEOUT_SECONDS = 8;
+
     public static function fromConfig(
         ?string $dsn,
         ?string $clientSecret,
         HttpClient $http,
         Logger $logger,
+        ?int $timeoutSeconds = null,
+        ?int $maxRetries = null,
     ): ?BackupTransport {
         if ($dsn === null || trim($dsn) === '') {
             return null;
@@ -59,6 +91,14 @@ final class BackupTransportFactory
             );
         }
 
-        return new MsGraphTransport($parsed, (string) $clientSecret, $http, $logger);
+        return new MsGraphTransport(
+            $parsed,
+            (string) $clientSecret,
+            $http,
+            $logger,
+            null,
+            $timeoutSeconds ?? MsGraphTransport::DEFAULT_TIMEOUT_SECONDS,
+            $maxRetries ?? MsGraphTransport::DEFAULT_MAX_RETRIES,
+        );
     }
 }

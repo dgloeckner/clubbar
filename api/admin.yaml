@@ -4352,6 +4352,153 @@ paths:
                   execution_date:
                     - execution_date must be a bank business day (Mon-Fri, excluding TARGET2 closing days)
 
+  # ============================================================================
+  # BACKUPS (ADR-0049, #693)
+  # ============================================================================
+  /admin/backups:
+    get:
+      summary: What this installation holds locally
+      operationId: listBackups
+      description: |
+        The archives on disk and the keys that open them, read from the
+        filesystem and nothing else.
+
+        **This route never touches the storage provider**, and that is the
+        contract rather than an implementation detail. Whether an archive is
+        also off-site is `GET /admin/backups/remote`'s answer, on a request of
+        its own, so the page renders this table immediately and fills that
+        column in when it arrives — a throttled tenant costs a club one
+        greyed-out column, never the list of what they have.
+
+        ## The key list
+
+        [ADR-0049](../../adr/0049-encrypted-offsite-backups-on-shared-hosting.md)
+        hands the private halves to the club, and #703 removed the
+        application's key register along with the tracking tables: custody
+        lives in the club's own register, on paper, where a restore cannot
+        rewrite it.
+
+        What went with those tables was the answer to a question a treasurer
+        eventually asks — *"which of these private keys may we finally
+        destroy?"* It needs no register: every archive names the keys that open
+        it in a header readable **with no key at all**, so aggregating those
+        headers gives the label, the fingerprint and the span of archives each
+        key still opens.
+
+        Aggregated by **fingerprint**, never by label. A label is what somebody
+        typed into `config.php` and can be reused or reassigned; two envelopes
+        both marked `vorstand` from different years are two keys, and merging
+        them would tell a club it was safe to destroy one.
+
+        This is the checklist to walk the paper register against, never a
+        replacement for it: it sees only what is on this host now.
+
+        `admin` only. An archive carries the audit log, every admin's TOTP
+        ciphertext and the database password.
+      tags:
+        - Backups
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: The local inventory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupInventory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+
+  /admin/backups/remote:
+    get:
+      summary: Which archives the off-site store holds
+      operationId: getBackupRemote
+      description: |
+        The one question the local directory cannot answer: a local archive and
+        an uploaded one are the same bytes in the same folder, because an upload
+        is a copy rather than a move.
+
+        **Its own route so the page never waits on it.** This is the only
+        backup surface allowed to reach the storage provider — the security
+        self-check and the panel's scheduler banner may not, and assert it on
+        their constructors, because a tenant outage must not sit between an
+        admin and every screen they own. Here the store *is* the subject, and
+        the request is separate, so it may ask.
+
+        Bounded when it does: eight seconds and no retries, rather than the
+        nightly job's 120 seconds and three retries honouring `Retry-After`.
+        A call that does not answer inside that is not an error — it is the
+        expected cost of a throttled tenant, and the answer falls back to the
+        listing the nightly run recorded.
+
+        `source` is a closed vocabulary and is never collapsed to two values:
+        *"the store says this archive is gone"* and *"we could not ask, and
+        last night it was there"* lead a club to different actions.
+      tags:
+        - Backups
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: What the store holds, and how that was established
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupRemoteState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+
+  /admin/backups/{name}:
+    get:
+      summary: Download one archive
+      operationId: downloadBackup
+      description: |
+        Streams the sealed container.
+
+        The bytes are sealed to public keys this server does not hold the other
+        half of, so this hands over something the server itself cannot read —
+        which is why an ordinary authenticated download is the right shape
+        rather than a step-up. Opening it needs a private key from the club's
+        own custody and `tools/backup-decryptor.html`.
+
+        `Cache-Control: no-store`: sealed or not, it is the club's whole
+        database, and no proxy or shared browser cache should keep a copy.
+
+        The name comes from the URL, so it is reduced to its basename and then
+        checked against the archive prefix and extension before the filesystem
+        is touched. Anything else — a traversal, the journal, the remote
+        snapshot, an operator's notes — is `404`.
+      tags:
+        - Backups
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The archive filename, as `GET /admin/backups` lists it.
+          example: clubbar-20260825-030000-1a2b3c4d.cbb
+      responses:
+        '200':
+          description: The sealed archive
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '404':
+          description: No such archive, or a name this route will not serve
+
   /admin/security-check:
     get:
       summary: Security self-check
@@ -7307,6 +7454,136 @@ components:
                 other response.
             message:
               type: string
+
+    BackupInventory:
+      type: object
+      description: |
+        The local half of the backups page (#693). Filesystem only — the
+        off-site column comes from `GET /admin/backups/remote`.
+      properties:
+        archives:
+          type: array
+          items:
+            $ref: '#/components/schemas/BackupArchive'
+        keys:
+          type: array
+          description: |
+            The keys that open what is here, aggregated by fingerprint.
+          items:
+            $ref: '#/components/schemas/BackupKey'
+
+    BackupArchive:
+      type: object
+      properties:
+        name:
+          type: string
+          example: clubbar-20260825-030000-1a2b3c4d.cbb
+        bytes:
+          type: integer
+          description: Size of the sealed container on disk.
+        at:
+          type: integer
+          description: |
+            The snapshot instant, as a Unix timestamp, taken from the
+            **filename** rather than the file's mtime. A copy, a restore from a
+            provider's recycle bin or a stray `touch` rewrites the mtime while
+            the name still says when the snapshot was taken.
+        readable:
+          type: boolean
+          description: |
+            Whether the header parsed. `false` means the archive is on disk but
+            damaged — it is **listed anyway**, because omitting it would remove
+            the one file most worth investigating and let a club count backups
+            it does not have. Every field below is then `null`.
+        created_at:
+          type: string
+          nullable: true
+          description: The archive's own claim, from its header.
+        config_included:
+          type: boolean
+          nullable: true
+          description: |
+            Whether the payload carries `config.php` as well as the rows (#692).
+            It changes what a restore still needs: without it, restoring yields
+            a database every admin is locked out of, because the TOTP encryption
+            key is not in the database.
+        plaintext_bytes:
+          type: integer
+          nullable: true
+          description: Size of the dump the decryptor hands back, before sealing.
+        recipients:
+          type: array
+          description: The keys this archive is sealed to. Public halves only.
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              fingerprint:
+                type: string
+
+    BackupKey:
+      type: object
+      description: |
+        One recipient key, and the span of archives it still opens. A key whose
+        newest archive has aged out opens nothing this installation holds —
+        which is the fact somebody needs before shredding a paper envelope.
+      properties:
+        label:
+          type: string
+          description: What is written on the envelope. Not an identity.
+          example: vorstand
+        fingerprint:
+          type: string
+          description: SHA-256 of the public key. This is the identity.
+        archives:
+          type: integer
+          description: How many archives here are sealed to it.
+        first_seen:
+          type: string
+          nullable: true
+          description: The oldest archive it opens.
+        last_seen:
+          type: string
+          nullable: true
+          description: The newest archive it opens.
+
+    BackupRemoteState:
+      type: object
+      description: |
+        What the off-site store holds, and how that was established.
+      properties:
+        source:
+          type: string
+          enum: [live, snapshot, unavailable]
+          description: |
+            `live` — the store was asked just now and answered.
+
+            `snapshot` — it could not be reached in the budget; this is what the
+            nightly run last saw, and `taken_at` says when.
+
+            `unavailable` — no live answer and no snapshot: nobody has ever
+            successfully listed this store, which on a configured installation
+            means the nightly job has not run.
+        remote:
+          type: string
+          nullable: true
+          description: Which store this is. Null when no `backup.dsn` is configured.
+        taken_at:
+          type: integer
+          nullable: true
+          description: |
+            When this answer was true, as a Unix timestamp. Present for `live`
+            and `snapshot`; a reader must show it, so "as of last night" is
+            never passed off as "right now".
+        names:
+          type: array
+          description: Archive filenames the store holds.
+          items:
+            type: string
+        error:
+          type: string
+          nullable: true
 
     SchedulerStatus:
       type: object

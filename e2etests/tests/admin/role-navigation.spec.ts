@@ -245,6 +245,8 @@ test.describe('Role-aware navigation', () => {
       'nav-reports',
       'nav-settings',
       'nav-notifications',
+      // The backups page (#693) — `admin`-only, like the audit log below it.
+      'nav-backups',
       'nav-audit-log',
     ])
   })

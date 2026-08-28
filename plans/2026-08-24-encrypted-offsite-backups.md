@@ -237,11 +237,24 @@ rather than the archive format.
       (`dedup_key` = `stale:<date>:<adminUserId>`). Migration 056 widens the
       outbox enum by one value — still no backup table, no backup row, no audit
       vocabulary.
-- [ ] A backups page reading the archive headers, locally and on the remote
+- [x] **A backups page reading the archive headers, locally and on the remote.**
+      `GET /api/admin/backups` is local only — archives plus the key list
+      derived from their headers, aggregated by fingerprint rather than label.
+      `GET /api/admin/backups/remote` is a **separate** route: it asks the store
+      live under an eight-second budget with no retries, falls back to the
+      listing the nightly run now records, and names which of the three answers
+      it is giving. `GET /api/admin/backups/{name}` downloads one sealed
+      archive. All three `admin`-only; nothing writes.
 
-Until the page ships, "which keys are still needed" is answered by opening each
-archive's header in the decryptor. The runbook says so rather than describing a
-screen that does not exist.
+**M7 is complete.**
+
+**The page renders local data without waiting for the store**, and that is the
+shape rather than an optimisation. The rule the self-check and the every-page
+banner live under — never reach the provider, asserted on their constructors —
+exists because a tenant outage must not sit between an admin and every screen
+they own. On a page whose subject *is* the store, on a request of its own, that
+reasoning does not apply; what still applies is that the local table must not be
+held hostage by the slowest participant. So: two fetches, never combined.
 
 **No cron expression is shipped anywhere in this milestone.** Triggering is
 external — a hosting panel fires both jobs and the application never reads a

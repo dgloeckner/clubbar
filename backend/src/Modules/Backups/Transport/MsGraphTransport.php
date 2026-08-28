@@ -60,10 +60,20 @@ final class MsGraphTransport implements BackupTransport
     private const GRAPH = 'https://graph.microsoft.com/v1.0';
     private const LOGIN = 'https://login.microsoftonline.com';
 
-    /** Bounds one request. A whole run is bounded separately, by its budget. */
-    private const TIMEOUT_SECONDS = 120;
+    /**
+     * Bounds one request on the nightly path. A whole run is bounded separately,
+     * by its budget.
+     *
+     * Sized for a 3.2 MiB chunk on a slow line, which is the right shape for a
+     * job nobody is waiting on. It is the **default** rather than a constant
+     * since #693, because a page-triggered listing wants the opposite trade —
+     * see {@see self::browsing()}.
+     */
+    public const DEFAULT_TIMEOUT_SECONDS = 120;
 
-    private const MAX_RETRIES = 3;
+    /** Retries honour `Retry-After`, so a throttled tenant sets the real cost. */
+    public const DEFAULT_MAX_RETRIES = 3;
+
     private const FALLBACK_BACKOFF_SECONDS = 5;
 
     private readonly Closure $sleeper;
@@ -85,6 +95,13 @@ final class MsGraphTransport implements BackupTransport
         private readonly HttpClient $http,
         private readonly Logger $logger,
         ?callable $sleeper = null,
+        /**
+         * Seconds one request may take. Defaults to the nightly job's budget;
+         * {@see self::browsing()} is the short-budgeted alternative a page uses.
+         */
+        private readonly int $timeoutSeconds = self::DEFAULT_TIMEOUT_SECONDS,
+        /** Retries on a throttle. Zero means answer or fail, never wait. */
+        private readonly int $maxRetries = self::DEFAULT_MAX_RETRIES,
     ) {
         $this->sleeper = $sleeper === null
             ? static function (int $seconds): void {
@@ -428,7 +445,7 @@ final class MsGraphTransport implements BackupTransport
                 'scope' => 'https://graph.microsoft.com/.default',
                 'grant_type' => 'client_credentials',
             ]),
-            self::TIMEOUT_SECONDS,
+            $this->timeoutSeconds,
         );
 
         if ($response->status === 0) {
@@ -497,7 +514,7 @@ final class MsGraphTransport implements BackupTransport
                 $all['Authorization'] = 'Bearer ' . $this->token();
             }
 
-            $response = $this->http->send($method, $url, $all, $body, self::TIMEOUT_SECONDS);
+            $response = $this->http->send($method, $url, $all, $body, $this->timeoutSeconds);
 
             if ($response->status === 0) {
                 throw new BackupTransportException(
@@ -505,7 +522,7 @@ final class MsGraphTransport implements BackupTransport
                 );
             }
 
-            if (!self::isThrottled($response) || $attempt >= self::MAX_RETRIES) {
+            if (!self::isThrottled($response) || $attempt >= $this->maxRetries) {
                 return $response;
             }
 

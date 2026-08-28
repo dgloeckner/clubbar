@@ -18,6 +18,7 @@ use App\Modules\Instance\Controllers\InstanceConfigController;
 use App\Modules\CreditLimits\Controllers\CreditLimitConfigController;
 use App\Modules\CreditLimits\Controllers\SyncController as CreditLimitSyncController;
 use App\Modules\Backups\Controllers\BackupCronController;
+use App\Modules\Backups\Controllers\BackupsController;
 use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
@@ -135,6 +136,17 @@ return function (App $app): void {
         // installation's weak points and the paths its member documents live
         // in (#247, ADR-0031 decision 3).
         $group->get('/security-check', [SecurityCheckController::class, 'show']);
+
+        // The backups page (#693). Three routes rather than one because they
+        // cost differently: the list is a directory scan, `/remote` is a
+        // bounded call to the storage provider, and the download streams a
+        // file. Splitting them is what lets the page render without waiting on
+        // a throttled tenant — see BackupsController.
+        $group->get('/backups', [BackupsController::class, 'index']);
+        $group->get('/backups/remote', [BackupsController::class, 'remote']);
+        // After `/remote`, so the literal segment is matched first rather than
+        // being swallowed as an archive name.
+        $group->get('/backups/{name}', [BackupsController::class, 'download']);
 
         // Dashboard
         $group->get('/dashboard', [DashboardAdminController::class, 'show']);

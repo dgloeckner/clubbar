@@ -14,7 +14,8 @@
     "more": "Mehr",
     "journalShort": "Journal",
     "settlementsShort": "Abrechn.",
-    "notifications": "Benachrichtigungen"
+    "notifications": "Benachrichtigungen",
+    "backups": "Datensicherungen"
   },
   "common": {
     "save": "Speichern",
@@ -1391,6 +1392,43 @@
     "errors": {
       "load": "Warteschlange konnte nicht geladen werden.",
       "retry": "Die Nachricht konnte nicht erneut eingereiht werden."
+    }
+  },
+  "backups": {
+    "title": "Datensicherungen",
+    "subtitle": "Was auf diesem Server liegt und welche Schlüssel es öffnen",
+    "loading": "Wird geladen …",
+    "loadFailed": "Die Übersicht konnte nicht geladen werden.",
+    "archives": {
+      "heading": "Archive",
+      "name": "Datei",
+      "size": "Größe",
+      "keys": "Schlüssel",
+      "offsite": "Außer Haus",
+      "download": "Herunterladen",
+      "empty": "Es liegt kein Archiv auf diesem Server.",
+      "unreadable": "nicht lesbar",
+      "withConfig": "mit config.php"
+    },
+    "offsite": {
+      "yes": "ja",
+      "no": "nein",
+      "unknown": "unbekannt"
+    },
+    "remote": {
+      "checking": "Der Ablageort wird abgefragt …",
+      "live": "Gerade abgefragt: {{remote}}",
+      "snapshot": "Der Ablageort war nicht erreichbar. Angezeigt wird der Stand vom {{when}}.",
+      "unavailable": "Es liegt keine Auskunft über den Ablageort vor — der nächtliche Lauf hat ihn noch nie aufgelistet."
+    },
+    "keys": {
+      "heading": "Schlüssel",
+      "label": "Bezeichnung",
+      "fingerprint": "Fingerabdruck",
+      "archives": "Archive",
+      "span": "Zeitraum",
+      "empty": "Kein Archiv nennt einen Schlüssel.",
+      "note": "Abgeleitet aus den Archiv-Kopfdaten — eine Liste zum Abgleich mit eurem eigenen Schlüsselverzeichnis, kein Ersatz dafür. Ein Schlüssel ohne Archive öffnet nichts mehr, was hier liegt."
     }
   }
 }
