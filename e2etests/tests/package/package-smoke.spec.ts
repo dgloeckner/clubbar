@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { generateKeyPairSync } from 'node:crypto';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import path from 'node:path';
 import { generateTotp } from '../../utils/totp';
 
@@ -22,6 +22,28 @@ const CI_DEPLOY_SECRET = 'ci-deploy-secret-0000';
 
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.package.yml'];
+
+/**
+ * Step 6's recipient rows (#735) post as repeated `recipient_label[]` /
+ * `recipient_key[]` fields rather than one flattened value, so `form:` (which
+ * cannot express a repeated key) is not enough — built by hand and sent as a
+ * pre-encoded body instead.
+ */
+function step6Body(
+  rows: Array<{ label: string; key: string }>,
+  extra: Record<string, string> = {}
+): { data: string; headers: Record<string, string> } {
+  const params = new URLSearchParams();
+  params.append('step', '6');
+  for (const row of rows) {
+    params.append('recipient_label[]', row.label);
+    params.append('recipient_key[]', row.key);
+  }
+  for (const [key, value] of Object.entries(extra)) {
+    params.append(key, value);
+  }
+  return { data: params.toString(), headers: { 'content-type': 'application/x-www-form-urlencoded' } };
+}
 
 type InstallAuditRow = {
   admin_user_id: string;
@@ -317,17 +339,41 @@ test.describe('Package: Install Wizard', () => {
     // backups, not in the hour it installs.
     const step6 = await request.get(`${PACKAGE_URL}/install.php?step=6`);
     expect(step6.status()).toBe(200);
-    expect(await step6.text()).toContain('Backups');
+    const step6Html = await step6.text();
+    expect(step6Html).toContain('Backups');
+
+    // #733: the generator is generated and used entirely offline. Linking a
+    // server-hosted copy would both defeat the point (a compromised host could
+    // serve a modified copy that steals the private half it just displayed)
+    // and not even work, since the shipped CSP refuses its inline <script>.
+    expect(step6Html).not.toMatch(/href=["']tools\/keypair-generator\.html["']/);
+    expect(step6Html).toContain('tools/keypair-generator.html');
+    expect(step6Html).toMatch(/offline/i);
+
+    // #735: two rows by default, encouraging (without requiring) two holders.
+    expect((step6Html.match(/name="recipient_label\[\]"/g) ?? []).length).toBe(2);
 
     // The mismatch this step was built around: the key generator printed
     // base64 while the keyring needs hex, and four documents promised the
-    // opposite. The refusal has to name the encoding, not merely refuse.
+    // opposite. The refusal has to name the encoding, not merely refuse — and
+    // (#735) attach to the specific row rather than a generic banner.
     const base64Key = await request.post(`${PACKAGE_URL}/install.php?step=6`, {
-      form: { step: '6', recipient_public_keys: 'admin:yeMcz7Ncmobf9EuVwTkeR+DOf3focDz4UV0c9/CIjk4=' },
+      ...step6Body([{ label: 'admin', key: 'yeMcz7Ncmobf9EuVwTkeR+DOf3focDz4UV0c9/CIjk4=' }]),
       maxRedirects: 0,
     });
     expect(base64Key.status()).toBe(200);
-    expect(await base64Key.text()).toMatch(/64 hex characters/);
+    const base64KeyHtml = await base64Key.text();
+    expect(base64KeyHtml).toMatch(/64 hex characters/);
+    expect(base64KeyHtml).toContain('recipient-row-error');
+
+    // A label with a space is refused the same way, naming the rule rather
+    // than just saying "invalid" (#735).
+    const badLabel = await request.post(`${PACKAGE_URL}/install.php?step=6`, {
+      ...step6Body([{ label: 'vorstand müller', key: 'a1b2c3d4'.repeat(8) }]),
+      maxRedirects: 0,
+    });
+    expect(badLabel.status()).toBe(200);
+    expect(await badLabel.text()).toMatch(/letters, digits, hyphens/);
 
     // A DSN with a segment missing is the worst state this screen can let
     // through: the club types one, believes archives are leaving the host, and
@@ -341,28 +387,56 @@ test.describe('Package: Install Wizard', () => {
     expect(await badBackupDsn.text()).toContain('backup.dsn');
 
     const recipients = [
-      `admin:${'a1b2c3d4'.repeat(8)}`,
-      `vorstand:${'9f8e7d6c'.repeat(8)}`,
+      { label: 'admin', key: 'a1b2c3d4'.repeat(8) },
+      { label: 'vorstand', key: '9f8e7d6c'.repeat(8) },
     ];
+
+    // #735 defect fix: a mistake in one row must not cost the operator every
+    // other field on the screen. The second row is malformed here; the first
+    // row's key and the DSN/expiry/heartbeat fields must all survive the
+    // failed round trip untouched.
+    const partialFailure = await request.post(`${PACKAGE_URL}/install.php?step=6`, {
+      ...step6Body(
+        [recipients[0], { label: 'vorstand mueller', key: recipients[1].key }],
+        {
+          backup_dsn: 'msgraph://tenant/client@drive/b!ci/clubbar',
+          backup_secret_expires_at: '2099-01-01',
+          backup_heartbeat_url: 'https://hc-ping.com/ci-canary',
+        }
+      ),
+      maxRedirects: 0,
+    });
+    expect(partialFailure.status()).toBe(200);
+    const partialFailureHtml = await partialFailure.text();
+    expect(partialFailureHtml).toContain(recipients[0].key);
+    expect(partialFailureHtml).toContain('msgraph://tenant/client@drive/b!ci/clubbar');
+    expect(partialFailureHtml).toContain('2099-01-01');
+    expect(partialFailureHtml).toContain('https://hc-ping.com/ci-canary');
+    expect(partialFailureHtml).toContain('recipient-row-error');
+
     const step6Post = await request.post(`${PACKAGE_URL}/install.php?step=6`, {
-      form: {
-        step: '6',
-        recipient_public_keys: recipients.join('\n'),
+      ...step6Body(recipients, {
         backup_dsn: 'msgraph://tenant/client@drive/b!ci/clubbar',
         backup_client_secret: 'ci-secret',
         backup_secret_expires_at: '2099-01-01',
-      },
+      }),
       maxRedirects: 0,
     });
     expect(step6Post.status()).toBe(302);
     expect(step6Post.headers()['location']).toContain('step=7');
 
     // Both recipients survived the round trip through config.php — these are
-    // public keys, so this screen does pre-fill them.
+    // public keys, so this screen does pre-fill them, each beside the SHA-256
+    // fingerprint tools/keypair-generator.html and the archive header show for
+    // the same key (#735) — so a swapped or truncated paste is verifiable
+    // against the paper the operator is holding.
     const step6Again = await request.get(`${PACKAGE_URL}/install.php?step=6`);
     const step6AgainHtml = await step6Again.text();
     for (const recipient of recipients) {
-      expect(step6AgainHtml).toContain(recipient);
+      expect(step6AgainHtml).toContain(recipient.label);
+      expect(step6AgainHtml).toContain(recipient.key);
+      const fingerprint = createHash('sha256').update(Buffer.from(recipient.key, 'hex')).digest('hex');
+      expect(step6AgainHtml).toContain(fingerprint);
     }
     // The client secret is not echoed back, for the same reason as the DSN's
     // password.
@@ -379,7 +453,7 @@ test.describe('Package: Install Wizard', () => {
     const step6UpdateHtml = await step6Update.text();
     expect(step6UpdateHtml).toContain('Backups');
     // It reads the live file, so what was saved above is here.
-    expect(step6UpdateHtml).toContain(recipients[0]);
+    expect(step6UpdateHtml).toContain(recipients[0].key);
 
     // A blank client secret on a re-run means "keep the stored one", which is
     // what lets the screen decline to echo a live credential back. Changing the
@@ -387,13 +461,11 @@ test.describe('Package: Install Wizard', () => {
     // depends on — a failure that would surface as uploads stopping, weeks
     // later, in a job nobody reads.
     const step6Reentry = await request.post(`${PACKAGE_URL}/install.php?step=6&update=1`, {
-      form: {
-        step: '6',
-        recipient_public_keys: recipients.join('\n'),
+      ...step6Body(recipients, {
         backup_dsn: 'msgraph://tenant/client@drive/b!ci/clubbar',
         backup_client_secret: '',
         backup_secret_expires_at: '2098-06-30',
-      },
+      }),
       maxRedirects: 0,
     });
     expect(step6Reentry.status()).toBe(302);
@@ -649,6 +721,22 @@ test.describe('Package: .htaccess access rules', () => {
       expect(header, `Permissions-Policy: ${header}`).toContain(directive);
     }
   });
+
+  /**
+   * #733: the offline backup tools must not be reachable over HTTP, on this
+   * server or any other — they are meant to be opened from a local copy
+   * (file://), and a compromised host could otherwise serve a modified
+   * generator that steals the private half it just displayed. `tools/` still
+   * ships inside the document root (see "the offline backup tools ship
+   * inside the document root" in Package: Data placement below) — this is
+   * the denial that has to hold regardless.
+   */
+  test('the offline backup tools are denied over HTTP', async ({ request }) => {
+    for (const file of ['keypair-generator.html', 'backup-decryptor.html']) {
+      const response = await request.get(`${PACKAGE_URL}/tools/${file}`);
+      expect(response.status(), `tools/${file}`).toBe(403);
+    }
+  });
 });
 
 /**
@@ -858,6 +946,21 @@ test.describe.serial('Package: Data placement', () => {
   // exactly why guessing it is not a defence.
   const MEMBER_ID = '11111111-2222-3333-4444-555555555555';
   const MANDATE_URL = `${PACKAGE_URL}/backend/storage/mandates/${MEMBER_ID}.pdf`;
+
+  /**
+   * The release must actually contain the tools it tells clubs to use (#710
+   * regression guard, sharpened by #733): `tools/` ships inside the document
+   * root — see `scripts/build-package.sh` — precisely so it can be denied by
+   * `.htaccess` ("the offline backup tools are denied over HTTP", in
+   * Package: .htaccess access rules) rather than by not existing.
+   */
+  test('the offline backup tools ship inside the document root', () => {
+    for (const file of ['keypair-generator.html', 'backup-decryptor.html']) {
+      expect(fileExists(`${DOCUMENT_ROOT}/tools/${file}`), `tools/${file} did not ship (#710 regression)`).toBe(
+        true
+      );
+    }
+  });
 
   /**
    * The installer does not take the `.htaccess` denial on trust either: it
