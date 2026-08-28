@@ -34,6 +34,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
 require_once __DIR__ . '/backend/src/Shared/Config/ConfigWriter.php';
 require_once __DIR__ . '/backend/src/Shared/Config/ConfigWriterException.php';
+// Files an older release put in the document root and this one does not ship
+// there any more, swept once migrations have run (#751).
+require_once __DIR__ . '/backend/src/Shared/Config/RetiredFiles.php';
 
 // The prerequisite step measures the effective hardening rather than assuming
 // it applied (#247, ADR-0031 decision 3). Same requirement: these run before
@@ -56,11 +59,23 @@ require_once __DIR__ . '/backend/src/Shared/Time/Utc.php';
 use App\Shared\Config\DataDirectory;
 use App\Shared\Config\ConfigWriter;
 use App\Shared\Config\ConfigWriterException;
+use App\Shared\Config\RetiredFiles;
 use App\Shared\Security\FileModes;
 use App\Shared\Security\SecurityCheckContext;
 use App\Shared\Security\SecurityFinding;
 use App\Shared\Security\SecuritySelfCheck;
 use App\Shared\Time\Utc;
+
+// The commented template ConfigWriter substitutes values into, rather than
+// generating `config.php` from scratch (#710).
+//
+// It ships *inside* `backend/` and not next to this file (#751). Every file in
+// the document root is a URL, and this one is neither needed there nor ever
+// requested by a browser: the installer reads it from disk. `backend/` is
+// denied wholesale by the shipped `.htaccess`, which is the same reason
+// `config.php` itself is allowed to fall back into that directory (ADR-0031
+// decision 2) — and it puts the template beside the file it is a template for.
+const INSTALLER_CONFIG_TEMPLATE = __DIR__ . '/backend/config.sample.php';
 
 // The wizard takes the database password, generates the TOTP encryption key and
 // prints both back into a form — and it is the one page of this deployment that
@@ -342,7 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // this step, or reaching it from the backup step, must never
                 // cost an installation something it is not being asked about.
                 try {
-                    $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+                    $writer = new ConfigWriter(INSTALLER_CONFIG_TEMPLATE);
                     $writer->writeTo($configTarget, ConfigWriter::merge(
                         ConfigWriter::read($configFile),
                         [
@@ -464,6 +479,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $failedEntry = $failed[array_key_first($failed)];
                     $error = 'Migration failed: ' . ($failedEntry['message'] ?? 'unknown error');
                 } else {
+                    // The migrate step is the one screen every upgrade route
+                    // passes through — `docs/deployment.md` sends a manual
+                    // upgrade here rather than to `upgrade.php` — and an
+                    // upgrade unpacked over an existing installation adds files
+                    // without ever removing one. So this is where a file an
+                    // older release put in the document root stops existing
+                    // (#751).
+                    RetiredFiles::sweep(__DIR__);
+
                     if ($isUpdate) {
                         // Update complete — delete installer data so next run requires a fresh key
                         @unlink($dataFile);
@@ -644,7 +668,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             try {
-                $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+                $writer = new ConfigWriter(INSTALLER_CONFIG_TEMPLATE);
                 $writer->writeTo($configTarget ?? $configFile, ConfigWriter::merge(
                     $existing,
                     ['mail' => ['dsn' => $mailDsn]]
@@ -761,7 +785,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             try {
-                $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+                $writer = new ConfigWriter(INSTALLER_CONFIG_TEMPLATE);
                 $writer->writeTo($configTarget ?? $configFile, ConfigWriter::merge(
                     ConfigWriter::read($configFile),
                     ['backup' => [
@@ -841,7 +865,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             try {
-                $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+                $writer = new ConfigWriter(INSTALLER_CONFIG_TEMPLATE);
                 $writer->writeTo($configTarget ?? $configFile, ConfigWriter::merge(
                     $existingCron,
                     ['cron' => ['heartbeat_url' => $cronHeartbeat]]
@@ -929,7 +953,7 @@ function installerRotateCronSecret(string $configFile, string $configTarget): ar
     $secret = bin2hex(random_bytes(32));
 
     try {
-        $writer = new ConfigWriter(__DIR__ . '/config.sample.php');
+        $writer = new ConfigWriter(INSTALLER_CONFIG_TEMPLATE);
         $writer->writeTo($configTarget, ConfigWriter::merge(
             ConfigWriter::read($configFile),
             ['cron' => ['secret' => $secret]]

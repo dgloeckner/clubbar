@@ -31,8 +31,10 @@ namespace App\Shared\Config;
  * copy of it, so the sample and the written file cannot drift by construction
  * rather than by a test that has to remember to care.
  *
- * The template ships to the package root beside `install.php`
- * (`scripts/build-package.sh`), so the installer has it at runtime.
+ * The template ships as `backend/config.sample.php` (`scripts/build-package.sh`),
+ * so the installer has it at runtime. Inside `backend/` rather than beside
+ * `install.php`, because a file in the document root is a URL and this one is
+ * only ever read off the disk (#751).
  *
  * ## Substitution verifies itself
  *
