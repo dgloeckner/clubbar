@@ -28,6 +28,18 @@ const ADMIN_SECTIONS = [
 ]
 
 /**
+ * The narrowest window that is still the desktop row: 769–1500px is the
+ * icon-only variant, which lays out differently.
+ *
+ * Overflow there is not a coincidence of one locale. Measured against the
+ * ~864px the row gets at this width with the seeded club name: the ten
+ * sections need ~1114px in German and ~923px in English, so the tail moves
+ * into "More" either way — which is what lets the two tests below assert it
+ * rather than check for it.
+ */
+const NARROW_DESKTOP = 1501
+
+/**
  * Nothing inline may extend past the right edge of the row. This is the
  * regression itself: the old nav laid entries out past that edge and relied on
  * a scrollbar it had hidden.
@@ -59,40 +71,15 @@ async function expectNoInlineEntryClipped(page: import('@playwright/test').Page,
     .toBeLessThanOrEqual(1)
 }
 
-/**
- * Narrow the window — staying inside the desktop breakpoint, since 769–1500px
- * is the icon-only row — until the header has to open a "More" menu, and
- * report the width where that happened.
- *
- * Which width that is depends on the language: `Benachrichtigungen` and
- * `Datensicherungen` need roughly twice what their English labels do. Sweeping
- * keeps the test about the behaviour rather than about a number that only
- * holds in one locale, and `null` says the row never had to overflow at all —
- * in which case there is nothing here to assert.
- */
-async function narrowUntilOverflow(
-  page: import('@playwright/test').Page,
-  layout: MainLayoutPage
-): Promise<number | null> {
-  for (const width of [1920, 1700, 1600, 1520]) {
-    await page.setViewportSize({ width, height: 900 })
-    await expectNoInlineEntryClipped(page, `${width}px`)
-    if ((await layout.getInlineNavTestIds()).length < ADMIN_SECTIONS.length) {
-      return width
-    }
-  }
-  return null
-}
-
 test.describe('Header navigation overflow', () => {
   test('every section stays reachable as the window narrows', async ({ page }) => {
     await page.goto('/dashboard')
     const layout = new MainLayoutPage(page)
     await layout.expectHeaderVisible()
 
-    // Widths from a comfortable desktop down to just above the tablet
-    // breakpoint (769–1500px is icon-only and has its own row).
-    for (const width of [1920, 1713, 1600, 1520]) {
+    // From a comfortable desktop down to the narrowest one. The set of
+    // sections must not depend on any of it.
+    for (const width of [1920, 1713, 1600, NARROW_DESKTOP]) {
       await page.setViewportSize({ width, height: 900 })
       await expect(page.locator('[data-testid="desktop-nav"]')).toBeVisible()
 
@@ -102,15 +89,13 @@ test.describe('Header navigation overflow', () => {
   })
 
   test('an entry pushed into More still opens its section', async ({ page }) => {
+    await page.setViewportSize({ width: NARROW_DESKTOP, height: 900 })
     await page.goto('/members')
     const layout = new MainLayoutPage(page)
     await layout.expectHeaderVisible()
 
-    const width = await narrowUntilOverflow(page, layout)
-    test.skip(width === null, 'the row fits every entry at every desktop width in this language')
-
-    const inline = await layout.getInlineNavTestIds()
-    expect(inline.length, `inline entries at ${width}px`).toBeLessThan(ADMIN_SECTIONS.length)
+    await expect(page.locator('[data-testid="nav-more"]')).toBeVisible()
+    expect(await layout.getInlineNavTestIds()).not.toContain('nav-audit-log')
 
     // The last section is the one that used to fall off the end.
     await layout.openNavItem('nav-audit-log')
@@ -122,16 +107,12 @@ test.describe('Header navigation overflow', () => {
   })
 
   test('More is marked active while an overflowed section is open', async ({ page }) => {
+    await page.setViewportSize({ width: NARROW_DESKTOP, height: 900 })
     await page.goto('/audit-log')
     const layout = new MainLayoutPage(page)
     await layout.expectHeaderVisible()
 
-    const width = await narrowUntilOverflow(page, layout)
-    test.skip(width === null, 'the row fits every entry at every desktop width in this language')
-    test.skip(
-      (await layout.getInlineNavTestIds()).includes('nav-audit-log'),
-      'the open section is still inline at that width'
-    )
+    expect(await layout.getInlineNavTestIds()).not.toContain('nav-audit-log')
 
     // theme.activeTint.primaryStrong — the tint an inline entry gets while its
     // section is open. The point is that a section behind More is still
