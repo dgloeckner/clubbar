@@ -14,6 +14,7 @@
  */
 
 import { test, expect } from '../../fixtures/pageObjects'
+import { MainLayoutPage } from '../../pages/MainLayoutPage'
 
 test.describe('UC-A81: Audit Log', () => {
   test('should display audit log page', async ({ authenticatedAuditLogPage }) => {
@@ -287,11 +288,10 @@ test.describe('UC-A81: Audit Log', () => {
     test('should navigate to audit log from main menu', async ({ page }) => {
       await page.goto('/members')
 
-      // Click on Audit Log nav item
-      const auditLogNavItem = page.getByTestId('nav-audit-log')
-      await expect(auditLogNavItem).toBeVisible()
-      // Use keyboard navigation to avoid header element intercepting the click
-      await auditLogNavItem.dispatchEvent('click')
+      // Wherever the header put the entry — inline, or behind "More" once the
+      // row runs out of width (#742). Reaching it is the point; which of the
+      // two it is depends on the window and the language.
+      await new MainLayoutPage(page).openNavItem('nav-audit-log')
 
       // Should be redirected to audit log page
       await expect(page).toHaveURL('/audit-log')

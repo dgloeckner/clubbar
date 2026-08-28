@@ -27,6 +27,7 @@ export { SettingsIcon } from './SettingsIcon'
 // User and action icons
 export { UserIcon } from './UserIcon'
 export { LogoutIcon } from './LogoutIcon'
+export { MoreIcon } from './MoreIcon'
 export { PlusIcon } from './PlusIcon'
 
 // Table action icons

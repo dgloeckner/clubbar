@@ -13,6 +13,7 @@ import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { permitsPath } from '../../utils/adminRoles'
 import { LoadingIndicator } from '../common/LoadingIndicator'
 import { BottomTabBar } from './BottomTabBar'
+import { DesktopNav } from './DesktopNav'
 import { SchedulerBanner } from './SchedulerBanner'
 import {
   AuditLogIcon,
@@ -178,62 +179,18 @@ export function MainLayout({ children }: MainLayoutProps) {
           )}
         </div>
 
-        {/* Nav Tabs */}
-        <nav
-          data-testid="desktop-nav"
-          style={{
-            display: isMobile ? 'none' : 'flex',
-            gap: '2px',
-            width: isMobile ? '100%' : 'auto',
-            overflowX: 'auto',
-            WebkitOverflowScrolling: 'touch',
-            scrollBehavior: 'smooth',
-            flex: 1,
-            minWidth: 0,
-            justifyContent: 'flex-start',
-            // Hide scrollbar
-            msOverflowStyle: 'none',
-            scrollbarWidth: 'none',
-          }}
-        >
-          <style>{`nav::-webkit-scrollbar { display: none; }`}</style>
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              data-testid={item.testId}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: `${theme.spacing.sm} ${theme.spacing.sm}`,
-                borderRadius: theme.borderRadius.md,
-                background: isActive(item.path) ? theme.activeTint.primaryStrong : 'transparent',
-                color: isActive(item.path) ? theme.colors.semantic.primary : theme.colors.text.secondary,
-                textDecoration: 'none',
-                fontSize: theme.typography.fontSize.xs,
-                fontWeight: theme.typography.fontWeight.medium,
-                transition: `all ${theme.transitions.default}`,
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive(item.path)) {
-                  e.currentTarget.style.backgroundColor = 'rgba(148, 163, 184, 0.1)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive(item.path)) {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                }
-              }}
-            >
-              {item.icon}
-              {/* Show text on desktop and mobile, hide on tablet */}
-              {!(isTablet || isSmallMobile) && <span>{item.label}</span>}
-            </Link>
-          ))}
-        </nav>
+        {/*
+          Nav Tabs.
+
+          Overflow lives in DesktopNav (#742): entries that do not fit move
+          into a "More" menu instead of being scrolled off the end of a row
+          whose scrollbar had been styled away. On mobile the nav is not
+          rendered at all — BottomTabBar is the navigation there, and it has
+          carried its own "More" since #138.
+        */}
+        {!isMobile && (
+          <DesktopNav items={navItems} iconOnly={isTablet} isActive={isActive} />
+        )}
 
         {/* User Badge + Logout - Desktop & Tablet only */}
         {!isMobile && (
