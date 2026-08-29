@@ -34,6 +34,8 @@
  * claim the whole queue like everybody else's.
  */
 
+import { randomUUID } from 'node:crypto'
+
 import { test, expect } from '../../fixtures/auth.fixture'
 import { assertMailpitReachable, createMailpitClient, MailpitClient, MailpitMessage } from '../../utils/mailpit'
 import { drainMailQueue } from '../../utils/drain'
@@ -52,9 +54,15 @@ let disposeMailpit: () => Promise<void>
 /**
  * Short local parts: RFC 5321 bounds one at 64 characters and this suite has
  * been bitten by that before (Pattern 010).
+ *
+ * `randomUUID` rather than `Math.random`, matching `utils/isolatedAdmin.ts`.
+ * The address this feeds is the identity a test's assertions are keyed on, so a
+ * collision between two workers inside the same millisecond does not read as a
+ * duplicate address — it reads as this feature having sent a message twice,
+ * which is exactly the bug the suite exists to catch.
  */
 function uniqueSuffix(): string {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+  return randomUUID().replace(/-/g, '').slice(0, 10)
 }
 
 function address(tag: string): string {
@@ -64,12 +72,13 @@ function address(tag: string): string {
 /**
  * A card UID the format rules accept: 8–20 uppercase hex (ADR-0021), unique
  * across members because the column carries a UNIQUE index.
+ *
+ * A UUID is already hex, so this needs no scrubbing pass — the previous
+ * `Math.random().toString(16)` had to map stray characters onto `0`, which
+ * quietly shrank the space it was drawing from.
  */
 function cardUid(): string {
-  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 8)}`
-    .toUpperCase()
-    .replace(/[^0-9A-F]/g, '0')
-    .slice(0, 16)
+  return randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase()
 }
 
 function htmlAsText(html: string): string {
