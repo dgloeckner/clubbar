@@ -16,7 +16,6 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import axios from 'axios'
 import { getProducts } from '../api/generated/products/products'
 import type {
   Category,
@@ -43,6 +42,7 @@ import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useListQuery } from '../hooks/useListQuery'
+import { useApiError } from '../hooks/useApiError'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -80,6 +80,7 @@ const PAGE_SIZE = 20
 
 export function CategoriesPage() {
   const { t, i18n } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showModal, setShowModal] = useState(false)
@@ -126,12 +127,7 @@ export function CategoriesPage() {
       const start = (page - 1) * pageSize
       return { items: sorted.slice(start, start + pageSize), total: sorted.length }
     },
-    parseError: (err) =>
-      axios.isAxiosError(err)
-        ? err.response?.data?.message || err.message || t('categories.errors.load')
-        : err instanceof Error
-          ? err.message
-          : t('categories.errors.load'),
+    parseError: (err) => apiErrorMessage(err, t('categories.errors.load')),
   })
 
   const { items: categories, total: totalItems, totalPages, loading, error, setError } = list
@@ -231,11 +227,10 @@ export function CategoriesPage() {
       // Then reload categories
       await list.reload()
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setFormError(err.response?.data?.message || err.message || `Failed to ${modalMode} category`)
-      } else {
-        setFormError(err instanceof Error ? err.message : `Failed to ${modalMode} category`)
-      }
+      setFormError(apiErrorMessage(
+        err,
+        t(modalMode === 'create' ? 'categories.errors.create' : 'categories.errors.update'),
+      ))
     }
   }
 
@@ -259,11 +254,7 @@ export function CategoriesPage() {
       await getProducts().updateCategory(category.id, { is_active: true })
       await list.reload()
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || err.message || t('categories.errors.activate'))
-      } else {
-        setError(err instanceof Error ? err.message : t('categories.errors.activate'))
-      }
+      setError(apiErrorMessage(err, t('categories.errors.activate')))
     }
   }
 
@@ -299,11 +290,7 @@ export function CategoriesPage() {
       setConfirmDialog(null)
       await list.reload()
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || err.message || t('categories.errors.action'))
-      } else {
-        setError(err instanceof Error ? err.message : t('categories.errors.action'))
-      }
+      setError(apiErrorMessage(err, t('categories.errors.action')))
       setConfirmDialog(null)
     }
   }

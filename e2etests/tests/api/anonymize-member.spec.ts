@@ -144,6 +144,13 @@ test.describe('GDPR Member Anonymization', () => {
     const error = await anonResponse.json();
     expect(error.message).toContain('outstanding balance');
 
+    // #757: `message` is English, for this log and for a raw caller. The panel
+    // renders its own wording from the reason, and formats the amount from
+    // signed cents — so a German admin is not told "€5.00" in a sentence they
+    // cannot read.
+    expect(error.reason).toBe('member_balance_outstanding');
+    expect(error.params).toEqual({ balance_cents: 500 });
+
     // Verify member still has PII (not anonymized)
     const getResponse = await authenticatedRequest.get(`${API_BASE}/admin/members/${member.id}`);
     expect(getResponse.ok()).toBeTruthy();
@@ -163,6 +170,7 @@ test.describe('GDPR Member Anonymization', () => {
     expect(anonResponse.status()).toBe(409);
     const error = await anonResponse.json();
     expect(error.message).toContain('settlement');
+    expect(error.reason).toBe('member_in_active_settlement');
   });
 
   test('4.6 - rejects double anonymization', async ({ authenticatedRequest, testTransactions }) => {

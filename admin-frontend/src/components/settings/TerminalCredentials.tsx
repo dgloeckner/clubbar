@@ -21,6 +21,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useApiError } from '../../hooks/useApiError'
 import { theme, formatDateTime } from '../../styles/design-system'
 import { Alert } from '../common/Alert'
 import { Badge } from '../common/Badge'
@@ -31,7 +32,6 @@ import { StepUpConfirmDialog, type StepUpCredentials } from '../modals/StepUpCon
 import { TokenDisplayModal } from '../modals/TokenDisplayModal'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getTerminals } from '../../api/generated/terminals/terminals'
-import { getApiErrorMessage } from '../../utils/apiErrors'
 import type { Terminal } from '../../api/generated'
 
 /** Matches the key cards above, so one page speaks with one colour language. */
@@ -56,6 +56,7 @@ export interface TerminalCredentialsProps {
 
 export function TerminalCredentials({ callerTotpEnabled }: TerminalCredentialsProps) {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const request = useLatestRequest()
 
   const [terminals, setTerminals] = useState<Terminal[]>([])
@@ -79,11 +80,11 @@ export function TerminalCredentials({ callerTotpEnabled }: TerminalCredentialsPr
       setError(null)
     } catch (err: unknown) {
       if (signal.aborted) return
-      setError(getApiErrorMessage(err, t('settings.credentials.terminals.errors.load')))
+      setError(apiErrorMessage(err, t('settings.credentials.terminals.errors.load')))
     } finally {
       if (!signal.aborted) setLoading(false)
     }
-  }, [request, t])
+  }, [request, t, apiErrorMessage])
 
   useEffect(() => {
     void load()
@@ -104,7 +105,7 @@ export function TerminalCredentials({ callerTotpEnabled }: TerminalCredentialsPr
       setIssuedToken(result.api_token ?? null)
       await load()
     } catch (err: unknown) {
-      setDialogError(getApiErrorMessage(err, t('settings.credentials.terminals.errors.rotate')))
+      setDialogError(apiErrorMessage(err, t('settings.credentials.terminals.errors.rotate')))
     } finally {
       setBusy(false)
     }

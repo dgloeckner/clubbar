@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Settlements\Domain;
 
 use App\Modules\Settlements\Domain\CancellationGate;
+use App\Shared\Exceptions\BusinessRuleReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use PHPUnit\Framework\TestCase;
 
@@ -56,9 +57,16 @@ class CancellationGateTest extends TestCase
             'submitted_at' => '2026-08-10 14:03:11',
         ];
 
+        $blocker = CancellationGate::blocker($row, '2026-08-08');
+
         $this->assertSame(
             'This settlement was submitted to the bank on 2026-08-10, so the money has moved. Reverse it instead.',
-            CancellationGate::blocker($row, '2026-08-08'),
+            (string) $blocker,
         );
+
+        // The same moment, as the value the admin panel formats in the reader's
+        // locale rather than re-reading out of the English sentence (#757).
+        $this->assertSame(BusinessRuleReason::SETTLEMENT_SUBMITTED_NOT_CANCELLABLE, $blocker?->reason);
+        $this->assertSame(['submitted_on' => '2026-08-10'], $blocker?->params);
     }
 }

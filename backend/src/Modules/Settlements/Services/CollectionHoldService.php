@@ -10,6 +10,7 @@ use App\Modules\Settlements\Repositories\CollectionHoldRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Services\AuditService;
 
@@ -58,7 +59,10 @@ class CollectionHoldService
         }
 
         if (empty($member['collection_hold'])) {
-            throw new BusinessRuleException('This member is not on collection hold.');
+            throw new BusinessRuleException(
+                BusinessRuleReason::MEMBER_NOT_ON_COLLECTION_HOLD,
+                'This member is not on collection hold.',
+            );
         }
 
         $this->collectionHoldRepository->clear($memberId, $adminUserId);

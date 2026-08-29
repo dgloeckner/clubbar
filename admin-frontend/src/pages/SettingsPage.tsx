@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useApiError } from '../hooks/useApiError'
 import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -47,7 +48,7 @@ import { CreateTerminalModal } from '../components/modals/CreateTerminalModal'
 import { EditTerminalModal } from '../components/modals/EditTerminalModal'
 import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
 import { validateIban } from '../utils/iban'
-import { getApiErrorMessage, getApiFieldErrors } from '../utils/apiErrors'
+import { getApiFieldErrors } from '../utils/apiErrors'
 import { MAX_PER_PAGE, loadAllPages } from '../utils/pagination'
 import {
   buildCreateSepaConfigRequest,
@@ -69,6 +70,7 @@ type SettingsTab =
 
 export function SettingsPage() {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const { refetch: refetchInstanceConfig } = useInstanceConfig()
@@ -257,7 +259,7 @@ export function SettingsPage() {
 
         setError(null)
       } catch (err: unknown) {
-        setError(getApiErrorMessage(err, t('settings.errors.loadSettings')))
+        setError(apiErrorMessage(err, t('settings.errors.loadSettings')))
       } finally {
         setLoading(false)
       }
@@ -339,7 +341,7 @@ export function SettingsPage() {
    */
   const reportError = (err: unknown, fallbackKey: string) => {
     setActionSuccess(null)
-    setError(getApiErrorMessage(err, t(fallbackKey)))
+    setError(apiErrorMessage(err, t(fallbackKey)))
   }
 
   /** Confirm an action that leaves no visible trace of its own. */
@@ -354,7 +356,7 @@ export function SettingsPage() {
    * the overlay and would only resurface later, on whichever tab is open then.
    */
   const reportModalError = (err: unknown, fallbackKey: string) => {
-    setModalError(getApiErrorMessage(err, t(fallbackKey)))
+    setModalError(apiErrorMessage(err, t(fallbackKey)))
     setModalFieldErrors(getApiFieldErrors(err))
   }
 
@@ -563,7 +565,7 @@ export function SettingsPage() {
     } catch (err: unknown) {
       // A wrong step-up credential keeps the dialog open so the admin can
       // retry, rather than reporting it on the page banner behind it.
-      setStepUpError(getApiErrorMessage(err, t('settings.errors.resetPassword')))
+      setStepUpError(apiErrorMessage(err, t('settings.errors.resetPassword')))
     }
   }
 
@@ -584,7 +586,7 @@ export function SettingsPage() {
     } catch (err: unknown) {
       // A wrong step-up credential keeps the dialog open so the admin can
       // retry, rather than reporting it on the page banner behind it.
-      setStepUpError(getApiErrorMessage(err, t('settings.errors.reset2fa')))
+      setStepUpError(apiErrorMessage(err, t('settings.errors.reset2fa')))
     }
   }
 
@@ -644,7 +646,7 @@ export function SettingsPage() {
       setShowTokenModal(true)
       await loadTerminals()
     } catch (err: unknown) {
-      setStepUpError(getApiErrorMessage(err, t('settings.errors.rotateTerminal')))
+      setStepUpError(apiErrorMessage(err, t('settings.errors.rotateTerminal')))
     }
   }
 
@@ -795,7 +797,7 @@ export function SettingsPage() {
         setFieldErrors(apiFieldErrors)
         setError(t('settings.errors.sepaValidation'))
       } else {
-        setError(getApiErrorMessage(err, t('settings.errors.saveSepa')))
+        setError(apiErrorMessage(err, t('settings.errors.saveSepa')))
       }
     } finally {
       setSaving(false)
@@ -876,7 +878,7 @@ export function SettingsPage() {
         setInstanceFieldErrors(apiFieldErrors)
         setError(t('settings.instance.errors.validation'))
       } else {
-        setError(getApiErrorMessage(err, t('settings.instance.errors.save')))
+        setError(apiErrorMessage(err, t('settings.instance.errors.save')))
       }
     } finally {
       setInstanceSaving(false)

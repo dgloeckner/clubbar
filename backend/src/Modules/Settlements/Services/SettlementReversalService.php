@@ -16,6 +16,7 @@ use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\ValidationException;
 use App\Shared\Services\AuditService;
@@ -72,12 +73,15 @@ class SettlementReversalService
         // §7: a run that never reached the bank is cancelled, not reversed.
         $blocker = ReversalGate::blocker($settlement);
         if ($blocker !== null) {
-            throw new BusinessRuleException($blocker);
+            throw $blocker->toException();
         }
 
         $settledMemberIds = $this->settlementsRepository->findSettledMemberIds($settlementId);
         if ($settledMemberIds === []) {
-            throw new BusinessRuleException('This settlement covers no members, so there is nothing to reverse.');
+            throw new BusinessRuleException(
+                BusinessRuleReason::SETTLEMENT_HAS_NO_MEMBERS_TO_REVERSE,
+                'This settlement covers no members, so there is nothing to reverse.',
+            );
         }
 
         $targets = $this->resolveTargets($memberIds, $settledMemberIds);
@@ -304,7 +308,9 @@ class SettlementReversalService
         $already = $this->reversalsRepository->findReversedMemberIds($settlementId, $targets);
         if ($already !== []) {
             throw new BusinessRuleException(
-                'These members have already been reversed on this settlement: ' . implode(', ', $already)
+                BusinessRuleReason::MEMBERS_ALREADY_REVERSED,
+                'These members have already been reversed on this settlement: ' . implode(', ', $already),
+                ['member_ids' => implode(', ', $already), 'member_count' => count($already)],
             );
         }
     }
@@ -338,6 +344,7 @@ class SettlementReversalService
     {
         if ($e instanceof \PDOException && ($e->errorInfo[0] ?? null) === '23000') {
             return new BusinessRuleException(
+                BusinessRuleReason::MEMBERS_ALREADY_REVERSED,
                 'A member of settlement ' . $settlementId . ' has already been reversed.',
                 previous: $e,
             );

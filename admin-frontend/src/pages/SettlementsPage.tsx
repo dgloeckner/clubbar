@@ -45,6 +45,7 @@ import { PageActionButton } from '../components/common/PageActionButton'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BankIcon, PlusIcon } from '../components/icons'
 import { useListQuery } from '../hooks/useListQuery'
+import { useApiError } from '../hooks/useApiError'
 import { downloadBlob, downloadFile } from '../api/client'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
 import { formatTransactionPeriod } from '../utils/settlementPeriod'
@@ -137,6 +138,7 @@ interface SettlementFilters {
 
 export function SettlementsPage() {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const navigate = useNavigate()
   const location = useLocation()
   /**
@@ -185,12 +187,7 @@ export function SettlementsPage() {
         total: response.pagination?.total ?? 0,
       }
     },
-    parseError: (err) =>
-      axios.isAxiosError(err)
-        ? (err.response?.data?.message ?? err.message)
-        : err instanceof Error
-          ? err.message
-          : t('settlements.errors.load'),
+    parseError: (err) => apiErrorMessage(err, t('settlements.errors.load')),
   })
 
   const { items: settlements, total: totalItems, totalPages, loading, error, setError } = list
@@ -354,7 +351,7 @@ export function SettlementsPage() {
       // retry without fetching the key sheet out of the safe again; anything
       // else is a page-level failure and the dialog has nothing to add.
       const status = axios.isAxiosError(err) ? err.response?.status : undefined
-      const message = err instanceof Error ? err.message : t('settlements.errors.exportSepa')
+      const message = apiErrorMessage(err, t('settlements.errors.exportSepa'))
 
       if (status === 401 || status === 422) {
         setExportStepUpError(message)
@@ -372,13 +369,7 @@ export function SettlementsPage() {
       const blob = await getSettlementsFactory().downloadSettlementCsv(settlement.id ?? '')
       downloadBlob(blob as unknown as Blob, downloadName(settlement, 'abrechnung', 'csv'))
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message ?? err.message)
-      } else if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError(t('settlements.errors.exportCsv'))
-      }
+      setError(apiErrorMessage(err, t('settlements.errors.exportCsv')))
     }
   }
 
@@ -387,13 +378,7 @@ export function SettlementsPage() {
       const blob = await getSettlementsFactory().exportSettlementTransactions(settlement.id ?? '')
       downloadBlob(blob, downloadName(settlement, 'abrechnung-transaktionen', 'csv'))
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message ?? err.message)
-      } else if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError(t('settlements.errors.exportTransactions'))
-      }
+      setError(apiErrorMessage(err, t('settlements.errors.exportTransactions')))
     }
   }
 
@@ -410,13 +395,7 @@ export function SettlementsPage() {
       await list.reload()
       setUndoSuccess(t('settlements.undoSuccess'))
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message ?? err.message)
-      } else if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError(t('settlements.errors.undo'))
-      }
+      setError(apiErrorMessage(err, t('settlements.errors.undo')))
     }
   }
 
@@ -514,17 +493,12 @@ export function SettlementsPage() {
         showHoldLink: input.reason === 'bank_return',
       })
     } catch (err: unknown) {
-      // A refusal keeps the dialog open carrying the backend's own words: it
+      // A refusal keeps the dialog open carrying the backend's own verdict: it
       // names the specific reason — already reversed, a member not part of this
       // run, nothing collected — and re-deriving any of that here is the second
-      // rule set #81 was.
-      setReverseError(
-        axios.isAxiosError(err)
-          ? (err.response?.data?.message ?? err.message)
-          : err instanceof Error
-            ? err.message
-            : t('settlements.errors.reverse')
-      )
+      // rule set #81 was. The *reason code* is what travels, so the panel says
+      // it in the admin's language rather than the backend's (#757).
+      setReverseError(apiErrorMessage(err, t('settlements.errors.reverse')))
     } finally {
       setReverseSubmitting(false)
     }
@@ -552,13 +526,7 @@ export function SettlementsPage() {
       await list.reload()
       setSubmitSuccess(t('settlements.markSubmittedSuccess'))
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message ?? err.message)
-      } else if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError(t('settlements.errors.markSubmitted'))
-      }
+      setError(apiErrorMessage(err, t('settlements.errors.markSubmitted')))
     }
   }
 

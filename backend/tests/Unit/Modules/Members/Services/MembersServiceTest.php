@@ -10,6 +10,7 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\ValidationException;
 use App\Shared\Services\AuditService;
@@ -432,6 +433,25 @@ class MembersServiceTest extends TestCase
         $this->expectExceptionMessage('outstanding balance of -€15.00');
 
         $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_reports_the_balance_as_signed_cents_the_panel_can_translate(): void
+    {
+        // #757: the refusal used to reach the admin as the English sentence
+        // above, euro sign and all, on a panel that is German by default. The
+        // amount now travels as cents so the panel formats it as "7,50 €" —
+        // and the sign survives, because a credit is not the same news as a
+        // debt.
+        $this->membersRepository->method('findByIdIncludingDeleted')->willReturn($this->member('member-1'));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(-1500);
+
+        try {
+            $this->membersService->anonymizeMember('member-1', 'admin-1');
+            $this->fail('Expected a BusinessRuleException');
+        } catch (BusinessRuleException $e) {
+            $this->assertSame(BusinessRuleReason::MEMBER_BALANCE_OUTSTANDING, $e->getReason());
+            $this->assertSame(['balance_cents' => -1500], $e->getParams());
+        }
     }
 
     public function test_anonymizeMember_refuses_a_member_in_an_active_settlement(): void

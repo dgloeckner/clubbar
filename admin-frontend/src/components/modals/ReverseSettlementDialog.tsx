@@ -34,7 +34,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
-import axios from 'axios'
+import { useApiError } from '../../hooks/useApiError'
 import { ConfirmDialog } from './ConfirmDialog'
 import { theme } from '../../styles/design-system'
 import { useFormatters } from '../../hooks/useFormatters'
@@ -90,6 +90,7 @@ export function ReverseSettlementDialog({
   onCancel,
 }: ReverseSettlementDialogProps) {
   const { t } = useTranslation()
+  const { apiErrorMessage, reasonText } = useApiError()
   const formatters = useFormatters()
   const request = useLatestRequest()
 
@@ -133,21 +134,19 @@ export function ReverseSettlementDialog({
       setMemberLines(settlementMemberLines(detail.items, detail.reversals))
     } catch (err: unknown) {
       if (signal.aborted) return
-      setMembersError(
-        axios.isAxiosError(err)
-          ? (err.response?.data?.message ?? err.message)
-          : err instanceof Error
-            ? err.message
-            : t('settlements.errors.load')
-      )
+      setMembersError(apiErrorMessage(err, t('settlements.errors.load')))
     } finally {
       if (!signal.aborted) setMembersLoading(false)
     }
-  }, [settlementId, request, t])
+  }, [settlementId, request, t, apiErrorMessage])
 
   if (!settlement) return null
 
-  const blockedReason = settlement.reversal_blocked_reason ?? null
+  const blockedReason = reasonText(
+    settlement.reversal_blocked_code,
+    settlement.reversal_blocked_params,
+    t('settlements.reverseBlockedFallback'),
+  )
   const blocked = settlement.is_reversible === false || allMembersReversed(settlement)
   const isBankReturn = reason === 'bank_return'
   const date = undoDisplayDate(settlement)
@@ -197,7 +196,7 @@ export function ReverseSettlementDialog({
             <p data-testid="reverse-settlement-blocked-reason" style={{ margin: 0 }}>
               {allMembersReversed(settlement) && settlement.is_reversible !== false
                 ? t('settlements.reverseAllMembersDone')
-                : (blockedReason ?? t('settlements.reverseBlockedFallback'))}
+                : blockedReason}
             </p>
             {details}
           </>

@@ -27,6 +27,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useApiError } from '../../hooks/useApiError'
 import { ConfirmDialog } from './ConfirmDialog'
 import { theme } from '../../styles/design-system'
 import { useFormatters } from '../../hooks/useFormatters'
@@ -48,6 +49,7 @@ export interface UndoSettlementDialogProps {
 
 export function UndoSettlementDialog({ settlement, onConfirm, onCancel }: UndoSettlementDialogProps) {
   const { t } = useTranslation()
+  const { reasonText } = useApiError()
   const formatters = useFormatters()
   const [exportAcknowledged, setExportAcknowledged] = useState(false)
 
@@ -108,7 +110,7 @@ export function UndoSettlementDialog({ settlement, onConfirm, onCancel }: UndoSe
         message={
           <>
             <p data-testid="undo-settlement-blocked-reason" style={{ margin: 0 }}>
-              {decision.blockedReason ?? t('settlements.undoBlockedFallback')}
+              {reasonText(decision.blockedCode, decision.blockedParams, t('settlements.undoBlockedFallback'))}
             </p>
             {details}
           </>

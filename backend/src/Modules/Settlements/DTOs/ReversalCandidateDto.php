@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\DTOs;
 
+use App\Modules\Settlements\Domain\BlockedReason;
 use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementStatus;
 use App\Shared\Utils\DateFormatter;
@@ -39,7 +40,7 @@ final readonly class ReversalCandidateDto
         public string $settlementDate,
         public SettlementStatus $status,
         public bool $isReversible,
-        public ?string $reversalBlockedReason,
+        public ?BlockedReason $reversalBlockedReason,
         /** A colleague already recorded this one — the question actually asked. */
         public bool $alreadyReversed = false,
         public ?string $reversedAt = null,
@@ -68,7 +69,9 @@ final readonly class ReversalCandidateDto
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'is_reversible' => $this->isReversible,
-            'reversal_blocked_reason' => $this->reversalBlockedReason,
+            'reversal_blocked_reason' => $this->reversalBlockedReason?->message,
+            'reversal_blocked_code' => $this->reversalBlockedReason?->reason->value,
+            'reversal_blocked_params' => $this->reversalBlockedReason?->params ?: null,
             'already_reversed' => $this->alreadyReversed,
             'reversed_at' => DateFormatter::toUtcIso($this->reversedAt),
             'reversed_by_admin_name' => $this->reversedByAdminName,

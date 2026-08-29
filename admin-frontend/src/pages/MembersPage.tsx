@@ -14,6 +14,7 @@ import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { MembersTabs } from '../components/members/MembersTabs'
 import { useExcludedFromCollection } from '../hooks/useExcludedFromCollection'
 import { useFormatters } from '../hooks/useFormatters'
+import { useApiError } from '../hooks/useApiError'
 import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ExternalLinkIcon } from '../components/icons'
 import { downloadBlob } from '../api/client'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
@@ -150,6 +151,7 @@ const NO_MEMBER_FILTERS: MemberFilters = {
 
 export function MembersPage() {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
   // The dashboard metrics are a second, independent stream, so they get their
@@ -677,13 +679,14 @@ export function MembersPage() {
       setAnonymizeConfirm(null)
       setError(null)
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number; data?: unknown } }
-      if (axiosErr.response?.status === 409) {
-        const data = axiosErr.response.data as { message?: string } | null
-        setError(data?.message || t('members.errors.cannotAnonymize'))
-      } else {
-        setError(err instanceof Error ? err.message : t('members.errors.anonymize'))
-      }
+      // The 409 says *why* — an outstanding tab, an open settlement — and the
+      // admin needs that detail, in their own language. Reading `message` here
+      // put the backend's English sentence on a German screen (#757).
+      const axiosErr = err as { response?: { status?: number } }
+      setError(apiErrorMessage(
+        err,
+        t(axiosErr.response?.status === 409 ? 'members.errors.cannotAnonymize' : 'members.errors.anonymize'),
+      ))
       setAnonymizeConfirm(null)
     }
   }

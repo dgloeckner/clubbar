@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Settlements\DTOs;
 
 use App\Modules\Settlements\DTOs\ReversalCandidateDto;
+use App\Modules\Settlements\Domain\BlockedReason;
+use App\Shared\Exceptions\BusinessRuleReason;
 use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementStatus;
 use PHPUnit\Framework\TestCase;
@@ -53,7 +55,10 @@ class ReversalCandidateDtoTest extends TestCase
         $candidate = $this->candidate(
             status: SettlementStatus::EXPORTED,
             isReversible: false,
-            reversalBlockedReason: 'This settlement has not moved any money yet. Cancel it instead.',
+            reversalBlockedReason: new BlockedReason(
+                BusinessRuleReason::SETTLEMENT_NOT_YET_COLLECTED,
+                'This settlement has not moved any money yet. Cancel it instead.',
+            ),
         );
 
         $this->assertFalse($candidate->isActionable());
@@ -61,6 +66,10 @@ class ReversalCandidateDtoTest extends TestCase
         $array = $candidate->toArray();
         $this->assertFalse($array['is_actionable']);
         $this->assertStringContainsString('Cancel it instead', $array['reversal_blocked_reason']);
+        // The client shows the code, not the sentence: an admin reading German
+        // must not be handed the English one (#757).
+        $this->assertSame('settlement_not_yet_collected', $array['reversal_blocked_code']);
+        $this->assertNull($array['reversal_blocked_params']);
     }
 
     public function test_a_member_already_reversed_names_when_and_by_whom(): void
@@ -96,7 +105,7 @@ class ReversalCandidateDtoTest extends TestCase
     private function candidate(
         SettlementStatus $status = SettlementStatus::SUBMITTED,
         bool $isReversible = true,
-        ?string $reversalBlockedReason = null,
+        ?BlockedReason $reversalBlockedReason = null,
         ?string $endToEndId = 'E2E-abc123abc123-def456def456',
         bool $alreadyReversed = false,
         ?string $reversedAt = null,

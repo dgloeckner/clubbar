@@ -4996,7 +4996,29 @@ components:
           description: Error code
         message:
           type: string
-          description: Human-readable error message
+          description: |
+            Human-readable error message — **always English**. It is written
+            for the log and for a raw API caller, not for an end user: a
+            client that renders it verbatim shows English to an admin whose
+            panel is in another language. Use `reason` for that.
+        reason:
+          type: string
+          description: |
+            Why a business rule refused, as a stable code the client
+            translates (409 responses only). The admin panel renders
+            `errors.reasons.<reason>` from its own locale files. Codes are
+            part of this contract: one is retired, never renamed.
+          example: member_balance_outstanding
+        params:
+          type: object
+          additionalProperties: true
+          description: |
+            Values the translated sentence interpolates, present when the
+            reason needs any. Values, never prose — an amount is integer
+            cents under a `*_cents` key so the client formats it in the
+            reader's locale, a date is ISO 8601.
+          example:
+            balance_cents: 750
         details:
           type: object
           additionalProperties: true
@@ -5550,6 +5572,21 @@ components:
           description: |
             The gate's own words when the settlement cannot be reversed — shown
             verbatim rather than re-derived client-side.
+        reversal_blocked_code:
+          type: string
+          nullable: true
+          description: |
+            The same refusal as a stable code the client translates — the
+            admin panel renders `errors.reasons.<code>` in the admin's own
+            language rather than showing the English sentence above.
+        reversal_blocked_params:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: |
+            Values the translated sentence interpolates (an amount in cents, a
+            date, a count). Never prose: the wording lives in the client's
+            locale files.
         already_reversed:
           type: boolean
           description: A reversal for this member on this settlement already exists.
@@ -6371,6 +6408,21 @@ components:
           description: |
             Human-readable reason cancellation is unavailable. Null when
             `is_cancellable` is true.
+        cancellation_blocked_code:
+          type: string
+          nullable: true
+          description: |
+            The same refusal as a stable code the client translates — the
+            admin panel renders `errors.reasons.<code>` in the admin's own
+            language rather than showing the English sentence above.
+        cancellation_blocked_params:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: |
+            Values the translated sentence interpolates (an amount in cents, a
+            date, a count). Never prose: the wording lives in the client's
+            locale files.
         status:
           type: string
           enum: [cancelled, fully_reversed, partly_reversed, submitted, exported, draft]
@@ -6394,6 +6446,21 @@ components:
           description: |
             Human-readable reason reversal is unavailable. Null when
             `is_reversible` is true.
+        reversal_blocked_code:
+          type: string
+          nullable: true
+          description: |
+            The same refusal as a stable code the client translates — the
+            admin panel renders `errors.reasons.<code>` in the admin's own
+            language rather than showing the English sentence above.
+        reversal_blocked_params:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: |
+            Values the translated sentence interpolates (an amount in cents, a
+            date, a count). Never prose: the wording lives in the client's
+            locale files.
         reversed_member_count:
           type: integer
           description: How many of this settlement's members carry a reversal.
@@ -6512,6 +6579,21 @@ components:
           description: |
             Human-readable reason cancellation is unavailable. Null when
             `is_cancellable` is true.
+        cancellation_blocked_code:
+          type: string
+          nullable: true
+          description: |
+            The same refusal as a stable code the client translates — the
+            admin panel renders `errors.reasons.<code>` in the admin's own
+            language rather than showing the English sentence above.
+        cancellation_blocked_params:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: |
+            Values the translated sentence interpolates (an amount in cents, a
+            date, a count). Never prose: the wording lives in the client's
+            locale files.
         notes:
           type: string
           nullable: true
@@ -6538,6 +6620,21 @@ components:
           description: |
             Human-readable reason reversal is unavailable. Null when
             `is_reversible` is true.
+        reversal_blocked_code:
+          type: string
+          nullable: true
+          description: |
+            The same refusal as a stable code the client translates — the
+            admin panel renders `errors.reasons.<code>` in the admin's own
+            language rather than showing the English sentence above.
+        reversal_blocked_params:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: |
+            Values the translated sentence interpolates (an amount in cents, a
+            date, a count). Never prose: the wording lives in the client's
+            locale files.
         reversed_member_count:
           type: integer
           description: How many of this settlement's members carry a reversal.

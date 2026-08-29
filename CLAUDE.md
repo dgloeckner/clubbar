@@ -89,6 +89,7 @@ Reference backend code patterns in `backend/patterns/` directory:
 - **Pattern 016**: Audit Logging — what gets an audit row and what it must carry
 - **Pattern 017**: Shared HTTP Layer — one envelope, one parser, one responder
 - **Pattern 018**: Custom Domain Exceptions — typed exceptions instead of parsing exception messages
+- **Pattern 019**: Translatable Refusals — a refusal names a `BusinessRuleReason`; the code travels, the English sentence stays in the log
 
 **Important**: All backend work must follow these patterns for consistency with ADR-0018 (Modular Architecture) and to maintain code quality across modules.
 
@@ -235,6 +236,11 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
   - ISO `YYYY-MM-DD` on the wire, locale order on screen; `min`/`max` enforced in the field
   - `mode="birthdate"` opens on the year view and shows the resulting age (ADR-0045)
   - Assert on `{testId}-value` in E2E, never on the visible (locale-formatted) input
+- **API Error Messages Pattern**: show an admin *why* an action failed, in their language
+  - `useApiError()` — never render `err.response.data.message`, which the backend always writes in English
+  - Reason codes resolve to `errors.reasons.<code>`; cents and dates are formatted for the reader
+  - `reasonText()` for a code that arrives inside a 200 (the settlement gates' disabled-button hints)
+  - A new refusal needs its enum case *and* both locale files — `reasons.test.ts` fails the unit suite otherwise
 - **Component Patterns**: Index of reusable UI components — check it before writing a new one
 
 **Important**: When building pages and components in the admin frontend, follow the test IDs pattern to ensure E2E tests are reliable and maintainable. See `admin-frontend/patterns/test-ids.md` for comprehensive guide and examples, and `admin-frontend/patterns/table-implementation.md` before touching a list page. Any page that fetches on a filter, search, sort, page or interval must follow `admin-frontend/patterns/data-fetching.md` — without it the page can render the results of a request it has already superseded.

@@ -34,7 +34,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
-import axios from 'axios'
+import { useApiError } from '../../hooks/useApiError'
 import { ConfirmDialog } from './ConfirmDialog'
 import { theme } from '../../styles/design-system'
 import { useFormatters } from '../../hooks/useFormatters'
@@ -58,6 +58,7 @@ export interface RecordBankReturnDialogProps {
 
 export function RecordBankReturnDialog({ isOpen, onSelect, onCancel }: RecordBankReturnDialogProps) {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const formatters = useFormatters()
   const request = useLatestRequest()
 
@@ -78,18 +79,12 @@ export function RecordBankReturnDialog({ isOpen, onSelect, onCancel }: RecordBan
       } catch (err: unknown) {
         if (signal.aborted) return
         setCandidates(null)
-        setError(
-          axios.isAxiosError(err)
-            ? (err.response?.data?.message ?? err.message)
-            : err instanceof Error
-              ? err.message
-              : t('settlements.errors.lookup')
-        )
+        setError(apiErrorMessage(err, t('settlements.errors.lookup')))
       } finally {
         if (!signal.aborted) setLoading(false)
       }
     },
-    [t]
+    [t, apiErrorMessage]
   )
 
   useEffect(() => {
@@ -199,18 +194,23 @@ interface CandidateRowProps {
 
 function CandidateRow({ candidate, formatPrice, formatDate, onSelect }: CandidateRowProps) {
   const { t } = useTranslation()
+  const { reasonText } = useApiError()
   const testId = `record-bank-return-candidate-${candidate.settlement_id}-${candidate.member_id}`
   const actionable = candidate.is_actionable === true
   const status = settlementStatus(candidate)
 
-  // Whichever refusal applies, in the backend's own words. Re-deriving a gate
-  // client-side is the #81 bug, so nothing is recomputed here.
+  // Whichever refusal applies, as the backend's own verdict — re-deriving a
+  // gate client-side is the #81 bug, so nothing is recomputed here. Only the
+  // wording is ours: the gate sends a code, this renders it in the admin's
+  // language (#757).
   const blockedReason = candidate.already_reversed
     ? t('settlements.lookupAlreadyReversed', {
         when: candidate.reversed_at ? formatDate(candidate.reversed_at) : '—',
         who: candidate.reversed_by_admin_name ?? t('settlements.lookupUnknownAdmin'),
       })
-    : (candidate.reversal_blocked_reason ?? null)
+    : candidate.reversal_blocked_code
+      ? reasonText(candidate.reversal_blocked_code, candidate.reversal_blocked_params, '')
+      : null
 
   return (
     <button

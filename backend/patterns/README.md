@@ -66,6 +66,12 @@ All backend code must follow these patterns. Reference them when implementing fe
 - Domain exceptions with HTTP status mapping
 - **When**: Error handling across all endpoints
 
+**[Pattern 019: Translatable Refusals](./pattern-019-translatable-refusals.md)**
+- Every `BusinessRuleException` names a `BusinessRuleReason`; `message` stays English
+- `reason` + `params` travel so the client renders the sentence in the reader's language
+- Money as integer cents, never a pre-formatted amount
+- **When**: Any refusal an admin can see — every 409 the modules raise
+
 **[Pattern 017: Shared HTTP Layer](./pattern-017-shared-http-layer.md)**
 - `JsonResponder` trait, `ListQuery` parser, `PaginatedResponse` envelope
 - One list-response shape, one pagination cap, all sort dialects
@@ -282,6 +288,9 @@ Controller → json() helper → PSR-7 Response
 
 ❌ **Scattered Error Handling**
 - Use centralized ErrorHandler middleware (Pattern 007)
+
+❌ **An English Sentence as the Only Explanation**
+- Name a `BusinessRuleReason` so the client can translate it (Pattern 019)
 
 ❌ **Manual Dependency Construction**
 - Use ServiceFactory (Pattern 008)

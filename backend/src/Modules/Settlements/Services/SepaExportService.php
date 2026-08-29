@@ -16,6 +16,7 @@ use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Logging\Logger;
 use App\Shared\Utils\BankingCalendar;
 use App\Shared\Utils\SepaSanitizer;
@@ -58,10 +59,11 @@ class SepaExportService
         // misleading "Settlement has no items", because cancellation deleted
         // the rows; now that they survive it would not fail at all.
         if (!empty($settlement['is_cancelled'])) {
-            throw new BusinessRuleException(sprintf(
-                'Settlement %s was cancelled and cannot be exported to SEPA',
-                $settlementId
-            ));
+            throw new BusinessRuleException(
+                BusinessRuleReason::SETTLEMENT_CANCELLED_NOT_EXPORTABLE,
+                sprintf('Settlement %s was cancelled and cannot be exported to SEPA', $settlementId),
+                ['settlement_id' => $settlementId],
+            );
         }
 
         // The other half of the same rule (#114, ruling #142 as extended by
@@ -73,12 +75,16 @@ class SepaExportService
         // next run, which is where it gets collected from.
         $reversedMemberIds = $this->reversalsRepository->findReversedMemberIds($settlementId);
         if ($reversedMemberIds !== []) {
-            throw new BusinessRuleException(sprintf(
-                'Settlement %s has %d reversed collection(s) and cannot be exported to SEPA again; '
-                . 'the reversed members are collected by the next settlement run',
-                $settlementId,
-                count($reversedMemberIds)
-            ));
+            throw new BusinessRuleException(
+                BusinessRuleReason::SETTLEMENT_HAS_REVERSALS,
+                sprintf(
+                    'Settlement %s has %d reversed collection(s) and cannot be exported to SEPA again; '
+                    . 'the reversed members are collected by the next settlement run',
+                    $settlementId,
+                    count($reversedMemberIds)
+                ),
+                ['settlement_id' => $settlementId, 'reversed_count' => count($reversedMemberIds)],
+            );
         }
 
         // #163: only direct_debit settlements were ever collected through the
@@ -88,11 +94,16 @@ class SepaExportService
         // someone later exports it anyway — the bank would still debit them).
         $method = SettlementMethod::tryFrom($settlement['method'] ?? '') ?? SettlementMethod::DIRECT_DEBIT;
         if (!$method->isSepaExportable()) {
-            throw new BusinessRuleException(sprintf(
-                'Settlement %s uses method "%s" and cannot be exported to SEPA; only direct_debit settlements are exportable',
-                $settlementId,
-                $method->value
-            ));
+            throw new BusinessRuleException(
+                BusinessRuleReason::SETTLEMENT_METHOD_NOT_EXPORTABLE,
+                sprintf(
+                    'Settlement %s uses method "%s" and cannot be exported to SEPA; '
+                    . 'only direct_debit settlements are exportable',
+                    $settlementId,
+                    $method->value
+                ),
+                ['settlement_id' => $settlementId, 'method' => $method->value],
+            );
         }
 
         $config = $this->sepaConfigRepository->getConfig();
@@ -106,22 +117,35 @@ class SepaExportService
             // sign until the club has told the system where it lives.
             || empty($config['mandate_template_url'])
         ) {
-            throw new BusinessRuleException('SEPA configuration incomplete');
+            throw new BusinessRuleException(
+                BusinessRuleReason::SEPA_CONFIG_INCOMPLETE,
+                'SEPA configuration incomplete',
+            );
         }
 
         // Settlements created before the business-day rule existed (issue #11) can
         // still hold a weekend or TARGET2 closing date. Refuse rather than emit an
         // invalid ReqdColltnDt that a bank portal would reject.
         if (!BankingCalendar::isBusinessDay($settlement['execution_date'])) {
-            throw new BusinessRuleException(sprintf(
-                'Settlement execution date %s is not a bank business day (Mon-Fri, excluding TARGET2 closing days); '
-                . 'cancel the settlement and recreate it with a valid date',
-                $settlement['execution_date']
-            ));
+            throw new BusinessRuleException(
+                BusinessRuleReason::EXECUTION_DATE_NOT_BUSINESS_DAY,
+                sprintf(
+                    'Settlement execution date %s is not a bank business day '
+                    . '(Mon-Fri, excluding TARGET2 closing days); '
+                    . 'cancel the settlement and recreate it with a valid date',
+                    $settlement['execution_date']
+                ),
+                ['execution_date' => (string) $settlement['execution_date']],
+            );
         }
 
         $items = $this->settlementsRepository->findItemsBySettlementId($settlementId);
-        if (empty($items)) throw new BusinessRuleException('Settlement has no items');
+        if (empty($items)) {
+            throw new BusinessRuleException(
+                BusinessRuleReason::SETTLEMENT_HAS_NO_ITEMS,
+                'Settlement has no items',
+            );
+        }
 
         // Group by member
         $memberTotals = [];
@@ -268,11 +292,22 @@ class SepaExportService
             // is no reason to stop recording why.
             $this->warnAboutShortfall($settlementId, $excludedMembers, $settlementAmountCents, 0);
 
-            throw new BusinessRuleException(sprintf(
-                'Settlement %s has no collection left to export — %s. A SEPA file needs at least one direct debit.',
-                $settlementId,
-                $this->describeEmptyFile($excludedMembers),
-            ));
+            // Two refusals, not one with an English fragment spliced in: the
+            // panel has to say *which* case in the admin's language, and a
+            // param carrying "every member in it owes 0.00 EUR" would put an
+            // English clause inside a German sentence (#757).
+            throw new BusinessRuleException(
+                $excludedMembers === []
+                    ? BusinessRuleReason::SEPA_EXPORT_NOTHING_OWED
+                    : BusinessRuleReason::SEPA_EXPORT_EVERY_MEMBER_EXCLUDED,
+                sprintf(
+                    'Settlement %s has no collection left to export — %s. '
+                    . 'A SEPA file needs at least one direct debit.',
+                    $settlementId,
+                    $this->describeEmptyFile($excludedMembers),
+                ),
+                ['settlement_id' => $settlementId, 'excluded_count' => count($excludedMembers)],
+            );
         }
 
         $xml = $directDebit->asXML();
@@ -459,12 +494,17 @@ class SepaExportService
         if ($sealed === null) {
             // has_iban said a mandate exists; losing it between the two reads
             // is a race worth failing loudly on, not exporting around.
-            throw new BusinessRuleException(sprintf('Active mandate for member %s vanished during export', $memberId));
+            throw new BusinessRuleException(
+                BusinessRuleReason::MANDATE_VANISHED_DURING_EXPORT,
+                sprintf('Active mandate for member %s vanished during export', $memberId),
+                ['member_id' => $memberId],
+            );
         }
 
         if ($openIban === null) {
             throw new BusinessRuleException(
-                'Every stored IBAN is sealed; the SEPA export requires the club\'s private key (ADR-0036).'
+                BusinessRuleReason::IBAN_KEY_UNAVAILABLE,
+                'Every stored IBAN is sealed; the SEPA export requires the club\'s private key (ADR-0036).',
             );
         }
 
@@ -475,14 +515,20 @@ class SepaExportService
     {
         $dom = new \DOMDocument();
         if (!$dom->loadXML($xml)) {
-            throw new BusinessRuleException('Generated SEPA XML is malformed');
+            throw new BusinessRuleException(
+                BusinessRuleReason::SEPA_XML_MALFORMED,
+                'Generated SEPA XML is malformed',
+            );
         }
 
         $xpath = new \DOMXPath($dom);
         $xpath->registerNamespace('pain', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.08');
 
         if (!$xpath->query('//pain:GrpHdr')->length) {
-            throw new BusinessRuleException('SEPA XML missing GrpHdr element');
+            throw new BusinessRuleException(
+                BusinessRuleReason::SEPA_XML_MALFORMED,
+                'SEPA XML missing GrpHdr element',
+            );
         }
     }
 }

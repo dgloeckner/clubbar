@@ -13,6 +13,7 @@ use App\Shared\Sync\SyncCursor;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Enums\SupportedLanguage;
@@ -505,7 +506,10 @@ class MembersService
 
         // Already anonymized?
         if ($member['deleted_at'] !== null) {
-            throw new BusinessRuleException('Member already anonymized');
+            throw new BusinessRuleException(
+                BusinessRuleReason::MEMBER_ALREADY_ANONYMIZED,
+                'Member already anonymized',
+            );
         }
 
         // Outstanding balance must be €0.00
@@ -513,12 +517,22 @@ class MembersService
         if ($balanceCents !== 0) {
             $balanceEur = number_format(abs($balanceCents) / 100, 2, '.', '');
             $sign = $balanceCents > 0 ? '' : '-';
-            throw new BusinessRuleException("Cannot anonymize: outstanding balance of {$sign}€{$balanceEur}");
+            // The amount travels as signed cents, not as the sentence: the
+            // admin panel renders it in the admin's own locale, so the same
+            // refusal reads "7,50 €" in German and "€7.50" in English (#757).
+            throw new BusinessRuleException(
+                BusinessRuleReason::MEMBER_BALANCE_OUTSTANDING,
+                "Cannot anonymize: outstanding balance of {$sign}€{$balanceEur}",
+                ['balance_cents' => $balanceCents],
+            );
         }
 
         // No pending (non-cancelled) settlement including this member
         if ($this->hasPendingSettlement($memberId)) {
-            throw new BusinessRuleException('Cannot anonymize: member included in active settlement');
+            throw new BusinessRuleException(
+                BusinessRuleReason::MEMBER_IN_ACTIVE_SETTLEMENT,
+                'Cannot anonymize: member included in active settlement',
+            );
         }
 
         // Anonymize the member record, scrub prior audit history and log the
@@ -531,7 +545,10 @@ class MembersService
         try {
             $anonymized = $this->membersRepository->anonymize($memberId, $adminUserId);
             if (!$anonymized) {
-                throw new BusinessRuleException('Anonymization failed');
+                throw new BusinessRuleException(
+                    BusinessRuleReason::MEMBER_ANONYMIZATION_FAILED,
+                    'Anonymization failed',
+                );
             }
 
             // The outbox is the second place this member's address lives
