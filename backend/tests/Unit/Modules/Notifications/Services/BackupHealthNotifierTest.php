@@ -33,6 +33,21 @@ class BackupHealthNotifierTest extends TestCase
 
     private const KEYS = 'admin:bb637d8ec1cb92bca0467e59faa6d61f6b7f8088103e5b89d7afdc01f1efa45c';
 
+    /**
+     * The instant every test in this file reasons from.
+     *
+     * It has to reach {@see BackupStatusCheck} as well as the notifier, and
+     * that is the whole bug this constant fixes. The check falls back to
+     * `time()` when no clock is injected, so omitting it judged an archive
+     * dated relative to this instant against the *real* today: the fixture sat
+     * inside the staleness window for two days and aged out on the third,
+     * turning green into red with no commit in between and reading like a
+     * broken backup scan rather than a test that had expired.
+     *
+     * A frozen clock is only frozen if every collaborator is holding it.
+     */
+    private const NOW = 1787799600; // 2026-08-27 03:00:00 UTC
+
     private string $dir;
 
     protected function setUp(): void
@@ -55,7 +70,7 @@ class BackupHealthNotifierTest extends TestCase
     {
         $notifier = $this->notifier($this->expecting(queued: 2));
 
-        $result = $notifier->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+        $result = $notifier->run(self::at());
 
         $this->assertSame(1, $result->failingRows);
         $this->assertSame(2, $result->queued);
@@ -73,7 +88,7 @@ class BackupHealthNotifierTest extends TestCase
 
         $notifier = $this->notifier($this->expectingNoCall());
 
-        $result = $notifier->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+        $result = $notifier->run(self::at());
 
         $this->assertSame(0, $result->failingRows);
         $this->assertSame(0, $result->queued);
@@ -89,7 +104,7 @@ class BackupHealthNotifierTest extends TestCase
     {
         $notifier = $this->notifier($this->expectingNoCall(), keys: '');
 
-        $result = $notifier->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+        $result = $notifier->run(self::at());
 
         $this->assertSame('backups not configured', $result->reason);
     }
@@ -105,7 +120,7 @@ class BackupHealthNotifierTest extends TestCase
     {
         $notifier = $this->notifier($this->expectingNoCall(), canSend: false);
 
-        $result = $notifier->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+        $result = $notifier->run(self::at());
 
         $this->assertSame('mail not configured', $result->reason);
     }
@@ -152,7 +167,7 @@ class BackupHealthNotifierTest extends TestCase
         $unknown = array_filter($findings, static fn ($f): bool => $f->status === 'unknown');
         $this->assertNotSame([], $unknown, 'the fixture must actually produce an unknown row');
 
-        $result = $this->notifier($this->expectingNoCall())->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+        $result = $this->notifier($this->expectingNoCall())->run(self::at());
 
         $this->assertSame(0, $result->queued);
     }
@@ -172,7 +187,7 @@ class BackupHealthNotifierTest extends TestCase
             $this->createMock(Logger::class),
         );
 
-        $result = $notifier->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+        $result = $notifier->run(self::at());
 
         $this->assertStringStartsWith('scan failed:', (string) $result->reason);
     }
@@ -188,7 +203,7 @@ class BackupHealthNotifierTest extends TestCase
         $healthy = $this->notifier($this->expectingNoCall());
         file_put_contents($this->dir . '/clubbar-' . gmdate('Ymd-His') . '-1a2b3c4d.cbb', 'sealed');
 
-        $quiet = $healthy->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+        $quiet = $healthy->run(self::at());
         $this->assertSame(
             'failing_rows=0 queued=0 already_queued=0 admins_without_email=0',
             $quiet->summary()
@@ -200,7 +215,7 @@ class BackupHealthNotifierTest extends TestCase
         // "queued nothing" reads the same whether backups are healthy or the
         // scan never looked.
         $off = $this->notifier($this->expectingNoCall(), keys: '')
-            ->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+            ->run(self::at());
 
         $this->assertSame('nothing due (backups not configured)', $off->summary());
         $this->assertSame('backups not configured', $off->toArray()['reason']);
@@ -211,7 +226,7 @@ class BackupHealthNotifierTest extends TestCase
     {
         $notifier = $this->notifier($this->expectingAlreadyQueued(3));
 
-        $result = $notifier->run(new DateTimeImmutable('2026-08-27 03:00:00'));
+        $result = $notifier->run(self::at());
 
         $this->assertSame(0, $result->queued);
         $this->assertSame(3, $result->alreadyQueued);
@@ -226,12 +241,24 @@ class BackupHealthNotifierTest extends TestCase
         bool $canSend = true,
     ): BackupHealthNotifier {
         return new BackupHealthNotifier(
-            new BackupStatusCheck($this->dir, $keys, BackupRetention::defaults()),
+            new BackupStatusCheck($this->dir, $keys, BackupRetention::defaults(), self::NOW),
             $this->schedule($keys),
             $adminNotifier,
             $this->mailConfig($canSend),
             $this->createMock(Logger::class),
         );
+    }
+
+    /**
+     * {@see NOW} as the notifier wants it.
+     *
+     * Every instant in this file comes from the one constant, so the clock the
+     * fixtures are written against and the clock the scan reads cannot drift
+     * apart — which is the drift that made this file expire.
+     */
+    private static function at(): DateTimeImmutable
+    {
+        return (new DateTimeImmutable())->setTimestamp(self::NOW);
     }
 
     private function schedule(string $keys): BackupSchedule
@@ -290,7 +317,7 @@ class BackupHealthNotifierTest extends TestCase
 
     private function archive(int $hoursAgo): void
     {
-        $at = (new DateTimeImmutable('2026-08-27 03:00:00'))->getTimestamp() - $hoursAgo * 3600;
+        $at = self::NOW - $hoursAgo * 3600;
 
         file_put_contents(
             $this->dir . '/clubbar-' . gmdate('Ymd-His', $at) . '-1a2b3c4d.cbb',
