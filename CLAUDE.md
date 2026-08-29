@@ -750,6 +750,7 @@ User approved committing for debugging/investigation.
 | **Test syntax error** | Missing import or typo: Check error output carefully, fix code, retry |
 | **Fixture not found** | Fixture not created: Check `e2etests/fixtures/` for required setup, create if missing |
 | **`Call to undefined function bcmod()`** | You ran `php`, which is 8.4 and has no bcmath. Use `php8.3` (see *Run backend PHP tests*) |
+| **29 unit tests error with `PDOException: could not find driver`** | `php8.3-sqlite3` is missing. Those tests build their fixture in `sqlite::memory:`; the package is in `archive.ubuntu.com` and `.claude/cloud-setup.sh` installs it (#754). It reads as a broken data layer and is not one |
 | **`phpunit` never returns when piped** (`phpunit \| tail`) | A test leaked a `php -S` child that still holds the output pipe, so it never reaches EOF. Start servers only via `Tests\Support\LocalWebServer` — a *string* command to `proc_open()` re-creates this. Check with `pgrep -af '[p]hp -S'` |
 | **`Could not authenticate against github.com`** during `composer install` | Not an auth problem, and a token will not fix it — it is the session's GitHub proxy refusing an out-of-scope repository. Composer dists work; see [`docs/agents/cloud-environment.md`](./docs/agents/cloud-environment.md) |
 | **`access denied by the git proxy: <other>/<repo> is not in this session's authorized repository set`** on `git push` | Reads as permissions, is almost always a **clobbered remote** left by a composer source-install (often one started from the repo root instead of `backend/`). Check `git remote -v`, then `git remote set-url origin https://github.com/dgloeckner/clubbar` |
@@ -1111,6 +1112,15 @@ pins the platform to 8.3.30. Both `php8.3-cli` and `php8.3-bcmath` come from
 `archive.ubuntu.com`, which is allowed; `.claude/cloud-setup.sh` installs them,
 and pinning the unreachable PPA out is what makes them resolvable at all. See
 [`docs/agents/cloud-environment.md`](./docs/agents/cloud-environment.md).
+
+The same script installs **`php8.3-sqlite3`**, for the same reason and with the
+same failure mode. Twenty-nine unit tests build their fixture in
+`sqlite::memory:` — that is *why* they need no stack and no `database` host —
+and without the driver they error with `PDOException: could not find driver`,
+in repositories and domain classes, reading as a broken data layer rather than
+a missing package (#754). Both extensions are verified at the end of the setup
+script, so a missing one costs a line naming it rather than a screenful of
+stack traces.
 
 The container is still right for **Feature** tests: those need the `database`
 hostname, which only exists on the compose network. Run them there, or start the
