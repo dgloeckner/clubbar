@@ -48,8 +48,10 @@ jobs:
           build-mode: none
         - language: javascript-typescript
           build-mode: none
-        - language: python
-          build-mode: none
+        # No Python lane: the repo's last two .py files were the screen-blanking
+        # workaround, removed in #763. CodeQL fails a language with no source
+        # ("could not process any code written in Python"), so an empty lane is
+        # a red build, not a clean one. Restore this entry if Python returns.
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
