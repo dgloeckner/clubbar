@@ -29,9 +29,10 @@ Creates a new member account.
 3. Admin enters member data:
    - First name (required)
    - Last name (required)
-   - Email (optional)
-   - IBAN (required)
-   - Mandate date (required)
+   - Email (required — #362)
+   - Card UID (optional; usually entered later, see UC-A12)
+   - IBAN (optional — #131)
+   - Mandate date (required with an IBAN)
    - Preferred language (default: organization default)
 4. Admin submits form
 5. System validates input
@@ -48,20 +49,23 @@ Creates a new member account.
 | First name | Yes | Non-empty, max 100 chars | |
 | Last name | Yes | Non-empty, max 100 chars | |
 | Date of birth | Yes | Date, not in the future | Jugendschutz ([ADR-0045](../../adr/0045-age-restricted-products.md)); erasable — anonymization nulls it |
-| Email | No | Valid email format | |
-| IBAN | Yes | Valid IBAN format + checksum | Required for terminal access |
-| Mandate date | Yes | Date, not in future | Required with IBAN |
-| Language | Yes | ISO 639-1 code from enabled list | |
+| Email | **Yes** | Valid email format | Required since [#362](https://github.com/dgloeckner/clubbar/issues/362); the column stays nullable only so erasure can clear it, and it cannot be cleared while the member is active |
+| Card UID | No | 8–20 uppercase hex, unique | Usually entered afterwards ([ADR-0021](../../adr/0021-rfid-card-assignment-workflow.md)). **Assigning it is what welcomes the member** ([UC-A67](./UC-A67-member-lifecycle-mail.md)) |
+| IBAN | No | Valid IBAN format + checksum | Optional since [#131](https://github.com/dgloeckner/clubbar/issues/131); without it the member cannot be collected from |
+| Mandate date | With IBAN | Date, not in future | |
+| Language | Yes | ISO 639-1 code from enabled list | Selects the language of every mail the member receives (de/en; fr falls back to German) |
 
-**SEPA Requirement**: IBAN and mandate date are required. Members cannot use the terminal without valid SEPA data. This is part of the standard onboarding process.
+**Email**: required because the Vorabankündigung and the settlement statement are a contractual promise (Nutzungsordnung § 7 Abs. 3) — a member cannot be onboarded without an address to announce to.
+
+**No mail is sent by creating the record.** A member with no card cannot start a Session or run up a Deckel; the welcome waits for the card ([UC-A67](./UC-A67-member-lifecycle-mail.md)). Creating a member *with* a card in the same request welcomes them immediately.
 
 ## Postconditions
 - Member created with UUID
-- Mandate reference generated
+- Mandate reference generated when an IBAN was supplied
 - Tab balance = 0
 - Member is active
-- is_sepa_valid = TRUE (IBAN is required)
 - Audit log entry created
+- A `member_welcome` is queued **only** if a card UID was supplied ([UC-A67](./UC-A67-member-lifecycle-mail.md))
 
 ## Error Cases
 

@@ -30,7 +30,8 @@ Admin selects member from list
 | First name | |
 | Last name | |
 | Date of birth | Not in the future. May be corrected but not cleared — a blank one means an anonymized member ([ADR-0045](../../adr/0045-age-restricted-products.md)) |
-| Email | |
+| Email | Cannot be cleared while the member is active ([#362](https://github.com/dgloeckner/clubbar/issues/362)). **Changing it writes to both the old and the new address** ([UC-A67](./UC-A67-member-lifecycle-mail.md)) — but only once the member has a card |
+| Card UID | 8–20 uppercase hex, unique. **The first one welcomes the member; any later one tells them the old card has stopped working** ([UC-A67](./UC-A67-member-lifecycle-mail.md)) |
 | IBAN | Overwrite-only — see *Banking fields* below. Validation on change |
 | Mandate date | Required if IBAN set |
 | Mandate reference | SEPA identifier; assigned by the server unless one is supplied |
@@ -100,6 +101,9 @@ the old mandate row is retained so returned collections stay matchable. See
 - Member record updated
 - SEPA status recalculated based on new field values
 - Audit log entry with old and new values
+- Any member lifecycle notice the change earns is **queued, not sent**
+  ([UC-A67](./UC-A67-member-lifecycle-mail.md), [ADR-0038](../../adr/0038-transactional-mail-outbox-on-shared-hosting.md)
+  rule 3). A queue failure never fails the edit
 
 ## Error Cases
 
