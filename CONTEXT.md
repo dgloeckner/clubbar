@@ -124,6 +124,10 @@ Mandatsreferenz and no Gläubiger-ID: the registration form promises those
 *„mit der Vorabankündigung zum ersten Einzug"*, and at card time there is often
 no mandate on file to name.
 
+It also says the card may not have reached the member yet, because it usually
+has not: the Kassenwart enters the UID while *preparing* the onboarding, and the
+plastic is handed over later.
+
 That it comes first is a rule, not an accident — no member-addressed notice goes
 out before it, which is why an address change for a member with no card is
 silent. See [ADR-0051](./adr/0051-member-lifecycle-mail.md).

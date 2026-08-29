@@ -46,7 +46,8 @@ probable, not less, and equally silent.
    ([ADR-0021](../../adr/0021-rfid-card-assignment-workflow.md)).
 3. `member_welcome` is queued inside the same request, addressed to the member.
 4. The next scheduler tick renders and sends it.
-5. The member receives, in their own language: the card works; how the Deckel
+5. The member receives, in their own language: the card works; **that it may not
+   have reached them yet, and works from the moment it does**; how the Deckel
    accrues; that a Vorabankündigung arrives at least seven days before every
    collection; what the club stores and that a reply reaches the Kassenwart.
 
@@ -55,7 +56,7 @@ probable, not less, and equally silent.
 | # | Situation | Outcome |
 |---|---|---|
 | A1 | The record is created with a card already on it | Welcomed at creation — onboarded in one step |
-| A2 | A different card is assigned later | `member_card_replaced`: the old card has stopped working, the Deckel is unchanged. **Not** a second welcome |
+| A2 | A different card is assigned later | `member_card_replaced`: the old card has stopped working *immediately*, the new one may not have arrived yet, and the Deckel is unchanged. **Not** a second welcome |
 | A3 | The card is cleared | Nothing is sent |
 | A4 | A card is assigned after being cleared | `member_card_replaced` — the member has been greeted before |
 | A5 | The address changes on a member **with** a card | Two messages: `member_email_changed` to the address being left, `member_email_activated` to the one being taken up |
@@ -87,8 +88,14 @@ probable, not less, and equally silent.
 5. **The welcome carries no Mandatsreferenz and no Gläubiger-ID.** The
    registration form promises those *„mit der Vorabankündigung zum ersten
    Einzug"*, and at card time there is often no mandate on file.
-6. **No card UID appears in any message.** The member is holding the card.
-7. **A queue failure never fails the write.** The card assignment and the
+6. **No card UID appears in any message.** The member is holding the card, or
+   about to be.
+7. **Both card notices allow for the card not having arrived.** The UID is
+   typically entered while the Kassenwart *prepares* the onboarding, so the mail
+   routinely lands days before the plastic. The replacement additionally names
+   the gap it creates: assigning a new UID stops the old card at once, so a
+   member who has not been handed the new one cannot pay until they are.
+8. **A queue failure never fails the write.** The card assignment and the
    address edit are already committed; the notice is best effort.
 
 ## Acceptance criteria
@@ -108,6 +115,8 @@ probable, not less, and equally silent.
 - [x] A move back to a previously used address is announced again
 - [x] A member with no address can still be given a card
 - [x] Anonymising a member queues nothing
+- [x] Both card notices allow for the card not having arrived, and the
+      replacement names the window in which the member cannot pay
 - [x] A real `bin/cron.php` run delivers the welcome to Mailpit, in the member's
       language, carrying no banking details
 - [x] A second real drain delivers no duplicate

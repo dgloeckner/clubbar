@@ -480,6 +480,9 @@ final class MailStrings
             'member_welcome.body'      => 'Halte die Karte einfach an das Lesegerät, wähle aus, was du '
                                         . 'nimmst, und bestätige. Bezahlt wird nicht sofort: Was du '
                                         . 'nimmst, läuft auf deinem Deckel zusammen.',
+            'member_welcome.not_yet'   => 'Falls du die Karte noch gar nicht bekommen hast: Hier ist sie '
+                                        . 'schon eingerichtet und funktioniert ab dem Moment, in dem du '
+                                        . 'sie in der Hand hältst. Der Kassenwart gibt sie dir.',
             'member_welcome.next'      => 'Der Deckel wird in Abständen per SEPA-Lastschrift eingezogen. '
                                         . 'Vor jedem Einzug bekommst du mindestens sieben Tage vorher '
                                         . 'eine Vorabankündigung per E-Mail, in der Betrag und '
@@ -499,7 +502,11 @@ final class MailStrings
             'member_card.body'      => 'Die bisherige Karte funktioniert nicht mehr. Dein Deckel und '
                                      . 'deine bisherigen Buchungen bleiben unverändert — es wechselt nur '
                                      . 'die Karte, mit der du dich am Tresen anmeldest.',
-            'member_card.next'      => 'Falls du die alte Karte noch findest, kannst du sie wegwerfen.',
+            'member_card.not_yet'   => 'Falls du die neue Karte noch gar nicht bekommen hast: Hier ist sie '
+                                     . 'schon eingerichtet und funktioniert, sobald du sie in der Hand '
+                                     . 'hältst. Bis dahin kannst du am Tresen nicht bezahlen — die alte '
+                                     . 'Karte gilt ab sofort nicht mehr.',
+            'member_card.next'      => 'Die alte Karte kannst du wegwerfen.',
             'member_card.unexpected' => 'Wenn du keinen Kartenwechsel veranlasst hast, melde dich bitte '
                                      . 'beim Kassenwart — antworte dazu einfach auf diese Nachricht.',
 
@@ -914,6 +921,9 @@ final class MailStrings
             'member_welcome.body'      => 'Hold the card against the reader, choose what you are having, '
                                         . 'and confirm. Nothing is paid on the spot: what you take runs '
                                         . 'up on your tab.',
+            'member_welcome.not_yet'   => 'If the card has not reached you yet: it is already set up here '
+                                        . 'and will work from the moment you hold it. The Kassenwart '
+                                        . 'will hand it over.',
             'member_welcome.next'      => 'The tab is collected periodically by SEPA direct debit. Before '
                                         . 'every collection you receive an advance notice by email, at '
                                         . 'least seven days ahead, stating the amount and the due date. '
@@ -932,7 +942,10 @@ final class MailStrings
             'member_card.body'      => 'The previous card no longer works. Your tab and your existing '
                                      . 'bookings are unchanged — only the card you check in with at the '
                                      . 'bar has changed.',
-            'member_card.next'      => 'If the old card turns up, you can throw it away.',
+            'member_card.not_yet'   => 'If the new card has not reached you yet: it is already set up here '
+                                     . 'and will work as soon as you hold it. Until then you cannot pay '
+                                     . 'at the bar — the old card stopped working immediately.',
+            'member_card.next'      => 'You can throw the old card away.',
             'member_card.unexpected' => 'If you did not ask for a new card, please contact the Kassenwart '
                                      . '— simply reply to this message.',
 

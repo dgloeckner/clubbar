@@ -19,9 +19,19 @@ use App\Shared\Mail\MailMessage;
  * differ only in which of those it is, so a second class would be the same
  * scaffolding twice.
  *
- * **Neither message prints the card UID.** The member is holding the card, so
- * naming it adds nothing they cannot read off the plastic; what it would add is
- * a card identifier sitting in a mailbox. The welcome likewise carries no
+ * **Both messages assume the card may not have arrived yet**, and say so. A
+ * Kassenwart types the UID in while *preparing* an onboarding — the plastic is
+ * handed over at the bar, or posted, possibly days later — so this mail
+ * routinely reaches a member who has nothing in their hand. Without that
+ * paragraph the welcome reads as an instruction the member cannot follow, and
+ * the replacement is worse: assigning a new UID stops the old card working
+ * immediately, so there is a real window in which the member cannot pay at all.
+ * Saying so is the difference between a gap they were warned about and a card
+ * that mysteriously stopped at the bar.
+ *
+ * **Neither message prints the card UID.** The member is holding the card — or
+ * about to be — so naming it adds nothing they cannot read off the plastic;
+ * what it would add is a card identifier sitting in a mailbox. The welcome likewise carries no
  * Mandatsreferenz and no Gläubiger-ID: the registration form promises those
  * „mit der Vorabankündigung zum ersten Einzug", and at card time there is often
  * no mandate on file to name.
@@ -87,6 +97,7 @@ final class MemberCardMail
             . MailLayout::paragraph(MailLayout::esc(MailTextBody::greeting($t, $firstName)))
             . MailLayout::lede($t->t($prefix . '.lede'))
             . MailLayout::paragraph(MailLayout::esc($t->t($prefix . '.body')))
+            . MailLayout::paragraph(MailLayout::esc($t->t($prefix . '.not_yet')))
             . MailLayout::paragraph(MailLayout::esc($t->t($prefix . '.next')))
             . MailLayout::paragraph(MailLayout::esc($t->t($prefix . '.unexpected')))
             . MailLayout::signOff($t->t('signoff'), $branding->orgName)
@@ -108,6 +119,8 @@ final class MemberCardMail
             $t->t($prefix . '.lede_text'),
             '',
             $t->t($prefix . '.body'),
+            '',
+            $t->t($prefix . '.not_yet'),
             '',
             $t->t($prefix . '.next'),
             '',

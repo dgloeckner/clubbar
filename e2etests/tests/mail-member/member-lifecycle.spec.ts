@@ -166,6 +166,9 @@ test.describe('Member lifecycle mail — card, address, cron, delivered message'
       // be surprised by the first collection.
       expect(body, `${where} sets up the Vorabankündigung`).toContain('Vorabankündigung')
       expect(body, `${where} explains the tab`).toContain('Deckel')
+      // The Kassenwart types the UID in while preparing the onboarding, so this
+      // mail routinely lands before the plastic does.
+      expect(body, `${where} allows for the card not having arrived`).toContain('noch gar nicht bekommen')
       // The registration form promises these arrive with the first
       // Vorabankündigung, not here (ADR-0051 §5).
       expect(body, `${where} must not carry the mandate reference`).not.toContain('Mandatsreferenz')
@@ -197,6 +200,11 @@ test.describe('Member lifecycle mail — card, address, cron, delivered message'
     for (const [where, body] of Object.entries(parts(replacement))) {
       expect(body, `${where} retires the old card`).toContain('funktioniert nicht mehr')
       expect(body, `${where} reassures about the tab`).toContain('unverändert')
+      // Assigning a new UID stops the old card immediately, so a member who has
+      // not been handed the replacement yet genuinely cannot pay. Being told
+      // beforehand is the difference between a warned-about gap and a card that
+      // mysteriously stopped working at the bar.
+      expect(body, `${where} warns about the gap`).toContain('nicht bezahlen')
     }
 
     // Two messages, and the second is not a greeting.

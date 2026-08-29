@@ -145,10 +145,23 @@ The same reasoning keeps the change time honest: it comes from the row's own
 
 | In | Out |
 |---|---|
-| The card works; how to pay at the bar | The card UID — the member is holding it |
-| How the Deckel accrues and that it is collected by SEPA | The Mandatsreferenz and Gläubiger-ID |
-| That a Vorabankündigung arrives ≥ 7 days before every collection | Any amount, limit or balance |
-| What the club stores, and that a reply reaches the Kassenwart | Any link, token or action |
+| The card works; how to pay at the bar | The card UID — the member has it, or is about to |
+| **That the card may not have reached them yet** | The Mandatsreferenz and Gläubiger-ID |
+| How the Deckel accrues and that it is collected by SEPA | Any amount, limit or balance |
+| That a Vorabankündigung arrives ≥ 7 days before every collection | Any link, token or action |
+| What the club stores, and that a reply reaches the Kassenwart | |
+
+**The mail routinely arrives before the plastic does**, and both card notices
+say so. A Kassenwart types the UID in while *preparing* an onboarding — the card
+is handed over at the bar, or posted, possibly days later — so the message
+reaches a member holding nothing. Without that paragraph the welcome is an
+instruction that cannot be followed.
+
+For the replacement it is sharper than a courtesy. `card_uid` is a single
+column, so assigning a new UID stops the old card matching anybody from that
+moment: there is a real window in which the member cannot pay at all. Naming it
+is the difference between a gap they were warned about and a card that
+mysteriously stopped working at the bar, in front of a queue.
 
 The banking details are the deliberate omission. The registration form promises
 they reach the member *„mit der Vorabankündigung zum ersten Einzug per E-Mail"*

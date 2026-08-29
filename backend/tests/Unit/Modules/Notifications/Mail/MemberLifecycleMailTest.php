@@ -60,6 +60,69 @@ class MemberLifecycleMailTest extends TestCase
     }
 
     /**
+     * Both card notices assume the plastic has not arrived yet.
+     *
+     * The Kassenwart types the UID in while *preparing* an onboarding, so this
+     * mail routinely reaches a member holding nothing. Without the caveat the
+     * welcome is an instruction that cannot be followed — and the replacement
+     * is worse, because assigning a new UID stops the old card immediately and
+     * the member would find that out at the bar.
+     */
+    public function test_both_card_notices_allow_for_the_card_not_having_arrived(): void
+    {
+        foreach ([MailKind::MEMBER_WELCOME, MailKind::MEMBER_CARD_REPLACED] as $kind) {
+            $mail = MemberCardMail::render(
+                kind: $kind,
+                recipientAddress: 'anna@example.org',
+                firstName: 'Anna',
+                language: MailLanguage::German,
+                branding: $this->branding(),
+            );
+
+            foreach ($this->parts($mail) as $where => $body) {
+                $this->assertStringContainsString(
+                    'noch gar nicht bekommen',
+                    $body,
+                    "$where of {$kind->value} must allow for the card not having arrived"
+                );
+                $this->assertStringContainsString(
+                    'in der Hand',
+                    $body,
+                    "$where of {$kind->value} must say when the card starts working"
+                );
+            }
+        }
+    }
+
+    /**
+     * The replacement names the gap rather than leaving it to be discovered.
+     *
+     * `card_uid` is a single column, so a new UID means the old one matches
+     * nobody from that moment. A member who has not yet been handed the
+     * replacement genuinely cannot pay, and being told beforehand is the whole
+     * difference between a warned-about gap and a card that mysteriously
+     * stopped working at the bar.
+     */
+    public function test_the_replacement_warns_about_the_gap_before_the_new_card_arrives(): void
+    {
+        $mail = MemberCardMail::render(
+            kind: MailKind::MEMBER_CARD_REPLACED,
+            recipientAddress: 'anna@example.org',
+            firstName: 'Anna',
+            language: MailLanguage::German,
+            branding: $this->branding(),
+        );
+
+        foreach ($this->parts($mail) as $where => $body) {
+            $this->assertStringContainsString(
+                'nicht bezahlen',
+                $body,
+                "$where must say the member cannot pay until the new card arrives"
+            );
+        }
+    }
+
+    /**
      * The registration form promises the mandate reference and creditor id
      * arrive „mit der Vorabankündigung zum ersten Einzug". A welcome carrying
      * them would move that to a channel the club did not commit to — and at
@@ -222,6 +285,7 @@ class MemberLifecycleMailTest extends TestCase
 
         $this->assertStringContainsString('Welcome to FRGS Ruderbar', $mail->subject);
         $this->assertStringContainsString('your membership card is now active', $mail->text);
+        $this->assertStringContainsString('has not reached you yet', $mail->text);
         $this->assertStringNotContainsString('freigeschaltet', $mail->text);
     }
 
