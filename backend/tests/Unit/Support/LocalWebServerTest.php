@@ -97,6 +97,71 @@ final class LocalWebServerTest extends TestCase
         }
     }
 
+    /**
+     * The second regression: a port somebody else already holds must never come
+     * back as if it were the server's.
+     *
+     * This is the cloud-session failure named in {@see LocalWebServer}. A
+     * Claude Code session holds 127.0.0.1:32859 — inside this class's random
+     * range — and answers **401 to every request**. `php -S` cannot bind there
+     * and exits; readiness that only asked "does anything answer?" said yes, and
+     * HttpProbeTest then ran its assertions against that stranger and failed
+     * with `Failed asserting that 401 is identical to 404` — a security probe
+     * reading as broken when nothing was.
+     *
+     * Every attempt is aimed at one port this test is holding, so the outcome is
+     * decided rather than drawn: the only honest answer is null, which callers
+     * turn into a skip. Before the fix this returned a server whose baseUrl
+     * pointed at the squatter.
+     */
+    public function test_a_port_somebody_else_holds_is_never_handed_back(): void
+    {
+        $squatter = @stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
+        if (!is_resource($squatter)) {
+            $this->markTestSkipped('Could not bind a socket to squat on');
+        }
+
+        $name = stream_socket_get_name($squatter, false);
+        $port = (int) substr((string) $name, (int) strrpos((string) $name, ':') + 1);
+
+        try {
+            $server = LocalWebServer::start(
+                $this->root . '/router.php',
+                $this->root,
+                3,
+                static fn(): int => $port,
+            );
+
+            $this->assertNull(
+                $server,
+                'start() handed back a port another process is listening on — the '
+                . 'tests would have run against that server, not ours',
+            );
+        } finally {
+            $server?->stop();
+            fclose($squatter);
+        }
+    }
+
+    /**
+     * And the server that does come back is genuinely ours: it serves the router
+     * we passed. A stranger would answer something else.
+     */
+    public function test_the_server_it_returns_is_the_one_it_started(): void
+    {
+        $server = $this->startOrSkip();
+
+        try {
+            $this->assertSame(
+                'ok',
+                file_get_contents($server->baseUrl() . '/'),
+                'the URL answered, but not with what our router serves',
+            );
+        } finally {
+            $server->stop();
+        }
+    }
+
     private function startOrSkip(): LocalWebServer
     {
         $server = LocalWebServer::start($this->root . '/router.php', $this->root);

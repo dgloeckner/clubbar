@@ -116,6 +116,24 @@ stack traces:
 [cloud-setup] php8.3 with pdo_sqlite is available.
 ```
 
+### A local port may already be taken
+
+The session holds **127.0.0.1:32859** (and the agent proxy on 44747), inside the
+range `tests/Support/LocalWebServer.php` draws test-server ports from. It answers
+**401 to every request**, which is worse than refusing: a helper that waits for
+"something answers on this port" is satisfied by it, and the test then asserts
+against a stranger. That surfaced once as
+
+```
+HttpProbeTest::test_it_reports_a_refusal_rather_than_treating_it_as_a_failure
+Failed asserting that 401 is identical to 404.
+```
+
+— a security probe reading as broken when nothing was. `LocalWebServer` now binds
+a candidate port itself before handing it to `php -S`, so a port somebody else
+holds is excluded rather than mistaken for the server. Anything else in this repo
+that opens a fixed local port should assume the same hazard.
+
 ## Composer works; do not try to fix it
 
 `composer install` in `backend/` completes in about **three seconds**, entirely
