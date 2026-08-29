@@ -161,7 +161,32 @@ final class MailRetention
             // was told, on a given day, that the backup job had stopped. The
             // durable record of the job itself is the journal beside the
             // archives, which ADR-0049 decision 8 keeps out of the schema.
-            MailKind::BACKUP_HEALTH_WARNING => self::DEFAULT_SENT_DAYS,
+            MailKind::BACKUP_HEALTH_WARNING,
+            // The member lifecycle notices keep the default, on the reasoning
+            // the admin ones above already give: the durable record of what
+            // each announces is elsewhere and untouched here — `members.card_uid`
+            // and `members.email` say what is on file now, and the `create` /
+            // `update` audit entry names what moved and when. These rows are
+            // the *telling*, and what they hold past delivery is a member's
+            // address.
+            //
+            // The welcome's dedup key is a constant rather than an occasion, so
+            // it is fair to ask whether pruning one lets a member be greeted
+            // twice. Almost never: which of the two card notices is sent is
+            // decided first from the transition itself — a card *replacing*
+            // another is a replacement whatever the queue holds — and the
+            // refused-duplicate fallback only covers the member whose card was
+            // cleared and later reassigned. Pruned after ninety days, that one
+            // member would be welcomed again.
+            //
+            // Accepted rather than overlooked. Holding one row per member
+            // forever to prevent a duplicate greeting would retain an address
+            // indefinitely for no evidentiary purpose, which is precisely what
+            // ADR-0029 asks of this table.
+            MailKind::MEMBER_WELCOME,
+            MailKind::MEMBER_CARD_REPLACED,
+            MailKind::MEMBER_EMAIL_CHANGED,
+            MailKind::MEMBER_EMAIL_ACTIVATED => self::DEFAULT_SENT_DAYS,
             MailKind::DECKEL_STATEMENT => self::STATEMENT_SENT_DAYS,
             MailKind::CREDIT_LIMIT_DIGEST => self::DIGEST_SENT_DAYS,
         };

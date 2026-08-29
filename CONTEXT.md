@@ -111,3 +111,42 @@ A periodic statement of a member's Deckel, sent to every member on a fixed calen
 
 It announces nothing and collects nothing. That is what separates it from the Vorabankündigung: the Vorabankündigung is a step in taking money and names a date on which money moves; a Deckelauszug is information about a tab that is simply open, and the same drink appears on every Deckelauszug until a settlement finally claims it. A member who owes nothing still gets one.
 _Avoid_: Kontoauszug (that is a bank's document about a bank account), Mahnung and reminder (it never asks to be paid), balance statement (see Deckel)
+
+**Willkommensmail**:
+The first message a member ever receives from the club, sent when their **card**
+is assigned — not when their record is created. A member row without a card is
+paperwork: no Session can start and no Deckel can move, so there is nothing yet
+to welcome them to.
+
+It says the card works, how the Deckel accrues, and that a **Vorabankündigung**
+arrives at least seven days before every collection. It carries no
+Mandatsreferenz and no Gläubiger-ID: the registration form promises those
+*„mit der Vorabankündigung zum ersten Einzug"*, and at card time there is often
+no mandate on file to name.
+
+It also says the card may not have reached the member yet, because it usually
+has not: the Kassenwart enters the UID while *preparing* the onboarding, and the
+plastic is handed over later.
+
+That it comes first is a rule, not an accident — no member-addressed notice goes
+out before it, which is why an address change for a member with no card is
+silent. See [ADR-0051](./adr/0051-member-lifecycle-mail.md).
+_Avoid_: registration mail, onboarding mail, activation mail (nothing is
+activated by reading it), confirmation mail (there is nothing to confirm)
+
+**Adressänderung**:
+A member's email address moving, told at **both ends**: one message to the
+address being left, one to the address being taken up. They are two different
+messages, not one message twice.
+
+The copy to the old address is the only channel through which a change the
+member did not ask for can still reach them — the member's version of the notice
+an admin gets when their sign-in address moves. The copy to the new address is
+the only thing in this system that ever checks an address exists at all; its
+value is the **bounce**, which lands as a failed row months before a collection
+depends on the address being real.
+
+Neither names the other address. It is **not** a verification: nothing is gated
+on it, there is no token, and the message says so.
+_Avoid_: email verification, double opt-in, confirmation (all three promise a
+gate that does not exist), address update notice

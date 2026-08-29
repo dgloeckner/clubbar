@@ -125,4 +125,80 @@ class MailContentRegistryTest extends TestCase
         $this->assertFalse($real->supports(MailKind::KEY_EXPIRY_WARNING));
         $this->assertFalse($real->supports(MailKind::TERMINAL_TOKEN_EXPIRY_WARNING));
     }
+
+    /**
+     * Every kind the enum declares can actually be rendered by the registry
+     * the application wires up (ADR-0051).
+     *
+     * The gap this closes: adding a `MailKind` case is checked in four places
+     * by the compiler, because {@see MailKind}'s four `match` expressions are
+     * exhaustive — but *nothing* checked that a builder claims it. A kind that
+     * something enqueues and no builder renders fails at drain time, in
+     * `builderFor()`, against a row a member is already waiting on. That is the
+     * one part of adding a notification type PHP cannot catch, so it is caught
+     * here instead.
+     *
+     * The builder list is read from `ServiceFactory::getMailContentRegistry()`
+     * rather than restated, so a builder written and never registered fails
+     * this test too — which is the other half of the same mistake.
+     *
+     * Builders are instantiated without their constructors, as
+     * {@see test_the_settlement_builder_claims_every_settlement_kind} already
+     * does: `supports()` answers from the kind alone, so no repository, no
+     * config and no database is involved in asking.
+     */
+    public function test_the_wired_registry_can_render_every_kind(): void
+    {
+        $registry = new MailContentRegistry(...array_map(
+            static fn(string $class) => (new \ReflectionClass($class))->newInstanceWithoutConstructor(),
+            self::wiredBuilderClasses(),
+        ));
+
+        foreach (MailKind::cases() as $kind) {
+            $this->assertTrue(
+                $registry->supports($kind),
+                $kind->value . ' is queueable and nothing can render it: give it a MailContentBuilder '
+                . 'and register it in ServiceFactory::getMailContentRegistry()'
+            );
+        }
+    }
+
+    /**
+     * The builder classes `ServiceFactory::getMailContentRegistry()` actually
+     * passes to the registry, read from the factory rather than duplicated.
+     *
+     * @return list<class-string<MailContentBuilder>>
+     */
+    private static function wiredBuilderClasses(): array
+    {
+        $factory = new \ReflectionClass(\App\ServiceFactory::class);
+        $method = $factory->getMethod('getMailContentRegistry');
+
+        $source = implode('', array_slice(
+            file($method->getFileName()),
+            $method->getStartLine() - 1,
+            $method->getEndLine() - $method->getStartLine() + 1,
+        ));
+
+        preg_match_all('/\$this->(get\w+)\(\)/', $source, $matches);
+
+        $classes = [];
+        foreach (array_unique($matches[1]) as $getter) {
+            $returns = $factory->getMethod($getter)->getReturnType();
+            if (!$returns instanceof \ReflectionNamedType) {
+                continue;
+            }
+
+            $class = $returns->getName();
+            if (is_subclass_of($class, MailContentBuilder::class)) {
+                $classes[] = $class;
+            }
+        }
+
+        // A regex that silently matched nothing would make this test pass while
+        // asserting about an empty registry.
+        self::assertNotEmpty($classes, 'no builders were read out of ServiceFactory');
+
+        return $classes;
+    }
 }

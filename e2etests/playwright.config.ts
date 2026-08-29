@@ -437,6 +437,30 @@ export default defineConfig({
       dependencies: ['mail-roles'],
     },
 
+    // The member lifecycle chain (ADR-0051): a card assigned or an address
+    // changed → bin/cron.php → the *member's* mailbox.
+    //
+    // The one chain that writes to no admin mailbox at all — every message it
+    // asserts on is addressed to a member it created, at an address it
+    // generated — so unlike the eight before it, it cannot collide with their
+    // counts and they cannot collide with its.
+    //
+    // It is in the chain anyway, and last, for the reason that has nothing to
+    // do with mailboxes: its drains claim the **whole queue**, so running it
+    // beside another sending project would sweep messages that project is
+    // asserting are still pending. Half its claims are negative ("a member with
+    // no card hears nothing"), and a concurrent drain is exactly what makes a
+    // negative pass for the wrong reason.
+    //
+    // `dependencies` makes that ordering structural rather than alphabetical
+    // luck, as it does for the rest of the chain.
+    {
+      name: 'mail-member',
+      testDir: './tests/mail-member',
+      fullyParallel: false,
+      dependencies: ['mail-digest'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',

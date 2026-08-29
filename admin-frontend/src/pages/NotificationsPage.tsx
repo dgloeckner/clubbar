@@ -420,16 +420,41 @@ export function NotificationsPage() {
  *
  * The response also carries them (`filters.kinds` / `filters.statuses`) from
  * the server that enforces them; these are the labels' anchor and the order
- * they are shown in. The two agreeing is what the API test asserts.
+ * they are shown in — grouped by who reads them rather than alphabetically,
+ * because that is how somebody scans a filter for the thing they are chasing.
+ *
+ * Kept in step with `MailKind` by hand, and it had drifted: ten kinds the
+ * backend queues were unreachable from this dropdown, so a Jugendschutz notice
+ * or a backup alarm could not be filtered for at all. A kind added to the enum
+ * belongs here and in `notifications.kinds.*` in both locale files.
  */
 const KINDS = [
+  // Money, to a member
   'sepa_prenotification',
   'cancellation_notice',
+  'deckel_statement',
+  'credit_limit_digest',
+  // A member's own record (ADR-0051)
+  'member_welcome',
+  'member_card_replaced',
+  'member_email_changed',
+  'member_email_activated',
+  'jugendschutz_violation',
+  // Credentials
   'key_expiry_warning',
+  'encryption_key_registered',
+  'encryption_key_activated',
+  'encryption_key_revoked',
+  'terminal_token_issued',
   'terminal_token_expiry_warning',
   'terminal_anomaly_warning',
+  // Admin accounts
+  'admin_account_created',
+  'admin_role_changed',
   'admin_email_changed',
-  'deckel_statement',
+  // Backups
+  'backup_secret_expiry_warning',
+  'backup_health_warning',
 ]
 
 const STATUSES = ['pending', 'sent', 'failed', 'superseded']

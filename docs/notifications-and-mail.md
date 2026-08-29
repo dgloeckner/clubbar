@@ -91,10 +91,37 @@ flowchart TD
 | `admin_account_created`, `admin_role_changed` | Active `admin` accounts **+ configured club address** | Admin lifecycle events ([ADR-0044](../adr/0044-tiered-admin-roles.md)) — the club-address copy is what still fires when there's only one admin and they're the one being promoted |
 | `jugendschutz_violation` | Active `admin` **and `kassenwart`** accounts **+ configured club address** | A sale served to a minor ([ADR-0045](../adr/0045-age-restricted-products.md) §3) — names the drink, the age it required and the transaction, never the member |
 | `admin_email_changed` | The *old* address | Own-profile email change — the channel a hijacker holding the new address can't suppress |
+| `member_welcome` | Member | Their **first** card assignment ([ADR-0051](../adr/0051-member-lifecycle-mail.md)) — not record creation, because a member with no card can't use the bar yet |
+| `member_card_replaced` | Member | Any later card assignment — the old card has stopped working |
+| `member_email_changed` | The member's *old* address | Their address moved — the member half of `admin_email_changed`, and the only channel a change they didn't ask for reaches them through |
+| `member_email_activated` | The member's *new* address | The same move, other end. Its job is to **fail** when the address is a typo, months before a collection depends on it |
 
 `bank_transfer` and `write_off` settlements never enqueue anything — the
 money either already arrived or was never expected, so there's nothing to
 announce.
+
+### The card gates every member lifecycle notice
+
+The four `member_*` kinds share one rule: **the welcome is the first message a
+member ever receives**, so nothing in that group goes out before it. A member
+whose card has not been assigned is told nothing at all — not even that their
+address changed, which would otherwise arrive from a sender they don't
+recognise, about a relationship they don't yet know they have.
+
+Which of the two card notices fires is read from the transition, not from the
+queue: a card replacing another is a replacement whatever the outbox holds, so
+a welcome pruned at ninety days can't turn a later replacement back into a
+greeting. Only the cleared-then-reassigned case falls back to attempting the
+welcome and treating a refused insert — the unique index, not a lookup — as
+proof the member was greeted before.
+
+Neither address notice names the other address. Bodies render at send time
+(rule 5), so a printed address could have moved again between a greylisted
+attempt and the one that succeeds; each copy proves its own address by arriving
+there. `member_email_activated` is **not** a verification — no token, nothing
+gated on it, and the message says so, because a member waiting for a
+confirmation link that never comes is worse off than one told there's nothing
+to do.
 
 ### Who an admin-addressed kind actually reaches
 
@@ -298,5 +325,6 @@ tab is not allowed to become a second place mail gets sent from.
 - [ADR-0039](../adr/0039-periodic-deckel-statement.md) — The Periodic Deckelauszug
 - [ADR-0041](../adr/0041-terminal-credential-anomaly-detection.md) — Terminal Credential Anomaly Detection (a mail consumer)
 - [ADR-0043](../adr/0043-terminal-credential-issuance-is-announced.md) — Terminal Credential Issuance Is Announced (a mail consumer)
+- [ADR-0051](../adr/0051-member-lifecycle-mail.md) — A Member Hears From the Club When Their Card Arrives (a mail consumer)
 - [Security Concept](./security-concept.md) — where these alerts fit into the overall model
 - [Deployment Guide](./deployment.md) — scheduler setup, including host-specific caveats
