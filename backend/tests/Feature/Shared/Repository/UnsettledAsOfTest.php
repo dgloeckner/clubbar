@@ -55,6 +55,26 @@ class UnsettledAsOfTest extends DatabaseTestCase
      * release mechanism that only one of them knows about — the per-member
      * reversal of #148 is the one that nearly slipped through — shows up here
      * as a difference of exactly the affected rows.
+     *
+     * **Restricted to transactions that have actually occurred**, which is the
+     * whole domain over which the two are claimed to be equivalent. The dated
+     * predicate reads *"it had occurred by `$t`, and no live claim"*; the live
+     * one is only the second half and has no time dimension at all. A sale
+     * timed in the future therefore separates them by construction, and this
+     * assertion would read that as the drift it exists to catch.
+     *
+     * Such a sale is not corruption to be cleaned up: a terminal is offline and
+     * owns its own clock (ADR-0033), sync stores `created_at` **as sent**, and
+     * `tests/api/transactions.spec.ts` pins that a far-future sale time is
+     * accepted and stored unchanged. So the row is legitimate, and it is the
+     * comparison that has to be honest about its domain rather than the data.
+     *
+     * The restriction costs nothing this test was buying. It still runs over
+     * every row in the table rather than over its own fixtures — which is the
+     * point, since #119's drift happened in queries nobody was looking at — and
+     * a release mechanism only one predicate knows about still shows up as a
+     * difference, because a released claim has nothing to do with when the sale
+     * occurred.
      */
     public function test_the_dated_predicate_agrees_with_the_live_one_at_now(): void
     {
@@ -63,14 +83,29 @@ class UnsettledAsOfTest extends DatabaseTestCase
         $this->buildTimeline();
         $this->buildReversedCollection();
 
-        $live = $this->db
-            ->query('SELECT t.id FROM transactions t WHERE ' . UnsettledTransactions::UNSETTLED . ' ORDER BY t.id')
-            ->fetchAll(\PDO::FETCH_COLUMN, 0);
-
         // `now` from the database, not from PHP: the fixtures above were
         // written with the server's clock and a few seconds of skew on a shared
-        // host would silently exclude the newest of them.
-        $dated = $this->unsettledAt(new DateTimeImmutable((string) $this->db->query('SELECT NOW()')->fetchColumn()));
+        // host would silently exclude the newest of them. Read once and used
+        // for both halves, so the two questions are asked at the same instant.
+        $now = (string) $this->db->query('SELECT NOW()')->fetchColumn();
+
+        // `occurred_at <= ?` is the dated predicate's own first clause, applied
+        // here so the live side is asked about the same rows. See the docblock:
+        // a future-dated sale is legitimate and would otherwise read as drift.
+        $stmt = $this->db->prepare(
+            'SELECT t.id FROM transactions t '
+            . 'WHERE ' . UnsettledTransactions::UNSETTLED . ' AND t.occurred_at <= ? ORDER BY t.id'
+        );
+        $stmt->execute([$now]);
+        $live = $stmt->fetchAll(\PDO::FETCH_COLUMN, 0);
+
+        $dated = $this->unsettledAt(new DateTimeImmutable($now));
+
+        // The fixtures above guarantee rows on a bare database, so an empty
+        // comparison means the restriction added for future-dated sales has
+        // swallowed the table — a vacuous pass, which is the failure mode a
+        // whole-table assertion is most easily reduced to.
+        $this->assertNotEmpty($live, 'the equivalence must be asserted over actual rows, not an empty set');
 
         $this->assertSame(
             $live,
