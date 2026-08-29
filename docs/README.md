@@ -42,6 +42,7 @@ Architectural *decisions* live in [`../adr/`](../adr/) — 47 of them, indexed i
 | [m365-backup-target.md](./m365-backup-target.md) | Provisioning the optional Microsoft 365 destination backups are pushed to — and the approaches that look reasonable and are not |
 | [runbook-admin-lockout.md](./runbook-admin-lockout.md) | An admin cannot get in — the three causes, in the order to check them |
 | [runbook-backup-recovery.md](./runbook-backup-recovery.md) | Restore an archive, repair one table, rotate a key on handover, respond to a compromise |
+| [runbook-terminal-pi.md](./runbook-terminal-pi.md) | Provision a terminal Pi: two SSIDs that persist, correct time without an RTC, app and link watchdogs |
 
 ## Hardware (optional token dispenser)
 
