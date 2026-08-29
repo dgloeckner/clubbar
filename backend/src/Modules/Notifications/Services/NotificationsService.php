@@ -572,6 +572,186 @@ class NotificationsService
      */
 
     /**
+     * A member's card was assigned: greet them, or tell them the old card has
+     * stopped working (ADR-0051).
+     *
+     * Which of the two it is is read from the transition wherever the
+     * transition can say — `$replacesExistingCard` is true when a card was
+     * already on file, and a card replacing another is a replacement whatever
+     * this queue happens to hold. The one ambiguous case is a card cleared and
+     * later reassigned, which looks exactly like a first assignment: there the
+     * welcome is attempted and a refused insert is what reports that the member
+     * has been greeted before. That is `UNIQUE (kind, subject_id, dedup_key)`
+     * answering rather than a `SELECT`, so two overlapping requests cannot both
+     * decide they are the first.
+     *
+     * Reading the transition first is not only tidier — it is what keeps the
+     * common replacement independent of {@see MailRetention}. A welcome pruned
+     * at ninety days would otherwise turn every later replacement back into a
+     * greeting.
+     *
+     * Best effort, and never a gate. It queues; it does not send (ADR-0038
+     * rule 3), and the card assignment it announces is already committed.
+     *
+     * @return MailKind|null What was queued, or null when nothing was — no
+     *         address on file, or the notice was already there.
+     */
+    public function notifyMemberCard(
+        string $memberId,
+        string $recipient,
+        MailLanguage $language,
+        bool $replacesExistingCard,
+        ?string $actorAdminUserId = null,
+    ): ?MailKind {
+        $recipient = trim($recipient);
+        if ($recipient === '') {
+            return null;
+        }
+
+        if (!$replacesExistingCard) {
+            $queued = $this->mailOutboxRepository->enqueue(MailRequestDto::forMemberOccasion(
+                kind: MailKind::MEMBER_WELCOME,
+                memberId: $memberId,
+                recipient: $recipient,
+                language: $language,
+                // A constant, not a moment: a member is welcomed once, and this
+                // is the key that says so.
+                occasion: self::WELCOME_OCCASION,
+            ));
+
+            if ($queued) {
+                $this->auditMemberNotice(MailKind::MEMBER_WELCOME, $memberId, self::WELCOME_OCCASION, $actorAdminUserId);
+
+                return MailKind::MEMBER_WELCOME;
+            }
+        }
+
+        // Either the card genuinely replaces one, or the welcome came back as a
+        // duplicate and therefore says this member has been greeted already.
+        $occasion = 'replaced:' . time();
+        $queued = $this->mailOutboxRepository->enqueue(MailRequestDto::forMemberOccasion(
+            kind: MailKind::MEMBER_CARD_REPLACED,
+            memberId: $memberId,
+            recipient: $recipient,
+            language: $language,
+            occasion: $occasion,
+        ));
+
+        if (!$queued) {
+            return null;
+        }
+
+        $this->auditMemberNotice(MailKind::MEMBER_CARD_REPLACED, $memberId, $occasion, $actorAdminUserId);
+
+        return MailKind::MEMBER_CARD_REPLACED;
+    }
+
+    /**
+     * A member's address moved: tell both ends of the move (ADR-0051).
+     *
+     * Two messages, because they answer two different questions for two
+     * different readers, and only one of them can be asked of each.
+     *
+     * The copy to the **former** address is the member half of
+     * {@see MailKind::ADMIN_EMAIL_CHANGED} and exists for the same reason: it
+     * is the one channel through which a change the member did not ask for
+     * reaches them. A member has no session to be stolen, so the likely cause
+     * is a Kassenwart editing the wrong row rather than an attacker — the same
+     * failure, duller and more probable. Its recipient cannot be derived at
+     * send time, because by then `members.email` holds the new address; it is
+     * frozen into the row's snapshot here, which is the guarantee that column
+     * exists to give.
+     *
+     * The copy to the **new** address is the only thing in this system that
+     * ever checks an address exists. #362 made one mandatory because § 7 Abs. 3
+     * is a promise, and then trusted it; this is the message whose bounce says
+     * otherwise, months before a collection depends on it, in a place somebody
+     * looks.
+     *
+     * `$occasion` is the moment rather than a tier, because two moves of one
+     * member's address are two separate things to be told about — including a
+     * move back to an address used before. Unix seconds: `forMemberOccasion()`
+     * writes the occasion straight into a VARCHAR(64), and while that leaves
+     * room here, the pair below appends to it and a formatted timestamp buys
+     * nothing a stamp does not.
+     *
+     * Best effort, and never a gate. The change is already committed.
+     *
+     * @return list<MailKind> What was actually queued, in send order.
+     */
+    public function notifyMemberAddressChange(
+        string $memberId,
+        ?string $formerEmail,
+        ?string $newEmail,
+        MailLanguage $language,
+        string $occasion,
+        ?string $actorAdminUserId = null,
+    ): array {
+        $queued = [];
+
+        foreach (
+            [
+                [MailKind::MEMBER_EMAIL_CHANGED, trim((string) $formerEmail), 'former'],
+                [MailKind::MEMBER_EMAIL_ACTIVATED, trim((string) $newEmail), 'current'],
+            ] as [$kind, $recipient, $end]
+        ) {
+            // A member who had no address before this move has no former end to
+            // write to, and the move that clears one has no current end. Either
+            // is ordinary rather than an error.
+            if ($recipient === '') {
+                continue;
+            }
+
+            // The two copies share a moment and would otherwise share a dedup
+            // key; the end distinguishes them. Not the address itself, which is
+            // already in `recipient` and has no business being in an index too.
+            $dedup = $occasion . ':' . $end;
+
+            if (!$this->mailOutboxRepository->enqueue(MailRequestDto::forMemberOccasion(
+                kind: $kind,
+                memberId: $memberId,
+                recipient: $recipient,
+                language: $language,
+                occasion: $dedup,
+            ))) {
+                continue;
+            }
+
+            $this->auditMemberNotice($kind, $memberId, $dedup, $actorAdminUserId);
+            $queued[] = $kind;
+        }
+
+        return $queued;
+    }
+
+    /** The dedup key that makes a welcome fire at most once per member. */
+    private const WELCOME_OCCASION = 'welcome';
+
+    /**
+     * One audit line per queued member notice, filed the way every other
+     * enqueue is (ADR-0013).
+     *
+     * The address is deliberately absent from the payload. It is already on the
+     * outbox row, where erasure can reach it; a copy in `audit_log` would be a
+     * third place a member's address lives and the one place ADR-0029 scrubs
+     * only by entity id.
+     */
+    private function auditMemberNotice(
+        MailKind $kind,
+        string $memberId,
+        string $occasion,
+        ?string $actorAdminUserId,
+    ): void {
+        $this->auditService->log(
+            action: AuditAction::MAIL_ENQUEUED,
+            entityType: $kind->subjectType()->auditEntityType(),
+            entityId: $memberId,
+            newValues: ['kind' => $kind->value, 'occasion' => $occasion],
+            adminUserId: $actorAdminUserId,
+        );
+    }
+
+    /**
      * Tell an address that it is no longer the login for the account it used
      * to be — sent *to the former address*, which is what makes it useful.
      *

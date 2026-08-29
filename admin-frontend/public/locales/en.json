@@ -1370,12 +1370,25 @@
     "kinds": {
       "sepa_prenotification": "Pre-notification",
       "cancellation_notice": "Cancellation notice",
+      "deckel_statement": "Tab statement",
+      "credit_limit_digest": "Near-limit digest",
+      "member_welcome": "Welcome (card active)",
+      "member_card_replaced": "Card replaced",
+      "member_email_changed": "Member: address changed",
+      "member_email_activated": "Member: new address active",
+      "jugendschutz_violation": "Jugendschutz violation",
       "key_expiry_warning": "Key expiring",
+      "encryption_key_registered": "Key registered",
+      "encryption_key_activated": "Key activated",
+      "encryption_key_revoked": "Key revoked",
+      "terminal_token_issued": "Terminal credential issued",
       "terminal_token_expiry_warning": "Terminal token expiring",
       "terminal_anomaly_warning": "Terminal anomaly",
+      "admin_account_created": "Admin account created",
+      "admin_role_changed": "Roles changed",
       "admin_email_changed": "Sign-in address changed",
-      "deckel_statement": "Tab statement",
-      "credit_limit_digest": "Near-limit digest"
+      "backup_secret_expiry_warning": "Backup credential expiring",
+      "backup_health_warning": "Backup not reporting"
     },
     "statuses": {
       "pending": "Queued",

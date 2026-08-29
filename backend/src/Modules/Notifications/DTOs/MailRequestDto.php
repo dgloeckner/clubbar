@@ -114,6 +114,41 @@ final readonly class MailRequestDto
     }
 
     /**
+     * A message to a member about their own record — an onboarding, a card
+     * replacement, or one end of an address change.
+     *
+     * Like {@see forStatement()}, `subjectId` and `memberId` carry the same
+     * value for the same two reasons, and for the same reason neither may be
+     * dropped. What differs is the dedup key, which is why this is a
+     * constructor of its own rather than a `$kind` argument on that one: a
+     * statement is distinguished by the period it states, and these are
+     * distinguished by an **occasion** — a moment for the things that happen
+     * more than once, and the constant `welcome` for the thing that must not.
+     *
+     * `$recipient` is passed explicitly and is not always `members.email`. The
+     * address-change pair splits on exactly this: one copy goes to the address
+     * the member is losing, which by the time this is called is no longer in
+     * the members row at all, and the snapshot column is the only thing that
+     * still knows it.
+     */
+    public static function forMemberOccasion(
+        MailKind $kind,
+        string $memberId,
+        string $recipient,
+        MailLanguage $language,
+        string $occasion,
+    ): self {
+        return new self(
+            kind: $kind,
+            subjectId: $memberId,
+            recipient: $recipient,
+            language: $language,
+            dedupKey: $occasion,
+            memberId: $memberId,
+        );
+    }
+
+    /**
      * A periodic statement to a member about their own tab (ADR-0039).
      *
      * The first message whose subject is the recipient. `subjectId` and

@@ -468,6 +468,78 @@ final class MailStrings
                                     . 'unter Einstellungen → Sicherheit & Zugangsdaten, welcher '
                                     . 'Schlüssel aktiv ist — und ändere vorher keine Bankverbindungen.',
 
+            // ── Member lifecycle (ADR-0051) ─────────────────────────────────
+            'member_welcome.subject'   => 'Willkommen bei {club} — deine Karte ist aktiv',
+            'member_welcome.preheader' => 'Deine Mitgliedskarte ist freigeschaltet.',
+            'member_welcome.eyebrow'   => 'Willkommen',
+            'member_welcome.title'     => 'Deine Karte ist aktiv',
+            'member_welcome.lede'      => 'deine Mitgliedskarte ist jetzt <strong>freigeschaltet</strong> — '
+                                        . 'du kannst damit am Tresen bezahlen.',
+            'member_welcome.lede_text' => 'deine Mitgliedskarte ist jetzt freigeschaltet — du kannst damit '
+                                        . 'am Tresen bezahlen.',
+            'member_welcome.body'      => 'Halte die Karte einfach an das Lesegerät, wähle aus, was du '
+                                        . 'nimmst, und bestätige. Bezahlt wird nicht sofort: Was du '
+                                        . 'nimmst, läuft auf deinem Deckel zusammen.',
+            'member_welcome.next'      => 'Der Deckel wird in Abständen per SEPA-Lastschrift eingezogen. '
+                                        . 'Vor jedem Einzug bekommst du mindestens sieben Tage vorher '
+                                        . 'eine Vorabankündigung per E-Mail, in der Betrag und '
+                                        . 'Fälligkeitsdatum stehen. Es wird nie etwas eingezogen, ohne '
+                                        . 'dass du es vorher schriftlich hattest.',
+            'member_welcome.unexpected' => 'Wir haben zu dir Name, Geburtsdatum, Kontaktdaten und — für '
+                                        . 'den Einzug — deine Bankverbindung gespeichert. Stimmt etwas '
+                                        . 'davon nicht, oder hast du diese Nachricht ohne Grund '
+                                        . 'bekommen? Antworte einfach darauf.',
+
+            'member_card.subject'   => 'Deine neue Karte ist aktiv',
+            'member_card.preheader' => 'Eine andere Karte gilt jetzt für dich.',
+            'member_card.eyebrow'   => 'Karte gewechselt',
+            'member_card.title'     => 'Deine neue Karte ist aktiv',
+            'member_card.lede'      => 'für dich gilt ab sofort eine <strong>andere Karte</strong>.',
+            'member_card.lede_text' => 'für dich gilt ab sofort eine andere Karte.',
+            'member_card.body'      => 'Die bisherige Karte funktioniert nicht mehr. Dein Deckel und '
+                                     . 'deine bisherigen Buchungen bleiben unverändert — es wechselt nur '
+                                     . 'die Karte, mit der du dich am Tresen anmeldest.',
+            'member_card.next'      => 'Falls du die alte Karte noch findest, kannst du sie wegwerfen.',
+            'member_card.unexpected' => 'Wenn du keinen Kartenwechsel veranlasst hast, melde dich bitte '
+                                     . 'beim Kassenwart — antworte dazu einfach auf diese Nachricht.',
+
+            'member_mail_former.subject'       => 'Deine E-Mail-Adresse wurde geändert',
+            'member_mail_former.preheader'     => 'Diese Adresse erhält künftig keine Vereinspost mehr.',
+            'member_mail_former.eyebrow'       => 'Adresse geändert',
+            'member_mail_former.title'         => 'Deine E-Mail-Adresse wurde geändert',
+            'member_mail_former.lede'          => 'für dich ist ab sofort eine <strong>andere '
+                                                . 'E-Mail-Adresse</strong> hinterlegt.',
+            'member_mail_former.lede_text'     => 'für dich ist ab sofort eine andere E-Mail-Adresse '
+                                                . 'hinterlegt.',
+            'member_mail_former.label_address' => 'Bisherige Adresse',
+            'member_mail_former.label_when'    => 'Geändert am',
+            'member_mail_former.expected'      => 'An diese Adresse geht künftig keine Vereinspost mehr — '
+                                                . 'keine Vorabankündigung und kein Deckelauszug. Das ist '
+                                                . 'die letzte Nachricht hierher.',
+            'member_mail_former.unexpected'    => 'Wenn du diese Änderung nicht veranlasst hast, melde '
+                                                . 'dich bitte beim Kassenwart. Diese Nachricht geht '
+                                                . 'bewusst an deine alte Adresse — nur dorthin erreicht '
+                                                . 'dich eine Änderung, die du nicht selbst veranlasst '
+                                                . 'hast.',
+
+            'member_mail_current.subject'       => 'Diese Adresse ist jetzt deine Vereinsadresse',
+            'member_mail_current.preheader'     => 'Vereinspost geht ab sofort hierher.',
+            'member_mail_current.eyebrow'       => 'Adresse aktiv',
+            'member_mail_current.title'         => 'Diese Adresse ist jetzt deine Vereinsadresse',
+            'member_mail_current.lede'          => 'ab sofort erreicht dich unsere Post unter '
+                                                 . '<strong>dieser Adresse</strong>.',
+            'member_mail_current.lede_text'     => 'ab sofort erreicht dich unsere Post unter dieser '
+                                                 . 'Adresse.',
+            'member_mail_current.label_address' => 'Neue Adresse',
+            'member_mail_current.label_when'    => 'Geändert am',
+            'member_mail_current.expected'      => 'Hierher gehen künftig die Vorabankündigung vor jedem '
+                                                 . 'Einzug und — falls der Verein ihn verschickt — der '
+                                                 . 'Deckelauszug. Du musst nichts bestätigen; die Adresse '
+                                                 . 'ist bereits hinterlegt.',
+            'member_mail_current.unexpected'    => 'Wenn du diese Änderung nicht veranlasst hast, melde '
+                                                 . 'dich bitte beim Kassenwart — antworte dazu einfach '
+                                                 . 'auf diese Nachricht.',
+
             // ── Shared ──────────────────────────────────────────────────────
             'greeting'         => 'Hallo {name},',
             'greeting_generic' => 'Hallo,',
@@ -829,6 +901,73 @@ final class MailStrings
             'key_event.unexpected' => 'If nobody at the club did this, check which key is active under '
                                     . 'Settings → Security & Credentials straight away — and do not '
                                     . 'change any bank details before you have.',
+
+            // ── Member lifecycle (ADR-0051) ─────────────────────────────────
+            'member_welcome.subject'   => 'Welcome to {club} — your card is active',
+            'member_welcome.preheader' => 'Your membership card has been activated.',
+            'member_welcome.eyebrow'   => 'Welcome',
+            'member_welcome.title'     => 'Your card is active',
+            'member_welcome.lede'      => 'your membership card is now <strong>active</strong> — you can '
+                                        . 'use it to pay at the bar.',
+            'member_welcome.lede_text' => 'your membership card is now active — you can use it to pay at '
+                                        . 'the bar.',
+            'member_welcome.body'      => 'Hold the card against the reader, choose what you are having, '
+                                        . 'and confirm. Nothing is paid on the spot: what you take runs '
+                                        . 'up on your tab.',
+            'member_welcome.next'      => 'The tab is collected periodically by SEPA direct debit. Before '
+                                        . 'every collection you receive an advance notice by email, at '
+                                        . 'least seven days ahead, stating the amount and the due date. '
+                                        . 'Nothing is ever collected without you having had that notice '
+                                        . 'in writing first.',
+            'member_welcome.unexpected' => 'We hold your name, date of birth, contact details and — for '
+                                        . 'the collection — your bank details. If any of that is wrong, '
+                                        . 'or you received this message unexpectedly, simply reply to it.',
+
+            'member_card.subject'   => 'Your new card is active',
+            'member_card.preheader' => 'A different card now identifies you.',
+            'member_card.eyebrow'   => 'Card replaced',
+            'member_card.title'     => 'Your new card is active',
+            'member_card.lede'      => 'a <strong>different card</strong> now identifies you.',
+            'member_card.lede_text' => 'a different card now identifies you.',
+            'member_card.body'      => 'The previous card no longer works. Your tab and your existing '
+                                     . 'bookings are unchanged — only the card you check in with at the '
+                                     . 'bar has changed.',
+            'member_card.next'      => 'If the old card turns up, you can throw it away.',
+            'member_card.unexpected' => 'If you did not ask for a new card, please contact the Kassenwart '
+                                     . '— simply reply to this message.',
+
+            'member_mail_former.subject'       => 'Your email address has been changed',
+            'member_mail_former.preheader'     => 'This address will no longer receive club mail.',
+            'member_mail_former.eyebrow'       => 'Address changed',
+            'member_mail_former.title'         => 'Your email address has been changed',
+            'member_mail_former.lede'          => 'a <strong>different email address</strong> is now on '
+                                                . 'file for you.',
+            'member_mail_former.lede_text'     => 'a different email address is now on file for you.',
+            'member_mail_former.label_address' => 'Previous address',
+            'member_mail_former.label_when'    => 'Changed on',
+            'member_mail_former.expected'      => 'No club mail will be sent to this address from now on '
+                                                . '— no advance notice and no statement. This is the last '
+                                                . 'message it will receive.',
+            'member_mail_former.unexpected'    => 'If you did not ask for this change, please contact the '
+                                                . 'Kassenwart. This message goes to your old address on '
+                                                . 'purpose: it is the only channel through which a change '
+                                                . 'you did not want can still reach you.',
+
+            'member_mail_current.subject'       => 'This address is now your club address',
+            'member_mail_current.preheader'     => 'Club mail now goes here.',
+            'member_mail_current.eyebrow'       => 'Address active',
+            'member_mail_current.title'         => 'This address is now your club address',
+            'member_mail_current.lede'          => 'our mail now reaches you at <strong>this '
+                                                 . 'address</strong>.',
+            'member_mail_current.lede_text'     => 'our mail now reaches you at this address.',
+            'member_mail_current.label_address' => 'New address',
+            'member_mail_current.label_when'    => 'Changed on',
+            'member_mail_current.expected'      => 'The advance notice before every collection — and the '
+                                                 . 'statement, if the club sends one — will arrive here. '
+                                                 . 'There is nothing to confirm; the address is already '
+                                                 . 'in use.',
+            'member_mail_current.unexpected'    => 'If you did not ask for this change, please contact '
+                                                 . 'the Kassenwart — simply reply to this message.',
 
             'greeting'         => 'Hello {name},',
             'greeting_generic' => 'Hello,',

@@ -87,6 +87,7 @@ use App\Modules\Notifications\Services\CreditLimitDigestService;
 use App\Modules\Notifications\Services\BackupHealthMailBuilder;
 use App\Modules\Notifications\Services\BackupHealthNotifier;
 use App\Modules\Notifications\Services\MailContentRegistry;
+use App\Modules\Notifications\Services\MemberLifecycleMailBuilder;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\PeriodicEnqueueService;
 use App\Modules\Notifications\Services\TestMailService;
@@ -507,7 +508,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getMembersService(): MembersService
     {
-        return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService(), $this->getAuditLogRepository(), $this->getNotificationsService(), $this->pdo, $this->getBankCodeService()));
+        return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService(), $this->getAuditLogRepository(), $this->getNotificationsService(), $this->pdo, $this->getBankCodeService(), $this->getLogger()));
     }
 
     public function getProductsService(): ProductsService
@@ -631,6 +632,22 @@ class ServiceFactory implements ContainerInterface
             $this->getEncryptionKeyEventMailBuilder(),
             $this->getCreditLimitDigestMailBuilder(),
             $this->getBackupHealthMailBuilder(),
+            $this->getMemberLifecycleMailBuilder(),
+        ));
+    }
+
+    /**
+     * ADR-0051. Claims its four kinds by name rather than by subject, because
+     * `MailSubject::MEMBER` is shared with the Deckelauszug and this registry
+     * resolves to whichever builder claims a kind *first* — see
+     * {@see MemberLifecycleMailBuilder} for what a subject-wide claim would
+     * silently break.
+     */
+    public function getMemberLifecycleMailBuilder(): MemberLifecycleMailBuilder
+    {
+        return $this->resolve(MemberLifecycleMailBuilder::class, fn() => new MemberLifecycleMailBuilder(
+            $this->getMembersRepository(),
+            $this->getMailConfigService(),
         ));
     }
 

@@ -1370,12 +1370,25 @@
     "kinds": {
       "sepa_prenotification": "Vorabankündigung",
       "cancellation_notice": "Absage",
+      "deckel_statement": "Deckelauszug",
+      "credit_limit_digest": "Deckel-Übersicht",
+      "member_welcome": "Willkommen (Karte aktiv)",
+      "member_card_replaced": "Karte gewechselt",
+      "member_email_changed": "Mitglied: Adresse geändert",
+      "member_email_activated": "Mitglied: neue Adresse aktiv",
+      "jugendschutz_violation": "Jugendschutz-Verstoß",
       "key_expiry_warning": "Schlüssel läuft ab",
+      "encryption_key_registered": "Schlüssel hinterlegt",
+      "encryption_key_activated": "Schlüssel aktiviert",
+      "encryption_key_revoked": "Schlüssel zurückgezogen",
+      "terminal_token_issued": "Terminal-Zugangsdaten erstellt",
       "terminal_token_expiry_warning": "Terminal-Token läuft ab",
       "terminal_anomaly_warning": "Terminal-Auffälligkeit",
+      "admin_account_created": "Admin-Konto angelegt",
+      "admin_role_changed": "Rollen geändert",
       "admin_email_changed": "Anmeldeadresse geändert",
-      "deckel_statement": "Deckelauszug",
-      "credit_limit_digest": "Deckel-Übersicht"
+      "backup_secret_expiry_warning": "Backup-Zugangsdaten laufen ab",
+      "backup_health_warning": "Backup meldet sich nicht"
     },
     "statuses": {
       "pending": "Eingereiht",

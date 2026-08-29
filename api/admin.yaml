@@ -7269,14 +7269,44 @@ components:
         somebody doing something. Its `dedup_key` is the period (`2026-08`,
         `2026-Q3`), which is what makes a scan that runs every hour produce one
         statement a month.
+
+        The four `member_*` kinds
+        ([ADR-0051](../../adr/0051-member-lifecycle-mail.md)) are the first mail
+        a member gets for a reason other than money, and all four are gated on
+        the card: `member_welcome` fires when a card is first assigned — not
+        when the record is created — and `member_card_replaced` on every later
+        assignment. `member_email_changed` and `member_email_activated` are the
+        two ends of one address change, one to the address being left and one to
+        the address being taken up; like `admin_email_changed`, the first is
+        addressed to a value the system no longer holds and reads it from the
+        `recipient` snapshot.
+
+        This list is the whole of `MailKind`, and the `kind` filter on
+        `GET /api/admin/notifications` rejects anything outside it. Prefer
+        reading `filters.kinds` off that response, which is generated from the
+        enum itself and therefore cannot drift from it.
       enum:
         - sepa_prenotification
         - cancellation_notice
         - key_expiry_warning
         - terminal_token_expiry_warning
         - terminal_anomaly_warning
+        - terminal_token_issued
         - admin_email_changed
         - deckel_statement
+        - encryption_key_registered
+        - encryption_key_activated
+        - encryption_key_revoked
+        - admin_account_created
+        - admin_role_changed
+        - jugendschutz_violation
+        - credit_limit_digest
+        - backup_secret_expiry_warning
+        - backup_health_warning
+        - member_welcome
+        - member_card_replaced
+        - member_email_changed
+        - member_email_activated
 
     MailStatus:
       type: string

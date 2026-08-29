@@ -270,6 +270,100 @@ enum MailKind: string
     case ADMIN_ROLE_CHANGED = 'admin_role_changed';
 
     /**
+     * A member's card has been assigned for the first time: they can use the
+     * bar, and this is the first message they have ever had from the club.
+     *
+     * **Not sent when the record is created.** A member row with no card is
+     * paperwork — no session can start, no Deckel can move — and a welcome to
+     * something the member cannot yet enter announces nothing. ADR-0021 makes
+     * the assignment a `PATCH` that usually happens after creation, so the two
+     * moments are genuinely separate and only the second one is the onboarding.
+     *
+     * That timing is also what makes the rest of this group safe: the welcome
+     * is the first mail a member receives, so nothing member-addressed arrives
+     * from an unfamiliar sender with no context around it.
+     *
+     * The `dedup_key` is the constant `welcome`, so the unique index makes this
+     * fire at most once per member — and the duplicate it refuses is the
+     * fallback signal that an assignment is a replacement rather than an
+     * onboarding ({@see self::MEMBER_CARD_REPLACED}).
+     */
+    case MEMBER_WELCOME = 'member_welcome';
+
+    /**
+     * A different card now identifies this member — the old one stops working.
+     *
+     * The second and subsequent assignment, where {@see self::MEMBER_WELCOME}
+     * is the first. Which of the two a given assignment is is read from the
+     * transition wherever the transition can answer it: a card that *replaces*
+     * another is a replacement, full stop, and that reading depends on nothing
+     * but the row being updated.
+     *
+     * Only one case is ambiguous — a card cleared and later reassigned, where
+     * the transition looks identical to a first assignment. There the welcome
+     * is attempted and
+     * {@see \App\Modules\Notifications\Repositories\MailOutboxRepository::enqueue()}
+     * returning false is what says the member has been greeted already. That is
+     * the unique index answering, not a lookup, so two concurrent requests
+     * cannot both conclude they are the first.
+     *
+     * Worth its own message rather than a silent edit because a card is how the
+     * bar identifies a person: a replacement the member did not ask for is
+     * something they should hear about, at an address the card cannot reach.
+     * The occasion is the moment, `replaced:<stamp>`, because two replacements
+     * are two things to be told about — and deliberately **not** the card UID,
+     * which would put a card identifier in the queue for no gain.
+     *
+     * The message names no UID. The member is holding the card.
+     */
+    case MEMBER_CARD_REPLACED = 'member_card_replaced';
+
+    /**
+     * "The address we hold for you has been changed" — sent to the address it
+     * was changed *from*.
+     *
+     * The member half of {@see self::ADMIN_EMAIL_CHANGED}, and it exists for
+     * the same reason: the old address is the one channel through which a
+     * change the member did not ask for is visible to them. A member has no
+     * login to be taken over, so the threat is duller and more likely — a
+     * Kassenwart editing the wrong row, or a typo — but the failure is the
+     * same shape, and only the old address can report it.
+     *
+     * As with the admin kind, the recipient is the outbox row's `recipient`
+     * snapshot rather than `members.email`, which by send time holds the new
+     * address: the address that does not need telling.
+     *
+     * The occasion is the moment of the change, never a tier. Two moves of one
+     * member's address are two separate things to be told about, including a
+     * move back to an address used before.
+     */
+    case MEMBER_EMAIL_CHANGED = 'member_email_changed';
+
+    /**
+     * "This address now receives your club mail" — sent to the address just
+     * moved *to*.
+     *
+     * The other half of the same move, and not a courtesy. #362 made an address
+     * mandatory because § 7 Abs. 3's Vorabankündigung is a contractual promise,
+     * but nothing has ever checked that the address exists: it is
+     * format-validated and then trusted until a collection depends on it. This
+     * is the message whose failure says otherwise, and it fails in the one
+     * place somebody is looking — a `failed` row in Settings → Notifications
+     * carrying the transport's verbatim error, months before a settlement needs
+     * the address to work.
+     *
+     * It is **not** a verification. There is no token, no `email_verified_at`,
+     * no double opt-in and nothing is gated on delivery: the address is in use
+     * from the moment it is saved. Calling it a confirmation would promise a
+     * gate that does not exist.
+     *
+     * Sent alongside {@see self::MEMBER_EMAIL_CHANGED} rather than instead of
+     * it, because the two answer different questions for different readers, and
+     * neither body names the other address.
+     */
+    case MEMBER_EMAIL_ACTIVATED = 'member_email_activated';
+
+    /**
      * Does a club-level copy of this go out alongside the admins' (ADR-0044
      * rule 3)?
      *
@@ -312,7 +406,16 @@ enum MailKind: string
             // their Deckel ceiling is operational detail with member names in
             // it, and routing it to a club-wide address would widen a report
             // the role model deliberately holds to two offices.
-            self::CREDIT_LIMIT_DIGEST => false,
+            self::CREDIT_LIMIT_DIGEST,
+            // Member-addressed, all four. A club address is a second pair of
+            // eyes on who gained power over the installation; it has no
+            // business reading one member's onboarding, or being told which of
+            // them changed an address. The witness these two want is the
+            // member themselves, at the address they are losing.
+            self::MEMBER_WELCOME,
+            self::MEMBER_CARD_REPLACED,
+            self::MEMBER_EMAIL_CHANGED,
+            self::MEMBER_EMAIL_ACTIVATED => false,
         };
     }
 
@@ -398,7 +501,11 @@ enum MailKind: string
 
             self::SEPA_PRENOTIFICATION,
             self::CANCELLATION_NOTICE,
-            self::DECKEL_STATEMENT => [],
+            self::DECKEL_STATEMENT,
+            self::MEMBER_WELCOME,
+            self::MEMBER_CARD_REPLACED,
+            self::MEMBER_EMAIL_CHANGED,
+            self::MEMBER_EMAIL_ACTIVATED => [],
         };
     }
 
@@ -433,7 +540,14 @@ enum MailKind: string
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED => MailSubject::ADMIN_USER,
-            self::DECKEL_STATEMENT => MailSubject::MEMBER,
+            self::DECKEL_STATEMENT,
+            // The member, as the Deckelauszug's is — these are about the
+            // record itself rather than about anything that happened to it, so
+            // there is no other entity to point at.
+            self::MEMBER_WELCOME,
+            self::MEMBER_CARD_REPLACED,
+            self::MEMBER_EMAIL_CHANGED,
+            self::MEMBER_EMAIL_ACTIVATED => MailSubject::MEMBER,
             self::JUGENDSCHUTZ_VIOLATION => MailSubject::TRANSACTION,
             self::CREDIT_LIMIT_DIGEST => MailSubject::CREDIT_LIMIT_CONFIG,
         };
@@ -460,7 +574,11 @@ enum MailKind: string
         return match ($this) {
             self::SEPA_PRENOTIFICATION,
             self::CANCELLATION_NOTICE,
-            self::DECKEL_STATEMENT => true,
+            self::DECKEL_STATEMENT,
+            self::MEMBER_WELCOME,
+            self::MEMBER_CARD_REPLACED,
+            self::MEMBER_EMAIL_CHANGED,
+            self::MEMBER_EMAIL_ACTIVATED => true,
             self::KEY_EXPIRY_WARNING,
             self::ENCRYPTION_KEY_REGISTERED,
             self::ENCRYPTION_KEY_ACTIVATED,

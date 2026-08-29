@@ -43,6 +43,14 @@ class MailKindTest extends TestCase
             MailKind::SEPA_PRENOTIFICATION,
             MailKind::CANCELLATION_NOTICE,
             MailKind::DECKEL_STATEMENT,
+            // ADR-0051. The first member-addressed kinds that are not about
+            // money at all — an onboarding, a card, an address — which is the
+            // second time the shape of the existing kinds would have given the
+            // wrong answer to a new one.
+            MailKind::MEMBER_WELCOME,
+            MailKind::MEMBER_CARD_REPLACED,
+            MailKind::MEMBER_EMAIL_CHANGED,
+            MailKind::MEMBER_EMAIL_ACTIVATED,
         ];
 
         foreach (MailKind::cases() as $kind) {

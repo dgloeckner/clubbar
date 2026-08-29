@@ -18,8 +18,10 @@ use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
+use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
 use PDO;
 
@@ -33,6 +35,11 @@ class MembersService
         private NotificationsService $notificationsService,
         private PDO $db,
         private ?BankCodeService $bankCodeService = null,
+        // Optional and last, so the three call sites that predate it keep
+        // working. A member notice that cannot be queued is swallowed rather
+        // than allowed to fail the write it describes (ADR-0051), and this is
+        // what keeps "swallowed" from meaning "invisible".
+        private ?Logger $logger = null,
     ) {}
 
     /**
@@ -216,6 +223,21 @@ class MembersService
             adminUserId: $adminUserId,
         );
 
+        // A member created with a card already on it is onboarded in one step,
+        // so the welcome belongs here as much as in `updateMember()`. Created
+        // without one — the ordinary case under ADR-0021, where the UID is
+        // typed in afterwards — nothing is sent yet, and the member hears from
+        // the club for the first time when the card arrives.
+        if (self::realCardUid($member) !== null) {
+            $this->announceCardAssignment(
+                memberId: $member['id'],
+                recipient: $email,
+                language: $language->value,
+                replacesExistingCard: false,
+                adminUserId: $adminUserId,
+            );
+        }
+
         return MemberAdminDto::fromRow($member);
     }
 
@@ -296,7 +318,158 @@ class MembersService
             );
         }
 
+        $this->announceMemberChanges($oldMember, $member, $adminUserId);
+
         return MemberAdminDto::fromRow($member);
+    }
+
+    /**
+     * The mail a member's own record change is worth (ADR-0051), decided after
+     * the write and never able to undo it.
+     *
+     * Two transitions matter, and the order between them is the decision:
+     *
+     * 1. **A card arrived.** Empty → set is an onboarding, set → different is a
+     *    replacement. Either way the member now has a card.
+     * 2. **The address moved**, but only for a member who already had a card
+     *    *before* this update. A member the club has never written to must not
+     *    receive an out-of-context notice from a sender they do not recognise —
+     *    the welcome is the first message a member ever gets, and that is what
+     *    makes the rest of these readable.
+     *
+     * So a request that assigns a first card *and* sets a new address sends the
+     * welcome only. There was no prior relationship in which an address could
+     * have moved, and the welcome goes to the new address regardless.
+     */
+    private function announceMemberChanges(array $oldMember, array $member, ?string $adminUserId): void
+    {
+        $previousCard = self::realCardUid($oldMember);
+        $currentCard = self::realCardUid($member);
+        $language = (string) ($member['preferred_language'] ?? 'de');
+
+        if ($currentCard !== null && $currentCard !== $previousCard) {
+            $this->announceCardAssignment(
+                memberId: (string) $member['id'],
+                recipient: (string) ($member['email'] ?? ''),
+                language: $language,
+                replacesExistingCard: $previousCard !== null,
+                adminUserId: $adminUserId,
+            );
+
+            // An onboarding, not a move. See the docblock.
+            if ($previousCard === null) {
+                return;
+            }
+        }
+
+        // Never sent to a member who has not been welcomed. `$previousCard` and
+        // not `$currentCard`: the gate is whether the club had already reached
+        // this member, which the card they held *before* this update answers.
+        if ($previousCard === null) {
+            return;
+        }
+
+        $formerEmail = trim((string) ($oldMember['email'] ?? ''));
+        $newEmail = trim((string) ($member['email'] ?? ''));
+
+        // Case alone is not a change of address. Mirrors the `strcasecmp` guard
+        // `AdminUsersService::updateAdminUser()` applies to an admin's login.
+        if ($formerEmail === $newEmail || strcasecmp($formerEmail, $newEmail) === 0) {
+            return;
+        }
+
+        // A member being deactivated may have their address cleared (#362
+        // permits it once they are inactive). There is no new address to
+        // announce and no farewell to send — only a move *to* a new address
+        // notifies.
+        if ($newEmail === '') {
+            return;
+        }
+
+        try {
+            $this->notificationsService->notifyMemberAddressChange(
+                memberId: (string) $member['id'],
+                formerEmail: $formerEmail,
+                newEmail: $newEmail,
+                language: MailLanguage::fromPreferred($language),
+                // The moment, not a tier: two moves of one member's address are
+                // two things to be told about, a move back to a previous
+                // address included.
+                occasion: 'changed:' . time(),
+                actorAdminUserId: $adminUserId,
+            );
+        } catch (\Throwable $e) {
+            // Never allowed to fail the change it describes. The write has
+            // already committed; a queue that will not take the notice is a
+            // smaller problem than a Kassenwart told the edit failed when it
+            // did not.
+            $this->logger?->warning('Could not queue a member address-change notice', [
+                'member_id' => (string) $member['id'],
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Queue the welcome or the replacement notice, and never let it fail the
+     * assignment it announces.
+     *
+     * @param bool $replacesExistingCard True when a card was already on file.
+     *        {@see \App\Modules\Notifications\Services\NotificationsService::notifyMemberCard()}
+     *        explains why this is read from the transition rather than from the
+     *        queue.
+     */
+    private function announceCardAssignment(
+        string $memberId,
+        string $recipient,
+        string $language,
+        bool $replacesExistingCard,
+        ?string $adminUserId,
+    ): void {
+        // Legacy members predating #362 may have no address at all. Nothing to
+        // send, and a card assignment must not fail over it.
+        if (trim($recipient) === '') {
+            return;
+        }
+
+        try {
+            $this->notificationsService->notifyMemberCard(
+                memberId: $memberId,
+                recipient: $recipient,
+                language: MailLanguage::fromPreferred($language),
+                replacesExistingCard: $replacesExistingCard,
+                actorAdminUserId: $adminUserId,
+            );
+        } catch (\Throwable $e) {
+            $this->logger?->warning('Could not queue a member card notice', [
+                'member_id' => $memberId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * The card UID on a member row, or null when there is not really one.
+     *
+     * `anonymize()` writes an `ANON-` placeholder into `card_uid` to keep the
+     * UNIQUE index satisfied while clearing the real value, so the column is
+     * not simply "set or unset". Erasure runs through
+     * {@see MembersRepository::anonymize()} rather than through
+     * `updateMember()` and so never reaches the caller, but treating the
+     * placeholder as a card would make an erasure look like an onboarding, and
+     * that is not a mistake worth leaving one refactor away.
+     *
+     * @param array<string,mixed> $member
+     */
+    private static function realCardUid(array $member): ?string
+    {
+        $uid = trim((string) ($member['card_uid'] ?? ''));
+
+        if ($uid === '' || str_starts_with($uid, 'ANON-')) {
+            return null;
+        }
+
+        return $uid;
     }
 
     public function deleteMember(string $memberId, ?string $adminUserId = null): bool
