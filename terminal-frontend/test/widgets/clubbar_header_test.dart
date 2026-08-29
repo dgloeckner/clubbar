@@ -15,6 +15,7 @@ void main() {
       bool isSyncing = false,
       VoidCallback? onStatusTap,
       String? displayName,
+      DateTime Function()? now,
     }) {
       return createTestApp(
         child: Scaffold(
@@ -24,6 +25,7 @@ void main() {
             isSyncing: isSyncing,
             onStatusTap: onStatusTap,
             displayName: displayName ?? ConfigService.defaultDisplayName,
+            now: now,
           ),
         ),
       );
@@ -381,6 +383,69 @@ void main() {
       ));
 
       expect(clock.style?.fontFamily, 'JetBrains Mono');
+    });
+  });
+
+  /// Issue #760: the clock renders `HH:mm`, so a one-second tick repainted the
+  /// header fifty-nine times a minute for a value that had not changed — on
+  /// every screen, forever, and on through the blanked display. Sleeping to
+  /// the minute boundary makes the wake-up rate match the render rate.
+  group('ClubBarHeader clock (#760)', () {
+    /// A clock the test moves by hand. [tester.pump] advances the fake timer
+    /// queue; this advances what the widget reads when one of those fires, so
+    /// the two stay in step without waiting on real time.
+    DateTime clock = DateTime(2026, 8, 29, 20, 14, 30);
+
+    Widget buildHeader() => createTestApp(
+          child: Scaffold(
+            appBar: ClubBarHeader(
+              connectionStatus: ConnectionStatus.online,
+              now: () => clock,
+            ),
+          ),
+        );
+
+    setUp(() {
+      clock = DateTime(2026, 8, 29, 20, 14, 30);
+    });
+
+    testWidgets('does not repaint between minute boundaries', (tester) async {
+      await tester.pumpWidget(buildHeader());
+      expect(find.text('20:14'), findsOneWidget);
+
+      // 29 seconds short of the boundary. A one-second periodic timer would
+      // have fired 29 times by here; the aligned timer has not fired at all,
+      // so `pump` finds nothing to rebuild.
+      clock = clock.add(const Duration(seconds: 29));
+      await tester.pump(const Duration(seconds: 29));
+
+      expect(find.text('20:14'), findsOneWidget);
+      expect(tester.binding.hasScheduledFrame, isFalse,
+          reason: 'no timer should have asked for a frame within the minute');
+    });
+
+    testWidgets('repaints on the second the minute turns', (tester) async {
+      await tester.pumpWidget(buildHeader());
+      expect(find.text('20:14'), findsOneWidget);
+
+      // The widget mounted at :30, so the first fire is 30 s later — not 60.
+      clock = DateTime(2026, 8, 29, 20, 15, 0);
+      await tester.pump(const Duration(seconds: 30));
+
+      expect(find.text('20:15'), findsOneWidget);
+    });
+
+    testWidgets('keeps ticking after the first boundary', (tester) async {
+      await tester.pumpWidget(buildHeader());
+
+      clock = DateTime(2026, 8, 29, 20, 15, 0);
+      await tester.pump(const Duration(seconds: 30));
+      expect(find.text('20:15'), findsOneWidget);
+
+      // Re-armed for a full minute this time, since it is now on the boundary.
+      clock = DateTime(2026, 8, 29, 20, 16, 0);
+      await tester.pump(const Duration(seconds: 60));
+      expect(find.text('20:16'), findsOneWidget);
     });
   });
 }

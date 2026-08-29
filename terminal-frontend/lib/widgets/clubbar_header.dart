@@ -29,6 +29,10 @@ class ClubBarHeader extends StatefulWidget implements PreferredSizeWidget {
 
   final VoidCallback? onStatusTap;
 
+  /// Wall clock, injectable so the tick test does not have to wait on the
+  /// real one. Null means [DateTime.now].
+  final DateTime Function()? now;
+
   /// The deploying club's name shown in the header.
   ///
   /// Sourced by the caller via `ConfigService.displayName` (ADR-0034), whose
@@ -44,6 +48,7 @@ class ClubBarHeader extends StatefulWidget implements PreferredSizeWidget {
     this.isSyncing = false,
     this.onStatusTap,
     this.displayName = ConfigService.defaultDisplayName,
+    this.now,
     super.key,
   });
 
@@ -58,16 +63,48 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
   late DateTime _currentTime;
   Timer? _timer;
 
+  DateTime _now() => (widget.now ?? DateTime.now)();
+
   @override
   void initState() {
     super.initState();
-    _currentTime = DateTime.now();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() {
-          _currentTime = DateTime.now();
-        });
-      }
+    _currentTime = _now();
+    _scheduleNextMinute();
+  }
+
+  /// Re-render the clock when the minute changes, and not before.
+  ///
+  /// This used to be a one-second [Timer.periodic] whose callback always
+  /// called [setState]. The header renders `HH:mm`, so fifty-nine of every
+  /// sixty of those rebuilds painted a frame identical to the last one — on
+  /// every screen, forever, including while `scripts/blackscreen.py` had the
+  /// display covered. That is the same waste as the idle glow this issue also
+  /// removes (#760), just at 1 Hz instead of 60.
+  ///
+  /// Sleeping to the *boundary* rather than ticking is what makes the wake-up
+  /// rate match the render rate: one of each per minute, instead of sixty
+  /// wake-ups for one render. It also lands the change on the second the
+  /// minute turns, which a periodic timer started at an arbitrary phase misses
+  /// by up to a second.
+  ///
+  /// The delay is recomputed from the wall clock every time, so a clock the
+  /// NTP daemon steps mid-shift re-aligns on the next tick instead of staying
+  /// permanently offset.
+  void _scheduleNextMinute() {
+    final now = _now();
+    final untilNextMinute = Duration(
+      seconds: 60 - now.second,
+      milliseconds: -now.millisecond,
+      microseconds: -now.microsecond,
+    );
+
+    _timer?.cancel();
+    _timer = Timer(untilNextMinute, () {
+      if (!mounted) return;
+      setState(() {
+        _currentTime = _now();
+      });
+      _scheduleNextMinute();
     });
   }
 

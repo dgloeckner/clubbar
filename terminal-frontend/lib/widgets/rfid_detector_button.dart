@@ -5,12 +5,34 @@ import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 
-class RfidDetectorButton extends StatefulWidget {
+/// The scan target on the idle screen — a glowing disc inviting a card.
+///
+/// **This widget runs no animation while idle, and that is the point**
+/// (issue #760). It used to breathe: an [AnimationController] on `repeat`,
+/// driving a shadow's spread and opacity, created in `initState` and never
+/// stopped. The idle screen is the state a bar terminal is in almost all of
+/// the time, so "while idle" meant "always" — the Pi rasterized ~27 frames a
+/// second for a screen nobody was looking at, and did it *through* the
+/// blanking overlay `scripts/blackscreen.py` puts over the display after five
+/// idle minutes. Measured on a Pi 4B: 27.7 % of a core on the platform thread,
+/// 6 % on the raster thread, and about 7 °C — enough to cross the 80 °C soft
+/// limit and record a throttling event (`vcgencmd get_throttled` = 0x80000).
+///
+/// An earlier pass (#41) pinned `blurRadius` because animating it rebuilds
+/// Skia's blur mask every frame. That helped and did not cure it: animating
+/// `spreadRadius` changes the shadow's *shape*, so the mask is recomputed
+/// anyway. The cure is not a cheaper pulse — it is no pulse. The glow is now a
+/// constant, so the idle screen produces no frames at all.
+///
+/// Nothing is lost visually: the pulse was only ever drawn in the idle state.
+/// While scanning, the disc has always used fixed shadow values and shown a
+/// spinner, and it still does — that animation is bounded by the scan.
+class RfidDetectorButton extends StatelessWidget {
   final bool hasError;
   final double errorOpacity;
 
   /// The reader is known to be gone (issue #35): the button stops inviting a
-  /// scan that cannot be read, and says so rather than pulsing forever.
+  /// scan that cannot be read, and says so rather than glowing forever.
   final bool isOffline;
 
   const RfidDetectorButton({
@@ -20,23 +42,17 @@ class RfidDetectorButton extends StatefulWidget {
     this.isOffline = false,
   });
 
-  @override
-  State<RfidDetectorButton> createState() => _RfidDetectorButtonState();
-}
-
-class _RfidDetectorButtonState extends State<RfidDetectorButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _glowController;
-  late Animation<double> _spreadAnimation;
-  late Animation<double> _opacityAnimation;
-
   // Fixed blur radius (was animated 40px -> 60px): a BoxShadow's blurRadius
   // drives Skia's mask-filter sigma, so animating it forces a new blur mask
-  // every frame. On the terminal's Pi this pinned a core near 70% CPU for as
-  // long as the idle screen (this button) was on screen — i.e. always. The
-  // spread/opacity pulse below reproduces the same visual breathing effect
-  // without ever touching blurRadius.
+  // every frame (#41).
   static const double _glowBlurRadius = 50.0;
+
+  // The idle glow, at the midpoint of the pulse it replaces (#760): spread ran
+  // 0 -> 6 px and opacity 0.2 -> 0.4, so a still frame at the middle is what
+  // the breathing disc averaged out to. The disc looks like itself; it just
+  // holds still.
+  static const double _idleGlowSpread = 3.0;
+  static const double _idleGlowOpacity = 0.3;
 
   // Colors from prototype
   static const Color _blue = AppColors.semanticPrimary;
@@ -45,60 +61,19 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
   static const Color _slate = AppColors.textDisabled;
 
   @override
-  void initState() {
-    super.initState();
-    _glowController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    )..repeat(reverse: true);
-
-    // Glow spread radius: 0px -> 6px (replaces the old blurRadius animation)
-    _spreadAnimation = Tween<double>(begin: 0.0, end: 6.0).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
-    );
-
-    // Glow opacity: 0.2 -> 0.4 (from prototype)
-    _opacityAnimation = Tween<double>(begin: 0.2, end: 0.4).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _glowController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Consumer<RfidProvider>(
       builder: (context, rfidProvider, child) {
-        // A missing reader must not keep pulsing: the glow is an invitation to
-        // tap, and there is nothing to tap into.
-        if (widget.isOffline) {
-          _glowController.stop();
-        } else {
-          // Adjust animation speed based on state
-          final wanted = rfidProvider.isScanning
-              ? const Duration(milliseconds: 800) // faster pulse when scanning
-              : const Duration(milliseconds: 2000); // slower glow when idle
-          if (_glowController.duration != wanted ||
-              !_glowController.isAnimating) {
-            _glowController.duration = wanted;
-            _glowController.repeat(reverse: true);
-          }
-        }
-
         // Interpolate colors based on error state
-        final Color primaryColor = widget.isOffline
+        final Color primaryColor = isOffline
             ? _slate
-            : widget.hasError
-                ? Color.lerp(_red, _blue, 1.0 - widget.errorOpacity)!
+            : hasError
+                ? Color.lerp(_red, _blue, 1.0 - errorOpacity)!
                 : _blue;
-        final Color secondaryColor = widget.isOffline
+        final Color secondaryColor = isOffline
             ? _slate
-            : widget.hasError
-                ? Color.lerp(_red, _teal, 1.0 - widget.errorOpacity)!
+            : hasError
+                ? Color.lerp(_red, _teal, 1.0 - errorOpacity)!
                 : _teal;
 
         final demoMode = context.read<ConfigService>().demoMode;
@@ -106,44 +81,44 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
           onTap: demoMode && !rfidProvider.isScanning
               ? () => rfidProvider.simulateCardDetection(context)
               : null,
+          // Keeps the scanning spinner's repaints off the rest of the screen.
+          // Idle, there is nothing here to repaint at all.
           child: RepaintBoundary(
-            child: AnimatedBuilder(
-              animation: _glowController,
-              builder: (context, child) {
-                return Container(
-                  width: 237,
-                  height: 237,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: rfidProvider.isScanning
-                          ? [primaryColor, secondaryColor] // Full opacity when scanning
-                          : [
-                              primaryColor.withValues(alpha: 0.2),
-                              secondaryColor.withValues(alpha: 0.2),
-                            ], // 20% opacity when idle
+            child: Container(
+              width: 237,
+              height: 237,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: rfidProvider.isScanning
+                      ? [primaryColor, secondaryColor] // Full opacity when scanning
+                      : [
+                          primaryColor.withValues(alpha: 0.2),
+                          secondaryColor.withValues(alpha: 0.2),
+                        ], // 20% opacity when idle
+                ),
+                boxShadow: [
+                  if (!isOffline)
+                    BoxShadow(
+                      color: primaryColor.withValues(
+                        alpha: rfidProvider.isScanning ? 0.5 : _idleGlowOpacity,
+                      ),
+                      blurRadius: rfidProvider.isScanning ? 60 : _glowBlurRadius,
+                      spreadRadius:
+                          rfidProvider.isScanning ? 5 : _idleGlowSpread,
                     ),
-                    boxShadow: [
-                      if (!widget.isOffline)
-                        BoxShadow(
-                          color: primaryColor.withValues(
-                            alpha: rfidProvider.isScanning ? 0.5 : _opacityAnimation.value,
-                          ),
-                          blurRadius: rfidProvider.isScanning ? 60 : _glowBlurRadius,
-                          spreadRadius: rfidProvider.isScanning ? 5 : _spreadAnimation.value,
-                        ),
-                    ],
-                  ),
-                  child: Center(
-                    child: widget.isOffline
-                        ? const Icon(
-                            Icons.sensors_off,
-                            size: 135,
-                            color: _slate,
-                          )
-                        : rfidProvider.isScanning
+                ],
+              ),
+              child: Center(
+                child: isOffline
+                    ? const Icon(
+                        Icons.sensors_off,
+                        size: 135,
+                        color: _slate,
+                      )
+                    : rfidProvider.isScanning
                         ? SizedBox(
                             width: 101,
                             height: 101,
@@ -159,9 +134,7 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
                             width: 135,
                             height: 135,
                           ),
-                  ),
-                );
-              },
+              ),
             ),
           ),
         );
