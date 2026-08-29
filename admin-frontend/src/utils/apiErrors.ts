@@ -13,6 +13,15 @@
  * A caller that only reads `message` therefore shows nothing at all for the
  * most common failure an admin hits — a duplicate email or device ID, which
  * arrives as `messages` and has no `message` key.
+ *
+ * **`message` is English, always.** It is written for the log and for a raw
+ * API caller, not for the admin looking at the screen — whose panel is in
+ * German unless they changed it. A refused business rule therefore also
+ * carries `reason` (a stable code) and `params` (the values its sentence
+ * needs), and the panel renders `errors.reasons.<reason>` from its own locale
+ * file instead. Read that with `useApiError()`, not with the functions here:
+ * `getApiErrorMessage` deliberately knows nothing about translation, so a page
+ * calling it directly shows the English sentence (#757).
  */
 
 import axios from 'axios'
@@ -36,6 +45,34 @@ function fieldMessages(data: Record<string, unknown>): FieldMessages | null {
     }
   }
   return null
+}
+
+/** A refusal's translatable code and the values its sentence interpolates. */
+export interface ApiErrorReason {
+  code: string
+  params: Record<string, unknown>
+}
+
+/**
+ * The `reason`/`params` pair a `BusinessRuleException` carries, or null for a
+ * failure that names no reason (a 500, a network error, an endpoint not yet
+ * migrated). Callers fall back to their own translated string in that case —
+ * never to `message`, which would put English on a German screen.
+ */
+export function getApiErrorReason(err: unknown): ApiErrorReason | null {
+  const data = responseData(err)
+  const code = data?.reason
+  if (typeof code !== 'string' || !code.trim()) {
+    return null
+  }
+
+  const params = data?.params
+  return {
+    code,
+    params: params && typeof params === 'object' && !Array.isArray(params)
+      ? (params as Record<string, unknown>)
+      : {},
+  }
 }
 
 /**

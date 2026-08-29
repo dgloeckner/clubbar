@@ -26,6 +26,23 @@ const button = page.getByTestId('members-create-button')
 await button.click()
 ```
 
+### [API Error Messages Pattern](./api-error-messages.md)
+**Purpose**: Show an admin *why* an action failed, in the language they read
+
+- ✅ `useApiError()` — never render the backend's `message`, which is always English
+- ✅ Reason codes → `errors.reasons.<code>`, with cents and dates formatted for the reader
+- ✅ `reasonText()` for a code that arrives inside a 200 (the settlement gates)
+- ✅ Why the helpers are keyed on the language, and why that matters in a dependency array
+- ✅ Adding a refusal: the enum case and both locale files, guarded by a unit test
+
+**When to use**: Every `catch` that puts a message on the screen
+
+**Quick Start**:
+```typescript
+const { apiErrorMessage } = useApiError()
+setError(apiErrorMessage(err, t('members.errors.cannotAnonymize')))
+```
+
 ### [Table Implementation Pattern](./table-implementation.md)
 **Purpose**: Build a list page — query state, controls, table, pagination
 

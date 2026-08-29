@@ -35,6 +35,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useApiError } from '../../hooks/useApiError'
 import axios from 'axios'
 import { theme } from '../../styles/design-system'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
@@ -110,6 +111,7 @@ function toForm(config: MailConfig): FormState {
 
 export function MailSettingsTab() {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const request = useLatestRequest()
 
   const [config, setConfig] = useState<MailConfig | null>(null)
@@ -134,11 +136,11 @@ export function MailSettingsTab() {
       setError(null)
     } catch (err: unknown) {
       if (signal.aborted) return
-      setError(parseError(err, t('settings.mail.errors.load')))
+      setError(apiErrorMessage(err, t('settings.mail.errors.load')))
     } finally {
       if (!signal.aborted) setLoading(false)
     }
-  }, [request, t])
+  }, [request, t, apiErrorMessage])
 
   useEffect(() => {
     void load()
@@ -183,7 +185,7 @@ export function MailSettingsTab() {
       if (messages && typeof messages === 'object') {
         setFieldErrors(messages as Record<string, string>)
       } else {
-        setError(parseError(err, t('settings.mail.errors.save')))
+        setError(apiErrorMessage(err, t('settings.mail.errors.save')))
       }
     } finally {
       setSaving(false)
@@ -197,7 +199,7 @@ export function MailSettingsTab() {
     try {
       setTestResult(await getMailSettings().sendTestMail())
     } catch (err: unknown) {
-      setTestResult({ sent: false, error: parseError(err, t('settings.mail.errors.test')) })
+      setTestResult({ sent: false, error: apiErrorMessage(err, t('settings.mail.errors.test')) })
     } finally {
       setTesting(false)
     }
@@ -463,13 +465,6 @@ export function MailSettingsTab() {
 
     </div>
   )
-}
-
-function parseError(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    return err.response?.data?.message ?? err.message
-  }
-  return err instanceof Error ? err.message : fallback
 }
 
 const fieldWrapperStyle: CSSProperties = { marginBottom: theme.spacing.lg }

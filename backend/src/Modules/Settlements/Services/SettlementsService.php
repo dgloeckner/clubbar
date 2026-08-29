@@ -22,6 +22,7 @@ use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\Services\NotificationsService;
@@ -282,19 +283,28 @@ class SettlementsService
             if ($postedMemberIds !== null) {
                 $memberIds = array_values(array_unique($postedMemberIds));
                 if (empty($memberIds)) {
-                    throw new BusinessRuleException('No members named');
+                    throw new BusinessRuleException(
+                        BusinessRuleReason::NO_MEMBERS_NAMED,
+                        'No members named',
+                    );
                 }
             } else {
                 // Validate no conflicts
                 $conflicts = $this->settlementsRepository->hasConflicts($transactionIds);
                 if (!empty($conflicts)) {
-                    throw new BusinessRuleException('Some transactions are already settled');
+                    throw new BusinessRuleException(
+                        BusinessRuleReason::TRANSACTIONS_ALREADY_SETTLED,
+                        'Some transactions are already settled',
+                    );
                 }
 
                 // Fetch transactions
                 $posted = $this->transactionsRepository->findUnsettledByIds($transactionIds);
                 if (empty($posted)) {
-                    throw new BusinessRuleException('No valid unsettled transactions found');
+                    throw new BusinessRuleException(
+                        BusinessRuleReason::NO_UNSETTLED_TRANSACTIONS,
+                        'No valid unsettled transactions found',
+                    );
                 }
 
                 $memberIds = array_values(array_unique(array_column($posted, 'member_id')));
@@ -331,7 +341,10 @@ class SettlementsService
                 // through an unsettled row on the way in: an unknown id, or a
                 // member whose position another run swept while this screen was
                 // open. An empty settlement is not a settlement.
-                throw new BusinessRuleException('No valid unsettled transactions found');
+                throw new BusinessRuleException(
+                    BusinessRuleReason::NO_UNSETTLED_TRANSACTIONS,
+                    'No valid unsettled transactions found',
+                );
             }
 
             $totalAmount = array_sum(array_column($transactions, 'amount_cents'));
@@ -347,12 +360,16 @@ class SettlementsService
             // from somebody else. It is the run's own total that may not be
             // zero, because that total is what goes to the bank.
             if ($totalAmount <= 0) {
-                throw new BusinessRuleException(sprintf(
-                    'A settlement has to collect something, and this one totals %s EUR — the selected members\' '
-                    . 'open transactions cancel each other out. Nothing is owed, so there is nothing to collect '
-                    . 'and no SEPA file to send.',
-                    number_format($totalAmount / 100, 2, '.', ''),
-                ));
+                throw new BusinessRuleException(
+                    BusinessRuleReason::SETTLEMENT_TOTAL_IS_ZERO,
+                    sprintf(
+                        'A settlement has to collect something, and this one totals %s EUR — the selected '
+                        . 'members\' open transactions cancel each other out. Nothing is owed, so there is '
+                        . 'nothing to collect and no SEPA file to send.',
+                        number_format($totalAmount / 100, 2, '.', ''),
+                    ),
+                    ['total_cents' => (int) $totalAmount],
+                );
             }
 
             // Ruling #163: bank_transfer/write_off settlements cover exactly one
@@ -525,7 +542,10 @@ class SettlementsService
     ): SettlementDto {
         $transactionIds = $this->transactionsRepository->findAllUnsettledByFilters($filters);
         if (empty($transactionIds)) {
-            throw new BusinessRuleException('No unsettled transactions found for the given filters');
+            throw new BusinessRuleException(
+                BusinessRuleReason::NO_UNSETTLED_TRANSACTIONS_FOR_FILTERS,
+                'No unsettled transactions found for the given filters',
+            );
         }
 
         $matched = $this->transactionsRepository->findUnsettledByIds($transactionIds);
@@ -533,8 +553,9 @@ class SettlementsService
         $collectable = $this->partitionByCollectability($memberIds, $method)['collectable'];
         if (empty($collectable)) {
             throw new BusinessRuleException(
-                'No collectable members matched the given filters — every match is in credit, on collection hold, '
-                . 'or has no active SEPA mandate'
+                BusinessRuleReason::NO_COLLECTABLE_MEMBERS_FOR_FILTERS,
+                'No collectable members matched the given filters — every match is in credit, on collection '
+                . 'hold, or has no active SEPA mandate',
             );
         }
 
@@ -616,7 +637,7 @@ class SettlementsService
 
         $blocker = CancellationGate::blocker($settlement);
         if ($blocker !== null) {
-            throw new BusinessRuleException($blocker);
+            throw $blocker->toException();
         }
 
         $this->db->beginTransaction();
@@ -665,23 +686,33 @@ class SettlementsService
         if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
 
         if (!empty($settlement['is_cancelled'])) {
-            throw new BusinessRuleException('This settlement was cancelled and cannot be submitted to the bank.');
+            throw new BusinessRuleException(
+                BusinessRuleReason::SETTLEMENT_CANCELLED_NOT_SUBMITTABLE,
+                'This settlement was cancelled and cannot be submitted to the bank.',
+            );
         }
 
         if (!empty($settlement['submitted_at'])) {
-            throw new BusinessRuleException('This settlement has already been marked as submitted.');
+            throw new BusinessRuleException(
+                BusinessRuleReason::SETTLEMENT_ALREADY_SUBMITTED,
+                'This settlement has already been marked as submitted.',
+            );
         }
 
         $method = SettlementMethod::tryFrom((string) ($settlement['method'] ?? '')) ?? SettlementMethod::DIRECT_DEBIT;
         if (!$method->isSepaExportable()) {
             throw new BusinessRuleException(
-                'Only a direct-debit settlement is submitted to a bank; a ' . $method->label() . ' is not.'
+                BusinessRuleReason::SETTLEMENT_METHOD_NOT_SUBMITTABLE,
+                'Only a direct-debit settlement is submitted to a bank; a ' . $method->label() . ' is not.',
+                ['method' => $method->value],
             );
         }
 
         if (empty($settlement['exported_at'])) {
             throw new BusinessRuleException(
-                'Export the SEPA file before marking this settlement as submitted — there is nothing with the bank yet.'
+                BusinessRuleReason::SETTLEMENT_NOT_EXPORTED_YET,
+                'Export the SEPA file before marking this settlement as submitted — there is nothing with '
+                . 'the bank yet.',
             );
         }
 
@@ -748,7 +779,9 @@ class SettlementsService
         // file went out for a run that collects nothing (#114, #142 §5).
         if (!empty($settlement['is_cancelled'])) {
             throw new BusinessRuleException(
-                sprintf('Settlement %s was cancelled and cannot be exported to SEPA', $settlementId)
+                BusinessRuleReason::SETTLEMENT_CANCELLED_NOT_EXPORTABLE,
+                sprintf('Settlement %s was cancelled and cannot be exported to SEPA', $settlementId),
+                ['settlement_id' => $settlementId],
             );
         }
 

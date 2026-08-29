@@ -298,8 +298,11 @@ test.describe('Recording a return from the bank', () => {
     authenticatedRequest,
     settlementFactory,
   }) => {
-    // The gate's own words, pointing at cancellation. Re-deriving a second rule
-    // set here is the #81 bug, so the reason is shown verbatim.
+    // The gate's own verdict, pointing at cancellation. Re-deriving a second
+    // rule set here is the #81 bug, so the gate alone decides *what* is said.
+    // It is said in German because the panel is: the gate sends a reason code
+    // and the panel renders its own wording for it (#757), which is why this
+    // asserts on the German sentence and not the backend's English one.
     const settlement = await settlementFactory.create({ amountCents: 1350 })
     expect((await exportSepaXml(authenticatedRequest, settlement.id)).status()).toBe(200)
 
@@ -309,7 +312,11 @@ test.describe('Recording a return from the bank', () => {
     await settlementsPage.openBankReturnLookup()
     await settlementsPage.lookupReference(referenceFor(settlement.id, settlement.memberId))
 
-    await settlementsPage.expectCandidateBlocked(settlement.id, settlement.memberId, /Cancel it instead/)
+    await settlementsPage.expectCandidateBlocked(
+      settlement.id,
+      settlement.memberId,
+      /Stornieren Sie sie stattdessen/,
+    )
   })
 
   test('an unrecognised reference explains the two reasons it might not match', async ({ page }) => {

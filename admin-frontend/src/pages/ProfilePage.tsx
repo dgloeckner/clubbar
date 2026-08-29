@@ -14,6 +14,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useApiError } from '../hooks/useApiError'
 import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
 import { getAuthentication } from '../api/generated/authentication/authentication'
@@ -27,6 +28,7 @@ import { useAuth } from '../context/AuthContext'
 
 export function ProfilePage() {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const { intlLocale } = useFormatters()
   const { updateProfile: updateAuthProfile } = useAuth()
   const [profile, setProfile] = useState<AdminProfile | null>(null)
@@ -143,9 +145,9 @@ export function ProfilePage() {
       successTimeoutRef.current = setTimeout(() => setSuccess(null), 3000)
     } catch (err: unknown) {
       const response = err instanceof Error && 'response' in err
-        ? (err as { response?: { status?: number; data?: { message?: string } } }).response
+        ? (err as { response?: { status?: number } }).response
         : undefined
-      const message = response?.data?.message ?? t('profile.saveFailed')
+      const message = apiErrorMessage(err, t('profile.saveFailed'))
 
       // A rejected credential keeps the dialog open so the admin can retry
       // without losing the address they typed; anything else is a page-level
@@ -211,10 +213,7 @@ export function ProfilePage() {
       if (passwordSuccessTimeoutRef.current) clearTimeout(passwordSuccessTimeoutRef.current)
       passwordSuccessTimeoutRef.current = setTimeout(() => setPasswordSuccess(null), 3000)
     } catch (err: unknown) {
-      const message = err instanceof Error && 'response' in err
-        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? t('profile.saveFailed')
-        : t('profile.saveFailed')
-      setPasswordError(message)
+      setPasswordError(apiErrorMessage(err, t('profile.saveFailed')))
     } finally {
       setChangingPassword(false)
     }

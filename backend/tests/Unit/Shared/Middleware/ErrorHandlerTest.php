@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Shared\Middleware;
 
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Exceptions\InvalidQueryParameterException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\ValidationException;
@@ -101,9 +102,58 @@ class ErrorHandlerTest extends TestCase
 
     public function test_a_business_rule_violation_stays_409(): void
     {
-        $response = $this->handle(new BusinessRuleException('already settled'));
+        $response = $this->handle(new BusinessRuleException(
+            BusinessRuleReason::TRANSACTIONS_ALREADY_SETTLED,
+            'already settled',
+        ));
 
         $this->assertSame(409, $response->getStatusCode());
+    }
+
+    // ── What a refusal says, and to whom (#757) ────────────
+    //
+    // `message` is English, written for this log line and for a raw API
+    // caller. The admin panel renders in the admin's own language, so it needs
+    // the *reason* — a stable code — and the values its sentence interpolates.
+    // Sending only the sentence is how "Cannot anonymize: outstanding balance
+    // of €7.50" reached a German screen.
+
+    public function test_a_business_rule_violation_names_a_translatable_reason(): void
+    {
+        $response = $this->handle(new BusinessRuleException(
+            BusinessRuleReason::MEMBER_BALANCE_OUTSTANDING,
+            'Cannot anonymize: outstanding balance of €7.50',
+            ['balance_cents' => 750],
+        ));
+
+        $body = $this->decode($response);
+
+        $this->assertSame('business_rule_violation', $body['error']);
+        $this->assertSame('member_balance_outstanding', $body['reason']);
+        $this->assertSame(['balance_cents' => 750], $body['params']);
+        // Unchanged: the log and every existing API assertion still read it.
+        $this->assertSame('Cannot anonymize: outstanding balance of €7.50', $body['message']);
+    }
+
+    public function test_a_refusal_with_nothing_to_interpolate_omits_params(): void
+    {
+        // An empty map would be noise in every response body that has no
+        // values to carry, which is most of them.
+        $body = $this->decode($this->handle(new BusinessRuleException(
+            BusinessRuleReason::MEMBER_ALREADY_ANONYMIZED,
+            'Member already anonymized',
+        )));
+
+        $this->assertSame('member_already_anonymized', $body['reason']);
+        $this->assertArrayNotHasKey('params', $body);
+    }
+
+    public function test_only_a_business_rule_carries_a_reason(): void
+    {
+        // A 404 or a 500 has no rule to name, and a client must not read a
+        // stale `reason` off one.
+        $this->assertArrayNotHasKey('reason', $this->decode($this->handle(new NotFoundException('nope'))));
+        $this->assertArrayNotHasKey('reason', $this->decode($this->handle(new \RuntimeException('boom'))));
     }
 
     public function test_an_unexpected_error_becomes_500(): void

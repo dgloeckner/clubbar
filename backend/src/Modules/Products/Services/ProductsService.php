@@ -15,6 +15,7 @@ use App\Modules\Products\Validators\IconNameValidator;
 use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Exceptions\ValidationException;
 use App\Shared\Sync\SyncCursor;
 
@@ -53,7 +54,9 @@ class ProductsService
     {
         $category = $this->categoriesRepository->findById($validated['category_id']);
         if (!$category) throw new ValidationException('Invalid category_id', ['category_id' => ['Category not found']]);
-        if (!(bool) $category['is_active']) throw new BusinessRuleException('Category is inactive');
+        if (!(bool) $category['is_active']) {
+            throw new BusinessRuleException(BusinessRuleReason::CATEGORY_INACTIVE, 'Category is inactive');
+        }
 
         // Validate icon name against canonical registry (docs/icon-registry.md)
         if (isset($validated['icon_name'])) {
@@ -86,7 +89,9 @@ class ProductsService
         if (isset($validated['category_id'])) {
             $category = $this->categoriesRepository->findById($validated['category_id']);
             if (!$category) throw NotFoundException::forResource('Category', $validated['category_id']);
-            if (!(bool) $category['is_active']) throw new BusinessRuleException('Category is inactive');
+            if (!(bool) $category['is_active']) {
+            throw new BusinessRuleException(BusinessRuleReason::CATEGORY_INACTIVE, 'Category is inactive');
+        }
         }
 
         // Validate icon name against canonical registry (docs/icon-registry.md)

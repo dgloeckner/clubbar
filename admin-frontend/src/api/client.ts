@@ -12,7 +12,6 @@
 
 import axios from 'axios'
 import type { AxiosRequestConfig } from 'axios'
-import { getApiErrorMessage } from '../utils/apiErrors'
 
 // ─── CSRF ────────────────────────────────────────────────────────────────────
 
@@ -192,22 +191,29 @@ export function downloadBlob(blob: Blob, filename: string): void {
 /**
  * A failed blob request carries its error body as a Blob, so the caller would
  * otherwise only ever see "Request failed with status code 400". Read the body
- * back and use the API's own message when there is one.
+ * back and hand the caller the original error with the parsed body in place.
+ *
+ * The *error itself* is returned, not a new `Error` carrying its message: a
+ * SEPA export refuses with a business rule like any other endpoint, and the
+ * `reason` code is on the response. Flattening it to a message string here
+ * would leave the page with nothing to translate but the backend's English
+ * sentence (#757). Pages read this with `useApiError`, which still falls back
+ * to that message when no reason came with it.
  */
 async function readDownloadError(error: unknown): Promise<Error> {
   if (!axios.isAxiosError(error) || !(error.response?.data instanceof Blob)) {
     return error instanceof Error ? error : new Error(String(error))
   }
   try {
-    // Swap the Blob for the parsed body so the shared extractor can read it —
-    // it knows all three shapes the API raises, including the `messages` map
+    // Swap the Blob for the parsed body so the shared extractors can read it —
+    // they know all three shapes the API raises, including the `messages` map
     // that carries no top-level `message` at all.
     error.response.data = JSON.parse(await error.response.data.text())
   } catch {
     // Not a JSON error body — the transport message is all there is.
     return error
   }
-  return new Error(getApiErrorMessage(error, error.message))
+  return error
 }
 
 /**

@@ -26,7 +26,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
-import axios from 'axios'
+import { useApiError } from '../../hooks/useApiError'
 import { theme } from '../../styles/design-system'
 import { useFormatters } from '../../hooks/useFormatters'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
@@ -39,6 +39,7 @@ export interface SettlementMemberBreakdownProps {
 
 export function SettlementMemberBreakdown({ settlementId }: SettlementMemberBreakdownProps) {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const formatters = useFormatters()
   const request = useLatestRequest()
 
@@ -69,18 +70,12 @@ export function SettlementMemberBreakdown({ settlementId }: SettlementMemberBrea
       })
       .catch((err: unknown) => {
         if (signal.aborted) return
-        setError(
-          axios.isAxiosError(err)
-            ? (err.response?.data?.message ?? err.message)
-            : err instanceof Error
-              ? err.message
-              : t('settlements.errors.load')
-        )
+        setError(apiErrorMessage(err, t('settlements.errors.load')))
       })
       .finally(() => {
         if (!signal.aborted) setLoading(false)
       })
-  }, [settlementId, request, t])
+  }, [settlementId, request, t, apiErrorMessage])
 
   /**
    * What the announcement line says, in the member's row.

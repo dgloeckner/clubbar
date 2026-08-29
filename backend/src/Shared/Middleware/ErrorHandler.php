@@ -65,6 +65,20 @@ class ErrorHandler implements MiddlewareInterface
                 if ($e instanceof InvalidQueryParameterException) {
                     $body['messages'] = $e->getMessages();
                 }
+
+                // A refused business rule also says *which* rule, as a code
+                // the client can translate (#757). `message` stays the English
+                // sentence — a raw API caller and the log still read it — but
+                // the admin panel renders `errors.reasons.<reason>` from its
+                // own locale file instead, interpolating `params`. Without
+                // this the one sentence on a German admin's screen that was
+                // written by the backend was the one sentence in English.
+                if ($e instanceof BusinessRuleException) {
+                    $body['reason'] = $e->getReason()->value;
+                    if ($e->getParams() !== []) {
+                        $body['params'] = $e->getParams();
+                    }
+                }
             } else {
                 // Fallback for non-AppException types
                 $status = match (true) {

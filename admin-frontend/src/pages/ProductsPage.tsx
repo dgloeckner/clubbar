@@ -13,7 +13,6 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import axios from 'axios'
 import { getProducts } from '../api/generated/products/products'
 import { theme } from '../styles/design-system'
 import type {
@@ -51,6 +50,7 @@ import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useListQuery } from '../hooks/useListQuery'
+import { useApiError } from '../hooks/useApiError'
 import {
   tableColors,
   tableWrapperStyles,
@@ -109,6 +109,7 @@ interface ProductFilters {
 
 export function ProductsPage() {
   const { t, i18n } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const { formatPrice } = useFormatters()
   const breakpoint = useBreakpoint()
   // The category list is a second, independent stream, so it gets its own abort
@@ -154,12 +155,7 @@ export function ProductsPage() {
       const items = (response.data ?? []) as ProductWithExtras[]
       return { items, total: response.pagination?.total ?? items.length }
     },
-    parseError: (err) =>
-      axios.isAxiosError(err)
-        ? err.response?.data?.message || err.message || t('products.errors.load')
-        : err instanceof Error
-          ? err.message
-          : t('products.errors.load'),
+    parseError: (err) => apiErrorMessage(err, t('products.errors.load')),
   })
 
   const { items: products, total: totalItems, totalPages, loading, hasLoaded, error, setError } = list
@@ -293,12 +289,7 @@ export function ProductsPage() {
       // Reload product list to show newly created product
       await list.reload()
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || t('products.errors.create')
-        setFormError(errorMsg)
-      } else {
-        setFormError(err instanceof Error ? err.message : t('products.errors.create'))
-      }
+      setFormError(apiErrorMessage(err, t('products.errors.create')))
     }
   }
 
@@ -359,12 +350,7 @@ export function ProductsPage() {
       // Reload product list to reflect updated product
       await list.reload()
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || t('products.errors.update')
-        setFormError(errorMsg)
-      } else {
-        setFormError(err instanceof Error ? err.message : t('products.errors.update'))
-      }
+      setFormError(apiErrorMessage(err, t('products.errors.update')))
     }
   }
 
@@ -382,11 +368,7 @@ export function ProductsPage() {
       await getProducts().updateProduct(product.id!, { is_active: !product.is_active })
       await list.reload()
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || err.message || t('products.errors.updateStatus'))
-      } else {
-        setError(err instanceof Error ? err.message : t('products.errors.updateStatus'))
-      }
+      setError(apiErrorMessage(err, t('products.errors.updateStatus')))
     }
   }
 
@@ -398,11 +380,7 @@ export function ProductsPage() {
       setConfirmDialog(null)
       await list.reload()
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || err.message || t('products.errors.delete'))
-      } else {
-        setError(err instanceof Error ? err.message : t('products.errors.delete'))
-      }
+      setError(apiErrorMessage(err, t('products.errors.delete')))
       setConfirmDialog(null)
     }
   }

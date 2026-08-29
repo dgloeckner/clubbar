@@ -16,11 +16,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useApiError } from '../../hooks/useApiError'
 import { theme } from '../../styles/design-system'
 import { Alert } from '../common/Alert'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getSecurity } from '../../api/generated/security/security'
-import { getApiErrorMessage } from '../../utils/apiErrors'
 import type { SecurityFinding, SecurityReport } from '../../api/generated'
 import { orderedCategories } from './securityCategories'
 
@@ -40,6 +40,7 @@ const STATUS_SYMBOL: Record<string, string> = {
 
 export function SecurityCheckTab() {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const request = useLatestRequest()
   const [report, setReport] = useState<SecurityReport | null>(null)
   const [loading, setLoading] = useState(true)
@@ -55,12 +56,12 @@ export function SecurityCheckTab() {
       setReport(result)
     } catch (err: unknown) {
       if (signal.aborted) return
-      setError(getApiErrorMessage(err, t('settings.security.loadFailed')))
+      setError(apiErrorMessage(err, t('settings.security.loadFailed')))
     } finally {
       // A superseded request must not clear the spinner the newer one raised.
       if (!signal.aborted) setLoading(false)
     }
-  }, [request, t])
+  }, [request, t, apiErrorMessage])
 
   useEffect(() => {
     void load()

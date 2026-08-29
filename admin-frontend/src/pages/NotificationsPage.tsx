@@ -32,11 +32,11 @@
 
 import { useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
-import axios from 'axios'
 import { PageHeader } from '../components/layout/PageHeader'
 import { theme, formatDateTime } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useListQuery } from '../hooks/useListQuery'
+import { useApiError } from '../hooks/useApiError'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import {
@@ -78,6 +78,7 @@ function statusColor(status: string): { bg: string; fg: string } {
 
 export function NotificationsPage() {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'mobile' || breakpoint === 'smallMobile'
 
@@ -105,12 +106,7 @@ export function NotificationsPage() {
       const response = await getNotifications().listNotifications(params, { signal })
       return { items: response.data ?? [], total: response.pagination?.total ?? 0 }
     },
-    parseError: (err) =>
-      axios.isAxiosError(err)
-        ? (err.response?.data?.message ?? err.message)
-        : err instanceof Error
-          ? err.message
-          : t('notifications.errors.load'),
+    parseError: (err) => apiErrorMessage(err, t('notifications.errors.load')),
   })
 
   const { items, total, totalPages, loading, hasLoaded, error } = list
@@ -132,11 +128,7 @@ export function NotificationsPage() {
       await list.reload()
       setNotice(t('notifications.retryQueued'))
     } catch (err: unknown) {
-      list.setError(
-        axios.isAxiosError(err)
-          ? (err.response?.data?.message ?? err.message)
-          : t('notifications.errors.retry')
-      )
+      list.setError(apiErrorMessage(err, t('notifications.errors.retry')))
     } finally {
       setRetryingId(null)
     }

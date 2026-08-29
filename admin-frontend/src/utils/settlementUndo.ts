@@ -19,6 +19,14 @@ export interface UndoSettlementTarget {
   /** The backend's answer. Absent (older payloads) means "not blocked". */
   is_cancellable?: boolean
   cancellation_blocked_reason?: string | null
+  /**
+   * The same refusal as a code the client translates (#757).
+   * `cancellation_blocked_reason` is the backend's English sentence and is
+   * kept only so an older payload still says *something*; the dialog renders
+   * this code in the admin's own language.
+   */
+  cancellation_blocked_code?: string | null
+  cancellation_blocked_params?: Record<string, unknown> | null
   /** Non-null once a SEPA file has been generated for this settlement. */
   exported_at?: string | null
   settlement_date?: string
@@ -28,8 +36,11 @@ export interface UndoSettlementTarget {
 export interface UndoDecision {
   /** The gate is shut: show the reason, offer no confirm button. */
   blocked: boolean
-  /** The backend's own words, when it gave them. */
+  /** The backend's own words, when it gave them. English — see below. */
   blockedReason: string | null
+  /** What the dialog actually shows, once translated. */
+  blockedCode: string | null
+  blockedParams: Record<string, unknown> | null
   /**
    * A file exists for this settlement, so the admin has to state that it never
    * reached the bank before the confirm button unlocks. Exporting is
@@ -48,6 +59,8 @@ export function describeUndo(settlement: UndoSettlementTarget): UndoDecision {
   return {
     blocked,
     blockedReason: blocked ? blockedReason : null,
+    blockedCode: blocked ? (settlement.cancellation_blocked_code ?? null) : null,
+    blockedParams: blocked ? (settlement.cancellation_blocked_params ?? null) : null,
     needsExportAcknowledgement: !blocked && hasExport(settlement),
   }
 }

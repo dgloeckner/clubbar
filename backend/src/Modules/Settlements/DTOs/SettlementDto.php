@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Settlements\DTOs;
 
 use App\Modules\Notifications\DTOs\QueuedMailDto;
+use App\Modules\Settlements\Domain\BlockedReason;
 use App\Modules\Settlements\Domain\CancellationGate;
 use App\Modules\Settlements\Domain\ReversalGate;
 use App\Modules\Settlements\Domain\SettlementReference;
@@ -41,8 +42,12 @@ final readonly class SettlementDto
          * sees and the answer the API gives cannot drift apart.
          */
         public bool $isCancellable = false,
-        /** Why not, when it is not — shown instead of a bare disabled button. */
-        public ?string $cancellationBlockedReason = null,
+        /**
+         * Why not, when it is not — shown instead of a bare disabled button.
+         * Carries the code the admin panel translates alongside the English
+         * sentence (#757); serialised as three keys, see {@see toArray()}.
+         */
+        public ?BlockedReason $cancellationBlockedReason = null,
         /**
          * Where this settlement stands (ruling #148 §6). Derived from
          * `is_cancelled`, the reversal rows, `submitted_at` and `exported_at`
@@ -51,7 +56,7 @@ final readonly class SettlementDto
         public SettlementStatus $status = SettlementStatus::DRAFT,
         /** The mirror of `is_cancellable`: money moved, so it can come back. */
         public bool $isReversible = false,
-        public ?string $reversalBlockedReason = null,
+        public ?BlockedReason $reversalBlockedReason = null,
         /** How many of this settlement's members have been reversed. */
         public int $reversedMemberCount = 0,
         /**
@@ -182,11 +187,18 @@ final readonly class SettlementDto
             'submitted_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->submittedAt),
             'submitted_by_admin_id' => $this->submittedByAdminId,
             'is_cancellable' => $this->isCancellable,
-            'cancellation_blocked_reason' => $this->cancellationBlockedReason,
+            // Three keys for one refusal: the English sentence every existing
+            // consumer reads, plus the code and values the admin panel
+            // translates it from (#757).
+            'cancellation_blocked_reason' => $this->cancellationBlockedReason?->message,
+            'cancellation_blocked_code' => $this->cancellationBlockedReason?->reason->value,
+            'cancellation_blocked_params' => $this->cancellationBlockedReason?->params ?: null,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'is_reversible' => $this->isReversible,
-            'reversal_blocked_reason' => $this->reversalBlockedReason,
+            'reversal_blocked_reason' => $this->reversalBlockedReason?->message,
+            'reversal_blocked_code' => $this->reversalBlockedReason?->reason->value,
+            'reversal_blocked_params' => $this->reversalBlockedReason?->params ?: null,
             'reversed_member_count' => $this->reversedMemberCount,
             'reversals' => array_map(
                 static fn($r) => $r instanceof SettlementReversalDto ? $r->toArray() : $r,

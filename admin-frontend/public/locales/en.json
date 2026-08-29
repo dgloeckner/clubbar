@@ -136,7 +136,49 @@
     "loadData": "Failed to load data",
     "insufficientRoleTitle": "No access to this section",
     "insufficientRoleMessage": "This page belongs to an office your account does not hold. If that changed recently, your roles were adjusted. Ask an administrator if you need this section.",
-    "insufficientRoleHome": "Go to start page"
+    "insufficientRoleHome": "Go to start page",
+    "reasons": {
+      "admin_role_is_exclusive": "The admin role cannot be combined with another role.",
+      "admin_user_needs_a_role": "An admin account must hold at least one role.",
+      "cannot_deactivate_self": "You cannot deactivate your own account.",
+      "category_inactive": "This category is inactive.",
+      "execution_date_not_business_day": "The execution date {{execution_date}} is not a bank business day (Mon–Fri, excluding TARGET2 closing days). Cancel the settlement and recreate it with a valid date.",
+      "iban_key_unavailable": "Every stored IBAN is sealed; the SEPA export needs the club's private key.",
+      "last_active_admin": "This is the last active admin account, so it cannot be deactivated.",
+      "last_admin_role_holder": "This is the last account holding the admin role, so it cannot be removed.",
+      "mandate_vanished_during_export": "A member's active SEPA mandate disappeared during the export. Nothing was exported — please try again.",
+      "member_already_anonymized": "This member has already been anonymized.",
+      "member_anonymization_failed": "Anonymization failed. Nothing was changed.",
+      "member_balance_outstanding": "Cannot anonymize: outstanding balance of {{balance}}.",
+      "member_in_active_settlement": "Cannot anonymize: this member is part of an active settlement.",
+      "member_not_on_collection_hold": "This member is not on collection hold.",
+      "members_already_reversed": "{{member_count}} of the selected members have already been returned on this settlement.",
+      "no_collectable_members_for_filters": "No collectable members match the selected filters — every match is in credit, on collection hold, or has no active SEPA mandate.",
+      "no_members_named": "No members were selected.",
+      "no_unsettled_transactions": "No unsettled transactions were found.",
+      "no_unsettled_transactions_for_filters": "No unsettled transactions match the selected filters.",
+      "sepa_config_incomplete": "The SEPA configuration is incomplete. Complete it under Settings before exporting.",
+      "sepa_export_every_member_excluded": "There is nothing left to collect: all {{excluded_count}} members in this settlement are excluded. A SEPA file needs at least one direct debit.",
+      "sepa_export_nothing_owed": "There is nothing left to collect: every member in this settlement owes exactly nothing. A SEPA file needs at least one direct debit.",
+      "sepa_xml_malformed": "The generated SEPA file is malformed and was not exported.",
+      "settlement_already_cancelled": "This settlement has already been cancelled.",
+      "settlement_already_submitted": "This settlement has already been marked as submitted.",
+      "settlement_bank_transfer_not_cancellable": "This settlement records money the member has already transferred, so cancelling it would not un-move anything. Record a return instead.",
+      "settlement_cancelled_not_exportable": "This settlement was cancelled and cannot be exported to SEPA.",
+      "settlement_cancelled_not_reversible": "This settlement was cancelled, so it never collected anything. There is nothing to return.",
+      "settlement_cancelled_not_submittable": "This settlement was cancelled and cannot be submitted to the bank.",
+      "settlement_execution_date_passed": "This settlement's execution date ({{execution_date}}) has passed, so the bank has almost certainly collected it. Record a return instead.",
+      "settlement_has_no_items": "This settlement has no items.",
+      "settlement_has_no_members_to_reverse": "This settlement covers no members, so there is nothing to return.",
+      "settlement_has_reversals": "{{reversed_count}} collection(s) in this settlement have been returned, so it cannot be exported again. The affected members are collected by the next settlement run.",
+      "settlement_method_not_exportable": "Only a direct-debit settlement can be exported to SEPA.",
+      "settlement_method_not_submittable": "Only a direct-debit settlement is submitted to a bank.",
+      "settlement_not_exported_yet": "Export the SEPA file before marking this settlement as submitted — there is nothing with the bank yet.",
+      "settlement_not_yet_collected": "This settlement has not moved any money yet, so there is nothing for the bank to return. Cancel it instead.",
+      "settlement_submitted_not_cancellable": "This settlement was submitted to the bank on {{submitted_on}}, so the money has moved. Record a return instead.",
+      "settlement_total_is_zero": "A settlement has to collect something, and this one totals {{total}} — the selected members' open transactions cancel each other out.",
+      "transactions_already_settled": "Some of the selected transactions are already settled."
+    }
   },
   "dates": {
     "today": "Today",
@@ -402,7 +444,9 @@
     "errors": {
       "load": "Failed to load categories",
       "activate": "Failed to activate category",
-      "action": "Failed to perform action"
+      "action": "Failed to perform action",
+      "create": "Failed to create category",
+      "update": "Failed to save category"
     }
   },
   "journal": {

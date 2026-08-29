@@ -22,10 +22,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useApiError } from '../../hooks/useApiError'
 import { theme, formatDateTime } from '../../styles/design-system'
 import { useModalDialog } from '../../hooks/useModalDialog'
 import { getTerminals } from '../../api/generated/terminals/terminals'
-import { getApiErrorMessage } from '../../utils/apiErrors'
 import type { TerminalAnomaly } from '../../api/generated'
 
 const KIND_LABEL_KEY: Record<string, string> = {
@@ -51,6 +51,7 @@ export function TerminalAnomalyPanel({
   onAcknowledged,
 }: TerminalAnomalyPanelProps) {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const contentRef = useModalDialog(isOpen, onClose)
 
   const [anomalies, setAnomalies] = useState<TerminalAnomaly[]>([])
@@ -65,11 +66,11 @@ export function TerminalAnomalyPanel({
       const result = await getTerminals().listTerminalAnomalies(terminalId)
       setAnomalies(result.anomalies ?? [])
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, t('settings.terminalAnomalyLoadError')))
+      setError(apiErrorMessage(err, t('settings.terminalAnomalyLoadError')))
     } finally {
       setLoading(false)
     }
-  }, [terminalId, t])
+  }, [terminalId, t, apiErrorMessage])
 
   useEffect(() => {
     if (isOpen) void load()
@@ -83,7 +84,7 @@ export function TerminalAnomalyPanel({
       setAnomalies((current) => current.filter((anomaly) => anomaly.id !== anomalyId))
       onAcknowledged()
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, t('settings.terminalAnomalyAckError')))
+      setError(apiErrorMessage(err, t('settings.terminalAnomalyAckError')))
     } finally {
       setAcknowledgingId(null)
     }

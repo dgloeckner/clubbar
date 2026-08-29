@@ -17,6 +17,7 @@ use App\Modules\Notifications\Services\NotificationsService;
 use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\BusinessRuleReason;
 
 class AdminUsersService
 {
@@ -90,7 +91,10 @@ class AdminUsersService
     private function applyRoles(string $id, array $roles, ?string $currentAdminId): bool
     {
         if ($roles === []) {
-            throw new BusinessRuleException('An admin user must hold at least one role');
+            throw new BusinessRuleException(
+                BusinessRuleReason::ADMIN_USER_NEEDS_A_ROLE,
+                'An admin user must hold at least one role',
+            );
         }
 
         $after = AdminRole::fromValues(AdminRole::toValues($roles));
@@ -100,7 +104,10 @@ class AdminUsersService
         // lesser roles. `admin` combined with a lesser role is not "more
         // privileged" — it is a state the domain does not recognise.
         if (in_array(AdminRole::ADMIN, $after, true) && count($after) > 1) {
-            throw new BusinessRuleException('admin cannot be combined with a lesser role');
+            throw new BusinessRuleException(
+                BusinessRuleReason::ADMIN_ROLE_IS_EXCLUSIVE,
+                'admin cannot be combined with a lesser role',
+            );
         }
 
         $before = $this->adminUserRolesRepository->rolesFor($id);
@@ -115,7 +122,10 @@ class AdminUsersService
         // yet" is worth two lines to make explicit.
         $revokingAdmin = in_array(AdminRole::ADMIN, $before, true) && !in_array(AdminRole::ADMIN, $after, true);
         if ($revokingAdmin && $this->adminUserRolesRepository->countActiveHolders(AdminRole::ADMIN) <= 1) {
-            throw new BusinessRuleException('Cannot remove admin from the last account holding it');
+            throw new BusinessRuleException(
+                BusinessRuleReason::LAST_ADMIN_ROLE_HOLDER,
+                'Cannot remove admin from the last account holding it',
+            );
         }
 
         $granted = array_values(array_diff(AdminRole::toValues($after), AdminRole::toValues($before)));
@@ -417,7 +427,10 @@ class AdminUsersService
     public function deactivateAdminUser(string $id, string $currentAdminId): AdminUserDto
     {
         if ($id === $currentAdminId) {
-            throw new BusinessRuleException('Cannot deactivate own account');
+            throw new BusinessRuleException(
+                BusinessRuleReason::CANNOT_DEACTIVATE_SELF,
+                'Cannot deactivate own account',
+            );
         }
 
         // Role-aware, not "the last active account of any kind" (#548): that
@@ -431,7 +444,10 @@ class AdminUsersService
         if (in_array(AdminRole::ADMIN, $roles, true)
             && $this->adminUserRolesRepository->countActiveHolders(AdminRole::ADMIN) <= 1
         ) {
-            throw new BusinessRuleException('Cannot deactivate the last active admin');
+            throw new BusinessRuleException(
+                BusinessRuleReason::LAST_ACTIVE_ADMIN,
+                'Cannot deactivate the last active admin',
+            );
         }
 
         $admin = $this->adminUsersRepository->updateById($id, ['is_active' => 0]);

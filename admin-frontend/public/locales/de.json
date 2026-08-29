@@ -136,7 +136,49 @@
     "loadData": "Daten konnten nicht geladen werden",
     "insufficientRoleTitle": "Kein Zugriff auf diesen Bereich",
     "insufficientRoleMessage": "Diese Seite gehört zu einem Amt, das Ihr Konto nicht innehat. Falls sich das kürzlich geändert hat: Ihre Rollen wurden angepasst. Wenden Sie sich an eine Administratorin oder einen Administrator, wenn Sie diesen Bereich benötigen.",
-    "insufficientRoleHome": "Zur Startseite"
+    "insufficientRoleHome": "Zur Startseite",
+    "reasons": {
+      "admin_role_is_exclusive": "Die Rolle „Admin“ kann nicht mit einer anderen Rolle kombiniert werden.",
+      "admin_user_needs_a_role": "Ein Admin-Konto muss mindestens eine Rolle haben.",
+      "cannot_deactivate_self": "Sie können Ihr eigenes Konto nicht deaktivieren.",
+      "category_inactive": "Diese Kategorie ist inaktiv.",
+      "execution_date_not_business_day": "Das Ausführungsdatum {{execution_date}} ist kein Bankarbeitstag (Mo–Fr, ohne TARGET2-Schließtage). Stornieren Sie die Abrechnung und legen Sie sie mit einem gültigen Datum neu an.",
+      "iban_key_unavailable": "Alle gespeicherten IBANs sind versiegelt; der SEPA-Export benötigt den privaten Schlüssel des Vereins.",
+      "last_active_admin": "Dies ist das letzte aktive Admin-Konto – es kann nicht deaktiviert werden.",
+      "last_admin_role_holder": "Dies ist das letzte Konto mit der Rolle „Admin“ – sie kann ihm nicht entzogen werden.",
+      "mandate_vanished_during_export": "Das aktive SEPA-Mandat eines Mitglieds ist während des Exports verschwunden. Es wurde nichts exportiert – bitte erneut versuchen.",
+      "member_already_anonymized": "Dieses Mitglied wurde bereits anonymisiert.",
+      "member_anonymization_failed": "Die Anonymisierung ist fehlgeschlagen. Es wurde nichts geändert.",
+      "member_balance_outstanding": "Anonymisierung nicht möglich: offener Saldo von {{balance}}.",
+      "member_in_active_settlement": "Anonymisierung nicht möglich: Dieses Mitglied ist Teil einer laufenden Abrechnung.",
+      "member_not_on_collection_hold": "Für dieses Mitglied besteht keine Einzugssperre.",
+      "members_already_reversed": "Für {{member_count}} der ausgewählten Mitglieder wurde in dieser Abrechnung bereits eine Rückgabe erfasst.",
+      "no_collectable_members_for_filters": "Zu den gewählten Filtern gibt es keine einziehbaren Mitglieder – alle Treffer haben Guthaben, sind vom Einzug ausgesetzt oder haben kein aktives SEPA-Mandat.",
+      "no_members_named": "Es wurden keine Mitglieder ausgewählt.",
+      "no_unsettled_transactions": "Es wurden keine offenen Buchungen gefunden.",
+      "no_unsettled_transactions_for_filters": "Zu den gewählten Filtern gibt es keine offenen Buchungen.",
+      "sepa_config_incomplete": "Die SEPA-Konfiguration ist unvollständig. Vervollständigen Sie sie in den Einstellungen, bevor Sie exportieren.",
+      "sepa_export_every_member_excluded": "Es ist nichts mehr einzuziehen: Alle {{excluded_count}} Mitglieder dieser Abrechnung sind ausgeschlossen. Eine SEPA-Datei braucht mindestens eine Lastschrift.",
+      "sepa_export_nothing_owed": "Es ist nichts mehr einzuziehen: Jedes Mitglied dieser Abrechnung schuldet exakt nichts. Eine SEPA-Datei braucht mindestens eine Lastschrift.",
+      "sepa_xml_malformed": "Die erzeugte SEPA-Datei ist fehlerhaft und wurde nicht exportiert.",
+      "settlement_already_cancelled": "Diese Abrechnung wurde bereits storniert.",
+      "settlement_already_submitted": "Diese Abrechnung ist bereits als übermittelt markiert.",
+      "settlement_bank_transfer_not_cancellable": "Diese Abrechnung erfasst Geld, das das Mitglied bereits überwiesen hat. Ein Storno macht die Zahlung nicht rückgängig – erfassen Sie stattdessen eine Rückgabe.",
+      "settlement_cancelled_not_exportable": "Diese Abrechnung wurde storniert und kann nicht als SEPA-Datei exportiert werden.",
+      "settlement_cancelled_not_reversible": "Diese Abrechnung wurde storniert und hat nie etwas eingezogen. Es gibt nichts zurückzugeben.",
+      "settlement_cancelled_not_submittable": "Diese Abrechnung wurde storniert und kann nicht an die Bank übermittelt werden.",
+      "settlement_execution_date_passed": "Das Ausführungsdatum dieser Abrechnung ({{execution_date}}) liegt in der Vergangenheit, die Bank hat sie also mit hoher Wahrscheinlichkeit eingezogen. Erfassen Sie stattdessen eine Rückgabe.",
+      "settlement_has_no_items": "Diese Abrechnung enthält keine Positionen.",
+      "settlement_has_no_members_to_reverse": "Diese Abrechnung umfasst keine Mitglieder – es gibt nichts zurückzugeben.",
+      "settlement_has_reversals": "Für {{reversed_count}} Einzüge dieser Abrechnung wurde eine Rückgabe erfasst, daher kann sie nicht erneut exportiert werden. Die betroffenen Mitglieder werden mit dem nächsten Abrechnungslauf eingezogen.",
+      "settlement_method_not_exportable": "Nur eine Lastschrift-Abrechnung kann als SEPA-Datei exportiert werden.",
+      "settlement_method_not_submittable": "Nur eine Lastschrift-Abrechnung wird an eine Bank übermittelt.",
+      "settlement_not_exported_yet": "Exportieren Sie die SEPA-Datei, bevor Sie diese Abrechnung als übermittelt markieren – bei der Bank liegt noch nichts vor.",
+      "settlement_not_yet_collected": "Bei dieser Abrechnung ist noch kein Geld geflossen – es gibt nichts, was die Bank zurückgeben könnte. Stornieren Sie sie stattdessen.",
+      "settlement_submitted_not_cancellable": "Diese Abrechnung wurde am {{submitted_on}} an die Bank übermittelt, das Geld ist also geflossen. Erfassen Sie stattdessen eine Rückgabe.",
+      "settlement_total_is_zero": "Eine Abrechnung muss etwas einziehen; diese ergibt in Summe {{total}} – die offenen Buchungen der gewählten Mitglieder heben sich gegenseitig auf.",
+      "transactions_already_settled": "Einige der ausgewählten Buchungen sind bereits abgerechnet."
+    }
   },
   "dates": {
     "today": "Heute",
@@ -402,7 +444,9 @@
     "errors": {
       "load": "Kategorien konnten nicht geladen werden",
       "activate": "Kategorie konnte nicht aktiviert werden",
-      "action": "Aktion konnte nicht ausgeführt werden"
+      "action": "Aktion konnte nicht ausgeführt werden",
+      "create": "Kategorie konnte nicht angelegt werden",
+      "update": "Kategorie konnte nicht gespeichert werden"
     }
   },
   "journal": {

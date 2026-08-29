@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Domain;
 
+use App\Shared\Exceptions\BusinessRuleReason;
+
 /**
  * May this settlement be reversed, and if not, why not? (ruling #148 §7)
  *
@@ -28,18 +30,27 @@ final class ReversalGate
     /**
      * The reason this settlement cannot be reversed, or null when it can.
      *
+     * Stringable, so a caller that only wants the English sentence still gets
+     * it from `(string) ReversalGate::blocker($row)`.
+     *
      * @param array<string, mixed> $settlement A `settlements` row.
      * @param string|null $today Injectable for tests; defaults to the current date.
      */
-    public static function blocker(array $settlement, ?string $today = null): ?string
+    public static function blocker(array $settlement, ?string $today = null): ?BlockedReason
     {
         if (!empty($settlement['is_cancelled'])) {
-            return 'This settlement was cancelled, so it never collected anything. There is nothing to reverse.';
+            return new BlockedReason(
+                BusinessRuleReason::SETTLEMENT_CANCELLED_NOT_REVERSIBLE,
+                'This settlement was cancelled, so it never collected anything. There is nothing to reverse.',
+            );
         }
 
         if (CancellationGate::isCancellable($settlement, $today)) {
-            return 'This settlement has not moved any money yet, so there is nothing for the bank to return. '
-                . 'Cancel it instead.';
+            return new BlockedReason(
+                BusinessRuleReason::SETTLEMENT_NOT_YET_COLLECTED,
+                'This settlement has not moved any money yet, so there is nothing for the bank to return. '
+                . 'Cancel it instead.',
+            );
         }
 
         return null;

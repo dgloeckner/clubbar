@@ -25,6 +25,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useApiError } from '../../hooks/useApiError'
 import { theme, formatDateTime } from '../../styles/design-system'
 import { Alert } from '../common/Alert'
 import { Badge } from '../common/Badge'
@@ -35,7 +36,6 @@ import { TerminalCredentials } from './TerminalCredentials'
 import { modalInputStyle, modalLabelStyle } from '../modals/ModalError'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getSecurity } from '../../api/generated/security/security'
-import { getApiErrorMessage } from '../../utils/apiErrors'
 import type { EncryptionKey } from '../../api/generated'
 
 export interface CredentialsTabProps {
@@ -70,6 +70,7 @@ type RevokeIntent = { id: string; compromised: boolean }
 
 export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
   const { t } = useTranslation()
+  const { apiErrorMessage } = useApiError()
   const request = useLatestRequest()
 
   const [keys, setKeys] = useState<EncryptionKey[]>([])
@@ -102,12 +103,12 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
       setError(null)
     } catch (err: unknown) {
       if (signal.aborted) return
-      setError(getApiErrorMessage(err, t('settings.credentials.errors.load')))
+      setError(apiErrorMessage(err, t('settings.credentials.errors.load')))
     } finally {
       // A superseded request must not clear the spinner a newer one raised.
       if (!signal.aborted) setLoading(false)
     }
-  }, [request, t])
+  }, [request, t, apiErrorMessage])
 
   useEffect(() => {
     void load()
@@ -147,7 +148,7 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
       setNewPublicKey('')
       await afterMutation('settings.credentials.registered')
     } catch (err: unknown) {
-      setDialogError(getApiErrorMessage(err, t('settings.credentials.errors.register')))
+      setDialogError(apiErrorMessage(err, t('settings.credentials.errors.register')))
     } finally {
       setBusy(false)
     }
@@ -163,7 +164,7 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
       })
       await afterMutation('settings.credentials.activated')
     } catch (err: unknown) {
-      setDialogError(getApiErrorMessage(err, t('settings.credentials.errors.activate')))
+      setDialogError(apiErrorMessage(err, t('settings.credentials.errors.activate')))
     } finally {
       setBusy(false)
     }
@@ -181,7 +182,7 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
         revokeIntent.compromised ? 'settings.credentials.compromised' : 'settings.credentials.revoked',
       )
     } catch (err: unknown) {
-      setDialogError(getApiErrorMessage(err, t('settings.credentials.errors.revoke')))
+      setDialogError(apiErrorMessage(err, t('settings.credentials.errors.revoke')))
     } finally {
       setBusy(false)
     }
@@ -208,7 +209,7 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
       // where it stopped.
       await load()
     } catch (err: unknown) {
-      setDialogError(getApiErrorMessage(err, t('settings.credentials.errors.rotate')))
+      setDialogError(apiErrorMessage(err, t('settings.credentials.errors.rotate')))
     } finally {
       setBusy(false)
     }
@@ -221,7 +222,7 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
       await getSecurity().completeEncryptionKeyRotation(rotateKey.id, credentials)
       await afterMutation('settings.credentials.rotation.completed')
     } catch (err: unknown) {
-      setDialogError(getApiErrorMessage(err, t('settings.credentials.errors.completeRotation')))
+      setDialogError(apiErrorMessage(err, t('settings.credentials.errors.completeRotation')))
     } finally {
       setBusy(false)
     }

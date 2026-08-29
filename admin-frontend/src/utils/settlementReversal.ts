@@ -24,6 +24,9 @@ export interface SettlementReversalTarget extends UndoSettlementTarget {
   /** The backend's answer — the mirror of `is_cancellable`. */
   is_reversible?: boolean
   reversal_blocked_reason?: string | null
+  /** The same refusal as a code the client translates (#757). */
+  reversal_blocked_code?: string | null
+  reversal_blocked_params?: Record<string, unknown> | null
   /** How many of the settlement's members already came back. */
   reversed_member_count?: number
   member_count?: number

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Settlements\Domain;
 
 use App\Modules\Settlements\Enums\SettlementMethod;
+use App\Shared\Exceptions\BusinessRuleReason;
 
 /**
  * May this settlement still be cancelled, and if not, why not?
@@ -32,13 +33,19 @@ final class CancellationGate
     /**
      * The reason this settlement cannot be cancelled, or null when it can.
      *
+     * Stringable, so a caller that only wants the English sentence still gets
+     * it from `(string) CancellationGate::blocker($row)`.
+     *
      * @param array<string, mixed> $settlement A `settlements` row.
      * @param string|null $today Injectable for tests; defaults to the current date.
      */
-    public static function blocker(array $settlement, ?string $today = null): ?string
+    public static function blocker(array $settlement, ?string $today = null): ?BlockedReason
     {
         if (!empty($settlement['is_cancelled'])) {
-            return 'This settlement has already been cancelled.';
+            return new BlockedReason(
+                BusinessRuleReason::SETTLEMENT_ALREADY_CANCELLED,
+                'This settlement has already been cancelled.',
+            );
         }
 
         // Rows written before #163 carry no method; they were all direct debits.
@@ -50,20 +57,32 @@ final class CancellationGate
         }
 
         if ($method === SettlementMethod::BANK_TRANSFER) {
-            return 'This settlement records money the member has already transferred, so cancelling it '
-                . 'would not un-move anything. Reverse it instead.';
+            return new BlockedReason(
+                BusinessRuleReason::SETTLEMENT_BANK_TRANSFER_NOT_CANCELLABLE,
+                'This settlement records money the member has already transferred, so cancelling it '
+                . 'would not un-move anything. Reverse it instead.',
+            );
         }
 
         if (!empty($settlement['submitted_at'])) {
-            return 'This settlement was submitted to the bank on '
-                . self::asDate($settlement['submitted_at'])
-                . ', so the money has moved. Reverse it instead.';
+            $submittedOn = self::asDate($settlement['submitted_at']);
+
+            return new BlockedReason(
+                BusinessRuleReason::SETTLEMENT_SUBMITTED_NOT_CANCELLABLE,
+                'This settlement was submitted to the bank on ' . $submittedOn
+                . ', so the money has moved. Reverse it instead.',
+                ['submitted_on' => $submittedOn],
+            );
         }
 
         $executionDate = self::asDate($settlement['execution_date'] ?? null);
         if ($executionDate !== null && $executionDate < ($today ?? date('Y-m-d'))) {
-            return 'This settlement\'s execution date (' . $executionDate . ') has passed, so the bank has '
-                . 'almost certainly collected it. Reverse it instead.';
+            return new BlockedReason(
+                BusinessRuleReason::SETTLEMENT_EXECUTION_DATE_PASSED,
+                'This settlement\'s execution date (' . $executionDate . ') has passed, so the bank has '
+                . 'almost certainly collected it. Reverse it instead.',
+                ['execution_date' => $executionDate],
+            );
         }
 
         return null;
