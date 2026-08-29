@@ -77,6 +77,72 @@ final class DocumentationIndexTest extends TestCase
         );
     }
 
+    /**
+     * If any unit test opens a SQLite DSN, the setup script has to install the
+     * driver for it.
+     *
+     * The requirement is *derived from the tests* rather than written down,
+     * because the failure it guards against is silent in exactly the way an
+     * assertion on a hard-coded list would not catch. Twenty-nine tests used
+     * `sqlite::memory:` and `php8.3-sqlite3` was simply not among the eight
+     * extensions installed, so in a cloud session they errored with
+     * `PDOException: could not find driver` — in repositories and domain
+     * classes, reading as a broken data layer rather than as a missing package
+     * (#754). CI never saw it: its runner has the driver.
+     *
+     * So the check asks the question the packager forgot to: does anything here
+     * need SQLite, and is it installed?
+     */
+    public function test_the_cloud_setup_script_installs_the_drivers_the_unit_suite_opens(): void
+    {
+        $root = self::repoRoot();
+
+        $usesSqlite = [];
+        foreach (self::phpFilesUnder($root . '/backend/tests/Unit') as $file) {
+            // This file talks *about* the DSN, so it would otherwise match
+            // itself and report the wrong culprit.
+            if ($file === __FILE__) {
+                continue;
+            }
+            // A DSN in a string literal, not the word in prose.
+            if (preg_match('#[\'"]sqlite:#', (string) file_get_contents($file)) === 1) {
+                $usesSqlite[] = substr($file, strlen($root) + 1);
+            }
+        }
+
+        if ($usesSqlite === []) {
+            $this->addToAssertionCount(1);
+
+            return;
+        }
+
+        $this->assertStringContainsString(
+            'php8.3-sqlite3',
+            (string) file_get_contents($root . '/.claude/cloud-setup.sh'),
+            count($usesSqlite) . ' unit test(s) open a SQLite DSN (e.g. ' . $usesSqlite[0]
+            . ') but .claude/cloud-setup.sh does not install php8.3-sqlite3. In a cloud '
+            . 'session every one of them errors with "could not find driver".',
+        );
+    }
+
+    /** @return list<string> */
+    private static function phpFilesUnder(string $directory): array
+    {
+        $files = [];
+        $tree  = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(
+            $directory,
+            \FilesystemIterator::SKIP_DOTS,
+        ));
+
+        foreach ($tree as $file) {
+            if ($file instanceof \SplFileInfo && $file->getExtension() === 'php') {
+                $files[] = $file->getPathname();
+            }
+        }
+
+        return $files;
+    }
+
     /** @return array<string, array{string}> */
     public static function adrs(): array
     {

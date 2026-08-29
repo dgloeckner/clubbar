@@ -63,12 +63,24 @@ apt-get update -qq || true
 # php `php` stays 8.4; this installs an 8.3 alongside it, invoked as `php8.3`.
 apt-get install -y -qq --no-install-recommends \
     php8.3-cli php8.3-bcmath php8.3-mbstring php8.3-xml \
-    php8.3-curl php8.3-mysql php8.3-intl php8.3-zip || true
+    php8.3-curl php8.3-mysql php8.3-sqlite3 php8.3-intl php8.3-zip || true
 
 if php8.3 -m 2>/dev/null | grep -qx bcmath; then
     log "php8.3 with bcmath is available."
 else
     log "WARNING: php8.3/bcmath not available; backend tests will error in SEPA paths."
+fi
+
+# pdo_sqlite is not optional for the *unit* suite: 29 tests build their fixture
+# in `sqlite::memory:` precisely so they need no stack and no `database` host.
+# Without the driver they error with "could not find driver" — 29 red entries in
+# repositories and domain classes, which reads as a broken data layer rather
+# than a missing package, and pushes the next agent off the fast path and back
+# into the container. Same trap as bcmath, so it gets the same one-line guard.
+if php8.3 -r 'exit(in_array("sqlite", PDO::getAvailableDrivers()) ? 0 : 1);' 2>/dev/null; then
+    log "php8.3 with pdo_sqlite is available."
+else
+    log "WARNING: php8.3/pdo_sqlite not available; the in-memory unit tests will error with 'could not find driver'."
 fi
 
 # ---------------------------------------------------------------------------

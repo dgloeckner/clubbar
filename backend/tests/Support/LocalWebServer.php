@@ -33,6 +33,22 @@ namespace Tests\Support;
  * and {@see \Tests\Unit\Support\LocalWebServerTest} is its regression test.
  *
  * Never reintroduce a string command here.
+ *
+ * The second hazard is the port. `php -S` cannot bind one that is already
+ * taken — it prints "Failed to listen" and exits — and readiness used to be
+ * "something answers on that port", which is satisfied just as well by
+ * *whoever already had it*. The test then ran its assertions against a
+ * stranger. That is not hypothetical: a Claude Code cloud session holds
+ * 127.0.0.1:32859, inside this class's own random range, and it answers **401
+ * to every request**, so a run that happened to draw that port failed with
+ * `Failed asserting that 401 is identical to 404` in HttpProbeTest — a
+ * security probe reading as broken when nothing was.
+ *
+ * So a port is *claimed before it is used*: bound here first, and only handed
+ * to `php -S` once this process has proven it is free. Whoever else holds it is
+ * excluded outright rather than mistaken for the server, and readiness now also
+ * watches the child, so losing the remaining microsecond-wide race retries on a
+ * new port instead of trusting the answer.
  */
 final class LocalWebServer
 {
@@ -51,11 +67,23 @@ final class LocalWebServer
      * port 0, and parallel test processes must not collide. Returns null when no
      * attempt succeeded, which callers turn into a skip — a port that cannot be
      * claimed is an environment limit, not a failing assertion.
+     *
+     * $portSource exists so the regression test can aim every attempt at one
+     * port it is deliberately holding; nothing else should pass it.
      */
-    public static function start(string $router, ?string $documentRoot = null, int $attempts = 10): ?self
-    {
+    public static function start(
+        string $router,
+        ?string $documentRoot = null,
+        int $attempts = 10,
+        ?callable $portSource = null,
+    ): ?self {
+        $portSource ??= static fn(): int => random_int(20000, 60000);
+
         for ($attempt = 0; $attempt < $attempts; $attempt++) {
-            $port = random_int(20000, 60000);
+            $port = self::claimPort($portSource());
+            if ($port === null) {
+                continue;
+            }
 
             // Array form, deliberately — see the class docblock. A string here
             // reintroduces the shell wrapper and leaks the server.
@@ -71,7 +99,7 @@ final class LocalWebServer
                 continue;
             }
 
-            if (self::waitForPort($port)) {
+            if (self::waitForPort($port, $process)) {
                 return new self($process, "http://127.0.0.1:{$port}");
             }
 
@@ -107,9 +135,41 @@ final class LocalWebServer
         proc_close($process);
     }
 
-    private static function waitForPort(int $port): bool
+    /**
+     * $port back again once this process has proven it can bind it, or null
+     * when somebody else already holds it.
+     *
+     * Binding it here and letting go is what makes the handover safe. A port
+     * that merely *looks* unused because nobody asked is the one that produced
+     * the 401 in the class docblock; a port this process held a moment ago is
+     * one no permanent listener owns.
+     */
+    private static function claimPort(int $port): ?int
+    {
+        $socket = @stream_socket_server("tcp://127.0.0.1:{$port}", $errno, $error);
+        if (!is_resource($socket)) {
+            return null;
+        }
+        fclose($socket);
+
+        return $port;
+    }
+
+    /**
+     * @param resource $process
+     */
+    private static function waitForPort(int $port, mixed $process): bool
     {
         for ($attempt = 0; $attempt < 50; $attempt++) {
+            // Checked before the connect, not after: a server that lost the
+            // race for the port has already exited, and the only thing that
+            // could answer now is somebody else. Retrying on a fresh port is
+            // right; accepting that answer is how the wrong server gets tested.
+            $status = proc_get_status($process);
+            if (is_array($status) && $status['running'] === false) {
+                return false;
+            }
+
             $socket = @fsockopen('127.0.0.1', $port, $errno, $error, 0.2);
             if (is_resource($socket)) {
                 fclose($socket);

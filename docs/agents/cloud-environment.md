@@ -93,6 +93,47 @@ This replaces "run them in the container" as the quickest path — no stack, no
 Docker Hub, ~12 seconds for 2202 unit tests. The container remains correct and
 is still what you want for anything needing the database.
 
+### `pdo_sqlite`, for the same reason
+
+bcmath is not the only extension the fast path depends on. Twenty-nine unit
+tests build their fixture in `sqlite::memory:` — that is precisely what lets
+them run with no stack and no `database` host — so `php8.3-sqlite3` is
+installed alongside it. It resolves from `archive.ubuntu.com`; no PPA is
+involved.
+
+Without it those tests error with `PDOException: could not find driver`, in
+repositories and domain classes. That reads as a broken data layer rather than
+as a missing package, and the tempting response — "run the suite in the
+container instead" — trades the fast path away for something that was never the
+problem. CI is unaffected: its runner has the driver.
+
+Both extensions are checked at the end of the setup script, so the next
+occurrence of either costs one line naming the package instead of a screenful of
+stack traces:
+
+```
+[cloud-setup] php8.3 with bcmath is available.
+[cloud-setup] php8.3 with pdo_sqlite is available.
+```
+
+### A local port may already be taken
+
+The session holds **127.0.0.1:32859** (and the agent proxy on 44747), inside the
+range `tests/Support/LocalWebServer.php` draws test-server ports from. It answers
+**401 to every request**, which is worse than refusing: a helper that waits for
+"something answers on this port" is satisfied by it, and the test then asserts
+against a stranger. That surfaced once as
+
+```
+HttpProbeTest::test_it_reports_a_refusal_rather_than_treating_it_as_a_failure
+Failed asserting that 401 is identical to 404.
+```
+
+— a security probe reading as broken when nothing was. `LocalWebServer` now binds
+a candidate port itself before handing it to `php -S`, so a port somebody else
+holds is excluded rather than mistaken for the server. Anything else in this repo
+that opens a fixed local port should assume the same hazard.
+
 ## Composer works; do not try to fix it
 
 `composer install` in `backend/` completes in about **three seconds**, entirely
