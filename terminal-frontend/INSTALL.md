@@ -81,82 +81,72 @@ Log out and back in (or reboot) for it to take effect.
 
 ## 3. Screen blanking
 
-### Why not DPMS?
+The terminal blanks its own screen after a spell with no input, and wakes on the
+next touch or card scan. This is a feature of the app — there is **no helper
+script, no `input` group grant and no GTK/PyGObject dependency** to install.
 
-Most cheap touchscreens (and some official Raspberry Pi displays) do not
-respond to DPMS power-management commands, so standard approaches like
-`xset dpms force off` or `vcgencmd display_power 0` have no effect.
+### Real power management, not a black window
 
-Instead, `scripts/screen-idle.py` monitors all input devices for activity and
-covers the display with a full-screen black window after a configurable timeout.
-Any touch or click dismisses it.
+Where possible the terminal powers the **panel** down rather than painting it
+black. An LCD showing black pixels still has its backlight on, so covering the
+screen saves no power and no heat; putting the output to sleep does both.
 
-### Install the dependency
+This is done through Wayland's `zwlr_output_power_management_v1`, via `wlopm`.
+Earlier versions of this guide said DPMS did not work on cheap touchscreens —
+that was true of **X11 `xset dpms`**. Under Wayland/labwc the compositor
+performs a real atomic modeset: measured on a Pi 4B, the DRM connector goes to
+`dpms=Off`, `enabled=disabled`, CRTC `active=0`, the Pi stops driving HDMI, and
+the panel sleeps.
 
-The black-screen overlay uses GTK3 via PyGObject. On a standard Raspberry Pi OS
-desktop this is already installed, but if not:
-
-```bash
-sudo apt install python3-gi gir1.2-gtk-3.0
-```
-
-### Grant input device access
-
-The script reads from `/dev/input/event*`. Add your user to the `input` group:
+Find your output's name:
 
 ```bash
-sudo usermod -aG input $USER
+wlopm
+# HDMI-A-1 on
 ```
 
-Log out and back in for the group change to take effect. Verify with:
+Confirm your panel honours it before enabling the mode:
 
 ```bash
-groups | grep input
+wlopm --off HDMI-A-1 && sleep 5 && wlopm --on HDMI-A-1
 ```
 
-### Test it manually
+The screen should go dark and come back. Touch input keeps working while the
+output is off — the touchscreen is a USB device, unrelated to the display
+pipeline — which is what makes wake-on-touch work.
 
-```bash
-python3 /opt/clubbar-terminal/scripts/screen-idle.py
+### Configure it
+
+In `config.json`:
+
+```json
+"screenBlanking": {
+  "enabled": true,
+  "timeoutSeconds": 300,
+  "mode": "output-power",
+  "output": "HDMI-A-1"
+}
 ```
 
-Leave the screen untouched for 5 minutes — the black overlay should appear.
-Touch the screen to dismiss it.
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `false` | Off by default, like `fullscreen` — a kiosk wants blanking, a development machine does not |
+| `timeoutSeconds` | `300` | Idle time before blanking |
+| `mode` | `output-power` | `output-power` sleeps the panel; `overlay` only paints black |
+| `output` | — | Wayland output name. **Required for `output-power`**; without it the terminal paints black rather than guessing at a name |
 
-To test with a shorter timeout, edit `TIMEOUT` at the top of `screen-idle.py`:
+Environment overrides: `TERMINAL_SCREEN_BLANKING`,
+`TERMINAL_SCREEN_BLANKING_TIMEOUT`, `TERMINAL_SCREEN_BLANKING_MODE`,
+`TERMINAL_SCREEN_BLANKING_OUTPUT`.
 
-```python
-TIMEOUT = 30  # seconds — change back to 300 for production
-```
+### If your panel ignores signal loss
 
-### Autostart via `.desktop` file
+A few panels show a "no signal" message indefinitely instead of sleeping. Set
+`"mode": "overlay"` — the terminal then paints a black surface instead, which is
+what it did before. Blanking still works; only the power saving is lost.
 
-Create the autostart directory if it doesn't exist:
-
-```bash
-mkdir -p ~/.config/autostart
-```
-
-Create `~/.config/autostart/clubbar-screen-idle.desktop`:
-
-```ini
-[Desktop Entry]
-Type=Application
-Name=Club Bar Screen Idle Monitor
-Exec=python3 /opt/clubbar-terminal/scripts/screen-idle.py
-Hidden=false
-X-GNOME-Autostart-enabled=true
-```
-
-Alternative - add to `~/.config/labwc/autostart`.
-
-Reboot and verify the process is running:
-
-```bash
-pgrep -a python3
-```
-
-You should see `screen-idle.py` in the output.
+Either way the terminal paints black as well as powering down, so the touch that
+wakes the screen never lands on a button underneath.
 
 ---
 
@@ -553,8 +543,8 @@ wherever the mock is running) to test the full checkout flow.
 |---------|-----|
 | App exits immediately with "configuration missing" | Create `config.json` at the path shown in the error — see [First-time setup](#6-first-time-setup) |
 | On-screen keyboard still appears | Check `ls /etc/xdg/autostart/` for other keyboard entries (e.g. `onboard.desktop`) and rename them |
-| Black screen never dismisses | Verify `python3-gi` is installed; check `pgrep -a python3` |
-| `screen-idle.py` can't open input devices | Run `sudo usermod -aG input $USER` and re-login |
+| Screen never blanks | Check `screenBlanking.enabled` in `config.json` |
+| Screen blanks but the panel stays lit | The panel ignores signal loss — set `"mode": "overlay"` |
 | App doesn't fill the screen | Set `"fullscreen": true` in `config.json` or `TERMINAL_FULLSCREEN=true` env var |
 | RFID scanner not detected | Ensure reader is in keyboard-emulation mode (sends UID + Enter); test with `evtest` |
 | Idle screen says "Scanner nicht verbunden" with the reader plugged in | The configured `rfidReader` ids/name no longer match the device — re-read them from `cat /proc/bus/input/devices` (a replacement reader often has different ids) |

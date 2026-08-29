@@ -137,7 +137,7 @@ when it returns the card can come back at a different index, which silently
 invalidates a `~/.asoundrc` written as `defaults.pcm.card 0` and any
 `plughw:0,0`.
 
-The idle blackscreen is an overlay, not DPMS (`scripts/screen-idle.py`), so it
+Idle blanking is handled in-app (`ScreenBlanker`, #763), so it
 does not by itself drop the link — but the compositor's own idle handling, or
 anything downstream of the Pi's HDMI port, still can.
 

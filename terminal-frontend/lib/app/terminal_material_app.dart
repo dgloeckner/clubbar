@@ -10,7 +10,9 @@ import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/locale_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/display_power.dart';
 import 'package:clubbar_terminal/utils/kiosk_touch.dart';
+import 'package:clubbar_terminal/widgets/screen_blanker.dart';
 
 /// The routed [MaterialApp] of the terminal.
 ///
@@ -38,6 +40,10 @@ class TerminalMaterialApp extends StatefulWidget {
 class _TerminalMaterialAppState extends State<TerminalMaterialApp> {
   late final GoRouter _router;
 
+  /// Null when the terminal only paints black rather than powering the panel
+  /// down — see [ConfigService.screenBlankingPowersOutput].
+  DisplayPower? _displayPower;
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +51,11 @@ class _TerminalMaterialAppState extends State<TerminalMaterialApp> {
       membersProvider: context.read<MembersProvider>(),
       configService: widget.configService,
     );
+    if (widget.configService.screenBlankingPowersOutput) {
+      _displayPower = WlopmDisplayPower(
+        output: widget.configService.screenBlankingOutput!,
+      );
+    }
   }
 
   @override
@@ -65,13 +76,21 @@ class _TerminalMaterialAppState extends State<TerminalMaterialApp> {
       // (Linux desktop reports none, so recognizers fall back to the 18 px
       // `kTouchSlop`); overriding it here is what the drag recognizers of the
       // product grid and the cart list actually read.
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          gestureSettings: const DeviceGestureSettings(
-            touchSlop: kKioskTouchSlop,
+      // ScreenBlanker sits outside the MediaQuery so it covers every route,
+      // dialog and sheet the navigator below can put on screen — the blanked
+      // terminal must be black whatever it was showing (#763).
+      builder: (context, child) => ScreenBlanker(
+        enabled: widget.configService.screenBlankingEnabled,
+        timeout: widget.configService.screenBlankingTimeout,
+        displayPower: _displayPower,
+        child: MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            gestureSettings: const DeviceGestureSettings(
+              touchSlop: kKioskTouchSlop,
+            ),
           ),
+          child: child ?? const SizedBox.shrink(),
         ),
-        child: child ?? const SizedBox.shrink(),
       ),
       theme: buildTerminalTheme(),
       localizationsDelegates: const [

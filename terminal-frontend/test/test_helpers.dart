@@ -36,6 +36,13 @@ MockConfigService createMockConfigService() {
   when(() => mock.dispenserApiKey).thenReturn(null);
   when(() => mock.soundsEnabled).thenReturn(false);
   when(() => mock.fullscreen).thenReturn(false);
+  // Screen blanking off by default (#763): a widget test must not have a
+  // timer waiting to paint the whole app black underneath it.
+  when(() => mock.screenBlankingEnabled).thenReturn(false);
+  when(() => mock.screenBlankingTimeout)
+      .thenReturn(const Duration(seconds: 300));
+  when(() => mock.screenBlankingPowersOutput).thenReturn(false);
+  when(() => mock.screenBlankingOutput).thenReturn(null);
   when(() => mock.seedTestData).thenReturn(false);
   when(() => mock.fontSizes).thenReturn(null);
   when(() => mock.displayName).thenReturn(ConfigService.defaultDisplayName);
