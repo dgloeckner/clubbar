@@ -55,6 +55,10 @@ class ConfigService {
   int _dispenserTimeoutMs = 3000;
   int _dispenserPollIntervalMs = 250;
   bool _fullscreen = false;
+  bool _screenBlankingEnabled = false;
+  int _screenBlankingTimeoutSeconds = 300;
+  String _screenBlankingMode = 'output-power';
+  String? _screenBlankingOutput;
   bool _soundsEnabled = true;
   String? _displayName;
   String? _backendDisplayName;
@@ -85,6 +89,30 @@ class ConfigService {
   int get dispenserPollIntervalMs => _dispenserPollIntervalMs;
   bool get fullscreen => _fullscreen;
   bool get soundsEnabled => _soundsEnabled;
+
+  /// Blank the screen after a spell with no input (#763).
+  ///
+  /// Opt-in for the same reason [fullscreen] is: a kiosk wants it, and a
+  /// development machine does not want its screen going black mid-work.
+  bool get screenBlankingEnabled => _screenBlankingEnabled;
+
+  Duration get screenBlankingTimeout =>
+      Duration(seconds: _screenBlankingTimeoutSeconds);
+
+  /// `output-power` puts the panel itself to sleep and is what a terminal
+  /// should use. `overlay` only paints black — the fallback for a panel that
+  /// ignores signal loss, and what the terminal did before #763.
+  ///
+  /// Powering the output down needs to be told *which* output ([screenBlankingOutput]);
+  /// without one there is nothing to name on the command line, so this falls
+  /// back to painting rather than guessing at an output name.
+  bool get screenBlankingPowersOutput =>
+      _screenBlankingMode == 'output-power' &&
+      (_screenBlankingOutput?.isNotEmpty ?? false);
+
+  /// The Wayland output to switch, e.g. `HDMI-A-1`. Device-specific, so it is
+  /// configured rather than discovered; `wlopm` with no arguments lists them.
+  String? get screenBlankingOutput => _screenBlankingOutput;
 
   /// The name shown in the terminal header (ADR-0034).
   ///
@@ -232,6 +260,17 @@ class ConfigService {
           _dispenserPollIntervalMs = dispenser['pollIntervalMs'] as int? ?? 250;
         }
 
+        // Screen blanking (#763)
+        final blanking = json['screenBlanking'] as Map<String, dynamic>?;
+        if (blanking != null) {
+          _screenBlankingEnabled = blanking['enabled'] as bool? ?? false;
+          _screenBlankingTimeoutSeconds =
+              blanking['timeoutSeconds'] as int? ?? 300;
+          _screenBlankingMode =
+              blanking['mode'] as String? ?? 'output-power';
+          _screenBlankingOutput = blanking['output'] as String?;
+        }
+
         // RFID reader health monitoring (issue #35)
         final rfidReader = json['rfidReader'] as Map<String, dynamic>?;
         if (rfidReader != null) {
@@ -268,6 +307,22 @@ class ConfigService {
     }
     if (env.containsKey('TERMINAL_DEMO_MODE')) {
       _demoMode = env['TERMINAL_DEMO_MODE']?.toLowerCase() == 'true';
+    }
+    if (env.containsKey('TERMINAL_SCREEN_BLANKING')) {
+      _screenBlankingEnabled =
+          env['TERMINAL_SCREEN_BLANKING']?.toLowerCase() == 'true';
+    }
+    if (env.containsKey('TERMINAL_SCREEN_BLANKING_TIMEOUT')) {
+      _screenBlankingTimeoutSeconds =
+          int.tryParse(env['TERMINAL_SCREEN_BLANKING_TIMEOUT'] ?? '') ??
+              _screenBlankingTimeoutSeconds;
+    }
+    if (env.containsKey('TERMINAL_SCREEN_BLANKING_MODE')) {
+      _screenBlankingMode =
+          env['TERMINAL_SCREEN_BLANKING_MODE'] ?? _screenBlankingMode;
+    }
+    if (env.containsKey('TERMINAL_SCREEN_BLANKING_OUTPUT')) {
+      _screenBlankingOutput = env['TERMINAL_SCREEN_BLANKING_OUTPUT'];
     }
     if (env.containsKey('TERMINAL_SOUNDS_ENABLED')) {
       _soundsEnabled = env['TERMINAL_SOUNDS_ENABLED']?.toLowerCase() == 'true';
@@ -322,6 +377,10 @@ class ConfigService {
     _dispenserTimeoutMs = 3000;
     _dispenserPollIntervalMs = 250;
     _fullscreen = false;
+    _screenBlankingEnabled = false;
+    _screenBlankingTimeoutSeconds = 300;
+    _screenBlankingMode = 'output-power';
+    _screenBlankingOutput = null;
     _soundsEnabled = true;
     _displayName = null;
     _backendDisplayName = null;
