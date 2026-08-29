@@ -80,6 +80,8 @@ The installer tells you which one you got, on the last screen. The fallback is f
 
 **`data-path.php` matters.** It is one line naming your data directory. Delete it and the application looks for its config next to `index.php`, finds none, and sends you back to the installer. It is a `.php` file on purpose: a host that ignored `.htaccess` would print a `.txt` path file and execute this one.
 
+**Where the commented template lives.** Every option `config.php` accepts, with the prose explaining it, is in `backend/config.sample.php` — the file the installer substitutes your answers into, which is why what it documents and what the wizard writes cannot drift apart. It is a template, not configuration: the application never reads it, and editing it changes nothing. Copy it to your data directory as `config.php` if you would rather write the file by hand than run the wizard. An installation created before this file moved has a copy sitting in the document root as well; the next upgrade removes it.
+
 **Moving an existing installation.** `upgrade.php` offers the move as **step 4**, after migrations — a button naming the destination, never something it does on its own. Files are copied first and the originals removed only once the copies are in place, so a failed move leaves the installation running exactly where it was. The same screen offers the move back.
 
 To place the data somewhere specific instead, create the directory yourself, move `config.php`, `storage/` and `logs/` into it, and write the pointer:

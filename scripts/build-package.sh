@@ -72,6 +72,18 @@ cp    "$PROJECT_ROOT/backend/db/MigrationRunner.php" "$PKG_DIR/backend/db/"
 cp -R "$PROJECT_ROOT/backend/db/migrations"  "$PKG_DIR/backend/db/migrations"
 cp -R "$PROJECT_ROOT/backend/vendor"         "$PKG_DIR/backend/vendor"
 cp    "$PROJECT_ROOT/backend/bootstrap.php"  "$PKG_DIR/backend/bootstrap.php"
+# The commented `config.php` template, which `ConfigWriter` substitutes into
+# (#710) — so the installer needs it on disk at runtime, long after the install
+# itself.
+#
+# It goes into `backend/` rather than beside `install.php` (#751). Nothing ever
+# requests it over HTTP, and everything in the document root is a URL: it used
+# to sit next to `index.php`, where it outlived `install.php` (which the
+# operator is told to delete) and stayed there for the life of the
+# installation. `backend/` is denied wholesale by `.htaccess`, and it is where
+# `config.php` itself lands on a host with no writable parent directory
+# (ADR-0031 decision 2), so the template ends up beside the file it describes.
+cp    "$PROJECT_ROOT/package/config.sample.php" "$PKG_DIR/backend/config.sample.php"
 # The two scheduled entrypoints — the mail drain (ADR-0038 rule 3) and the
 # backup (ADR-0049). Without these in the archive, the one thing that sends mail
 # and the one thing that writes a backup do not reach the host at all.
@@ -176,7 +188,6 @@ cp "$PROJECT_ROOT/package/install.js"        "$PKG_DIR/install.js"
 cp "$PROJECT_ROOT/package/upgrade.php"       "$PKG_DIR/upgrade.php"
 cp "$PROJECT_ROOT/package/.htaccess"         "$PKG_DIR/.htaccess"
 cp "$PROJECT_ROOT/package/.user.ini"         "$PKG_DIR/.user.ini"
-cp "$PROJECT_ROOT/package/config.sample.php" "$PKG_DIR/config.sample.php"
 cp "$PROJECT_ROOT/package/README.txt"        "$PKG_DIR/README.txt"
 cp "$PROJECT_ROOT/LICENSE"                   "$PKG_DIR/LICENSE"
 cp "$PROJECT_ROOT/package/THIRD-PARTY-NOTICES.txt" "$PKG_DIR/THIRD-PARTY-NOTICES.txt"

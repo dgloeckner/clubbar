@@ -34,15 +34,18 @@ declare(strict_types=1);
 // ZIP `action=extract` unpacks moments later — so this script can get itself
 // off the ground without duplicating either class's logic here.
 bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Config/DataDirectory.php');
+bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Config/RetiredFiles.php');
 bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Security/FileModes.php');
 bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Time/Utc.php');
 
 require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
+require_once __DIR__ . '/backend/src/Shared/Config/RetiredFiles.php';
 require_once __DIR__ . '/backend/src/Shared/Security/FileModes.php';
 // Club Bar keeps every instant in UTC (#365); migrations run from here.
 require_once __DIR__ . '/backend/src/Shared/Time/Utc.php';
 
 use App\Shared\Config\DataDirectory;
+use App\Shared\Config\RetiredFiles;
 use App\Shared\Security\FileModes;
 use App\Shared\Time\Utc;
 
@@ -212,6 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = runMigrations($configFile, __DIR__);
             if ($result['ok']) {
                 hardenFileModes();
+                RetiredFiles::sweep(__DIR__);
                 $_SESSION['migration_result'] = $result;
                 // Clean up deploy secret (self-destruct like CI mode)
                 @unlink($secretFile);
@@ -340,6 +344,7 @@ function handleApiMode(string $secretFile, string $configFile, string $zipFile, 
     $result = runMigrations($configFile, dirname($scriptPath));
     if ($result['ok']) {
         hardenFileModes();
+        RetiredFiles::sweep(dirname($scriptPath));
     }
     http_response_code($result['ok'] ? 200 : 500);
     echo json_encode($result);
@@ -488,12 +493,18 @@ function extractPackage(string $zipFile, string $extractDir): array
     $zip->close();
     @unlink($zipFile);
 
-    // Remove stale files not in the package
+    // Remove stale files not in the package.
+    //
+    // `config.sample.php` is deliberately *not* protected here: the package
+    // ships it as `backend/config.sample.php` since #751, so on an installation
+    // unpacked from an older release the copy in the document root is exactly
+    // the stale file this sweep exists to remove. Protecting it would leave it
+    // there for the life of the installation, which is the state #751 is about.
     $deleted = 0;
     $protectedPrefixes = array_merge($preservedPrefixes, ['python_libs']);
     $protectedFiles = array_merge($excluded, [
         '.upgrade-package.zip', '.upgrade-secret', '.htaccess',
-        'upgrade.php', 'install.php', 'config.sample.php',
+        'upgrade.php', 'install.php',
     ]);
 
     $iter = new RecursiveIteratorIterator(

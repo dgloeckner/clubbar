@@ -23,11 +23,16 @@ Options -MultiViews -Indexes
     Require all denied
 </Files>
 
-# Deny config.php / config.sample.php (database password and the TOTP
-# encryption key), *.log, *.sql and package.json — none of these should ever
-# be served as source, but a host that stops executing PHP (a misconfigured
-# handler after a PHP version change is the classic way this happens) would
-# otherwise hand config.php out verbatim (#249).
+# Deny config.php (database password and the TOTP encryption key), *.log, *.sql
+# and package.json — none of these should ever be served as source, but a host
+# that stops executing PHP (a misconfigured handler after a PHP version change
+# is the classic way this happens) would otherwise hand config.php out verbatim
+# (#249).
+#
+# `config.sample.php` is matched too. Since #751 the package ships it inside
+# `backend/`, which the rewrite below denies wholesale — this is what still
+# answers for a copy an operator unpacked from an older release, or put back by
+# hand next to index.php.
 <FilesMatch "(^config(\.sample)?\.php$|\.(log|sql)$|^package\.json$)">
     Require all denied
 </FilesMatch>

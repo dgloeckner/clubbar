@@ -23,6 +23,15 @@ const CI_DEPLOY_SECRET = 'ci-deploy-secret-0000';
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.package.yml'];
 
+/** Run PHP inside the package container, as the uid the webserver runs as. */
+function inPackageContainer(code: string): string {
+  return execFileSync(
+    'docker',
+    ['compose', ...COMPOSE_FILES, 'exec', '-T', '-u', '1000', 'backend', 'php', '-r', code],
+    { cwd: REPO_ROOT, encoding: 'utf8' }
+  ).trim();
+}
+
 /**
  * Step 6's recipient rows (#735) post as repeated `recipient_label[]` /
  * `recipient_key[]` fields rather than one flattened value, so `form:` (which
@@ -628,6 +637,20 @@ test.describe('Package: SPA serving', () => {
 test.describe.serial('Package: Upgrade Runner', () => {
   test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
 
+  /**
+   * An installation unpacked from a release before #751 has `config.sample.php`
+   * in its document root, and an upgrade is the only moment it can go: a
+   * release is unpacked *over* an installation, which adds files and never
+   * removes one. So the migrate step retires it by name (`RetiredFiles`).
+   *
+   * Planted as a real file and asserted on disk rather than over HTTP —
+   * `.htaccess` denies both locations, so an HTTP check would come back 403
+   * whether or not the file is still there.
+   */
+  test.beforeAll(() => {
+    inPackageContainer('file_put_contents("/app/config.sample.php", "<?php return [];");');
+  });
+
   test('upgrade.php returns 403 with wrong key', async ({ request }) => {
     const response = await request.get(
       `${PACKAGE_URL}/upgrade.php?key=wrong-key`
@@ -654,6 +677,17 @@ test.describe.serial('Package: Upgrade Runner', () => {
     expect(statuses).not.toContain('FAIL');
     // At least one migration must have run or been skipped on a fresh CI DB
     expect(statuses).toContain('DONE');
+  });
+
+  test('the upgrade retires the copy an older release left in the document root', () => {
+    expect(
+      inPackageContainer('echo is_file("/app/config.sample.php") ? "yes" : "no";'),
+      'the template an older release put in the document root survived the upgrade (#751)'
+    ).toBe('no');
+    expect(
+      inPackageContainer('echo is_file("/app/backend/config.sample.php") ? "yes" : "no";'),
+      'the sweep took the template the installer reads with it'
+    ).toBe('yes');
   });
 
   test('upgrade.php self-destructs after use', async ({ request }) => {
@@ -788,6 +822,21 @@ test.describe('Package: .htaccess access rules', () => {
     for (const file of ['keypair-generator.html', 'backup-decryptor.html']) {
       const response = await request.get(`${PACKAGE_URL}/tools/${file}`);
       expect(response.status(), `tools/${file}`).toBe(403);
+    }
+  });
+
+  /**
+   * #751: `config.sample.php` is the template ConfigWriter substitutes into,
+   * read off the disk by the installer and never fetched by a browser. It now
+   * ships inside `backend/` — see "the config template ships inside backend/"
+   * in Package: Data placement — so both the old location and the new one must
+   * refuse. The old one because an installation unpacked from an earlier
+   * release still has a copy sitting there until its next upgrade.
+   */
+  test('the config template is denied at both its old and its new location', async ({ request }) => {
+    for (const path of ['/config.sample.php', '/backend/config.sample.php']) {
+      const response = await request.get(`${PACKAGE_URL}${path}`);
+      expect([403, 404], `${path} returned ${response.status()}`).toContain(response.status());
     }
   });
 });
@@ -1013,6 +1062,26 @@ test.describe.serial('Package: Data placement', () => {
         true
       );
     }
+  });
+
+  /**
+   * #751: the installer needs `config.sample.php` on disk long after the
+   * install — the mail, backup and scheduler screens all rewrite `config.php`
+   * through it months later — but nothing ever requests it over HTTP. Shipping
+   * it beside `index.php` therefore bought a URL and nothing else, on a file
+   * that outlived the `install.php` clubs are told to delete. `backend/` is
+   * denied wholesale by `.htaccess` and is where `config.php` itself lands on
+   * a host with no writable parent (decision 2).
+   */
+  test('the config template ships inside backend/, not in the document root', () => {
+    expect(
+      fileExists(`${DOCUMENT_ROOT}/config.sample.php`),
+      'config.sample.php is back in the document root (#751)'
+    ).toBe(false);
+    expect(
+      fileExists(`${DOCUMENT_ROOT}/backend/config.sample.php`),
+      'the installer reads this file when it writes config.php — without it every write fails'
+    ).toBe(true);
   });
 
   /**

@@ -415,8 +415,9 @@ that guards the server, not a hand-edit of a live file.
 ## 7. Configuration reference
 
 All configuration lives in `config.php` under the `backup` key — see
-`package/config.sample.php` for the fully commented template. Nothing below
-has a working default that turns backups **on**; only a recipient key does.
+`package/config.sample.php` in this repository, or `backend/config.sample.php`
+on an installed release, for the fully commented template. Nothing below has a
+working default that turns backups **on**; only a recipient key does.
 
 | Key | Purpose |
 |---|---|
