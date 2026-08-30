@@ -120,9 +120,55 @@ Confirm your panel honours it before enabling the mode:
 wlopm --off HDMI-A-1 && sleep 5 && wlopm --on HDMI-A-1
 ```
 
-The screen should go dark and come back. Touch input keeps working while the
-output is off — the touchscreen is a USB device, unrelated to the display
-pipeline — which is what makes wake-on-touch work.
+The screen should go dark and come back.
+
+### A sleeping panel takes its touchscreen with it
+
+**On the terminal Pi, `output-power` means the screen wakes on a card and not
+on a touch.** This is expected behaviour, not a fault, and it is the one thing
+about this mode worth knowing before somebody reports it as a broken till.
+
+The touchscreen is a separate USB device, so it is tempting to conclude that
+sleeping the display leaves it alone. Measured, that is false: with the panel in
+standby the digitizer **stops emitting events entirely**. It stays enumerated
+the whole time — `lsusb` lists it, both nodes stay in
+`/proc/bus/input/devices`, `/dev/input/event*` persists — so every check short
+of reading the device says it is fine. The controller is bonded to the panel and
+simply stops scanning while the panel sleeps.
+
+The RFID reader is its own USB device and is unaffected, which is why the
+terminal still wakes on a card — and why a member presenting a chip, the normal
+way this terminal is approached, never notices. Staff walking up to touch it
+will, so it is worth telling them.
+
+Measure it on your own panel rather than assuming either way. With the screen
+blanked, from SSH:
+
+```bash
+# Find the touchscreen's event node
+grep -A5 'Name="TSTP MTouch"' /proc/bus/input/devices   # your name will differ
+
+# Blank the screen, then touch it repeatedly for ~15 s
+timeout 20 cat /dev/input/event9 | wc -c
+```
+
+Bytes counted means the digitizer survives standby and touch will wake the
+terminal. **Zero means it does not** — the terminal is then card-wake only,
+unless you give up the power saving and switch to `"mode": "overlay"` (see
+below). Run the same command with the screen on as a control; a non-zero count
+there proves the test itself works.
+
+> Do not substitute a synthetic `uinput` device for a finger here. It bypasses
+> the digitizer, so it wakes the screen in every mode and will tell you the
+> hardware is fine when it is not.
+
+**Wake needs the app to be the window in front.** The compositor hands the card
+scan and the touch to whichever surface has focus, and the terminal powers the
+panel back on only when it sees that input itself. A desktop panel or a
+file-manager desktop window takes both, and the terminal then stays dark with
+its output switched on — which reads as a crash and is not one. Strip the
+session down before relying on blanking: see [The session must hold exactly one
+window](#the-session-must-hold-exactly-one-window).
 
 ### Configure it
 
@@ -141,18 +187,28 @@ In `config.json`:
 |---|---|---|
 | `enabled` | `false` | Off by default, like `fullscreen` — a kiosk wants blanking, a development machine does not |
 | `timeoutSeconds` | `300` | Idle time before blanking |
-| `mode` | `output-power` | `output-power` sleeps the panel; `overlay` only paints black |
+| `mode` | `output-power` | `output-power` sleeps the panel; `overlay` only paints black. Under `output-power` the panel's touchscreen may sleep too — see above |
 | `output` | — | Wayland output name. **Required for `output-power`**; without it the terminal paints black rather than guessing at a name |
 
 Environment overrides: `TERMINAL_SCREEN_BLANKING`,
 `TERMINAL_SCREEN_BLANKING_TIMEOUT`, `TERMINAL_SCREEN_BLANKING_MODE`,
 `TERMINAL_SCREEN_BLANKING_OUTPUT`.
 
-### If your panel ignores signal loss
+### When to choose `overlay`
 
-A few panels show a "no signal" message indefinitely instead of sleeping. Set
-`"mode": "overlay"` — the terminal then paints a black surface instead, which is
-what it did before. Blanking still works; only the power saving is lost.
+`"mode": "overlay"` paints a black surface and leaves the output alone. Blanking
+still works; the backlight stays on, so the power and heat saving is what you
+give up. Choose it when either is true:
+
+- **You need wake on touch and the digitizer sleeps with the panel** (above).
+  The terminal Pi keeps `output-power` and accepts card-only wake, since a
+  member arrives with a chip in hand; a terminal that is mostly operated by
+  staff tapping the screen would trade the other way.
+- **The panel ignores signal loss** and sits on a "no signal" message instead of
+  sleeping.
+
+Wake is also instant in this mode: there is no modeset, so none of the panel's
+HDMI re-lock, and no mode-change OSD from the monitor.
 
 Either way the terminal paints black as well as powering down, so the touch that
 wakes the screen never lands on a button underneath.
@@ -219,6 +275,94 @@ Environment variables can also be set on the service (see §4), but
 > **Development machines:** Leave `fullscreen` unset (defaults to `false`) so
 > the app opens in a normal window. Only set it on deployed kiosk hardware.
 
+### The session must hold exactly one window
+
+Raspberry Pi OS's labwc session autostarts a panel and a desktop, and both are
+actively harmful on a till:
+
+```
+# /etc/xdg/labwc/autostart — as shipped
+/usr/bin/lwrespawn /usr/bin/pcmanfm-pi &
+/usr/bin/lwrespawn /usr/bin/wf-panel-pi &
+/usr/bin/kanshi &
+/usr/bin/lxsession-xdg-autostart
+```
+
+**`pcmanfm-pi` takes keyboard focus.** Powering the output down makes the
+compositor re-add the output on wake, and focus does not necessarily return to
+the app. Once the desktop holds it, card scans go to *its* type-ahead find box
+instead of the terminal — so the terminal never sees the keystroke that lifts
+blanking, and stays black with the panel lit. The symptom is unmistakable once
+you know it: a black screen with a small white text box in the top-right corner
+filling up with the characters of a member's card UID.
+
+**`wf-panel-pi` is remapped by `lwrespawn` every time it dies.** A layer-shell
+panel mapped *after* the terminal's fullscreen window sits above it, so the menu
+bar reappears mid-service and swallows touches along the top strip. This is the
+same z-order failure #762 describes for the overlay that #763 removed, arriving
+from the desktop session instead.
+
+Comment both out, keeping the packaged file beside it:
+
+```bash
+sudo cp -n /etc/xdg/labwc/autostart /etc/xdg/labwc/autostart.orig
+sudo sed -i -E 's|^(/usr/bin/lwrespawn /usr/bin/(pcmanfm-pi\|wf-panel-pi).*)$|# \1|' \
+  /etc/xdg/labwc/autostart
+```
+
+> **Edit the packaged file, not a user copy.** The session runs `labwc -m`
+> (`--merge-config`), so `~/.config/labwc/autostart` is executed *in addition
+> to* `/etc/xdg/labwc/autostart`, not instead of it. A user-level override
+> duplicates every remaining entry and brings the panel back at the next boot.
+
+Verify — the count must be `0`, and it is worth re-checking after any system
+upgrade, since apt can restore the packaged file:
+
+```bash
+ps -eo cmd | grep -cE '[w]f-panel-pi|[p]cmanfm'
+```
+
+Recovery is unaffected: Ctrl+Alt+F2 still reaches a console and Alt+F4 still
+closes the app for its unit to restart, as
+[the runbook](../docs/runbook-terminal-pi.md) describes.
+
+### Pin the output mode
+
+Raspberry Pi OS ships kanshi with a **zero-byte** `~/.config/kanshi/config` and
+the profile it should contain sitting unused beside it as `config.init`. With
+nothing pinning the mode, the output that blanking powers down comes back at
+whatever mode is negotiated at that moment rather than the panel's preferred
+one. The app logs the mismatch —
+
+```
+Timed out waiting for OpenGL frame of size 1920x1080 (have 1280x800)
+```
+
+— and the monitor announces the mode change with its own OSD on every single
+wake. Put the profile into effect:
+
+```bash
+cp ~/.config/kanshi/config.init ~/.config/kanshi/config
+cat ~/.config/kanshi/config
+# profile {
+#     output HDMI-A-1 enable scale 1.000000 mode 1280x800@59.996 position 0,0 transform normal
+# }
+```
+
+This build of kanshi has no reload command and ignores `SIGHUP`; it is started
+from the labwc autostart, so a session restart applies it. To apply without one:
+
+```bash
+pkill -x kanshi && setsid nohup /usr/bin/kanshi >/dev/null 2>&1 &
+```
+
+With the session stripped and the mode pinned, the app draws the idle screen
+**0.91 s** after the input that wakes it (measured on the terminal Pi over
+repeated cycles, timing a `grim` capture of the compositor's own buffer). What
+you see beyond that is the panel re-locking the HDMI signal, which is inherent
+to `output-power` and is the price of putting it into standby. If that wait
+matters more than the power saving, `"mode": "overlay"` has no modeset and
+therefore no such wait.
 
 ---
 
@@ -733,6 +877,10 @@ wherever the mock is running) to test the full checkout flow.
 | On-screen keyboard still appears | Check `ls /etc/xdg/autostart/` for other keyboard entries (e.g. `onboard.desktop`) and rename them |
 | Screen never blanks | Check `screenBlanking.enabled` in `config.json` |
 | Screen blanks but the panel stays lit | The panel ignores signal loss — set `"mode": "overlay"` |
+| A card wakes the blanked screen but a touch does not | Expected under `"mode": "output-power"` on a panel whose digitizer sleeps with it — [confirm and decide](#a-sleeping-panel-takes-its-touchscreen-with-it) |
+| Screen stays black after a scan, and a small white text box collects the card's characters top-right | The pcmanfm desktop holds keyboard focus, so the app never sees the scan that lifts blanking — [strip the session](#the-session-must-hold-exactly-one-window) |
+| The desktop menu bar appears over the terminal mid-service | `lwrespawn` remapped `wf-panel-pi` above the fullscreen window — [strip the session](#the-session-must-hold-exactly-one-window); it also returns after a system upgrade restores the packaged autostart |
+| Wake is slow and the monitor flashes its own mode OSD | The output comes back at the wrong mode — [pin it with kanshi](#pin-the-output-mode) |
 | App doesn't fill the screen | Set `"fullscreen": true` in `config.json` or `TERMINAL_FULLSCREEN=true` env var |
 | RFID scanner not detected | Ensure reader is in keyboard-emulation mode (sends UID + Enter); test with `evtest` |
 | Idle screen says "Scanner nicht verbunden" with the reader plugged in | The configured `rfidReader` ids/name no longer match the device — re-read them from `cat /proc/bus/input/devices` (a replacement reader often has different ids) |

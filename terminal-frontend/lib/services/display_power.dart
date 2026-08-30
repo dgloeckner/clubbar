@@ -34,10 +34,18 @@ abstract class DisplayPower {
 /// DRM connector to `dpms=Off`, `enabled=disabled`, with the CRTC at
 /// `active=0` — the Pi stops driving HDMI altogether, and the panel sleeps.
 ///
-/// Input is unaffected: the touchscreen is a USB device with no relationship to
-/// the display pipeline, so touches still arrive with the output off. That is
-/// what makes wake-on-touch work, and it was verified on hardware before this
-/// was written.
+/// **Input is not necessarily unaffected.** The touchscreen is a USB device with
+/// no relationship to the display pipeline, so it is tempting to conclude that
+/// touches still arrive with the output off. On the terminal Pi they do not:
+/// with the panel in standby the digitizer stops emitting entirely, while
+/// staying enumerated — `lsusb`, `/proc/bus/input/devices` and its `event*` node
+/// all still show it, and reading the node during a touch is the only check that
+/// reveals it. The controller is bonded to the panel and stops scanning with it.
+///
+/// So on that hardware this mode means **wake on a card, not on a touch**: the
+/// RFID reader is its own USB device and is unaffected. A terminal that must
+/// wake on touch needs [ScreenBlanker] without a [DisplayPower], i.e.
+/// `"mode": "overlay"` — see INSTALL.md §3.
 class WlopmDisplayPower implements DisplayPower {
   /// The Wayland output to switch, e.g. `HDMI-A-1`. Names come from `wlopm`
   /// with no arguments; they are device-specific, so this is configured rather

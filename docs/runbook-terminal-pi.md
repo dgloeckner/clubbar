@@ -17,11 +17,18 @@ screen with a black window. A sleeping panel has no backlight and no "no
 signal" message once it settles, so **a blanked terminal is indistinguishable
 from a dead one.**
 
-**Touch the screen before doing anything else.** It should wake within a second.
-A card scan wakes it too — the reader is a keyboard-wedge device, so presenting
-a card both wakes the terminal and logs the member in.
+**Hold a card to the reader before doing anything else.** That is the wake that
+always works: the reader is its own USB device and a keyboard-wedge, so a card
+both wakes the terminal and logs the member in.
 
-If it does not wake, carry on below.
+**A touch may not wake it, and that is not a fault.** Under `"mode":
+"output-power"` the panel's touchscreen sleeps with the panel on this hardware —
+it stays enumerated on USB and emits nothing, measured — so the screen answers a
+card and ignores a finger. See [*A sleeping panel takes its touchscreen with
+it*](../terminal-frontend/INSTALL.md#a-sleeping-panel-takes-its-touchscreen-with-it)
+before concluding the terminal is dead.
+
+If a card does not wake it, carry on below.
 
 ## 2. Why a terminal strands itself
 
@@ -65,6 +72,11 @@ systemctl --user show -p NRestarts --value clubbar-terminal.service
 # Is the display asleep, or is something wrong with it?
 WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 wlopm
 cat /sys/class/drm/card1-HDMI-A-1/{dpms,enabled}
+
+# Is anything competing with the app for focus? Must be 0 — a panel or desktop
+# window takes the input that wakes a blanked screen, and the terminal then
+# stays black with its output switched on.
+ps -eo cmd | grep -cE '[w]f-panel-pi|[p]cmanfm'
 
 # Has it been overheating? 0x0 is clean; bit 19 (0x80000) is the soft limit.
 vcgencmd measure_temp
