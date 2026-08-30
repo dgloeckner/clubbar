@@ -276,6 +276,37 @@ class AppLocalizationsDe extends AppLocalizations {
   String get cardReaderLastSeen => 'Zuletzt erkannt';
 
   @override
+  String get systemHealth => 'Systemzustand';
+
+  @override
+  String get cpuTemperature => 'Temperatur';
+
+  @override
+  String temperatureReading(String temperature, String state) {
+    return '$temperature °C · $state';
+  }
+
+  @override
+  String get temperatureNormal => 'Normal';
+
+  @override
+  String get temperatureWarm => 'Warm';
+
+  @override
+  String get temperatureThrottling => 'Gedrosselt';
+
+  @override
+  String get temperatureThrottlingHint =>
+      'Das Terminal drosselt sich wegen Hitze und wird langsamer. Für Belüftung sorgen.';
+
+  @override
+  String get undervoltageWarning => 'Unterspannung: Netzteil ersetzen';
+
+  @override
+  String get undervoltageHint =>
+      'Die Stromversorgung ist zu schwach. Das beschädigt mit der Zeit die Speicherkarte, bis das Terminal nicht mehr startet.';
+
+  @override
   String get recentScans => 'Letzte Chip-Erkennungen';
 
   @override

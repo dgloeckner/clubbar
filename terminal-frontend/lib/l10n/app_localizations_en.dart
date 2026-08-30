@@ -275,6 +275,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cardReaderLastSeen => 'Last detected';
 
   @override
+  String get systemHealth => 'System health';
+
+  @override
+  String get cpuTemperature => 'Temperature';
+
+  @override
+  String temperatureReading(String temperature, String state) {
+    return '$temperature °C · $state';
+  }
+
+  @override
+  String get temperatureNormal => 'Normal';
+
+  @override
+  String get temperatureWarm => 'Warm';
+
+  @override
+  String get temperatureThrottling => 'Throttling';
+
+  @override
+  String get temperatureThrottlingHint =>
+      'The terminal is slowing itself down because it is too hot. Improve airflow around it.';
+
+  @override
+  String get undervoltageWarning => 'Undervoltage: replace the power supply';
+
+  @override
+  String get undervoltageHint =>
+      'The power supply is too weak. Over time this corrupts the SD card, until the terminal no longer boots.';
+
+  @override
   String get recentScans => 'Recent card scans';
 
   @override

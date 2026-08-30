@@ -59,7 +59,18 @@ fixed DHCP lease on the router so its address never moves.
 
 ## 4. Diagnosis
 
-Start with the one script that checks everything this page assumes:
+**Temperature and undervoltage are on the touchscreen** (#767) — tap the status
+pill in the header, and the *Overview* tab's **System health** section carries
+both, with no SSH and no keyboard:
+
+| Reading | Means | Do |
+|---|---|---|
+| below 60 °C | Normal — the terminal idles at ~59 °C in a room | Nothing |
+| 60–80 °C | Warm. Working, with less headroom than it looks | Improve airflow while it is cheap to |
+| 80 °C and above | Throttling. The soft limit; the till is slower exactly when the bar is busiest (#760) | Airflow, now |
+| Undervoltage | The PSU is sagging below the SoC's low-critical threshold | **Replace the power supply** — it corrupts the SD card until somebody does |
+
+Over SSH, start with the one script that checks everything this page assumes:
 
 ```bash
 ./scripts/kiosk-doctor.sh      # in terminal-frontend/, read-only, safe while serving
@@ -89,6 +100,13 @@ ps -eo cmd | grep -cE '[w]f-panel-pi|[p]cmanfm'
 # Has it been overheating? 0x0 is clean; bit 19 (0x80000) is the soft limit.
 vcgencmd measure_temp
 vcgencmd get_throttled
+
+# …and the same two from sysfs, which needs no /dev/vcio — use these when
+# vcgencmd has lost it (terminal-hardware.md §"Power and thermal"). This is
+# what the touchscreen readout above reads.
+cat /sys/class/thermal/thermal_zone0/temp                  # milli-°C
+grep -l rpi_volt /sys/class/hwmon/hwmon*/name |            # 1 = undervoltage
+  xargs -r dirname | xargs -r -I{} cat {}/in0_lcrit_alarm
 
 # What happened before it stopped?
 journalctl --user -u clubbar-terminal.service -n 50 --no-pager
@@ -120,6 +138,7 @@ survive too if the reinstall passes `--force-confold`.
 
 ## 6. Open gap
 
-None of the above is reachable from the touchscreen. A staff-facing service
-screen — SSID, IP, backend reachability, unsynced count, exit-to-desktop, behind
-a PIN — would remove the need for most of §3. Not yet filed.
+Almost none of the above is reachable from the touchscreen — §4's System health
+section is the first slice, and only the first. A staff-facing service screen —
+SSID, IP, backend reachability, unsynced count, exit-to-desktop, behind a PIN —
+would remove the need for most of §3. Not yet filed.

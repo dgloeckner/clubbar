@@ -69,3 +69,16 @@ String formatTransactionTimestamp(
       : DateFormat.MMMd(intlLocale).add_Hm();
   return format.format(timestamp);
 }
+
+/// SoC temperature with one decimal, in the reader's own notation:
+/// "58,9" in German, "58.9" in English.
+///
+/// The unit is not appended here — it lives in the localized message, so a
+/// translation can place it wherever that language puts it.
+String formatTemperature(double celsius, String locale) {
+  final format = NumberFormat.decimalPatternDigits(
+    locale: locale == 'de' ? 'de_DE' : 'en_GB',
+    decimalDigits: 1,
+  );
+  return format.format(celsius);
+}

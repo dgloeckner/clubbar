@@ -12,10 +12,19 @@ import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 import 'package:clubbar_terminal/services/scan_log.dart';
+import 'package:clubbar_terminal/services/system_health_probe.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/widgets/error_modal.dart';
 
-void showStatusInfoModal(BuildContext context) {
+/// Opens the status modal.
+///
+/// [systemHealthProbe] exists so a test can hand the dialog a sysfs tree it
+/// controls; production passes nothing and reads the real one.
+void showStatusInfoModal(
+  BuildContext context, {
+  SystemHealthProbe? systemHealthProbe,
+}) {
   try {
     final syncProvider = context.read<SyncProvider>();
     final configService = context.read<ConfigService>();
@@ -67,6 +76,7 @@ void showStatusInfoModal(BuildContext context) {
         dispenserUrl: dispenserUrl,
         database: database,
         networkService: networkService,
+        systemHealthProbe: systemHealthProbe ?? const SysfsSystemHealthProbe(),
       ),
     );
   } catch (e, stackTrace) {
@@ -98,6 +108,10 @@ class _StatusInfoDialog extends StatefulWidget {
   final ClubBarDatabase? database;
   final NetworkService? networkService;
 
+  /// Where the terminal machine's own temperature and power state come from.
+  /// Null on a build that does not read them at all.
+  final SystemHealthProbe? systemHealthProbe;
+
   const _StatusInfoDialog({
     required this.connectionStatus,
     required this.lastSyncTime,
@@ -110,6 +124,7 @@ class _StatusInfoDialog extends StatefulWidget {
     this.dispenserUrl,
     this.database,
     this.networkService,
+    this.systemHealthProbe,
   });
 
   @override
@@ -136,10 +151,24 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
 
   bool _showTechnicalDetails = false;
 
+  /// How often the machine's temperature is re-read while the modal is open.
+  ///
+  /// Two small sysfs reads, and only for as long as somebody is looking at
+  /// them — this is a readout staff watch for a minute, not a monitoring graph
+  /// (the history that would need is deliberately out of scope, #767).
+  static const Duration _systemHealthInterval = Duration(seconds: 5);
+
+  /// The last reading, or null before the first one has come back. The section
+  /// is absent until then, which is also what a machine with neither sysfs
+  /// path leaves it as forever.
+  SystemHealth? _systemHealth;
+  Timer? _systemHealthTimer;
+
   @override
   void initState() {
     super.initState();
     _fetchBackendVersion();
+    _startSystemHealthPolling();
     if (widget.database != null) {
       _opsSub = widget.database!
           .select(widget.database!.dispenserOperations)
@@ -184,6 +213,22 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     });
   }
 
+  void _startSystemHealthPolling() {
+    final probe = widget.systemHealthProbe;
+    if (probe == null) return;
+    _readSystemHealth(probe);
+    _systemHealthTimer = Timer.periodic(
+      _systemHealthInterval,
+      (_) => _readSystemHealth(probe),
+    );
+  }
+
+  Future<void> _readSystemHealth(SystemHealthProbe probe) async {
+    final reading = await probe.read();
+    if (!mounted) return;
+    setState(() => _systemHealth = reading);
+  }
+
   /// What the version badge says: still fetching, the version, or an honest
   /// "unknown" — never nothing at all.
   String _backendVersionLabel(AppLocalizations l10n) {
@@ -193,6 +238,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
 
   @override
   void dispose() {
+    _systemHealthTimer?.cancel();
     _healthService?.removeListener(_onHealthChanged);
     _readerHealthService?.removeListener(_onHealthChanged);
     _opsSub?.cancel();
@@ -448,6 +494,14 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             const SizedBox(height: 20),
           ],
 
+          // The machine's own temperature and power state, on a terminal that
+          // can be asked (#767). A dev laptop has neither sysfs path and gets
+          // no section at all.
+          if (_systemHealth?.isAvailable ?? false) ...[
+            _buildSystemHealthSection(l10n, _systemHealth!),
+            const SizedBox(height: 20),
+          ],
+
           // What the reader has actually been doing (#370)
           _buildRecentScansSection(l10n),
           const SizedBox(height: 20),
@@ -609,6 +663,102 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           ),
         ],
       ],
+    );
+  }
+
+  /// What the terminal machine is doing to itself: how hot it is, and whether
+  /// its power supply is holding up (#767).
+  ///
+  /// Both were previously visible only over SSH, which means nobody looked
+  /// until something had already gone wrong and whoever was standing at the
+  /// bar could not look at all. Throttling slows the till exactly when the bar
+  /// is busiest; undervoltage silently corrupts the SD card until the power
+  /// supply is replaced.
+  Widget _buildSystemHealthSection(AppLocalizations l10n, SystemHealth health) {
+    final locale = Localizations.localeOf(context).languageCode;
+    final state = health.thermalState;
+    final celsius = health.temperatureCelsius;
+
+    return _buildSection(
+      title: l10n.systemHealth,
+      titleColor: health.needsAttention ? AppColors.semanticDanger : null,
+      children: [
+        if (celsius != null && state != null) ...[
+          _infoRow(
+            l10n.cpuTemperature,
+            l10n.temperatureReading(
+              formatTemperature(celsius, locale),
+              _thermalStateLabel(state, l10n),
+            ),
+            valueColor: _thermalStateColor(state),
+          ),
+          if (state == ThermalState.throttling) ...[
+            const SizedBox(height: 6),
+            _hintText(l10n.temperatureThrottlingHint),
+          ],
+        ],
+        // A number would be the wrong shape here: there is exactly one action,
+        // and it is not "watch this value".
+        if (health.undervoltage == true) ...[
+          if (celsius != null) const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                size: 20,
+                color: AppColors.semanticDanger,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.undervoltageWarning,
+                  style: TextStyle(
+                    fontSize: AppFontSizes.base,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.semanticDanger,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          _hintText(l10n.undervoltageHint),
+        ],
+      ],
+    );
+  }
+
+  String _thermalStateLabel(ThermalState state, AppLocalizations l10n) {
+    switch (state) {
+      case ThermalState.normal:
+        return l10n.temperatureNormal;
+      case ThermalState.warm:
+        return l10n.temperatureWarm;
+      case ThermalState.throttling:
+        return l10n.temperatureThrottling;
+    }
+  }
+
+  Color? _thermalStateColor(ThermalState state) {
+    switch (state) {
+      case ThermalState.normal:
+        return null;
+      case ThermalState.warm:
+        return AppColors.semanticPending;
+      case ThermalState.throttling:
+        return AppColors.semanticDanger;
+    }
+  }
+
+  /// A wrapped sentence under a row: what to do about what the row just said.
+  Widget _hintText(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: AppFontSizes.sm,
+        color: AppColors.textSecondary,
+      ),
     );
   }
 
@@ -1299,12 +1449,19 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     }
   }
 
-  Widget _infoRow(String label, String value) {
+  Widget _infoRow(String label, String value, {Color? valueColor}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: TextStyle(fontSize: AppFontSizes.sm)),
-        Text(value, style: TextStyle(fontSize: AppFontSizes.sm, fontWeight: FontWeight.w500)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: AppFontSizes.sm,
+            fontWeight: FontWeight.w500,
+            color: valueColor,
+          ),
+        ),
       ],
     );
   }

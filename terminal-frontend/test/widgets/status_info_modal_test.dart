@@ -10,6 +10,8 @@ import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/scan_log.dart';
+import 'package:clubbar_terminal/services/system_health_probe.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/status_info_modal.dart';
 import '../test_helpers.dart';
 
@@ -17,6 +19,22 @@ class MockSyncProvider extends Mock implements SyncProvider {}
 
 class MockDispenserHealthService extends Mock
     implements DispenserHealthService {}
+
+/// A machine that answers whatever the test says it answers, with no sysfs
+/// involved. Reads are counted so a test can prove the modal keeps looking
+/// rather than freezing the first number it saw.
+class FakeSystemHealthProbe implements SystemHealthProbe {
+  SystemHealth health;
+  int reads = 0;
+
+  FakeSystemHealthProbe(this.health);
+
+  @override
+  Future<SystemHealth> read() async {
+    reads++;
+    return health;
+  }
+}
 
 void main() {
   group('StatusInfoModal', () {
@@ -461,6 +479,133 @@ void main() {
         await tester.pump();
 
         expect(find.textContaining('uidCaptured ABCD1234'), findsOneWidget);
+      });
+    });
+
+    // Issue #767: thermal throttling slows the till exactly when the bar is
+    // busiest, and undervoltage corrupts the SD card silently. Both were
+    // previously visible only over SSH.
+    group('Pi temperature and undervoltage (#767)', () {
+      Future<void> openModal(
+        WidgetTester tester,
+        SystemHealthProbe probe,
+      ) async {
+        when(() => mockSyncProvider.connectionStatus)
+            .thenReturn(ConnectionStatus.online);
+        when(() => mockSyncProvider.lastSyncTime).thenReturn(null);
+        when(() => mockSyncProvider.lastSuccessfulTransactionSync)
+            .thenReturn(null);
+        when(() => mockSyncProvider.retryCount).thenReturn(0);
+        when(() => mockSyncProvider.lastError).thenReturn(null);
+
+        await tester.pumpWidget(buildTestApp(
+          child: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () =>
+                  showStatusInfoModal(context, systemHealthProbe: probe),
+              child: const Text('Open'),
+            ),
+          ),
+        ));
+
+        await tester.tap(find.text('Open'));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('a cool terminal reports its temperature as normal',
+          (tester) async {
+        await openModal(
+          tester,
+          FakeSystemHealthProbe(
+            const SystemHealth(temperatureCelsius: 58.9, undervoltage: false),
+          ),
+        );
+
+        expect(find.text('Systemzustand'), findsOneWidget);
+        // German decimal comma — the reader's own notation, not Dart's.
+        expect(find.text('58,9 °C · Normal'), findsOneWidget);
+        expect(find.text('Unterspannung: Netzteil ersetzen'), findsNothing);
+      });
+
+      testWidgets('a warm terminal says so without raising an alarm',
+          (tester) async {
+        await openModal(
+          tester,
+          FakeSystemHealthProbe(const SystemHealth(temperatureCelsius: 72.4)),
+        );
+
+        expect(find.text('72,4 °C · Warm'), findsOneWidget);
+        // Warm is not yet actionable, so it gets no instruction.
+        expect(
+          find.textContaining('drosselt sich wegen Hitze'),
+          findsNothing,
+        );
+      });
+
+      testWidgets('a throttling terminal says what to do about it',
+          (tester) async {
+        await openModal(
+          tester,
+          FakeSystemHealthProbe(const SystemHealth(temperatureCelsius: 84.2)),
+        );
+
+        expect(find.text('84,2 °C · Gedrosselt'), findsOneWidget);
+        expect(find.textContaining('drosselt sich wegen Hitze'), findsOneWidget);
+      });
+
+      testWidgets('undervoltage is a warning, not a number', (tester) async {
+        await openModal(
+          tester,
+          FakeSystemHealthProbe(
+            const SystemHealth(temperatureCelsius: 55.0, undervoltage: true),
+          ),
+        );
+
+        expect(find.text('Unterspannung: Netzteil ersetzen'), findsOneWidget);
+        expect(find.textContaining('beschädigt mit der Zeit'), findsOneWidget);
+        // The one condition where the action is "replace the power supply"
+        // must not be filed behind a healthy-looking section heading.
+        final heading = tester.widget<Text>(find.text('Systemzustand'));
+        expect(heading.style?.color, AppColors.semanticDanger);
+      });
+
+      testWidgets('a machine that cannot be asked shows no section at all',
+          (tester) async {
+        // Every developer laptop, and any Pi whose sysfs moved: absent beats
+        // an error nobody standing at the bar can act on.
+        await openModal(
+          tester,
+          FakeSystemHealthProbe(SystemHealth.unavailable),
+        );
+
+        expect(find.text('Systemzustand'), findsNothing);
+        expect(find.text('Temperatur'), findsNothing);
+      });
+
+      testWidgets('the reading keeps refreshing while the modal is open',
+          (tester) async {
+        final probe = FakeSystemHealthProbe(
+          const SystemHealth(temperatureCelsius: 58.9),
+        );
+        await openModal(tester, probe);
+
+        expect(find.text('58,9 °C · Normal'), findsOneWidget);
+        expect(probe.reads, 1);
+
+        probe.health = const SystemHealth(temperatureCelsius: 81.0);
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+
+        expect(probe.reads, 2);
+        expect(find.text('81,0 °C · Gedrosselt'), findsOneWidget);
+
+        // And it stops when nobody is looking — a modal that leaves a timer
+        // behind polls the machine for the rest of the shift.
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pumpAndSettle();
+
+        await tester.pump(const Duration(seconds: 30));
+        expect(probe.reads, 2);
       });
     });
 

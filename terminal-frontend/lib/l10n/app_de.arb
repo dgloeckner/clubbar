@@ -387,6 +387,50 @@
   "@cardReaderLastSeen": {
     "description": "Timestamp label for when the card reader was last detected"
   },
+  "systemHealth": "Systemzustand",
+  "@systemHealth": {
+    "description": "Status modal section showing the terminal machine's own temperature and power state (#767)"
+  },
+  "cpuTemperature": "Temperatur",
+  "@cpuTemperature": {
+    "description": "Label for the terminal machine's SoC temperature"
+  },
+  "temperatureReading": "{temperature} \u00b0C \u00b7 {state}",
+  "@temperatureReading": {
+    "description": "Temperature value with its state, e.g. \"58,9 \u00b0C \u00b7 Normal\"",
+    "placeholders": {
+      "temperature": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "temperatureNormal": "Normal",
+  "@temperatureNormal": {
+    "description": "Thermal state: below 60 \u00b0C, unremarkable"
+  },
+  "temperatureWarm": "Warm",
+  "@temperatureWarm": {
+    "description": "Thermal state: 60 \u00b0C or above, still short of the Pi's 80 \u00b0C soft limit"
+  },
+  "temperatureThrottling": "Gedrosselt",
+  "@temperatureThrottling": {
+    "description": "Thermal state: at or above the 80 \u00b0C soft limit, where the SoC slows itself down"
+  },
+  "temperatureThrottlingHint": "Das Terminal drosselt sich wegen Hitze und wird langsamer. F\u00fcr Bel\u00fcftung sorgen.",
+  "@temperatureThrottlingHint": {
+    "description": "What to do about a throttling terminal"
+  },
+  "undervoltageWarning": "Unterspannung: Netzteil ersetzen",
+  "@undervoltageWarning": {
+    "description": "Undervoltage alarm headline in the status modal"
+  },
+  "undervoltageHint": "Die Stromversorgung ist zu schwach. Das besch\u00e4digt mit der Zeit die Speicherkarte, bis das Terminal nicht mehr startet.",
+  "@undervoltageHint": {
+    "description": "Why undervoltage matters and why it cannot be left alone"
+  },
   "recentScans": "Letzte Chip-Erkennungen",
   "@recentScans": {
     "description": "Status modal section listing what the terminal made of the last card taps"

@@ -46,6 +46,7 @@ Both terminals in service are variant A. Add a row per distinct combination —
 | Throttling word | `vcgencmd get_throttled` — `0x0` is clean. Bit 0/16: undervoltage now/since boot. Bit 3/19: soft temperature limit now/since boot | Resets at boot, so it describes the *current* boot only |
 | Temperature | `vcgencmd measure_temp` — **59.9 °C** measured idle, in a room | Crossing the 80 °C soft limit slows the till exactly when the bar is busiest. A bar in summer has less headroom than a desk |
 | Undervoltage | Reported in the same word, and in `dmesg` | The leading cause of SD-card corruption. Suspect the PSU before the software |
+| Both, without `/dev/vcio` | `/sys/class/thermal/thermal_zone0/temp` (milli-°C) and `in0_lcrit_alarm` of the `hwmon` device whose `name` is `rpi_volt` (`1` = undervoltage) | World-readable, no privileges, no packages — so this is the path that survives the `/dev/vcio` breakage below. The terminal's status modal reads these two (#767). Find the hwmon device **by name**: the numbering is not stable across boots |
 
 > **`vcgencmd` can lose access to `/dev/vcio` after a package change, and does
 > so silently.** `raspberrypi-sys-mods` 1:20260612 ships udev rules naming only
