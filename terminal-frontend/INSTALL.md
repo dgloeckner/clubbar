@@ -100,6 +100,29 @@ Where possible the terminal powers the **panel** down rather than painting it
 black. An LCD showing black pixels still has its backlight on, so covering the
 screen saves no power and no heat; putting the output to sleep does both.
 
+**Powering the output off is the only thing that saves anything, and this is
+worth knowing before designing a gentler alternative.** Everything a Pi can
+plausibly do to a display was probed on the terminal hardware:
+
+| Mechanism | Result on the terminal Pi | Saves power? |
+|---|---|---|
+| `/sys/class/backlight` | **Absent.** No backlight device exists — there is no brightness to turn down | — |
+| DDC/CI brightness (VCP `0x10`) | **Refused.** `ddcutil` reads the EDID (`RTK CX101`) but the panel does not answer at I2C `0x37`: *"This monitor does not support DDC/CI"* | — |
+| `vcgencmd set_backlight` | **`Invalid arguments`.** It drives the DSI panel connector, not HDMI | — |
+| `zwlr_gamma_control_manager_v1` | **Available** — labwc advertises it, `gammastep` speaks it | **No.** It scales pixel values; the backlight stays at 100% |
+| A translucent overlay drawn by the app | Always available, no dependencies | **No.** Same reason |
+| `zwlr_output_power_manager_v1` (`output-power`) | Working | **Yes** — the panel enters standby |
+
+So a "dim" phase on this hardware can only ever be cosmetic: it can make an
+idle terminal *look* idle, and — unlike `output-power` — it leaves the
+touchscreen awake (see below), but it draws the same watts as a terminal in
+use. Anything that claims to dim for power reasons needs a panel with a real
+backlight control, not a software change.
+
+> Do not install `gammastep` on a terminal Pi to try this. There is no `arm64`
+> build, and installing it removed 397 packages including the desktop — see
+> [Installing packages on a terminal Pi](#installing-packages-on-a-terminal-pi).
+
 This is done through Wayland's `zwlr_output_power_management_v1`, via `wlopm`.
 Earlier versions of this guide said DPMS did not work on cheap touchscreens —
 that was true of **X11 `xset dpms`**. Under Wayland/labwc the compositor
@@ -186,7 +209,7 @@ In `config.json`:
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `false` | Off by default, like `fullscreen` — a kiosk wants blanking, a development machine does not |
-| `timeoutSeconds` | `300` | Idle time before blanking |
+| `timeoutSeconds` | `300` | Idle time before blanking. **Production terminals use `3600`** — an hour of genuine idleness means a closed bar, not a lull, so the panel sleeps when it should and nobody meets the wake delay during service |
 | `mode` | `output-power` | `output-power` sleeps the panel; `overlay` only paints black. Under `output-power` the panel's touchscreen may sleep too — see above |
 | `output` | — | Wayland output name. **Required for `output-power`**; without it the terminal paints black rather than guessing at a name |
 
@@ -869,6 +892,87 @@ wherever the mock is running) to test the full checkout flow.
 
 ---
 
+## Installing packages on a terminal Pi
+
+**Never run `apt-get install -y` on a terminal.** Not with `-q`, and never with
+the output piped into `tail`. On this hardware that combination is capable of
+uninstalling the terminal.
+
+Raspberry Pi OS 64-bit enables **`armhf` multiarch by default**
+(`dpkg --print-foreign-architectures` prints `armhf`). When a package has no
+`arm64` build, apt satisfies the request with the 32-bit one — and that pulls
+32-bit `libc6`, `libglib2.0-0t64`, `libmount1` and friends, which conflict with
+their 64-bit counterparts. Apt resolves the conflict the only way it can: by
+**removing the 64-bit stack**. `-y` approves it, `-q` shortens the output, and a
+pipe into `tail` hides what is left.
+
+Measured on the terminal Pi on 2026-08-30, from `/var/log/apt/history.log`:
+
+```
+Commandline: apt-get install -y -q gammastep
+Install: gammastep:armhf, libglib2.0-0t64:armhf, libc6:armhf, ...
+Remove:  labwc, libwlroots-0.19, network-manager, polkitd, rpd-wayland-core,
+         squeekboard, chromium, ...                        # 397 packages
+```
+
+The till was down for over an hour. `labwc` going is why it then boots to a text
+console; `network-manager` going is why it has no network at all afterwards —
+not even DHCP, because nothing is left to request a lease.
+
+**The rule.** Simulate first, read the plan, and only then apply:
+
+```bash
+apt-cache policy <pkg>                              # ":armhf" is the warning sign
+sudo apt-get -s install <pkg>                       # -s simulates; changes nothing
+sudo apt-get -s install <pkg> 2>&1 | grep '^Remv'   # must print nothing
+```
+
+If anything is scheduled for removal, **stop**. Ask for the architecture
+explicitly (`apt-get install <pkg>:arm64`); if no such build exists, do not
+install that package on this machine.
+
+### Recovering a terminal whose packages were removed
+
+Reversible, because apt records exactly what it did and removal — unlike purge —
+keeps `/etc`:
+
+1. **Get in.** SSH still works with no IPv4 at all: the kernel configures IPv6
+   by SLAAC without any client, so `ssh <user>@<host>` reaches the Pi over IPv6
+   while every IPv4 ping and port scan fails. This is the most useful fact here.
+2. **Give it IPv4 by hand** — apt mirrors need it, and nothing is managing the
+   interface. Note the wired interface may be `end0`, not `eth0`:
+
+   ```bash
+   sudo ip addr add 192.168.1.90/24 dev eth0
+   sudo ip route add default via 192.168.1.1
+   sudo sh -c 'echo nameserver 192.168.1.1 > /etc/resolv.conf'
+   ```
+3. **Remove the intruder, then restore the list apt recorded:**
+
+   ```bash
+   sudo apt-get purge <pkg>:armhf
+   sudo rm -rf /var/lib/apt/lists/* && sudo apt-get update
+
+   sed -n '/^Start-Date: <timestamp>/,/^End-Date/p' /var/log/apt/history.log \
+     | grep '^Remove:' | sed 's/^Remove: //' | tr ',' '\n' \
+     | awk '{print $1}' | sed 's/:arm64//' | sort -u > /tmp/removed.txt
+
+   sudo apt-get -s install $(cat /tmp/removed.txt | tr '\n' ' ') | grep '^Remv'
+   sudo apt-get install -y -o Dpkg::Options::=--force-confold \
+     $(cat /tmp/removed.txt | tr '\n' ' ')
+   ```
+
+   `--force-confold` preserves local edits to package-owned config files — on a
+   kiosk, that is the edited `/etc/xdg/labwc/autostart`.
+4. **Wifi returns on its own.** NetworkManager's profiles live in
+   `/etc/NetworkManager/system-connections/` and survive removal with their PSKs
+   intact, so the terminal re-associates as soon as the package is back. Confirm
+   with `nmcli device status` rather than re-provisioning per §5.
+5. Reboot, then confirm the session: panel and desktop still disabled, the app
+   fullscreen, `systemctl --user is-active clubbar-terminal.service` → `active`.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -881,6 +985,8 @@ wherever the mock is running) to test the full checkout flow.
 | Screen stays black after a scan, and a small white text box collects the card's characters top-right | The pcmanfm desktop holds keyboard focus, so the app never sees the scan that lifts blanking — [strip the session](#the-session-must-hold-exactly-one-window) |
 | The desktop menu bar appears over the terminal mid-service | `lwrespawn` remapped `wf-panel-pi` above the fullscreen window — [strip the session](#the-session-must-hold-exactly-one-window); it also returns after a system upgrade restores the packaged autostart |
 | Wake is slow and the monitor flashes its own mode OSD | The output comes back at the wrong mode — [pin it with kanshi](#pin-the-output-mode) |
+| The Pi boots to a text console after installing something | An `apt-get install` removed `labwc` — see [Installing packages on a terminal Pi](#installing-packages-on-a-terminal-pi) |
+| No network at all after installing something, `nmcli: command not found` | `network-manager` was removed by the same transaction. SSH in **over IPv6**, which still works, and follow the recovery steps there |
 | App doesn't fill the screen | Set `"fullscreen": true` in `config.json` or `TERMINAL_FULLSCREEN=true` env var |
 | RFID scanner not detected | Ensure reader is in keyboard-emulation mode (sends UID + Enter); test with `evtest` |
 | Idle screen says "Scanner nicht verbunden" with the reader plugged in | The configured `rfidReader` ids/name no longer match the device — re-read them from `cat /proc/bus/input/devices` (a replacement reader often has different ids) |

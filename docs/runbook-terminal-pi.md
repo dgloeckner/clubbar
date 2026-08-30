@@ -92,7 +92,25 @@ problem — see the terminal's own status modal, and
 [`ADR-0035`](../adr/0035-terminal-backend-instance-pairing.md) if it reports
 being paired with a different backend.
 
-## 5. Open gap
+## 5. It boots to a text console, or has no network at all
+
+Both symptoms together mean packages were removed — almost always by an
+`apt-get install` that resolved a conflict by deleting the 64-bit desktop.
+`labwc` gone is the console; `network-manager` gone is the missing network, and
+`nmcli: command not found` confirms it in one line.
+
+**You can still get in.** The kernel brings IPv6 up by SLAAC with no client at
+all, so `ssh <user>@<host>` works over IPv6 while every IPv4 ping and scan
+fails — the host looks dead and is not. From there, INSTALL.md's
+[recovery steps](../terminal-frontend/INSTALL.md#recovering-a-terminal-whose-packages-were-removed)
+rebuild the exact package list from `/var/log/apt/history.log`.
+
+Two things that make this less frightening than it looks: NetworkManager's
+profiles survive removal with their PSKs, so wifi returns by itself once the
+package is back; and `/etc/xdg/labwc/autostart` is a conffile, so kiosk edits
+survive too if the reinstall passes `--force-confold`.
+
+## 6. Open gap
 
 None of the above is reachable from the touchscreen. A staff-facing service
 screen — SSID, IP, backend reachability, unsynced count, exit-to-desktop, behind
