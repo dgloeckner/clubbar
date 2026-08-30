@@ -530,6 +530,60 @@ abstract class AppLocalizations {
   /// **'Zuletzt erkannt'**
   String get cardReaderLastSeen;
 
+  /// Status modal section showing the terminal machine's own temperature and power state (#767)
+  ///
+  /// In de, this message translates to:
+  /// **'Systemzustand'**
+  String get systemHealth;
+
+  /// Label for the terminal machine's SoC temperature
+  ///
+  /// In de, this message translates to:
+  /// **'Temperatur'**
+  String get cpuTemperature;
+
+  /// Temperature value with its state, e.g. "58,9 °C · Normal"
+  ///
+  /// In de, this message translates to:
+  /// **'{temperature} °C · {state}'**
+  String temperatureReading(String temperature, String state);
+
+  /// Thermal state: below 60 °C, unremarkable
+  ///
+  /// In de, this message translates to:
+  /// **'Normal'**
+  String get temperatureNormal;
+
+  /// Thermal state: 60 °C or above, still short of the Pi's 80 °C soft limit
+  ///
+  /// In de, this message translates to:
+  /// **'Warm'**
+  String get temperatureWarm;
+
+  /// Thermal state: at or above the 80 °C soft limit, where the SoC slows itself down
+  ///
+  /// In de, this message translates to:
+  /// **'Gedrosselt'**
+  String get temperatureThrottling;
+
+  /// What to do about a throttling terminal
+  ///
+  /// In de, this message translates to:
+  /// **'Das Terminal drosselt sich wegen Hitze und wird langsamer. Für Belüftung sorgen.'**
+  String get temperatureThrottlingHint;
+
+  /// Undervoltage alarm headline in the status modal
+  ///
+  /// In de, this message translates to:
+  /// **'Unterspannung: Netzteil ersetzen'**
+  String get undervoltageWarning;
+
+  /// Why undervoltage matters and why it cannot be left alone
+  ///
+  /// In de, this message translates to:
+  /// **'Die Stromversorgung ist zu schwach. Das beschädigt mit der Zeit die Speicherkarte, bis das Terminal nicht mehr startet.'**
+  String get undervoltageHint;
+
   /// Status modal section listing what the terminal made of the last card taps
   ///
   /// In de, this message translates to:

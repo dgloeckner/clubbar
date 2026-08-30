@@ -225,14 +225,44 @@ exit, but it is an ordinary fullscreen window, not a locked kiosk:
 Keep SSH enabled (`sudo systemctl enable --now ssh`) and give each terminal a
 fixed DHCP lease on the router so its address never moves.
 
-## 9. Verification
+## 9. Temperature and undervoltage — on the touchscreen
+
+Both are in the terminal's own **status modal**: tap the status pill in the
+header, and the *Overview* tab carries a **System health** section with the SoC
+temperature, its state, and an undervoltage warning when there is one (#767).
+It is the first thing here reachable without a keyboard, and it is deliberately
+the two values that are worth reading *before* something has gone wrong:
+
+| Reading | What it means | What to do |
+|---|---|---|
+| below 60 °C | Normal. A terminal idling in a room sits at ~59 °C | Nothing |
+| 60–80 °C | Warm. Working, with less headroom than it looks — a bar in summer has less than a desk | Improve airflow while it is cheap to |
+| 80 °C and above | Throttling. The SoC's soft limit; it is dropping clock speed to save itself, so the till is slower exactly when the bar is busiest (#760) | Airflow, now |
+| Undervoltage | The power supply is sagging below the SoC's low-critical threshold | **Replace the power supply.** It corrupts the SD card until somebody does, and a terminal that will not boot cannot sell |
+
+Over SSH the same two values are:
+
+```bash
+cat /sys/class/thermal/thermal_zone0/temp                  # milli-°C
+grep -l rpi_volt /sys/class/hwmon/hwmon*/name |            # 1 = undervoltage
+  xargs -r dirname | xargs -r -I{} cat {}/in0_lcrit_alarm
+```
+
+**Not `vcgencmd`.** `vcgencmd measure_temp` and `get_throttled` need
+`/dev/vcio`, which `raspberrypi-sys-mods` 1:20260612 leaves `0600 root:root` —
+its udev rules name only the newer `vcio_gencmd`/`vcio_crypto` nodes while
+kernel 6.12.47 still creates plain `/dev/vcio`. A reboot does not fix it. The
+sysfs paths above are world-readable and need nothing.
+
+## 10. Verification
 
 Everything above was verified by reboot on 2026-08-29 on a live terminal Pi: clock correct at boot (no
 NTP jump), wifi reassociated unattended, watchdog armed at 15s, app started
 under systemd, and SIGKILL produced a restart in under 8 seconds.
 
-## 10. Open gap
+## 11. Open gap
 
-None of the above is reachable from the touchscreen. A staff-facing service
-screen — SSID, IP, backend reachability, unsynced count, exit-to-desktop, behind
-a PIN — would remove the need for most of §8. Not yet filed.
+Almost none of the above is reachable from the touchscreen — §9 is the first
+slice, and only the first. A staff-facing service screen — SSID, IP, backend
+reachability, unsynced count, exit-to-desktop, behind a PIN — would remove the
+need for most of §8. Not yet filed.
