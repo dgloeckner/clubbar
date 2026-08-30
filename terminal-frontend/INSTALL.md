@@ -325,7 +325,15 @@ bar reappears mid-service and swallows touches along the top strip. This is the
 same z-order failure #762 describes for the overlay that #763 removed, arriving
 from the desktop session instead.
 
-Comment both out, keeping the packaged file beside it:
+**`scripts/kiosk-session-setup.sh` does this and the mode pinning below**, and
+is idempotent, so it is also the right thing to re-run after a system upgrade:
+
+```bash
+sudo ./scripts/kiosk-session-setup.sh --now   # --now also stops what is running
+./scripts/kiosk-session-setup.sh --check      # report only, changes nothing
+```
+
+By hand, if you would rather see the edit:
 
 ```bash
 sudo cp -n /etc/xdg/labwc/autostart /etc/xdg/labwc/autostart.orig
@@ -343,6 +351,7 @@ upgrade, since apt can restore the packaged file:
 
 ```bash
 ps -eo cmd | grep -cE '[w]f-panel-pi|[p]cmanfm'
+./scripts/kiosk-doctor.sh          # or this, which checks it and everything else
 ```
 
 Recovery is unaffected: Ctrl+Alt+F2 still reaches a console and Alt+F4 still
@@ -974,6 +983,11 @@ keeps `/etc`:
 ---
 
 ## Troubleshooting
+
+**`scripts/kiosk-doctor.sh` checks a live terminal against every rule in this
+guide** — focus competitors, the pinned output mode, the app's unit, the reader
+actually being present, and the development-only switches. It is read-only and
+safe on a till that is serving; run it before reading the table below.
 
 | Symptom | Fix |
 |---------|-----|

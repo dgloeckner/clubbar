@@ -59,6 +59,14 @@ fixed DHCP lease on the router so its address never moves.
 
 ## 4. Diagnosis
 
+Start with the one script that checks everything this page assumes:
+
+```bash
+./scripts/kiosk-doctor.sh      # in terminal-frontend/, read-only, safe while serving
+```
+
+Then, by hand:
+
 ```bash
 # Is it on the network, and does it know what time it is?
 nmcli device status
@@ -75,7 +83,7 @@ cat /sys/class/drm/card1-HDMI-A-1/{dpms,enabled}
 
 # Is anything competing with the app for focus? Must be 0 — a panel or desktop
 # window takes the input that wakes a blanked screen, and the terminal then
-# stays black with its output switched on.
+# stays black with its output switched on. (kiosk-doctor.sh checks this too.)
 ps -eo cmd | grep -cE '[w]f-panel-pi|[p]cmanfm'
 
 # Has it been overheating? 0x0 is clean; bit 19 (0x80000) is the soft limit.
