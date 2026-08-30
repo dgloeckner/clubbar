@@ -28,15 +28,17 @@ account, through a channel this system neither chose nor can see.
 
 ## Main Flow
 
-1. The admin creates an account (UC-A62). No password is generated: the row is
-   written with a hash of 32 random bytes nobody has ever seen.
+1. The admin creates an account (UC-A62), **choosing its roles on the same
+   form** — an account never exists without them. No password is generated: the
+   row is written with a hash of 32 random bytes nobody has ever seen.
 2. The system mints a one-time token, stores its SHA-256 digest and a sealed
    copy, and queues an `admin_invitation` message to the account's address.
 3. The panel shows the admin that the invitation was sent, with the link, the
    address it went to and when it expires.
 4. The scheduler's next drain sends the message (ADR-0038 rule 3).
 5. The invitee opens the link. The page greets them by name and shows the
-   address the account will sign in with.
+   address the account will sign in with **and the role they are being
+   onboarded into**.
 6. The invitee sets a password, twice.
 7. The system stores the password, spends the invitation, and sends them to the
    sign-in form with their address filled in.
@@ -52,6 +54,21 @@ account, through a channel this system neither chose nor can see.
 3. The previous link is revoked in the same call. There is never more than one
    working link to an account.
 
+## Worked example: onboarding a Getränkewart
+
+The role is chosen **before the account exists**, on the create form, and it
+travels with the invitation from there:
+
+| Step | What the new Getränkewart sees |
+|------|--------------------------------|
+| The admin's create form | `Rolle`: Admin / Kassenwart / **Getränkewart** — the account is created holding exactly what is ticked |
+| The mail | "Dein Zugang zu <club>", and a `Deine Rolle: Getränkewart` row. Never "Admin-Zugang" |
+| The accept page | Their address, a **Getränkewart** badge, then the password fields |
+| After signing in | Authenticator enrolment, then the drinks list — a Getränkewart's landing page, because their dashboard would be a 403 (ADR-0044) |
+
+Nowhere in that path is the account called an administrator's, and nowhere is
+another account or another office mentioned.
+
 ## Rules
 
 | Rule | Why |
@@ -64,6 +81,7 @@ account, through a channel this system neither chose nor can see.
 | The token is stored hashed, plus a sealed copy for the mail | A database dump yields no working link; the drain can still render one at send time (ADR-0038 rule 5) |
 | Unknown, expired, spent and revoked answer identically | Distinguishing them for an anonymous caller confirms that a token exists |
 | Accepting mints no session | A mail link must not be able to skip the second-factor gate |
+| The mail and the page name the account's **own** role, and no other | A Getränkewart told they have been given an "admin account" is told something alarming and false; naming the reader's own job is not the org-structure disclosure that withholding it was meant to prevent |
 | The public endpoints are rate-limited on IP, and refused tokens count as failed attempts | Otherwise this is the one unmetered credential surface in the system |
 
 ## Postconditions
@@ -110,3 +128,5 @@ creation.
 - The delivered mail contains a link that actually works (end to end, via the
   drain and Mailpit)
 - The list marks a pending account and offers resend instead of reset
+- A Getränkewart invitation names `Getränkewart` on the page and in the mail,
+  and calls the account an admin one nowhere

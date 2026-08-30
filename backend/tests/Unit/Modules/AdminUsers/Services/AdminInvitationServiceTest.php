@@ -6,6 +6,8 @@ namespace Tests\Unit\Modules\AdminUsers\Services;
 
 use App\Modules\AdminUsers\Domain\InvitationLink;
 use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
+use App\Modules\AdminUsers\Enums\AdminRole;
+use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AdminUsers\Services\AdminInvitationService;
 use App\Modules\AdminUsers\Services\InvitationTokenCipher;
@@ -32,6 +34,7 @@ class AdminInvitationServiceTest extends TestCase
 {
     private AdminInvitationsRepository $invitations;
     private AdminUsersRepository $admins;
+    private AdminUserRolesRepository $roles;
     private InvitationTokenCipher $cipher;
     private AdminNotifier $notifier;
     private AuditService $audit;
@@ -41,6 +44,7 @@ class AdminInvitationServiceTest extends TestCase
     {
         $this->invitations = $this->createMock(AdminInvitationsRepository::class);
         $this->admins = $this->createMock(AdminUsersRepository::class);
+        $this->roles = $this->createMock(AdminUserRolesRepository::class);
         $this->cipher = $this->createMock(InvitationTokenCipher::class);
         $this->notifier = $this->createMock(AdminNotifier::class);
         $this->audit = $this->createMock(AuditService::class);
@@ -56,6 +60,7 @@ class AdminInvitationServiceTest extends TestCase
         $this->service = new AdminInvitationService(
             $this->invitations,
             $this->admins,
+            $this->roles,
             $this->cipher,
             $this->notifier,
             $this->audit,
@@ -245,15 +250,23 @@ class AdminInvitationServiceTest extends TestCase
 
     // ── Following a link ────────────────────────────────────────────────────
 
-    public function test_a_valid_link_names_the_account_and_nothing_more(): void
+    /**
+     * The page's job is to say what somebody is being onboarded *as*, before
+     * asking them to set a credential — so the account's own roles travel, and
+     * nothing else does. A token proves its holder can read one mailbox; it is
+     * not a reason to describe the club or any other account.
+     */
+    public function test_a_valid_link_names_the_account_and_its_own_role_and_nothing_more(): void
     {
         $this->givenAccount();
         $this->invitations->method('findByTokenHash')->willReturn(self::invitationRow());
+        $this->roles->method('rolesFor')->willReturn([AdminRole::GETRAENKEWART]);
 
         $invitee = $this->service->describe(InvitationLink::mintToken());
 
-        $this->assertSame(['email', 'display_name', 'locale'], array_keys($invitee));
+        $this->assertSame(['email', 'display_name', 'locale', 'roles'], array_keys($invitee));
         $this->assertSame('neu@example.org', $invitee['email']);
+        $this->assertSame(['getraenkewart'], $invitee['roles']);
     }
 
     /**

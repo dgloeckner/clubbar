@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Mail;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Shared\Mail\MailBranding;
 use App\Shared\Mail\MailLayout;
@@ -28,16 +29,28 @@ use App\Shared\Mail\MailMessage;
  *    expect that reads the authenticator prompt as an obstacle rather than as
  *    the next step.
  *
- * It names no roles. What the account may do is the panel's answer to somebody
- * who has signed in, and a list of offices in an unauthenticated mailbox tells
- * a reader who is not the intended one how the club is organised.
+ * **It names the recipient's own role, and only that.** The first draft named
+ * none, on the reasoning that a list of offices in an unauthenticated mailbox
+ * tells an unintended reader how the club is organised. That reasoning holds
+ * for *other people's* offices and not for the reader's own — and the cost of
+ * omitting it was worse than the disclosure: every invitation called itself an
+ * "Admin-Zugang" regardless of the account behind it, so a Getränkewart being
+ * onboarded was told they had been given administrator access to the club's
+ * installation. Alarming, and false.
+ *
+ * So the account's own role travels, the subject line says only that an
+ * account exists, and no other account is mentioned. A reader who is not the
+ * intended one learns that this address was given one named job — which the
+ * previous version disclosed too, less accurately.
  */
 final class AdminInvitationMail
 {
+    /** @param list<AdminRole> $roles The account's own roles — never anybody else's. */
     public static function render(
         string $recipientAddress,
         ?string $recipientName,
         string $signInEmail,
+        array $roles,
         string $url,
         string $expiresAt,
         MailLanguage $language,
@@ -50,6 +63,9 @@ final class AdminInvitationMail
 
         $rows = [
             $t->t('admin_invitation.label_login') => $signInEmail,
+            // Above the expiry: what the account *is* matters more to the
+            // reader than when the link stops working.
+            $t->t('admin_invitation.label_role') => self::roleList($t, $roles),
             $t->t('admin_invitation.label_expires') => $expires,
         ];
 
@@ -68,6 +84,32 @@ final class AdminInvitationMail
             text: self::text($t, $recipientName, $rows, $url, $branding),
             toName: $recipientName,
         );
+    }
+
+    /**
+     * The account's roles, as the club names them.
+     *
+     * `Kassenwart` and `Getränkewart` are Vereinsämter and stay untranslated in
+     * both languages, the same precedent CONTEXT.md sets for `Storno` and
+     * `Deckel` — and the same table {@see AdminLifecycleMail} reads from, so
+     * one account is described identically wherever it is described.
+     *
+     * An empty set cannot reach here: the domain refuses an account with no
+     * role. It degrades rather than throwing anyway, because a mail builder is
+     * the wrong place to discover it.
+     *
+     * @param list<AdminRole> $roles
+     */
+    private static function roleList(MailStrings $t, array $roles): string
+    {
+        if ($roles === []) {
+            return $t->t('admin_lifecycle.roles_none');
+        }
+
+        return implode(', ', array_map(
+            static fn (AdminRole $role): string => $t->t('admin_lifecycle.role.' . $role->value),
+            $roles,
+        ));
     }
 
     /** @param array<string,string> $rows */

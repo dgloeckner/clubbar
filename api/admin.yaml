@@ -122,10 +122,10 @@ paths:
       tags: [Invitations]
       summary: Describe an invitation
       description: |
-        What the accept page renders its greeting from. Answers a name, a
-        sign-in address and a locale, and nothing else — a token proves its
-        holder can read one mailbox, which is not a reason to tell them about
-        the club's roles or its other accounts.
+        What the accept page renders its greeting from. Answers the account's
+        own name, sign-in address, locale and roles, and nothing else — a token
+        proves its holder can read one mailbox, which is a reason to describe
+        *that* account and not the club or any other.
 
         **Use Case**: UC-A68
 
@@ -8387,8 +8387,9 @@ components:
     InvitationInvitee:
       type: object
       description: >
-        Everything an unauthenticated holder of a valid token is told. No roles,
-        no club detail, no other accounts.
+        Everything an unauthenticated holder of a valid token is told: the
+        account's own address, name, locale and roles. No club detail, no other
+        account, nothing about who issued the invitation.
       properties:
         email:
           type: string
@@ -8398,6 +8399,17 @@ components:
           type: string
         locale:
           type: string
+        roles:
+          type: array
+          description: >
+            The roles this account holds (ADR-0044) — its own, never anybody
+            else's. Present so the accept page can say what somebody is being
+            onboarded *as* before asking them to set a credential: a
+            Getränkewart told only that "an account was created for you" has to
+            sign in and infer their job from which pages open.
+          items:
+            $ref: '#/components/schemas/AdminRole'
+          example: [getraenkewart]
 
     AcceptInvitationRequest:
       type: object

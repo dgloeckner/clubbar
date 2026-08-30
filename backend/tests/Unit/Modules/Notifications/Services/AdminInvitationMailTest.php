@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\Services;
 
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
@@ -30,6 +31,7 @@ use PHPUnit\Framework\TestCase;
 class AdminInvitationMailTest extends TestCase
 {
     private AdminUsersRepository $admins;
+    private AdminUserRolesRepository $roles;
     private AdminInvitationsRepository $invitations;
     private InvitationTokenCipher $cipher;
     private AdminSecurityMailBuilder $builder;
@@ -38,6 +40,7 @@ class AdminInvitationMailTest extends TestCase
     protected function setUp(): void
     {
         $this->admins = $this->createMock(AdminUsersRepository::class);
+        $this->roles = $this->createMock(AdminUserRolesRepository::class);
         $this->invitations = $this->createMock(AdminInvitationsRepository::class);
         $this->cipher = $this->createMock(InvitationTokenCipher::class);
 
@@ -58,7 +61,7 @@ class AdminInvitationMailTest extends TestCase
         $this->builder = new AdminSecurityMailBuilder(
             $this->admins,
             $mailConfigService,
-            $this->createMock(AdminUserRolesRepository::class),
+            $this->roles,
             $this->invitations,
             $this->cipher,
             'https://club.example.org',
@@ -70,6 +73,16 @@ class AdminInvitationMailTest extends TestCase
             'display_name' => 'Neue Kassenwartin',
             'locale' => 'de',
         ]);
+        $this->roles->method('rolesFor')->willReturn([AdminRole::KASSENWART]);
+    }
+
+    /** A config service answering the fixture config, for a purpose-built builder. */
+    private function mailConfigService(): MailConfigService
+    {
+        $service = $this->createMock(MailConfigService::class);
+        $service->method('getConfig')->willReturn($this->mailConfig);
+
+        return $service;
     }
 
     /**
@@ -148,6 +161,68 @@ class AdminInvitationMailTest extends TestCase
 
         $this->assertStringContainsString('Passwort festlegen', $german->text);
         $this->assertStringContainsString('Set your password', $english->text);
+    }
+
+    /**
+     * The message says which job the account is for, and does **not** call it
+     * an administrator's.
+     *
+     * This is the shape the first draft got wrong. Every invitation opened
+     * "Dein Admin-Zugang für …" whatever the account behind it, so onboarding a
+     * Getränkewart — somebody who will never see a member, a Deckel or a bank
+     * detail (CONTEXT.md) — told them they had been given administrator access
+     * to the club's installation. Alarming to receive, and false.
+     */
+    public function test_it_names_the_recipients_own_role_and_calls_nothing_an_admin_account(): void
+    {
+        $this->invitations->method('findById')->willReturn(self::invitation());
+        $this->cipher->method('open')->willReturn('t0k3n-abc');
+
+        $roles = $this->createMock(AdminUserRolesRepository::class);
+        $roles->method('rolesFor')->willReturn([AdminRole::GETRAENKEWART]);
+
+        $builder = new AdminSecurityMailBuilder(
+            $this->admins,
+            $this->mailConfigService(),
+            $roles,
+            $this->invitations,
+            $this->cipher,
+            'https://club.example.org',
+        );
+
+        $message = $builder->build(self::row(), $this->mailConfig);
+
+        $this->assertStringNotContainsString('Admin-Zugang', $message->subject);
+        foreach ([$message->html, $message->text] as $part) {
+            // Named as the club names the office — untranslated, as `Storno`
+            // and `Deckel` are.
+            $this->assertStringContainsString('Getränkewart', $part);
+            $this->assertStringNotContainsString('Admin-Zugang', $part);
+        }
+    }
+
+    /** Both roles when an account holds both — one is not silently dropped. */
+    public function test_an_account_holding_two_offices_has_both_named(): void
+    {
+        $this->invitations->method('findById')->willReturn(self::invitation());
+        $this->cipher->method('open')->willReturn('t0k3n-abc');
+
+        $roles = $this->createMock(AdminUserRolesRepository::class);
+        $roles->method('rolesFor')->willReturn([AdminRole::KASSENWART, AdminRole::GETRAENKEWART]);
+
+        $builder = new AdminSecurityMailBuilder(
+            $this->admins,
+            $this->mailConfigService(),
+            $roles,
+            $this->invitations,
+            $this->cipher,
+            'https://club.example.org',
+        );
+
+        $text = $builder->build(self::row(), $this->mailConfig)->text;
+
+        $this->assertStringContainsString('Kassenwart', $text);
+        $this->assertStringContainsString('Getränkewart', $text);
     }
 
     /**

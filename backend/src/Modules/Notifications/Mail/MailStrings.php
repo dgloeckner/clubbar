@@ -406,17 +406,24 @@ final class MailStrings
             // Fließtext, und die Gültigkeit wird ausdrücklich genannt: ein
             // stillschweigend abgelaufener Link liest sich als Fehler und nicht
             // als Absicht.
-            'admin_invitation.subject'   => 'Dein Admin-Zugang für {org}',
-            'admin_invitation.preheader' => 'Lege ein Passwort fest, um Deinen Admin-Zugang zu aktivieren.',
+            // Deliberately *not* "Admin-Zugang": the account may be a
+            // Getränkewart's, and telling a drinks steward they have been given
+            // administrator access to the installation is both alarming and
+            // untrue. The role is named in its own row instead.
+            'admin_invitation.subject'   => 'Dein Zugang zu {org}',
+            'admin_invitation.preheader' => 'Lege ein Passwort fest, um Deinen Zugang zu aktivieren.',
             'admin_invitation.eyebrow'   => 'Einladung',
-            'admin_invitation.title'     => 'Willkommen im Admin-Bereich',
-            'admin_invitation.lede'      => 'für Dich wurde ein Admin-Zugang zu <strong>{org}</strong> angelegt. '
-                                          . 'Über den Link unten legst Du Dein eigenes Passwort fest — '
-                                          . 'niemand sonst kennt es.',
-            'admin_invitation.lede_text' => 'für Dich wurde ein Admin-Zugang zu {org} angelegt. '
-                                          . 'Über den Link unten legst Du Dein eigenes Passwort fest — '
-                                          . 'niemand sonst kennt es.',
+            'admin_invitation.title'     => 'Willkommen im Verwaltungsbereich',
+            'admin_invitation.lede'      => 'für Dich wurde ein Zugang zum Verwaltungsbereich von '
+                                          . '<strong>{org}</strong> angelegt. Welche Rolle Du dort hast, '
+                                          . 'steht unten. Über den Link legst Du Dein eigenes Passwort '
+                                          . 'fest — niemand sonst kennt es.',
+            'admin_invitation.lede_text' => 'für Dich wurde ein Zugang zum Verwaltungsbereich von {org} '
+                                          . 'angelegt. Welche Rolle Du dort hast, steht unten. Über den '
+                                          . 'Link legst Du Dein eigenes Passwort fest — niemand sonst '
+                                          . 'kennt es.',
             'admin_invitation.label_login'   => 'Anmeldeadresse',
+            'admin_invitation.label_role'    => 'Deine Rolle',
             'admin_invitation.label_expires' => 'Link gültig bis',
             'admin_invitation.cta'       => 'Passwort festlegen',
             'admin_invitation.fallback'  => 'Falls der Button nicht funktioniert, öffne diese Adresse im Browser:',
@@ -874,17 +881,18 @@ final class MailStrings
                                         . 'only they can reset the account.',
 
             // ── Admin invitation (migration 058) ────────────────────────────
-            'admin_invitation.subject'   => 'Your admin account for {org}',
-            'admin_invitation.preheader' => 'Set a password to activate your admin account.',
+            'admin_invitation.subject'   => 'Your access to {org}',
+            'admin_invitation.preheader' => 'Set a password to activate your account.',
             'admin_invitation.eyebrow'   => 'Invitation',
             'admin_invitation.title'     => 'Welcome to the admin panel',
-            'admin_invitation.lede'      => 'an admin account has been created for you at '
-                                          . '<strong>{org}</strong>. Use the link below to set your own '
-                                          . 'password — nobody else will know it.',
-            'admin_invitation.lede_text' => 'an admin account has been created for you at {org}. '
-                                          . 'Use the link below to set your own password — nobody else '
-                                          . 'will know it.',
+            'admin_invitation.lede'      => 'an account has been created for you at '
+                                          . '<strong>{org}</strong>. Your role is named below. Use the '
+                                          . 'link to set your own password — nobody else will know it.',
+            'admin_invitation.lede_text' => 'an account has been created for you at {org}. Your role is '
+                                          . 'named below. Use the link to set your own password — '
+                                          . 'nobody else will know it.',
             'admin_invitation.label_login'   => 'Sign-in address',
+            'admin_invitation.label_role'    => 'Your role',
             'admin_invitation.label_expires' => 'Link valid until',
             'admin_invitation.cta'       => 'Set your password',
             'admin_invitation.fallback'  => 'If the button does not work, open this address in your browser:',

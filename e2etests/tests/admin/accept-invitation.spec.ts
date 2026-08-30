@@ -35,11 +35,18 @@ function uniqueEmail(label: string): string {
 async function inviteAdmin(
   playwright: Parameters<typeof loginAs>[0],
   email: string,
+  roles?: string[],
 ): Promise<string> {
   const ctx = await loginAs(playwright, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
   try {
     const response = await ctx.post(`${API_BASE}/admin/admin-users`, {
-      data: { ...stepUp(), email, display_name: 'Invited Colleague', locale: 'de' },
+      data: {
+        ...stepUp(),
+        email,
+        display_name: 'Invited Colleague',
+        locale: 'de',
+        ...(roles ? { roles } : {}),
+      },
     })
     expect(response.status(), await response.text()).toBe(201)
 
@@ -82,6 +89,40 @@ test.describe('Accepting an invitation (UI)', () => {
     await page.getByTestId('login-password-input').fill(INVITED_ADMIN_PASSWORD)
     await page.getByTestId('login-submit-button').click()
 
+    await expect(page.getByTestId('totp-qr-code')).toBeVisible({ timeout: 10000 })
+  })
+
+  /**
+   * Onboarding a **Getränkewart**, the office that sees no member at all.
+   *
+   * The role is chosen on the create form before the account exists, and this
+   * is where the invitee finds out about it: named on the page, before they
+   * are asked to set a credential. Without it they are told only that "an
+   * account was created for you" and have to sign in and infer their job from
+   * which pages happen to open.
+   */
+  test('a Getränkewart is told which role they are being onboarded into', async ({
+    page,
+    playwright,
+  }) => {
+    const email = uniqueEmail('getraenkewart')
+    const invitationUrl = await inviteAdmin(playwright, email, ['getraenkewart'])
+
+    await page.goto(invitePath(invitationUrl))
+
+    // Named as the club names the office — untranslated, as Storno and Deckel
+    // are — and shown before the password fields, not after.
+    await expect(page.getByTestId('invite-role-getraenkewart')).toHaveText('Getränkewart')
+    await expect(page.getByTestId('invite-roles')).not.toContainText('Admin')
+
+    await page.getByTestId('invite-password-input').fill(INVITED_ADMIN_PASSWORD)
+    await page.getByTestId('invite-password-confirmation-input').fill(INVITED_ADMIN_PASSWORD)
+    await page.getByTestId('invite-submit-button').click()
+
+    // The rest of the path is every account's: sign in, then enrol.
+    await expect(page).toHaveURL(/\/login$/)
+    await page.getByTestId('login-password-input').fill(INVITED_ADMIN_PASSWORD)
+    await page.getByTestId('login-submit-button').click()
     await expect(page.getByTestId('totp-qr-code')).toBeVisible({ timeout: 10000 })
   })
 

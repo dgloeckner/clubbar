@@ -451,7 +451,7 @@ export function AdminUsersTab({
                       fontWeight: theme.typography.fontWeight.semibold,
                     }}
                   >
-                    Role
+                    {t('settings.roleLabel')}
                   </th>
                   <th
                     style={{

@@ -90,12 +90,12 @@ test.describe('Admin Invitations API', () => {
 
   // ========== FOLLOWING THE LINK ==========
 
-  test('the link names the invitee, and nothing about the club', async ({
+  test('the link names the invitee and their own role, and nothing about the club', async ({
     authenticatedRequest,
     request,
   }) => {
     const email = uniqueEmail('describe')
-    const { invitation } = await createAdmin(authenticatedRequest, email)
+    const { invitation } = await createAdmin(authenticatedRequest, email, ['getraenkewart'])
 
     // Deliberately the *unauthenticated* context: this is the endpoint an
     // invitee reaches with no session at all.
@@ -107,10 +107,14 @@ test.describe('Admin Invitations API', () => {
     const body = (await response.json()).invitation
     expect(body.email).toBe(email)
     expect(body.display_name).toBe('Invited Admin')
-    // A token proves its holder can read one mailbox. It is not a reason to
-    // tell them what the account may do.
-    expect(body).not.toHaveProperty('roles')
-    expect(body).not.toHaveProperty('id')
+
+    // The account's own role, so the page can say what somebody is being
+    // onboarded *as* before asking them to set a credential.
+    expect(body.roles).toEqual(['getraenkewart'])
+
+    // …and nothing beyond that account. A token proves its holder can read one
+    // mailbox — a reason to describe *this* account, not the club's structure.
+    expect(Object.keys(body).sort()).toEqual(['display_name', 'email', 'locale', 'roles'])
   })
 
   test('setting a password through the link makes the account usable', async ({

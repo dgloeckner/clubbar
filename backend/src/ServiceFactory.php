@@ -456,6 +456,7 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(AdminInvitationService::class, fn() => new AdminInvitationService(
             $this->getAdminInvitationsRepository(),
             $this->getAdminUsersRepository(),
+            $this->getAdminUserRolesRepository(),
             $this->getInvitationTokenCipher(),
             $this->getAdminNotifier(),
             $this->getAuditService(),

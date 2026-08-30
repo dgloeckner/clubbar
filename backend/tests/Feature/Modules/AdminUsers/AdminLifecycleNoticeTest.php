@@ -78,6 +78,7 @@ class AdminLifecycleNoticeTest extends DatabaseTestCase
             new AdminInvitationService(
                 new AdminInvitationsRepository($this->db, $this->logger),
                 $admins,
+                $roles,
                 new InvitationTokenCipher(),
                 $notifier,
                 $this->createMock(AuditService::class),

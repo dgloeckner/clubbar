@@ -705,7 +705,7 @@
     "cannotDeactivateOwnAccount": "You cannot deactivate your own account",
     "cannotEditOwnRoles": "You cannot change your own roles — ask another admin to do it",
     "terminals": "Terminals",
-    "createAdminStepUpHint": "Creating an admin user grants full, unrestricted access to this installation. Confirm it is you.",
+    "createAdminStepUpHint": "The account gets exactly the roles selected above — granting a role is minting authority. Confirm it is you.",
     "createTerminal": "Create Terminal",
     "createTerminalStepUpHint": "Enrolling a terminal issues a credential that can read the member list and record sales. Confirm it is you.",
     "editTerminal": "Edit Terminal",
@@ -1004,7 +1004,8 @@
     "invitationPending": "Invitation pending",
     "invitationPendingHint": "This account has no password yet. It cannot sign in until the invitation is accepted.",
     "resendInvitation": "Send a new invitation",
-    "resendInvitationConfirm": "Send this account a new invitation? The existing link stops working."
+    "resendInvitationConfirm": "Send this account a new invitation? The existing link stops working.",
+    "roleLabel": "Role"
   },
   "auditLog": {
     "title": "Audit Log",
@@ -1494,7 +1495,7 @@
     }
   },
   "invite": {
-    "title": "Set up your admin account",
+    "title": "Set up your account",
     "subtitle": "Hello {{name}} — choose your password.",
     "invalidSubtitle": "This link no longer works.",
     "emailLabel": "Sign-in address",
@@ -1513,6 +1514,7 @@
     "errors": {
       "invalidLink": "This invitation link has expired or has already been used. Ask for a new invitation.",
       "acceptFailed": "The password could not be saved."
-    }
+    },
+    "roleLabel": "Your role"
   }
 }

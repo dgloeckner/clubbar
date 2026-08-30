@@ -195,7 +195,9 @@ test.describe('Admin lifecycle — account, roles, cron, delivered mail', () => 
 
     // To the account being onboarded — not to the club, and not to the other
     // admins. It is the one message here with a single recipient.
-    const message = await mail.waitForMessageAbout(targetEmail, 'Admin-Zugang')
+    // "Dein Zugang zu <club>" — deliberately not "Admin-Zugang", since the
+    // account may be a Getränkewart's; the role is a row inside the message.
+    const message = await mail.waitForMessageAbout(targetEmail, 'Dein Zugang')
 
     const { html, text } = parts(message)
     for (const part of [html, text]) {
@@ -205,7 +207,14 @@ test.describe('Admin lifecycle — account, roles, cron, delivered mail', () => 
       // Said before it happens, so the authenticator prompt reads as the next
       // step rather than as an obstacle.
       expect(part).toContain('Zwei-Faktor')
+      // The account's own role, named — this one is a Kassenwart's.
+      expect(part).toContain('Kassenwart')
     }
+
+    // And the message does not call it an admin account. It is not one, and
+    // telling a Kassenwart otherwise is the failure this assertion pins: the
+    // first draft opened "Dein Admin-Zugang für …" whatever the role behind it.
+    expect(message.Subject).not.toContain('Admin-Zugang')
 
     // And it is a link, not a picture of one.
     const token = tokenFromInvitationUrl(issuedInvitationUrl)

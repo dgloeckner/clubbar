@@ -19,6 +19,8 @@ import { useTranslation } from 'react-i18next'
 import { AuthCard } from '../components/auth/AuthCard'
 import { Button } from '../components/common/Button'
 import { Input } from '../components/common/Input'
+import { Badge, type BadgeProps } from '../components/common/Badge'
+import type { AdminRole } from '../api/generated/adminRole'
 import { getInvitations } from '../api/generated/invitations/invitations'
 import { useApiError } from '../hooks/useApiError'
 import { useLatestRequest } from '../hooks/useLatestRequest'
@@ -35,6 +37,31 @@ import { theme } from '../styles/design-system'
  * the same as any other failure below.
  */
 const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/
+
+/**
+ * Role names and their colours, matching the admin list so one account looks
+ * the same wherever it is shown. Untranslated in both locales: `Kassenwart`
+ * and `Getränkewart` are Vereinsämter rather than concepts with an English
+ * equivalent, the precedent CONTEXT.md sets for `Storno` and `Deckel`.
+ */
+const ROLE_LABEL: Record<AdminRole, string> = {
+  admin: 'Admin',
+  kassenwart: 'Kassenwart',
+  getraenkewart: 'Getränkewart',
+}
+
+const ROLE_BADGE_VARIANT: Record<AdminRole, BadgeProps['variant']> = {
+  admin: 'danger',
+  kassenwart: 'info',
+  getraenkewart: 'success',
+}
+
+const labelStyle = {
+  display: 'block',
+  fontSize: theme.typography.fontSize.sm,
+  fontWeight: theme.typography.fontWeight.semibold,
+  color: theme.colors.text.primary,
+} as const
 
 function Banner({ message, testId, tone }: { message: string; testId: string; tone: 'danger' | 'success' }) {
   const color = tone === 'danger' ? theme.colors.semantic.danger : theme.colors.semantic.success
@@ -64,7 +91,11 @@ export function AcceptInvitationPage() {
   const { apiErrorMessage } = useApiError()
   const latest = useLatestRequest()
 
-  const [invitee, setInvitee] = useState<{ email: string; display_name: string } | null>(null)
+  const [invitee, setInvitee] = useState<{
+    email: string
+    display_name: string
+    roles: AdminRole[]
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   // Set when the *link* is unusable — expired, spent, unknown. Terminal: there
   // is no form to show and nothing the invitee can do here but ask for a new
@@ -92,7 +123,11 @@ export function AcceptInvitationPage() {
           setLinkError(t('invite.errors.invalidLink'))
           return
         }
-        setInvitee({ email: invitation.email, display_name: invitation.display_name })
+        setInvitee({
+          email: invitation.email,
+          display_name: invitation.display_name,
+          roles: invitation.roles ?? [],
+        })
       })
       .catch((err: unknown) => {
         if (signal.aborted) return
@@ -175,6 +210,37 @@ export function AcceptInvitationPage() {
           readOnly
           disabled
         />
+        {/*
+          What they are being onboarded *as*, before they are asked to set a
+          credential. Without it, a Getränkewart is told only that an account
+          was created for them and has to sign in and infer their job from
+          which pages happen to open. Role names are shown verbatim in both
+          locales — Vereinsämter, like Storno and Deckel.
+        */}
+        {invitee.roles.length > 0 && (
+          <div>
+            <span style={labelStyle}>{t('invite.roleLabel')}</span>
+            <div
+              data-testid="invite-roles"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: theme.spacing.xs,
+                marginTop: theme.spacing.xs,
+              }}
+            >
+              {invitee.roles.map((role) => (
+                <Badge
+                  key={role}
+                  label={ROLE_LABEL[role] ?? role}
+                  variant={ROLE_BADGE_VARIANT[role] ?? 'info'}
+                  showDot={false}
+                  testId={`invite-role-${role}`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
         <Input
           data-testid="invite-password-input"
           label={t('invite.passwordLabel')}

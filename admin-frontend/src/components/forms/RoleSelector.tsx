@@ -12,6 +12,7 @@
  * the same precedent CONTEXT.md sets for `Storno` and `Deckel`.
  */
 
+import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { modalLabelStyle } from '../modals/ModalError'
 import { AdminRole } from '../../api/generated/adminRole'
@@ -50,9 +51,17 @@ export function RoleSelector({
   disabledReason,
   testId = 'role-selector',
 }: RoleSelectorProps) {
+  const { t } = useTranslation()
+
   return (
     <div data-testid={testId} style={{ marginBottom: theme.spacing.lg }}>
-      <span style={modalLabelStyle()}>Role</span>
+      {/*
+        The label is translated; the role *names* below are not, deliberately —
+        `Kassenwart` and `Getränkewart` are Vereinsämter rather than concepts
+        with an English equivalent (see the class comment). This one was a
+        hardcoded English "Role" sitting among German field labels.
+      */}
+      <span style={modalLabelStyle()}>{t('settings.roleLabel')}</span>
       <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.xs }}>
         {ROLE_ORDER.map((role) => {
           const checked = value.includes(role)

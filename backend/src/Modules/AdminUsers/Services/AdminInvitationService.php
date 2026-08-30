@@ -6,7 +6,9 @@ namespace App\Modules\AdminUsers\Services;
 
 use App\Modules\AdminUsers\DTOs\AdminInvitationDto;
 use App\Modules\AdminUsers\Domain\InvitationLink;
+use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
+use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Services\AdminNotifier;
@@ -55,6 +57,7 @@ class AdminInvitationService
     public function __construct(
         private AdminInvitationsRepository $invitations,
         private AdminUsersRepository $adminUsers,
+        private AdminUserRolesRepository $roles,
         private InvitationTokenCipher $cipher,
         private AdminNotifier $adminNotifier,
         private AuditService $auditService,
@@ -175,12 +178,18 @@ class AdminInvitationService
      * Who a presented link is for, so the accept page can greet them by name
      * and show the address the account will sign in with.
      *
-     * Deliberately narrow: display name, address, locale. Nothing about roles,
-     * nothing about the club, nothing about who issued it — this is answered to
-     * an unauthenticated caller holding a token, and the token proves only that
-     * they can read one mailbox.
+     * Deliberately narrow: display name, address, locale, and the account's
+     * **own** roles. Nothing about the club, nothing about who issued it,
+     * nothing about any other account — this is answered to an unauthenticated
+     * caller holding a token, and the token proves only that they can read one
+     * mailbox.
      *
-     * @return array{email: string, display_name: string, locale: string}
+     * The roles are here because the page's job is to tell somebody what they
+     * are being onboarded *as* before asking them to set a credential. A
+     * Getränkewart who is only told "an account was created for you" has to
+     * sign in and infer their job from which pages open.
+     *
+     * @return array{email: string, display_name: string, locale: string, roles: list<string>}
      */
     public function describe(string $token): array
     {
@@ -198,6 +207,7 @@ class AdminInvitationService
             'email' => (string) $admin['email'],
             'display_name' => (string) ($admin['display_name'] ?: $admin['email']),
             'locale' => (string) ($admin['locale'] ?? 'de'),
+            'roles' => AdminRole::toValues($this->roles->rolesFor((string) $invitation['admin_user_id'])),
         ];
     }
 

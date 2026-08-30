@@ -186,6 +186,12 @@ class AdminSecurityMailBuilder implements MailContentBuilder
             // comment — so a message queued to one address is never quietly
             // redirected to another.
             signInEmail: (string) $admin['email'],
+            // Re-read at send time, like the address beside it. A role granted
+            // or revoked between enqueue and send should reach the invitee as
+            // it now stands — they are about to sign in and find out either
+            // way, and a message that disagrees with the panel is worse than
+            // one that is a few hours newer than the queue row.
+            roles: $this->adminUserRolesRepository->rolesFor((string) $admin['id']),
             url: InvitationLink::url($this->appUrl, $token),
             expiresAt: (string) $invitation['expires_at'],
             language: $language,

@@ -705,7 +705,7 @@
     "cannotDeactivateOwnAccount": "Sie können Ihr eigenes Konto nicht deaktivieren",
     "cannotEditOwnRoles": "Sie können Ihre eigenen Rollen nicht ändern – bitten Sie einen anderen Admin darum",
     "terminals": "Terminals",
-    "createAdminStepUpHint": "Das Anlegen eines Admin-Benutzers gewährt vollen, uneingeschränkten Zugriff auf diese Installation. Bitte bestätigen, dass Sie es sind.",
+    "createAdminStepUpHint": "Das Konto erhält genau die oben gewählten Rollen — eine Rolle zu vergeben heißt, Befugnisse zu erteilen. Bitte bestätigen Sie, dass Sie es sind.",
     "createTerminal": "Terminal erstellen",
     "createTerminalStepUpHint": "Beim Anlegen eines Terminals wird ein Zugang erzeugt, der die Mitgliederliste lesen und Verkäufe buchen kann. Bitte bestätigen, dass Sie es sind.",
     "editTerminal": "Terminal bearbeiten",
@@ -1004,7 +1004,8 @@
     "invitationPending": "Einladung offen",
     "invitationPendingHint": "Dieses Konto hat noch kein Passwort. Es kann sich erst anmelden, wenn die Einladung angenommen wurde.",
     "resendInvitation": "Einladung erneut senden",
-    "resendInvitationConfirm": "Diesem Konto eine neue Einladung schicken? Der bisherige Link wird dadurch ungültig."
+    "resendInvitationConfirm": "Diesem Konto eine neue Einladung schicken? Der bisherige Link wird dadurch ungültig.",
+    "roleLabel": "Rolle"
   },
   "auditLog": {
     "title": "Audit-Log",
@@ -1494,7 +1495,7 @@
     }
   },
   "invite": {
-    "title": "Admin-Zugang einrichten",
+    "title": "Zugang einrichten",
     "subtitle": "Hallo {{name}} — legen Sie jetzt Ihr Passwort fest.",
     "invalidSubtitle": "Dieser Link funktioniert nicht mehr.",
     "emailLabel": "Anmeldeadresse",
@@ -1513,6 +1514,7 @@
     "errors": {
       "invalidLink": "Dieser Einladungslink ist abgelaufen oder wurde bereits verwendet. Bitten Sie um eine neue Einladung.",
       "acceptFailed": "Das Passwort konnte nicht gespeichert werden."
-    }
+    },
+    "roleLabel": "Ihre Rolle"
   }
 }
