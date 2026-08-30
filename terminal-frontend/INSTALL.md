@@ -1,15 +1,24 @@
 # Club Bar Terminal — Installation Guide
 
 This guide covers deploying the Club Bar terminal app on a Raspberry Pi running
-Raspberry Pi OS (Bookworm). The terminal is a Flutter desktop app targeting
-embedded Linux, typically running fullscreen on a touchscreen display.
+Raspberry Pi OS. The terminal is a Flutter desktop app targeting embedded Linux,
+typically running fullscreen on a touchscreen display.
+
+**Work through it in order.** Sections 5 to 7 are not optional extras: an
+unattended till that cannot rejoin its wifi, keeps the wrong time, or never
+restarts its own app is one somebody has to drive to. Each of them exists
+because of a failure that actually happened.
+
+Once a terminal is running, [`docs/runbook-terminal-pi.md`](../docs/runbook-terminal-pi.md)
+is the other half: what to do when one stops responding.
 
 ---
 
 ## Prerequisites
 
 - Raspberry Pi 4 or 5, 2 GB RAM minimum
-- Raspberry Pi OS Bookworm (64-bit, desktop)
+- Raspberry Pi OS Bookworm or Trixie (64-bit, desktop). §§3 and 5 assume the
+  Wayland session both ship (labwc); see the notes there for X11
 - Official Raspberry Pi touchscreen, or any HDMI touchscreen
 - RFID/NFC USB reader (keyboard-emulation mode)
 - Network access to the Club Bar backend
@@ -58,7 +67,7 @@ DISPLAY=:0 /opt/clubbar-terminal/clubbar_terminal
 
 ## 2. Disable the on-screen keyboard
 
-Raspberry Pi OS Bookworm ships with **squeekboard**, a Wayland on-screen
+Raspberry Pi OS ships with **squeekboard**, a Wayland on-screen
 keyboard that pops up automatically when a text field is focused. The Club Bar
 terminal is a point-and-click kiosk — the setup screen is filled in once during
 commissioning using a physical keyboard, so the on-screen keyboard is never
@@ -150,26 +159,50 @@ wakes the screen never lands on a button underneath.
 
 ---
 
-## 4. Autostart the terminal app
+## 4. Autostart and supervision
 
-Create `~/.config/autostart/clubbar-terminal.desktop`:
+`~/.config/autostart/clubbar-terminal.desktop` launching the binary directly has
+no crash recovery: if `clubbar_terminal` dies, the bar has a dead screen until
+somebody notices. The `.desktop` entry is kept — its timing (after the
+compositor) is what makes it work — but it now only hands off to a supervised
+user unit:
 
 ```ini
-[Desktop Entry]
-Type=Application
-Name=Club Bar Terminal
-Exec=env GST_AUDIO_SINK=alsasink /opt/clubbar-terminal/clubbar_terminal
-Hidden=false
-X-GNOME-Autostart-enabled=true
+# ~/.config/autostart/clubbar-terminal.desktop
+Exec=systemctl --user start clubbar-terminal.service
 ```
 
-The app reads its window mode from `config.json` on startup.
+```ini
+# ~/.config/systemd/user/clubbar-terminal.service
+[Unit]
+Description=Club Bar Terminal (kiosk POS)
+After=graphical-session.target
+StartLimitIntervalSec=0          # never give up; a dead till cannot sell
+
+[Service]
+Type=simple
+Environment=GST_AUDIO_SINK=alsasink
+ExecStart=/opt/clubbar-terminal/clubbar_terminal
+Restart=always
+RestartSec=3
+```
+
+`graphical-session.target` is inactive under labwc, so the unit is *not* hung
+off it — the `.desktop` entry is the trigger, and the user manager already has
+`WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` imported, which the service inherits.
+
+Verify by killing it:
+
+```bash
+kill -9 $(systemctl --user show -p MainPID --value clubbar-terminal.service)
+sleep 8 && systemctl --user show -p NRestarts --value clubbar-terminal.service   # 1
+```
 
 ### Fullscreen / kiosk mode
 
 To run the app fullscreen (recommended for production kiosk deployments), add
 `"fullscreen": true` to the terminal's `config.json` (see
-[Configuration reference](#5-configuration-reference) for the full schema):
+[Configuration reference](#8-configuration-reference) for the full schema):
 
 ```json
 {
@@ -180,24 +213,179 @@ To run the app fullscreen (recommended for production kiosk deployments), add
 }
 ```
 
-Alternatively, set the environment variable `TERMINAL_FULLSCREEN=true` in the
-`.desktop` file:
-
-```ini
-[Desktop Entry]
-Type=Application
-Name=Club Bar Terminal
-Exec=env TERMINAL_FULLSCREEN=true /opt/clubbar-terminal/clubbar_terminal
-Hidden=false
-X-GNOME-Autostart-enabled=true
-```
+Environment variables can also be set on the service (see §4), but
+`config.json` is the normal route.
 
 > **Development machines:** Leave `fullscreen` unset (defaults to `false`) so
 > the app opens in a normal window. Only set it on deployed kiosk hardware.
 
+
 ---
 
-## 5. Configuration reference
+## 5. Network: two SSIDs that persist
+
+> Sections 5–7 harden the machine rather than configure the app. They are what
+> stand between a terminal that recovers on its own and one that strands
+> itself — see §1 of the runbook for the failure each prevents.
+
+Run once per terminal. Priority decides which wins when both are in range —
+the Verein network should always outrank the maintenance one.
+
+Use `sudo nmtui` if you would rather not put the PSK on a command line — the
+commands below land it in shell history.
+
+```bash
+VEREIN_SSID="<verein-ssid>"        # where the terminal lives
+MAINT_SSID="<maintenance-ssid>"    # home/workshop, for provisioning and repair
+
+sudo nmcli device wifi connect "$VEREIN_SSID" password "<psk>"
+sudo nmcli device wifi connect "$MAINT_SSID"  password "<psk>"
+
+for c in "$VEREIN_SSID:100" "$MAINT_SSID:50"; do
+  n="${c%:*}"; p="${c#*:}"
+  sudo nmcli connection modify "$n" \
+    connection.autoconnect yes \
+    connection.autoconnect-priority "$p" \
+    connection.autoconnect-retries 0 \
+    802-11-wireless.powersave 2 \
+    802-11-wireless.cloned-mac-address permanent \
+    ipv4.dhcp-timeout 60
+done
+```
+
+What each setting buys:
+
+- **`autoconnect-retries 0`** — retry forever. This is the single most important
+  line; it is what prevents the wedged state described above.
+- **`powersave 2`** — disabled (the numbering is unintuitive: `2` off, `3` on).
+- **`cloned-mac-address permanent`** — no MAC randomisation, so DHCP
+  reservations on the router keep working.
+- **`autoconnect-priority`** — higher wins.
+
+Verify:
+
+```bash
+nmcli -f NAME,AUTOCONNECT,AUTOCONNECT-PRIORITY connection show
+sudo ls -l /etc/NetworkManager/system-connections/   # one file per SSID, mode 600
+```
+
+### Wifi watchdog
+
+NetworkManager retrying forever covers most failures, but a wedged supplicant
+can leave NM believing the link is fine. The watchdog only acts when genuinely
+disconnected, so it never disturbs a healthy link.
+
+```bash
+sudo tee /usr/local/sbin/wifi-watchdog.sh >/dev/null <<'EOF'
+#!/bin/bash
+set -u
+state=$(nmcli -t -f STATE general 2>/dev/null)
+[ "$state" = "connected" ] && exit 0
+
+logger -t wifi-watchdog "state=$state - attempting recovery"
+nmcli device wifi rescan >/dev/null 2>&1
+sleep 5
+
+# Try known wifi profiles in descending autoconnect-priority order. Derived
+# from NetworkManager rather than hardcoded, so adding or renaming an SSID
+# needs no edit here.
+while IFS=: read -r prio name; do
+  [ -n "$name" ] || continue
+  if nmcli connection up "$name" >/dev/null 2>&1; then
+    logger -t wifi-watchdog "reconnected via $name"
+    exit 0
+  fi
+done < <(nmcli -t -f NAME,TYPE,AUTOCONNECT-PRIORITY connection show \
+         | awk -F: '$2 == "802-11-wireless" { print $3 ":" $1 }' | sort -rn)
+
+logger -t wifi-watchdog "recovery failed - no known SSID in range"
+EOF
+sudo chmod +x /usr/local/sbin/wifi-watchdog.sh
+```
+
+```ini
+# /etc/systemd/system/wifi-watchdog.service
+[Unit]
+Description=Club Bar wifi watchdog
+After=NetworkManager.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/wifi-watchdog.sh
+```
+
+```ini
+# /etc/systemd/system/wifi-watchdog.timer
+[Unit]
+Description=Run wifi watchdog every 3 minutes
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3min
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now wifi-watchdog.timer
+journalctl -t wifi-watchdog --no-pager | tail
+```
+
+---
+
+## 6. Clock — install `fake-hwclock`
+
+**A Pi has no RTC.** Without `fake-hwclock`, systemd falls back at boot to the
+newest timestamp it can find on disk — typically the build date or the mtime of
+`/var/lib/systemd/timesync/clock` — so the clock resumes at some *earlier*
+moment and is only corrected once NTP is reachable. On the reference unit this produced
+a boot that believed it was 11:44 for 23 minutes, then jumped forward 4h49m the
+instant timesyncd reached a server.
+
+```bash
+sudo apt-get install -y fake-hwclock
+systemctl is-enabled fake-hwclock-load fake-hwclock-save.timer   # both: enabled
+```
+
+`fake-hwclock.service` showing `masked` is normal — it is the SysV compat shim,
+masked in favour of the native `-load` / `-save` units.
+
+**This is not cosmetic on a POS.** The terminal stamps `created_at` on every
+transaction locally. A sale rung up before NTP syncs carries a wrong timestamp
+into the sync payload, and the backend's delta sync is timestamp-driven
+(ADR-0033). A terminal that is offline — the exact situation where the clock is
+never corrected — is also the situation where sales queue locally the longest.
+For a terminal handling real money, consider a DS3231 RTC HAT (~5 EUR, I2C);
+it removes the failure mode rather than shortening it.
+
+---
+
+## 7. Hardware watchdog and journal retention
+
+A Pi has `/dev/watchdog`; systemd does not use it unless told to. Without it a
+hard kernel hang means an unreachable terminal until someone power-cycles it.
+
+```ini
+# /etc/systemd/system.conf.d/watchdog.conf
+[Manager]
+RuntimeWatchdogSec=15s
+RebootWatchdogSec=2min
+```
+
+### Journal retention
+
+Default journald kept only 2 boots on the reference unit, which is why the original
+failure left no evidence. Set it explicitly:
+
+```ini
+# /etc/systemd/journald.conf.d/retention.conf
+[Journal]
+Storage=persistent
+SystemMaxUse=200M
+MaxRetentionSec=6month
+```
+
+---
+
+## 8. Configuration reference
 
 All runtime configuration lives in a single `config.json` file. The location is
 platform-specific and resolved automatically by the app:
@@ -376,14 +564,14 @@ for CI, Docker deployments, or `.desktop` file `Exec=env ...` lines:
 
 ---
 
-## 6. First-time setup
+## 9. First-time setup
 
 The app requires a valid `config.json` before it will start. If the file is
 missing or incomplete the app prints the expected path to stderr and exits
 with code 1 — it will not launch into the UI.
 
 Create the config file at the path printed in the error message (see
-[Configuration reference](#5-configuration-reference)) with at least the
+[Configuration reference](#8-configuration-reference)) with at least the
 three required fields:
 
 ```json
@@ -400,7 +588,7 @@ database and opens the idle RFID scanning screen.
 
 ---
 
-## 7. Optional: Token Dispenser
+## 10. Optional: Token Dispenser
 
 Club Bar can integrate with a physical token dispenser for venues that use
 coin-operated equipment (saunas, laundromats, arcades). The dispenser is an
@@ -541,7 +729,7 @@ wherever the mock is running) to test the full checkout flow.
 
 | Symptom | Fix |
 |---------|-----|
-| App exits immediately with "configuration missing" | Create `config.json` at the path shown in the error — see [First-time setup](#6-first-time-setup) |
+| App exits immediately with "configuration missing" | Create `config.json` at the path shown in the error — see [First-time setup](#9-first-time-setup) |
 | On-screen keyboard still appears | Check `ls /etc/xdg/autostart/` for other keyboard entries (e.g. `onboard.desktop`) and rename them |
 | Screen never blanks | Check `screenBlanking.enabled` in `config.json` |
 | Screen blanks but the panel stays lit | The panel ignores signal loss — set `"mode": "overlay"` |
