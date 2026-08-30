@@ -4,6 +4,39 @@ Utility scripts for development workflows.
 
 ## Available Scripts
 
+### `kiosk-session-setup.sh`
+
+Turns a stock Raspberry Pi OS desktop session into a kiosk session: disables the
+panel (`wf-panel-pi`) and desktop (`pcmanfm-pi`) in `/etc/xdg/labwc/autostart`,
+and pins the output mode via kanshi. Idempotent, so it is also what to re-run
+after a system upgrade restores the packaged autostart.
+
+```bash
+sudo ./kiosk-session-setup.sh --now    # apply, and stop what is running
+./kiosk-session-setup.sh --check       # report only, changes nothing
+```
+
+**Why both must go:** the desktop takes keyboard focus, so a card scan lands in
+its type-ahead find box and the terminal never sees the keystroke that lifts
+screen blanking — it stays black with the panel lit and reads as a dead till.
+The panel is remapped above the fullscreen window by `lwrespawn` whenever it
+dies. See [`INSTALL.md`](../INSTALL.md#the-session-must-hold-exactly-one-window).
+
+### `kiosk-doctor.sh`
+
+Checks a live terminal against every rule in `INSTALL.md`: focus competitors,
+the pinned output mode, `clubbar-terminal.service`, whether the configured RFID
+reader is actually present, `seedTestData`/`demoMode`, the blanking mode and
+timeout, and stray `armhf` packages. Read-only — safe on a till that is serving.
+
+```bash
+./kiosk-doctor.sh            # full report
+./kiosk-doctor.sh --quiet    # only WARN and FAIL
+```
+
+Exit code `1` means at least one FAIL, so it works in a check script.
+
+
 ### `reset-db.sh`
 
 Resets the local SQLite database by removing the app's data file. On the next app launch, the database will be recreated and seeded with fresh mock data.
