@@ -188,6 +188,40 @@ else
   fi
 fi
 
+# ------------------------------------------------------------- health telemetry
+
+head2 "Health telemetry"
+
+# vcgencmd is how the runbook answers "has it been overheating?" and "is the PSU
+# coping?". It needs /dev/vcio, and that node is only group-readable if a udev
+# rule matches it. raspberrypi-sys-mods 1:20260612 ships rules for the newer
+# vcio_gencmd/vcio_crypto names only, so on a 6.12 kernel — which still creates
+# plain /dev/vcio — the node stays 0600 root:root and every check below fails
+# for the kiosk user. Silently: the terminal runs fine, and the one tool that
+# would reveal undervoltage or throttling is simply unavailable.
+if ! command -v vcgencmd >/dev/null 2>&1; then
+  warn "vcgencmd not installed — no temperature or throttling telemetry"
+elif ! vcgencmd get_throttled >/dev/null 2>&1; then
+  fail "vcgencmd cannot read /dev/vcio — temperature and throttling are unavailable"
+  note "$(ls -l /dev/vcio 2>/dev/null || echo '/dev/vcio missing')"
+  note "fix: a udev rule granting the video group access, e.g."
+  note "  KERNEL==\"vcio\", GROUP=\"video\", MODE=\"0660\" in /etc/udev/rules.d/"
+else
+  throttled=$(vcgencmd get_throttled | cut -d= -f2)
+  temp=$(vcgencmd measure_temp | cut -d= -f2)
+  if [ "$throttled" = "0x0" ]; then
+    ok "temperature $temp, throttling $throttled (clean)"
+  else
+    # bit 0 undervoltage now, bit 16 undervoltage has occurred,
+    # bit 3/19 soft temperature limit now/since boot.
+    warn "throttling word is $throttled (temperature $temp) — not clean"
+    [ $(( $(printf '%d' "$throttled") & 0x10000 )) -ne 0 ] && \
+      note "undervoltage has occurred since boot — suspect the PSU or cable"
+    [ $(( $(printf '%d' "$throttled") & 0x80000 )) -ne 0 ] && \
+      note "the soft temperature limit was reached — the till slows under load"
+  fi
+fi
+
 # ------------------------------------------------------------------- packages
 
 head2 "Packages"

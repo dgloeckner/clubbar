@@ -16,6 +16,11 @@ is the other half: what to do when one stops responding.
 
 ## Prerequisites
 
+> The hardware in service, with its measured capabilities and limits, is
+> [`docs/terminal-hardware.md`](../docs/terminal-hardware.md). Read it before
+> choosing a panel — whether the touchscreen survives standby is decided there,
+> not here.
+
 - Raspberry Pi 4 or 5, 2 GB RAM minimum
 - Raspberry Pi OS Bookworm or Trixie (64-bit, desktop). §§3 and 5 assume the
   Wayland session both ship (labwc); see the notes there for X11
