@@ -8,8 +8,10 @@ Utility scripts for development workflows.
 
 Turns a stock Raspberry Pi OS desktop session into a kiosk session: disables the
 panel (`wf-panel-pi`) and desktop (`pcmanfm-pi`) in `/etc/xdg/labwc/autostart`,
-and pins the output mode via kanshi. Idempotent, so it is also what to re-run
-after a system upgrade restores the packaged autostart.
+pins the output mode via kanshi, and pins the audio output to the HDMI display
+so WirePlumber cannot pick the unused 3.5 mm jack on the next boot. Idempotent,
+so it is also what to re-run after a system upgrade restores the packaged
+autostart.
 
 ```bash
 sudo ./kiosk-session-setup.sh --now    # apply, and stop what is running
@@ -27,7 +29,14 @@ dies. See [`INSTALL.md`](../INSTALL.md#the-session-must-hold-exactly-one-window)
 Checks a live terminal against every rule in `INSTALL.md`: focus competitors,
 the pinned output mode, `clubbar-terminal.service`, whether the configured RFID
 reader is actually present, `seedTestData`/`demoMode`, the blanking mode and
-timeout, and stray `armhf` packages. Read-only — safe on a till that is serving.
+timeout, **where its sound actually goes**, and stray `armhf` packages.
+Read-only — safe on a till that is serving.
+
+The audio checks exist because on 2026-08-30 this script gave a terminal a
+clean bill of health — *no failures, 0 warnings* — while it had been silent for
+hours. The sound was going to the empty 3.5 mm jack, and every layer below
+reported success, because playing into an unconnected port *is* success. Set
+`EXPECT_SINK` if a terminal is wired to the jack rather than the display.
 
 ```bash
 ./kiosk-doctor.sh            # full report

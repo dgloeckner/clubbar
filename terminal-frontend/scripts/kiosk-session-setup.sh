@@ -21,6 +21,12 @@
 # negotiated then — a frame-size timeout in the app log and a mode-change OSD
 # from the monitor on every wake.
 #
+# Finally it pins the audio output. The speakers are in the HDMI display and
+# the 3.5 mm jack is unused, but WirePlumber's stock priorities pick the jack
+# often enough that the till comes up silent after some boots and not others.
+# Nothing reports an error, because playing into an unconnected port succeeds
+# at every layer.
+#
 # Idempotent: re-running changes nothing and re-verifies. Safe to run on a
 # terminal in service, though the session changes only take effect at the next
 # session start (--now stops the running panel and desktop as well).
@@ -43,13 +49,24 @@ for arg in "$@"; do
   case "$arg" in
     --now) APPLY_NOW=1 ;;
     --check) CHECK_ONLY=1 ;;
-    -h|--help) sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,42p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
 
 say()  { printf '  %s\n' "$1"; }
 step() { printf '\n%s\n' "$1"; }
+
+# Run a command in the kiosk user's session — the script runs under sudo, so
+# both the user and XDG_RUNTIME_DIR have to be handed over explicitly or every
+# systemctl --user and pactl call talks to root's (nonexistent) session.
+run_as_kiosk() {
+  if [ "$(id -un)" = "$KIOSK_USER" ]; then
+    XDG_RUNTIME_DIR="/run/user/$(id -u "$KIOSK_USER")" "$@"
+  else
+    sudo -u "$KIOSK_USER" XDG_RUNTIME_DIR="/run/user/$(id -u "$KIOSK_USER")" "$@"
+  fi
+}
 
 # The user whose session this is — the script runs under sudo, so $HOME is
 # root's. Everything under a home directory must go to the real user's.
@@ -146,9 +163,92 @@ else
   say '    profile { output HDMI-A-1 enable mode 1280x800@59.996 position 0,0 }'
 fi
 
-# ------------------------------------------------------------------- 3. verify
+# ------------------------------------------------------------ 3. audio output
 
-step "3. Verify"
+step "3. Audio output"
+
+# The speakers on this hardware are in the HDMI display; the 3.5 mm jack is
+# unused. WirePlumber's stock priorities pick the jack often enough that the
+# terminal comes up silent after some boots and not others — and nothing
+# reports an error, because playing into an unconnected port succeeds at every
+# layer. Sink the analog device below HDMI so the choice cannot go wrong even
+# when ~/.local/state/wireplumber is empty (a fresh user, a reset, an upgrade).
+#
+# Diagnosed on ruderbar 2026-08-30. See docs/audio-dropout-debugging.md §G.
+
+WP_DIR="$KIOSK_HOME/.config/wireplumber/wireplumber.conf.d"
+WP_RULE="$WP_DIR/50-clubbar-hdmi-priority.conf"
+
+read -r -d '' WP_CONTENT <<'WPEOF' || true
+# Club Bar terminal — installed by kiosk-session-setup.sh.
+#
+# The 3.5 mm jack has nothing plugged into it. Left to its own priorities
+# WirePlumber picks it as the default sink on some boots, and the terminal is
+# then silent with no error anywhere: pactl, the ALSA substream and GStreamer
+# all report success while the sound goes to a dead port.
+#
+# Sink the analog device below HDMI so the display speakers win even when no
+# default has been persisted.
+monitor.alsa.rules = [
+  {
+    matches = [ { node.name = "~alsa_output.platform-.*\.mailbox.*" } ]
+    actions = {
+      update-props = {
+        priority.session = 100
+        priority.driver  = 100
+      }
+    }
+  }
+  {
+    matches = [ { node.name = "~alsa_output.platform-.*\.hdmi.*" } ]
+    actions = {
+      update-props = {
+        priority.session = 2000
+        priority.driver  = 2000
+      }
+    }
+  }
+]
+WPEOF
+
+if [ -r "$WP_RULE" ] && [ "$(cat "$WP_RULE")" = "$WP_CONTENT" ]; then
+  say "HDMI priority rule already installed"
+elif [ "$CHECK_ONLY" = 1 ]; then
+  say "WOULD install $WP_RULE (HDMI above the unused analog jack)"
+else
+  install -d -o "$KIOSK_USER" -g "$KIOSK_USER" -m 0755 "$WP_DIR"
+  printf '%s\n' "$WP_CONTENT" > "$WP_RULE"
+  chown "$KIOSK_USER:$KIOSK_USER" "$WP_RULE"
+  chmod 0644 "$WP_RULE"
+  say "installed $WP_RULE"
+
+  # Apply it now. WirePlumber reads its config at start, so without this the
+  # rule does nothing until the next session — and a terminal in service stays
+  # silent for the rest of the evening.
+  if run_as_kiosk systemctl --user restart wireplumber 2>/dev/null; then
+    sleep 3
+    say "restarted wireplumber"
+  else
+    say "NOTE: could not restart wireplumber; the rule applies at next login"
+  fi
+fi
+
+# Persist the choice as well as biasing it. The rule decides a fresh pick; the
+# saved default is what an already-running session honours.
+if [ "$CHECK_ONLY" = 0 ]; then
+  hdmi_sink=$(run_as_kiosk pactl list short sinks 2>/dev/null | awk '/hdmi/ {print $2; exit}')
+  if [ -n "$hdmi_sink" ]; then
+    run_as_kiosk pactl set-default-sink "$hdmi_sink" 2>/dev/null || true
+    run_as_kiosk pactl set-sink-mute "$hdmi_sink" 0 2>/dev/null || true
+    say "default sink set to $hdmi_sink (unmuted)"
+  else
+    say "NOTE: no HDMI sink visible — is the display connected and awake?"
+  fi
+fi
+
+# ------------------------------------------------------------------- 4. verify
+
+step "4. Verify"
 
 # pgrep -c prints 0 and exits non-zero when nothing matches; wc -l always answers.
 # `|| true` inside the group matters: pgrep exits 1 when nothing matches, and

@@ -13,6 +13,8 @@
 #   ./kiosk-doctor.sh          # human-readable report
 #   ./kiosk-doctor.sh --quiet  # only WARN and FAIL lines
 #
+# EXPECT_SINK=hdmi   substring the default audio sink must match (default: hdmi)
+#
 # Exit codes:
 #   0  no FAIL (warnings may be present)
 #   1  at least one FAIL — the terminal is misconfigured
@@ -24,7 +26,7 @@ QUIET=0
 for arg in "$@"; do
   case "$arg" in
     --quiet) QUIET=1 ;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
@@ -185,6 +187,99 @@ else
     if [ -n "$timeout" ] && [ "$timeout" -lt 300 ]; then
       warn "a ${timeout}s timeout blanks during service; production uses 3600"
     fi
+  fi
+fi
+
+# ---------------------------------------------------------------------- audio
+
+head2 "Audio"
+
+# The terminal is silent far more often than it is broken, and the silence
+# leaves no trace: PipeWire, ALSA and GStreamer all report success while the
+# audio goes to a port with nothing plugged into it.
+#
+# Measured on ruderbar 2026-08-30. Every layer was healthy — the sink RUNNING,
+# the substream advancing, the clips extracted, the mixer at 100% — and the
+# terminal made no sound for hours, because WirePlumber had made the empty
+# 3.5 mm jack the default sink. There is no error to grep for anywhere, which
+# is why it has to be a check rather than a log line.
+#
+# It is intermittent for one reason: with no ~/.local/state/wireplumber/
+# default-nodes, WirePlumber re-picks the default by priority on EVERY boot.
+# That is the "works after some boots, silent after others" the bar reports.
+
+# The speakers on this hardware are in the HDMI display (see
+# docs/terminal-hardware.md); the jack is unused. If a terminal is ever wired
+# the other way round, set EXPECT_SINK to a substring of its sink name.
+EXPECT_SINK="${EXPECT_SINK:-hdmi}"
+
+if ! command -v pactl >/dev/null 2>&1; then
+  warn "pactl not installed — cannot check where the terminal's sound goes"
+elif ! pactl info >/dev/null 2>&1; then
+  fail "no sound server reachable on \$XDG_RUNTIME_DIR/pulse — the terminal is silent"
+  note "the app plays to ALSA 'default', which is the pulse plugin on Pi OS"
+else
+  default_sink=$(pactl get-default-sink 2>/dev/null)
+  if [ -z "$default_sink" ] || [ "$default_sink" = "@DEFAULT_SINK@" ]; then
+    fail "no default sink — nothing will be audible"
+  elif printf '%s' "$default_sink" | grep -q "$EXPECT_SINK"; then
+    ok "default sink is the expected output ($default_sink)"
+  else
+    fail "default sink is $default_sink, expected one matching '$EXPECT_SINK'"
+    note "the terminal is playing into an output nobody is listening to;"
+    note "on this hardware the 3.5 mm jack has nothing plugged into it"
+    note "fix: sudo ./kiosk-session-setup.sh"
+  fi
+
+  # Volume and mute on the sink that is actually in use. A muted or near-zero
+  # sink is silence that looks identical to a routing fault from the app side.
+  sink_state=$(pactl list sinks 2>/dev/null | awk -v want="$default_sink" '
+    $1 == "Name:" { in_sink = ($2 == want) }
+    in_sink && $1 == "Mute:"   { mute = $2 }
+    in_sink && $1 == "Volume:" && vol == "" { gsub(/%/, "", $5); vol = $5 }
+    END { print mute " " vol }
+  ')
+  sink_mute=${sink_state%% *}
+  sink_vol=${sink_state##* }
+  if [ "$sink_mute" = "yes" ]; then
+    fail "the default sink is muted"
+    note "fix: pactl set-sink-mute $default_sink 0"
+  elif [ -n "$sink_vol" ] && [ "$sink_vol" -lt 50 ] 2>/dev/null; then
+    # PipeWire volume is cubic, not linear: 40% is about -24 dB. The terminal
+    # was found at exactly that, which is quiet enough to read as no sound at
+    # all across a busy room. A deliberate lower setting is fine, hence WARN.
+    warn "the default sink is at ${sink_vol}% — easily mistaken for no sound"
+    note "PipeWire volume is cubic: 40% is about -24 dB, not 'a bit quieter'"
+  elif [ -n "$sink_vol" ]; then
+    ok "default sink unmuted at ${sink_vol}%"
+  fi
+fi
+
+# The persisted choice. Its absence is the mechanism behind the intermittency,
+# so it is worth reporting even when today's default happens to be right.
+wp_state="$HOME/.local/state/wireplumber/default-nodes"
+wp_rule="$HOME/.config/wireplumber/wireplumber.conf.d/50-clubbar-hdmi-priority.conf"
+if [ -r "$wp_rule" ]; then
+  ok "WirePlumber priority rule present — HDMI wins even with no saved default"
+elif [ -s "$wp_state" ]; then
+  warn "no WirePlumber priority rule; the default rests on $wp_state alone"
+  note "lose that file and the next boot may pick the empty jack again"
+  note "fix: sudo ./kiosk-session-setup.sh"
+else
+  fail "nothing pins the default sink — WirePlumber re-picks it on every boot"
+  note "this is the 'sound works after some boots and not others' fault"
+  note "fix: sudo ./kiosk-session-setup.sh"
+fi
+
+# Sounds can also simply be switched off in the app, which looks exactly like
+# a broken audio stack to whoever is standing at the till.
+if [ -r "$CONFIG" ]; then
+  if grep -q '"soundsEnabled"[[:space:]]*:[[:space:]]*false' "$CONFIG"; then
+    fail "soundsEnabled is false in config.json — the app plays nothing by design"
+  elif grep -q '"soundsEnabled"[[:space:]]*:[[:space:]]*true' "$CONFIG"; then
+    ok "soundsEnabled is true"
+  else
+    warn "no soundsEnabled key in config.json"
   fi
 fi
 

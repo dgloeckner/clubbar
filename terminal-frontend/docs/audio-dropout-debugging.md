@@ -5,6 +5,13 @@
 This is about that fault, not about a terminal that has never made a sound —
 for a first-time setup go to [Audio setup on Raspberry Pi](audio-setup-raspberry-pi.md).
 
+> **Check cause G first.** One occurrence of this fault has now been diagnosed
+> end to end, and it was none of the candidates below: the sound was going to
+> the empty 3.5 mm jack. It costs one command to exclude —
+> `pactl get-default-sink` — or run `kiosk-doctor.sh`, which checks it along
+> with everything else. Only if that comes back right is the rest of this
+> document the place to be.
+
 ## 0. The first rule: do not reboot yet
 
 A reboot is the one action that destroys every piece of evidence in a fault
@@ -15,12 +22,14 @@ so the state of the machine *while it is silent* is the only witness there is.
 While the fault is live, on the Pi:
 
 ```bash
+/opt/clubbar-terminal/scripts/kiosk-doctor.sh        # seconds; names cause G outright
 /opt/clubbar-terminal/scripts/audio-diagnose.sh      # ~/audio-diagnose-<timestamp>.txt
 ```
 
-It is read-only apart from the report it writes, takes a few seconds, and its
-last section deliberately makes noise (`--no-play` skips that). Keep the file;
-then reboot if you need the bar working.
+`kiosk-doctor.sh` changes nothing at all and answers in seconds. `audio-diagnose.sh`
+is read-only apart from the report it writes, and its last section deliberately
+makes noise (`--no-play` skips that). Keep the file; then reboot if you need the
+bar working.
 
 ## 1. Two questions that halve the search
 
@@ -93,8 +102,9 @@ Rotate it if you leave it on: `logs/stdout.log` is not size-bounded the way
 
 ## 3. The candidates, ranked
 
-Ranked by how well each explains *"no change, gone, reboot fixes it"*. None is
-confirmed — the capture is what tells them apart.
+Ranked by how well each explains *"no change, gone, reboot fixes it"*. **G** is
+confirmed and belongs at the top of this list in practice — check it first. A
+to F remain hypotheses; the capture is what tells them apart.
 
 ### A. The sink the app bound at startup is gone
 
@@ -196,6 +206,61 @@ on first play. `/tmp` is swept by `systemd-tmpfiles-clean` on a timer, so on a
 terminal that idles for weeks the clips can be deleted underneath a running
 app. Version 6.6.0 re-checks the file and re-extracts it, so this should heal
 itself — section 6 confirms whether the files are there.
+
+### G. The default sink is an output nobody is listening to — **CONFIRMED**
+
+The one cause on this page that has actually been caught in the act, on
+`ruderbar`, 2026-08-30. It is listed last because it was found last, and first
+in the box at the top because it is the one to exclude before reading any of
+the others.
+
+PipeWire's default sink was `alsa_output.platform-fe00b840.mailbox.stereo-fallback`
+— the **3.5 mm analog jack**, which on this hardware has nothing plugged into
+it. The speakers are in the HDMI display.
+
+What makes it expensive to find is that **nothing fails**. Every layer reports
+success, because playing into an unconnected port *is* success:
+
+| Layer | What it said |
+|-------|--------------|
+| `pactl list short sinks` | `RUNNING` |
+| `/proc/asound/card*/pcm0p/sub0/status` | `state: RUNNING`, `hw_ptr` advancing |
+| GStreamer with `GST_DEBUG=2` | prerolled, played, EOS, no error |
+| ALSA mixer | `100%`, unmuted |
+| `audio-diagnose.sh` | a clean capture |
+| `kiosk-doctor.sh` (before this fix) | **no failures, 0 warnings** |
+
+There is no error anywhere to grep for. That is why it is a *check* now rather
+than something to find in a log.
+
+**Why it is intermittent.** `~/.local/state/wireplumber/default-nodes` did not
+exist, so WirePlumber re-picked the default by priority on **every boot**. That
+is precisely the reported shape — "it works for a while, then it does not work
+on a freshly booted Pi". Nothing had to change for it to break; the pick simply
+came out differently.
+
+**Confirm:**
+
+```bash
+pactl get-default-sink        # want: ...fef00700.hdmi..., not ...mailbox...
+ls ~/.local/state/wireplumber/default-nodes    # its absence is the mechanism
+```
+
+**Fix:** `sudo ./kiosk-session-setup.sh` installs
+`~/.config/wireplumber/wireplumber.conf.d/50-clubbar-hdmi-priority.conf`, which
+sinks the analog device below HDMI, and persists the default as well. Verified
+by deleting `default-nodes` and restarting WirePlumber — HDMI still wins — and
+again across a real reboot.
+
+**Ruled out by experiment during the same session, so do not re-chase them:**
+
+| Suspected | Measured |
+|-----------|----------|
+| Screen blanking (`mode: output-power`) | `wlopm --off` then `--on` leaves the HDMI sink, the default sink *and* audibility intact |
+| Video mode | Audible at both 1280x800 (native, non-CTA) and 1280x720 (CTA). The panel's EDID advertises Basic audio, LPCM 2ch, FL/FR |
+| USB or Bluetooth speakers | None exist on this terminal — only HDMI0 and the jack |
+| The mass `apt-get install` of 2026-08-30 | Reinstalled pipewire/wireplumber but did not cause this; the rule survives it, which is the point of having a rule |
+| Mixer mute, missing clips, held device | All clean in the capture |
 
 ## 4. Follow-ups in the app
 
