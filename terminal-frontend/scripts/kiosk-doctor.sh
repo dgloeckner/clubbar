@@ -231,8 +231,26 @@ head2 "Packages"
 if dpkg --print-foreign-architectures 2>/dev/null | grep -q armhf; then
   note "armhf multiarch is enabled (the Pi OS default)"
   note "never 'apt-get install -y' here — simulate first, see INSTALL.md"
-  stray=$(dpkg -l 2>/dev/null | grep -c ':armhf' || true)
-  [ "${stray:-0}" -gt 0 ] && warn "$stray armhf package(s) installed — unusual on a terminal"
+  # What matters is not that armhf *libraries* are present — once a foreign-arch
+  # install has happened they are near-impossible to remove, because purging
+  # them cascades into libc6:armhf, which is Essential. They are inert. What
+  # matters is an armhf package that ships an executable: that is something
+  # actually running 32-bit, i.e. the mistake still in place.
+  stray=$(dpkg -l 2>/dev/null | awk '/:armhf/ {print $2}')
+  if [ -n "$stray" ]; then
+    exec_pkgs=""
+    for pkg in $stray; do
+      dpkg -L "$pkg" 2>/dev/null | grep -qE '^/usr/(bin|sbin)/' && exec_pkgs="$exec_pkgs $pkg"
+    done
+    if [ -n "$exec_pkgs" ]; then
+      fail "armhf package(s) shipping executables:$exec_pkgs"
+      note "a 32-bit package on this machine is what removes the 64-bit desktop"
+    else
+      note "$(echo "$stray" | wc -l | tr -d ' ') armhf librar(y|ies) present but inert"
+      note "leftovers of a foreign-arch install; purging them cascades into"
+      note "libc6:armhf, which is Essential, so they are left in place"
+    fi
+  fi
 fi
 
 # --------------------------------------------------------------------- result
