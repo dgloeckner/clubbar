@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\AdminUsers\Services;
 
+use App\Modules\AdminUsers\DTOs\AdminInvitationDto;
 use App\Modules\AdminUsers\DTOs\AdminUserDto;
 use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Shared\DTOs\PaginatedResultDto;
@@ -27,6 +28,7 @@ class AdminUsersService
         private NotificationsService $notificationsService,
         private AdminUserRolesRepository $adminUserRolesRepository,
         private AdminNotifier $adminNotifier,
+        private AdminInvitationService $invitationService,
     ) {}
 
     /**
@@ -193,8 +195,22 @@ class AdminUsersService
             array_map(static fn(array $row): string => $row['id'], $result['items'])
         );
 
+        // The same one-query-per-page reasoning as the roles above: the list
+        // renders a "waiting for their invitation" marker (migration 058), and
+        // asking per row would be an N+1 paid on every keystroke of the admin
+        // search.
+        $pending = $this->invitationService->pendingByAdminIds(
+            array_map(static fn(array $row): string => $row['id'], $result['items'])
+        );
+
         $items = array_map(
-            fn($row) => AdminUserDto::fromRow($row, $roles[$row['id']] ?? [])->toArray(),
+            fn($row) => AdminUserDto::fromRow(
+                $row,
+                $roles[$row['id']] ?? [],
+                // Absent from the map means the account was never invited —
+                // it predates invitations — which is not pending.
+                $pending[$row['id']] ?? false,
+            )->toArray(),
             $result['items'],
         );
 
@@ -204,11 +220,38 @@ class AdminUsersService
     public function findAdminUserById(string $id): ?AdminUserDto
     {
         $row = $this->adminUsersRepository->findById($id);
-        return $row ? AdminUserDto::fromRow($row, $this->adminUserRolesRepository->rolesFor($id)) : null;
+        if (!$row) {
+            return null;
+        }
+
+        return AdminUserDto::fromRow(
+            $row,
+            $this->adminUserRolesRepository->rolesFor($id),
+            $this->invitationService->pendingByAdminIds([$id])[$id] ?? false,
+        );
     }
 
     /**
+     * Create an account and mail its owner the link that gives it a password
+     * (migration 058).
+     *
+     * The account is written with **no usable password at all** — a hash of 32
+     * random bytes nobody has ever seen, and which nothing can produce again.
+     * That is the whole change: this method used to mint a real password and
+     * hand it back to the caller, who then had to move a live credential to
+     * their colleague through a channel of their own choosing. Now the only way
+     * into the account is the invitation, which expires, works once, and sets a
+     * secret the caller never learns.
+     *
+     * The placeholder is not decoration. Without it the row would need a
+     * nullable hash, and every path that compares a password would grow a "no
+     * password set" branch — including `AuthService::authenticate()`, where
+     * getting that branch wrong once means an account anyone can sign into. An
+     * unguessable hash makes "cannot sign in yet" fall out of the ordinary
+     * comparison instead.
+     *
      * @param list<AdminRole> $roles Defaults to `admin` — see below.
+     * @return array{admin: AdminUserDto, invitation: AdminInvitationDto}
      */
     public function createAdminUser(
         string $email,
@@ -217,8 +260,7 @@ class AdminUsersService
         ?string $currentAdminId = null,
         array $roles = [],
     ): array {
-        $password = $this->generateRandomPassword();
-        $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+        $hash = password_hash(base64_encode(random_bytes(32)), PASSWORD_BCRYPT, ['cost' => 12]);
 
         $admin = $this->adminUsersRepository->create([
             'email' => $email,
@@ -250,7 +292,9 @@ class AdminUsersService
             newValues: [
                 'email' => $email,
                 'display_name' => $displayName,
-                'password' => '[GENERATED]',
+                // No password was generated for anyone to carry — the account
+                // is unusable until its owner follows the invitation.
+                'password' => '[AWAITING_INVITATION]',
                 'roles' => AdminRole::toValues($roles),
             ],
             adminUserId: $currentAdminId,
@@ -262,7 +306,13 @@ class AdminUsersService
         // just acted.
         $this->announce(MailKind::ADMIN_ACCOUNT_CREATED, $admin['id'], 'created', $currentAdminId);
 
-        return ['admin' => $this->withRoles($admin), 'password' => $password];
+        // After the announcement, and deliberately not wrapped in the same
+        // best-effort swallow. The announcement is a courtesy to the other
+        // admins; this is the only thing that makes the new account usable, so
+        // a failure here is a failure of the request and has to read as one.
+        $invitation = $this->invitationService->issue($admin['id'], $currentAdminId);
+
+        return ['admin' => $this->withRoles($admin), 'invitation' => $invitation];
     }
 
     /**

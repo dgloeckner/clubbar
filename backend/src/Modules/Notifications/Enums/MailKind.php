@@ -270,6 +270,30 @@ enum MailKind: string
     case ADMIN_ROLE_CHANGED = 'admin_role_changed';
 
     /**
+     * The one-time link that lets a newly created admin set their own password
+     * (migration 058).
+     *
+     * Addressed to the account it is about — the only `admin_*` kind besides
+     * {@see self::ADMIN_EMAIL_CHANGED} that is, and for the mirror-image
+     * reason: that one goes to the address an account is losing, this one to
+     * the address it is gaining. Neither is a fan-out to an office, so neither
+     * goes through `AdminNotifier::warnAdmins()`.
+     *
+     * It is also the only kind whose body carries a **credential**. That is
+     * what `admin_user_invitations.token_cipher` exists for: ADR-0038 rule 5
+     * has the drain render from live data at send time, and a token stored only
+     * as a hash cannot be rendered at all. The sealed copy is read by the
+     * builder and nothing else.
+     *
+     * The occasion is the invitation's own id, so a reissue — which revokes its
+     * predecessor — is a second message rather than one the unique index
+     * swallows. Two live links to one account is the state this must never
+     * produce, and it is the *service* that guarantees it; the queue only has
+     * to stop repeating itself.
+     */
+    case ADMIN_INVITATION = 'admin_invitation';
+
+    /**
      * A member's card has been assigned for the first time: they can use the
      * bar, and this is the first message they have ever had from the club.
      *
@@ -402,6 +426,13 @@ enum MailKind: string
             self::BACKUP_SECRET_EXPIRY_WARNING,
             self::BACKUP_HEALTH_WARNING,
             self::ADMIN_EMAIL_CHANGED,
+            // An invitation is addressed to the person being onboarded and to
+            // nobody else. The club's second pair of eyes on this account
+            // already arrived: `admin_account_created` fires from the same
+            // request, carries the club copy, and says who was given an
+            // account. A second club copy carrying a working link to that
+            // account would put a live credential on a list.
+            self::ADMIN_INVITATION,
             // Not a lifecycle event, and not for a Vorstand list. Who is near
             // their Deckel ceiling is operational detail with member names in
             // it, and routing it to a club-wide address would widen a report
@@ -485,7 +516,13 @@ enum MailKind: string
             // anyway, because "which offices would this be for" has an answer
             // for it, and a kind whose delivery path changes must not silently
             // acquire a wider audience than the one somebody chose for it.
-            self::ADMIN_EMAIL_CHANGED => [AdminRole::ADMIN],
+            self::ADMIN_EMAIL_CHANGED,
+            // Stated for the same reason, and never fanned out either: it goes
+            // to the one address the account was created for, from the outbox
+            // row's snapshot. Creating an admin is `admin`-only
+            // (`POST /api/admin/admin-users`), so the office that may know an
+            // invitation exists is the office that may issue one.
+            self::ADMIN_INVITATION => [AdminRole::ADMIN],
 
             // The one kind whose surface is not `admin`-only, and it is not a
             // special case: it is the same rule applied to a different route.
@@ -539,7 +576,8 @@ enum MailKind: string
             self::BACKUP_HEALTH_WARNING => MailSubject::INSTANCE_CONFIG,
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
-            self::ADMIN_ROLE_CHANGED => MailSubject::ADMIN_USER,
+            self::ADMIN_ROLE_CHANGED,
+            self::ADMIN_INVITATION => MailSubject::ADMIN_USER,
             self::DECKEL_STATEMENT,
             // The member, as the Deckelauszug's is — these are about the
             // record itself rather than about anything that happened to it, so
@@ -591,6 +629,7 @@ enum MailKind: string
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED,
+            self::ADMIN_INVITATION,
             self::JUGENDSCHUTZ_VIOLATION,
             self::CREDIT_LIMIT_DIGEST => false,
         };

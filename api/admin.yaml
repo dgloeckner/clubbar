@@ -87,6 +87,11 @@ tags:
     description: The URL trigger for the announcement drain, for hosting with no CLI cron
   - name: Admin Users
     description: Admin user management
+  - name: Invitations
+    description: >
+      The public half of admin onboarding — the two requests a browser makes
+      while somebody follows an invitation link. Unauthenticated by necessity:
+      the invitee has no account yet.
   - name: Reports
     description: Dashboard, reports, and analytics
   - name: Audit Log
@@ -102,6 +107,120 @@ paths:
   # ============================================================================
   # AUTHENTICATION
   # ============================================================================
+  # ============================================================================
+  # INVITATIONS (public)
+  # ============================================================================
+  /invitations/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: The one-time token from the invitation link.
+        schema:
+          type: string
+    get:
+      tags: [Invitations]
+      summary: Describe an invitation
+      description: |
+        What the accept page renders its greeting from. Answers a name, a
+        sign-in address and a locale, and nothing else — a token proves its
+        holder can read one mailbox, which is not a reason to tell them about
+        the club's roles or its other accounts.
+
+        **Use Case**: UC-A68
+
+        No session and no CSRF token: the invitee has no account yet. Rate
+        limited on the caller's IP, on the same budget as `POST /auth/login`,
+        and every refused token is recorded as a failed attempt.
+
+        Unknown, expired, already accepted and revoked all answer the same
+        `invitation_invalid`. Telling an anonymous caller which of the four it
+        was would confirm that a token exists.
+      operationId: getInvitation
+      security: []
+      responses:
+        '200':
+          description: The account this link belongs to
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invitation:
+                    $ref: '#/components/schemas/InvitationInvitee'
+        '409':
+          description: The link is not usable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: business_rule_violation
+                message: This invitation link is not valid
+                reason: invitation_invalid
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+
+  /invitations/{token}/accept:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Invitations]
+      summary: Set the account's first password
+      description: |
+        Sets the password and spends the link — a second request with the same
+        token is refused.
+
+        **Use Case**: UC-A68
+
+        **No session is minted here.** The response carries the address to sign
+        in with so the panel can send the invitee straight to the login form
+        with it filled in; from there the ordinary first-login path takes over,
+        which is what puts them through Authenticator enrolment.
+
+        The password rules are `PATCH /auth/change-password`'s, character for
+        character.
+      operationId: acceptInvitation
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptInvitationRequest'
+      responses:
+        '200':
+          description: Password set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
+                    description: The address to sign in with.
+                  message:
+                    type: string
+        '409':
+          description: The link is not usable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: business_rule_violation
+                message: This invitation link is not valid
+                reason: invitation_invalid
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+
   /auth/login:
     post:
       tags: [Authentication]
@@ -3177,10 +3296,20 @@ paths:
         step-up is rate-limited on the caller's account (5 attempts / 15 min,
         same dimension as login) and a failed attempt is audited.
 
-        **Use Case**: UC-A62
+        **Use Case**: UC-A62, UC-A68
 
-        A random 16-character password is generated and returned.
-        The password is only shown once and should be communicated to the user securely.
+        **No password is generated.** The account is created with no usable
+        password at all, and an invitation link is mailed to `email`. The
+        invitee follows it, sets their own password, and then signs in
+        normally — which puts them through Authenticator enrolment, because a
+        fresh account has no second factor (migration 058).
+
+        The response carries the invitation: when the link expires, and the URL
+        itself. The URL is returned so an installation whose mail is not yet
+        configured, or whose host drops outbound SMTP, still has something to
+        hand over — the situation this endpoint previously solved by returning
+        a live password. It is strictly weaker than that password: it expires
+        in seven days, works once, and sets a secret the caller never learns.
 
         `roles` sets the new account's roles (ADR-0044). Omitted, it defaults to
         `admin` — behaviour-preserving, since every admin created before roles
@@ -3198,11 +3327,11 @@ paths:
               $ref: '#/components/schemas/AdminUserCreateRequest'
       responses:
         '201':
-          description: Admin user created
+          description: Admin user created and invited
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminUserWithPassword'
+                $ref: '#/components/schemas/AdminUserWithInvitation'
         '401':
           description: |
             Not authenticated, or the caller's step-up credential
@@ -3396,6 +3525,76 @@ paths:
                 message: Re-enter your password to reset this admin's password
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+
+  /admin/admin-users/{adminUserId}/invitation:
+    parameters:
+      - name: adminUserId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Admin Users]
+      summary: Send a new invitation link
+      description: |
+        Issue a replacement invitation for an account that has not accepted one
+        yet — the first link went to spam, or expired before anyone opened it.
+        Any outstanding invitation for the account is revoked by the same call,
+        so a resend never leaves two working links.
+
+        The caller must re-prove their own identity with a step-up credential,
+        as for the password reset beside it: this mints a way into somebody
+        else's account (ADR-0044 rule 2).
+
+        **Use Case**: UC-A68
+
+        Refused for an account that has already accepted an invitation
+        (`admin_already_onboarded`) — the invitation is an onboarding
+        credential, not a second password-reset channel — and for a deactivated
+        account (`admin_account_inactive`).
+      operationId: resendAdminInvitation
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetAdminPasswordRequest'
+      responses:
+        '201':
+          description: A new invitation was issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invitation:
+                    $ref: '#/components/schemas/AdminInvitation'
+        '401':
+          description: |
+            Not authenticated, or the caller's step-up credential
+            (`current_password` / `totp_code`) is missing or incorrect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            The account has already accepted an invitation, or is deactivated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
@@ -8129,6 +8328,18 @@ components:
         created_at:
           type: string
           format: date-time
+        invitation_pending:
+          type: boolean
+          description: |
+            Whether this account is still waiting on the invitation that gives
+            it a password (migration 058) — invited, never accepted.
+
+            Absent when the endpoint did not resolve it: the write endpoints
+            return the row they just wrote without asking about invitations,
+            and reporting `false` there would be wrong for the one moment an
+            account certainly is pending. The list and detail endpoints always
+            carry it. An account predating invitations is not pending; the way
+            back into one of those is a password reset.
 
     AdminUserWithPassword:
       allOf:
@@ -8138,6 +8349,68 @@ components:
             password:
               type: string
               description: Generated password (shown once)
+
+    AdminInvitation:
+      type: object
+      description: >
+        A one-time link that lets a newly created admin set their own password
+        (migration 058).
+      properties:
+        admin_user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+          description: The address the link was mailed to.
+        expires_at:
+          type: string
+          format: date-time
+          description: After this instant the link no longer works.
+        url:
+          type: string
+          format: uri
+          description: >
+            The absolute link, present only in the response to the request that
+            minted it. There is no way to ask for it again — the token is stored
+            hashed, and sealed only for the mail that carries it.
+          example: https://club.example.org/invite/9pQ2b0kZ...
+
+    AdminUserWithInvitation:
+      type: object
+      properties:
+        admin:
+          $ref: '#/components/schemas/AdminUser'
+        invitation:
+          $ref: '#/components/schemas/AdminInvitation'
+
+    InvitationInvitee:
+      type: object
+      description: >
+        Everything an unauthenticated holder of a valid token is told. No roles,
+        no club detail, no other accounts.
+      properties:
+        email:
+          type: string
+          format: email
+          description: The address this account will sign in with.
+        display_name:
+          type: string
+        locale:
+          type: string
+
+    AcceptInvitationRequest:
+      type: object
+      required: [password, password_confirmation]
+      properties:
+        password:
+          type: string
+          minLength: 8
+          description: >
+            At least 8 characters, with a lower-case letter, an upper-case
+            letter and a digit — the same rule as `PATCH /auth/change-password`.
+        password_confirmation:
+          type: string
 
     AdminUserCreateRequest:
       description: >

@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\AdminUsers\Controllers;
 
 use App\Modules\AdminUsers\Controllers\AdminController;
 use App\Modules\AdminUsers\DTOs\AdminUserDto;
+use App\Modules\AdminUsers\Services\AdminInvitationService;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Shared\Validation\Validator;
@@ -35,6 +36,7 @@ class AdminControllerResetPasswordTest extends TestCase
             $this->service,
             new Validator($this->createMock(\PDO::class)),
             $this->stepUpAuthService,
+            $this->createMock(AdminInvitationService::class),
         );
     }
 

@@ -199,6 +199,18 @@ erDiagram
         datetime updated_at "Last modification"
     }
 
+    admin_user_invitations {
+        char_36 id PK "UUID"
+        char_36 admin_user_id FK "The account being onboarded"
+        char_64 token_hash UK "SHA-256 of the link's token"
+        text token_cipher "Sealed token, read only by the mail builder"
+        datetime expires_at "After this the link stops working"
+        datetime accepted_at "When the invitee set a password"
+        datetime revoked_at "When a replacement invitation displaced it"
+        char_36 created_by FK "Who invited them"
+        timestamp created_at "Record creation"
+    }
+
     sepa_config {
         int id PK "Single row (id=1)"
         varchar_35 creditor_id "Gläubiger-ID (immutable)"
@@ -265,6 +277,8 @@ erDiagram
     admin_users ||--o{ settlements : "creates"
     admin_users ||--o{ settlements : "cancels"
     admin_users ||--o{ settlements : "submits"
+    admin_users ||--o{ admin_user_invitations : "is invited by"
+    admin_users ||--o{ admin_user_invitations : "invites"
     admin_users ||--o{ audit_log : "performs"
     admin_users ||--o{ sepa_config : "modifies"
     admin_users ||--o{ instance_config : "modifies"
@@ -749,8 +763,47 @@ Administrator accounts for the admin panel.
 - `email` (UNIQUE)
 - `is_active`
 
+**Notes:**
+- A newly created account's `password_hash` is a hash of 32 random bytes nobody
+  has ever seen (migration 058). It is unguessable rather than nullable, so
+  "cannot sign in yet" falls out of the ordinary password comparison instead of
+  needing a branch in `AuthService::authenticate()`. See
+  [`admin_user_invitations`](#admin_user_invitations).
+
 **Access:**
 - All admin users have full access: CRUD on all entities, settlements, GDPR operations, user management, audit log
+
+---
+
+### admin_user_invitations
+
+One-time links that let a newly created admin set their own password
+(migration 058, [UC-A68](../use-cases/admin/UC-A68-invite-admin.md)). Creating
+an account no longer mints a password for somebody else to carry.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | CHAR(36) | PK | UUID |
+| admin_user_id | CHAR(36) | FK → admin_users, NOT NULL, ON DELETE CASCADE | The account being onboarded |
+| token_hash | CHAR(64) | UNIQUE, NOT NULL | SHA-256 hex of the raw token — the lookup key, so a database dump yields no working link |
+| token_cipher | TEXT | NOT NULL | The same token sealed with `SymmetricSecretBox` (`v1:` + base64). Exists because the drain renders the message at send time (ADR-0038 rule 5) and cannot re-derive a hashed secret. Read by the mail builder and nothing else; never returned by any endpoint |
+| expires_at | DATETIME | NOT NULL | 7 days from issue |
+| accepted_at | DATETIME | NULL | When the invitee set a password. Set by an UPDATE that carries its own `WHERE accepted_at IS NULL`, which is what makes acceptance single-use under concurrency |
+| revoked_at | DATETIME | NULL | Stamped on every live invitation when a replacement is issued, so there is never more than one working link to an account |
+| created_by | CHAR(36) | FK → admin_users, NULL, ON DELETE SET NULL | Who invited them. NULL once that admin's account is removed — the invitation still happened |
+| created_at | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Record creation timestamp |
+
+**Indexes:**
+- `token_hash` (UNIQUE)
+- `(admin_user_id, accepted_at)` — "does this account have a live invitation, and has it ever accepted one?"
+
+**Notes:**
+- Rows are never deleted. An invitation that was accepted, expired or replaced
+  is the record of how an account came to have a password.
+- A valid link is one whose `expires_at` is in the future with both
+  `accepted_at` and `revoked_at` NULL. Unknown, expired, accepted and revoked
+  all answer the same `invitation_invalid` on the wire — distinguishing them
+  for an anonymous caller confirms that a token exists.
 
 ---
 
@@ -1025,6 +1078,8 @@ flowchart TB
 | mandates | encryption_key_id | encryption_keys | RESTRICT |
 | members | held_by_admin_id | admin_users | SET NULL |
 | members | cleared_by_admin_id | admin_users | SET NULL |
+| admin_user_invitations | admin_user_id | admin_users | CASCADE |
+| admin_user_invitations | created_by | admin_users | SET NULL |
 | audit_log | admin_user_id | admin_users | SET NULL |
 | sepa_config | updated_by_admin_id | admin_users | SET NULL |
 | instance_config | updated_by_admin_id | admin_users | SET NULL |

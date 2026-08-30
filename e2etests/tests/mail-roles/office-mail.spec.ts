@@ -153,6 +153,17 @@ test.describe('a notice reaches the office it is for, and no other', () => {
       expect(created.status(), await created.text()).toBe(201)
       offices[role] = { id: (await created.json()).admin.id, email }
     }
+
+    // Each of those accounts was also mailed its own invitation (migration
+    // 058). That is this suite's own noise rather than anything it is about,
+    // and `expectNothingFor` is deliberately strict — so the invitations are
+    // delivered and cleared here, leaving each office mailbox empty before the
+    // first assertion about somebody *else's* notice.
+    const run = drainMailQueue({ budgetSeconds: BUDGET_SECONDS })
+    expect(run, run).toMatch(/claimed=\d+ sent=\d+/)
+    for (const office of Object.values(offices)) {
+      await mail.deleteFor(office.email)
+    }
   })
 
   test.afterAll(async ({ authenticatedRequest }) => {

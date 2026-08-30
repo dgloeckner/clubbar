@@ -138,12 +138,15 @@
     "insufficientRoleMessage": "Diese Seite gehört zu einem Amt, das Ihr Konto nicht innehat. Falls sich das kürzlich geändert hat: Ihre Rollen wurden angepasst. Wenden Sie sich an eine Administratorin oder einen Administrator, wenn Sie diesen Bereich benötigen.",
     "insufficientRoleHome": "Zur Startseite",
     "reasons": {
+      "admin_account_inactive": "Dieses Konto ist deaktiviert. Aktivieren Sie es, bevor Sie eine Einladung verschicken.",
+      "admin_already_onboarded": "Dieses Konto hat seine Einladung bereits angenommen. Für einen neuen Zugang setzen Sie das Passwort zurück.",
       "admin_role_is_exclusive": "Die Rolle „Admin“ kann nicht mit einer anderen Rolle kombiniert werden.",
       "admin_user_needs_a_role": "Ein Admin-Konto muss mindestens eine Rolle haben.",
       "cannot_deactivate_self": "Sie können Ihr eigenes Konto nicht deaktivieren.",
       "category_inactive": "Diese Kategorie ist inaktiv.",
       "execution_date_not_business_day": "Das Ausführungsdatum {{execution_date}} ist kein Bankarbeitstag (Mo–Fr, ohne TARGET2-Schließtage). Stornieren Sie die Abrechnung und legen Sie sie mit einem gültigen Datum neu an.",
       "iban_key_unavailable": "Alle gespeicherten IBANs sind versiegelt; der SEPA-Export benötigt den privaten Schlüssel des Vereins.",
+      "invitation_invalid": "Dieser Einladungslink ist nicht mehr gültig. Bitten Sie um eine neue Einladung.",
       "last_active_admin": "Dies ist das letzte aktive Admin-Konto – es kann nicht deaktiviert werden.",
       "last_admin_role_holder": "Dies ist das letzte Konto mit der Rolle „Admin“ – sie kann ihm nicht entzogen werden.",
       "mandate_vanished_during_export": "Das aktive SEPA-Mandat eines Mitglieds ist während des Exports verschwunden. Es wurde nichts exportiert – bitte erneut versuchen.",
@@ -766,7 +769,8 @@
       "rotateTerminal": "API-Token konnte nicht erneuert werden",
       "revokeTerminal": "Terminal-Zugang konnte nicht entzogen werden",
       "saveSepa": "SEPA-Konfiguration konnte nicht gespeichert werden. Bitte erneut versuchen.",
-      "sepaValidation": "Bitte korrigieren Sie die markierten Felder"
+      "sepaValidation": "Bitte korrigieren Sie die markierten Felder",
+      "resendInvitation": "Einladung konnte nicht verschickt werden"
     },
     "validation": {
       "creditorNameRequired": "Gläubigername ist erforderlich",
@@ -994,7 +998,13 @@
         "save": "Limits konnten nicht gespeichert werden. Bitte erneut versuchen.",
         "validation": "Bitte korrigieren Sie die markierten Felder"
       }
-    }
+    },
+    "invitationSent": "Einladung verschickt",
+    "invitationWarning": "Der Einladungslink wurde an {{email}} geschickt und ist gültig bis {{expires}}. Sie können ihn hier kopieren, falls der Versand nicht funktioniert — er wird nicht erneut angezeigt.",
+    "invitationPending": "Einladung offen",
+    "invitationPendingHint": "Dieses Konto hat noch kein Passwort. Es kann sich erst anmelden, wenn die Einladung angenommen wurde.",
+    "resendInvitation": "Einladung erneut senden",
+    "resendInvitationConfirm": "Diesem Konto eine neue Einladung schicken? Der bisherige Link wird dadurch ungültig."
   },
   "auditLog": {
     "title": "Audit-Log",
@@ -1429,6 +1439,7 @@
       "terminal_token_expiry_warning": "Terminal-Token läuft ab",
       "terminal_anomaly_warning": "Terminal-Auffälligkeit",
       "admin_account_created": "Admin-Konto angelegt",
+      "admin_invitation": "Einladung",
       "admin_role_changed": "Rollen geändert",
       "admin_email_changed": "Anmeldeadresse geändert",
       "backup_secret_expiry_warning": "Backup-Zugangsdaten laufen ab",
@@ -1480,6 +1491,28 @@
       "archiveRange": "Ältestes – neuestes Archiv",
       "empty": "Kein Archiv nennt einen Schlüssel.",
       "note": "Abgeleitet aus den Archiv-Kopfdaten — eine Liste zum Abgleich mit eurem eigenen Schlüsselverzeichnis, kein Ersatz dafür. Ein Schlüssel ohne Archive öffnet nichts mehr, was hier liegt. Die Archivspanne sagt, wie lange der private Teil eines zurückgezogenen Schlüssels noch aufzubewahren ist: bis auch das neueste hier genannte Archiv aus der Aufbewahrung gefallen ist."
+    }
+  },
+  "invite": {
+    "title": "Admin-Zugang einrichten",
+    "subtitle": "Hallo {{name}} — legen Sie jetzt Ihr Passwort fest.",
+    "invalidSubtitle": "Dieser Link funktioniert nicht mehr.",
+    "emailLabel": "Anmeldeadresse",
+    "passwordLabel": "Neues Passwort",
+    "passwordHint": "Mindestens 8 Zeichen, mit Klein- und Großbuchstaben und einer Ziffer.",
+    "confirmationLabel": "Passwort wiederholen",
+    "submit": "Passwort festlegen",
+    "submitting": "Wird gespeichert …",
+    "done": "Passwort gespeichert. Melden Sie sich jetzt an.",
+    "goToLogin": "Zur Anmeldung",
+    "nextStep": "Nach dem Festlegen melden Sie sich einmal an und richten dabei die Zwei-Faktor-Authentifizierung mit einer Authenticator-App ein.",
+    "validation": {
+      "password": "Mindestens 8 Zeichen, mit Klein- und Großbuchstaben und einer Ziffer.",
+      "mismatch": "Die Passwörter stimmen nicht überein."
+    },
+    "errors": {
+      "invalidLink": "Dieser Einladungslink ist abgelaufen oder wurde bereits verwendet. Bitten Sie um eine neue Einladung.",
+      "acceptFailed": "Das Passwort konnte nicht gespeichert werden."
     }
   }
 }

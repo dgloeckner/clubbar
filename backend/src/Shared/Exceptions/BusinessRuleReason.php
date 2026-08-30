@@ -52,6 +52,37 @@ enum BusinessRuleReason: string
     case LAST_ADMIN_ROLE_HOLDER = 'last_admin_role_holder';
     case CANNOT_DEACTIVATE_SELF = 'cannot_deactivate_self';
     case LAST_ACTIVE_ADMIN = 'last_active_admin';
+    /**
+     * A presented invitation link is not usable — unknown, expired, already
+     * accepted, or replaced by a newer one.
+     *
+     * **One reason for four causes, deliberately.** The endpoint that answers
+     * this carries no session: telling an anonymous caller that a token is
+     * "expired" rather than "unknown" confirms the token existed, which turns
+     * the accept surface into an oracle for guessing them. The log records
+     * which of the four it actually was; the wire says only that the link does
+     * not work and to ask for a new one.
+     */
+    case INVITATION_INVALID = 'invitation_invalid';
+    /**
+     * A credential was asked for on behalf of a deactivated account.
+     *
+     * Without this, deactivating a colleague would not stop an outstanding
+     * invitation from being renewed — the account cannot sign in, so the link
+     * grants nothing, but issuing one says otherwise to whoever receives it.
+     */
+    case ADMIN_ACCOUNT_INACTIVE = 'admin_account_inactive';
+    /**
+     * A replacement invitation was asked for on an account that has already
+     * accepted one.
+     *
+     * The invitation is an onboarding credential, not a password-reset
+     * channel: an emailed link that can re-credential an established admin is
+     * a second way past the step-up guarding
+     * `POST /admin-users/{id}/reset-password`, and it would be reachable by
+     * anyone who reads that admin's mailbox.
+     */
+    case ADMIN_ALREADY_ONBOARDED = 'admin_already_onboarded';
 
     // ── Settlement lifecycle ───────────────────────────────────────────────
     case SETTLEMENT_ALREADY_CANCELLED = 'settlement_already_cancelled';

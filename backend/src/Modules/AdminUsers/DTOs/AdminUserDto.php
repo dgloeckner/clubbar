@@ -25,10 +25,23 @@ final readonly class AdminUserDto
         public string $createdAt,
         public string $updatedAt,
         public array $roles = [],
+        /**
+         * Whether this account is still waiting on the invitation that gives
+         * it a password (migration 058).
+         *
+         * Three-valued on purpose. `null` is "not resolved here", and it is
+         * omitted from the payload rather than sent as `false`: the write paths
+         * return the row they just wrote without asking about invitations, and
+         * an account created one line earlier would otherwise be reported as
+         * *not* pending — which is the one moment it certainly is. A reader
+         * that must know asks the list or the detail endpoint, both of which
+         * resolve it.
+         */
+        public ?bool $invitationPending = null,
     ) {}
 
     /** @param list<AdminRole> $roles */
-    public static function fromRow(array $row, array $roles = []): self
+    public static function fromRow(array $row, array $roles = [], ?bool $invitationPending = null): self
     {
         return new self(
             id: $row['id'],
@@ -41,12 +54,13 @@ final readonly class AdminUserDto
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],
             roles: $roles,
+            invitationPending: $invitationPending,
         );
     }
 
     public function toArray(): array
     {
-        return [
+        $out = [
             'id' => $this->id,
             'email' => $this->email,
             'display_name' => $this->displayName,
@@ -58,5 +72,11 @@ final readonly class AdminUserDto
             'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
             'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),
         ];
+
+        if ($this->invitationPending !== null) {
+            $out['invitation_pending'] = $this->invitationPending;
+        }
+
+        return $out;
     }
 }

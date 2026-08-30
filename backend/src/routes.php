@@ -24,6 +24,7 @@ use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
 use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
+use App\Modules\AdminUsers\Controllers\InvitationController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
 use App\Modules\Terminals\Controllers\PairingController;
@@ -78,6 +79,23 @@ return function (App $app): void {
     // Auth endpoints (login and mfa are public, rest require session).
     // Both password and second factor are rate-limited on IP and account (#78,
     // ruling #145) — an unlimited MFA endpoint made the second factor guessable.
+    // Admin onboarding by invitation link (migration 058).
+    //
+    // Public by necessity: the invitee has no account yet, so there is no
+    // session to carry and no CSRF token to hold — the same position
+    // `POST /api/auth/login` is in, and outside the CSRF middleware for the
+    // same reason. What stands in for authentication is the token in the path,
+    // which is 256 bits of entropy, single use, and dead after a week.
+    //
+    // Behind the login rate limiter on its IP dimension, and the controller
+    // writes every refused token to `login_attempts`, so guessing tokens spends
+    // the same budget as guessing passwords rather than being the one unmetered
+    // credential surface in the system.
+    $app->get('/api/invitations/{token}', [InvitationController::class, 'show'])
+        ->add(RateLimitMiddleware::class);
+    $app->post('/api/invitations/{token}/accept', [InvitationController::class, 'accept'])
+        ->add(RateLimitMiddleware::class);
+
     $app->post('/api/auth/login', [AuthController::class, 'login'])->add(RateLimitMiddleware::class);
     $app->post('/api/auth/mfa', [AuthController::class, 'mfa'])->add($factory->getMfaRateLimitMiddleware());
 
@@ -216,6 +234,11 @@ return function (App $app): void {
         // Cross-account password reset requires a step-up credential (#337),
         // same rate-limit dimension as the 2FA reset above.
         $group->post('/admin-users/{id}/reset-password', [AdminUsersAdminController::class, 'resetPassword'])->add($stepUpRateLimit);
+        // A replacement invitation, for the first one that went to spam or
+        // expired (migration 058). Mints a credential for another account, so
+        // it carries a step-up and shares the same rate-limit dimension as the
+        // reset above.
+        $group->post('/admin-users/{id}/invitation', [AdminUsersAdminController::class, 'resendInvitation'])->add($stepUpRateLimit);
 
         // Audit log
         $group->get('/audit-log', [AuditLogAdminController::class, 'index']);

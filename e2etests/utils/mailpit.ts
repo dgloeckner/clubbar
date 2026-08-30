@@ -234,6 +234,33 @@ export class MailpitClient {
   }
 
   /**
+   * Delete every message currently addressed to `recipient`.
+   *
+   * For a mailbox whose *own* mail is not what a test is about. Since
+   * migration 058 every admin account this suite creates is also mailed its
+   * own invitation, so an office mailbox starts life holding one — and a
+   * later `expectNothingFor` would fail on a message that has nothing to do
+   * with the claim being made.
+   *
+   * Deleting rather than filtering, so `expectNothingFor` keeps its strict
+   * meaning: nothing at all reached this office, not "nothing I chose to look
+   * for".
+   */
+  async deleteFor(recipient: string): Promise<void> {
+    const ids = (await this.messagesTo(recipient)).map((m) => m.ID)
+    if (ids.length === 0) {
+      return
+    }
+
+    const response = await this.request.delete('/api/v1/messages', { data: { IDs: ids } })
+    if (!response.ok()) {
+      throw new Error(
+        `Could not clear the mailbox for ${recipient}: ${response.status()} ${await response.text()}`,
+      )
+    }
+  }
+
+  /**
    * Assert that nothing was delivered to `recipient`.
    *
    * Deliberately not a one-shot read: an announcement that is on its way would

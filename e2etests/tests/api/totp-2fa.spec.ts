@@ -20,6 +20,7 @@ import { test, expect } from "../../fixtures/auth.fixture";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { generateTotp, submitTotpWithRetry } from "../../utils/totp";
 import { stepUp } from "../../fixtures/stepUp";
+import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -46,8 +47,8 @@ function uniqueEmail(prefix: string): string {
 }
 
 /**
- * Create a new (unenrolled) admin user via the admin API.
- * Returns the created admin object and its auto-generated password.
+ * Create a new (unenrolled) admin user via the admin API, and walk its
+ * invitation so it has a password to sign in with (migration 058).
  */
 async function createAdminUser(
   authenticatedRequest: any,
@@ -69,7 +70,20 @@ async function createAdminUser(
   }
 
   const data = await response.json()
-  return { admin: data.admin, password: data.password }
+
+  // Since migration 058 the account is created with **no** password — the way
+  // in is the invitation. Accepting it here is what turns a fresh account into
+  // one these tests can sign in as, and the password is the test's own choice
+  // rather than something the API handed back.
+  const accepted = await authenticatedRequest.post(
+    `${API_BASE}/invitations/${tokenFromInvitationUrl(data.invitation.url)}/accept`,
+    { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+  )
+  if (accepted.status() !== 200) {
+    throw new Error(`Failed to accept the invitation (${accepted.status()}): ${await accepted.text()}`)
+  }
+
+  return { admin: data.admin, password: INVITED_ADMIN_PASSWORD }
 }
 
 /**

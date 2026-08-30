@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Notifications\Services;
 
 use App\Modules\AdminUsers\Enums\AdminRole;
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\AdminUsers\Services\InvitationTokenCipher;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Services\AdminSecurityMailBuilder;
@@ -54,6 +56,9 @@ class AdminSecurityMailBuilderTest extends TestCase
             $this->adminUsersRepository,
             $mailConfigService,
             $this->adminUserRolesRepository,
+            $this->createMock(AdminInvitationsRepository::class),
+            $this->createMock(InvitationTokenCipher::class),
+            'https://club.example.org',
         );
     }
 

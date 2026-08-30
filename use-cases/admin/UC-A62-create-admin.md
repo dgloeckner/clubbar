@@ -18,11 +18,13 @@ Admin clicks "New Admin" in admin list
    - Email/username
    - Role
 4. Admin submits form
-5. System generates random password
-6. System creates admin account
-7. System displays password once
-8. Admin copies/notes password
-9. Dialog closes
+5. System creates admin account with **no usable password**
+6. System mails an invitation link to the address (see
+   [UC-A68](./UC-A68-invite-admin.md))
+7. System shows the admin that the invitation was sent — the address, the
+   expiry, and the link itself, so an installation whose mail is not working
+   still has something to hand over
+8. Dialog closes
 
 ## Form Fields
 
@@ -31,16 +33,23 @@ Admin clicks "New Admin" in admin list
 | Email | Yes | Valid email, unique |
 | Display Name | Yes | Max 100 characters |
 
-## Password Generation
-- 16 characters
-- Mixed case, numbers, symbols
-- Shown once, not retrievable
+## Credentials
+
+**No password is generated.** The account is written with a hash of 32 random
+bytes nobody has ever seen; the only way in is the invitation link, which the
+invitee uses to set a password of their own. See
+[UC-A68](./UC-A68-invite-admin.md) for the link's lifetime, single use and
+revocation rules.
+
+Until UC-A68, this step minted a 16-character password and handed it to the
+creating admin, who then had to move a live credential to their colleague
+through a channel of their own choosing.
 
 ## Postconditions
 - Admin account created
-- Account is active
-- Password shown to creator
-- Audit log entry
+- Account is active, and cannot be signed into until the invitation is accepted
+- An invitation link has been queued to the account's address
+- Audit log entries: `create`, `role_granted`, `invitation_sent`
 
 ## Error Cases
 
@@ -52,8 +61,7 @@ Admin clicks "New Admin" in admin list
 
 ## Test Derivation
 - Create admin: account active
-- Generated password: meets complexity
-- Password shown once: not in response later
+- Response carries an invitation and **no** password
 - Duplicate email: error shown
-- New admin can login: with generated password
+- New admin cannot log in until the invitation is accepted
 - Audit log: creation logged

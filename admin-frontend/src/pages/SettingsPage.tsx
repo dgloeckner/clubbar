@@ -32,6 +32,7 @@ import { AdminUsersTab } from '../components/settings/AdminUsersTab'
 import { CreateAdminModal } from '../components/modals/CreateAdminModal'
 import { EditAdminModal } from '../components/modals/EditAdminModal'
 import { PasswordDisplayModal } from '../components/modals/PasswordDisplayModal'
+import { InvitationSentModal } from '../components/modals/InvitationSentModal'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { StepUpConfirmDialog, type StepUpCredentials } from '../components/modals/StepUpConfirmDialog'
 import { TerminalsTab } from '../components/settings/TerminalsTab'
@@ -164,6 +165,15 @@ export function SettingsPage() {
   const [editAdminInitialRoles, setEditAdminInitialRoles] = useState<AdminRole[]>([])
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
+  // The invitation an account creation or a resend just produced (migration
+  // 058). Shown once, with the link, and then dropped — there is no endpoint
+  // that can return it again.
+  const [sentInvitation, setSentInvitation] = useState<
+    { url: string | null; email: string | null; expiresAt: string | null } | null
+  >(null)
+  // Which pending account a resend is being confirmed for; the dialog collects
+  // the caller's own step-up credential, as the password reset does.
+  const [resendInvitationConfirm, setResendInvitationConfirm] = useState<string | null>(null)
   const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null)
   const [reset2faConfirm, setReset2faConfirm] = useState<string | null>(null)
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState<string | null>(null)
@@ -483,8 +493,13 @@ export function SettingsPage() {
         roles: createAdminFormData.roles,
         ...credentials,
       })
-      setGeneratedPassword(result.password ?? null)
-      setShowPasswordModal(true)
+      // The invitation, never a password: the account is created with none,
+      // and the link in the mail is what gives it one (migration 058).
+      setSentInvitation({
+        url: result.invitation?.url ?? null,
+        email: result.invitation?.email ?? result.admin?.email ?? null,
+        expiresAt: result.invitation?.expires_at ?? null,
+      })
       setShowCreateAdminModal(false)
       clearModalError()
       setCreateAdminFormData({ email: '', display_name: '', locale: 'de', roles: [] })
@@ -566,6 +581,34 @@ export function SettingsPage() {
       // A wrong step-up credential keeps the dialog open so the admin can
       // retry, rather than reporting it on the page banner behind it.
       setStepUpError(apiErrorMessage(err, t('settings.errors.resetPassword')))
+    }
+  }
+
+  /**
+   * Sending a colleague a fresh invitation revokes the one they already have,
+   * so it is confirmed rather than fired from a bare icon — and, like the
+   * password reset above, it collects the caller's own step-up credential
+   * first: this mints a way into somebody else's account.
+   */
+  const handleResendInvitation = (id: string) => {
+    setStepUpError(null)
+    setResendInvitationConfirm(id)
+  }
+
+  const handleResendInvitationConfirmed = async (credentials: StepUpCredentials) => {
+    if (!resendInvitationConfirm) return
+    try {
+      const result = await getAdminUsers().resendAdminInvitation(resendInvitationConfirm, credentials)
+      setResendInvitationConfirm(null)
+      setStepUpError(null)
+      setSentInvitation({
+        url: result.invitation?.url ?? null,
+        email: result.invitation?.email ?? null,
+        expiresAt: result.invitation?.expires_at ?? null,
+      })
+      await loadAdminUsers()
+    } catch (err: unknown) {
+      setStepUpError(apiErrorMessage(err, t('settings.errors.resendInvitation')))
     }
   }
 
@@ -1125,6 +1168,7 @@ export function SettingsPage() {
             setShowEditAdminModal(true)
           }}
           onResetPassword={handleResetPassword}
+          onResendInvitation={handleResendInvitation}
           onReset2fa={handleReset2fa}
           onDeactivateUser={handleDeactivateAdmin}
           onReactivateUser={handleReactivateAdmin}
@@ -1276,6 +1320,27 @@ export function SettingsPage() {
         onClose={() => {
           setShowPasswordModal(false)
           setGeneratedPassword(null)
+        }}
+      />
+
+      <InvitationSentModal
+        isOpen={sentInvitation !== null}
+        url={sentInvitation?.url ?? null}
+        email={sentInvitation?.email ?? null}
+        expiresAt={sentInvitation?.expiresAt ?? null}
+        onClose={() => setSentInvitation(null)}
+      />
+
+      <StepUpConfirmDialog
+        isOpen={!!resendInvitationConfirm}
+        message={t('settings.resendInvitationConfirm')}
+        confirmLabel={t('settings.resendInvitation')}
+        requiresTotp={callerTotpEnabled}
+        error={stepUpError}
+        onConfirm={handleResendInvitationConfirmed}
+        onCancel={() => {
+          setResendInvitationConfirm(null)
+          setStepUpError(null)
         }}
       />
 

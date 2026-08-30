@@ -45,6 +45,7 @@ import {
 } from '../../utils/mailpit'
 import { drainMailQueue } from '../../utils/drain'
 import { stepUp } from '../../fixtures/stepUp'
+import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
 
 const MAIL_CONFIG = '/api/admin/mail-config'
 
@@ -82,7 +83,12 @@ test.describe('Admin lifecycle — account, roles, cron, delivered mail', () => 
 
   let targetId = ''
   let previousClubAddress: string | null = null
-  let generatedPassword = ''
+  /**
+   * The link the API handed back at creation, kept so the delivered message can
+   * be compared against it — and so the club's copy can be checked for *not*
+   * containing it.
+   */
+  let issuedInvitationUrl = ''
 
   test.beforeAll(async ({ authenticatedRequest }) => {
     await assertMailpitReachable()
@@ -132,9 +138,10 @@ test.describe('Admin lifecycle — account, roles, cron, delivered mail', () => 
     expect(created.status(), await created.text()).toBe(201)
     const body = await created.json()
     targetId = body.admin.id
-    // Kept so the "carries no credential" assertion can look for the real
-    // password rather than for a pattern that resembles one.
-    generatedPassword = body.password
+    // Kept so the assertions below can look for the real credential rather than
+    // for a pattern that resembles one. Since migration 058 that credential is
+    // the invitation link; there is no password to leak any more.
+    issuedInvitationUrl = body.invitation.url
 
     // The run's own output, asserted before the mailbox: a tick that never
     // reached the drain would otherwise surface as "expected a message,
@@ -157,10 +164,55 @@ test.describe('Admin lifecycle — account, roles, cron, delivered mail', () => 
       expect(part).toContain('Audit-Log')
 
       // The property the whole message is built around: it reaches a wider
-      // audience than the one screen that shows the password, so it must not
-      // carry it.
-      expect(part).not.toContain(generatedPassword)
+      // audience than the person being onboarded, so it must not carry their
+      // credential. Before migration 058 that meant the generated password;
+      // now it means the invitation link, which is the same risk in a new
+      // shape — a working way into the new account, on a list.
+      expect(part).not.toContain(issuedInvitationUrl)
+      expect(part).not.toContain('/invite/')
     }
+  })
+
+  /**
+   * The chain the invitation actually depends on (migration 058, UC-A68):
+   *
+   *     create an account → bin/cron.php → the *invitee's* mailbox → a working link
+   *
+   * This is the assertion no unit test can make. The link is rendered by the
+   * drain from a token stored only as a hash plus a sealed copy, so everything
+   * between "an invitation exists" and "somebody can use it" — the dedup key
+   * fitting its column, the cipher round-tripping, the URL surviving an HTML
+   * mail — is only exercised here. An earlier revision of this feature queued
+   * a `dedup_key` two characters too long for its column; every unit test
+   * passed, every API test passed, and no invitation was ever mailed.
+   */
+  test('the invitee is mailed a link that actually works', async ({
+    authenticatedRequest,
+    request,
+  }) => {
+    const run = drainMailQueue({ budgetSeconds: BUDGET_SECONDS })
+    expect(run, run).toMatch(/claimed=\d+ sent=\d+/)
+
+    // To the account being onboarded — not to the club, and not to the other
+    // admins. It is the one message here with a single recipient.
+    const message = await mail.waitForMessageAbout(targetEmail, 'Admin-Zugang')
+
+    const { html, text } = parts(message)
+    for (const part of [html, text]) {
+      // The same link the API returned: the drain rebuilt it from the sealed
+      // token rather than inventing one.
+      expect(part).toContain(issuedInvitationUrl)
+      // Said before it happens, so the authenticator prompt reads as the next
+      // step rather than as an obstacle.
+      expect(part).toContain('Zwei-Faktor')
+    }
+
+    // And it is a link, not a picture of one.
+    const token = tokenFromInvitationUrl(issuedInvitationUrl)
+    const accepted = await request.post(`/api/invitations/${token}/accept`, {
+      data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD },
+    })
+    expect(accepted.status(), await accepted.text()).toBe(200)
   })
 
   /**
@@ -186,7 +238,7 @@ test.describe('Admin lifecycle — account, roles, cron, delivered mail', () => 
       // change must not claim a state that has been superseded.
       expect(part).toContain('Kassenwart')
       expect(part).toContain('Getränkewart')
-      expect(part).not.toContain(generatedPassword)
+      expect(part).not.toContain('/invite/')
     }
   })
 })

@@ -22,6 +22,23 @@ use PHPUnit\Framework\TestCase;
  */
 class MailKindTest extends TestCase
 {
+    /**
+     * The invitation is admin-addressed, about an admin account, and reaches
+     * exactly one address — never a fan-out and never the club.
+     *
+     * The club copy is the one worth stating: `admin_account_created` fires
+     * from the same request and already tells the club that an account was
+     * given out. A second club copy carrying a **working link into that
+     * account** would put a live credential on a list.
+     */
+    public function test_an_invitation_is_addressed_to_the_invitee_alone(): void
+    {
+        $this->assertSame(MailSubject::ADMIN_USER, MailKind::ADMIN_INVITATION->subjectType());
+        $this->assertFalse(MailKind::ADMIN_INVITATION->addressesMember());
+        $this->assertFalse(MailKind::ADMIN_INVITATION->addressesClub());
+        $this->assertSame([AdminRole::ADMIN], MailKind::ADMIN_INVITATION->recipientRoles());
+    }
+
     public function test_a_statement_is_about_the_member_it_is_addressed_to(): void
     {
         $this->assertSame(MailSubject::MEMBER, MailKind::DECKEL_STATEMENT->subjectType());

@@ -179,12 +179,16 @@ class AdminUsersRepository
      * a field a caller sets, it is a consequence of having changed a credential,
      * and it is written by the three services that do so.
      *
+     * @param int|null $at When to stamp it, as a Unix timestamp. Defaults to
+     *  now. The one caller that passes anything else is the invitation accept
+     *  (migration 058), which stamps a second **back** — see below.
+     *
      * @return string The timestamp written, so the caller can keep the acting
      *  session alive by re-stamping it to at least this moment.
      */
-    public function touchCredentialsEpoch(string $id): string
+    public function touchCredentialsEpoch(string $id, ?int $at = null): string
     {
-        $now = date('Y-m-d H:i:s');
+        $now = date('Y-m-d H:i:s', $at ?? time());
         $stmt = $this->db->prepare(
             'UPDATE admin_users SET credentials_changed_at = ?, updated_at = ? WHERE id = ?'
         );

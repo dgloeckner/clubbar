@@ -3,6 +3,7 @@
  * Admin users list with toggle for active/inactive status and action buttons
  */
 
+import type { CSSProperties, MouseEvent } from 'react'
 import { theme } from '../../styles/design-system'
 import { Toggle } from '../common/Toggle'
 import { Badge, type BadgeProps } from '../common/Badge'
@@ -30,6 +31,34 @@ const ROLE_BADGE_VARIANT: Record<AdminRole, BadgeProps['variant']> = {
   getraenkewart: 'success',
 }
 
+/**
+ * The hover handlers a row's icon buttons carry.
+ *
+ * Passed in rather than duplicated, because the mobile card and the desktop
+ * table style the same button differently — the desktop one lights up on
+ * hover, the mobile one has no hover to speak of — and the button itself
+ * should not have to know which list it is in.
+ */
+/** The 32px round icon button every row action is drawn as. */
+const ICON_BUTTON_STYLE: CSSProperties = {
+  width: '32px',
+  height: '32px',
+  borderRadius: '8px',
+  border: 'none',
+  background: 'transparent',
+  color: theme.colors.text.secondary,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: `all ${theme.transitions.default}`,
+}
+
+type HoverHandlers = {
+  onMouseEnter?: (e: MouseEvent<HTMLButtonElement>) => void
+  onMouseLeave?: (e: MouseEvent<HTMLButtonElement>) => void
+}
+
 export interface AdminUsersTabProps {
   users: AdminUser[]
   loading: boolean
@@ -43,6 +72,14 @@ export interface AdminUsersTabProps {
   onCreateUser: () => void
   onEditUser: (admin: AdminUser) => void
   onResetPassword: (id: string) => void
+  /**
+   * Send a pending account a replacement invitation (migration 058).
+   *
+   * A separate action from `onResetPassword` because it applies to a different
+   * kind of account: one that has never had a password. The two are shown
+   * exclusively — see `renderCredentialAction` below.
+   */
+  onResendInvitation: (id: string) => void
   onReset2fa: (id: string) => void
   onDeactivateUser: (id: string) => void
   onReactivateUser: (id: string) => void
@@ -56,6 +93,7 @@ export function AdminUsersTab({
   onCreateUser,
   onEditUser,
   onResetPassword,
+  onResendInvitation,
   onReset2fa,
   onDeactivateUser,
   onReactivateUser,
@@ -112,6 +150,68 @@ export function AdminUsersTab({
       ))}
     </div>
   )
+
+  /**
+   * "Waiting for their invitation" — invited, never accepted (migration 058).
+   *
+   * Worth its own badge because the account looks complete from every other
+   * column: it has a name, an address and its roles, and it simply cannot be
+   * signed into yet. Without this, an admin wondering why a colleague has not
+   * appeared has nothing on the screen to tell them whether the link is still
+   * outstanding.
+   */
+  const renderPendingBadge = (admin: AdminUser) =>
+    admin.invitation_pending ? (
+      <Tooltip content={t('settings.invitationPendingHint')} position="top">
+        <Badge
+          label={t('settings.invitationPending')}
+          variant="warning"
+          showDot={false}
+          testId={`settings-admin-user-invitation-badge-${admin.id}`}
+        />
+      </Tooltip>
+    ) : null
+
+  /**
+   * One button, not two: resend the invitation while the account is still
+   * pending, reset the password once it is not.
+   *
+   * They are mutually exclusive because they answer the same question — "this
+   * person cannot get in, give them a way" — for accounts in two different
+   * states. Offering a password reset on an account that has never accepted
+   * its invitation would hand the admin a password to carry by hand, which is
+   * the practice this feature exists to end.
+   */
+  const renderCredentialAction = (admin: AdminUser, iconProps: CSSProperties, hover: HoverHandlers) =>
+    admin.invitation_pending ? (
+      <Tooltip content={t('settings.resendInvitation')} position="top">
+        <button
+          data-testid={`settings-admin-resend-invitation-button-${admin.id}`}
+          onClick={() => onResendInvitation(admin.id)}
+          style={iconProps}
+          {...hover}
+        >
+          {/* An envelope: this sends mail, it does not change a key. */}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="2" y="4" width="20" height="16" rx="2" />
+            <path d="m22 7-10 6L2 7" />
+          </svg>
+        </button>
+      </Tooltip>
+    ) : (
+      <Tooltip content={t('settings.resetPassword')} position="top">
+        <button
+          data-testid={`settings-admin-reset-password-button-${admin.id}`}
+          onClick={() => onResetPassword(admin.id)}
+          style={iconProps}
+          {...hover}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+          </svg>
+        </button>
+      </Tooltip>
+    )
 
   const renderSelfBadge = (admin: AdminUser) =>
     isSelf(admin.id) ? (
@@ -217,6 +317,7 @@ export function AdminUsersTab({
                     {admin.display_name}
                   </span>
                   {renderSelfBadge(admin)}
+                  {renderPendingBadge(admin)}
                 </div>
 
                 {/* Row 2: Email. wordBreak so a long, unbroken address wraps
@@ -269,28 +370,10 @@ export function AdminUsersTab({
                       </svg>
                     </button>
 
-                    {/* Reset Password Button */}
-                    <button
-                      data-testid={`settings-admin-reset-password-button-${admin.id}`}
-                      onClick={() => onResetPassword(admin.id)}
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: theme.colors.text.secondary,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: `all ${theme.transitions.default}`,
-                      }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
-                      </svg>
-                    </button>
+                    {/* Resend the invitation, or reset the password — see
+                        renderCredentialAction: which one an account gets
+                        depends on whether it has ever had a password. */}
+                    {renderCredentialAction(admin, ICON_BUTTON_STYLE, {})}
 
                     {/* Reset 2FA Button */}
                     <button
@@ -415,6 +498,7 @@ export function AdminUsersTab({
                       {renderActiveToggle(admin)}
                       <span data-testid={`settings-admin-user-name-${admin.id}`}>{admin.display_name}</span>
                       {renderSelfBadge(admin)}
+                      {renderPendingBadge(admin)}
                     </td>
 
                     {/* Email */}
@@ -475,38 +559,17 @@ export function AdminUsersTab({
                           </button>
                         </Tooltip>
 
-                        {/* Reset Password Button */}
-                        <Tooltip content={t('settings.resetPassword')} position="top">
-                          <button
-                            data-testid={`settings-admin-reset-password-button-${admin.id}`}
-                            onClick={() => onResetPassword(admin.id)}
-                            style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '8px',
-                              border: 'none',
-                              background: 'transparent',
-                              color: theme.colors.text.secondary,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              transition: `all ${theme.transitions.default}`,
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = 'rgba(249, 115, 22, 0.2)'
-                              e.currentTarget.style.color = 'rgb(249, 115, 22)'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'transparent'
-                              e.currentTarget.style.color = theme.colors.text.secondary
-                            }}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
-                            </svg>
-                          </button>
-                        </Tooltip>
+                        {/* Resend the invitation, or reset the password. */}
+                        {renderCredentialAction(admin, ICON_BUTTON_STYLE, {
+                          onMouseEnter: (e) => {
+                            e.currentTarget.style.background = 'rgba(249, 115, 22, 0.2)'
+                            e.currentTarget.style.color = 'rgb(249, 115, 22)'
+                          },
+                          onMouseLeave: (e) => {
+                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.color = theme.colors.text.secondary
+                          },
+                        })}
 
                         {/* Reset 2FA Button */}
                         <Tooltip content={t('settings.reset2fa')} position="top">

@@ -220,6 +220,70 @@ class AdminNotifier
     }
 
     /**
+     * Queue the invitation link for one new admin, at the address their
+     * account was created for (migration 058).
+     *
+     * Not a fan-out, and therefore not {@see warnAdmins()}: an invitation is
+     * addressed to the person being onboarded and to nobody else, the way
+     * `admin_email_changed` is addressed to the address an account is losing.
+     * The mirror of that kind in every respect — including that the recipient
+     * is frozen into the row's `recipient` snapshot rather than re-read at send
+     * time, so a message queued now cannot be redirected by an edit to
+     * `admin_users.email` before the drain runs.
+     *
+     * It lives here rather than beside `notifyFormerAddress()` in
+     * `NotificationsService` for the reason this class exists at all: that
+     * service needs `MembersRepository`, which reaches `IbanSealedBox`, which
+     * refuses to construct without `IBAN_FINGERPRINT_KEY`. Inviting a
+     * colleague must not require the club's bank-detail key to be configured.
+     *
+     * The dedup key is the invitation's own id — see
+     * {@see MailRequestDto::forInvitation()} for why this kind does not go
+     * through `forAdmin()`. A reissue is then a second message rather than one
+     * the unique index swallows, which is the point: a resend exists precisely
+     * because the first did not arrive.
+     *
+     * @return bool Whether a row was written. False means the unique index
+     *         already held this exact invitation, which only happens if the
+     *         same one is queued twice.
+     */
+    public function inviteAdmin(
+        string $adminUserId,
+        string $recipient,
+        string $invitationId,
+        MailLanguage $language,
+        ?string $actorAdminUserId = null,
+    ): bool {
+        $recipient = trim($recipient);
+        if ($recipient === '') {
+            return false;
+        }
+
+        $queued = $this->mailOutboxRepository->enqueue(MailRequestDto::forInvitation(
+            adminUserId: $adminUserId,
+            recipient: $recipient,
+            invitationId: $invitationId,
+            language: $language,
+            actorAdminUserId: $actorAdminUserId,
+        ));
+
+        if ($queued) {
+            $this->auditService->log(
+                action: AuditAction::MAIL_ENQUEUED,
+                entityType: MailKind::ADMIN_INVITATION->subjectType()->auditEntityType(),
+                entityId: $adminUserId,
+                // The invitation id, never the token. This entry exists to
+                // correlate a queued message with the row that governs it; the
+                // token is in exactly two places and the audit log is not one.
+                newValues: ['kind' => MailKind::ADMIN_INVITATION->value, 'invitation_id' => $invitationId],
+                adminUserId: $actorAdminUserId,
+            );
+        }
+
+        return $queued;
+    }
+
+    /**
      * The configured club address, or null when there is none.
      *
      * Unset degrades to exactly today's behaviour — active admins only, no

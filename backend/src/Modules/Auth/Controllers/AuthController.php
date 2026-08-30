@@ -63,7 +63,13 @@ class AuthController
             $this->auditService->log(
                 action: AuditAction::LOGIN_FAILED,
                 entityType: EntityType::ADMIN_USER,
-                entityId: $body['email'],
+                // Bounded to the column. `audit_log.entity_id` is VARCHAR(36)
+                // — it holds UUIDs everywhere else — and an address longer than
+                // that made the INSERT fail with "Data too long", which the
+                // error handler turned into a **500 on a failed login**. The
+                // untruncated address is right below in `attempted_email`,
+                // where nothing constrains it, so nothing is lost.
+                entityId: mb_substr($body['email'], 0, 36),
                 newValues: ['attempted_email' => $body['email']],
             );
             return $this->json($response, ['error' => 'invalid_credentials', 'message' => 'Invalid credentials'], 401);

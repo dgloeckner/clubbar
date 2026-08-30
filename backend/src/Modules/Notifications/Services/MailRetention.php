@@ -136,6 +136,16 @@ final class MailRetention
             // were told.
             MailKind::ADMIN_ACCOUNT_CREATED,
             MailKind::ADMIN_ROLE_CHANGED,
+            // The invitation (migration 058) keeps the default, and it is the
+            // one kind where pruning also disposes of something: the row's
+            // rendered body carried a live link. It is not live for ninety
+            // days — the token expires long before, and `admin_user_invitations`
+            // holds the sealed copy that outlives this row anyway — so what is
+            // pruned here is the address and the fact of the telling, as
+            // everywhere else. The durable record is the `invitation_sent` and
+            // `invitation_accepted` audit entries, which carry no token and are
+            // untouched here.
+            MailKind::ADMIN_INVITATION,
             // The Jugendschutz notice (#622) keeps the default, and the reason
             // is worth stating because the instinct is to keep it for ten years
             // beside the incident. It is not the incident. The durable record

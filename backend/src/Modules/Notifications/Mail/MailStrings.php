@@ -400,6 +400,32 @@ final class MailStrings
                                         . 'Administratorin oder einen anderen Administrator: '
                                         . 'nur sie können das Konto zurücksetzen.',
 
+            // ── Einladung eines neuen Admin-Kontos (Migration 058) ──────────
+            // Die einzige Nachricht, deren Text ein gültiges Zugangsmittel
+            // enthält. Der Link steht deshalb zusätzlich als Klartext im
+            // Fließtext, und die Gültigkeit wird ausdrücklich genannt: ein
+            // stillschweigend abgelaufener Link liest sich als Fehler und nicht
+            // als Absicht.
+            'admin_invitation.subject'   => 'Dein Admin-Zugang für {org}',
+            'admin_invitation.preheader' => 'Lege ein Passwort fest, um Deinen Admin-Zugang zu aktivieren.',
+            'admin_invitation.eyebrow'   => 'Einladung',
+            'admin_invitation.title'     => 'Willkommen im Admin-Bereich',
+            'admin_invitation.lede'      => 'für Dich wurde ein Admin-Zugang zu <strong>{org}</strong> angelegt. '
+                                          . 'Über den Link unten legst Du Dein eigenes Passwort fest — '
+                                          . 'niemand sonst kennt es.',
+            'admin_invitation.lede_text' => 'für Dich wurde ein Admin-Zugang zu {org} angelegt. '
+                                          . 'Über den Link unten legst Du Dein eigenes Passwort fest — '
+                                          . 'niemand sonst kennt es.',
+            'admin_invitation.label_login'   => 'Anmeldeadresse',
+            'admin_invitation.label_expires' => 'Link gültig bis',
+            'admin_invitation.cta'       => 'Passwort festlegen',
+            'admin_invitation.fallback'  => 'Falls der Button nicht funktioniert, öffne diese Adresse im Browser:',
+            'admin_invitation.next_step' => 'Danach meldest Du Dich einmal ganz normal an. Dabei richtest Du '
+                                          . 'die Zwei-Faktor-Authentifizierung mit einer Authenticator-App '
+                                          . 'ein — das gehört zur Anmeldung dazu und dauert eine Minute.',
+            'admin_invitation.unexpected' => 'Wenn Du damit nichts anfangen kannst, ignoriere diese E-Mail. '
+                                           . 'Der Link läuft von selbst ab, und ohne ihn passiert nichts.',
+
             // ── Admin-Lebenszyklus (ADR-0044) ───────────────────────────────
             // Geht an alle aktiven Admins *und* an die Vereinsadresse: bei
             // genau einem Admin ginge die Nachricht sonst von der handelnden
@@ -846,6 +872,27 @@ final class MailStrings
             'email_changed.expected'  => 'If this was you, there is nothing further to do.',
             'email_changed.unexpected' => 'If it was not, contact another administrator immediately: '
                                         . 'only they can reset the account.',
+
+            // ── Admin invitation (migration 058) ────────────────────────────
+            'admin_invitation.subject'   => 'Your admin account for {org}',
+            'admin_invitation.preheader' => 'Set a password to activate your admin account.',
+            'admin_invitation.eyebrow'   => 'Invitation',
+            'admin_invitation.title'     => 'Welcome to the admin panel',
+            'admin_invitation.lede'      => 'an admin account has been created for you at '
+                                          . '<strong>{org}</strong>. Use the link below to set your own '
+                                          . 'password — nobody else will know it.',
+            'admin_invitation.lede_text' => 'an admin account has been created for you at {org}. '
+                                          . 'Use the link below to set your own password — nobody else '
+                                          . 'will know it.',
+            'admin_invitation.label_login'   => 'Sign-in address',
+            'admin_invitation.label_expires' => 'Link valid until',
+            'admin_invitation.cta'       => 'Set your password',
+            'admin_invitation.fallback'  => 'If the button does not work, open this address in your browser:',
+            'admin_invitation.next_step' => 'After that, sign in once as normal. You will set up two-factor '
+                                          . 'authentication with an authenticator app as part of signing in — '
+                                          . 'it is a required step and takes a minute.',
+            'admin_invitation.unexpected' => 'If this means nothing to you, ignore this email. The link '
+                                           . 'expires on its own, and nothing happens without it.',
 
             // ── Admin lifecycle (ADR-0044) ──────────────────────────────────
             'admin_lifecycle.eyebrow'          => 'Security notice',

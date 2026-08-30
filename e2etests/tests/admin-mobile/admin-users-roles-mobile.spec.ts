@@ -58,8 +58,10 @@ test.describe('Admin role assignment — mobile', () => {
     await fillStepUp(page)
     await page.getByTestId('settings-admin-create-confirm-button').click()
 
-    await page.getByTestId('settings-admin-password-modal').waitFor({ state: 'visible', timeout: 10000 })
-    await page.getByTestId('settings-admin-password-close-button').click()
+    // The invitation modal, not a password one: an account is created with no
+    // password at all (migration 058).
+    await page.getByTestId('settings-admin-invitation-modal').waitFor({ state: 'visible', timeout: 10000 })
+    await page.getByTestId('settings-admin-invitation-close-button').click()
 
     // Find the new admin's mobile card by its email, scoped so the role
     // badge lookup cannot pick up another card's badge.

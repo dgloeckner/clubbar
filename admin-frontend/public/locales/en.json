@@ -138,12 +138,15 @@
     "insufficientRoleMessage": "This page belongs to an office your account does not hold. If that changed recently, your roles were adjusted. Ask an administrator if you need this section.",
     "insufficientRoleHome": "Go to start page",
     "reasons": {
+      "admin_account_inactive": "This account is deactivated. Reactivate it before sending an invitation.",
+      "admin_already_onboarded": "This account has already accepted its invitation. Reset its password instead to grant a new way in.",
       "admin_role_is_exclusive": "The admin role cannot be combined with another role.",
       "admin_user_needs_a_role": "An admin account must hold at least one role.",
       "cannot_deactivate_self": "You cannot deactivate your own account.",
       "category_inactive": "This category is inactive.",
       "execution_date_not_business_day": "The execution date {{execution_date}} is not a bank business day (Mon–Fri, excluding TARGET2 closing days). Cancel the settlement and recreate it with a valid date.",
       "iban_key_unavailable": "Every stored IBAN is sealed; the SEPA export needs the club's private key.",
+      "invitation_invalid": "This invitation link is no longer valid. Ask for a new invitation.",
       "last_active_admin": "This is the last active admin account, so it cannot be deactivated.",
       "last_admin_role_holder": "This is the last account holding the admin role, so it cannot be removed.",
       "mandate_vanished_during_export": "A member's active SEPA mandate disappeared during the export. Nothing was exported — please try again.",
@@ -766,7 +769,8 @@
       "rotateTerminal": "Failed to rotate the API token",
       "revokeTerminal": "Failed to revoke terminal access",
       "saveSepa": "Failed to save the SEPA configuration. Please try again.",
-      "sepaValidation": "Please correct the highlighted fields"
+      "sepaValidation": "Please correct the highlighted fields",
+      "resendInvitation": "Could not send the invitation"
     },
     "validation": {
       "creditorNameRequired": "Creditor name is required",
@@ -994,7 +998,13 @@
         "save": "Could not save the limits. Please try again.",
         "validation": "Please correct the highlighted fields"
       }
-    }
+    },
+    "invitationSent": "Invitation sent",
+    "invitationWarning": "The invitation link was sent to {{email}} and is valid until {{expires}}. Copy it here in case the email does not arrive — it is not shown again.",
+    "invitationPending": "Invitation pending",
+    "invitationPendingHint": "This account has no password yet. It cannot sign in until the invitation is accepted.",
+    "resendInvitation": "Send a new invitation",
+    "resendInvitationConfirm": "Send this account a new invitation? The existing link stops working."
   },
   "auditLog": {
     "title": "Audit Log",
@@ -1429,6 +1439,7 @@
       "terminal_token_expiry_warning": "Terminal token expiring",
       "terminal_anomaly_warning": "Terminal anomaly",
       "admin_account_created": "Admin account created",
+      "admin_invitation": "Invitation",
       "admin_role_changed": "Roles changed",
       "admin_email_changed": "Sign-in address changed",
       "backup_secret_expiry_warning": "Backup credential expiring",
@@ -1480,6 +1491,28 @@
       "archiveRange": "Oldest – newest archive",
       "empty": "No archive names a key.",
       "note": "Derived from the archive headers — a list to walk your own key register against, never a replacement for it. A key with no archives opens nothing that is still here. The archive range says how long a withdrawn key's private half still has to be kept: until even the newest archive named here has fallen out of retention."
+    }
+  },
+  "invite": {
+    "title": "Set up your admin account",
+    "subtitle": "Hello {{name}} — choose your password.",
+    "invalidSubtitle": "This link no longer works.",
+    "emailLabel": "Sign-in address",
+    "passwordLabel": "New password",
+    "passwordHint": "At least 8 characters, with a lower-case letter, an upper-case letter and a digit.",
+    "confirmationLabel": "Repeat password",
+    "submit": "Set password",
+    "submitting": "Saving …",
+    "done": "Password saved. Sign in now.",
+    "goToLogin": "Go to sign-in",
+    "nextStep": "After this you sign in once, and set up two-factor authentication with an authenticator app as part of it.",
+    "validation": {
+      "password": "At least 8 characters, with a lower-case letter, an upper-case letter and a digit.",
+      "mismatch": "The passwords do not match."
+    },
+    "errors": {
+      "invalidLink": "This invitation link has expired or has already been used. Ask for a new invitation.",
+      "acceptFailed": "The password could not be saved."
     }
   }
 }

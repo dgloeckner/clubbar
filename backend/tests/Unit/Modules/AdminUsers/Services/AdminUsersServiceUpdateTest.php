@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\AdminUsers\Services;
 use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\AdminUsers\Services\AdminInvitationService;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Notifications\Services\NotificationsService;
@@ -41,6 +42,7 @@ class AdminUsersServiceUpdateTest extends TestCase
             $this->notifications,
             $this->roles,
             $this->createMock(AdminNotifier::class),
+            $this->createMock(AdminInvitationService::class),
         );
     }
 

@@ -15,12 +15,22 @@ interface LoginFormProps {
   onSubmit: (email: string, password: string) => Promise<void>
   loading?: boolean
   error?: string
+  /**
+   * Pre-fills the address field — used when an invitee has just set their
+   * password (migration 058) and is being sent here to sign in. They have only
+   * ever seen the address in an email, and it is the account's identifier
+   * rather than something they chose, so asking them to retype it is asking
+   * them to guess.
+   */
+  initialEmail?: string
+  /** A one-line success message shown above the form, e.g. after accepting an invitation. */
+  notice?: string
 }
 
-export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) {
+export function LoginForm({ onSubmit, loading = false, error, initialEmail = '', notice }: LoginFormProps) {
   const { t } = useTranslation()
   const { instanceName } = useInstanceConfig()
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
@@ -103,6 +113,22 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>
+          {notice && (
+            <div
+              data-testid="login-notice"
+              style={{
+                background: `${theme.colors.semantic.success}20`,
+                border: `1px solid ${theme.colors.semantic.success}`,
+                borderRadius: theme.borderRadius.md,
+                padding: theme.spacing.md,
+                fontSize: theme.typography.fontSize.sm,
+                color: theme.colors.semantic.success,
+              }}
+            >
+              {notice}
+            </div>
+          )}
+
           {error && (
             <div
               data-testid="login-error"
