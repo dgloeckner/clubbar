@@ -1,268 +1,144 @@
 # Runbook: Terminal Raspberry Pi
 
-How to provision a terminal Pi so it reaches **both** the Verein wifi and a
-maintenance/home wifi persistently, keeps correct time, restarts its own app,
-and recovers unattended — instead of stranding itself where nobody can reach it.
+**A terminal has stopped responding. What now.**
 
-Written after the 2026-08-29 incident on a terminal Pi (Pi 4B, Raspberry Pi OS
-Trixie), where the terminal fell off wifi, could not be reached, and could not
-be recovered from the touchscreen because the app runs fullscreen with no exit.
+Setting one up is a different job and lives in
+[`terminal-frontend/INSTALL.md`](../terminal-frontend/INSTALL.md) — §§5–7 there
+are the hardening this runbook assumes is in place. This page is only for the
+moment something is wrong.
 
 ---
 
-## 1. Why a terminal strands itself
+## 1. Check the obvious one first: it may just be asleep
 
-Three defaults combine badly on an unattended kiosk:
+Since #763 the terminal powers its **panel** down after
+`screenBlanking.timeoutSeconds` (300 s by default), rather than covering the
+screen with a black window. A sleeping panel has no backlight and no "no
+signal" message once it settles, so **a blanked terminal is indistinguishable
+from a dead one.**
+
+**Hold a card to the reader before doing anything else.** That is the wake that
+always works: the reader is its own USB device and a keyboard-wedge, so a card
+both wakes the terminal and logs the member in.
+
+**A touch may not wake it, and that is not a fault.** Under `"mode":
+"output-power"` the panel's touchscreen sleeps with the panel on this hardware —
+it stays enumerated on USB and emits nothing, measured — so the screen answers a
+card and ignores a finger. See [*A sleeping panel takes its touchscreen with
+it*](../terminal-frontend/INSTALL.md#a-sleeping-panel-takes-its-touchscreen-with-it)
+before concluding the terminal is dead.
+
+If a card does not wake it, carry on below.
+
+## 2. Why a terminal strands itself
+
+The three defaults that caused the 2026-08-29 incident, kept here because they
+are the first things to re-check on a terminal that fell off the network:
 
 | Default | Effect |
 |---|---|
 | `connection.autoconnect-retries` = 4 | After four failed attempts NetworkManager **gives up on that profile until reboot**. A router reboot or a slow AP is enough. Radio stays on, device reads `disconnected`, nothing ever retries. |
 | `wifi.powersave` = enabled | The link drops during idle periods and does not always come back. Classic "worked yesterday". |
-| No RTC + `fake-hwclock` absent | The Pi boots with a stale clock and only corrects once NTP is reachable — which needs the network that is broken. See §7. |
+| No RTC + `fake-hwclock` absent | The Pi boots with a stale clock and only corrects once NTP is reachable — which needs the network that is broken. |
 
-## 2. Configure both SSIDs
+All three are fixed by INSTALL.md §§5–6. A terminal showing one of them was
+provisioned before that, or by hand.
 
-Run once per terminal. Priority decides which wins when both are in range —
-the Verein network should always outrank the maintenance one.
-
-Use `sudo nmtui` if you would rather not put the PSK on a command line — the
-commands below land it in shell history.
-
-```bash
-VEREIN_SSID="<verein-ssid>"        # where the terminal lives
-MAINT_SSID="<maintenance-ssid>"    # home/workshop, for provisioning and repair
-
-sudo nmcli device wifi connect "$VEREIN_SSID" password "<psk>"
-sudo nmcli device wifi connect "$MAINT_SSID"  password "<psk>"
-
-for c in "$VEREIN_SSID:100" "$MAINT_SSID:50"; do
-  n="${c%:*}"; p="${c#*:}"
-  sudo nmcli connection modify "$n" \
-    connection.autoconnect yes \
-    connection.autoconnect-priority "$p" \
-    connection.autoconnect-retries 0 \
-    802-11-wireless.powersave 2 \
-    802-11-wireless.cloned-mac-address permanent \
-    ipv4.dhcp-timeout 60
-done
-```
-
-What each setting buys:
-
-- **`autoconnect-retries 0`** — retry forever. This is the single most important
-  line; it is what prevents the wedged state described above.
-- **`powersave 2`** — disabled (the numbering is unintuitive: `2` off, `3` on).
-- **`cloned-mac-address permanent`** — no MAC randomisation, so DHCP
-  reservations on the router keep working.
-- **`autoconnect-priority`** — higher wins.
-
-Verify:
-
-```bash
-nmcli -f NAME,AUTOCONNECT,AUTOCONNECT-PRIORITY connection show
-sudo ls -l /etc/NetworkManager/system-connections/   # one file per SSID, mode 600
-```
-
-## 3. Wifi watchdog
-
-NetworkManager retrying forever covers most failures, but a wedged supplicant
-can leave NM believing the link is fine. The watchdog only acts when genuinely
-disconnected, so it never disturbs a healthy link.
-
-```bash
-sudo tee /usr/local/sbin/wifi-watchdog.sh >/dev/null <<'EOF'
-#!/bin/bash
-set -u
-state=$(nmcli -t -f STATE general 2>/dev/null)
-[ "$state" = "connected" ] && exit 0
-
-logger -t wifi-watchdog "state=$state - attempting recovery"
-nmcli device wifi rescan >/dev/null 2>&1
-sleep 5
-
-# Try known wifi profiles in descending autoconnect-priority order. Derived
-# from NetworkManager rather than hardcoded, so adding or renaming an SSID
-# needs no edit here.
-while IFS=: read -r prio name; do
-  [ -n "$name" ] || continue
-  if nmcli connection up "$name" >/dev/null 2>&1; then
-    logger -t wifi-watchdog "reconnected via $name"
-    exit 0
-  fi
-done < <(nmcli -t -f NAME,TYPE,AUTOCONNECT-PRIORITY connection show \
-         | awk -F: '$2 == "802-11-wireless" { print $3 ":" $1 }' | sort -rn)
-
-logger -t wifi-watchdog "recovery failed - no known SSID in range"
-EOF
-sudo chmod +x /usr/local/sbin/wifi-watchdog.sh
-```
-
-```ini
-# /etc/systemd/system/wifi-watchdog.service
-[Unit]
-Description=Club Bar wifi watchdog
-After=NetworkManager.service
-[Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/wifi-watchdog.sh
-```
-
-```ini
-# /etc/systemd/system/wifi-watchdog.timer
-[Unit]
-Description=Run wifi watchdog every 3 minutes
-[Timer]
-OnBootSec=2min
-OnUnitActiveSec=3min
-[Install]
-WantedBy=timers.target
-```
-
-```bash
-sudo systemctl daemon-reload && sudo systemctl enable --now wifi-watchdog.timer
-journalctl -t wifi-watchdog --no-pager | tail
-```
-
-## 4. Keep the app alive
-
-`~/.config/autostart/clubbar-terminal.desktop` launching the binary directly has
-no crash recovery: if `clubbar_terminal` dies, the bar has a dead screen until
-somebody notices. The `.desktop` entry is kept — its timing (after the
-compositor) is what makes it work — but it now only hands off to a supervised
-user unit:
-
-```ini
-# ~/.config/autostart/clubbar-terminal.desktop
-Exec=systemctl --user start clubbar-terminal.service
-```
-
-```ini
-# ~/.config/systemd/user/clubbar-terminal.service
-[Unit]
-Description=Club Bar Terminal (kiosk POS)
-After=graphical-session.target
-StartLimitIntervalSec=0          # never give up; a dead till cannot sell
-
-[Service]
-Type=simple
-Environment=GST_AUDIO_SINK=alsasink
-ExecStart=/opt/clubbar-terminal/clubbar_terminal
-Restart=always
-RestartSec=3
-```
-
-`graphical-session.target` is inactive under labwc, so the unit is *not* hung
-off it — the `.desktop` entry is the trigger, and the user manager already has
-`WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` imported, which the service inherits.
-
-Verify by killing it:
-
-```bash
-kill -9 $(systemctl --user show -p MainPID --value clubbar-terminal.service)
-sleep 8 && systemctl --user show -p NRestarts --value clubbar-terminal.service   # 1
-```
-
-## 5. Hardware watchdog
-
-A Pi has `/dev/watchdog`; systemd does not use it unless told to. Without it a
-hard kernel hang means an unreachable terminal until someone power-cycles it.
-
-```ini
-# /etc/systemd/system.conf.d/watchdog.conf
-[Manager]
-RuntimeWatchdogSec=15s
-RebootWatchdogSec=2min
-```
-
-## 6. Journal retention
-
-Default journald kept only 2 boots on the reference unit, which is why the original
-failure left no evidence. Set it explicitly:
-
-```ini
-# /etc/systemd/journald.conf.d/retention.conf
-[Journal]
-Storage=persistent
-SystemMaxUse=200M
-MaxRetentionSec=6month
-```
-
-## 7. Clock — install `fake-hwclock`
-
-**A Pi has no RTC.** Without `fake-hwclock`, systemd falls back at boot to the
-newest timestamp it can find on disk — typically the build date or the mtime of
-`/var/lib/systemd/timesync/clock` — so the clock resumes at some *earlier*
-moment and is only corrected once NTP is reachable. On the reference unit this produced
-a boot that believed it was 11:44 for 23 minutes, then jumped forward 4h49m the
-instant timesyncd reached a server.
-
-```bash
-sudo apt-get install -y fake-hwclock
-systemctl is-enabled fake-hwclock-load fake-hwclock-save.timer   # both: enabled
-```
-
-`fake-hwclock.service` showing `masked` is normal — it is the SysV compat shim,
-masked in favour of the native `-load` / `-save` units.
-
-**This is not cosmetic on a POS.** The terminal stamps `created_at` on every
-transaction locally. A sale rung up before NTP syncs carries a wrong timestamp
-into the sync payload, and the backend's delta sync is timestamp-driven
-(ADR-0033). A terminal that is offline — the exact situation where the clock is
-never corrected — is also the situation where sales queue locally the longest.
-For a terminal handling real money, consider a DS3231 RTC HAT (~5 EUR, I2C);
-it removes the failure mode rather than shortening it.
-
-## 8. Recovering a terminal you cannot reach
+## 3. Recovering a terminal you cannot reach
 
 The app runs fullscreen (`windowManager.setFullScreen(true)`) with no in-app
 exit, but it is an ordinary fullscreen window, not a locked kiosk:
 
 - **Ctrl+Alt+F2** → console, log in, `sudo nmtui`. `Ctrl+Alt+F7`/F1 returns.
-- **Alt+F4** closes the app.
+- **Alt+F4** closes the app. It will be restarted by its systemd unit.
 - **Ethernet cable** — NM brings `eth0` up on DHCP unconfigured; needs no keyboard.
 - **USB tethering from a phone** — NM picks up `usb0` automatically.
 
 Keep SSH enabled (`sudo systemctl enable --now ssh`) and give each terminal a
 fixed DHCP lease on the router so its address never moves.
 
-## 9. Temperature and undervoltage — on the touchscreen
+## 4. Diagnosis
 
-Both are in the terminal's own **status modal**: tap the status pill in the
-header, and the *Overview* tab carries a **System health** section with the SoC
-temperature, its state, and an undervoltage warning when there is one (#767).
-It is the first thing here reachable without a keyboard, and it is deliberately
-the two values that are worth reading *before* something has gone wrong:
+**Temperature and undervoltage are on the touchscreen** (#767) — tap the status
+pill in the header, and the *Overview* tab's **System health** section carries
+both, with no SSH and no keyboard:
 
-| Reading | What it means | What to do |
+| Reading | Means | Do |
 |---|---|---|
-| below 60 °C | Normal. A terminal idling in a room sits at ~59 °C | Nothing |
-| 60–80 °C | Warm. Working, with less headroom than it looks — a bar in summer has less than a desk | Improve airflow while it is cheap to |
-| 80 °C and above | Throttling. The SoC's soft limit; it is dropping clock speed to save itself, so the till is slower exactly when the bar is busiest (#760) | Airflow, now |
-| Undervoltage | The power supply is sagging below the SoC's low-critical threshold | **Replace the power supply.** It corrupts the SD card until somebody does, and a terminal that will not boot cannot sell |
+| below 60 °C | Normal — the terminal idles at ~59 °C in a room | Nothing |
+| 60–80 °C | Warm. Working, with less headroom than it looks | Improve airflow while it is cheap to |
+| 80 °C and above | Throttling. The soft limit; the till is slower exactly when the bar is busiest (#760) | Airflow, now |
+| Undervoltage | The PSU is sagging below the SoC's low-critical threshold | **Replace the power supply** — it corrupts the SD card until somebody does |
 
-Over SSH the same two values are:
+Over SSH, start with the one script that checks everything this page assumes:
 
 ```bash
+./scripts/kiosk-doctor.sh      # in terminal-frontend/, read-only, safe while serving
+```
+
+Then, by hand:
+
+```bash
+# Is it on the network, and does it know what time it is?
+nmcli device status
+nmcli -f NAME,AUTOCONNECT,AUTOCONNECT-PRIORITY connection show
+timedatectl                       # "System clock synchronized: yes"
+
+# Is the app running, and has it been crashing?
+systemctl --user status clubbar-terminal.service
+systemctl --user show -p NRestarts --value clubbar-terminal.service
+
+# Is the display asleep, or is something wrong with it?
+WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 wlopm
+cat /sys/class/drm/card1-HDMI-A-1/{dpms,enabled}
+
+# Is anything competing with the app for focus? Must be 0 — a panel or desktop
+# window takes the input that wakes a blanked screen, and the terminal then
+# stays black with its output switched on. (kiosk-doctor.sh checks this too.)
+ps -eo cmd | grep -cE '[w]f-panel-pi|[p]cmanfm'
+
+# Has it been overheating? 0x0 is clean; bit 19 (0x80000) is the soft limit.
+vcgencmd measure_temp
+vcgencmd get_throttled
+
+# …and the same two from sysfs, which needs no /dev/vcio — use these when
+# vcgencmd has lost it (terminal-hardware.md §"Power and thermal"). This is
+# what the touchscreen readout above reads.
 cat /sys/class/thermal/thermal_zone0/temp                  # milli-°C
 grep -l rpi_volt /sys/class/hwmon/hwmon*/name |            # 1 = undervoltage
   xargs -r dirname | xargs -r -I{} cat {}/in0_lcrit_alarm
+
+# What happened before it stopped?
+journalctl --user -u clubbar-terminal.service -n 50 --no-pager
+journalctl -t wifi-watchdog --no-pager | tail
 ```
 
-**Not `vcgencmd`.** `vcgencmd measure_temp` and `get_throttled` need
-`/dev/vcio`, which `raspberrypi-sys-mods` 1:20260612 leaves `0600 root:root` —
-its udev rules name only the newer `vcio_gencmd`/`vcio_crypto` nodes while
-kernel 6.12.47 still creates plain `/dev/vcio`. A reboot does not fix it. The
-sysfs paths above are world-readable and need nothing.
+A terminal that keeps working but cannot reach the backend is a different
+problem — see the terminal's own status modal, and
+[`ADR-0035`](../adr/0035-terminal-backend-instance-pairing.md) if it reports
+being paired with a different backend.
 
-## 10. Verification
+## 5. It boots to a text console, or has no network at all
 
-Everything above was verified by reboot on 2026-08-29 on a live terminal Pi: clock correct at boot (no
-NTP jump), wifi reassociated unattended, watchdog armed at 15s, app started
-under systemd, and SIGKILL produced a restart in under 8 seconds.
+Both symptoms together mean packages were removed — almost always by an
+`apt-get install` that resolved a conflict by deleting the 64-bit desktop.
+`labwc` gone is the console; `network-manager` gone is the missing network, and
+`nmcli: command not found` confirms it in one line.
 
-## 11. Open gap
+**You can still get in.** The kernel brings IPv6 up by SLAAC with no client at
+all, so `ssh <user>@<host>` works over IPv6 while every IPv4 ping and scan
+fails — the host looks dead and is not. From there, INSTALL.md's
+[recovery steps](../terminal-frontend/INSTALL.md#recovering-a-terminal-whose-packages-were-removed)
+rebuild the exact package list from `/var/log/apt/history.log`.
 
-Almost none of the above is reachable from the touchscreen — §9 is the first
-slice, and only the first. A staff-facing service screen — SSID, IP, backend
-reachability, unsynced count, exit-to-desktop, behind a PIN — would remove the
-need for most of §8. Not yet filed.
+Two things that make this less frightening than it looks: NetworkManager's
+profiles survive removal with their PSKs, so wifi returns by itself once the
+package is back; and `/etc/xdg/labwc/autostart` is a conffile, so kiosk edits
+survive too if the reinstall passes `--force-confold`.
+
+## 6. Open gap
+
+Almost none of the above is reachable from the touchscreen — §4's System health
+section is the first slice, and only the first. A staff-facing service screen —
+SSID, IP, backend reachability, unsynced count, exit-to-desktop, behind a PIN —
+would remove the need for most of §3. Not yet filed.

@@ -64,7 +64,7 @@ void main() {
         final l10n = await AppLocalizations.delegate.load(Locale(locale));
 
         // Every error that is not purely informational should name a next
-        // step — try again, see the staff, register at the bar.
+        // step — try again, see the staff, report it to an admin.
         const informational = {
           TerminalErrorKey.cartEmpty,
           TerminalErrorKey.checkoutCancelled,
@@ -74,10 +74,10 @@ void main() {
         const cues = [
           'try again',
           'bar staff',
-          'register at the bar',
+          'to an admin',
           'erneut versuchen',
           'Bar-Team',
-          'an der Bar anmelden',
+          'einem Admin melden',
           'noch einmal versuchen',
           'Scanner',
           'scanner',

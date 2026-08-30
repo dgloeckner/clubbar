@@ -531,9 +531,9 @@
   },
 
   "@_RFID_ERRORS": {},
-  "rfidErrorUnknownCard": "Wir kennen diesen Chip nicht – bitte an der Bar anmelden",
+  "rfidErrorUnknownCard": "Wir kennen diesen Chip nicht – bitte bei einem Admin melden",
   "@rfidErrorUnknownCard": {
-    "description": "Error when scanned card is not in database"
+    "description": "Error when scanned card is not in database. Names an admin as the next step, not the bar: only an admin can register a chip to a member, so pointing at the bar would be a promise the staff cannot keep"
   },
   "rfidErrorAccountInactive": "Dein Konto ist inaktiv – bitte beim Bar-Team melden",
   "@rfidErrorAccountInactive": {

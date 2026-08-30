@@ -368,7 +368,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get rfidErrorUnknownCard =>
-      'We don\'t know this chip — please register at the bar';
+      'We don\'t know this chip — please report it to an admin';
 
   @override
   String get rfidErrorAccountInactive =>

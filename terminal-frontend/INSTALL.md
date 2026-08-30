@@ -1,15 +1,29 @@
 # Club Bar Terminal — Installation Guide
 
 This guide covers deploying the Club Bar terminal app on a Raspberry Pi running
-Raspberry Pi OS (Bookworm). The terminal is a Flutter desktop app targeting
-embedded Linux, typically running fullscreen on a touchscreen display.
+Raspberry Pi OS. The terminal is a Flutter desktop app targeting embedded Linux,
+typically running fullscreen on a touchscreen display.
+
+**Work through it in order.** Sections 5 to 7 are not optional extras: an
+unattended till that cannot rejoin its wifi, keeps the wrong time, or never
+restarts its own app is one somebody has to drive to. Each of them exists
+because of a failure that actually happened.
+
+Once a terminal is running, [`docs/runbook-terminal-pi.md`](../docs/runbook-terminal-pi.md)
+is the other half: what to do when one stops responding.
 
 ---
 
 ## Prerequisites
 
+> The hardware in service, with its measured capabilities and limits, is
+> [`docs/terminal-hardware.md`](../docs/terminal-hardware.md). Read it before
+> choosing a panel — whether the touchscreen survives standby is decided there,
+> not here.
+
 - Raspberry Pi 4 or 5, 2 GB RAM minimum
-- Raspberry Pi OS Bookworm (64-bit, desktop)
+- Raspberry Pi OS Bookworm or Trixie (64-bit, desktop). §§3 and 5 assume the
+  Wayland session both ship (labwc); see the notes there for X11
 - Official Raspberry Pi touchscreen, or any HDMI touchscreen
 - RFID/NFC USB reader (keyboard-emulation mode)
 - Network access to the Club Bar backend
@@ -58,7 +72,7 @@ DISPLAY=:0 /opt/clubbar-terminal/clubbar_terminal
 
 ## 2. Disable the on-screen keyboard
 
-Raspberry Pi OS Bookworm ships with **squeekboard**, a Wayland on-screen
+Raspberry Pi OS ships with **squeekboard**, a Wayland on-screen
 keyboard that pops up automatically when a text field is focused. The Club Bar
 terminal is a point-and-click kiosk — the setup screen is filled in once during
 commissioning using a physical keyboard, so the on-screen keyboard is never
@@ -91,6 +105,29 @@ Where possible the terminal powers the **panel** down rather than painting it
 black. An LCD showing black pixels still has its backlight on, so covering the
 screen saves no power and no heat; putting the output to sleep does both.
 
+**Powering the output off is the only thing that saves anything, and this is
+worth knowing before designing a gentler alternative.** Everything a Pi can
+plausibly do to a display was probed on the terminal hardware:
+
+| Mechanism | Result on the terminal Pi | Saves power? |
+|---|---|---|
+| `/sys/class/backlight` | **Absent.** No backlight device exists — there is no brightness to turn down | — |
+| DDC/CI brightness (VCP `0x10`) | **Refused.** `ddcutil` reads the EDID (`RTK CX101`) but the panel does not answer at I2C `0x37`: *"This monitor does not support DDC/CI"* | — |
+| `vcgencmd set_backlight` | **`Invalid arguments`.** It drives the DSI panel connector, not HDMI | — |
+| `zwlr_gamma_control_manager_v1` | **Available** — labwc advertises it, `gammastep` speaks it | **No.** It scales pixel values; the backlight stays at 100% |
+| A translucent overlay drawn by the app | Always available, no dependencies | **No.** Same reason |
+| `zwlr_output_power_manager_v1` (`output-power`) | Working | **Yes** — the panel enters standby |
+
+So a "dim" phase on this hardware can only ever be cosmetic: it can make an
+idle terminal *look* idle, and — unlike `output-power` — it leaves the
+touchscreen awake (see below), but it draws the same watts as a terminal in
+use. Anything that claims to dim for power reasons needs a panel with a real
+backlight control, not a software change.
+
+> Do not install `gammastep` on a terminal Pi to try this. There is no `arm64`
+> build, and installing it removed 397 packages including the desktop — see
+> [Installing packages on a terminal Pi](#installing-packages-on-a-terminal-pi).
+
 This is done through Wayland's `zwlr_output_power_management_v1`, via `wlopm`.
 Earlier versions of this guide said DPMS did not work on cheap touchscreens —
 that was true of **X11 `xset dpms`**. Under Wayland/labwc the compositor
@@ -111,9 +148,55 @@ Confirm your panel honours it before enabling the mode:
 wlopm --off HDMI-A-1 && sleep 5 && wlopm --on HDMI-A-1
 ```
 
-The screen should go dark and come back. Touch input keeps working while the
-output is off — the touchscreen is a USB device, unrelated to the display
-pipeline — which is what makes wake-on-touch work.
+The screen should go dark and come back.
+
+### A sleeping panel takes its touchscreen with it
+
+**On the terminal Pi, `output-power` means the screen wakes on a card and not
+on a touch.** This is expected behaviour, not a fault, and it is the one thing
+about this mode worth knowing before somebody reports it as a broken till.
+
+The touchscreen is a separate USB device, so it is tempting to conclude that
+sleeping the display leaves it alone. Measured, that is false: with the panel in
+standby the digitizer **stops emitting events entirely**. It stays enumerated
+the whole time — `lsusb` lists it, both nodes stay in
+`/proc/bus/input/devices`, `/dev/input/event*` persists — so every check short
+of reading the device says it is fine. The controller is bonded to the panel and
+simply stops scanning while the panel sleeps.
+
+The RFID reader is its own USB device and is unaffected, which is why the
+terminal still wakes on a card — and why a member presenting a chip, the normal
+way this terminal is approached, never notices. Staff walking up to touch it
+will, so it is worth telling them.
+
+Measure it on your own panel rather than assuming either way. With the screen
+blanked, from SSH:
+
+```bash
+# Find the touchscreen's event node
+grep -A5 'Name="TSTP MTouch"' /proc/bus/input/devices   # your name will differ
+
+# Blank the screen, then touch it repeatedly for ~15 s
+timeout 20 cat /dev/input/event9 | wc -c
+```
+
+Bytes counted means the digitizer survives standby and touch will wake the
+terminal. **Zero means it does not** — the terminal is then card-wake only,
+unless you give up the power saving and switch to `"mode": "overlay"` (see
+below). Run the same command with the screen on as a control; a non-zero count
+there proves the test itself works.
+
+> Do not substitute a synthetic `uinput` device for a finger here. It bypasses
+> the digitizer, so it wakes the screen in every mode and will tell you the
+> hardware is fine when it is not.
+
+**Wake needs the app to be the window in front.** The compositor hands the card
+scan and the touch to whichever surface has focus, and the terminal powers the
+panel back on only when it sees that input itself. A desktop panel or a
+file-manager desktop window takes both, and the terminal then stays dark with
+its output switched on — which reads as a crash and is not one. Strip the
+session down before relying on blanking: see [The session must hold exactly one
+window](#the-session-must-hold-exactly-one-window).
 
 ### Configure it
 
@@ -131,45 +214,79 @@ In `config.json`:
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `false` | Off by default, like `fullscreen` — a kiosk wants blanking, a development machine does not |
-| `timeoutSeconds` | `300` | Idle time before blanking |
-| `mode` | `output-power` | `output-power` sleeps the panel; `overlay` only paints black |
+| `timeoutSeconds` | `300` | Idle time before blanking. **Production terminals use `3600`** — an hour of genuine idleness means a closed bar, not a lull, so the panel sleeps when it should and nobody meets the wake delay during service |
+| `mode` | `output-power` | `output-power` sleeps the panel; `overlay` only paints black. Under `output-power` the panel's touchscreen may sleep too — see above |
 | `output` | — | Wayland output name. **Required for `output-power`**; without it the terminal paints black rather than guessing at a name |
 
 Environment overrides: `TERMINAL_SCREEN_BLANKING`,
 `TERMINAL_SCREEN_BLANKING_TIMEOUT`, `TERMINAL_SCREEN_BLANKING_MODE`,
 `TERMINAL_SCREEN_BLANKING_OUTPUT`.
 
-### If your panel ignores signal loss
+### When to choose `overlay`
 
-A few panels show a "no signal" message indefinitely instead of sleeping. Set
-`"mode": "overlay"` — the terminal then paints a black surface instead, which is
-what it did before. Blanking still works; only the power saving is lost.
+`"mode": "overlay"` paints a black surface and leaves the output alone. Blanking
+still works; the backlight stays on, so the power and heat saving is what you
+give up. Choose it when either is true:
+
+- **You need wake on touch and the digitizer sleeps with the panel** (above).
+  The terminal Pi keeps `output-power` and accepts card-only wake, since a
+  member arrives with a chip in hand; a terminal that is mostly operated by
+  staff tapping the screen would trade the other way.
+- **The panel ignores signal loss** and sits on a "no signal" message instead of
+  sleeping.
+
+Wake is also instant in this mode: there is no modeset, so none of the panel's
+HDMI re-lock, and no mode-change OSD from the monitor.
 
 Either way the terminal paints black as well as powering down, so the touch that
 wakes the screen never lands on a button underneath.
 
 ---
 
-## 4. Autostart the terminal app
+## 4. Autostart and supervision
 
-Create `~/.config/autostart/clubbar-terminal.desktop`:
+`~/.config/autostart/clubbar-terminal.desktop` launching the binary directly has
+no crash recovery: if `clubbar_terminal` dies, the bar has a dead screen until
+somebody notices. The `.desktop` entry is kept — its timing (after the
+compositor) is what makes it work — but it now only hands off to a supervised
+user unit:
 
 ```ini
-[Desktop Entry]
-Type=Application
-Name=Club Bar Terminal
-Exec=env GST_AUDIO_SINK=alsasink /opt/clubbar-terminal/clubbar_terminal
-Hidden=false
-X-GNOME-Autostart-enabled=true
+# ~/.config/autostart/clubbar-terminal.desktop
+Exec=systemctl --user start clubbar-terminal.service
 ```
 
-The app reads its window mode from `config.json` on startup.
+```ini
+# ~/.config/systemd/user/clubbar-terminal.service
+[Unit]
+Description=Club Bar Terminal (kiosk POS)
+After=graphical-session.target
+StartLimitIntervalSec=0          # never give up; a dead till cannot sell
+
+[Service]
+Type=simple
+Environment=GST_AUDIO_SINK=alsasink
+ExecStart=/opt/clubbar-terminal/clubbar_terminal
+Restart=always
+RestartSec=3
+```
+
+`graphical-session.target` is inactive under labwc, so the unit is *not* hung
+off it — the `.desktop` entry is the trigger, and the user manager already has
+`WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` imported, which the service inherits.
+
+Verify by killing it:
+
+```bash
+kill -9 $(systemctl --user show -p MainPID --value clubbar-terminal.service)
+sleep 8 && systemctl --user show -p NRestarts --value clubbar-terminal.service   # 1
+```
 
 ### Fullscreen / kiosk mode
 
 To run the app fullscreen (recommended for production kiosk deployments), add
 `"fullscreen": true` to the terminal's `config.json` (see
-[Configuration reference](#5-configuration-reference) for the full schema):
+[Configuration reference](#8-configuration-reference) for the full schema):
 
 ```json
 {
@@ -180,24 +297,276 @@ To run the app fullscreen (recommended for production kiosk deployments), add
 }
 ```
 
-Alternatively, set the environment variable `TERMINAL_FULLSCREEN=true` in the
-`.desktop` file:
-
-```ini
-[Desktop Entry]
-Type=Application
-Name=Club Bar Terminal
-Exec=env TERMINAL_FULLSCREEN=true /opt/clubbar-terminal/clubbar_terminal
-Hidden=false
-X-GNOME-Autostart-enabled=true
-```
+Environment variables can also be set on the service (see §4), but
+`config.json` is the normal route.
 
 > **Development machines:** Leave `fullscreen` unset (defaults to `false`) so
 > the app opens in a normal window. Only set it on deployed kiosk hardware.
 
+### The session must hold exactly one window
+
+Raspberry Pi OS's labwc session autostarts a panel and a desktop, and both are
+actively harmful on a till:
+
+```
+# /etc/xdg/labwc/autostart — as shipped
+/usr/bin/lwrespawn /usr/bin/pcmanfm-pi &
+/usr/bin/lwrespawn /usr/bin/wf-panel-pi &
+/usr/bin/kanshi &
+/usr/bin/lxsession-xdg-autostart
+```
+
+**`pcmanfm-pi` takes keyboard focus.** Powering the output down makes the
+compositor re-add the output on wake, and focus does not necessarily return to
+the app. Once the desktop holds it, card scans go to *its* type-ahead find box
+instead of the terminal — so the terminal never sees the keystroke that lifts
+blanking, and stays black with the panel lit. The symptom is unmistakable once
+you know it: a black screen with a small white text box in the top-right corner
+filling up with the characters of a member's card UID.
+
+**`wf-panel-pi` is remapped by `lwrespawn` every time it dies.** A layer-shell
+panel mapped *after* the terminal's fullscreen window sits above it, so the menu
+bar reappears mid-service and swallows touches along the top strip. This is the
+same z-order failure #762 describes for the overlay that #763 removed, arriving
+from the desktop session instead.
+
+**`scripts/kiosk-session-setup.sh` does this and the mode pinning below**, and
+is idempotent, so it is also the right thing to re-run after a system upgrade:
+
+```bash
+sudo ./scripts/kiosk-session-setup.sh --now   # --now also stops what is running
+./scripts/kiosk-session-setup.sh --check      # report only, changes nothing
+```
+
+By hand, if you would rather see the edit:
+
+```bash
+sudo cp -n /etc/xdg/labwc/autostart /etc/xdg/labwc/autostart.orig
+sudo sed -i -E 's|^(/usr/bin/lwrespawn /usr/bin/(pcmanfm-pi\|wf-panel-pi).*)$|# \1|' \
+  /etc/xdg/labwc/autostart
+```
+
+> **Edit the packaged file, not a user copy.** The session runs `labwc -m`
+> (`--merge-config`), so `~/.config/labwc/autostart` is executed *in addition
+> to* `/etc/xdg/labwc/autostart`, not instead of it. A user-level override
+> duplicates every remaining entry and brings the panel back at the next boot.
+
+Verify — the count must be `0`, and it is worth re-checking after any system
+upgrade, since apt can restore the packaged file:
+
+```bash
+ps -eo cmd | grep -cE '[w]f-panel-pi|[p]cmanfm'
+./scripts/kiosk-doctor.sh          # or this, which checks it and everything else
+```
+
+Recovery is unaffected: Ctrl+Alt+F2 still reaches a console and Alt+F4 still
+closes the app for its unit to restart, as
+[the runbook](../docs/runbook-terminal-pi.md) describes.
+
+### Pin the output mode
+
+Raspberry Pi OS ships kanshi with a **zero-byte** `~/.config/kanshi/config` and
+the profile it should contain sitting unused beside it as `config.init`. With
+nothing pinning the mode, the output that blanking powers down comes back at
+whatever mode is negotiated at that moment rather than the panel's preferred
+one. The app logs the mismatch —
+
+```
+Timed out waiting for OpenGL frame of size 1920x1080 (have 1280x800)
+```
+
+— and the monitor announces the mode change with its own OSD on every single
+wake. Put the profile into effect:
+
+```bash
+cp ~/.config/kanshi/config.init ~/.config/kanshi/config
+cat ~/.config/kanshi/config
+# profile {
+#     output HDMI-A-1 enable scale 1.000000 mode 1280x800@59.996 position 0,0 transform normal
+# }
+```
+
+This build of kanshi has no reload command and ignores `SIGHUP`; it is started
+from the labwc autostart, so a session restart applies it. To apply without one:
+
+```bash
+pkill -x kanshi && setsid nohup /usr/bin/kanshi >/dev/null 2>&1 &
+```
+
+With the session stripped and the mode pinned, the app draws the idle screen
+**0.91 s** after the input that wakes it (measured on the terminal Pi over
+repeated cycles, timing a `grim` capture of the compositor's own buffer). What
+you see beyond that is the panel re-locking the HDMI signal, which is inherent
+to `output-power` and is the price of putting it into standby. If that wait
+matters more than the power saving, `"mode": "overlay"` has no modeset and
+therefore no such wait.
+
 ---
 
-## 5. Configuration reference
+## 5. Network: two SSIDs that persist
+
+> Sections 5–7 harden the machine rather than configure the app. They are what
+> stand between a terminal that recovers on its own and one that strands
+> itself — see §1 of the runbook for the failure each prevents.
+
+Run once per terminal. Priority decides which wins when both are in range —
+the Verein network should always outrank the maintenance one.
+
+Use `sudo nmtui` if you would rather not put the PSK on a command line — the
+commands below land it in shell history.
+
+```bash
+VEREIN_SSID="<verein-ssid>"        # where the terminal lives
+MAINT_SSID="<maintenance-ssid>"    # home/workshop, for provisioning and repair
+
+sudo nmcli device wifi connect "$VEREIN_SSID" password "<psk>"
+sudo nmcli device wifi connect "$MAINT_SSID"  password "<psk>"
+
+for c in "$VEREIN_SSID:100" "$MAINT_SSID:50"; do
+  n="${c%:*}"; p="${c#*:}"
+  sudo nmcli connection modify "$n" \
+    connection.autoconnect yes \
+    connection.autoconnect-priority "$p" \
+    connection.autoconnect-retries 0 \
+    802-11-wireless.powersave 2 \
+    802-11-wireless.cloned-mac-address permanent \
+    ipv4.dhcp-timeout 60
+done
+```
+
+What each setting buys:
+
+- **`autoconnect-retries 0`** — retry forever. This is the single most important
+  line; it is what prevents the wedged state described above.
+- **`powersave 2`** — disabled (the numbering is unintuitive: `2` off, `3` on).
+- **`cloned-mac-address permanent`** — no MAC randomisation, so DHCP
+  reservations on the router keep working.
+- **`autoconnect-priority`** — higher wins.
+
+Verify:
+
+```bash
+nmcli -f NAME,AUTOCONNECT,AUTOCONNECT-PRIORITY connection show
+sudo ls -l /etc/NetworkManager/system-connections/   # one file per SSID, mode 600
+```
+
+### Wifi watchdog
+
+NetworkManager retrying forever covers most failures, but a wedged supplicant
+can leave NM believing the link is fine. The watchdog only acts when genuinely
+disconnected, so it never disturbs a healthy link.
+
+```bash
+sudo tee /usr/local/sbin/wifi-watchdog.sh >/dev/null <<'EOF'
+#!/bin/bash
+set -u
+state=$(nmcli -t -f STATE general 2>/dev/null)
+[ "$state" = "connected" ] && exit 0
+
+logger -t wifi-watchdog "state=$state - attempting recovery"
+nmcli device wifi rescan >/dev/null 2>&1
+sleep 5
+
+# Try known wifi profiles in descending autoconnect-priority order. Derived
+# from NetworkManager rather than hardcoded, so adding or renaming an SSID
+# needs no edit here.
+while IFS=: read -r prio name; do
+  [ -n "$name" ] || continue
+  if nmcli connection up "$name" >/dev/null 2>&1; then
+    logger -t wifi-watchdog "reconnected via $name"
+    exit 0
+  fi
+done < <(nmcli -t -f NAME,TYPE,AUTOCONNECT-PRIORITY connection show \
+         | awk -F: '$2 == "802-11-wireless" { print $3 ":" $1 }' | sort -rn)
+
+logger -t wifi-watchdog "recovery failed - no known SSID in range"
+EOF
+sudo chmod +x /usr/local/sbin/wifi-watchdog.sh
+```
+
+```ini
+# /etc/systemd/system/wifi-watchdog.service
+[Unit]
+Description=Club Bar wifi watchdog
+After=NetworkManager.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/wifi-watchdog.sh
+```
+
+```ini
+# /etc/systemd/system/wifi-watchdog.timer
+[Unit]
+Description=Run wifi watchdog every 3 minutes
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3min
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now wifi-watchdog.timer
+journalctl -t wifi-watchdog --no-pager | tail
+```
+
+---
+
+## 6. Clock — install `fake-hwclock`
+
+**A Pi has no RTC.** Without `fake-hwclock`, systemd falls back at boot to the
+newest timestamp it can find on disk — typically the build date or the mtime of
+`/var/lib/systemd/timesync/clock` — so the clock resumes at some *earlier*
+moment and is only corrected once NTP is reachable. On the reference unit this produced
+a boot that believed it was 11:44 for 23 minutes, then jumped forward 4h49m the
+instant timesyncd reached a server.
+
+```bash
+sudo apt-get install -y fake-hwclock
+systemctl is-enabled fake-hwclock-load fake-hwclock-save.timer   # both: enabled
+```
+
+`fake-hwclock.service` showing `masked` is normal — it is the SysV compat shim,
+masked in favour of the native `-load` / `-save` units.
+
+**This is not cosmetic on a POS.** The terminal stamps `created_at` on every
+transaction locally. A sale rung up before NTP syncs carries a wrong timestamp
+into the sync payload, and the backend's delta sync is timestamp-driven
+(ADR-0033). A terminal that is offline — the exact situation where the clock is
+never corrected — is also the situation where sales queue locally the longest.
+For a terminal handling real money, consider a DS3231 RTC HAT (~5 EUR, I2C);
+it removes the failure mode rather than shortening it.
+
+---
+
+## 7. Hardware watchdog and journal retention
+
+A Pi has `/dev/watchdog`; systemd does not use it unless told to. Without it a
+hard kernel hang means an unreachable terminal until someone power-cycles it.
+
+```ini
+# /etc/systemd/system.conf.d/watchdog.conf
+[Manager]
+RuntimeWatchdogSec=15s
+RebootWatchdogSec=2min
+```
+
+### Journal retention
+
+Default journald kept only 2 boots on the reference unit, which is why the original
+failure left no evidence. Set it explicitly:
+
+```ini
+# /etc/systemd/journald.conf.d/retention.conf
+[Journal]
+Storage=persistent
+SystemMaxUse=200M
+MaxRetentionSec=6month
+```
+
+---
+
+## 8. Configuration reference
 
 All runtime configuration lives in a single `config.json` file. The location is
 platform-specific and resolved automatically by the app:
@@ -376,14 +745,14 @@ for CI, Docker deployments, or `.desktop` file `Exec=env ...` lines:
 
 ---
 
-## 6. First-time setup
+## 9. First-time setup
 
 The app requires a valid `config.json` before it will start. If the file is
 missing or incomplete the app prints the expected path to stderr and exits
 with code 1 — it will not launch into the UI.
 
 Create the config file at the path printed in the error message (see
-[Configuration reference](#5-configuration-reference)) with at least the
+[Configuration reference](#8-configuration-reference)) with at least the
 three required fields:
 
 ```json
@@ -400,7 +769,7 @@ database and opens the idle RFID scanning screen.
 
 ---
 
-## 7. Optional: Token Dispenser
+## 10. Optional: Token Dispenser
 
 Club Bar can integrate with a physical token dispenser for venues that use
 coin-operated equipment (saunas, laundromats, arcades). The dispenser is an
@@ -537,14 +906,106 @@ wherever the mock is running) to test the full checkout flow.
 
 ---
 
+## Installing packages on a terminal Pi
+
+**Never run `apt-get install -y` on a terminal.** Not with `-q`, and never with
+the output piped into `tail`. On this hardware that combination is capable of
+uninstalling the terminal.
+
+Raspberry Pi OS 64-bit enables **`armhf` multiarch by default**
+(`dpkg --print-foreign-architectures` prints `armhf`). When a package has no
+`arm64` build, apt satisfies the request with the 32-bit one — and that pulls
+32-bit `libc6`, `libglib2.0-0t64`, `libmount1` and friends, which conflict with
+their 64-bit counterparts. Apt resolves the conflict the only way it can: by
+**removing the 64-bit stack**. `-y` approves it, `-q` shortens the output, and a
+pipe into `tail` hides what is left.
+
+Measured on the terminal Pi on 2026-08-30, from `/var/log/apt/history.log`:
+
+```
+Commandline: apt-get install -y -q gammastep
+Install: gammastep:armhf, libglib2.0-0t64:armhf, libc6:armhf, ...
+Remove:  labwc, libwlroots-0.19, network-manager, polkitd, rpd-wayland-core,
+         squeekboard, chromium, ...                        # 397 packages
+```
+
+The till was down for over an hour. `labwc` going is why it then boots to a text
+console; `network-manager` going is why it has no network at all afterwards —
+not even DHCP, because nothing is left to request a lease.
+
+**The rule.** Simulate first, read the plan, and only then apply:
+
+```bash
+apt-cache policy <pkg>                              # ":armhf" is the warning sign
+sudo apt-get -s install <pkg>                       # -s simulates; changes nothing
+sudo apt-get -s install <pkg> 2>&1 | grep '^Remv'   # must print nothing
+```
+
+If anything is scheduled for removal, **stop**. Ask for the architecture
+explicitly (`apt-get install <pkg>:arm64`); if no such build exists, do not
+install that package on this machine.
+
+### Recovering a terminal whose packages were removed
+
+Reversible, because apt records exactly what it did and removal — unlike purge —
+keeps `/etc`:
+
+1. **Get in.** SSH still works with no IPv4 at all: the kernel configures IPv6
+   by SLAAC without any client, so `ssh <user>@<host>` reaches the Pi over IPv6
+   while every IPv4 ping and port scan fails. This is the most useful fact here.
+2. **Give it IPv4 by hand** — apt mirrors need it, and nothing is managing the
+   interface. Note the wired interface may be `end0`, not `eth0`:
+
+   ```bash
+   sudo ip addr add 192.168.1.90/24 dev eth0
+   sudo ip route add default via 192.168.1.1
+   sudo sh -c 'echo nameserver 192.168.1.1 > /etc/resolv.conf'
+   ```
+3. **Remove the intruder, then restore the list apt recorded:**
+
+   ```bash
+   sudo apt-get purge <pkg>:armhf
+   sudo rm -rf /var/lib/apt/lists/* && sudo apt-get update
+
+   sed -n '/^Start-Date: <timestamp>/,/^End-Date/p' /var/log/apt/history.log \
+     | grep '^Remove:' | sed 's/^Remove: //' | tr ',' '\n' \
+     | awk '{print $1}' | sed 's/:arm64//' | sort -u > /tmp/removed.txt
+
+   sudo apt-get -s install $(cat /tmp/removed.txt | tr '\n' ' ') | grep '^Remv'
+   sudo apt-get install -y -o Dpkg::Options::=--force-confold \
+     $(cat /tmp/removed.txt | tr '\n' ' ')
+   ```
+
+   `--force-confold` preserves local edits to package-owned config files — on a
+   kiosk, that is the edited `/etc/xdg/labwc/autostart`.
+4. **Wifi returns on its own.** NetworkManager's profiles live in
+   `/etc/NetworkManager/system-connections/` and survive removal with their PSKs
+   intact, so the terminal re-associates as soon as the package is back. Confirm
+   with `nmcli device status` rather than re-provisioning per §5.
+5. Reboot, then confirm the session: panel and desktop still disabled, the app
+   fullscreen, `systemctl --user is-active clubbar-terminal.service` → `active`.
+
+---
+
 ## Troubleshooting
+
+**`scripts/kiosk-doctor.sh` checks a live terminal against every rule in this
+guide** — focus competitors, the pinned output mode, the app's unit, the reader
+actually being present, and the development-only switches. It is read-only and
+safe on a till that is serving; run it before reading the table below.
 
 | Symptom | Fix |
 |---------|-----|
-| App exits immediately with "configuration missing" | Create `config.json` at the path shown in the error — see [First-time setup](#6-first-time-setup) |
+| App exits immediately with "configuration missing" | Create `config.json` at the path shown in the error — see [First-time setup](#9-first-time-setup) |
 | On-screen keyboard still appears | Check `ls /etc/xdg/autostart/` for other keyboard entries (e.g. `onboard.desktop`) and rename them |
 | Screen never blanks | Check `screenBlanking.enabled` in `config.json` |
 | Screen blanks but the panel stays lit | The panel ignores signal loss — set `"mode": "overlay"` |
+| A card wakes the blanked screen but a touch does not | Expected under `"mode": "output-power"` on a panel whose digitizer sleeps with it — [confirm and decide](#a-sleeping-panel-takes-its-touchscreen-with-it) |
+| Screen stays black after a scan, and a small white text box collects the card's characters top-right | The pcmanfm desktop holds keyboard focus, so the app never sees the scan that lifts blanking — [strip the session](#the-session-must-hold-exactly-one-window) |
+| The desktop menu bar appears over the terminal mid-service | `lwrespawn` remapped `wf-panel-pi` above the fullscreen window — [strip the session](#the-session-must-hold-exactly-one-window); it also returns after a system upgrade restores the packaged autostart |
+| Wake is slow and the monitor flashes its own mode OSD | The output comes back at the wrong mode — [pin it with kanshi](#pin-the-output-mode) |
+| The Pi boots to a text console after installing something | An `apt-get install` removed `labwc` — see [Installing packages on a terminal Pi](#installing-packages-on-a-terminal-pi) |
+| No network at all after installing something, `nmcli: command not found` | `network-manager` was removed by the same transaction. SSH in **over IPv6**, which still works, and follow the recovery steps there |
 | App doesn't fill the screen | Set `"fullscreen": true` in `config.json` or `TERMINAL_FULLSCREEN=true` env var |
 | RFID scanner not detected | Ensure reader is in keyboard-emulation mode (sends UID + Enter); test with `evtest` |
 | Idle screen says "Scanner nicht verbunden" with the reader plugged in | The configured `rfidReader` ids/name no longer match the device — re-read them from `cat /proc/bus/input/devices` (a replacement reader often has different ids) |
