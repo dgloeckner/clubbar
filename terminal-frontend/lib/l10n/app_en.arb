@@ -102,7 +102,7 @@
   "loading": "Loading...",
   "continueShopping": "Continue Shopping",
 
-  "rfidErrorUnknownCard": "We don't know this chip — please register at the bar",
+  "rfidErrorUnknownCard": "We don't know this chip — please report it to an admin",
   "rfidErrorAccountInactive": "Your account is inactive — please see the bar staff",
   "rfidErrorSepaMissing": "Direct debit is not set up yet — please see the bar staff",
   "rfidErrorDatabaseError": "Something went wrong — please try again or see the bar staff",

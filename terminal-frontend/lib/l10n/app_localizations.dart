@@ -644,10 +644,10 @@ abstract class AppLocalizations {
   /// **'Weiter einkaufen'**
   String get continueShopping;
 
-  /// Error when scanned card is not in database
+  /// Error when scanned card is not in database. Names an admin as the next step, not the bar: only an admin can register a chip to a member, so pointing at the bar would be a promise the staff cannot keep
   ///
   /// In de, this message translates to:
-  /// **'Wir kennen diesen Chip nicht – bitte an der Bar anmelden'**
+  /// **'Wir kennen diesen Chip nicht – bitte bei einem Admin melden'**
   String get rfidErrorUnknownCard;
 
   /// Error when member account is inactive
