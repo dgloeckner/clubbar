@@ -338,7 +338,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get rfidErrorUnknownCard =>
-      'Wir kennen diesen Chip nicht – bitte an der Bar anmelden';
+      'Wir kennen diesen Chip nicht – bitte bei einem Admin melden';
 
   @override
   String get rfidErrorAccountInactive =>
