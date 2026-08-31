@@ -56,7 +56,12 @@ function enumerate_fields(string $path): array
             }
             $rect = array_map('floatval', preg_split('~\s+~', trim($r[1])));
             if (count($rect) === 4) {
-                $fields[$t[1]] = ['rect' => $rect];
+                // PDF allows any two opposite corners (WeasyPrint writes top-down);
+                // normalize to [x1,y1,x2,y2] with x1<x2, y1<y2.
+                $fields[$t[1]] = ['rect' => [
+                    min($rect[0], $rect[2]), min($rect[1], $rect[3]),
+                    max($rect[0], $rect[2]), max($rect[1], $rect[3]),
+                ]];
             }
         }
     }

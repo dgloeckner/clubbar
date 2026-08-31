@@ -47,6 +47,31 @@ Uploads land in `uploads/` which is blocked from direct download via `.htaccess`
 `iban`, `iban_last4`, `datum_ort` — all AcroForm **text fields**. Both `iban` *and*
 `iban_last4` must exist (the two render variants).
 
+## Verified template toolchain: WeasyPrint (HTML/CSS → AcroForm PDF)
+
+The club can author the template as **HTML/CSS** — no hand-edited PDF, no Chrome
+post-processing. [WeasyPrint](https://weasyprint.org)'s form mode turns HTML
+`<input name="...">` elements into native AcroForm text fields:
+
+```bash
+pip install weasyprint          # v69 verified
+weasyprint --pdf-forms --uncompressed-pdf mandat.html mandat-template.pdf
+```
+
+Verified end to end in this sandbox against this spike's own parser and fill:
+all 8 fields enumerated with correct rects, both variants filled, output
+flattened, umlauts intact. Two constraints, both confirmed:
+
+- **`--uncompressed-pdf` is required** — the default output uses compressed
+  object streams, which the enumerator and the free FPDI parser cannot read.
+- WeasyPrint writes `/Rect` corners top-down; the enumerator normalizes corner
+  order (fixed in `common.php` after this test found it).
+
+`examples/mandat-weasyprint.html` is the verified example template — field
+boxes styled in CSS (the writing line is a CSS border, i.e. page content),
+field names via `<input name>`. Chrome-rendering the same HTML would *not*
+produce form fields; Chrome flattens inputs to graphics.
+
 ## Template guidance learned while building this
 
 - **Draw writing lines / boxes as page content, not only as field borders.** Field borders

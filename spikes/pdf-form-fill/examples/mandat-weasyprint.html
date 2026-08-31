@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<title>SEPA-Lastschriftmandat (WeasyPrint-Test)</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  body { font: 10pt/1.45 Helvetica, Arial, sans-serif; color: #1a1a2e; margin: 0; }
+  h1 { font-size: 15pt; margin: 0 0 2mm; }
+  .untertitel { color: #666; font-size: 9pt; margin-bottom: 8mm; }
+  .gruppe { color: #666; font-size: 8pt; margin: 6mm 0 1mm; }
+  .zeile { display: flex; gap: 6mm; }
+  .feld { flex: 1; }
+  .feld.schmal { flex: 0 0 45mm; }
+  /* The writing line is a CSS border on the wrapper — page content, survives flattening. */
+  .feld input {
+    width: 100%; border: none; border-bottom: .5pt solid #666;
+    background: #f4f6fa; font: 10pt Helvetica, Arial, sans-serif;
+    height: 6mm; box-sizing: border-box; padding: 0 1mm;
+  }
+  .feld label { display: block; color: #666; font-size: 7.5pt; margin-top: .8mm; }
+  .mandatstext { font-size: 9pt; margin: 8mm 0; }
+  .unterschriften { display: flex; gap: 8mm; margin-top: 14mm; }
+  .unterschrift { flex: 1; border-top: .7pt solid #1a1a2e; color: #666; font-size: 7.5pt; padding-top: .8mm; }
+  footer { position: fixed; bottom: 0; font-size: 7pt; color: #666; }
+</style>
+<body>
+  <h1>SEPA-Lastschriftmandat</h1>
+  <div class="untertitel">Wiederkehrende Zahlungen · WeasyPrint-Spike (clubbar#777) — KEIN gültiges Mandat</div>
+
+  <div class="gruppe">Zahlungsempfänger (Gläubiger)</div>
+  <div class="zeile">
+    <div class="feld"><input name="glaeubiger_name"><label>Name des Vereins</label></div>
+    <div class="feld schmal"><input name="glaeubiger_id"><label>Gläubiger-ID</label></div>
+  </div>
+  <div class="zeile">
+    <div class="feld"><input name="mandatsreferenz"><label>Mandatsreferenz</label></div>
+  </div>
+
+  <div class="gruppe">Zahlungspflichtiger (Kontoinhaber)</div>
+  <div class="zeile">
+    <div class="feld"><input name="vorname"><label>Vorname</label></div>
+    <div class="feld"><input name="nachname"><label>Nachname</label></div>
+  </div>
+  <div class="zeile">
+    <div class="feld"><input name="iban"><label>IBAN — bei Ausdruck durch den Verein bitte handschriftlich eintragen</label></div>
+    <div class="feld schmal"><input name="iban_last4"><label>Kontroll-Hinweis (endet auf)</label></div>
+  </div>
+
+  <p class="mandatstext">
+    Ich ermächtige den oben genannten Verein, wiederkehrende Zahlungen aus der Nutzung der
+    bargeldlosen Vereinsbar von meinem Konto mittels Lastschrift einzuziehen. Zugleich weise ich
+    mein Kreditinstitut an, die vom Verein auf mein Konto gezogenen Lastschriften einzulösen.
+    Hinweis: Ich kann innerhalb von acht Wochen, beginnend mit dem Belastungsdatum, die Erstattung
+    des belasteten Betrages verlangen. Es gelten dabei die mit meinem Kreditinstitut vereinbarten
+    Bedingungen. Dieses Mandat gilt nur für die Vereinsbar; ein für Mitgliedsbeiträge erteiltes
+    Mandat bleibt unberührt.
+  </p>
+
+  <div class="zeile">
+    <div class="feld schmal"><input name="datum_ort"><label>Ort, Datum</label></div>
+  </div>
+
+  <div class="unterschriften">
+    <div class="unterschrift">Unterschrift Kontoinhaber</div>
+    <div class="unterschrift">Unterschrift Mitglied (falls abweichend)</div>
+  </div>
+
+  <footer>WeasyPrint-Test für clubbar#777 — HTML/CSS-Quelle, Formularfelder nativ. Nach dem Test löschen.</footer>
+</body>
+</html>
