@@ -67,10 +67,16 @@ flattened, umlauts intact. Two constraints, both confirmed:
 - WeasyPrint writes `/Rect` corners top-down; the enumerator normalizes corner
   order (fixed in `common.php` after this test found it).
 
-`examples/mandat-weasyprint.html` is the verified example template — field
-boxes styled in CSS (the writing line is a CSS border, i.e. page content),
-field names via `<input name>`. Chrome-rendering the same HTML would *not*
-produce form fields; Chrome flattens inputs to graphics.
+`template.html` is the template **source**; `./build-template.sh` builds
+`template.pdf` from it and verifies the required field names survived. Field
+boxes are styled in CSS (the writing line is a CSS border, i.e. page content),
+field names come from `<input name>`.
+
+**Rendering cross-checked against Chromium**: printing the same `template.html`
+with headless Chromium produces a visually matching page (layout, line breaks,
+positions) — but with the inputs flattened to graphics and **zero form fields**,
+confirming both that the HTML renders portably and that Chrome cannot replace
+WeasyPrint in this pipeline.
 
 ## Template guidance learned while building this
 
@@ -92,8 +98,9 @@ produce form fields; Chrome flattens inputs to graphics.
 
 | File | Purpose |
 |---|---|
-| `template.pdf` | Generated mandate-shaped AcroForm template (uncompressed, classic xref, PDF 1.4) |
-| `tools/make_template.py` | Its generator (reportlab), for reproducibility |
+| `template.html` | Template **source** — HTML/CSS with named `<input>` fields |
+| `build-template.sh` | Builds `template.pdf` via WeasyPrint (`--pdf-forms --uncompressed-pdf`) and checks the required fields |
+| `template.pdf` | Built mandate template with native AcroForm fields (uncompressed, classic xref) |
 | `common.php` | Token guard, field enumeration, sample data |
 | `index.php` | Report page: environment, enumeration, downloads, own-template upload |
 | `fill.php` | The overlay fill + flatten, streamed as download |
