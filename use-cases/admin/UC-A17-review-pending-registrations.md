@@ -51,7 +51,7 @@ acted on or its TTL purges it (ADR-0052 decision 10).
    | IBAN | Masked as `****3000` — `iban_last4` only. The full number is never shown, because the server holds no key that can decrypt it (ADR-0036, no exception for this store — ADR-0052 decision 3) |
    | Bank | Resolved from the BLZ at submission |
    | Duplicate flags | A matching `email` or a matching `iban_fingerprint` against existing members **and** against other pending rows (ADR-0052 decision 9) |
-   | Purge in | Days remaining before the row's TTL deletes it unseen (submission date plus the configured window, default 14 days — decision 10) |
+   | Purge in | Days remaining before the row's TTL deletes it unseen (submission date plus the configured window, default 30 days — decision 10) |
 
 2. The admin opens one row. The detail view repeats everything from the list
    and adds the account holder name (when the applicant supplied one) and
@@ -136,7 +136,7 @@ screen to edit — the server never held the plaintext and cannot show it back.
 
 | Step | What the reviewing Kassenwart sees |
 |---|---|
-| Inbox row | `Lena Brandt` · submitted 3 days ago · `****3000` · Sparkasse · no duplicate flags · purges in 11 days |
+| Inbox row | `Lena Brandt` · submitted 3 days ago · `****3000` · Sparkasse · no duplicate flags · purges in 27 days |
 | Detail view | Date of birth makes Lena 15 — the "minor" note appears; account holder name `Petra Brandt` is filled in |
 | Printed sheet | Blank IBAN line with `****3000` printed beside it; a legal-representative signature line under the applicant's own; signature block names **Petra Brandt**, not Lena |
 | At the bar | Petra signs as legal representative and writes her IBAN by hand; it ends in `3000`, matching the hint |

@@ -251,7 +251,7 @@ erDiagram
         tinyint id PK "Single row (id=1)"
         varchar_100 instance_name "Deploying club's display name"
         binary_16 instance_id "Stable random identity (ADR-0035); set once, read via /health"
-        json privacy_policy_urls "Club's own Datenschutz URLs by language (drafted, #776)"
+        varchar_255 privacy_policy_url "Club's own Datenschutz notice (drafted, #776)"
         binary_16 updated_by_admin_id FK "Who last modified"
         datetime created_at "Initial configuration"
         datetime updated_at "Last modification"
@@ -273,7 +273,7 @@ erDiagram
         char_64 secret_hash "SHA-256 of the poster secret"
         text secret_cipher "Sealed copy, for reprinting without rotating"
         datetime secret_rotated_at "When last (re)generated"
-        smallint retention_days "pending_registrations TTL; DEFAULT 14"
+        smallint retention_days "pending_registrations TTL; DEFAULT 30"
         char_36 updated_by_admin_id FK "Who last modified"
         datetime created_at "Initial configuration (drafted, #776)"
         datetime updated_at "Last modification"
@@ -514,10 +514,10 @@ owner's confirmation of this schema first.
 | iban_fingerprint | CHAR(64) | NOT NULL | Keyed BLAKE2b of the normalized IBAN, hex — how the review list flags a match against an existing member's `mandates` row, answerable without a key (ADR-0052 decision 9) |
 | encryption_key_id | CHAR(36) | FK → encryption_keys.id, NOT NULL | Which key generation this row is sealed under — what lets approval move the ciphertext into `mandates` without a second lookup to decide the attribution |
 | bank_name | VARCHAR(255) | NULL | Resolved from the BLZ at submission — the last moment the plaintext IBAN exists |
-| privacy_notice_url | VARCHAR(500) | NOT NULL | The **exact URL** of the club's Datenschutzhinweis that was shown, copied from `instance_config.privacy_policy_urls` at submission. Club Bar neither hosts nor fetches that document — it is displayed and the member navigates to it themselves — so the URL displayed is the most this row can honestly record; a club wanting versioning puts it in the URL (ADR-0052 decision 6) |
+| privacy_notice_url | VARCHAR(500) | NOT NULL | The **exact URL** of the club's Datenschutzhinweis that was shown, copied from `instance_config.privacy_policy_url` at submission. Club Bar neither hosts nor fetches that document — it is displayed and the member navigates to it themselves — so the URL displayed is the most this row can honestly record; a club wanting versioning puts it in the URL (ADR-0052 decision 6) |
 | privacy_notice_shown_at | DATETIME | NOT NULL | When the page carrying that link was submitted. Paired with `privacy_notice_url` — a timestamp with no record of *what* was pointed at proves nothing once the club republishes. **Not an acknowledgement**: there is no checkbox (ADR-0052 decision 6), because Art. 13 is a duty to inform and a box declaring the notice was read edges toward a consent for processing that rests on Art. 6(1)(b) |
 | submitted_at | DATETIME | NOT NULL | When the registration was submitted |
-| expires_at | DATETIME | NOT NULL | TTL purge deadline — `submitted_at` + the club's `self_registration_config.retention_days` (default 14). The `bin/cron.php` tick deletes rows past this and logs a **count**, never identities (ADR-0052 decision 10) |
+| expires_at | DATETIME | NOT NULL | TTL purge deadline — `submitted_at` + the club's `self_registration_config.retention_days` (default 30). The `bin/cron.php` tick deletes rows past this and logs a **count**, never identities (ADR-0052 decision 10) |
 
 **Indexes:**
 - `mandate_reference` (UNIQUE)
@@ -935,7 +935,7 @@ Deployment-wide instance branding ([ADR-0034](../adr/0034-instance-branding-conf
 | id | TINYINT UNSIGNED | PK | Always 1 (single row) |
 | instance_name | VARCHAR(100) | NOT NULL, DEFAULT 'Club Bar' | The deploying club's display name, e.g. "FRGS Ruderbar" |
 | instance_id | CHAR(36) | NOT NULL | Random UUID set once when this row is created (install/reseed); read via `/health` so a Terminal can tell this backend apart from one with a discontinuous history ([ADR-0035](../adr/0035-terminal-backend-instance-pairing.md)) |
-| privacy_policy_urls | JSON | NULL | Where the club publishes its own Datenschutzhinweis, as a language-keyed map (`{"de": "https://…", "en": "https://…"}`), [ADR-0002](../adr/0002-product-internationalization.md)'s shape. **Club Bar authors no legal text**: it is generic software installed by clubs it knows nothing about, so the notice is linked, never shipped ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md) decision 6). Lives here rather than in `sepa_config` because `GET /api/instance-config` is already the *public* config read, and an anonymous phone at a QR poster needs this URL with no session to fetch it behind. A language with no entry falls back to the map's default, and the page says which language the document is in. **Drafted for [#776](https://github.com/dgloeckner/clubbar/issues/776), not yet migrated** |
+| privacy_policy_url | VARCHAR(255) | NULL | Where the club publishes its own Datenschutzhinweis ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md) decision 6). **Club Bar authors no legal text**: it is generic software installed by clubs it knows nothing about, so the notice is linked, never shipped — and never translated either. One document, in whatever language the club published it in; a member's `preferred_language` selects no document, only the language of the page around the link. Lives here rather than in `sepa_config` because a privacy notice is club identity, not creditor configuration, and because `GET /api/instance-config` is already the *public* config read — what an anonymous phone at a QR poster needs. Same shape as `sepa_config.mandate_template_url`: a link, nullable. **Drafted for [#776](https://github.com/dgloeckner/clubbar/issues/776), not yet migrated** |
 | updated_by_admin_id | CHAR(36) | FK → admin_users.id, NULL | Admin who last modified |
 | created_at | TIMESTAMP | NOT NULL | Initial configuration timestamp |
 | updated_at | TIMESTAMP | NOT NULL | Last modification timestamp |
@@ -979,7 +979,7 @@ yet migrated** — see [`pending_registrations`](#pending_registrations) above.
 | secret_hash | CHAR(64) | NULL | SHA-256 of the poster secret — the lookup key, so a database dump yields no working poster |
 | secret_cipher | TEXT | NULL | `SymmetricSecretBox` copy of the same secret, same reasoning as `admin_user_invitations.token_cipher`: it lets an admin **reprint** the poster without rotating and invalidating the one already on the clubhouse wall |
 | secret_rotated_at | DATETIME | NULL | When the secret was last (re)generated |
-| retention_days | SMALLINT UNSIGNED | NOT NULL, DEFAULT 14 | How long a `pending_registrations` row lives before the TTL purge deletes it |
+| retention_days | SMALLINT UNSIGNED | NOT NULL, DEFAULT 30 | How long a `pending_registrations` row lives before the TTL purge deletes it |
 | updated_by_admin_id | CHAR(36) | FK → admin_users.id, NULL | Admin who last modified |
 | created_at | TIMESTAMP | NOT NULL | Initial configuration timestamp |
 | updated_at | TIMESTAMP | NOT NULL | Last modification timestamp |
@@ -988,14 +988,14 @@ yet migrated** — see [`pending_registrations`](#pending_registrations) above.
 `enabled = FALSE` and `secret_hash = NULL` is the shipped state, and it is what
 `registration_unavailable` answers before any admin has ever rotated a secret.
 Switching `enabled` on requires *both* a `secret_hash` and at least one entry in
-`instance_config.privacy_policy_urls`; without the second the write is refused
+`instance_config.privacy_policy_url`; without the second the write is refused
 with a typed `datenschutz_url_missing`, never a silently disabled button (ADR-0052
 decision 6). Collecting a name, a birth date and an IBAN from somebody who was
 never told what happens to them is the failure this second condition exists to
 prevent.
 
 **The two configured URLs live elsewhere on purpose.** The Datenschutz document
-is `instance_config.privacy_policy_urls` (public config, readable without a
+is `instance_config.privacy_policy_url` (public config, readable without a
 session — what an anonymous phone at a poster needs) and the fillable mandate
 template is `sepa_config.mandate_template_url` (already there since #360). Neither
 is duplicated here; this table holds the switch and the secret.
@@ -1308,7 +1308,7 @@ The outbox is the **second place a member's address lives**, and erasure covers 
 | settlement_announcements | 10 years (with the settlement) | § 147 AO; proof the Nutzungsordnung § 7 Abs. 3 announcement was made |
 | mail_outbox (`sent` rows) | 90 days from delivery, per kind | Operational tier — a delivered message has no reason to keep an address ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) |
 | mail_outbox (`pending`/`failed`/`superseded`) | Not pruned | A failed row is the record that somebody was **not** reached |
-| pending_registrations (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) | 14 days from submission by default (`self_registration_config.retention_days`, configurable), or immediately on reject | Not a Beleg — no money moved, no contract performed, so ADR-0029's ten-year tier does not attach ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)) |
+| pending_registrations (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) | 30 days from submission by default (`self_registration_config.retention_days`, configurable), or immediately on reject | Not a Beleg — no money moved, no contract performed, so ADR-0029's ten-year tier does not attach ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)) |
 
 ---
 

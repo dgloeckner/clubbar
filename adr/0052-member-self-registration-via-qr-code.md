@@ -259,8 +259,8 @@ language, and none is embedded in the page.
 
 | Question | Answer | Why |
 |---|---|---|
-| Where is the URL stored? | `instance_config` | It is instance identity, not accounting — ADR-0034's category. Decisive: `GET /api/instance-config` is already the *public* config read, and an anonymous phone at a poster needs this URL with no session to fetch it behind |
-| One URL, or one per language? | A **language-keyed map**, ADR-0002's shape, with one entry required | A member picks their language on this very form; pointing a member who chose `en` at a German-only document is the failure Art. 12(1)'s *"in klarer und einfacher Sprache"* is about. Requiring a club to publish two documents is not, so a missing language falls back to the configured default and the page says which language the document is in |
+| Where is the URL stored? | `instance_config.privacy_policy_url` | It is instance identity, not accounting — ADR-0034's category, and not `sepa_config`, where a privacy notice would sit beside creditor data and any future public surface needing it would have to read it out of SEPA settings. Decisive: `GET /api/instance-config` is already the *public* config read, and an anonymous phone at a poster needs this URL with no session to fetch it behind |
+| One URL, or one per language? | **One.** A single `privacy_policy_url` | The club publishes one notice, in its own language, and clubbar neither translates it nor knows what language it is in — it stores a link. A member's `preferred_language` therefore selects **no document at all**, here or for the mandate sheet: the *page* is translated, because that is ordinary app i18n this software owns; the *documents* are the club's, and they are what they are |
 | What does the row record? | The **exact URL shown** at submission | Not a version: this system does not host the document, so a version is something it cannot observe and would be recording as a guess. A club that wants versioning puts it in the URL (`/datenschutz-2026-08`). The URL is not fetched — it is displayed, and the member navigates to it themselves |
 
 **Nothing is ticked and nothing is signed.** The link is reachable before any
@@ -352,7 +352,7 @@ reason code and nothing about the person.
 
 | Event | Effect |
 |---|---|
-| 14 days pass (configurable) | The row is purged by the `bin/cron.php` tick, which logs a **count** and no identities |
+| 30 days pass (configurable) | The row is purged by the `bin/cron.php` tick, which logs a **count** and no identities |
 | Admin rejects | The row is deleted immediately; the audit entry records the act, the reason, and the IBAN **masked** (ADR-0005) |
 | Admin approves | `members` + `mandates` rows are created, the ciphertext and the reference move across, the pending row is deleted |
 
@@ -407,25 +407,32 @@ valid submissions. Both meters are needed.
 | Two mandate variants means two PDF paths to keep correct | They share one renderer and differ by a single flag; the admin-print variant is the fallback that always works |
 | A member could register twice, or register and never appear | Duplicates are visible at review by email and fingerprint; abandoned rows purge themselves |
 
-## Open questions for the owner
+## Settled by the owner, and what is still theirs to do
 
-1. **TTL length.** 14 days is a guess calibrated on "the treasurer looks weekly".
-2. **Schema.** `pending_registrations` (below, and in `docs/erm-master.md`) is a
-   new table and needs explicit confirmation before migration `059` is written.
-   Decision 6 additionally adds a language-keyed `privacy_policy_urls` to
-   `instance_config`. **No column is added for the mandate template** — decision
-   5a reuses `sepa_config.mandate_template_url`.
-3. **Ratification waits on one run.** The fill mechanism is verified in the
-   sandbox on PHP 8.4 matching IONOS; #777 asks for one run of
-   `spikes/pdf-form-fill/` **on the production hosting** before this ADR is
-   accepted. That is an owner action.
-4. **The club's documents have to be published.** Decisions 5a and 6 both point
-   at documents this software does not host. The sources are delivered
-   ([frgs-website#33](https://github.com/dgloeckner/frgs-website/pull/33)); the
-   built PDFs still have to be published as Kirby files via SFTP, which is what
-   produces the stable URLs. An **external dependency**, outside
-   `feat/user-onboarding` and outside this repository; the enable gate is what
-   keeps its absence from being silent.
+| | |
+|---|---|
+| **Retention** | An unapproved registration is purged after **30 days** |
+| **Documents** | One Datenschutz URL, one mandate template URL. Neither is translated, and there is no club-language setting to translate against — the PDFs are what the club published |
+| **Optional consents** | None. This flow is the SEPA mandate and nothing else |
+| **The template** | Not pinned, not copied: `sepa_config.mandate_template_url` is the pointer (decision 5a) |
+
+**The schema delta, stated plainly.** Two new tables — `pending_registrations` and
+`self_registration_config` — and **one new column**,
+`instance_config.privacy_policy_url`. Nothing is added for the mandate template,
+because migration `028` already added the column that names it. Per project
+convention the tables and the column need the owner's explicit confirmation before
+migration `059` is written; that confirmation is the one thing still outstanding
+inside this repository.
+
+**Two owner actions outside it.** Ratification waits on **one run of
+`spikes/pdf-form-fill/`
+([#786](https://github.com/dgloeckner/clubbar/pull/786)) on the production hosting**
+— the mechanism is verified in the sandbox on PHP 8.4 matching IONOS, and #777 asks
+for the on-host confirmation. And the feature cannot be switched on anywhere until
+the club **publishes its two built PDFs** (sources delivered in
+[frgs-website#33](https://github.com/dgloeckner/frgs-website/pull/33)) as Kirby files
+via SFTP, which is what produces the URLs both decisions configure. The enable gate
+is what keeps their absence from being silent.
 
 ## Related
 

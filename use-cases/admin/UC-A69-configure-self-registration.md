@@ -54,7 +54,7 @@ taped to a wall.
    a path is written into every access log in front of the installation.
 5. An admin configures the club's **Datenschutz URL** — where the club
    publishes its own Datenschutzhinweise — on the instance configuration
-   screen, one entry per language it has published. Club Bar authors no legal
+   screen — one URL, one document, not translated. Club Bar authors no legal
    text; it links the club's document (ADR-0052 decision 6). This is the second
    precondition, and it is `[ADMIN]` because it is already an admin-only
    surface.
@@ -253,7 +253,7 @@ URL, if any, is untouched.
 
 ## Test Derivation
 
-- Availability cannot be switched on while `instance_config.privacy_policy_urls`
+- Availability cannot be switched on while `instance_config.privacy_policy_url`
   is empty; the refusal is `datenschutz_url_missing` and names the precondition
 - Availability cannot be switched on before a secret exists
 - With both preconditions met, the switch is accepted and a poster scan reaches

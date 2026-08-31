@@ -57,7 +57,7 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
    third, the page proceeds.
 3. Before any field is offered, the page shows a **prominent link to the
    club's own Datenschutzhinweis** — the club's document, at the club's URL,
-   in the applicant's chosen language where the club published one. The link
+   — one document, in whatever language the club published it in. The link
    carries no checkbox: Art. 13 is a duty to *inform*, not to collect a
    declaration that the notice was read. This flow collects no optional
    consents — the paper it replaces carries an Anmeldung, a mandate and an
@@ -139,7 +139,7 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
 | Date of birth | Yes | Date, not in the future | Jugendschutz (ADR-0045); also decides whether the sheet gets a legal-representative line |
 | Email | Yes | Valid email format | Never checked against existing members before accepting — a duplicate is accepted like any first-time submission (ADR-0052 §9) |
 | Phone | No | Max 20 chars | |
-| Preferred language | Yes | ISO 639-1 code from the enabled list | Selects the language this page and the confirmation are shown in |
+| Preferred language | Yes | ISO 639-1 code from the enabled list | Selects the language of this page and the confirmation, and is carried to `members.preferred_language` at approval. It selects **no document**: neither the notice nor the mandate sheet is translated |
 | IBAN | Yes | Valid IBAN format + checksum | Unlike UC-A11, there is no path through this form that leaves it empty — the point of registering is a signed mandate |
 | Account holder name | No | Max 70 chars | When set, the printed signature block names the holder, not the applicant (ADR-0052 §7) |
 
@@ -169,12 +169,12 @@ the paper in front of them (UC-A17).
 | The Datenschutzhinweis is **linked, not authored here**, and its link comes before any data entry | Club Bar is generic software installed by clubs it knows nothing about; legal text shipped in a product is text somebody else's lawyer wrote about a processing situation they never saw. The club configures a URL and the page points at it |
 | The notice is linked, never ticked or signed, and the printed sheet never carries it | Art. 13 is an information duty discharged at collection, by putting the notice in front of the person — not by collecting a declaration that they read it, which edges toward a consent for processing that already rests on Art. 6(1)(b), the LfDI BW *Täuschung* trap |
 | The row records the URL shown, not a version number | This system does not host the document and must not fetch it — an admin-supplied URL retrieved server-side is an SSRF primitive — so the URL displayed is the most it can honestly record. A club that wants versioning puts it in the URL |
-| A language with no configured document falls back to the club's default, and the page says which language it is in | Requiring every club to publish a translation before it can onboard anybody would block the feature on work Club Bar cannot do for them; silently showing a German document to somebody who chose English is the Art. 12(1) failure |
+| The notice is one document, never translated by Club Bar | The club publishes what it publishes; this software stores a link and does not know what language is behind it. A member's chosen language sets the language of the *page*, which is ordinary app i18n, and selects no document at all |
 | No mail is sent by submitting | The address is unverified; a public endpoint that mails it is an email-bombing amplifier aimed at strangers, and the welcome mail is earned by a card, not a form (UC-A67 rule 1) |
 | No enumeration | A submission naming an email or an IBAN the club already knows is accepted exactly like any other; the duplicate surfaces only at review, to an authenticated admin, flagged by matching email or fingerprint |
 | A honeypot field is silently accepted and never stored | The traffic this URL will actually attract is commodity form-filling bots, not a targeted attacker |
 | Two rate meters, not one | The login surface counts failed attempts; here a caller holding the real secret can flood the queue with perfectly *valid* submissions, so accepted submissions get their own per-IP counter alongside the refused-gate counter, which uses the shared budget invitations use |
-| A pending row purges after 14 days (configurable); a rejection deletes it immediately | Nothing here is a Beleg — no money has moved and no contract has been performed — so none of the ten-year accounting retention attaches, and data about somebody who never joined must not accumulate |
+| A pending row purges after 30 days (configurable); a rejection deletes it immediately | Nothing here is a Beleg — no money has moved and no contract has been performed — so none of the ten-year accounting retention attaches, and data about somebody who never joined must not accumulate |
 | A pending registration creates no `members` row and no `mandates` row | `GET /api/sync/members` cannot return it, so no terminal can recognise the applicant — not by policy, but because there is nothing there to recognise |
 | No personal data appears in the logs of the public endpoints | A refusal logs its reason code and nothing about the person who triggered it |
 | The page is served by the backend itself, as its own small bundle | One deployment, one origin, no CORS, matching the constraint ADR-0031 already imposes — and it is deliberately **not** the admin SPA: an anonymous visitor on a phone must not be served the panel's routes, strings or weight |
@@ -256,8 +256,8 @@ in the response tells the filler that anything different happened.
   the served bundle
 - The page renders no Datenschutz acknowledgement control of any kind — no
   checkbox, and nothing gating the rest of the form on ticking one
-- An applicant choosing a language the club published no document for is shown
-  the default document, and told which language it is in
+- The Datenschutz link points at the one configured URL whatever language the
+  applicant chose; changing the language changes the page, not the document
 - A second submission reusing a known email or IBAN is accepted identically to
   a first-time one — no different status code, no different body
 - The duplicate is visible at review, flagged by matching email or fingerprint
@@ -279,7 +279,7 @@ in the response tells the filler that anything different happened.
   budget invitations use
 - Repeated accepted submissions from one IP are throttled on their own,
   independent counter
-- A row older than 14 days is purged by the scheduled tick, logging a count
+- A row older than 30 days is purged by the scheduled tick, logging a count
   and no identities
 - Rejecting a pending row deletes it immediately, with the audit entry's IBAN
   masked

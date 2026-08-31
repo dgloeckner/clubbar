@@ -39,7 +39,7 @@ the final PR.
 - [~] **M0 — Specification** ([#777](https://github.com/dgloeckner/clubbar/issues/777)).
       ADR-0052 drafted **Proposed**; UC-P01, UC-A17, UC-A69 written with
       test-derivable criteria; `pending_registrations`,
-      `self_registration_config` and `instance_config.privacy_policy_urls`
+      `self_registration_config` and `instance_config.privacy_policy_url`
       drafted into `docs/erm-master.md`; this plan. **Decided here**: clubbar
       pins no mandate template — `sepa_config.mandate_template_url` (the column
       #360 already added) is the one pointer, fetched and never copied, because
@@ -47,8 +47,10 @@ the final PR.
       upgrade but vanish on restore. And the club's
       Datenschutz URL lives in `instance_config` — ADR-0034's category, and the
       one config surface already readable without a session, which an anonymous
-      phone at a poster needs — as a language-keyed map in ADR-0002's shape, and
-      self-registration cannot be enabled without it.
+      phone at a poster needs — as a **single** URL, because the documents are
+      not translated and there is no club-language setting to translate
+      against; self-registration cannot be enabled without it. An unapproved
+      registration is purged after **30 days**.
       *Verified*: `DocumentationIndexTest` green — every new ADR and use case is
       reachable from its index.
       **Gate**: the ADR needs the owner's approval, and the schema its explicit
@@ -127,7 +129,7 @@ the final PR.
       member-facing reason. Enabling requires **both** the secret and the
       Datenschutz URL, and a missing one is named
       (`datenschutz_url_missing`) rather than greying the switch out. The two
-      configured URLs — Datenschutz (`instance_config.privacy_policy_urls`) and
+      configured URLs — Datenschutz (`instance_config.privacy_policy_url`) and
       the mandate template (`sepa_config.mandate_template_url`) — are validated
       **when saved**, but not alike: the Datenschutz URL is format-checked and
       stored, never fetched (it is displayed, and the member navigates to it
@@ -189,20 +191,22 @@ on the production hosting**. The mechanism is verified in the sandbox on PHP 8.4
 matching IONOS; #777 asks for the on-host confirmation before ADR-0052 is
 accepted.
 
-## Open questions blocking M1
+## Settled, and what is still outstanding
 
-1. **TTL length.** 14 days is calibrated on "the treasurer looks weekly".
-2. **Schema confirmation.** `pending_registrations`,
-   `self_registration_config` and the new
-   `instance_config.privacy_policy_urls` are drafted in `docs/erm-master.md`
-   and, per project convention, need explicit confirmation before migration
-   `059`. No column is added for the mandate template.
-3. **Per-language documents.** The draft stores a language-keyed map and falls
-   back to the default entry, telling the reader which language they are being
-   shown. A club that publishes only German is therefore not blocked from
-   onboarding an English-speaking member. Confirm that fallback, or require a
-   document per offered language.
+| | |
+|---|---|
+| Retention | **30 days** before an unapproved registration is purged |
+| Documents | One Datenschutz URL, one mandate template URL; neither translated, no club-language setting |
+| Optional consents | None — this flow is the SEPA mandate and nothing else |
+| The template | Not pinned: `sepa_config.mandate_template_url` is the pointer |
 
-**Not open:** optional consents. The flow carries the SEPA mandate and nothing
-else — #781's tick-boxes are conditional on a club using any, and this one uses
-none.
+**Blocking M1 inside this repository:** the owner's explicit confirmation of the
+schema — two new tables (`pending_registrations`, `self_registration_config`) and
+one new column (`instance_config.privacy_policy_url`). Nothing is added for the
+mandate template.
+
+**Blocking outside it:** one run of `spikes/pdf-form-fill/`
+([#786](https://github.com/dgloeckner/clubbar/pull/786)) on the production hosting,
+which #777 makes an acceptance criterion for ratifying the ADR; and the club
+publishing its two built PDFs, which is what produces the URLs the configuration
+stores.
