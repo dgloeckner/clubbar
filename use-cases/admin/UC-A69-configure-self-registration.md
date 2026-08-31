@@ -189,12 +189,13 @@ switched on until the URL has been set and validated at least once (decision
 | Rotating replaces `secret_hash` outright, with no overlap window | Unlike a terminal token, a poster cannot be "re-keyed in person" — the whole reason to rotate is to kill a leaked copy at once, not to let it keep working until somebody notices |
 | A rotated secret's old URLs answer exactly like an unknown one | Anything that told the difference would confirm to whoever holds the old poster that it *used to* work, which is information a probe should never get |
 | Switching off requires a reason; switching back on requires nothing but the flip | Off is addressed to a person standing at the poster; on restores exactly what was already printed, so nothing needs re-explaining |
-| Availability cannot be switched on without a configured Datenschutz URL | Collecting a name, a birth date and an IBAN from somebody who was never told what happens to them is the failure this condition exists to prevent — and it is the half an admin is most likely to skip, because the poster is the visible artefact and the notice is not |
+| Availability cannot be switched on without a configured document URL | Collecting a name, a birth date and an IBAN from somebody who was never shown the club's own Anmeldung — its Datenschutzhinweise are pages 2+ of that same document — is the failure this condition exists to prevent, and it is the half an admin is most likely to skip, because the poster is the visible artefact and the document is not |
 | The refusal names which precondition is missing (`document_url_missing`), rather than greying the switch out | An admin who cannot turn a feature on and is not told why files a bug against the switch, not against the missing document |
-| Club Bar stores the Datenschutz URL, never the document, and never fetches it | It is generic software installed by clubs it knows nothing about, so the legal text is the club's to write and host; the URL is displayed, not dereferenced, and the member navigates to it themselves (decision 6) |
-| The mandate template URL is the opposite: it **is** fetched, once at save to validate it and again at every render | It is only ever set by an `admin`, so dereferencing it is not a public-input SSRF the way an untrusted URL would be (decision 5a) — no copy is stored, so there is nothing else to keep in sync with the club's own document |
-| Saving the template URL is refused, and the URL is not saved, when the fetch fails or a required field is missing or unreadable | A bad pointer must fail loudly at save time, not silently at the printer, weeks later (decision 5a) |
-| With no template URL configured, or the configured one unreachable at render, the shipped DK-Muster default renders instead | A club's webhost outage must not fail a registration (decision 5a) |
+| One URL does both jobs — it is what the onboarding page links before any data entry, and what the fill fetches at render to build page 1 | Since the club's document stayed combined, its Datenschutzhinweise are pages 2+ of the very PDF clubbar fills (decisions 5a and 6); a second field pointing at the same file would be two settings an admin has to keep in sync rather than one |
+| Club Bar stores no copy of the document, only this one URL | It is generic software installed by clubs it knows nothing about, so the document is the club's to write and host |
+| The URL **is** fetched — once at save, to validate it, and again at every render, to build page 1 | It is only ever set by an `admin`, so dereferencing it is not a public-input SSRF the way an untrusted URL would be (decision 5a). For the onboarding page's own link, nothing is fetched server-side at all — the URL is displayed and the visitor's own browser navigates to it |
+| Saving the URL is refused, and it is not saved, when the fetch fails or a required field is missing or unreadable | A bad pointer must fail loudly at save time, not silently at the printer, weeks later (decision 5a) |
+| With no document URL configured, or the configured one unreachable at render, the shipped DK-Muster default renders instead | A club's webhost outage must not fail a registration (decision 5a) |
 | The refusal on a wrong or missing secret is enforced on `POST /api/public/registrations` itself | Hiding the form in the UI is not a gate; the endpoint must refuse independently of what the browser rendered |
 
 ## Postconditions
@@ -217,10 +218,10 @@ switched on until the URL has been set and validated at least once (decision
   plus, when off, the reason text) governs every scan from that request
   onward. No poster is reprinted and no secret changes.
 
-**After configuring the mandate template URL**
+**After configuring the document URL**
 - On success: `sepa_config.mandate_template_url` is updated, the save is
-  recorded to the audit log, and filling the club document — at registration
-  and at review — now fetches from it.
+  recorded to the audit log, and filling the club's document — at
+  registration and at review — now fetches from it.
 - On refusal: the field is unchanged. Nothing is saved, and the previously
   configured URL (or the shipped default, if none was ever set) keeps
   rendering.
@@ -245,9 +246,9 @@ admin to generate a secret first.
 ### E4: A reprint or rotation is requested with no secret ever generated
 Refused for the same reason as E3: nothing to reprint or rotate.
 
-### E4a: Availability is turned on with no Datenschutz URL configured
+### E4a: Availability is turned on with no document URL configured
 Refused with a typed `document_url_missing`, and the panel names the missing
-precondition and links straight to the instance configuration screen that sets
+precondition and links straight to the SEPA configuration screen that sets
 it. The switch is never silently greyed out: an admin who is not told which of
 the two conditions they are missing has been handed a puzzle instead of a
 setting.
@@ -256,7 +257,7 @@ setting.
 422 — a blank refusal shown to a member standing at a poster the club printed
 is exactly the failure decision 2 exists to prevent.
 
-### E6: The mandate template URL is unreachable, or missing a required field
+### E6: The document URL is unreachable, or missing a required field
 Refused, and **not saved**. The typed reason names the missing field, or —
 when the file cannot be parsed at all — tells the admin to rebuild it with
 WeasyPrint's `--uncompressed-pdf` flag (decision 5a). The previously saved
@@ -269,7 +270,7 @@ URL, if any, is untouched.
 - Availability cannot be switched on before a secret exists
 - With both preconditions met, the switch is accepted and a poster scan reaches
   the form
-- Clearing the Datenschutz URL while registration is live is refused, or turns
+- Clearing the document URL while registration is live is refused, or turns
   registration off in the same write — never leaves it accepting submissions
   with nothing to point the applicant at
 - No secret generated: `POST /api/public/registrations` with any fragment
@@ -293,7 +294,7 @@ URL, if any, is untouched.
 - Rotation and secret generation are both recorded to the audit log
 - The QR-encoded URL carries the secret in the fragment, never the path, in
   every state that exposes it
-- Saving a mandate template URL that does not respond, or is not `https://`,
+- Saving a document URL that does not respond, or is not `https://`,
   is refused with a typed reason and `mandate_template_url` is unchanged
 - Saving a template URL missing `mandatsreferenz`, `vorname`, `nachname`,
   `iban` or `iban_last4` is refused with a typed reason naming the field
@@ -307,7 +308,7 @@ URL, if any, is untouched.
 ## Related
 
 - [ADR-0052](../../adr/0052-member-self-registration-via-qr-code.md) — the
-  decision this specifies, especially decisions 1, 2, 5a, 6, 8 and 11
+  decision this specifies, especially decisions 1, 2, 5, 5a, 6, 8 and 11
 - [UC-P01](../public/UC-P01-member-self-registration.md) — what a member sees
   once availability is on and they have the current secret
 - [UC-A17](./UC-A17-review-pending-registrations.md) — where the rows this
