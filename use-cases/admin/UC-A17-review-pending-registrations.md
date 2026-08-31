@@ -65,15 +65,22 @@ acted on or its TTL purges it (ADR-0052 decision 10).
    unchanged to approval).
 4. The admin prints the mandate sheet for the applicant's signature (or opens
    the one the applicant already printed themselves during registration).
-   Printed here, the sheet carries:
-   - A **blank IBAN line** with a printed `****3000` hint next to it, so the
-     admin knows which account to expect without the server ever having
-     needed to hold the number.
+   The sheet is rendered by filling the club's own mandate template, fetched
+   from the URL configured in [UC-A69](./UC-A69-configure-self-registration.md)
+   — or, when none is configured or it cannot be reached, the shipped
+   DK-Muster default (ADR-0052 decisions 5 and 5a). Printed here, it carries:
+   - A **blank IBAN line**, left empty for the applicant to hand-write, with
+     the `endet auf ****3000` hint printed from `iban_last4` next to it — the
+     server never held the plaintext IBAN to fill the line with in the first
+     place.
    - A **legal-representative signature line**, present only when the
      submitted birth date makes the applicant a minor.
    - The **account holder's name** in the signature block whenever one was
      supplied — never the applicant's, because the account holder is who has
      to sign (ADR-0052 decisions 5 and 7).
+   - Ort/Datum and every signature are never machine-filled — they are
+     handwritten on the paper, always, and a valid template carries no fields
+     for them.
 5. The applicant (or their legal representative, or the account holder) signs
    the paper by hand, writing their IBAN into the blank line.
 6. The admin approves, affirming the one attestation this step exists to
@@ -145,7 +152,8 @@ screen to edit — the server never held the plaintext and cannot show it back.
 | The IBAN is never displayed, only replaced | The server holds no key that can open `iban_ciphertext` (ADR-0036); showing it back is not a UI choice withheld, it is a thing that cannot be built |
 | Correcting a typo does not touch `mandate_reference` | It was minted at submission specifically because it had to be printed on the paper before the mandate existed; approval carries it across unchanged (decision 4) |
 | Duplicate flags never block approval | They are visibility for a human decision, not a gate — a member of the family joining a second time, or a returning member re-registering, is a legitimate outcome the admin decides on, not a state the system refuses (decision 9) |
-| The admin-print sheet needs no plaintext IBAN | It prints from `iban_last4` alone — a blank line and a hint, never a filled-in number |
+| The admin-print sheet needs no plaintext IBAN | It is filled from the club's template (or the shipped default) with `iban` left empty and `iban_last4` printed as the hint — a blank line and a hint, never a filled-in number |
+| Ort/Datum and every signature stay handwritten on the admin-print sheet | Never machine-filled, and not fields a valid template carries at all (ADR-0052 decision 5) |
 | The legal-representative line appears only for a submitted birth date under the age of majority | The sheet must not silently ask a minor to sign alone |
 | The signature block names the account holder, not the applicant, whenever one was supplied | The mandate must be signed by whoever owns the account (decision 7) |
 | Rejection deletes the row immediately, not on a delay | Nothing here is a Beleg; a queue nobody empties is exactly how personal data about somebody who never joined would accumulate (decision 10) |
@@ -207,8 +215,11 @@ account for.
   persists on the pending row without touching `mandate_reference`
 - Replacing the IBAN overwrites `iban_ciphertext`, `iban_last4` and
   `iban_fingerprint`, and the sheet's hint reflects the new last four
-- The admin-print sheet renders a blank IBAN line plus the `****` hint, and
-  never a filled-in number
+- The admin-print sheet renders the club's configured template — or the
+  shipped DK-Muster default when none is configured or it is unreachable —
+  with a blank IBAN line plus the `****` hint, and never a filled-in number
+- Ort/Datum and every signature line on the admin-print sheet are always
+  blank, never machine-filled
 - The admin-print sheet adds the legal-representative line only when the
   submitted birth date is under the age of majority
 - The signature block names the account holder when one was supplied, the

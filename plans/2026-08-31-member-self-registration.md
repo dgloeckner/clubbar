@@ -40,7 +40,11 @@ the final PR.
       ADR-0052 drafted **Proposed**; UC-P01, UC-A17, UC-A69 written with
       test-derivable criteria; `pending_registrations`,
       `self_registration_config` and `instance_config.privacy_policy_urls`
-      drafted into `docs/erm-master.md`; this plan. **Decided here**: the club's
+      drafted into `docs/erm-master.md`; this plan. **Decided here**: clubbar
+      pins no mandate template — `sepa_config.mandate_template_url` (the column
+      #360 already added) is the one pointer, fetched and never copied, because
+      the backup dumper walks the schema only and a pinned file would survive an
+      upgrade but vanish on restore. And the club's
       Datenschutz URL lives in `instance_config` — ADR-0034's category, and the
       one config surface already readable without a session, which an anonymous
       phone at a poster needs — as a language-keyed map in ADR-0002's shape, and
@@ -49,7 +53,8 @@ the final PR.
       reachable from its index.
       **Gate**: the ADR needs the owner's approval, and the schema its explicit
       confirmation, before M1 starts. Three open questions are listed in the ADR
-      (optional consents, TTL length, schema).
+      (TTL length, schema, per-language documents), and the on-hosting spike
+      run #777 asks for.
 - [ ] **M1 — Registrations module and the sealed pending store**
       ([#778](https://github.com/dgloeckner/clubbar/issues/778)).
       Migration `059` (+ rollback) for both tables. `POST /api/public/registrations`
@@ -75,28 +80,37 @@ the final PR.
       *Verified by*: `RouteRoleMapCompletenessTest`; a role test proving a
       Getränkewart gets 403 on every route here; an API test proving approval
       produces exactly what UC-A11 produces.
-- [ ] **M3 — Mandate PDF, both variants**
+- [ ] **M3 — Mandate PDF: fill the club's template**
       ([#780](https://github.com/dgloeckner/clubbar/issues/780)).
-      One renderer, one flag. Member variant: fully pre-filled, rendered
-      in-request from the plaintext the browser posts back with its download
-      token, `Cache-Control: no-store`, nothing persisted. Admin variant: blank
-      IBAN line with a `****last4` hint, the account holder in the signature
-      block, a legal-representative line when the birth date says minor. On the
-      digital route this sheet supersedes the Anmeldung and mandate sections of
-      the club's combined paper form, taking that form's existing mandate
-      wording as its baseline — template review means checking it against the
-      form, not against a new invention.
-      *Verified by*: a test that the member variant refuses a wrong download
-      token, an expired one, and an IBAN whose fingerprint does not match; a test
-      that the admin variant contains the last four and never the full IBAN.
+      Port the spike ([#786](https://github.com/dgloeckner/clubbar/pull/786)):
+      enumerate AcroForm field names and rectangles from the raw PDF with
+      `/Rect` corner order normalized, import the page with FPDI so annotations
+      are dropped and the output is flattened by construction, draw the values
+      at the rects. `setasign/fpdf` + `setasign/fpdi` only; Latin-1
+      transliteration for core fonts. Vocabulary: required `mandatsreferenz`,
+      `vorname`, `nachname`, `iban`, `iban_last4`; optional `kontoinhaber`;
+      **never** Ort/Datum or signatures. Member variant filled in-request during
+      `POST /api/public/registrations` and returned in that response,
+      `Cache-Control: no-store`; admin variant identical but `iban` empty and
+      `iban_last4` printed as the `endet auf ****XXXX` hint. The template comes
+      from `sepa_config.mandate_template_url` — fetched, never stored — with the
+      shipped DK-Muster default (de/en) when it is unset or unreachable.
+      *Verified by*: fixtures for both the DK-Muster default and the FRGS
+      template; the member variant contains the full IBAN and the admin variant
+      provably does not; Ort/Datum provably unfilled; zero `/Widget`
+      annotations in either output; a `/Rect` regression test on a
+      WeasyPrint-built fixture; optional fields filled when present and skipped
+      when absent; no disk or database write on either render path.
 - [ ] **M4 — Public onboarding page**
       ([#781](https://github.com/dgloeckner/clubbar/issues/781)).
       Small self-contained bundle under the backend document root at `/register`,
       not the admin SPA. Reads the secret from the fragment and never puts it in
       a request line. Mobile-first, a **prominent link to the club's own
       Datenschutz document before any data entry** — no legal text embedded in
-      Club Bar, in any language — with an unticked acknowledgement box and the
-      URL shown recorded, the disabled state
+      Club Bar, in any language, and **no checkbox attached to it**, since
+      Art. 13 is a duty to inform rather than something to declare — with the
+      URL shown recorded, the mandate PDF arriving in the submission response
+      and not re-fetchable on reload, the disabled state
       rendering the club's reason, the one-time PDF download, and a confirmation
       screen that says plainly: you are not a member yet, bring the signed sheet.
 - [ ] **M5 — Admin registrations inbox**
@@ -105,14 +119,26 @@ the final PR.
       (`useListQuery`, no hand-rolled paging state), review drawer, print,
       approve with the attestation, reject with a reason. The IBAN is never
       displayed — it can only be replaced, because the server cannot read it.
-- [ ] **M6 — Availability, secret and poster**
+- [ ] **M6 — Availability, secret, URLs and poster**
       ([#783](https://github.com/dgloeckner/clubbar/issues/783)).
       Generate the first secret (until then the feature is off), reprint the
-      poster without rotating, rotate (`[ADMIN]` only — it invalidates every
-      poster on the wall, and the UI has to say so), switch off with a
+      poster without rotating, rotate — all `[ADMIN]`, and rotation invalidates
+      every poster on the wall, which the UI has to say. Switch off with a
       member-facing reason. Enabling requires **both** the secret and the
-      Datenschutz URL, and a missing one is named in the UI rather than greying
-      the switch out. Printable QR poster.
+      Datenschutz URL, and a missing one is named
+      (`datenschutz_url_missing`) rather than greying the switch out. The two
+      configured URLs — Datenschutz (`instance_config.privacy_policy_urls`) and
+      the mandate template (`sepa_config.mandate_template_url`) — are validated
+      **when saved**, but not alike: the Datenschutz URL is format-checked and
+      stored, never fetched (it is displayed, and the member navigates to it
+      themselves — ADR-0052 decision 6), while the template URL *is* fetched
+      once and its required AcroForm fields enumerated, refused with the typed
+      reason naming the missing field or telling the club to rebuild with
+      `--uncompressed-pdf`.
+      **No upload flow** — clubbar stores no template copy. Printable QR poster.
+      *Verified by*: an unreachable or non-fillable template URL is refused with
+      its typed reason and not saved; a valid one is accepted and audited; with
+      none set the DK-Muster default renders.
 - [ ] **M7 — E2E flow and privacy assertions**
       ([#784](https://github.com/dgloeckner/clubbar/issues/784)).
       Public form → pending row → admin approve → member exists → terminal sync
@@ -140,31 +166,43 @@ which milestone happens to implement them:
 | 10 | The audit trail names who approved, who rejected, and never a full IBAN | M2 |
 | 11 | Self-registration cannot be enabled without a configured Datenschutz URL, and the refusal names it | M1 + M6 |
 | 12 | No Datenschutz prose ships in this repository — the page links the club's document | M4 |
+| 13 | Neither rendered sheet carries a live form field (zero `/Widget` annotations) | M3 |
+| 14 | The member sheet contains the full IBAN; the admin sheet provably does not | M3 |
+| 15 | Ort/Datum and the signatures are never machine-filled | M3 |
+| 16 | Neither render path writes to disk or to the database | M3 + M7 |
+| 17 | No mandate template is stored by Club Bar; an unreachable one falls back to the shipped default rather than failing a registration | M3 + M6 |
 
-## External dependency
+## External dependencies
 
-The club has to publish its Datenschutzhinweise at a stable URL before this
-feature can be switched on anywhere. For FRGS that is
-[frgs-website#32](https://github.com/dgloeckner/frgs-website/issues/32), which
-splits the notice out of the combined paper form into a page of its own; the
-combined form stays whole as the offline fallback. It is outside this repository
-and outside `feat/user-onboarding`, so it blocks *enabling* rather than
-*shipping* — and the enable gate is what keeps its absence from being silent.
+The club has to publish two documents before this feature can be switched on
+anywhere: the standalone Datenschutzhinweise, and the fillable mandate template
+the sheet is rendered from. Both sources are delivered in
+[frgs-website#33](https://github.com/dgloeckner/frgs-website/pull/33); what
+remains is the owner publishing the built PDFs as Kirby files via SFTP, which is
+what produces the stable URLs the configuration stores. Outside this repository
+and outside `feat/user-onboarding`, so they block *enabling* rather than
+*shipping* — and the enable gate is what keeps their absence from being silent.
+
+One more owner action gates the ADR itself rather than the feature: **one run of
+`spikes/pdf-form-fill/` ([#786](https://github.com/dgloeckner/clubbar/pull/786))
+on the production hosting**. The mechanism is verified in the sandbox on PHP 8.4
+matching IONOS; #777 asks for the on-host confirmation before ADR-0052 is
+accepted.
 
 ## Open questions blocking M1
 
-1. **Optional consents.** #776 decision 4 wants photo/newsletter consents stored
-   with the registration; there is nowhere on `members` for them to go at
-   approval. The ADR proposes recording only the Art. 13 acknowledgement in v1
-   and building a `member_consents` store as its own issue. Needs a ruling.
-2. **TTL length.** 14 days is calibrated on "the treasurer looks weekly".
-3. **Schema confirmation.** `pending_registrations`,
+1. **TTL length.** 14 days is calibrated on "the treasurer looks weekly".
+2. **Schema confirmation.** `pending_registrations`,
    `self_registration_config` and the new
    `instance_config.privacy_policy_urls` are drafted in `docs/erm-master.md`
    and, per project convention, need explicit confirmation before migration
-   `059`.
-4. **Per-language documents.** The draft stores a language-keyed map and falls
+   `059`. No column is added for the mandate template.
+3. **Per-language documents.** The draft stores a language-keyed map and falls
    back to the default entry, telling the reader which language they are being
    shown. A club that publishes only German is therefore not blocked from
    onboarding an English-speaking member. Confirm that fallback, or require a
    document per offered language.
+
+**Not open:** optional consents. The flow carries the SEPA mandate and nothing
+else — #781's tick-boxes are conditional on a club using any, and this one uses
+none.

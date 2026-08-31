@@ -4,12 +4,12 @@
 
 ## Actors
 
-- **Admin** — generates the poster secret, reprints the poster, and rotates
-  the secret. All three are grouped under `[ADMIN]` for the same reason:
-  reading the poster URL means reading the secret in plaintext, whether it is
-  a brand-new secret or the one already on the wall.
-- **Admin or Kassenwart** — switches self-registration on and off and writes
-  the reason members see while it is off.
+- **Admin** — generates the poster secret, reprints the poster, rotates the
+  secret, switches self-registration on and off, and configures the club's
+  Datenschutz URL and mandate template URL. Every write on this page is
+  `[ADMIN]`: it sits on Security & Credentials beside the secret the whole
+  feature depends on, and switching the feature on is what exposes the
+  public write surface (ADR-0052 decision 8).
 - **Prospective member** — scans the poster on the wall. Never signs in, and
   is the reader every state in this use case is written for (ADR-0052
   decision 2).
@@ -27,8 +27,9 @@ taped to a wall.
 
 ## Preconditions
 
-- Caller is signed in and holds `admin` for secret generation, reprint, or
-  rotation; `admin` or `kassenwart` for the availability switch.
+- Caller is signed in and holds `admin`. Every write on this page — secret
+  generation, reprint, rotation, the availability switch, the Datenschutz
+  URL and the mandate template URL — is `admin`-only (ADR-0052 decision 8).
 - The backend already serves `/register` as part of the deployment (ADR-0052
   decision 11) — there is no separate step to stand that page up.
 
@@ -44,9 +45,8 @@ taped to a wall.
    poster from) and a sealed copy the panel can render again later.
 3. Generating the secret does **not**, by itself, start accepting
    registrations. `/api/admin/self-registration/availability` is its own
-   switch, gated to a different role set (below) precisely because it is a
-   different decision — *a secret exists* and *the club is currently
-   accepting submissions* are independent facts, and both default closed.
+   switch — *a secret exists* and *the club is currently accepting
+   submissions* are independent facts, and both default closed.
 4. The admin (still `admin`-only) opens the poster to print it — a QR code
    encoding `https://<club>/register#<secret>`. The secret sits in the URL
    fragment, never the path, for the reason UC-A68's invitation links already
@@ -58,8 +58,8 @@ taped to a wall.
    text; it links the club's document (ADR-0052 decision 6). This is the second
    precondition, and it is `[ADMIN]` because it is already an admin-only
    surface.
-6. An admin or Kassenwart turns the availability switch on. It is accepted only
-   with **both** preconditions met — a secret to point the poster at, and a
+6. An admin turns the availability switch on. It is accepted only with
+   **both** preconditions met — a secret to point the poster at, and a
    document to point the applicant at. Only from this point does a scan of the
    printed poster reach the registration form.
 
@@ -103,9 +103,9 @@ happen before it happens.
 
 ## Alternative Flow: switching registration off, and back on
 
-1. An admin or Kassenwart opens Settings → Self-Registration and turns
-   availability off, entering a reason addressed to the person who will read
-   it on their phone — the ADR's own example is *„Beta-Phase schon voll"*.
+1. An admin opens Settings → Self-Registration and turns availability off,
+   entering a reason addressed to the person who will read it on their
+   phone — the ADR's own example is *„Beta-Phase schon voll"*.
 2. `PATCH /api/admin/self-registration/availability` stores the switch and
    the reason. **The refusal is enforced on the submission endpoint itself**,
    server-side — not rendering the form is a convenience, not the gate
@@ -115,19 +115,54 @@ happen before it happens.
    text**, not a blank refusal. They are standing in the clubhouse holding a
    poster the club printed; telling them nothing would read as broken, not
    as closed.
-4. To reopen, an admin or Kassenwart turns the switch back on. Nothing about
-   the secret changes, so every poster already on the wall works again
-   immediately — turning registration off and back on is reversible in a way
-   rotating the secret deliberately is not.
+4. To reopen, an admin turns the switch back on. Nothing about the secret
+   changes, so every poster already on the wall works again immediately —
+   turning registration off and back on is reversible in a way rotating the
+   secret deliberately is not.
+
+## Alternative Flow: configuring the club's mandate template
+
+The QR poster and the Datenschutz URL are two of this page's settings; the
+mandate template URL is the third, and unlike the other two it does not gate
+availability — a club can run self-registration with no template configured
+at all, because the shipped DK-Muster default always renders in its place.
+
+1. An admin opens the SEPA configuration screen and sets
+   `sepa_config.mandate_template_url` to the URL where the club's own
+   WeasyPrint-built mandate is published (ADR-0052 decisions 5 and 5a) — the
+   same field #360/migration `028` already added for the offline paper form.
+   There is no upload: clubbar stores no copy of the template, only this
+   pointer.
+2. On save, the system fetches the URL once (`https://` required, body size
+   capped, content type checked) and enumerates its AcroForm field names —
+   the same mechanism decision 5's spike settled for filling the sheet.
+3. A template missing `mandatsreferenz`, `vorname`, `nachname`, `iban` or
+   `iban_last4` is refused with a typed reason naming the missing field. A
+   template whose cross-reference table cannot be read at all is refused
+   with a typed reason telling the club to rebuild it with WeasyPrint's
+   `--uncompressed-pdf` flag. Either way the URL **is not saved** — a
+   half-validated pointer would fail silently later, at the moment an admin
+   is standing at the printer with an applicant's signed paper in hand.
+4. A URL that enumerates the five required fields is saved and recorded to
+   the audit log. `kontoinhaber` and any creditor fields are filled when
+   present and ignored when absent; `datum_ort` and the signature are never
+   fields at all, because they are handwritten on every template, always.
+5. From then on, filling the sheet — the member's own copy at registration
+   and the admin-print copy at review (UC-A17) — fetches the configured URL
+   fresh for each render, memoized for that one request only and never
+   written to disk or database. If the club's site is unreachable at render
+   time, or no URL has ever been configured, the shipped DK-Muster default
+   renders instead, and the response names which template was used — a
+   club's webhost outage must never fail a registration.
 
 ## Worked example: the poster's life, state by state
 
 | Club state | What a scanning member sees | Who can cause this |
 |---|---|---|
 | No secret ever generated | `registration_unavailable`, no detail — indistinguishable from a wrong guess | `[ADMIN]` — nobody has generated one yet |
-| Secret generated, availability still off | Same `registration_unavailable` — a secret existing is not the same as the club accepting anything | `[ADMIN]` generated it; `[ADMIN, KASSENWART]` has not yet turned it on |
-| Availability on | The registration form (UC-P01) | `[ADMIN, KASSENWART]` flipped the switch |
-| Availability switched off, with a reason | `registration_disabled` plus the club's own reason text | `[ADMIN, KASSENWART]` |
+| Secret generated, availability still off | Same `registration_unavailable` — a secret existing is not the same as the club accepting anything | `[ADMIN]` generated it; nobody has turned it on yet |
+| Availability on | The registration form (UC-P01) | `[ADMIN]` flipped the switch |
+| Availability switched off, with a reason | `registration_disabled` plus the club's own reason text | `[ADMIN]` |
 | Secret rotated | Every poster printed before the rotation now answers `registration_unavailable`, identically to a stranger's wrong guess | `[ADMIN]` only |
 
 ## Rules
@@ -137,7 +172,7 @@ happen before it happens.
 | No secret ever generated means unconditionally unavailable, independent of the availability switch | Fail closed twice over — a fresh install and a half-finished configuration must both answer "unavailable" (decision 2) |
 | Generating and rotating the secret is `[ADMIN]` only | Minting a bearer credential for a public write surface is ADR-0044 rule 2 territory — the same reasoning that makes terminal token rotation admin-only (UC-A54) |
 | Reading the poster URL — reprinting it — is also `[ADMIN]` only | Reading the poster is reading the plaintext secret; there is no version of "let a Kassenwart reprint it" that does not also hand them the bearer credential itself |
-| Turning availability on or off is `[ADMIN, KASSENWART]` | "The switch belongs to whoever is running the onboarding table" — ADR-0052 decision 8 — the same office already reviews the rows that switch produces (UC-A17) |
+| Turning availability on or off is `[ADMIN]` | It sits on the Security & Credentials page beside the secret it depends on, and the two are one decision in practice: switching the feature on is what exposes the public write surface (ADR-0052 decision 8) |
 | The Getränkewart reaches none of this page | Member onboarding is outside their remit on every surface (ADR-0045 invariant 5); the settings tab is not shown to them |
 | Reprinting never changes `secret_hash` | The stored sealed copy exists specifically so a poster can be replaced without a security event (decision 1) |
 | Rotating replaces `secret_hash` outright, with no overlap window | Unlike a terminal token, a poster cannot be "re-keyed in person" — the whole reason to rotate is to kill a leaked copy at once, not to let it keep working until somebody notices |
@@ -145,14 +180,17 @@ happen before it happens.
 | Switching off requires a reason; switching back on requires nothing but the flip | Off is addressed to a person standing at the poster; on restores exactly what was already printed, so nothing needs re-explaining |
 | Availability cannot be switched on without a configured Datenschutz URL | Collecting a name, a birth date and an IBAN from somebody who was never told what happens to them is the failure this condition exists to prevent — and it is the half an admin is most likely to skip, because the poster is the visible artefact and the notice is not |
 | The refusal names which precondition is missing (`datenschutz_url_missing`), rather than greying the switch out | An admin who cannot turn a feature on and is not told why files a bug against the switch, not against the missing document |
-| Club Bar stores a URL, never the document, and never fetches it | It is generic software installed by clubs it knows nothing about, so the legal text is the club's to write and host; and a URL an admin supplies which the server then retrieves is an SSRF primitive |
+| Club Bar stores the Datenschutz URL, never the document, and never fetches it | It is generic software installed by clubs it knows nothing about, so the legal text is the club's to write and host; the URL is displayed, not dereferenced, and the member navigates to it themselves (decision 6) |
+| The mandate template URL is the opposite: it **is** fetched, once at save to validate it and again at every render | It is only ever set by an `admin`, so dereferencing it is not a public-input SSRF the way an untrusted URL would be (decision 5a) — no copy is stored, so there is nothing else to keep in sync with the club's own document |
+| Saving the template URL is refused, and the URL is not saved, when the fetch fails or a required field is missing or unreadable | A bad pointer must fail loudly at save time, not silently at the printer, weeks later (decision 5a) |
+| With no template URL configured, or the configured one unreachable at render, the shipped DK-Muster default renders instead | A club's webhost outage must not fail a registration (decision 5a) |
 | The refusal on a wrong or missing secret is enforced on `POST /api/public/registrations` itself | Hiding the form in the UI is not a gate; the endpoint must refuse independently of what the browser rendered |
 
 ## Postconditions
 
 **After generating the first secret**
 - `secret_hash` and a sealed copy exist. Availability is still off until an
-  admin or Kassenwart explicitly turns it on.
+  admin explicitly turns it on.
 
 **After reprinting**
 - Nothing in storage changes. The poster shown is identical to every other
@@ -168,11 +206,22 @@ happen before it happens.
   plus, when off, the reason text) governs every scan from that request
   onward. No poster is reprinted and no secret changes.
 
+**After configuring the mandate template URL**
+- On success: `sepa_config.mandate_template_url` is updated, the save is
+  recorded to the audit log, and filling the mandate sheet — at registration
+  and at review — now fetches from it.
+- On refusal: the field is unchanged. Nothing is saved, and the previously
+  configured URL (or the shipped default, if none was ever set) keeps
+  rendering.
+
 ## Error Cases
 
-### E1: A Kassenwart attempts to generate, reprint, or rotate the secret
-403 `insufficient_role`. The action is not offered on their view of the page
-at all — only the availability switch is.
+### E1: A Kassenwart attempts any write on this page
+403 `insufficient_role`, whether the action is generating, reprinting, or
+rotating the secret, flipping the availability switch, or saving either URL.
+None of it is offered on their view of the page — the whole Self-Registration
+screen is `admin`-only (decision 8), unlike UC-A17's inbox, which the same
+Kassenwart does reach once a row exists to review.
 
 ### E2: A Getränkewart opens Settings
 403 `insufficient_role`, and the Self-Registration tab is not in their
@@ -195,6 +244,12 @@ setting.
 ### E5: Availability is switched off with no reason text
 422 — a blank refusal shown to a member standing at a poster the club printed
 is exactly the failure decision 2 exists to prevent.
+
+### E6: The mandate template URL is unreachable, or missing a required field
+Refused, and **not saved**. The typed reason names the missing field, or —
+when the file cannot be parsed at all — tells the admin to rebuild it with
+WeasyPrint's `--uncompressed-pdf` flag (decision 5a). The previously saved
+URL, if any, is untouched.
 
 ## Test Derivation
 
@@ -219,19 +274,29 @@ is exactly the failure decision 2 exists to prevent.
 - Rotate replaces the secret; the previous secret now answers
   `registration_unavailable`, identically to an unknown one
 - Rotate is refused for a Kassenwart and a Getränkewart (403)
-- Generate/reprint/rotate are all refused for a Kassenwart and a Getränkewart
-  (403); the availability switch succeeds for a Kassenwart and is refused for
-  a Getränkewart
+- Generate, reprint, rotate, the availability switch, and saving either URL
+  are all refused for a Kassenwart and a Getränkewart (403); every one
+  succeeds only for `admin`
 - Turning availability on with no secret ever generated is refused
 - Turning availability off with an empty reason is refused (422)
 - Rotation and secret generation are both recorded to the audit log
 - The QR-encoded URL carries the secret in the fragment, never the path, in
   every state that exposes it
+- Saving a mandate template URL that does not respond, or is not `https://`,
+  is refused with a typed reason and `mandate_template_url` is unchanged
+- Saving a template URL missing `mandatsreferenz`, `vorname`, `nachname`,
+  `iban` or `iban_last4` is refused with a typed reason naming the field
+- Saving a template URL whose cross-reference table cannot be read is
+  refused with a typed reason pointing at `--uncompressed-pdf`
+- Saving a template URL that enumerates all five required fields is
+  accepted, persisted, and recorded to the audit log
+- With no template URL ever configured, rendering the mandate sheet uses the
+  shipped DK-Muster default
 
 ## Related
 
 - [ADR-0052](../../adr/0052-member-self-registration-via-qr-code.md) — the
-  decision this specifies, especially decisions 1, 2, 8 and 11
+  decision this specifies, especially decisions 1, 2, 5a, 6, 8 and 11
 - [UC-P01](../public/UC-P01-member-self-registration.md) — what a member sees
   once availability is on and they have the current secret
 - [UC-A17](./UC-A17-review-pending-registrations.md) — where the rows this

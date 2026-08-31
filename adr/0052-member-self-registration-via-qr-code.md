@@ -63,10 +63,10 @@ gate on the public surface: without it the endpoint answers a uniform refusal, s
 a scanner that finds `/api/public/registrations` learns nothing and cannot put a
 row in front of the treasurer.
 
-**The secret lives in the URL fragment, never in the path**, and all three
-public endpoints — read the context, submit, render the member's sheet — are
-`POST` at constant URLs taking the secret in the body, including the one that
-only reads. This is UC-A68's reasoning, applied to a credential with
+**The secret lives in the URL fragment, never in the path**, and both public
+endpoints — read the context, submit — are `POST` at constant URLs taking the
+secret in the body, including the one that only reads. There is no third: the
+member's sheet comes back in the submission response (decision 5). This is UC-A68's reasoning, applied to a credential with
 a much longer life than an invitation link: a request line is written verbatim
 into every access log in front of the installation (twice per request in the
 shipped package), a fragment is the one part of a URL a browser never sends, and
@@ -132,33 +132,114 @@ row's own UUID, in ADR-0006's format, and **approval carries it into the
 reference with it; references are 32 hex characters from a UUID and are not a
 scarce resource.
 
-### 5. The IBAN is on the paper, but the server need not be able to print it
+### 5. The sheet is a club-authored PDF that clubbar fills — and never stores
 
 The debtor IBAN is mandatory mandate content under the EPC SDD Core Rulebook, so
 it cannot be left off the signed document. It need not be *machine-printed*, and
 that distinction is what keeps decision 3 exception-free. Two variants, both
-generated in-request and neither persisted (ADR-0037: the signed paper is the
+rendered in-request and neither persisted (ADR-0037: the signed paper is the
 Beleg, and this system does not keep copies of it):
 
-| Variant | Who prints | IBAN on the sheet | Where the plaintext comes from |
-|---|---|---|---|
-| **Member download** | The member, during registration | Fully pre-filled | The browser still holds what the member just typed, and posts it back with the download token. The server renders and forgets |
-| **Admin print** | The Kassenwart, at review | A **blank line** with a printed `****3000` hint | Nowhere. The server needs no plaintext: it prints the hint from `iban_last4` |
+| Variant | Who prints | `iban` | `iban_last4` | Delivery |
+|---|---|---|---|---|
+| **Member** | The member, during registration | Filled in full, from the plaintext still in memory in that request | Filled | Returned **in the `POST /api/public/registrations` response itself**, `Cache-Control: no-store` |
+| **Admin print** | The Kassenwart, at review | **Empty** — hand-written into the IBAN-Kamm at signature | Filled, printed as the `endet auf ****3000` hint | `GET` from the pending row, audited |
 
-In the admin-print variant the member writes their IBAN by hand at signature and
-the admin cross-checks the last four against the screen. This is the variant that
-always works — including for a member who registered from a phone and lost the
-tab, and for a club that never enables the member download.
+The member's sheet arrives with the submission response and nowhere else. There
+is no second endpoint, no download token, and reloading the confirmation screen
+cannot re-fetch it — the plaintext IBAN existed only for the length of that one
+request, so there is nothing left to render from afterwards. The admin-print
+variant is the path that always works: it needs no plaintext at all, printing the
+hint from `iban_last4`, so a member who lost the tab is not stuck.
 
-The member-download route is bound by a **download token** returned once in the
-submission response (32 random bytes, stored hashed on the row, valid 30
-minutes, spendable more than once inside that window — a phone that fails to
-save the sheet on the first tap must not be locked out of its own
-registration). Rendering the sheet requires the token *and* the plaintext IBAN,
-whose fingerprint must match the stored row. Neither alone is enough: the token by
-itself cannot print somebody's IBAN, and an IBAN by itself cannot be tested
-against a registration whose id the caller does not have. The response carries
-`Cache-Control: no-store`.
+**Ort/Datum and the signatures are never machine-filled.** They are handwritten,
+and a valid template does not carry fields for them.
+
+#### How the fill works (settled by the spike, [#786](https://github.com/dgloeckner/clubbar/pull/786))
+
+The club authors the mandate as **HTML/CSS in its own website repository** and
+builds it with **WeasyPrint `--pdf-forms --uncompressed-pdf`**. Both flags are
+load-bearing: the first turns `<input>` elements into native AcroForm text
+fields, the second writes a classic cross-reference table, which the free FPDI
+parser and the field enumerator both require. Headless Chromium was cross-checked
+on the same HTML and renders a visually identical page with **zero** form fields,
+so it cannot substitute.
+
+The AcroForm fields are an **addressing contract, not a form to fill**: clubbar
+enumerates their names and rectangles by scanning the raw PDF, imports the page
+with FPDI — which does not import annotations, so the output is **flattened by
+construction** — and draws the values at those rectangles. Dependencies are
+`setasign/fpdf` + `setasign/fpdi` only. FPDM was excluded as unmaintained since
+2017; the commercial SetaPDF-FormFiller is the documented fallback if this proves
+insufficient.
+
+Two details cost real debugging in the spike and belong in the record: WeasyPrint
+writes `/Rect` corners **top-down**, so corner order must be normalized before a
+rectangle is usable; and field *borders* are annotation properties, so they vanish
+on flatten — a template's writing lines must be page content (CSS borders), or the
+admin variant's blank IBAN line prints as nothing at all. Core-font output needs
+Latin-1 transliteration.
+
+**Field vocabulary — member-specific only:**
+
+| Field | |
+|---|---|
+| `mandatsreferenz`, `vorname`, `nachname`, `iban`, `iban_last4` | Required. A template missing any of them is refused |
+| `kontoinhaber`, and creditor fields in the shipped default | Optional: filled when present, ignored when absent |
+| `datum_ort`, signature | **Not fields.** Handwritten, always |
+
+The creditor block is printed **statically** by a club's template — its identity
+belongs in its own document. The neutral DK-Muster default that clubbar ships for
+unconfigured instances may instead carry creditor fields, filled from
+`sepa_config`.
+
+### 5a. Clubbar pins no template — the club's URL is the template
+
+The obvious design is an admin upload that pins the built PDF inside clubbar.
+This ADR rejects it, because the project already answered this exact question and
+because the storage has nowhere good to go.
+
+**It was already answered.** [#360](https://github.com/dgloeckner/clubbar/issues/360)
+moved the blank mandate out of the application; migration `028` added
+`sepa_config.mandate_template_url` for precisely this artifact — *"the club now
+maintains a statically hosted registration form elsewhere"*, a link, not a secret
+— and ADR-0037 records the same direction in its own Related Decisions: *"#360 —
+the blank mandate template is likewise moving out of the app."* **That URL and the
+fillable template are one artifact, not two.** The club's WeasyPrint build is what
+it points at.
+
+**And storing a copy has no good home.** The backup dumper walks
+`information_schema.TABLES` and nothing else (ADR-0049), while
+`package/upgrade.php` deliberately preserves `backend/storage/`. So a pinned file
+survives an upgrade and is *invisible to backup and restore*: restore a database
+and the row claiming a template is pinned comes back while the bytes do not. The
+alternative — the first file bytes in the schema — re-solves a closed problem, and
+there is no multipart surface in this backend to upload through anyway (the one
+place that considered it refused: *"PHP writes multipart parts to temporary files
+on disk, which is exactly the persistence this design exists to avoid"*).
+
+**The consequence, accepted deliberately:** filling needs the bytes, so clubbar
+fetches them from the configured URL rather than holding them.
+
+| Rule | |
+|---|---|
+| **Validated when the URL is saved** | Fetched once, `https://` required, body size capped, content type checked, fields enumerated. A URL that does not resolve to a usable template **is not saved** — refused with the typed reason naming the missing field, or telling the club to rebuild with `--uncompressed-pdf` when the cross-reference stream cannot be read |
+| **Fetched at render** | Short timeout, memoized for the request, never written to disk or database |
+| **Unreachable or unset** | The shipped DK-Muster default renders instead, and the response names which template was used. A club webhost outage must not fail a registration |
+| **Not a public-input SSRF** | The URL is set by an `admin` and validated at that moment; the public endpoint dereferences a value only an admin could have written, never one a visitor supplies |
+
+`mandate_template_url` is `VARCHAR(255) NULL` and explicitly unvalidated today
+(migration `028`, matching the `mail_config` precedent). Saving it now validates
+it — a behaviour change for any instance that has already set it to something that
+is not a fillable template, which the admin surface must say plainly rather than
+failing later at render.
+
+> This contradicts #776 decision 3, #780 §5 and #783 §3, which say the template is
+> *"pinned by explicit admin upload… never fetched at render time"*. The rule those
+> lines protect — no fetch of an unvalidated URL on a hot path — is kept by
+> validating at save time and falling back to the shipped default. The issues need
+> amending to match; naming the divergence here is deliberate, so it is not
+> discovered later as drift.
 
 ### 6. The club's Datenschutzhinweis is linked, never authored here
 
@@ -180,13 +261,13 @@ language, and none is embedded in the page.
 |---|---|---|
 | Where is the URL stored? | `instance_config` | It is instance identity, not accounting — ADR-0034's category. Decisive: `GET /api/instance-config` is already the *public* config read, and an anonymous phone at a poster needs this URL with no session to fetch it behind |
 | One URL, or one per language? | A **language-keyed map**, ADR-0002's shape, with one entry required | A member picks their language on this very form; pointing a member who chose `en` at a German-only document is the failure Art. 12(1)'s *"in klarer und einfacher Sprache"* is about. Requiring a club to publish two documents is not, so a missing language falls back to the configured default and the page says which language the document is in |
-| What does the row record? | The **exact URL shown**, and when the box was ticked | This system does not host the document and must not fetch it — an admin-supplied URL fetched server-side is an SSRF primitive, and a club that wants versioning can put it in the URL (`/datenschutz-2026-08`). Recording a version we cannot observe would be recording a guess |
+| What does the row record? | The **exact URL shown** at submission | Not a version: this system does not host the document, so a version is something it cannot observe and would be recording as a guess. A club that wants versioning puts it in the URL (`/datenschutz-2026-08`). The URL is not fetched — it is displayed, and the member navigates to it themselves |
 
-The acknowledgement stays: an **unticked** box the member actively ticks, saying
-they have been pointed at the notice. What the club must be able to prove is
-*that it informed*, and a link nobody has to acknowledge proves nothing. Nothing
-is signed — a signature here would manufacture an apparent Einwilligung for
-processing that rests on Art. 6(1)(b), the LfDI BW *Täuschung* trap that
+**Nothing is ticked and nothing is signed.** The link is reachable before any
+data entry and carries no checkbox — Art. 13 is a duty to *inform*, discharged by
+putting the notice in front of the person, and a box asking them to declare that
+they read it starts to look like a consent for processing that rests on
+Art. 6(1)(b). That is the LfDI BW *Täuschung* trap that
 `research/175-onboarding-form-datenschutz.md` documents:
 
 > **Es empfiehlt sich nicht, Einwilligungen für Datenverarbeitungsmaßnahmen
@@ -198,6 +279,15 @@ switched on without it, and the refusal is typed and named
 an admin who cannot turn a feature on must be told which of the two
 preconditions they are missing. Together with decision 2's secret, that is two
 conditions and one shipped state: off.
+
+**There are no optional consents in this flow.** Art. 6(1)(a) tick-boxes —
+photos, a newsletter — are a separate instrument under the #175 split, and this
+club's onboarding uses none: the paper it replaces carries an Anmeldung, a mandate
+and an information notice, and nothing else. The digital flow collects exactly
+what the mandate needs plus the link to the notice. A club that later wants such
+consents needs a store that **survives approval**, because a tick copied onto a
+member record with nowhere to keep it is one nobody can honour or withdraw — that
+is its own decision, not a gap in this one.
 
 ### 6a. The printed sheet is the mandate, and nothing else
 
@@ -234,9 +324,9 @@ schema change with its own GDPR surface and belongs in its own decision.
 | Route | Roles | Derivation |
 |---|---|---|
 | `GET/PATCH /api/admin/registrations…` (list, edit, approve, reject, print) | `[ADMIN, KASSENWART]` | This is member management. ADR-0044's grant table already reads *members — read, create, edit* as `admin` + `kassenwart`, and approval is a member create |
-| `PATCH /api/admin/self-registration/availability` | `[ADMIN, KASSENWART]` | The switch belongs to whoever is running the onboarding table |
+| `PATCH /api/admin/self-registration/availability` | `[ADMIN]` | It sits on the Security & Credentials page beside the secret it depends on, and the two are one decision in practice: switching the feature on is what exposes the public write surface |
 | `POST /api/admin/self-registration/secret` (rotate), and reading the poster URL | `[ADMIN]` | Minting a bearer credential for a public write surface is ADR-0044 rule 2 territory — the same reason terminal token rotation is admin-only |
-| Setting the Datenschutz URL (`instance_config`) | `[ADMIN]` | It is already an `admin`-only surface, and it is the club's published legal pointer — the one field here whose wrongness is invisible to everybody except the person who reads it too late |
+| Setting the Datenschutz URL and the mandate template URL | `[ADMIN]` | Both are already `admin`-only surfaces, and both are pointers whose wrongness is invisible to everybody except the person who reads them too late — the member holding the notice, or the treasurer holding a sheet that will not fill |
 
 The Getränkewart appears nowhere: member data is outside their remit on every
 surface (ADR-0045 invariant 5).
@@ -319,27 +409,23 @@ valid submissions. Both meters are needed.
 
 ## Open questions for the owner
 
-1. **Optional consents (Art. 6(1)(a)).** The #175 instrument split keeps
-   photo/newsletter consents separate from both the mandate and the Art. 13
-   notice, and #776 asks for them to be stored with the registration. There is
-   nowhere on `members` for them to go at approval, and a consent record that
-   vanishes when the member is created is worse than none — the club would hold
-   a tick nobody can honour or withdraw. This draft therefore records **only**
-   the Art. 13 acknowledgement (the URL shown and the timestamp) in v1 and
-   proposes a `member_consents` store as its own issue. Confirm, or accept the
-   consent store in this epic.
-2. **TTL length.** 14 days is a guess calibrated on "the treasurer looks weekly".
-3. **Schema.** `pending_registrations` (below, and in `docs/erm-master.md`) is a
+1. **TTL length.** 14 days is a guess calibrated on "the treasurer looks weekly".
+2. **Schema.** `pending_registrations` (below, and in `docs/erm-master.md`) is a
    new table and needs explicit confirmation before migration `059` is written.
    Decision 6 additionally adds a language-keyed `privacy_policy_urls` to
-   `instance_config`.
-4. **The club's document has to exist.** Decision 6 links a document this
-   software does not host, so the feature cannot be switched on until the club
-   publishes one at a stable URL — for FRGS,
-   [frgs-website#32](https://github.com/dgloeckner/frgs-website/issues/32),
-   which splits the Datenschutzhinweise out of the combined paper form. That is
-   an **external dependency**, outside `feat/user-onboarding` and outside this
-   repository; the enable gate is what keeps its absence from being silent.
+   `instance_config`. **No column is added for the mandate template** — decision
+   5a reuses `sepa_config.mandate_template_url`.
+3. **Ratification waits on one run.** The fill mechanism is verified in the
+   sandbox on PHP 8.4 matching IONOS; #777 asks for one run of
+   `spikes/pdf-form-fill/` **on the production hosting** before this ADR is
+   accepted. That is an owner action.
+4. **The club's documents have to be published.** Decisions 5a and 6 both point
+   at documents this software does not host. The sources are delivered
+   ([frgs-website#33](https://github.com/dgloeckner/frgs-website/pull/33)); the
+   built PDFs still have to be published as Kirby files via SFTP, which is what
+   produces the stable URLs. An **external dependency**, outside
+   `feat/user-onboarding` and outside this repository; the enable gate is what
+   keeps its absence from being silent.
 
 ## Related
 
@@ -351,9 +437,13 @@ valid submissions. Both meters are needed.
   sections become the generated sheet on the digital route, its
   Datenschutzhinweise become the club's own linked page, and the form itself
   stays whole as the offline fallback; `research/175-onboarding-form-datenschutz.md`
-- [frgs-website#32](https://github.com/dgloeckner/frgs-website/issues/32) —
-  **external dependency**: the club publishes its Datenschutzhinweise at a
-  stable URL, which is what decision 6 configures
+- [frgs-website#33](https://github.com/dgloeckner/frgs-website/pull/33) —
+  **external dependency**: the club's two WeasyPrint-built documents, the
+  fillable mandate (decision 5a) and the standalone Datenschutzhinweise
+  (decision 6). Delivered; publishing them produces the URLs both decisions
+  configure
+- [#786](https://github.com/dgloeckner/clubbar/pull/786) — the spike that settled
+  decision 5's toolchain, vocabulary and fill mechanism
 - [UC-P01](../use-cases/public/UC-P01-member-self-registration.md),
   [UC-A17](../use-cases/admin/UC-A17-review-pending-registrations.md),
   [UC-A69](../use-cases/admin/UC-A69-configure-self-registration.md)
