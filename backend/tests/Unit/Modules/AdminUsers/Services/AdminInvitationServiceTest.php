@@ -114,9 +114,9 @@ class AdminInvitationServiceTest extends TestCase
 
         $result = $this->service->issue('admin-9', 'admin-1');
 
-        $this->assertStringStartsWith('https://club.example.org/invite/', $result->url);
+        $this->assertStringStartsWith('https://club.example.org/invite#', $result->url);
 
-        $token = substr($result->url, strlen('https://club.example.org/invite/'));
+        $token = substr($result->url, strlen('https://club.example.org/invite#'));
         $this->assertSame($storedHash, InvitationLink::hash($token), 'the link must resolve to the row that was written');
         $this->assertNotSame($storedHash, $token, 'the raw token must never be what is stored');
     }

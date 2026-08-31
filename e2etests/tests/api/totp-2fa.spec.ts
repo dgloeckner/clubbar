@@ -76,8 +76,14 @@ async function createAdminUser(
   // one these tests can sign in as, and the password is the test's own choice
   // rather than something the API handed back.
   const accepted = await authenticatedRequest.post(
-    `${API_BASE}/invitations/${tokenFromInvitationUrl(data.invitation.url)}/accept`,
-    { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+    `${API_BASE}/invitations/accept`,
+    {
+      data: {
+        token: tokenFromInvitationUrl(data.invitation.url),
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: INVITED_ADMIN_PASSWORD,
+      },
+    },
   )
   if (accepted.status() !== 200) {
     throw new Error(`Failed to accept the invitation (${accepted.status()}): ${await accepted.text()}`)

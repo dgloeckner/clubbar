@@ -51,14 +51,20 @@ export interface CreateAdminOptions {
   password?: string
 }
 
-/** The token out of an invitation URL — `<base>/invite/<token>`. */
+/**
+ * The token out of an invitation URL — `<base>/invite#<token>`.
+ *
+ * The token is in the **fragment**, not in a path segment, so that it never
+ * reaches an access log (`InvitationLink::url()`). Splitting on `#` rather than
+ * on `/invite/` is what keeps that property asserted rather than assumed: a
+ * link that went back to a path form would fail every test that starts here.
+ */
 export function tokenFromInvitationUrl(url: string): string {
-  const marker = '/invite/'
-  const at = url.lastIndexOf(marker)
+  const at = url.indexOf('#')
   if (at === -1) {
-    throw new Error(`Not an invitation URL: ${url}`)
+    throw new Error(`Not an invitation URL — no token fragment: ${url}`)
   }
-  return url.slice(at + marker.length)
+  return decodeURIComponent(url.slice(at + 1))
 }
 
 /**
@@ -95,10 +101,13 @@ export async function createInvitedAdmin(
   const created = await createResponse.json()
   const invitationUrl: string = created.invitation.url
 
-  const acceptResponse = await request.post(
-    `${API_BASE}/invitations/${tokenFromInvitationUrl(invitationUrl)}/accept`,
-    { data: { password, password_confirmation: password } },
-  )
+  const acceptResponse = await request.post(`${API_BASE}/invitations/accept`, {
+    data: {
+      token: tokenFromInvitationUrl(invitationUrl),
+      password,
+      password_confirmation: password,
+    },
+  })
 
   if (acceptResponse.status() !== 200) {
     throw new Error(

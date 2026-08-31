@@ -566,8 +566,14 @@ test.describe("Admin Authentication", () => {
       // No password comes back any more (migration 058) — the invitation is
       // what gives the account one, and it is the test that chooses it.
       const accepted = await request.post(
-        `${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}/accept`,
-        { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+        `${API_BASE}/invitations/accept`,
+        {
+          data: {
+            token: tokenFromInvitationUrl(invitation.url),
+            password: INVITED_ADMIN_PASSWORD,
+            password_confirmation: INVITED_ADMIN_PASSWORD,
+          },
+        },
       );
       expect(accepted.status(), await accepted.text()).toBe(200);
 

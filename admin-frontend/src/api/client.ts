@@ -134,7 +134,7 @@ function isInsufficientRole(error: unknown): boolean {
  * the same reason — this makes the exemption a list rather than a special case,
  * so the next public screen is one entry rather than one more `!==`.
  */
-const SESSION_LESS_PATHS = [/^\/login\/?$/, /^\/invite\//]
+const SESSION_LESS_PATHS = [/^\/login\/?$/, /^\/invite\/?$/]
 
 function isSessionLessPath(pathname: string): boolean {
   return SESSION_LESS_PATHS.some((pattern) => pattern.test(pathname))

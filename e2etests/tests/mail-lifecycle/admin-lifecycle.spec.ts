@@ -169,7 +169,7 @@ test.describe('Admin lifecycle — account, roles, cron, delivered mail', () => 
       // now it means the invitation link, which is the same risk in a new
       // shape — a working way into the new account, on a list.
       expect(part).not.toContain(issuedInvitationUrl)
-      expect(part).not.toContain('/invite/')
+      expect(part).not.toContain('/invite#')
     }
   })
 
@@ -218,8 +218,12 @@ test.describe('Admin lifecycle — account, roles, cron, delivered mail', () => 
 
     // And it is a link, not a picture of one.
     const token = tokenFromInvitationUrl(issuedInvitationUrl)
-    const accepted = await request.post(`/api/invitations/${token}/accept`, {
-      data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD },
+    const accepted = await request.post('/api/invitations/accept', {
+      data: {
+        token,
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: INVITED_ADMIN_PASSWORD,
+      },
     })
     expect(accepted.status(), await accepted.text()).toBe(200)
   })
@@ -247,7 +251,7 @@ test.describe('Admin lifecycle — account, roles, cron, delivered mail', () => 
       // change must not claim a state that has been superseded.
       expect(part).toContain('Kassenwart')
       expect(part).toContain('Getränkewart')
-      expect(part).not.toContain('/invite/')
+      expect(part).not.toContain('/invite#')
     }
   })
 })

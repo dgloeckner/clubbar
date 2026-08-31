@@ -720,9 +720,12 @@ export class SettingsPage {
       throw new Error('No invitation link on screen to accept')
     }
 
-    const token = link.slice(link.lastIndexOf('/invite/') + '/invite/'.length)
-    const response = await this.page.request.post(`/api/invitations/${token}/accept`, {
+    // The token is the link's fragment — it is never a path segment, so that
+    // no web server in front of the installation logs it.
+    const token = link.slice(link.indexOf('#') + 1)
+    const response = await this.page.request.post('/api/invitations/accept', {
       data: {
+        token,
         password: INVITED_ADMIN_PASSWORD,
         password_confirmation: INVITED_ADMIN_PASSWORD,
       },

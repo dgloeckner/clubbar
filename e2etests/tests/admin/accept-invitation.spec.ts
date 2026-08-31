@@ -10,7 +10,7 @@ import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/admi
  *     open the link → set a password → sign in → enrol an authenticator
  *
  * The API suite proves the endpoints; this proves the half only a browser can:
- * that `/invite/:token` is reachable **without a session** — it is the one
+ * that `/invite#<token>` is reachable **without a session** — it is the one
  * screen in the panel that has to be — that it renders, that setting a password
  * carries the invitee to the sign-in form, and that signing in there lands them
  * exactly where every other new admin lands: the Authenticator setup gate.
@@ -56,9 +56,14 @@ async function inviteAdmin(
   }
 }
 
-/** The link points at APP_URL; the SPA under test is served elsewhere in dev. */
+/**
+ * The link points at APP_URL; the SPA under test is served elsewhere in dev.
+ *
+ * The token goes back into a **fragment**, which is where the real link carries
+ * it: never sent to a server, so never written to an access log.
+ */
 function invitePath(url: string): string {
-  return `/invite/${tokenFromInvitationUrl(url)}`
+  return `/invite#${tokenFromInvitationUrl(url)}`
 }
 
 test.describe('Accepting an invitation (UI)', () => {
@@ -139,7 +144,7 @@ test.describe('Accepting an invitation (UI)', () => {
     // No request should leave the browser for a password the server would
     // refuse anyway — the point of checking here as well as there.
     let acceptCalls = 0
-    await page.route('**/api/invitations/*/accept', (route) => {
+    await page.route('**/api/invitations/accept', (route) => {
       acceptCalls += 1
       return route.continue()
     })
@@ -148,7 +153,7 @@ test.describe('Accepting an invitation (UI)', () => {
     await page.getByTestId('invite-password-confirmation-input').fill('short1A')
     await page.getByTestId('invite-submit-button').click()
 
-    await expect(page).toHaveURL(/\/invite\//)
+    await expect(page).toHaveURL(/\/invite#/)
     expect(acceptCalls).toBe(0)
 
     // A mismatch is caught the same way.
@@ -156,7 +161,7 @@ test.describe('Accepting an invitation (UI)', () => {
     await page.getByTestId('invite-password-confirmation-input').fill('Something3lse')
     await page.getByTestId('invite-submit-button').click()
 
-    await expect(page).toHaveURL(/\/invite\//)
+    await expect(page).toHaveURL(/\/invite#/)
     expect(acceptCalls).toBe(0)
   })
 
@@ -168,8 +173,14 @@ test.describe('Accepting an invitation (UI)', () => {
     // would — or a colleague forwarding the mail on.
     const ctx = await loginAs(playwright, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
     const accepted = await ctx.post(
-      `${API_BASE}/invitations/${tokenFromInvitationUrl(invitationUrl)}/accept`,
-      { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitationUrl),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
     )
     expect(accepted.status(), await accepted.text()).toBe(200)
     await ctx.dispose()
@@ -187,7 +198,7 @@ test.describe('Accepting an invitation (UI)', () => {
   })
 
   test('an invented token is refused the same way', async ({ page }) => {
-    await page.goto('/invite/thistokenneverexisted1234567890')
+    await page.goto('/invite#thistokenneverexisted1234567890')
 
     await expect(page.getByTestId('invite-link-error')).toBeVisible()
     await expect(page.getByTestId('invite-password-input')).toHaveCount(0)

@@ -54,7 +54,11 @@ test.describe('Admin Invitations API', () => {
     expect(body.admin.email).toBe(email)
 
     expect(body.invitation.email).toBe(email)
-    expect(body.invitation.url).toContain('/invite/')
+    // The token is in the **fragment**, never in a path segment: everything
+    // left of the `#` is a constant, so no web server in front of the
+    // installation ever writes the token to an access log.
+    expect(body.invitation.url).toContain('/invite#')
+    expect(body.invitation.url).not.toContain('/invite/')
     // A week out, so a link sitting in a mailbox does not outlive its reason.
     const expiresIn = new Date(body.invitation.expires_at).getTime() - Date.now()
     expect(expiresIn).toBeGreaterThan(6 * 24 * 3600 * 1000)
@@ -99,9 +103,9 @@ test.describe('Admin Invitations API', () => {
 
     // Deliberately the *unauthenticated* context: this is the endpoint an
     // invitee reaches with no session at all.
-    const response = await request.get(
-      `${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}`,
-    )
+    const response = await request.post(`${API_BASE}/invitations/lookup`, {
+      data: { token: tokenFromInvitationUrl(invitation.url) },
+    })
 
     expect(response.status()).toBe(200)
     const body = (await response.json()).invitation
@@ -126,8 +130,14 @@ test.describe('Admin Invitations API', () => {
     const { admin, invitation } = await createAdmin(authenticatedRequest, email)
 
     const accepted = await request.post(
-      `${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}/accept`,
-      { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
     )
     expect(accepted.status()).toBe(200)
     // The address to sign in with, so the panel need not ask for it again.
@@ -156,8 +166,12 @@ test.describe('Admin Invitations API', () => {
     const email = uniqueEmail('totpgate')
     const { invitation } = await createAdmin(authenticatedRequest, email)
 
-    await request.post(`${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}/accept`, {
-      data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD },
+    await request.post(`${API_BASE}/invitations/accept`, {
+      data: {
+        token: tokenFromInvitationUrl(invitation.url),
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: INVITED_ADMIN_PASSWORD,
+      },
     })
 
     const login = await request.post(`${API_BASE}/auth/login`, {
@@ -173,20 +187,30 @@ test.describe('Admin Invitations API', () => {
     const { invitation } = await createAdmin(authenticatedRequest, email)
     const token = tokenFromInvitationUrl(invitation.url)
 
-    const first = await request.post(`${API_BASE}/invitations/${token}/accept`, {
-      data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD },
+    const first = await request.post(`${API_BASE}/invitations/accept`, {
+      data: {
+        token,
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: INVITED_ADMIN_PASSWORD,
+      },
     })
     expect(first.status()).toBe(200)
 
-    const second = await request.post(`${API_BASE}/invitations/${token}/accept`, {
-      data: { password: 'Different0ne', password_confirmation: 'Different0ne' },
+    const second = await request.post(`${API_BASE}/invitations/accept`, {
+      data: {
+        token,
+        password: 'Different0ne',
+        password_confirmation: 'Different0ne',
+      },
     })
     expect(second.status()).toBe(409)
     expect((await second.json()).reason).toBe('invitation_invalid')
   })
 
   test('an unknown token is refused, and says nothing about why', async ({ request }) => {
-    const response = await request.get(`${API_BASE}/invitations/thistokenneverexisted12345`)
+    const response = await request.post(`${API_BASE}/invitations/lookup`, {
+      data: { token: 'thistokenneverexisted12345' },
+    })
 
     expect(response.status()).toBe(409)
     const body = await response.json()
@@ -205,20 +229,32 @@ test.describe('Admin Invitations API', () => {
     const token = tokenFromInvitationUrl(invitation.url)
 
     for (const weak of ['short1A', 'alllowercase1', 'ALLUPPERCASE1', 'NoDigitsHere']) {
-      const response = await request.post(`${API_BASE}/invitations/${token}/accept`, {
-        data: { password: weak, password_confirmation: weak },
+      const response = await request.post(`${API_BASE}/invitations/accept`, {
+        data: {
+          token,
+          password: weak,
+          password_confirmation: weak,
+        },
       })
       expect(response.status()).toBe(422)
     }
 
     // A mismatched confirmation, likewise — and none of it spent the link.
-    const mismatch = await request.post(`${API_BASE}/invitations/${token}/accept`, {
-      data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: 'Something3lse' },
+    const mismatch = await request.post(`${API_BASE}/invitations/accept`, {
+      data: {
+        token,
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: 'Something3lse',
+      },
     })
     expect(mismatch.status()).toBe(422)
 
-    const good = await request.post(`${API_BASE}/invitations/${token}/accept`, {
-      data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD },
+    const good = await request.post(`${API_BASE}/invitations/accept`, {
+      data: {
+        token,
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: INVITED_ADMIN_PASSWORD,
+      },
     })
     expect(good.status()).toBe(200)
   })
@@ -242,10 +278,12 @@ test.describe('Admin Invitations API', () => {
     expect(secondToken).not.toBe(firstToken)
 
     // An admin who believes they have replaced something has.
-    const old = await request.get(`${API_BASE}/invitations/${firstToken}`)
+    const old = await request.post(`${API_BASE}/invitations/lookup`, { data: { token: firstToken } })
     expect(old.status()).toBe(409)
 
-    const fresh = await request.get(`${API_BASE}/invitations/${secondToken}`)
+    const fresh = await request.post(`${API_BASE}/invitations/lookup`, {
+      data: { token: secondToken },
+    })
     expect(fresh.status()).toBe(200)
   })
 
@@ -281,8 +319,12 @@ test.describe('Admin Invitations API', () => {
     const email = uniqueEmail('onboarded')
     const { admin, invitation } = await createAdmin(authenticatedRequest, email)
 
-    await request.post(`${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}/accept`, {
-      data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD },
+    await request.post(`${API_BASE}/invitations/accept`, {
+      data: {
+        token: tokenFromInvitationUrl(invitation.url),
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: INVITED_ADMIN_PASSWORD,
+      },
     })
 
     const resend = await authenticatedRequest.post(
@@ -320,5 +362,69 @@ test.describe('Admin Invitations API', () => {
       { data: stepUp() },
     )
     expect(response.status()).toBe(401)
+  })
+
+  /**
+   * **The token is never in a URL.**
+   *
+   * A request line is written verbatim to every access log in front of the
+   * installation — in the shipped package twice per request, by php-fpm and by
+   * httpd — and those logs outlive the mailbox the link was sent to and are
+   * readable by anybody with hosting-panel access. So a token in a path is the
+   * same credential handover this feature exists to abolish, one layer down,
+   * and it is the shape the first draft of this endpoint had.
+   *
+   * Three assertions, because there are three ways the property could come
+   * back: the URL the admin is handed, the endpoint the browser calls, and the
+   * one that spends the token. The last two are pinned as **404**: the route
+   * has to be gone, not merely unused, or a client that kept the old shape
+   * would keep leaking quietly.
+   */
+  test('no token ever appears in a URL', async ({ authenticatedRequest, request }) => {
+    const email = uniqueEmail('nourl')
+    const { invitation } = await createAdmin(authenticatedRequest, email)
+    const token = tokenFromInvitationUrl(invitation.url)
+
+    // 1. What the admin is handed: everything left of the `#` is a constant,
+    //    and a fragment is never sent to any server.
+    const link = new URL(invitation.url)
+    expect(link.pathname).toBe('/invite')
+    expect(link.search).toBe('')
+    expect(link.hash).toBe(`#${token}`)
+
+    // 2. The lookup. A POST that reads, because a GET cannot carry a body and
+    //    the body is the only place the token may travel.
+    const pathLookup = await request.get(`${API_BASE}/invitations/${token}`)
+    expect(pathLookup.status()).toBe(404)
+
+    const bodyLookup = await request.post(`${API_BASE}/invitations/lookup`, { data: { token } })
+    expect(bodyLookup.status()).toBe(200)
+    expect((await bodyLookup.json()).invitation.email).toBe(email)
+
+    // 3. The accept.
+    const pathAccept = await request.post(`${API_BASE}/invitations/${token}/accept`, {
+      data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD },
+    })
+    expect(pathAccept.status()).toBe(404)
+
+    // …and the token still works, so the 404s above are the route being gone
+    // rather than the token having been spent by one of them.
+    const accepted = await request.post(`${API_BASE}/invitations/accept`, {
+      data: { token, password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD },
+    })
+    expect(accepted.status(), await accepted.text()).toBe(200)
+  })
+
+  /**
+   * A body with no token at all takes the same path as a wrong one. An absent
+   * token and an invented token are both simply not a token, and an endpoint
+   * that distinguished them would be answering a question only somebody
+   * probing it has a use for.
+   */
+  test('a missing token is refused like an invalid one', async ({ request }) => {
+    const response = await request.post(`${API_BASE}/invitations/lookup`, { data: {} })
+
+    expect(response.status()).toBe(409)
+    expect((await response.json()).reason).toBe('invitation_invalid')
   })
 })

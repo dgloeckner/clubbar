@@ -110,15 +110,8 @@ paths:
   # ============================================================================
   # INVITATIONS (public)
   # ============================================================================
-  /invitations/{token}:
-    parameters:
-      - name: token
-        in: path
-        required: true
-        description: The one-time token from the invitation link.
-        schema:
-          type: string
-    get:
+  /invitations/lookup:
+    post:
       tags: [Invitations]
       summary: Describe an invitation
       description: |
@@ -129,6 +122,14 @@ paths:
 
         **Use Case**: UC-A68
 
+        **A POST that changes nothing, and a constant URL.** The token is a
+        bearer credential, and a request line is written verbatim into every
+        access log in front of the installation — so a token in the path would
+        hand a working invitation to anybody who can read a log file, which is
+        the handover this feature exists to abolish. A request body reaches no
+        such log. That is worth more than the shape of the verb, so the read
+        carries its token in a body like the write does.
+
         No session and no CSRF token: the invitee has no account yet. Rate
         limited on the caller's IP, on the same budget as `POST /auth/login`,
         and every refused token is recorded as a failed attempt.
@@ -136,8 +137,14 @@ paths:
         Unknown, expired, already accepted and revoked all answer the same
         `invitation_invalid`. Telling an anonymous caller which of the four it
         was would confirm that a token exists.
-      operationId: getInvitation
+      operationId: lookupInvitation
       security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
       responses:
         '200':
           description: The account this link belongs to
@@ -161,13 +168,7 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyAttempts'
 
-  /invitations/{token}/accept:
-    parameters:
-      - name: token
-        in: path
-        required: true
-        schema:
-          type: string
+  /invitations/accept:
     post:
       tags: [Invitations]
       summary: Set the account's first password
@@ -176,6 +177,9 @@ paths:
         token is refused.
 
         **Use Case**: UC-A68
+
+        The token is in the body and the URL is constant, for the reason given
+        on `POST /invitations/lookup`.
 
         **No session is minted here.** The response carries the address to sign
         in with so the panel can send the invitee straight to the login form
@@ -8384,6 +8388,14 @@ components:
         invitation:
           $ref: '#/components/schemas/AdminInvitation'
 
+    InvitationToken:
+      type: string
+      description: >
+        The one-time token from the invitation link, carried in the body rather
+        than in the URL: the browser reads it out of the link's fragment, which
+        is the one part of a URL that never leaves the machine.
+      example: 8Kq2mS1pXv0dR7bH-nLzT4wYcE6jA9uGfIoP3aQrZsM
+
     InvitationInvitee:
       type: object
       description: >
@@ -8411,10 +8423,19 @@ components:
             $ref: '#/components/schemas/AdminRole'
           example: [getraenkewart]
 
+    InvitationTokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          $ref: '#/components/schemas/InvitationToken'
+
     AcceptInvitationRequest:
       type: object
-      required: [password, password_confirmation]
+      required: [token, password, password_confirmation]
       properties:
+        token:
+          $ref: '#/components/schemas/InvitationToken'
         password:
           type: string
           minLength: 8

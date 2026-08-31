@@ -75,8 +75,14 @@ async function createEnrolledAdmin(
   // 058), and the password below is this test's own choice — the API never
   // knew one.
   const accepted = await raw.post(
-    `${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}/accept`,
-    { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+    `${API_BASE}/invitations/accept`,
+    {
+      data: {
+        token: tokenFromInvitationUrl(invitation.url),
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: INVITED_ADMIN_PASSWORD,
+      },
+    },
   )
   expect(accepted.status(), await accepted.text()).toBe(200)
   const password = INVITED_ADMIN_PASSWORD

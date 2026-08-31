@@ -215,7 +215,7 @@ class AdminControllerTest extends TestCase
                     adminUserId: 'admin-9',
                     email: 'new@example.org',
                     expiresAt: '2026-09-06 12:00:00',
-                    url: 'https://club.example.org/invite/token-abc',
+                    url: 'https://club.example.org/invite#token-abc',
                 ),
             ]);
 
@@ -233,7 +233,7 @@ class AdminControllerTest extends TestCase
 
         $body = $this->decode($response);
         $this->assertArrayNotHasKey('password', $body);
-        $this->assertSame('https://club.example.org/invite/token-abc', $body['invitation']['url']);
+        $this->assertSame('https://club.example.org/invite#token-abc', $body['invitation']['url']);
         $this->assertSame('new@example.org', $body['invitation']['email']);
     }
 

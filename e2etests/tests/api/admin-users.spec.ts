@@ -96,7 +96,7 @@ test.describe("Admin Users API", () => {
     // with none, and the invitation link is what gives it one — so there is
     // nothing here for the creating admin to carry to their colleague.
     expect(data).not.toHaveProperty("password");
-    expect(data.invitation.url).toContain("/invite/");
+    expect(data.invitation.url).toContain("/invite#");
     expect(data.invitation.email).toBe(`create-${timestamp}@test.example.com`);
   });
 
@@ -476,8 +476,14 @@ test.describe("Admin Users API", () => {
     // this test walks the invitation first: a reset is only meaningful against
     // an account that has a password to replace.
     const accepted = await authenticatedRequest.post(
-      `${API_BASE}/invitations/${tokenFromInvitationUrl(createData.invitation.url)}/accept`,
-      { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(createData.invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
     );
     expect(accepted.status(), await accepted.text()).toBe(200);
 
@@ -569,8 +575,14 @@ test.describe("Admin Users API", () => {
     // The invitation is what gives the account a password (migration 058), and
     // the password is this test's own — nothing in the system ever knew it.
     const accepted = await authenticatedRequest.post(
-      `${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}/accept`,
-      { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
     );
     expect(accepted.status(), await accepted.text()).toBe(200);
     const password = INVITED_ADMIN_PASSWORD;
@@ -614,8 +626,14 @@ test.describe("Admin Users API", () => {
     // The invitation is what gives the account a password (migration 058), and
     // the password is this test's own — nothing in the system ever knew it.
     const accepted = await authenticatedRequest.post(
-      `${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}/accept`,
-      { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
     );
     expect(accepted.status(), await accepted.text()).toBe(200);
     const password = INVITED_ADMIN_PASSWORD;
@@ -659,8 +677,14 @@ test.describe("Admin Users API", () => {
     // The invitation is what gives the account a password (migration 058), and
     // the password is this test's own — nothing in the system ever knew it.
     const accepted = await authenticatedRequest.post(
-      `${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}/accept`,
-      { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
     );
     expect(accepted.status(), await accepted.text()).toBe(200);
     const password = INVITED_ADMIN_PASSWORD;

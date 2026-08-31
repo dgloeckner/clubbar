@@ -105,7 +105,8 @@ test.describe('Admin Users Management', () => {
     // show, because the account was created with none (migration 058).
     const invitationLink = await authenticatedSettingsPage.getInvitationLink()
     expect(invitationLink).not.toBeNull()
-    expect(invitationLink).toContain('/invite/')
+    // The token rides in the fragment; the path is a constant.
+    expect(invitationLink).toContain('/invite#')
 
     await authenticatedSettingsPage.closeInvitationModal()
 
@@ -170,7 +171,10 @@ test.describe('Admin Users Management', () => {
     // be left with an account nobody can reach.
     const link = await authenticatedSettingsPage.getInvitationLink()
     expect(link).not.toBeNull()
-    expect(link).toMatch(/https?:\/\/.+\/invite\/[A-Za-z0-9_-]{16,}$/)
+    // The token sits in the **fragment**: everything left of the `#` is a
+    // constant, so no web server in front of the installation ever writes the
+    // token to an access log.
+    expect(link).toMatch(/^https?:\/\/[^/]+\/invite#[A-Za-z0-9_-]{16,}$/)
 
     // Assert: Copy button is visible
     await expect(
@@ -808,7 +812,7 @@ test.describe('Invitation modal — one-time secret handling', () => {
 
     const link = await settingsPage.getInvitationLink()
     expect(link).not.toBeNull()
-    expect(link).toContain('/invite/')
+    expect(link).toContain('/invite#')
     return link!
   }
 

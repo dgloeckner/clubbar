@@ -21,6 +21,18 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * bits of entropy, single use, and dead after
  * {@see \App\Modules\AdminUsers\Domain\InvitationLink::TTL_DAYS} days.
  *
+ * **The token travels in the request body, never in the path.** Both routes are
+ * therefore POSTs with constant URLs, including the one that only reads. A
+ * request line is written verbatim to every access log in front of the
+ * installation — in the shipped package, twice per request, by php-fpm and by
+ * httpd — so a token in the path would put a live credential into a file that
+ * outlives it and that anybody with hosting-panel access can read. A request
+ * body is written to none of them. This is the same reason `POST
+ * /api/auth/login` does not take the password in its URL, and it is why `GET
+ * /api/invitations/{token}` had to become `POST /api/invitations/lookup`
+ * despite reading nothing: the safe shape wins over the RESTful one when the
+ * URL is the leak.
+ *
  * Both routes sit behind the login rate limiter on its IP dimension, and every
  * refused token is written to `login_attempts` — so guessing tokens costs the
  * same budget as guessing passwords, from the same address, rather than being
@@ -42,17 +54,20 @@ class InvitationController
     ) {}
 
     /**
-     * GET /api/invitations/{token}
+     * POST /api/invitations/lookup
      *
      * What the accept page renders its greeting from. Answers a name, an
-     * address and a locale, and nothing else — a token proves its holder can
-     * read one mailbox, which is not a reason to tell them about the club's
-     * roles or its other accounts.
+     * address, a locale and the account's own roles, and nothing else — a token
+     * proves its holder can read one mailbox, which is not a reason to tell
+     * them about the club's other accounts.
+     *
+     * A POST that changes nothing, for the reason in the class docblock: the
+     * token must not be in the URL, and a GET cannot reliably carry a body.
      */
-    public function show(Request $request, Response $response, array $args): Response
+    public function lookup(Request $request, Response $response): Response
     {
         try {
-            $invitee = $this->invitationService->describe((string) ($args['token'] ?? ''));
+            $invitee = $this->invitationService->describe($this->token($request));
         } catch (\Throwable $e) {
             $this->recordRefusal($request);
             throw $e;
@@ -62,7 +77,7 @@ class InvitationController
     }
 
     /**
-     * POST /api/invitations/{token}/accept
+     * POST /api/invitations/accept
      *
      * Sets the account's first password and spends the link. The response
      * carries the address to sign in with so the panel can send the invitee
@@ -75,7 +90,7 @@ class InvitationController
      * character. Two different standards for the same secret is how one of them
      * ends up being the weaker one nobody noticed.
      */
-    public function accept(Request $request, Response $response, array $args): Response
+    public function accept(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody() ?? [];
 
@@ -91,7 +106,7 @@ class InvitationController
         }
 
         try {
-            $result = $this->invitationService->accept((string) ($args['token'] ?? ''), (string) $body['password']);
+            $result = $this->invitationService->accept($this->token($request), (string) $body['password']);
         } catch (\Throwable $e) {
             $this->recordRefusal($request);
             throw $e;
@@ -101,6 +116,22 @@ class InvitationController
             'email' => $result['email'],
             'message' => 'Password set. Sign in to finish setting up two-factor authentication.',
         ]);
+    }
+
+    /**
+     * The submitted token, read from the body and from nowhere else.
+     *
+     * A missing one is handed to the service as an empty string rather than
+     * refused separately, so it takes the same path as a wrong one and gets the
+     * same answer: an absent token and an invented token are both simply not a
+     * token, and telling them apart is a distinction only somebody probing the
+     * endpoint would have a use for.
+     */
+    private function token(Request $request): string
+    {
+        $body = $request->getParsedBody();
+
+        return is_array($body) ? (string) ($body['token'] ?? '') : '';
     }
 
     /**

@@ -36,9 +36,10 @@ account, through a channel this system neither chose nor can see.
 3. The panel shows the admin that the invitation was sent, with the link, the
    address it went to and when it expires.
 4. The scheduler's next drain sends the message (ADR-0038 rule 3).
-5. The invitee opens the link. The page greets them by name and shows the
-   address the account will sign in with **and the role they are being
-   onboarded into**.
+5. The invitee opens the link. The browser keeps the token to itself — it is
+   in the fragment — and hands it to the server in a request body. The page
+   greets them by name and shows the address the account will sign in with
+   **and the role they are being onboarded into**.
 6. The invitee sets a password, twice.
 7. The system stores the password, spends the invitation, and sends them to the
    sign-in form with their address filled in.
@@ -79,6 +80,8 @@ another account or another office mentioned.
 | A replacement is refused once an account has accepted one | The invitation is an onboarding credential, not a second password-reset channel bypassing UC-A63's step-up |
 | A replacement is refused for a deactivated account | Deactivating a colleague must also stop their outstanding invitation being renewed |
 | The token is stored hashed, plus a sealed copy for the mail | A database dump yields no working link; the drain can still render one at send time (ADR-0038 rule 5) |
+| The token is in the link's **fragment** (`/invite#<token>`), never in its path | A fragment is the one part of a URL a browser does not send. A path is written verbatim into every access log in front of the installation — twice per request in the shipped package — so a token there would hand a working invitation to anybody who can read a log file, which is the handover this use case exists to abolish |
+| The two public endpoints have **constant URLs** and take the token in the request body — including the one that only reads | Same reason: request lines are logged, request bodies are not. That is worth more than the shape of the verb, so the read is a `POST` too |
 | Unknown, expired, spent and revoked answer identically | Distinguishing them for an anonymous caller confirms that a token exists |
 | Accepting mints no session | A mail link must not be able to skip the second-factor gate |
 | The mail and the page name the account's **own** role, and no other | A Getränkewart told they have been given an "admin account" is told something alarming and false; naming the reader's own job is not the org-structure disclosure that withholding it was meant to prevent |
@@ -130,3 +133,5 @@ creation.
 - The list marks a pending account and offers resend instead of reset
 - A Getränkewart invitation names `Getränkewart` on the page and in the mail,
   and calls the account an admin one nowhere
+- The issued link carries its token in the fragment, and neither public
+  endpoint takes a token in its path

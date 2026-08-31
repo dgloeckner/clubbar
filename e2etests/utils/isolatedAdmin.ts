@@ -86,8 +86,14 @@ export async function createIsolatedAdmin(
     // the system ever knew one.
     const { invitation } = await response.json()
     const accepted = await ctx.post(
-      `${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}/accept`,
-      { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
     )
     if (accepted.status() !== 200) {
       throw new Error(

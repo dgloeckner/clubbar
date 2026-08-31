@@ -187,7 +187,7 @@ class AdminUsersServiceRolesTest extends TestCase
                 adminUserId: 'admin-9',
                 email: 'new@example.org',
                 expiresAt: '2026-01-08 00:00:00',
-                url: 'https://club.example.org/invite/token-abc',
+                url: 'https://club.example.org/invite#token-abc',
             ));
 
         $result = $this->service->createAdminUser('new@example.org', 'New', 'de', 'admin-1');
@@ -196,7 +196,7 @@ class AdminUsersServiceRolesTest extends TestCase
         // its owner follows the link.
         $this->assertArrayNotHasKey('password', $result);
         $this->assertSame(
-            'https://club.example.org/invite/token-abc',
+            'https://club.example.org/invite#token-abc',
             $result['invitation']->url,
         );
     }

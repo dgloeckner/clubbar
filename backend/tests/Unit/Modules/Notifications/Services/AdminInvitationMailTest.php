@@ -126,7 +126,7 @@ class AdminInvitationMailTest extends TestCase
 
         $message = $this->builder->build(self::row(), $this->mailConfig);
 
-        $expected = 'https://club.example.org/invite/t0k3n-abc';
+        $expected = 'https://club.example.org/invite#t0k3n-abc';
         $this->assertStringContainsString($expected, $message->html);
         // Also as plain text: a button is not a link everybody can use, and the
         // fallback for a dead link is asking for a whole new invitation.

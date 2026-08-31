@@ -127,8 +127,14 @@ test.describe('Settlements list sort keys', () => {
     // The account arrives with no password (migration 058); the invitation is
     // what gives it one, and the password is this test's own choice.
     const accepted = await seededAdmin.post(
-      `${API_BASE}/invitations/${tokenFromInvitationUrl(invitation.url)}/accept`,
-      { data: { password: INVITED_ADMIN_PASSWORD, password_confirmation: INVITED_ADMIN_PASSWORD } },
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
     )
     expect(accepted.status(), await accepted.text()).toBe(200)
 

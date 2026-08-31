@@ -80,13 +80,39 @@ class InvitationLinkTest extends TestCase
         $token = 'AbC-123_xyz';
 
         $this->assertSame(
-            'https://club.example.org/invite/AbC-123_xyz',
+            'https://club.example.org/invite#AbC-123_xyz',
             InvitationLink::url('https://club.example.org', $token),
         );
         $this->assertSame(
-            'https://club.example.org/invite/AbC-123_xyz',
+            'https://club.example.org/invite#AbC-123_xyz',
             InvitationLink::url('https://club.example.org/', $token),
         );
+    }
+
+    /**
+     * The reason the link is shaped the way it is: a **fragment** is the one
+     * part of a URL a browser never puts on the wire, so a token carried there
+     * reaches no access log, no proxy log and no `Referer` header.
+     *
+     * A path segment — the obvious shape, and the one this started as — is
+     * written verbatim into every web server log in front of the installation,
+     * twice per request in the shipped package. That would hand a working
+     * invitation to anybody who can read a log file, which is the credential
+     * handover this whole feature exists to abolish.
+     *
+     * Hence the assertion on everything *left* of the `#`: it must be a
+     * constant, whatever the token is.
+     */
+    public function test_the_token_is_in_the_fragment_and_never_in_the_path(): void
+    {
+        $url = InvitationLink::url('https://club.example.org', InvitationLink::mintToken());
+
+        $parts = parse_url($url);
+
+        $this->assertSame('/invite', $parts['path'] ?? null, 'the path must carry no token');
+        $this->assertArrayNotHasKey('query', $parts, 'a query string is logged as often as a path is');
+        $this->assertNotEmpty($parts['fragment'] ?? '', 'the token must be the fragment');
+        $this->assertTrue(InvitationLink::looksLikeToken($parts['fragment']));
     }
 
     public function test_a_link_expires_seven_days_after_it_is_minted(): void

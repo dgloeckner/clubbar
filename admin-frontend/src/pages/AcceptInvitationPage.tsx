@@ -1,9 +1,22 @@
 /**
- * Accept Invitation Page — `/invite/:token`
+ * Accept Invitation Page — `/invite#<token>`
  *
  * Where a newly created admin sets their own password (migration 058). The
  * only screen in the panel reachable with no account at all, and the reason
  * the route sits outside `ProtectedRoute`.
+ *
+ * **The token is in the fragment, and this page is the only thing that reads
+ * it.** A fragment never leaves the browser — it is stripped before the request
+ * goes out, so it reaches no access log, no proxy log and no `Referer` header —
+ * which is why the link is shaped this way rather than as `/invite/<token>`.
+ * From here the token travels in a request body (`POST /api/invitations/lookup`
+ * and `.../accept`), for the same reason: bodies are not logged, request lines
+ * are.
+ *
+ * The fragment is deliberately **not** cleared once read. Stripping it would
+ * hide the token from the address bar and break reloading the page for the one
+ * person legitimately holding it, in exchange for nothing: what remains is a
+ * single-use token in the invitee's own history, on the invitee's own machine.
  *
  * It deliberately does **not** sign anybody in. Setting the password sends the
  * invitee to `/login` with their address filled in, and the ordinary first
@@ -14,7 +27,7 @@
  */
 
 import { FormEvent, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AuthCard } from '../components/auth/AuthCard'
 import { Button } from '../components/common/Button'
@@ -87,7 +100,11 @@ function Banner({ message, testId, tone }: { message: string; testId: string; to
 export function AcceptInvitationPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { token = '' } = useParams<{ token: string }>()
+  // `#` and everything after it, as the router reports it. Read rather than
+  // routed on: the fragment is not part of any path pattern, and it is not sent
+  // to the server that serves this page either.
+  const { hash } = useLocation()
+  const token = hash.startsWith('#') ? decodeURIComponent(hash.slice(1)) : ''
   const { apiErrorMessage } = useApiError()
   const latest = useLatestRequest()
 
@@ -112,7 +129,7 @@ export function AcceptInvitationPage() {
     const signal = latest.next()
 
     getInvitations()
-      .getInvitation(token, { signal })
+      .lookupInvitation({ token }, { signal })
       .then((result) => {
         if (signal.aborted) return
         // The generated types make every property optional (OpenAPI without
@@ -154,7 +171,8 @@ export function AcceptInvitationPage() {
 
     setSubmitting(true)
     try {
-      const result = await getInvitations().acceptInvitation(token, {
+      const result = await getInvitations().acceptInvitation({
+        token,
         password,
         password_confirmation: confirmation,
       })

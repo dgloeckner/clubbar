@@ -84,16 +84,23 @@ return function (App $app): void {
     // Public by necessity: the invitee has no account yet, so there is no
     // session to carry and no CSRF token to hold — the same position
     // `POST /api/auth/login` is in, and outside the CSRF middleware for the
-    // same reason. What stands in for authentication is the token in the path,
-    // which is 256 bits of entropy, single use, and dead after a week.
+    // same reason. What stands in for authentication is the token in the
+    // request body, which is 256 bits of entropy, single use, and dead after a
+    // week.
+    //
+    // **Both URLs are constant, and the lookup is a POST that reads.** A token
+    // in the path is written verbatim into every access log in front of the
+    // installation, where it outlives the mailbox it was sent to; a token in a
+    // body is written to none of them. That is worth more than the shape of the
+    // verb, so the read is a POST too.
     //
     // Behind the login rate limiter on its IP dimension, and the controller
     // writes every refused token to `login_attempts`, so guessing tokens spends
     // the same budget as guessing passwords rather than being the one unmetered
     // credential surface in the system.
-    $app->get('/api/invitations/{token}', [InvitationController::class, 'show'])
+    $app->post('/api/invitations/lookup', [InvitationController::class, 'lookup'])
         ->add(RateLimitMiddleware::class);
-    $app->post('/api/invitations/{token}/accept', [InvitationController::class, 'accept'])
+    $app->post('/api/invitations/accept', [InvitationController::class, 'accept'])
         ->add(RateLimitMiddleware::class);
 
     $app->post('/api/auth/login', [AuthController::class, 'login'])->add(RateLimitMiddleware::class);

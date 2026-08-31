@@ -147,8 +147,13 @@ function AppRoutes() {
         redirected away from when a session exists either — an admin already
         signed in on the same browser may well be the one testing the link, and
         bouncing them to the dashboard would look like a dead link.
+
+        The path carries no token parameter: the token is in the URL fragment,
+        which the page reads from `location.hash` and which the router never
+        sees. A fragment is the one part of a URL a browser does not send, so
+        the token appears in no access log — see `InvitationLink::url()`.
       */}
-      <Route path="/invite/:token" element={<AcceptInvitationPage />} />
+      <Route path="/invite" element={<AcceptInvitationPage />} />
       <Route path="/" element={isAuthenticated ? <Navigate to={home} /> : <Navigate to="/login" />} />
 
       {/* Protected Routes */}
