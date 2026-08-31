@@ -91,7 +91,7 @@ erDiagram
     }
 
     pending_registrations {
-        binary_16 id PK "UUID; not a member id"
+        char_36 id PK "UUID; not a member id"
         varchar_100 first_name "NOT NULL; never anonymised, only deleted"
         varchar_100 last_name "NOT NULL"
         varchar_255 email "NOT NULL; unverified"
@@ -103,7 +103,7 @@ erDiagram
         varbinary_512 iban_ciphertext "Sealed IBAN; exactly the mandates shape"
         char_4 iban_last4 "Last four, for display"
         char_64 iban_fingerprint "Duplicate flag at review"
-        binary_16 encryption_key_id FK "Key generation sealed under"
+        char_36 encryption_key_id FK "Key generation sealed under"
         varchar_255 bank_name "Resolved from the BLZ at submission"
         varchar_500 privacy_notice_url "URL of the club's Art. 13 notice, as shown"
         datetime privacy_notice_shown_at "When the page carrying the link was submitted"
@@ -499,7 +499,7 @@ owner's confirmation of this schema first.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| id | BINARY(16) | PK | UUID identifying the registration itself — never a member id |
+| id | CHAR(36) | PK | UUID identifying the registration itself — never a member id. `CHAR(36)`, matching what `001_initial_schema.sql` and every migration since actually create; the `BINARY(16)` this document claims for older tables is a documentation error, not the shipped schema |
 | first_name | VARCHAR(100) | NOT NULL | First name, as submitted. **NOT NULL is the opposite of `members.first_name`**, which is nullable only so GDPR erasure can empty it in place. Nothing here is ever anonymised: the whole row is deleted at approval, rejection or TTL purge, so there is nothing to empty (ADR-0052 decision 10) |
 | last_name | VARCHAR(100) | NOT NULL | Last name, as submitted — same NOT NULL reasoning as `first_name` |
 | email | VARCHAR(255) | NOT NULL | Contact email, as submitted. Unverified — no confirmation mail is sent at submission (ADR-0052 decision 9) — and a match against an existing member is disclosed only at admin review, never at submission (no enumeration) |

@@ -191,7 +191,7 @@ the paper in front of them (UC-A17).
 
 - A `pending_registrations` row exists, holding the sealed IBAN in the
   `mandates` column shape, the minted mandate reference, the URL of the notice
-  shown to the applicant, and a 14-day expiry clock.
+  shown to the applicant, and a 30-day expiry clock.
 - No `members` row and no `mandates` row exist. The applicant is not a member;
   the terminal has no way to recognise them.
 - The document returned with the submission response is not retained anywhere
