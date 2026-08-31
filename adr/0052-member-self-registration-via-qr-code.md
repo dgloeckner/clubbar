@@ -94,9 +94,11 @@ difference between them is the whole point:
 **The refusal is enforced on the submission endpoint, server-side.** Not
 rendering the form is a UI convenience, not a gate.
 
-**Disabled is the default until a secret has been generated**, so a fresh
+**Disabled is the default until both preconditions are met** — a poster secret
+(this decision) *and* a configured Datenschutz URL (decision 6). A fresh
 installation and a half-finished configuration both answer "unavailable" rather
-than accepting registrations nobody is watching for.
+than accepting registrations nobody is watching for, or collecting data from
+somebody who was never told what happens to it.
 
 ### 3. The public endpoint is write-only, and what it writes is sealed
 
@@ -150,31 +152,67 @@ tab, and for a club that never enables the member download.
 
 The member-download route is bound by a **download token** returned once in the
 submission response (32 random bytes, stored hashed on the row, valid 30
-minutes). Rendering the sheet requires the token *and* the plaintext IBAN, whose
-fingerprint must match the stored row. Neither alone is enough: the token by
+minutes, spendable more than once inside that window — a phone that fails to
+save the sheet on the first tap must not be locked out of its own
+registration). Rendering the sheet requires the token *and* the plaintext IBAN,
+whose fingerprint must match the stored row. Neither alone is enough: the token by
 itself cannot print somebody's IBAN, and an IBAN by itself cannot be tested
 against a registration whose id the caller does not have. The response carries
 `Cache-Control: no-store`.
 
-### 6. The signed paper is the mandate, and nothing else
+### 6. The club's Datenschutzhinweis is linked, never authored here
 
-The Datenschutzhinweis is **not** part of the printed sheet. Art. 13 is an
-information duty discharged *at collection*, and under this ADR collection
-happens in the digital flow — so the notice is displayed on the onboarding page,
-separately viewable and downloadable, with an unticked acknowledgement box the
-member actively ticks before submitting. The row records **which version** of the
-notice was shown and when it was acknowledged; "we informed them" is the fact the
-club has to be able to prove, and a version-less timestamp proves nothing once
-the text changes.
+Art. 13 is an information duty discharged *at collection*, and under this ADR
+collection happens in the digital flow. So the notice has to be in front of the
+person before they type anything — and it must not be **in** this software.
 
-Merging the notice into the signed mandate would manufacture an apparent
-Einwilligung for processing that rests on Art. 6(1)(b) — the LfDI BW
-*Täuschung* trap that `research/175-onboarding-form-datenschutz.md` documents:
+Club Bar is generic software installed by clubs it knows nothing about. Legal
+text shipped in a product is legal text somebody else's lawyer wrote about a
+processing situation they never saw; it would be wrong on the day it shipped and
+staler every year after. The club already has this document, or has to write it
+either way.
+
+**So the club configures a URL, and the onboarding page links it prominently
+before any data entry.** No Datenschutz prose lives in this repository, in any
+language, and none is embedded in the page.
+
+| Question | Answer | Why |
+|---|---|---|
+| Where is the URL stored? | `instance_config` | It is instance identity, not accounting — ADR-0034's category. Decisive: `GET /api/instance-config` is already the *public* config read, and an anonymous phone at a poster needs this URL with no session to fetch it behind |
+| One URL, or one per language? | A **language-keyed map**, ADR-0002's shape, with one entry required | A member picks their language on this very form; pointing a member who chose `en` at a German-only document is the failure Art. 12(1)'s *"in klarer und einfacher Sprache"* is about. Requiring a club to publish two documents is not, so a missing language falls back to the configured default and the page says which language the document is in |
+| What does the row record? | The **exact URL shown**, and when the box was ticked | This system does not host the document and must not fetch it — an admin-supplied URL fetched server-side is an SSRF primitive, and a club that wants versioning can put it in the URL (`/datenschutz-2026-08`). Recording a version we cannot observe would be recording a guess |
+
+The acknowledgement stays: an **unticked** box the member actively ticks, saying
+they have been pointed at the notice. What the club must be able to prove is
+*that it informed*, and a link nobody has to acknowledge proves nothing. Nothing
+is signed — a signature here would manufacture an apparent Einwilligung for
+processing that rests on Art. 6(1)(b), the LfDI BW *Täuschung* trap that
+`research/175-onboarding-form-datenschutz.md` documents:
 
 > **Es empfiehlt sich nicht, Einwilligungen für Datenverarbeitungsmaßnahmen
 > einzuholen, die bereits aufgrund einer gesetzlichen Erlaubnis möglich sind.**
 
-The admin prints exactly one sheet.
+**The URL is the second fail-closed condition.** Self-registration cannot be
+switched on without it, and the refusal is typed and named
+(`datenschutz_url_missing`) rather than a disabled button with no explanation —
+an admin who cannot turn a feature on must be told which of the two
+preconditions they are missing. Together with decision 2's secret, that is two
+conditions and one shipped state: off.
+
+### 6a. The printed sheet is the mandate, and nothing else
+
+The Datenschutzhinweis is therefore **not** on the printed sheet either, and
+neither is anything else: the admin prints exactly one page, the SEPA mandate,
+for signature.
+
+On the digital route that sheet **supersedes the Anmeldung and mandate sections
+of the club's existing combined paper form** — the applicant has already typed
+the Anmeldung half, so reprinting it for them to sign again is asking for the
+same data twice. The generated sheet takes the club's existing mandate wording
+as its baseline rather than inventing new wording, and reviewing the template
+means checking it against that form. The combined form stays exactly as it is
+for the offline route: somebody who will not use a phone still fills in one
+sheet of paper.
 
 ### 7. The account holder may not be the member
 
@@ -198,6 +236,7 @@ schema change with its own GDPR surface and belongs in its own decision.
 | `GET/PATCH /api/admin/registrations…` (list, edit, approve, reject, print) | `[ADMIN, KASSENWART]` | This is member management. ADR-0044's grant table already reads *members — read, create, edit* as `admin` + `kassenwart`, and approval is a member create |
 | `PATCH /api/admin/self-registration/availability` | `[ADMIN, KASSENWART]` | The switch belongs to whoever is running the onboarding table |
 | `POST /api/admin/self-registration/secret` (rotate), and reading the poster URL | `[ADMIN]` | Minting a bearer credential for a public write surface is ADR-0044 rule 2 territory — the same reason terminal token rotation is admin-only |
+| Setting the Datenschutz URL (`instance_config`) | `[ADMIN]` | It is already an `admin`-only surface, and it is the club's published legal pointer — the one field here whose wrongness is invisible to everybody except the person who reads it too late |
 
 The Getränkewart appears nowhere: member data is outside their remit on every
 surface (ADR-0045 invariant 5).
@@ -280,16 +319,27 @@ valid submissions. Both meters are needed.
 
 ## Open questions for the owner
 
-1. **Optional consents (Art. 6(1)(a)).** #776 decision 4 stores photo/newsletter
-   consents with the registration. There is nowhere on `members` for them to go
-   at approval, and a consent record that vanishes when the member is created is
-   worse than none — the club would hold a tick nobody can honour or withdraw.
-   This draft therefore records **only** the Art. 13 acknowledgement (version and
-   timestamp) in v1 and proposes a `member_consents` store as its own issue.
-   Confirm, or accept the consent store in this epic.
+1. **Optional consents (Art. 6(1)(a)).** The #175 instrument split keeps
+   photo/newsletter consents separate from both the mandate and the Art. 13
+   notice, and #776 asks for them to be stored with the registration. There is
+   nowhere on `members` for them to go at approval, and a consent record that
+   vanishes when the member is created is worse than none — the club would hold
+   a tick nobody can honour or withdraw. This draft therefore records **only**
+   the Art. 13 acknowledgement (the URL shown and the timestamp) in v1 and
+   proposes a `member_consents` store as its own issue. Confirm, or accept the
+   consent store in this epic.
 2. **TTL length.** 14 days is a guess calibrated on "the treasurer looks weekly".
 3. **Schema.** `pending_registrations` (below, and in `docs/erm-master.md`) is a
    new table and needs explicit confirmation before migration `059` is written.
+   Decision 6 additionally adds a language-keyed `privacy_policy_urls` to
+   `instance_config`.
+4. **The club's document has to exist.** Decision 6 links a document this
+   software does not host, so the feature cannot be switched on until the club
+   publishes one at a stable URL — for FRGS,
+   [frgs-website#32](https://github.com/dgloeckner/frgs-website/issues/32),
+   which splits the Datenschutzhinweise out of the combined paper form. That is
+   an **external dependency**, outside `feat/user-onboarding` and outside this
+   repository; the enable gate is what keeps its absence from being silent.
 
 ## Related
 
@@ -297,7 +347,13 @@ valid submissions. Both meters are needed.
   [#777](https://github.com/dgloeckner/clubbar/issues/777)
 - [#175](https://github.com/dgloeckner/clubbar/issues/175),
   [#360](https://github.com/dgloeckner/clubbar/issues/360) — the legal split and
-  the form this replaces; `research/175-onboarding-form-datenschutz.md`
+  the combined paper form this splits the roles of: its Anmeldung and mandate
+  sections become the generated sheet on the digital route, its
+  Datenschutzhinweise become the club's own linked page, and the form itself
+  stays whole as the offline fallback; `research/175-onboarding-form-datenschutz.md`
+- [frgs-website#32](https://github.com/dgloeckner/frgs-website/issues/32) —
+  **external dependency**: the club publishes its Datenschutzhinweise at a
+  stable URL, which is what decision 6 configures
 - [UC-P01](../use-cases/public/UC-P01-member-self-registration.md),
   [UC-A17](../use-cases/admin/UC-A17-review-pending-registrations.md),
   [UC-A69](../use-cases/admin/UC-A69-configure-self-registration.md)

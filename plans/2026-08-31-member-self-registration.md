@@ -38,8 +38,13 @@ the final PR.
 
 - [~] **M0 — Specification** ([#777](https://github.com/dgloeckner/clubbar/issues/777)).
       ADR-0052 drafted **Proposed**; UC-P01, UC-A17, UC-A69 written with
-      test-derivable criteria; `pending_registrations` and
-      `self_registration_config` drafted into `docs/erm-master.md`; this plan.
+      test-derivable criteria; `pending_registrations`,
+      `self_registration_config` and `instance_config.privacy_policy_urls`
+      drafted into `docs/erm-master.md`; this plan. **Decided here**: the club's
+      Datenschutz URL lives in `instance_config` — ADR-0034's category, and the
+      one config surface already readable without a session, which an anonymous
+      phone at a poster needs — as a language-keyed map in ADR-0002's shape, and
+      self-registration cannot be enabled without it.
       *Verified*: `DocumentationIndexTest` green — every new ADR and use case is
       reachable from its index.
       **Gate**: the ADR needs the owner's approval, and the schema its explicit
@@ -53,6 +58,9 @@ the final PR.
       resolution, mandate reference minted per ADR-0006, IBAN sealed into the
       `mandates` column shape, honeypot, body cap, two rate meters. TTL purge
       wired into `bin/cron.php` ahead of the drain.
+      The enable gate has two conditions, not one: a poster secret and a
+      configured Datenschutz URL, the second refused with a typed
+      `datenschutz_url_missing`.
       *Verified by*: unit tests for the gate, the validator and the purge;
       `e2etests/tests/api/self-registration.spec.ts` for the three availability
       answers, the silent duplicate, and a submission that stores ciphertext and
@@ -73,7 +81,11 @@ the final PR.
       in-request from the plaintext the browser posts back with its download
       token, `Cache-Control: no-store`, nothing persisted. Admin variant: blank
       IBAN line with a `****last4` hint, the account holder in the signature
-      block, a legal-representative line when the birth date says minor.
+      block, a legal-representative line when the birth date says minor. On the
+      digital route this sheet supersedes the Anmeldung and mandate sections of
+      the club's combined paper form, taking that form's existing mandate
+      wording as its baseline — template review means checking it against the
+      form, not against a new invention.
       *Verified by*: a test that the member variant refuses a wrong download
       token, an expired one, and an IBAN whose fingerprint does not match; a test
       that the admin variant contains the last four and never the full IBAN.
@@ -81,8 +93,10 @@ the final PR.
       ([#781](https://github.com/dgloeckner/clubbar/issues/781)).
       Small self-contained bundle under the backend document root at `/register`,
       not the admin SPA. Reads the secret from the fragment and never puts it in
-      a request line. Mobile-first, the Datenschutzhinweis displayed with an
-      unticked acknowledgement box and its version recorded, the disabled state
+      a request line. Mobile-first, a **prominent link to the club's own
+      Datenschutz document before any data entry** — no legal text embedded in
+      Club Bar, in any language — with an unticked acknowledgement box and the
+      URL shown recorded, the disabled state
       rendering the club's reason, the one-time PDF download, and a confirmation
       screen that says plainly: you are not a member yet, bring the signed sheet.
 - [ ] **M5 — Admin registrations inbox**
@@ -96,7 +110,9 @@ the final PR.
       Generate the first secret (until then the feature is off), reprint the
       poster without rotating, rotate (`[ADMIN]` only — it invalidates every
       poster on the wall, and the UI has to say so), switch off with a
-      member-facing reason. Printable QR poster.
+      member-facing reason. Enabling requires **both** the secret and the
+      Datenschutz URL, and a missing one is named in the UI rather than greying
+      the switch out. Printable QR poster.
 - [ ] **M7 — E2E flow and privacy assertions**
       ([#784](https://github.com/dgloeckner/clubbar/issues/784)).
       Public form → pending row → admin approve → member exists → terminal sync
@@ -122,6 +138,18 @@ which milestone happens to implement them:
 | 8 | A Getränkewart is refused on every route in this feature | M2 |
 | 9 | An abandoned registration is gone after the TTL, and a rejected one at once | M1 + M2 |
 | 10 | The audit trail names who approved, who rejected, and never a full IBAN | M2 |
+| 11 | Self-registration cannot be enabled without a configured Datenschutz URL, and the refusal names it | M1 + M6 |
+| 12 | No Datenschutz prose ships in this repository — the page links the club's document | M4 |
+
+## External dependency
+
+The club has to publish its Datenschutzhinweise at a stable URL before this
+feature can be switched on anywhere. For FRGS that is
+[frgs-website#32](https://github.com/dgloeckner/frgs-website/issues/32), which
+splits the notice out of the combined paper form into a page of its own; the
+combined form stays whole as the offline fallback. It is outside this repository
+and outside `feat/user-onboarding`, so it blocks *enabling* rather than
+*shipping* — and the enable gate is what keeps its absence from being silent.
 
 ## Open questions blocking M1
 
@@ -130,6 +158,13 @@ which milestone happens to implement them:
    approval. The ADR proposes recording only the Art. 13 acknowledgement in v1
    and building a `member_consents` store as its own issue. Needs a ruling.
 2. **TTL length.** 14 days is calibrated on "the treasurer looks weekly".
-3. **Schema confirmation.** `pending_registrations` and
-   `self_registration_config` are drafted in `docs/erm-master.md` and, per
-   project convention, need explicit confirmation before migration `059`.
+3. **Schema confirmation.** `pending_registrations`,
+   `self_registration_config` and the new
+   `instance_config.privacy_policy_urls` are drafted in `docs/erm-master.md`
+   and, per project convention, need explicit confirmation before migration
+   `059`.
+4. **Per-language documents.** The draft stores a language-keyed map and falls
+   back to the default entry, telling the reader which language they are being
+   shown. A club that publishes only German is therefore not blocked from
+   onboarding an English-speaking member. Confirm that fallback, or require a
+   document per offered language.
