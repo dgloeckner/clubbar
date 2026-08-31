@@ -10,6 +10,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use App\Shared\Logging\Logger;
 use App\Shared\Exceptions\AppException;
+use App\Shared\Exceptions\TooManyAttemptsException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\ValidationException;
 use App\Shared\Exceptions\BusinessRuleException;
@@ -79,6 +80,16 @@ class ErrorHandler implements MiddlewareInterface
                         $body['params'] = $e->getParams();
                     }
                 }
+
+                // A throttle says *not right now*, and the one thing a caller
+                // needs is how long. Same body and header as
+                // `RateLimitMiddleware` writes directly, so a client parses one
+                // shape whether the meter ran before the request was understood
+                // or after.
+                if ($e instanceof TooManyAttemptsException) {
+                    $body['retry_after_seconds'] = $e->getRetryAfterSeconds();
+                    $retryAfter = $e->getRetryAfterSeconds();
+                }
             } else {
                 // Fallback for non-AppException types
                 $status = match (true) {
@@ -111,7 +122,13 @@ class ErrorHandler implements MiddlewareInterface
 
             $response = new Response($status);
             $response->getBody()->write(json_encode($body));
-            return $response->withHeader('Content-Type', 'application/json');
+            $response = $response->withHeader('Content-Type', 'application/json');
+
+            if (isset($retryAfter)) {
+                $response = $response->withHeader('Retry-After', (string) $retryAfter);
+            }
+
+            return $response;
         }
     }
 
