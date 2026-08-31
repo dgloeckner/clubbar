@@ -39,18 +39,19 @@ the final PR.
 - [~] **M0 — Specification** ([#777](https://github.com/dgloeckner/clubbar/issues/777)).
       ADR-0052 drafted **Proposed**; UC-P01, UC-A17, UC-A69 written with
       test-derivable criteria; `pending_registrations`,
-      `self_registration_config` and `instance_config.privacy_policy_url`
-      drafted into `docs/erm-master.md`; this plan. **Decided here**: clubbar
-      pins no mandate template — `sepa_config.mandate_template_url` (the column
-      #360 already added) is the one pointer, fetched and never copied, because
-      the backup dumper walks the schema only and a pinned file would survive an
-      upgrade but vanish on restore. And the club's
+      `self_registration_config` drafted into `docs/erm-master.md`; this plan. **Decided here**: the club's
+      document stays **one** — the combined four-page Anmeldung, fields on page 1,
+      every page preserved by the fill. Clubbar pins no template:
+      `sepa_config.mandate_template_url` (the column #360 already added) is the
+      one pointer, fetched and never copied, because the backup dumper walks the
+      schema only and a pinned file would survive an upgrade but vanish on
+      restore. That same URL is what the page links for Art. 13, so the club's
       Datenschutz URL lives in `instance_config` — ADR-0034's category, and the
-      one config surface already readable without a session, which an anonymous
-      phone at a poster needs — as a **single** URL, because the documents are
-      not translated and there is no club-language setting to translate
-      against; self-registration cannot be enabled without it. An unapproved
-      registration is purged after **30 days**.
+      Datenschutzhinweise need no second setting: they are pages 2+ of that very
+      file. One URL, not translated, and no club-language setting to translate
+      against; self-registration cannot be enabled without it
+      (`document_url_missing`). An unapproved registration is purged after
+      **30 days**. **The schema delta is two new tables and no new column.**
       *Verified*: `DocumentationIndexTest` green — every new ADR and use case is
       reachable from its index.
       **Gate**: the ADR needs the owner's approval, and the schema its explicit
@@ -65,9 +66,9 @@ the final PR.
       resolution, mandate reference minted per ADR-0006, IBAN sealed into the
       `mandates` column shape, honeypot, body cap, two rate meters. TTL purge
       wired into `bin/cron.php` ahead of the drain.
-      The enable gate has two conditions, not one: a poster secret and a
-      configured Datenschutz URL, the second refused with a typed
-      `datenschutz_url_missing`.
+      The enable gate has two conditions, not one: a poster secret and the
+      configured club document URL, the second refused with a typed
+      `document_url_missing`.
       *Verified by*: unit tests for the gate, the validator and the purge;
       `e2etests/tests/api/self-registration.spec.ts` for the three availability
       answers, the silent duplicate, and a submission that stores ciphertext and
@@ -82,25 +83,29 @@ the final PR.
       *Verified by*: `RouteRoleMapCompletenessTest`; a role test proving a
       Getränkewart gets 403 on every route here; an API test proving approval
       produces exactly what UC-A11 produces.
-- [ ] **M3 — Mandate PDF: fill the club's template**
+- [ ] **M3 — Fill the club's document, and keep every page**
       ([#780](https://github.com/dgloeckner/clubbar/issues/780)).
       Port the spike ([#786](https://github.com/dgloeckner/clubbar/pull/786)):
       enumerate AcroForm field names and rectangles from the raw PDF with
-      `/Rect` corner order normalized, import the page with FPDI so annotations
-      are dropped and the output is flattened by construction, draw the values
-      at the rects. `setasign/fpdf` + `setasign/fpdi` only; Latin-1
-      transliteration for core fonts. Vocabulary: required `mandatsreferenz`,
-      `vorname`, `nachname`, `iban`, `iban_last4`; optional `kontoinhaber`;
-      **never** Ort/Datum or signatures. Member variant filled in-request during
-      `POST /api/public/registrations` and returned in that response,
-      `Cache-Control: no-store`; admin variant identical but `iban` empty and
-      `iban_last4` printed as the `endet auf ****XXXX` hint. The template comes
-      from `sepa_config.mandate_template_url` — fetched, never stored — with the
-      shipped DK-Muster default (de/en) when it is unset or unreachable.
-      *Verified by*: fixtures for both the DK-Muster default and the FRGS
-      template; the member variant contains the full IBAN and the admin variant
-      provably does not; Ort/Datum provably unfilled; zero `/Widget`
-      annotations in either output; a `/Rect` regression test on a
+      `/Rect` corner order normalized, import **page 1** with FPDI so annotations
+      are dropped and the output is flattened by construction, draw the values at
+      the rects, then **append the remaining pages unchanged** — in that order,
+      because FPDF cannot revisit a page it has moved past.
+      `setasign/fpdf` + `setasign/fpdi` only; Latin-1 transliteration for core
+      fonts. Vocabulary: required `mandatsreferenz`, `vorname`, `nachname`,
+      `iban`, `iban_last4`; optional `geburtsdatum`, `email`, `kontoinhaber`;
+      **never** Ort/Datum, signatures or checkboxes. Member variant filled
+      in-request during `POST /api/public/registrations` and returned in that
+      response, `Cache-Control: no-store`; admin variant identical but `iban`
+      empty and `iban_last4` printed as the `endet auf ****XXXX` hint. The
+      document comes from `sepa_config.mandate_template_url` — fetched once per
+      request, never stored — with the shipped DK-Muster default when it is unset
+      or unreachable.
+      *Verified by*: fixtures for both the single-page DK-Muster default and the
+      four-page FRGS Anmeldung; **page count and pages 2+ content preserved**;
+      the member variant contains the full IBAN and the admin variant provably
+      does not; Ort/Datum, signatures and checkboxes provably unfilled; zero
+      `/Widget` annotations in either output; a `/Rect` regression test on a
       WeasyPrint-built fixture; optional fields filled when present and skipped
       when absent; no disk or database write on either render path.
 - [ ] **M4 — Public onboarding page**
@@ -109,9 +114,10 @@ the final PR.
       not the admin SPA. Reads the secret from the fragment and never puts it in
       a request line. Mobile-first, a **prominent link to the club's own
       Datenschutz document before any data entry** — no legal text embedded in
-      Club Bar, in any language, and **no checkbox attached to it**, since
-      Art. 13 is a duty to inform rather than something to declare — with the
-      URL shown recorded, the mandate PDF arriving in the submission response
+      Club Bar, in any language, and **no checkbox attached to it on screen**,
+      since Art. 13 is a duty to inform rather than something to declare (the
+      paper's Kenntnisnahme box is ticked by hand at signature) — with the URL
+      shown recorded, the multi-page document arriving in the submission response
       and not re-fetchable on reload, the disabled state
       rendering the club's reason, the one-time PDF download, and a confirmation
       screen that says plainly: you are not a member yet, bring the signed sheet.
@@ -127,16 +133,15 @@ the final PR.
       poster without rotating, rotate — all `[ADMIN]`, and rotation invalidates
       every poster on the wall, which the UI has to say. Switch off with a
       member-facing reason. Enabling requires **both** the secret and the
-      Datenschutz URL, and a missing one is named
-      (`datenschutz_url_missing`) rather than greying the switch out. The two
-      configured URLs — Datenschutz (`instance_config.privacy_policy_url`) and
-      the mandate template (`sepa_config.mandate_template_url`) — are validated
-      **when saved**, but not alike: the Datenschutz URL is format-checked and
-      stored, never fetched (it is displayed, and the member navigates to it
-      themselves — ADR-0052 decision 6), while the template URL *is* fetched
-      once and its required AcroForm fields enumerated, refused with the typed
-      reason naming the missing field or telling the club to rebuild with
-      `--uncompressed-pdf`.
+      document URL, and a missing one is named
+      (`document_url_missing`) rather than greying the switch out. The
+      configured URL —
+      the club document (`sepa_config.mandate_template_url`) — is **one** URL,
+      validated when saved: fetched once, `https://` required, and its required
+      AcroForm fields enumerated, refused with the typed reason naming the
+      missing field or telling the club to rebuild with `--uncompressed-pdf`.
+      The same URL is what the public page links for Art. 13, so there is no
+      second field to keep consistent with it.
       **No upload flow** — clubbar stores no template copy. Printable QR poster.
       *Verified by*: an unreachable or non-fillable template URL is refused with
       its typed reason and not saved; a valid one is accepted and audited; with
@@ -172,13 +177,14 @@ which milestone happens to implement them:
 | 14 | The member sheet contains the full IBAN; the admin sheet provably does not | M3 |
 | 15 | Ort/Datum and the signatures are never machine-filled | M3 |
 | 16 | Neither render path writes to disk or to the database | M3 + M7 |
-| 17 | No mandate template is stored by Club Bar; an unreachable one falls back to the shipped default rather than failing a registration | M3 + M6 |
+| 17 | No document template is stored by Club Bar; an unreachable one falls back to the shipped default rather than failing a registration | M3 + M6 |
+| 18 | Both rendered variants keep every page of the template, pages 2+ byte-identical | M3 + M7 |
 
 ## External dependencies
 
 The club has to publish two documents before this feature can be switched on
-anywhere: the standalone Datenschutzhinweise, and the fillable mandate template
-the sheet is rendered from. Both sources are delivered in
+anywhere: its combined Anmeldung, carrying the AcroForm fields the fill addresses
+and the Datenschutzhinweise on its later pages. Both sources are delivered in
 [frgs-website#33](https://github.com/dgloeckner/frgs-website/pull/33); what
 remains is the owner publishing the built PDFs as Kirby files via SFTP, which is
 what produces the stable URLs the configuration stores. Outside this repository
@@ -195,18 +201,19 @@ accepted.
 
 | | |
 |---|---|
+| The document | **One** — the club's combined four-page Anmeldung; fields on page 1, every page preserved by the fill |
+| The template | Not pinned: `sepa_config.mandate_template_url` is the pointer, and the same URL the page links for Art. 13 |
 | Retention | **30 days** before an unapproved registration is purged |
-| Documents | One Datenschutz URL, one mandate template URL; neither translated, no club-language setting |
-| Optional consents | None — this flow is the SEPA mandate and nothing else |
-| The template | Not pinned: `sepa_config.mandate_template_url` is the pointer |
+| Translation | None, and no club-language setting exists |
+| Optional consents | None — the document carries nothing to opt into |
 
 **Blocking M1 inside this repository:** the owner's explicit confirmation of the
 schema — two new tables (`pending_registrations`, `self_registration_config`) and
-one new column (`instance_config.privacy_policy_url`). Nothing is added for the
-mandate template.
+**no new column**, since `sepa_config.mandate_template_url` already exists and does
+both URL jobs.
 
-**Blocking outside it:** one run of `spikes/pdf-form-fill/`
-([#786](https://github.com/dgloeckner/clubbar/pull/786)) on the production hosting,
-which #777 makes an acceptance criterion for ratifying the ADR; and the club
-publishing its two built PDFs, which is what produces the URLs the configuration
-stores.
+**Nothing is blocking outside it any more.** The fill was verified on the production
+hosting on 2026-08-31, and the club has published the built document at its stable
+URL; inspected as published it satisfies the whole contract — classic xref, four
+pages, all eight widgets on page 1, every required and optional field present, and
+no field behind Ort/Datum, the signatures or the Kenntnisnahme box.

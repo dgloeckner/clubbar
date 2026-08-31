@@ -56,12 +56,13 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
    possible answers end the flow here — see **Error Cases** E1 and E2. On the
    third, the page proceeds.
 3. Before any field is offered, the page shows a **prominent link to the
-   club's own Datenschutzhinweis** — the club's document, at the club's URL,
-   — one document, in whatever language the club published it in. The link
-   carries no checkbox: Art. 13 is a duty to *inform*, not to collect a
+   club's own Anmeldung** — the same combined, multi-page document that
+   arrives, page 1 filled, in the submission response at step 6. One
+   document, at one URL, in whatever language the club published it in. The
+   link carries no checkbox: Art. 13 is a duty to *inform*, not to collect a
    declaration that the notice was read. This flow collects no optional
-   consents — the paper it replaces carries an Anmeldung, a mandate and an
-   information notice, and nothing else.
+   consents — the paper it replaces carries an Anmeldung, a mandate, an
+   information notice and a Nutzungsordnung, and nothing else.
 4. The applicant fills in the form (see **Form Fields**). A hidden field
    present in the markup — the honeypot — is never shown to a person and is
    left empty by one.
@@ -72,19 +73,23 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
    BLZ, allocates a mandate reference from the row's own UUID, seals the IBAN
    under the club's public key, and writes one `pending_registrations` row.
    The response itself carries the mandate reference and the applicant's
-   fully-filled mandate sheet as a PDF, `Cache-Control: no-store` — full
-   IBAN, name, and, when supplied, the account holder's name on the
-   signature line instead of the applicant's — built from the club's own
-   WeasyPrint-based template (the shipped DK-Muster default if that template
-   cannot be reached, in which case the response says so).
+   whole document as a PDF, `Cache-Control: no-store` — page 1 filled with
+   the full IBAN, name, and, when supplied, the account holder's name on the
+   signature line instead of the applicant's, every later page carried over
+   unchanged — built by filling page 1 of the club's own WeasyPrint-built
+   Anmeldung and appending the remaining pages as they are (the shipped
+   DK-Muster default if that document cannot be reached, in which case the
+   response says so).
 7. The confirmation screen states plainly that the applicant is **not a
    member yet**, that the PDF just returned is the only chance to save it —
    nothing renders it a second time, not even reloading this screen — and
-   what has to happen next: sign the mandate sheet and bring it, or have it
-   brought, to the club, where a Kassenwart still has to see it (UC-A17).
-8. The applicant saves the sheet, signs it, and brings it to the club. This
-   use case ends here. Nothing the applicant does after this point is
-   observable to the system until an admin acts on the pending row.
+   what has to happen next: print it, tick the Kenntnisnahme box on page 1 by
+   hand, sign, and bring it, or have it brought, to the club, where a
+   Kassenwart still has to see it (UC-A17).
+8. The applicant saves the document, prints it, ticks the Kenntnisnahme box,
+   signs it, and brings it to the club. This use case ends here. Nothing the
+   applicant does after this point is observable to the system until an
+   admin acts on the pending row.
 
 ## Alternative Flow: Registering on Behalf of Someone Else
 
@@ -92,30 +97,31 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
    registering a child is the ordinary case. The applicant fills in the
    **applicant's** name and date of birth as the member, and the payer's name
    in the optional **account holder name** field.
-2. If the account holder name is set, the returned (or admin-printed) sheet
-   names the account holder on the signature line, not the applicant — the
-   mandate has to be signed by whoever owns the account.
-3. If the applicant's date of birth makes them a minor, the sheet additionally
-   carries a legal-representative signature line, independent of whether an
-   account holder name was given.
+2. If the account holder name is set, the returned (or admin-printed)
+   document names the account holder on the signature line, not the
+   applicant — the mandate has to be signed by whoever owns the account.
+3. If the applicant's date of birth makes them a minor, the document
+   additionally carries a legal-representative signature line, independent
+   of whether an account holder name was given.
 4. Nothing about a second person is stored beyond that one name string. No
    separate address, no separate Art. 13 notice, no separate erasure right —
    an account holder is a name on a mandate, not a second data subject.
 
-## Alternative Flow: The Applicant Never Saves a Sheet
+## Alternative Flow: The Applicant Never Saves the Document
 
 1. The applicant closes the tab at step 7, loses the phone, or simply never
    saves the PDF that arrived with the submission response. There is no
-   token to lapse and no second request to make — the sheet existed only
+   token to lapse and no second request to make — the document existed only
    inside that one response, and it is not obtainable again.
 2. Nothing is lost that step 6 did not already capture: the pending row, the
    sealed IBAN and the mandate reference all still exist, keyed by the
    applicant's own submission, not by whether a PDF was ever saved.
-3. At review, the admin prints a sheet that needs no plaintext IBAN at all — a
-   blank line and a `****<last4>` hint read straight off the sealed row — and
-   the applicant writes their IBAN there by hand for the admin to cross-check.
-   This path is the one that always works, sheet saved or not — that is why
-   it is the fallback, not a fragile second choice.
+3. At review, the admin prints the club's whole document with no plaintext
+   IBAN needed at all — a blank line and a `****<last4>` hint read straight
+   off the sealed row — and the applicant writes their IBAN there by hand for
+   the admin to cross-check. This path is the one that always works, document
+   saved or not — that is why it is the fallback, not a fragile second
+   choice.
 
 ## Worked example: a parent registering their child
 
@@ -123,12 +129,12 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
 |------|----------------------------------------------------------------|
 | Scans the poster | The club's onboarding page opens directly — no typing, no app store |
 | Gate check | Secret valid, registration switched on: the form loads with no mention of the check that just happened |
-| Datenschutzhinweis | A prominent link to the club's own notice — no checkbox, nothing to tick |
+| Datenschutzhinweis | A prominent link to the club's own Anmeldung — no checkbox, nothing to tick |
 | The form | Child's first name, last name and date of birth as the member; the parent's own name in **account holder name** — "if this account isn't yours, whose is it?"; the parent's email and phone as the contact the club can reach; the parent's IBAN |
 | Submit | Accepted. Nothing on the response says whether the family was already known to the club |
-| Confirmation screen | "You are not a member yet." A button to save the sheet that arrived with the response, and instructions to sign and bring it in |
-| The PDF (already in the response) | IBAN fully pre-filled; the signature line reads the parent's name, with a second line, "gesetzlicher Vertreter", because the member named on the sheet is a minor |
-| At the bar | The parent signs and hands the sheet to the Kassenwart — UC-A17 begins there, not here |
+| Confirmation screen | "You are not a member yet." A button to save the document that arrived with the response, and instructions to print it, tick the Kenntnisnahme box, sign, and bring it in |
+| The PDF (already in the response) | IBAN fully pre-filled on page 1; the signature line reads the parent's name, with a second line, "gesetzlicher Vertreter", because the member named on the document is a minor; pages 2–4 arrive exactly as the club published them |
+| At the bar | The parent ticks the Kenntnisnahme box, signs, and hands the document to the Kassenwart — UC-A17 begins there, not here |
 
 ## Form Fields
 
@@ -136,10 +142,10 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
 |-------|----------|------------|------|
 | First name | Yes | Non-empty, max 100 chars | The member being registered, never the account holder |
 | Last name | Yes | Non-empty, max 100 chars | |
-| Date of birth | Yes | Date, not in the future | Jugendschutz (ADR-0045); also decides whether the sheet gets a legal-representative line |
+| Date of birth | Yes | Date, not in the future | Jugendschutz (ADR-0045); also decides whether the document gets a legal-representative line |
 | Email | Yes | Valid email format | Never checked against existing members before accepting — a duplicate is accepted like any first-time submission (ADR-0052 §9) |
 | Phone | No | Max 20 chars | |
-| Preferred language | Yes | ISO 639-1 code from the enabled list | Selects the language of this page and the confirmation, and is carried to `members.preferred_language` at approval. It selects **no document**: neither the notice nor the mandate sheet is translated |
+| Preferred language | Yes | ISO 639-1 code from the enabled list | Selects the language of this page and the confirmation, and is carried to `members.preferred_language` at approval. It selects **no document**: the club's Anmeldung is what it is, in whatever language the club published it in |
 | IBAN | Yes | Valid IBAN format + checksum | Unlike UC-A11, there is no path through this form that leaves it empty — the point of registering is a signed mandate |
 | Account holder name | No | Max 70 chars | When set, the printed signature block names the holder, not the applicant (ADR-0052 §7) |
 
@@ -162,13 +168,14 @@ the paper in front of them (UC-A17).
 | The submission endpoint is write-only | It validates, resolves the bank name, allocates the reference, seals the IBAN, writes one row, and returns — it answers no question about what is stored, and its response is identical whether or not the club already knows this person |
 | The IBAN is stored in exactly the `mandates` column shape | `iban_ciphertext` + `iban_last4` + `iban_fingerprint` + `encryption_key_id` — no plaintext column and no weaker cipher for the pending state; ADR-0036 gets no exception here |
 | The mandate reference is minted at submission, from the row's own UUID | It has to be printed on the paper before a mandate exists, and the paper and the eventual `mandates` row must name the same UMR |
-| The member's mandate sheet arrives inside the `POST /api/public/registrations` response itself, `Cache-Control: no-store`, and nowhere else | The plaintext IBAN needed to fill it exists only for the length of that one request; there is no second endpoint and no token to re-request it from — reloading the confirmation screen cannot bring it back |
-| The sheet is the club's own WeasyPrint-built mandate template, filled by clubbar; Ort/Datum and every signature are always handwritten | clubbar addresses AcroForm fields by name and draws values at them — it cannot originate a date or a signature, only carry what a person writes by hand |
-| If the club's template cannot be reached, the shipped DK-Muster default renders instead, and the response says which template was used | A club's webhost outage must not fail a registration |
-| The admin-print fallback needs no plaintext IBAN at all | It prints `****<last4>` off the sealed row; this is the variant that always works, whether or not the member's own sheet was ever saved |
-| The Datenschutzhinweis is **linked, not authored here**, and its link comes before any data entry | Club Bar is generic software installed by clubs it knows nothing about; legal text shipped in a product is text somebody else's lawyer wrote about a processing situation they never saw. The club configures a URL and the page points at it |
-| The notice is linked, never ticked or signed, and the printed sheet never carries it | Art. 13 is an information duty discharged at collection, by putting the notice in front of the person — not by collecting a declaration that they read it, which edges toward a consent for processing that already rests on Art. 6(1)(b), the LfDI BW *Täuschung* trap |
-| The row records the URL shown, not a version number | This system does not host the document and must not fetch it — an admin-supplied URL retrieved server-side is an SSRF primitive — so the URL displayed is the most it can honestly record. A club that wants versioning puts it in the URL |
+| The member's document arrives inside the `POST /api/public/registrations` response itself, `Cache-Control: no-store`, and nowhere else | The plaintext IBAN needed to fill page 1 exists only for the length of that one request; there is no second endpoint and no token to re-request it from — reloading the confirmation screen cannot bring it back |
+| The document is the club's own combined Anmeldung, WeasyPrint-built; clubbar fills page 1 and appends the remaining pages unchanged. Ort/Datum, every signature and the Kenntnisnahme checkbox are always handwritten | clubbar addresses AcroForm fields by name and draws values at them on page 1 alone — it cannot originate a date, a signature or a tick, only carry what a person writes by hand |
+| If the club's document cannot be reached, the shipped DK-Muster default renders instead, and the response says which template was used | A club's webhost outage must not fail a registration |
+| The admin-print fallback needs no plaintext IBAN at all | It prints `****<last4>` off the sealed row; this is the variant that always works, whether or not the member's own document was ever saved |
+| The document's Datenschutzhinweise are **linked, not authored here**, and the link comes before any data entry | Club Bar is generic software installed by clubs it knows nothing about; legal text shipped in a product is text somebody else's lawyer wrote about a processing situation they never saw. The club configures a URL and the page points at it |
+| The link at step 3 and the document returned at step 6 are the same file, from the one configured URL | `sepa_config.mandate_template_url` does both jobs — no separate Datenschutz URL exists (ADR-0052 decisions 5a and 6) |
+| The onboarding page carries no checkbox for the notice; the document's own Kenntnisnahme box is a different thing | Art. 13 is an information duty discharged by putting the notice in front of the person before data entry — a box on screen asking them to declare it was read edges toward a consent for processing that already rests on Art. 6(1)(b), the LfDI BW *Täuschung* trap. The paper's Kenntnisnahme box, ticked by hand at signature, is an acknowledgement made *on* the document itself, not something this software fills or records — the two facts are compatible, not contradictory |
+| The row records the URL shown, not a version number | This system does not host the document, so a version is something it cannot observe; the exact URL displayed is the most it can honestly record. That link is what the visitor's own browser navigates to — the same URL is also fetched server-side to fill page 1, but that fetch is decision 5a's concern, not this row's |
 | The notice is one document, never translated by Club Bar | The club publishes what it publishes; this software stores a link and does not know what language is behind it. A member's chosen language sets the language of the *page*, which is ordinary app i18n, and selects no document at all |
 | No mail is sent by submitting | The address is unverified; a public endpoint that mails it is an email-bombing amplifier aimed at strangers, and the welcome mail is earned by a card, not a form (UC-A67 rule 1) |
 | No enumeration | A submission naming an email or an IBAN the club already knows is accepted exactly like any other; the duplicate surfaces only at review, to an authenticated admin, flagged by matching email or fingerprint |
@@ -187,10 +194,10 @@ the paper in front of them (UC-A17).
   shown to the applicant, and a 14-day expiry clock.
 - No `members` row and no `mandates` row exist. The applicant is not a member;
   the terminal has no way to recognise them.
-- The mandate sheet returned with the submission response is not retained
-  anywhere and cannot be obtained a second time; this has no effect on the
-  pending row itself, which stays available for admin review until it expires
-  or is acted on.
+- The document returned with the submission response is not retained anywhere
+  and cannot be obtained a second time; this has no effect on the pending row
+  itself, which stays available for admin review until it expires or is acted
+  on.
 - No mail has been sent to the applicant, and nothing about the submission has
   been disclosed to anyone but the applicant themselves.
 - No audit log entry is written. This use case runs with no session; the
@@ -262,18 +269,25 @@ in the response tells the filler that anything different happened.
   a first-time one — no different status code, no different body
 - The duplicate is visible at review, flagged by matching email or fingerprint
 - The submission response includes both the mandate reference and the
-  applicant's fully-filled mandate sheet PDF in one payload
+  applicant's whole document PDF in one payload
 - The response carries `Cache-Control: no-store`
-- The sheet's IBAN, name and (when supplied) account-holder fields are filled
-  at the field names the club's configured template declares
+- The document's page 1 IBAN, name and (when supplied) account-holder fields
+  are filled at the field names the club's configured template declares
+- The returned PDF's page count equals the configured template's page
+  count, and every page after page 1 is byte-identical to the source
+  document — nothing is dropped, reordered or recomposed
+- No AcroForm checkbox exists in the required or optional field vocabulary;
+  the Kenntnisnahme box, like Ort/Datum and every signature, is plain page
+  content the fill never touches
 - When the configured template is unreachable, the shipped DK-Muster default
   renders instead, and the response names which template was used
 - The admin-print variant renders `****<last4>` with no plaintext IBAN
   appearing anywhere in its request or response
 - An account holder name different from the applicant's own name is what
-  appears on the sheet's signature line, not the applicant's name
-- A minor applicant's date of birth adds a legal-representative signature line
-  to the sheet, independent of whether an account holder name was given
+  appears on the document's signature line, not the applicant's name
+- A minor applicant's date of birth adds a legal-representative signature
+  line to the document, independent of whether an account holder name was
+  given
 - The honeypot field, when filled, returns 200 and stores nothing
 - Repeated refused-gate attempts from one IP are throttled on the shared
   budget invitations use

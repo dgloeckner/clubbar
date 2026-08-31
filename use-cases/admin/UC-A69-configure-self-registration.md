@@ -6,10 +6,10 @@
 
 - **Admin** — generates the poster secret, reprints the poster, rotates the
   secret, switches self-registration on and off, and configures the club's
-  Datenschutz URL and mandate template URL. Every write on this page is
-  `[ADMIN]`: it sits on Security & Credentials beside the secret the whole
-  feature depends on, and switching the feature on is what exposes the
-  public write surface (ADR-0052 decision 8).
+  document URL. Every write on this page is `[ADMIN]`: it sits on Security &
+  Credentials beside the secret the whole feature depends on, and switching
+  the feature on is what exposes the public write surface (ADR-0052
+  decision 8).
 - **Prospective member** — scans the poster on the wall. Never signs in, and
   is the reader every state in this use case is written for (ADR-0052
   decision 2).
@@ -28,8 +28,8 @@ taped to a wall.
 ## Preconditions
 
 - Caller is signed in and holds `admin`. Every write on this page — secret
-  generation, reprint, rotation, the availability switch, the Datenschutz
-  URL and the mandate template URL — is `admin`-only (ADR-0052 decision 8).
+  generation, reprint, rotation, the availability switch, and the document
+  URL — is `admin`-only (ADR-0052 decision 8).
 - The backend already serves `/register` as part of the deployment (ADR-0052
   decision 11) — there is no separate step to stand that page up.
 
@@ -52,16 +52,19 @@ taped to a wall.
    fragment, never the path, for the reason UC-A68's invitation links already
    establish: a fragment is the one part of a URL a browser never sends, and
    a path is written into every access log in front of the installation.
-5. An admin configures the club's **Datenschutz URL** — where the club
-   publishes its own Datenschutzhinweise — on the instance configuration
-   screen — one URL, one document, not translated. Club Bar authors no legal
-   text; it links the club's document (ADR-0052 decision 6). This is the second
-   precondition, and it is `[ADMIN]` because it is already an admin-only
-   surface.
+5. An admin configures the club's **document URL** —
+   `sepa_config.mandate_template_url`, on the SEPA configuration screen (see
+   *Alternative Flow: configuring the club's document URL*, below). One URL
+   does two jobs: it is what the onboarding page links prominently before any
+   data entry, to discharge Art. 13, and it is what the fill fetches to build
+   page 1 of the printed document. Club Bar authors no legal text of its own;
+   it links and fills the club's own document (ADR-0052 decisions 5a and 6).
+   This is the second precondition, and it is `[ADMIN]` because it is already
+   an admin-only surface.
 6. An admin turns the availability switch on. It is accepted only with
    **both** preconditions met — a secret to point the poster at, and a
-   document to point the applicant at. Only from this point does a scan of the
-   printed poster reach the registration form.
+   document URL to point the applicant at. Only from this point does a scan
+   of the printed poster reach the registration form.
 
 ## Main Flow — reprinting the poster without rotating
 
@@ -120,40 +123,48 @@ happen before it happens.
    turning registration off and back on is reversible in a way rotating the
    secret deliberately is not.
 
-## Alternative Flow: configuring the club's mandate template
+## Alternative Flow: configuring the club's document URL
 
-The QR poster and the Datenschutz URL are two of this page's settings; the
-mandate template URL is the third, and unlike the other two it does not gate
-availability — a club can run self-registration with no template configured
-at all, because the shipped DK-Muster default always renders in its place.
+The QR poster secret and the document URL are this page's two gating
+settings — decision 2's fail-closed pair. Configuring the URL is what this
+flow covers. Unlike the secret, an unreachable URL has a working fallback at
+render time: the shipped DK-Muster default renders in its place, so a club's
+webhost outage does not fail a registration. That fallback covers an
+*outage*, not the missing configuration itself — availability still cannot be
+switched on until the URL has been set and validated at least once (decision
+2).
 
 1. An admin opens the SEPA configuration screen and sets
    `sepa_config.mandate_template_url` to the URL where the club's own
-   WeasyPrint-built mandate is published (ADR-0052 decisions 5 and 5a) — the
-   same field #360/migration `028` already added for the offline paper form.
-   There is no upload: clubbar stores no copy of the template, only this
-   pointer.
+   combined Anmeldung is published (ADR-0052 decisions 5, 5a and 6) — the
+   same field #360/migration `028` already added for the offline paper form,
+   and the same URL the onboarding page links before any data entry to
+   discharge Art. 13. There is no upload: clubbar stores no copy of the
+   document, only this pointer.
 2. On save, the system fetches the URL once (`https://` required, body size
    capped, content type checked) and enumerates its AcroForm field names —
-   the same mechanism decision 5's spike settled for filling the sheet.
-3. A template missing `mandatsreferenz`, `vorname`, `nachname`, `iban` or
+   the same mechanism decision 5's spike settled for filling page 1.
+3. A document missing `mandatsreferenz`, `vorname`, `nachname`, `iban` or
    `iban_last4` is refused with a typed reason naming the missing field. A
-   template whose cross-reference table cannot be read at all is refused
+   document whose cross-reference table cannot be read at all is refused
    with a typed reason telling the club to rebuild it with WeasyPrint's
    `--uncompressed-pdf` flag. Either way the URL **is not saved** — a
    half-validated pointer would fail silently later, at the moment an admin
    is standing at the printer with an applicant's signed paper in hand.
 4. A URL that enumerates the five required fields is saved and recorded to
-   the audit log. `kontoinhaber` and any creditor fields are filled when
-   present and ignored when absent; `datum_ort` and the signature are never
-   fields at all, because they are handwritten on every template, always.
-5. From then on, filling the sheet — the member's own copy at registration
-   and the admin-print copy at review (UC-A17) — fetches the configured URL
-   fresh for each render, memoized for that one request only and never
-   written to disk or database. If the club's site is unreachable at render
-   time, or no URL has ever been configured, the shipped DK-Muster default
-   renders instead, and the response names which template was used — a
-   club's webhost outage must never fail a registration.
+   the audit log. `geburtsdatum`, `email`, `kontoinhaber` and any creditor
+   fields are filled when present and ignored when absent; Ort/Datum, every
+   signature and the Kenntnisnahme checkbox are never fields at all, because
+   they are done by hand at signature, always.
+5. From then on, filling the document — page 1, at the member's own copy
+   during registration and the admin-print copy at review (UC-A17) — fetches
+   the configured URL fresh for each render, memoized for that one request
+   only and never written to disk or database; the remaining pages are
+   appended exactly as fetched. If the club's site is unreachable at render
+   time, or the URL is unset (a row already pending when the club clears a
+   previously configured URL), the shipped DK-Muster default renders
+   instead, and the response names which template was used — a club's
+   webhost outage must never fail a registration.
 
 ## Worked example: the poster's life, state by state
 
@@ -179,7 +190,7 @@ at all, because the shipped DK-Muster default always renders in its place.
 | A rotated secret's old URLs answer exactly like an unknown one | Anything that told the difference would confirm to whoever holds the old poster that it *used to* work, which is information a probe should never get |
 | Switching off requires a reason; switching back on requires nothing but the flip | Off is addressed to a person standing at the poster; on restores exactly what was already printed, so nothing needs re-explaining |
 | Availability cannot be switched on without a configured Datenschutz URL | Collecting a name, a birth date and an IBAN from somebody who was never told what happens to them is the failure this condition exists to prevent — and it is the half an admin is most likely to skip, because the poster is the visible artefact and the notice is not |
-| The refusal names which precondition is missing (`datenschutz_url_missing`), rather than greying the switch out | An admin who cannot turn a feature on and is not told why files a bug against the switch, not against the missing document |
+| The refusal names which precondition is missing (`document_url_missing`), rather than greying the switch out | An admin who cannot turn a feature on and is not told why files a bug against the switch, not against the missing document |
 | Club Bar stores the Datenschutz URL, never the document, and never fetches it | It is generic software installed by clubs it knows nothing about, so the legal text is the club's to write and host; the URL is displayed, not dereferenced, and the member navigates to it themselves (decision 6) |
 | The mandate template URL is the opposite: it **is** fetched, once at save to validate it and again at every render | It is only ever set by an `admin`, so dereferencing it is not a public-input SSRF the way an untrusted URL would be (decision 5a) — no copy is stored, so there is nothing else to keep in sync with the club's own document |
 | Saving the template URL is refused, and the URL is not saved, when the fetch fails or a required field is missing or unreadable | A bad pointer must fail loudly at save time, not silently at the printer, weeks later (decision 5a) |
@@ -208,7 +219,7 @@ at all, because the shipped DK-Muster default always renders in its place.
 
 **After configuring the mandate template URL**
 - On success: `sepa_config.mandate_template_url` is updated, the save is
-  recorded to the audit log, and filling the mandate sheet — at registration
+  recorded to the audit log, and filling the club document — at registration
   and at review — now fetches from it.
 - On refusal: the field is unchanged. Nothing is saved, and the previously
   configured URL (or the shipped default, if none was ever set) keeps
@@ -235,7 +246,7 @@ admin to generate a secret first.
 Refused for the same reason as E3: nothing to reprint or rotate.
 
 ### E4a: Availability is turned on with no Datenschutz URL configured
-Refused with a typed `datenschutz_url_missing`, and the panel names the missing
+Refused with a typed `document_url_missing`, and the panel names the missing
 precondition and links straight to the instance configuration screen that sets
 it. The switch is never silently greyed out: an admin who is not told which of
 the two conditions they are missing has been handed a puzzle instead of a
@@ -253,8 +264,8 @@ URL, if any, is untouched.
 
 ## Test Derivation
 
-- Availability cannot be switched on while `instance_config.privacy_policy_url`
-  is empty; the refusal is `datenschutz_url_missing` and names the precondition
+- Availability cannot be switched on while `sepa_config.mandate_template_url`
+  is empty; the refusal is `document_url_missing` and names the precondition
 - Availability cannot be switched on before a secret exists
 - With both preconditions met, the switch is accepted and a poster scan reaches
   the form
@@ -290,7 +301,7 @@ URL, if any, is untouched.
   refused with a typed reason pointing at `--uncompressed-pdf`
 - Saving a template URL that enumerates all five required fields is
   accepted, persisted, and recorded to the audit log
-- With no template URL ever configured, rendering the mandate sheet uses the
+- With no template URL ever configured, rendering the document uses the
   shipped DK-Muster default
 
 ## Related

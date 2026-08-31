@@ -5,7 +5,7 @@
 ## Actors
 
 - **Admin or Kassenwart** — reviews the inbox, corrects a typo, prints the
-  mandate sheet, and approves or rejects.
+  club's document, and approves or rejects.
 - **Applicant** — the person who scanned the poster and filled in their own
   data ([UC-P01](../public/UC-P01-member-self-registration.md)). Has no
   account and no session, and — this is the invariant the whole use case turns
@@ -63,12 +63,16 @@ acted on or its TTL purges it (ADR-0052 decision 10).
    the IBAN, which is replace-only (below), and `mandate_reference`, which is
    never editable at all (it was minted at submission, decision 4, and rides
    unchanged to approval).
-4. The admin prints the mandate sheet for the applicant's signature (or opens
-   the one the applicant already printed themselves during registration).
-   The sheet is rendered by filling the club's own mandate template, fetched
-   from the URL configured in [UC-A69](./UC-A69-configure-self-registration.md)
-   — or, when none is configured or it cannot be reached, the shipped
-   DK-Muster default (ADR-0052 decisions 5 and 5a). Printed here, it carries:
+4. The admin prints the club's whole document — all pages, not a sheet this
+   software composes — for the applicant's signature (or opens the one the
+   applicant already printed themselves during registration). Page 1 is
+   rendered by filling the club's own combined Anmeldung, fetched from the
+   URL configured in [UC-A69](./UC-A69-configure-self-registration.md) — or,
+   when none is configured or it cannot be reached, the shipped DK-Muster
+   default (ADR-0052 decisions 5 and 5a) — and every later page is appended
+   exactly as the club published it, which is what puts the
+   Datenschutzhinweise and the Nutzungsordnung in the applicant's hands at
+   the moment they sign (decision 6a). Printed here, page 1 carries:
    - A **blank IBAN line**, left empty for the applicant to hand-write, with
      the `endet auf ****3000` hint printed from `iban_last4` next to it — the
      server never held the plaintext IBAN to fill the line with in the first
@@ -78,11 +82,12 @@ acted on or its TTL purges it (ADR-0052 decision 10).
    - The **account holder's name** in the signature block whenever one was
      supplied — never the applicant's, because the account holder is who has
      to sign (ADR-0052 decisions 5 and 7).
-   - Ort/Datum and every signature are never machine-filled — they are
-     handwritten on the paper, always, and a valid template carries no fields
-     for them.
+   - Ort/Datum, every signature and the **Kenntnisnahme checkbox** are never
+     machine-filled — they are done by hand on the paper, always, and a valid
+     template carries no fields for any of them.
 5. The applicant (or their legal representative, or the account holder) signs
-   the paper by hand, writing their IBAN into the blank line.
+   the paper by hand, ticks the Kenntnisnahme box, and writes their IBAN into
+   the blank line.
 6. The admin approves, affirming the one attestation this step exists to
    record: **the signed paper is in hand, and the hand-written IBAN ends in
    the four digits the screen shows.** There is nothing else to check —
@@ -111,9 +116,9 @@ screen to edit — the server never held the plaintext and cannot show it back.
    number and **overwrites** `iban_ciphertext`, `iban_last4` and
    `iban_fingerprint` on the pending row in the same request. The old sealed
    value is gone; nothing keeps a history of a mistyped IBAN.
-4. The mandate sheet's `****` hint updates from the new `iban_last4`. If the
-   sheet was already printed with the old hint, it must be reprinted before
-   the applicant signs — the attestation in step 6 above is only meaningful
+4. The document's `****` hint updates from the new `iban_last4`. If it was
+   already printed with the old hint, it must be reprinted before the
+   applicant signs — the attestation in step 6 above is only meaningful
    against the current hint.
 
 ## Alternative Flow: rejecting a registration
@@ -138,8 +143,8 @@ screen to edit — the server never held the plaintext and cannot show it back.
 |---|---|
 | Inbox row | `Lena Brandt` · submitted 3 days ago · `****3000` · Sparkasse · no duplicate flags · purges in 27 days |
 | Detail view | Date of birth makes Lena 15 — the "minor" note appears; account holder name `Petra Brandt` is filled in |
-| Printed sheet | Blank IBAN line with `****3000` printed beside it; a legal-representative signature line under the applicant's own; signature block names **Petra Brandt**, not Lena |
-| At the bar | Petra signs as legal representative and writes her IBAN by hand; it ends in `3000`, matching the hint |
+| Printed document | Page 1: blank IBAN line with `****3000` printed beside it; a legal-representative signature line under the applicant's own; signature block names **Petra Brandt**, not Lena. Pages 2–4 (Datenschutzhinweise, Nutzungsordnung) carried over untouched |
+| At the bar | Petra ticks the Kenntnisnahme box, signs as legal representative, and writes her IBAN by hand; it ends in `3000`, matching the hint |
 | Approve | Kassenwart confirms the attestation: paper in hand, hand-written IBAN ends in `3000`. Lena becomes a member; the mandate is opened in Petra's name as account holder |
 
 ## Rules
@@ -152,9 +157,10 @@ screen to edit — the server never held the plaintext and cannot show it back.
 | The IBAN is never displayed, only replaced | The server holds no key that can open `iban_ciphertext` (ADR-0036); showing it back is not a UI choice withheld, it is a thing that cannot be built |
 | Correcting a typo does not touch `mandate_reference` | It was minted at submission specifically because it had to be printed on the paper before the mandate existed; approval carries it across unchanged (decision 4) |
 | Duplicate flags never block approval | They are visibility for a human decision, not a gate — a member of the family joining a second time, or a returning member re-registering, is a legitimate outcome the admin decides on, not a state the system refuses (decision 9) |
-| The admin-print sheet needs no plaintext IBAN | It is filled from the club's template (or the shipped default) with `iban` left empty and `iban_last4` printed as the hint — a blank line and a hint, never a filled-in number |
-| Ort/Datum and every signature stay handwritten on the admin-print sheet | Never machine-filled, and not fields a valid template carries at all (ADR-0052 decision 5) |
-| The legal-representative line appears only for a submitted birth date under the age of majority | The sheet must not silently ask a minor to sign alone |
+| The admin-print copy needs no plaintext IBAN | It is filled from the club's document (or the shipped default) with `iban` left empty and `iban_last4` printed as the hint — a blank line and a hint, never a filled-in number |
+| The admin prints the club's whole document, page 1 filled, every later page unchanged | There is no clubbar-composed sheet — reviewing the template means checking the club's own document, and pages 2+ put the Datenschutzhinweise and Nutzungsordnung in the applicant's hands at the moment they sign (ADR-0052 decision 6a) |
+| Ort/Datum, every signature and the Kenntnisnahme checkbox stay handwritten on the admin-print document | Never machine-filled, and not fields a valid template carries at all (ADR-0052 decision 5). The checkbox being ticked by hand on paper is not a contradiction of UC-P01's rule that the onboarding *page* carries no checkbox — the two are different surfaces |
+| The legal-representative line appears only for a submitted birth date under the age of majority | The document must not silently ask a minor to sign alone |
 | The signature block names the account holder, not the applicant, whenever one was supplied | The mandate must be signed by whoever owns the account (decision 7) |
 | Rejection deletes the row immediately, not on a delay | Nothing here is a Beleg; a queue nobody empties is exactly how personal data about somebody who never joined would accumulate (decision 10) |
 | Rejection's audit entry carries the IBAN masked, never in full | ADR-0005 — the same masking every IBAN change in this system is logged under |
@@ -214,13 +220,15 @@ account for.
 - Editing name, email, date of birth, account holder name and language
   persists on the pending row without touching `mandate_reference`
 - Replacing the IBAN overwrites `iban_ciphertext`, `iban_last4` and
-  `iban_fingerprint`, and the sheet's hint reflects the new last four
-- The admin-print sheet renders the club's configured template — or the
+  `iban_fingerprint`, and the document's hint reflects the new last four
+- The admin-print document renders the club's configured template — or the
   shipped DK-Muster default when none is configured or it is unreachable —
   with a blank IBAN line plus the `****` hint, and never a filled-in number
-- Ort/Datum and every signature line on the admin-print sheet are always
-  blank, never machine-filled
-- The admin-print sheet adds the legal-representative line only when the
+- The admin-print document's page count matches the configured template's;
+  every page after page 1 is byte-identical to the source document
+- Ort/Datum, every signature line and the Kenntnisnahme checkbox on the
+  admin-print document are always blank, never machine-filled
+- The admin-print document adds the legal-representative line only when the
   submitted birth date is under the age of majority
 - The signature block names the account holder when one was supplied, the
   applicant otherwise

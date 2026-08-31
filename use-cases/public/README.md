@@ -33,7 +33,7 @@ this club ever exposes without a login belongs here alongside it.
 
 | ID | Name | Description |
 |----|------|-------------|
-| [UC-P01](./UC-P01-member-self-registration.md) | Register as a Member by Scanning the Club's QR Code | A prospective member submits their own details and downloads a mandate sheet to sign. Submitting creates no member and no mandate — an admin still has to see the signed paper and approve (UC-A17) before anyone is onboarded |
+| [UC-P01](./UC-P01-member-self-registration.md) | Register as a Member by Scanning the Club's QR Code | A prospective member submits their own details and downloads the club's Anmeldung, pre-filled, to sign. Submitting creates no member and no mandate — an admin still has to see the signed paper and approve (UC-A17) before anyone is onboarded |
 
 ## Non-Functional Requirements
 
