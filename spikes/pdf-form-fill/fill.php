@@ -53,8 +53,13 @@ if ($missing !== []) {
 
 try {
     $pdf = new \setasign\Fpdi\Fpdi('P', 'pt');
-    $pdf->setSourceFile($tpl);
-    $tplId = $pdf->importPage(1); // widgets/annotations are not imported => flattened base
+    $pageCount = $pdf->setSourceFile($tpl);
+
+    // Page 1 carries the form fields: import it, draw the values, THEN append
+    // the remaining pages (a club template may carry Datenschutz/Nutzungs-
+    // ordnung pages behind the form page). FPDF cannot revisit an earlier
+    // page, so the order matters. Annotations are never imported => flattened.
+    $tplId = $pdf->importPage(1);
     $size = $pdf->getTemplateSize($tplId);
     $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
     $pdf->useTemplate($tplId);
@@ -74,6 +79,13 @@ try {
         $txt = iconv('UTF-8', 'ISO-8859-1//TRANSLIT', $value) ?: $value;
         $baselineFromBottom = $y1 + ($h - $fontSize) / 2 + 2.0;
         $pdf->Text($x1 + 3, (float)$size['height'] - $baselineFromBottom, $txt);
+    }
+
+    for ($pageNo = 2; $pageNo <= $pageCount; $pageNo++) {
+        $tplId = $pdf->importPage($pageNo);
+        $s = $pdf->getTemplateSize($tplId);
+        $pdf->AddPage($s['orientation'], [$s['width'], $s['height']]);
+        $pdf->useTemplate($tplId);
     }
 
     pdf_download_headers($filename);

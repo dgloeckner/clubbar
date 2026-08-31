@@ -107,6 +107,8 @@ function sample_data(string $variant): array
         'mandatsreferenz' => 'c0ffee1234spike9d41d8cd98f00b204',
         'vorname'         => 'Jürgen',
         'nachname'        => 'Müller-Lüdenscheidt',
+        'geburtsdatum'    => '23.11.1979',
+        'email'           => 'juergen@example.org',
         // No datum_ort: Ort/Datum is written by hand at signature.
     ];
     if ($variant === 'admin') {
