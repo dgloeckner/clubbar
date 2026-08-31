@@ -81,11 +81,15 @@ function enumerate_fields(string $path): array
     return ['fields' => $fields, 'warnings' => $warnings];
 }
 
-/** The field vocabulary a valid mandate template must provide (clubbar#777 draft). */
+/**
+ * The field vocabulary a valid mandate template must provide (clubbar#777 draft).
+ * Member-specific data only: the creditor block may be printed statically by the
+ * club's template (the FRGS one does), and Ort/Datum is always written by hand
+ * at signature — never machine-filled. Creditor fields are filled when present.
+ */
 function required_fields(): array
 {
-    return ['glaeubiger_name', 'glaeubiger_id', 'mandatsreferenz',
-            'vorname', 'nachname', 'iban', 'iban_last4', 'datum_ort'];
+    return ['mandatsreferenz', 'vorname', 'nachname', 'iban', 'iban_last4'];
 }
 
 /**
@@ -96,12 +100,14 @@ function required_fields(): array
 function sample_data(string $variant): array
 {
     $common = [
+        // Filled only when the template carries these fields (a club template
+        // may print its creditor block statically instead).
         'glaeubiger_name' => 'FRGS v. 1879 e.V. (Spike)',
         'glaeubiger_id'   => 'DE98ZZZ09999999999',
         'mandatsreferenz' => 'c0ffee1234spike9d41d8cd98f00b204',
         'vorname'         => 'Jürgen',
         'nachname'        => 'Müller-Lüdenscheidt',
-        'datum_ort'       => 'Frankfurt-Sachsenhausen, ' . date('d.m.Y'),
+        // No datum_ort: Ort/Datum is written by hand at signature.
     ];
     if ($variant === 'admin') {
         return $common + ['iban' => '', 'iban_last4' => 'endet auf ****3000'];
