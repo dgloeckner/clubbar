@@ -1,0 +1,46 @@
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (x.x.x)'
+        required: true
+
+name: Create release
+
+permissions: {}
+
+jobs:
+  build:
+    name: Create release
+    runs-on: ubuntu-latest
+    
+    permissions:
+      packages: write
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+          persist-credentials: true
+
+      - name: Replace version constant
+        run: |
+          sed -i "s/VERSION\s*=\s*[^;]*/VERSION = '${NEW_VERSION}'/g" ./src/Fpdi.php ./src/Tcpdf/Fpdi.php ./src/Tfpdf/Fpdi.php
+        env:
+          NEW_VERSION: ${{ github.event.inputs.version }}
+
+      - name: Commit and push version constant update
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: Updated version constant
+          push_options: --force
+
+      - name: Create Release
+        id: create_release
+        run: |
+          gh release create --draft --title "FPDI ${title}" "v${tag}"
+        env:
+          NEW_VERSION: ${{ github.event.inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

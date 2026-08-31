@@ -1,0 +1,180 @@
+<?php
+
+namespace setasign\Fpdi\functional\PdfReader;
+
+use PHPUnit\Framework\TestCase;
+use setasign\Fpdi\PdfParser\PdfParser;
+use setasign\Fpdi\PdfParser\PdfParserException;
+use setasign\Fpdi\PdfParser\StreamReader;
+use setasign\Fpdi\PdfReader\DataStructure\Rectangle;
+use setasign\Fpdi\PdfReader\PdfReader;
+
+class PageTest extends TestCase
+{
+    public function getExternalLinksProvider()
+    {
+        return [
+            [
+                __DIR__ . '/../../_files/pdfs/links/links.pdf',
+                [
+                    1 => [
+                        [
+                            'uri' => 'https://www.setasign.com/#1',
+                            'rect' => new Rectangle(248.319, 770.353, 321.278, 785.773),
+                            'quadPoints' => []
+                        ],
+                        [
+                            'uri' => 'https://www.setasign.com/#2',
+                            'rect' => new Rectangle(55.8, 717.681, 516.32, 740.345),
+                            'quadPoints' => []
+                        ],
+                        [
+                            'uri' => 'https://www.setasign.com/#4',
+                            'rect' => new Rectangle(391.718, 604.809, 536.744, 617.717),
+                            'quadPoints' => []
+                        ],
+                        [
+                            'uri' => 'https://www.setasign.com/#5',
+                            'rect' => new Rectangle(118.692, 577.209, 170.06, 590.117),
+                            'quadPoints' => []
+                        ],
+                        [
+                            'uri' => 'https://demos.setasign.com/?some=(get paramert/with special signs',
+                            'rect' => new Rectangle(234.603, 535.753, 333.254, 551.173),
+                            'quadPoints' => []
+                        ],
+                        [
+                            'uri' => 'https://www.setasign.com/#3',
+                            'quadPoints' => [
+                                507.913, 659.953, 537.229, 659.953, 537.229, 675.373, 507.913, 675.373,
+                                56.8, 646.153, 82.0958, 646.153, 82.0958, 661.573, 56.8, 661.573
+                            ]
+                        ]
+                    ],
+                    2 => [
+                        [
+                            'uri' => 'https://www.setasign.com',
+                            'quadPoints' => [
+                                474.12, 590.953, 500.412, 590.953, 500.412, 606.373, 474.12, 606.373,
+                                56.8, 577.153, 169.059, 577.153, 169.059, 592.573, 56.8, 592.573
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            [
+                __DIR__ . '/../../_files/pdfs/links/rotated-pages.pdf',
+                [
+                    1 => [
+                        [
+                            'uri' => 'https://www.setasign.com',
+                            'rect' => new Rectangle(414.5609999999999, 151.34099999999995, 447.8809999999999, 297.64)
+                        ]
+                    ]
+                ]
+            ],
+            [
+                __DIR__ . '/../../_files/pdfs/links/annotations-with-invalid-references.pdf',
+                [
+                    1 => [
+                        [
+                            'uri' => 'https://www.setasign.com/#1',
+                            'rect' => new Rectangle(20, 20, 100, 200)
+                        ],
+                        [
+                            'uri' => 'https://www.setasign.com/#2',
+                            'rect' => new Rectangle(140, 140, 100, 200)
+                        ]
+                    ]
+                ]
+            ],
+            [
+                __DIR__ . '/../../_files/pdfs/links/invalid-annots-reference.pdf',
+                [
+                    1 => []
+                ]
+            ],
+            [
+                __DIR__ . '/../../_files/pdfs/links/tuto6.pdf',
+                [
+                    2 => [
+                        [
+                            // the strings are in UTF-16BE: http://pdf.wtf/ümlaut
+                            'uri' => "\xFE\xFF\x00h\x00t\x00t\x00p\x00:\x00/\x00/\x00p\x00d\x00f\x00.\x00w\x00t\x00f\x00/\x00\xfc\x00m\x00l\x00a\x00u\x00t",
+                            'rect' => new Rectangle(28.35, 807.87, 113.39, 749.82)
+                        ],
+                        [
+                            'uri' => "\xFE\xFF\x00h\x00t\x00t\x00p\x00:\x00/\x00/\x00p\x00d\x00f\x00.\x00w\x00t\x00f\x00/\x00\xfc\x00m\x00l\x00a\x00u\x00t",
+                            'rect' => new Rectangle(387.18, 770.93, 468.87, 756.93)
+                        ],
+                    ]
+                ]
+            ]
+        ];
+    }
+
+    /**
+     * @dataProvider getExternalLinksProvider
+     */
+    public function testGetExternalLinks($path, $expectedData)
+    {
+        $stream = StreamReader::createByFile($path);
+        $parser = new PdfParser($stream);
+
+        $pdfReader = new PdfReader($parser);
+
+        foreach ($expectedData as $pageNo => $expectedDataPerPage) {
+            $page = $pdfReader->getPage($pageNo);
+            $data = $page->getExternalLinks();
+
+            $this->assertEquals(count($data), count($expectedDataPerPage));
+            foreach ($expectedDataPerPage as $no => $expectedPageData) {
+                foreach ($expectedPageData as $key => $value) {
+                    $this->assertEquals($value, $data[$no][$key]);
+                }
+            }
+        }
+    }
+
+    public function testGetAttributeWithRecursion()
+    {
+        $stream = StreamReader::createByFile(__DIR__ . '/../../_files/pdfs/specials/page_parent_loop.pdf');
+        $parser = new PdfParser($stream);
+
+        $pdfReader = new PdfReader($parser);
+        $page = $pdfReader->getPage(1);
+
+        $this->expectException(PdfParserException::class);
+        $this->expectExceptionMessage('Indirect reference recursion detected (4).');
+        $page->getAttribute('Rotate');
+    }
+
+    public function testGetContentStreamWithFaultyStreamsInContentsArray()
+    {
+        $stream = StreamReader::createByFile(__DIR__ . '/../../_files/pdfs/specials/invalid_zlib_streams_issue252.pdf');
+        $parser = new PdfParser($stream);
+
+        $pdfReader = new PdfReader($parser);
+        $page = $pdfReader->getPage(1);
+        $content = $page->getContentStream();
+        $this->assertStringStartsWith(
+            "q\n"
+            . "2.8346457 0 0 2.8346457 0 0 cm q\n"
+            . "BT\n"
+            . "0 0 0 1 k\n"
+            . "/F0 6 Tf\n"
+            . "18.6606 277.3104 Td\n",
+            $content
+        );
+
+        $this->assertStringEndsWith(
+            "(Moms 25% 2793,75 \(11175,00\) ) Tj\n"
+            . "ET\n"
+            . "Q\n"
+            . "Q",
+            $content
+        );
+
+        $this->assertSame(8520, \strlen($content));
+    }
+}
