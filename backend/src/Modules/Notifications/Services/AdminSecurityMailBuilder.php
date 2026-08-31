@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Services;
 
+use App\Modules\AdminUsers\Domain\InvitationLink;
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\AdminUsers\Services\InvitationTokenCipher;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailSubject;
 use App\Modules\Notifications\Mail\AdminEmailChangedMail;
+use App\Modules\Notifications\Mail\AdminInvitationMail;
 use App\Modules\Notifications\Mail\AdminLifecycleMail;
 use App\Shared\Mail\MailMessage;
 
@@ -40,6 +44,10 @@ class AdminSecurityMailBuilder implements MailContentBuilder
         private AdminUsersRepository $adminUsersRepository,
         private MailConfigService $mailConfigService,
         private AdminUserRolesRepository $adminUserRolesRepository,
+        private AdminInvitationsRepository $invitationsRepository,
+        private InvitationTokenCipher $invitationCipher,
+        /** The installation's public base URL — the origin the SPA is served from. */
+        private string $appUrl,
     ) {}
 
     public function supports(MailKind $kind): bool
@@ -104,10 +112,91 @@ class AdminSecurityMailBuilder implements MailContentBuilder
                 language: $language,
                 branding: $this->mailConfigService->getConfig()->toBranding(),
             ),
+            MailKind::ADMIN_INVITATION => $this->buildInvitation($outboxRow, $admin, $recipient, $language, $mailConfig),
             default => throw new \InvalidArgumentException(
                 sprintf('%s has no content builder yet', $kind->value)
             ),
         };
+    }
+
+    /**
+     * The invitation message, with the live link in it (migration 058).
+     *
+     * The one place the raw token comes back into existence. The queue row
+     * carries the invitation's id as its `dedup_key`, the invitation row
+     * carries the sealed token, and the link is rebuilt here — which is what
+     * lets ADR-0038 rule 5 hold for a message whose content is a secret: the
+     * queue stores no token, and the database stores no usable one.
+     *
+     * Every failure below **throws**, and that is deliberate. The drain records
+     * a thrown builder against the message, where an admin can see it and
+     * resend; a message sent with a broken link would instead reach a colleague
+     * who has no account yet, no way to tell a bad link from a bad system, and
+     * nobody to ask.
+     *
+     * @param array<string,mixed> $outboxRow
+     * @param array<string,mixed> $admin
+     */
+    private function buildInvitation(
+        array $outboxRow,
+        array $admin,
+        string $recipient,
+        MailLanguage $language,
+        MailConfigDto $mailConfig,
+    ): MailMessage {
+        // The dedup key *is* the invitation's id — this kind is queued through
+        // `MailRequestDto::forInvitation()`, which appends nothing to it,
+        // because the recipient and the subject are the same account.
+        $invitationId = trim((string) ($outboxRow['dedup_key'] ?? ''));
+
+        $invitation = $invitationId !== '' ? $this->invitationsRepository->findById($invitationId) : null;
+        if ($invitation === null) {
+            throw new \RuntimeException(
+                sprintf('Invitation %s is gone; refusing to mail a link to nothing', $invitationId)
+            );
+        }
+
+        // An invitation already spent or replaced is not mailed. The most
+        // likely way to get here is a resend queued while the first message was
+        // still waiting for the drain: sending both would put a dead link in
+        // somebody's inbox next to a live one, with nothing to tell them apart.
+        if ($invitation['accepted_at'] !== null || $invitation['revoked_at'] !== null) {
+            throw new \RuntimeException(
+                sprintf('Invitation %s is no longer live; refusing to mail it', $invitationId)
+            );
+        }
+
+        $token = $this->invitationCipher->open((string) $invitation['token_cipher']);
+        if ($token === false) {
+            // secretbox authenticates, so this is a detected failure — a wrong
+            // `TOTP_ENCRYPTION_KEY` after a restore, or a tampered row — rather
+            // than plausible garbage that would render as a link-shaped string.
+            throw new \RuntimeException(
+                sprintf('Invitation %s could not be unsealed; refusing to mail a broken link', $invitationId)
+            );
+        }
+
+        return AdminInvitationMail::render(
+            recipientAddress: $recipient,
+            recipientName: trim((string) ($admin['display_name'] ?? '')) ?: null,
+            // The address the account signs in with, re-read at send time: it
+            // is what the invitee has to type into the login form, and an
+            // address corrected between enqueue and send should reach them
+            // corrected. The *envelope* is still the snapshot — see the class
+            // comment — so a message queued to one address is never quietly
+            // redirected to another.
+            signInEmail: (string) $admin['email'],
+            // Re-read at send time, like the address beside it. A role granted
+            // or revoked between enqueue and send should reach the invitee as
+            // it now stands — they are about to sign in and find out either
+            // way, and a message that disagrees with the panel is worse than
+            // one that is a few hours newer than the queue row.
+            roles: $this->adminUserRolesRepository->rolesFor((string) $admin['id']),
+            url: InvitationLink::url($this->appUrl, $token),
+            expiresAt: (string) $invitation['expires_at'],
+            language: $language,
+            branding: $mailConfig->toBranding(),
+        );
     }
 
     /**

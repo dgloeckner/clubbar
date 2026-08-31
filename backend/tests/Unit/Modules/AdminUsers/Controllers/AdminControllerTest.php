@@ -6,6 +6,8 @@ namespace Tests\Unit\Modules\AdminUsers\Controllers;
 
 use App\Modules\AdminUsers\Controllers\AdminController;
 use App\Modules\AdminUsers\DTOs\AdminUserDto;
+use App\Modules\AdminUsers\DTOs\AdminInvitationDto;
+use App\Modules\AdminUsers\Services\AdminInvitationService;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Shared\DTOs\PaginatedResultDto;
@@ -41,6 +43,7 @@ class AdminControllerTest extends TestCase
             $this->service,
             new Validator($this->createMock(\PDO::class)),
             $this->stepUpAuthService,
+            $this->createMock(AdminInvitationService::class),
         );
     }
 
@@ -184,6 +187,13 @@ class AdminControllerTest extends TestCase
         $this->assertSame('invalid_credentials', $this->decode($response)['error']);
     }
 
+    /**
+     * The response carries the invitation, never a password (migration 058).
+     *
+     * This test used to assert `password`, which was the whole problem: the
+     * endpoint minted a live credential and handed it to the caller to pass on
+     * by whatever means they had.
+     */
     public function test_store_a_correct_step_up_verifies_against_the_caller_and_creates_the_admin(): void
     {
         $this->stepUpAuthService->expects($this->once())
@@ -199,7 +209,15 @@ class AdminControllerTest extends TestCase
         $this->service->expects($this->once())
             ->method('createAdminUser')
             ->with('new@example.org', 'Someone', 'de', 'admin-1')
-            ->willReturn(['admin' => $this->admin(), 'password' => 'generated-password']);
+            ->willReturn([
+                'admin' => $this->admin(),
+                'invitation' => new AdminInvitationDto(
+                    adminUserId: 'admin-9',
+                    email: 'new@example.org',
+                    expiresAt: '2026-09-06 12:00:00',
+                    url: 'https://club.example.org/invite#token-abc',
+                ),
+            ]);
 
         $response = $this->controller->store(
             $this->post([
@@ -212,7 +230,11 @@ class AdminControllerTest extends TestCase
         );
 
         $this->assertSame(201, $response->getStatusCode());
-        $this->assertSame('generated-password', $this->decode($response)['password']);
+
+        $body = $this->decode($response);
+        $this->assertArrayNotHasKey('password', $body);
+        $this->assertSame('https://club.example.org/invite#token-abc', $body['invitation']['url']);
+        $this->assertSame('new@example.org', $body['invitation']['email']);
     }
 
     public function test_update_rejects_an_unsupported_locale(): void

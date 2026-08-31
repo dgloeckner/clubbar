@@ -52,7 +52,10 @@ use App\Modules\BankCodes\Services\BankCodeService;
 use App\Modules\BankCodes\Controllers\AdminController as BankCodesAdminController;
 
 // Services
+use App\Modules\AdminUsers\Services\AdminInvitationService;
 use App\Modules\AdminUsers\Services\AdminUsersService;
+use App\Modules\AdminUsers\Services\InvitationTokenCipher;
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AuditLog\Services\AuditLogService;
 use App\Modules\Dashboard\Services\DashboardService;
 use App\Shared\Services\AuditService;
@@ -110,6 +113,7 @@ use App\Modules\Transactions\Services\TransactionsService;
 
 // Controllers
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
+use App\Modules\AdminUsers\Controllers\InvitationController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminController;
@@ -208,6 +212,7 @@ class ServiceFactory implements ContainerInterface
 
         // AdminUsers
         AdminUsersAdminController::class => 'getAdminUsersAdminController',
+        InvitationController::class => 'getInvitationController',
 
         // AuditLog
         AuditLogAdminController::class => 'getAuditLogAdminController',
@@ -433,7 +438,44 @@ class ServiceFactory implements ContainerInterface
             $this->getNotificationsService(),
             $this->getAdminUserRolesRepository(),
             $this->getAdminNotifier(),
+            $this->getAdminInvitationService(),
         ));
+    }
+
+    /**
+     * Admin onboarding by invitation link (migration 058).
+     *
+     * Reaches for `AdminNotifier` rather than `NotificationsService`, and that
+     * is the point of the split: the latter needs `MembersRepository`, which
+     * reaches `IbanSealedBox`, which refuses to construct without
+     * `IBAN_FINGERPRINT_KEY`. Inviting a colleague must not require the club's
+     * bank-detail key to be configured.
+     */
+    public function getAdminInvitationService(): AdminInvitationService
+    {
+        return $this->resolve(AdminInvitationService::class, fn() => new AdminInvitationService(
+            $this->getAdminInvitationsRepository(),
+            $this->getAdminUsersRepository(),
+            $this->getAdminUserRolesRepository(),
+            $this->getInvitationTokenCipher(),
+            $this->getAdminNotifier(),
+            $this->getAuditService(),
+            $this->config,
+            $this->logger,
+        ));
+    }
+
+    public function getAdminInvitationsRepository(): AdminInvitationsRepository
+    {
+        return $this->resolve(AdminInvitationsRepository::class, fn() => new AdminInvitationsRepository(
+            $this->pdo,
+            $this->logger,
+        ));
+    }
+
+    public function getInvitationTokenCipher(): InvitationTokenCipher
+    {
+        return $this->resolve(InvitationTokenCipher::class, fn() => new InvitationTokenCipher());
     }
 
     public function getStepUpAuthService(): StepUpAuthService
@@ -611,6 +653,9 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminUsersRepository(),
             $this->getMailConfigService(),
             $this->getAdminUserRolesRepository(),
+            $this->getAdminInvitationsRepository(),
+            $this->getInvitationTokenCipher(),
+            $this->config->appUrl,
         ));
     }
 
@@ -1333,6 +1378,16 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminUsersService(),
             $this->getValidator(),
             $this->getStepUpAuthService(),
+            $this->getAdminInvitationService(),
+        ));
+    }
+
+    public function getInvitationController(): InvitationController
+    {
+        return $this->resolve(InvitationController::class, fn() => new InvitationController(
+            $this->getAdminInvitationService(),
+            $this->getValidator(),
+            $this->getLoginAttemptsRepository(),
         ));
     }
 

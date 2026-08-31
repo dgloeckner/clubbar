@@ -223,6 +223,43 @@ final readonly class MailRequestDto
         );
     }
 
+    /**
+     * The invitation link for one new admin (migration 058).
+     *
+     * Its own constructor because it is the one admin-addressed message whose
+     * **recipient is its subject**: it goes to the account being onboarded,
+     * about that account. {@see forAdmin()} appends the recipient's id to the
+     * occasion so that two admins each get told and neither gets told twice —
+     * here that dimension does not exist, and appending it is not merely
+     * redundant but *wrong*: `<uuid>:<uuid>` is 73 characters and `dedup_key`
+     * is VARCHAR(64), so the row is refused by the database. That failure is
+     * swallowed by the caller (an unqueued notice must never fail the thing it
+     * announces), which is exactly how a silently un-mailed invitation would
+     * reach production.
+     *
+     * The invitation's own id is therefore the whole key. It is what makes a
+     * resend a second message rather than one the unique index swallows — a
+     * resend exists precisely because the first did not arrive — and it is
+     * what the mail builder reads back to find the token it has to unseal.
+     */
+    public static function forInvitation(
+        string $adminUserId,
+        string $recipient,
+        string $invitationId,
+        MailLanguage $language,
+        ?string $actorAdminUserId = null,
+    ): self {
+        return new self(
+            kind: MailKind::ADMIN_INVITATION,
+            subjectId: $adminUserId,
+            recipient: $recipient,
+            language: $language,
+            dedupKey: $invitationId,
+            adminUserId: $adminUserId,
+            actorAdminUserId: $actorAdminUserId,
+        );
+    }
+
     public static function forAdmin(
         MailKind $kind,
         string $subjectId,

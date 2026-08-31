@@ -7,6 +7,8 @@ namespace Tests\Unit\Modules\AdminUsers\Services;
 use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\AdminUsers\DTOs\AdminInvitationDto;
+use App\Modules\AdminUsers\Services\AdminInvitationService;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Notifications\Services\AdminNotifier;
 use App\Modules\Notifications\Services\NotificationsService;
@@ -28,8 +30,12 @@ class AdminUsersServiceRolesTest extends TestCase
     private AdminUserRolesRepository $roles;
     private AdminUsersService $service;
 
+    /** @var AdminInvitationService&\PHPUnit\Framework\MockObject\MockObject */
+    private AdminInvitationService $invitations;
+
     protected function setUp(): void
     {
+        $this->invitations = $this->createMock(AdminInvitationService::class);
         $this->repository = $this->createMock(AdminUsersRepository::class);
         $this->roles = $this->createMock(AdminUserRolesRepository::class);
         $this->service = new AdminUsersService(
@@ -38,6 +44,7 @@ class AdminUsersServiceRolesTest extends TestCase
             $this->createMock(NotificationsService::class),
             $this->roles,
             $this->createMock(AdminNotifier::class),
+            $this->invitations,
         );
     }
 
@@ -171,7 +178,27 @@ class AdminUsersServiceRolesTest extends TestCase
             ->method('replace')
             ->with('admin-9', [AdminRole::ADMIN]);
 
-        $this->service->createAdminUser('new@example.org', 'New', 'de', 'admin-1');
+        // Creating an account now also mints the invitation that gives it a
+        // password (migration 058), so the double has to answer for it.
+        $this->invitations->expects($this->once())
+            ->method('issue')
+            ->with('admin-9', 'admin-1')
+            ->willReturn(new AdminInvitationDto(
+                adminUserId: 'admin-9',
+                email: 'new@example.org',
+                expiresAt: '2026-01-08 00:00:00',
+                url: 'https://club.example.org/invite#token-abc',
+            ));
+
+        $result = $this->service->createAdminUser('new@example.org', 'New', 'de', 'admin-1');
+
+        // No password anywhere in the answer: the account is unusable until
+        // its owner follows the link.
+        $this->assertArrayNotHasKey('password', $result);
+        $this->assertSame(
+            'https://club.example.org/invite#token-abc',
+            $result['invitation']->url,
+        );
     }
 
     public function test_creating_an_account_with_an_invalid_role_combination_is_refused(): void

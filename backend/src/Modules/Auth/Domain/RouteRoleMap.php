@@ -168,6 +168,10 @@ final class RouteRoleMap
         'DELETE /api/admin/admin-users/{id}' => self::ADMIN_ONLY,
         'POST /api/admin/admin-users/{id}/reactivate' => self::ADMIN_ONLY,
         'POST /api/admin/admin-users/{id}/reset-password' => self::ADMIN_ONLY,
+        // The replacement invitation (migration 058) sits on the same grant as
+        // the reset beside it, and for the same reason: both mint a way into
+        // somebody else's account.
+        'POST /api/admin/admin-users/{id}/invitation' => self::ADMIN_ONLY,
         'GET /api/admin/audit-log' => self::ADMIN_ONLY,
         'GET /api/admin/encryption-keys' => self::ADMIN_ONLY,
         'POST /api/admin/encryption-keys' => self::ADMIN_ONLY,

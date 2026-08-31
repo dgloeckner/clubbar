@@ -35,8 +35,9 @@ test.describe('Creating an admin with a specific role', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm({ ...testData, roles: ['kassenwart'] })
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    // Creating an account shows the invitation, not a password (migration 058).
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
 
     await expect.poll(() => authenticatedSettingsPage.countAdminUsersWithEmail(testData.email)).toBe(1)
 
@@ -56,8 +57,9 @@ test.describe('Creating an admin with a specific role', () => {
       roles: ['kassenwart', 'getraenkewart'],
     })
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    // Creating an account shows the invitation, not a password (migration 058).
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
 
     await expect.poll(() => authenticatedSettingsPage.countAdminUsersWithEmail(testData.email)).toBe(1)
 
@@ -132,8 +134,9 @@ test.describe('Reassigning an existing admin\'s role', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm({ ...testData, roles: ['kassenwart'] })
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    // Creating an account shows the invitation, not a password (migration 058).
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
     await expect.poll(() => authenticatedSettingsPage.countAdminUsersWithEmail(testData.email)).toBe(1)
 
     // Act: reassign to Getränkewart. Unchecking kassenwart then checking
@@ -165,8 +168,9 @@ test.describe('Reassigning an existing admin\'s role', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm({ ...testData, roles: ['getraenkewart'] })
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    // Creating an account shows the invitation, not a password (migration 058).
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
     await expect.poll(() => authenticatedSettingsPage.countAdminUsersWithEmail(testData.email)).toBe(1)
 
     const newName = `Renamed ${generateUnique()}`
@@ -215,8 +219,9 @@ test.describe('An admin cannot change their own roles', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm({ ...testData, roles: ['kassenwart'] })
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    // Creating an account shows the invitation, not a password (migration 058).
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
     await expect.poll(() => authenticatedSettingsPage.countAdminUsersWithEmail(testData.email)).toBe(1)
 
     await authenticatedSettingsPage.clickEditAdminButton(testData.email)

@@ -1,6 +1,7 @@
 import { Page, Locator, expect } from '@playwright/test'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
 import { generateTotp } from '../utils/totp'
+import { INVITED_ADMIN_PASSWORD } from '../utils/adminInvitation'
 
 /**
  * Settings Page Object Model
@@ -602,15 +603,164 @@ export class SettingsPage {
   }
 
   /**
-   * Get generated password from password display modal
+   * The secret a `SecretDisplayModal` is currently showing, or null when that
+   * modal is not on screen.
+   *
+   * Parameterised by test-id prefix because the same component now serves two
+   * one-time secrets in this tab: the password a reset produces, and the
+   * invitation link a creation produces (migration 058). One implementation,
+   * so a change to the modal cannot make one of them silently untested.
    */
-  async getGeneratedPassword(): Promise<string | null> {
-    const modal = this.page.getByTestId('settings-admin-password-modal')
+  private async getDisplayedSecret(prefix: string): Promise<string | null> {
+    const modal = this.page.getByTestId(`${prefix}-modal`)
     if (await modal.count() === 0) {
       return null
     }
-    const passwordText = await this.page.getByTestId('settings-admin-password-display').textContent()
-    return passwordText?.trim() || null
+    const text = await this.page.getByTestId(`${prefix}-display`).textContent()
+    return text?.trim() || null
+  }
+
+  /**
+   * Get generated password from password display modal
+   */
+  async getGeneratedPassword(): Promise<string | null> {
+    return this.getDisplayedSecret('settings-admin-password')
+  }
+
+  // ==================== Invitation modal (migration 058) ====================
+
+  /**
+   * The invitation link the create — or resend — flow just produced.
+   *
+   * This is what the create flow shows now: an account is created with no
+   * password at all, so there is no password to display.
+   */
+  async getInvitationLink(): Promise<string | null> {
+    return this.getDisplayedSecret('settings-admin-invitation')
+  }
+
+  async waitForInvitationModal() {
+    await expect(this.page.getByTestId('settings-admin-invitation-modal')).toBeVisible({ timeout: 5000 })
+  }
+
+  async expectInvitationModalVisible() {
+    await expect(this.page.getByTestId('settings-admin-invitation-modal')).toBeVisible()
+  }
+
+  async expectInvitationModalHidden() {
+    await expect(this.page.getByTestId('settings-admin-invitation-modal')).toBeHidden()
+  }
+
+  async closeInvitationModal() {
+    await this.page.getByTestId('settings-admin-invitation-close-button').click()
+  }
+
+  async copyInvitationToClipboard() {
+    await this.page.getByTestId('settings-admin-invitation-copy-button').click()
+  }
+
+  async expectInvitationCopyConfirmed() {
+    await expect(this.page.getByTestId('settings-admin-invitation-copy-status')).toBeVisible()
+  }
+
+  async expectInvitationCopyFailed() {
+    await expect(this.page.getByTestId('settings-admin-invitation-copy-error')).toBeVisible()
+  }
+
+  /** Click beside the invitation dialog — a one-time secret must survive it (#126). */
+  async clickInvitationModalBackdrop() {
+    await this.page.getByTestId('settings-admin-invitation-modal').click({ position: { x: 5, y: 5 } })
+  }
+
+  /** The "waiting for their invitation" marker on an account's row. */
+  async expectInvitationPending(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+    await expect(this.page.getByTestId(`settings-admin-user-invitation-badge-${adminId}`)).toBeVisible()
+  }
+
+  /**
+   * Send a pending account a replacement invitation.
+   *
+   * The button stands where the password reset does for an onboarded account —
+   * the two are mutually exclusive, because an account that has never had a
+   * password has nothing to reset.
+   */
+  async clickResendInvitationButton(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+
+    await this.page.getByTestId(`settings-admin-resend-invitation-button-${adminId}`).click()
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 5000 })
+    await this.fillStepUpCredential()
+    await this.page.getByTestId('confirm-dialog-ok').click()
+    await this.page.getByTestId('settings-admin-invitation-modal').waitFor({ state: 'visible' })
+  }
+
+  /**
+   * Walk the invitation the modal is currently showing, then dismiss it —
+   * leaving the account with a password and out of the "pending" state.
+   *
+   * A test that wants to exercise something an *onboarded* account can do (a
+   * password reset, say) has to do this first, because a pending account is
+   * deliberately not offered those actions. The accept goes through
+   * `page.request`, which is the public, session-less endpoint an invitee
+   * really reaches — so this also keeps the UI tests honest about the flow
+   * rather than reaching into the database.
+   *
+   * @returns The password the account now has.
+   */
+  async acceptInvitationFromModal(): Promise<string> {
+    const link = await this.getInvitationLink()
+    if (!link) {
+      throw new Error('No invitation link on screen to accept')
+    }
+
+    // The token is the link's fragment — it is never a path segment, so that
+    // no web server in front of the installation logs it.
+    const token = link.slice(link.indexOf('#') + 1)
+    const response = await this.page.request.post('/api/invitations/accept', {
+      data: {
+        token,
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: INVITED_ADMIN_PASSWORD,
+      },
+    })
+    expect(response.status(), await response.text()).toBe(200)
+
+    await this.closeInvitationModal()
+
+    return INVITED_ADMIN_PASSWORD
+  }
+
+  /**
+   * Re-fetch the admin list, so a row's state reflects something that changed
+   * outside the panel — an invitation accepted through the public endpoint,
+   * for instance, which the page has no way to hear about.
+   */
+  async reloadAdminUsers() {
+    const loaded = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+    )
+    await this.page.reload()
+    await this.clickAdminUsersTab()
+    await loaded
+  }
+
+  /** True when the row offers a password reset — i.e. the account is onboarded. */
+  async hasResetPasswordButton(email: string): Promise<boolean> {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+    return (await this.page.getByTestId(`settings-admin-reset-password-button-${adminId}`).count()) > 0
   }
 
   /**

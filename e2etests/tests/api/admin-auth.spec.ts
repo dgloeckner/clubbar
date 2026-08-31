@@ -5,6 +5,7 @@ import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { submitTotpWithRetry } from "../../utils/totp";
 import { loginAs } from "../../utils/csrf";
 import { stepUp } from "../../fixtures/stepUp";
+import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -560,9 +561,23 @@ test.describe("Admin Authentication", () => {
         },
       });
       expect(createResponse.status(), await createResponse.text()).toBe(201);
-      const { admin, password } = await createResponse.json();
+      const { admin, invitation } = await createResponse.json();
 
-      const context = await loginAs(playwright, admin.email, password);
+      // No password comes back any more (migration 058) — the invitation is
+      // what gives the account one, and it is the test that chooses it.
+      const accepted = await request.post(
+        `${API_BASE}/invitations/accept`,
+        {
+          data: {
+            token: tokenFromInvitationUrl(invitation.url),
+            password: INVITED_ADMIN_PASSWORD,
+            password_confirmation: INVITED_ADMIN_PASSWORD,
+          },
+        },
+      );
+      expect(accepted.status(), await accepted.text()).toBe(200);
+
+      const context = await loginAs(playwright, admin.email, INVITED_ADMIN_PASSWORD);
       return { admin, context };
     }
 

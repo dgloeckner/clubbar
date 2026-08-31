@@ -3,94 +3,18 @@
  * Handles email/password login, MFA verification, and first-time TOTP enrollment.
  */
 
-import { useState, useEffect, useRef, FormEvent, ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef, FormEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { LoginForm } from '../components/forms/LoginForm'
+import { AuthCard } from '../components/auth/AuthCard'
 import { useAuth } from '../context/AuthContext'
 import { landingPath } from '../utils/adminRoles'
-import { Card } from '../components/common/Card'
 import { Input } from '../components/common/Input'
 import { Button } from '../components/common/Button'
 import { SecretBox } from '../components/common/SecretBox'
 import { theme } from '../styles/design-system'
 import { useModalEscape } from '../hooks/useModalDialog'
-
-// ─── Shared card wrapper (logo + title) ──────────────────────────────────────
-
-function AuthCard({
-  title,
-  subtitle,
-  onInfo,
-  children,
-}: {
-  title: string
-  subtitle: string
-  onInfo?: () => void
-  children: ReactNode
-}) {
-  const { t } = useTranslation()
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        background: theme.colors.bg.primary,
-        padding: theme.spacing.lg,
-      }}
-    >
-      <Card style={{ width: '100%', maxWidth: '400px' }}>
-        <div style={{ textAlign: 'center', marginBottom: theme.spacing['2xl'] }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: theme.spacing.md }}>
-            <img src="/logo.svg" alt="Club Bar Logo" style={{ width: '120px', height: '120px' }} />
-          </div>
-          <h1
-            style={{
-              fontSize: theme.typography.fontSize['2xl'],
-              fontWeight: theme.typography.fontWeight.bold,
-              margin: 0,
-              marginBottom: theme.spacing.sm,
-              color: theme.colors.text.primary,
-            }}
-          >
-            {title}
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: theme.spacing.xs }}>
-            <p style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.secondary, margin: 0 }}>
-              {subtitle}
-            </p>
-            {onInfo && (
-              <button
-                type="button"
-                onClick={onInfo}
-                aria-label={t('auth.setupInfoAriaLabel')}
-                style={{
-                  flexShrink: 0,
-                  marginTop: '1px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '0 2px',
-                  color: theme.colors.semantic.info,
-                  fontSize: theme.typography.fontSize.base,
-                  lineHeight: 1,
-                  opacity: 0.8,
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.8' }}
-              >
-                ⓘ
-              </button>
-            )}
-          </div>
-        </div>
-        {children}
-      </Card>
-    </div>
-  )
-}
 
 // ─── TOTP info modal ──────────────────────────────────────────────────────────
 
@@ -415,7 +339,12 @@ function TotpSetupStep() {
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { t } = useTranslation()
+  // Set by the accept-invitation page when it sends a new admin here
+  // (migration 058). `replace: true` there means a reload drops it, which is
+  // right: the notice is about what just happened, not about this page.
+  const arrivedFromInvitation = (location.state ?? {}) as { email?: string; invitationAccepted?: boolean }
   const { login, requiresMfa, requiresTotpSetup, loading, error } = useAuth()
   const [localError, setLocalError] = useState<string>()
 
@@ -437,5 +366,13 @@ export function LoginPage() {
 
   // `error` covers the case where the MFA step ended on its own — the attempt cap
   // or the rate limiter sent us back here, and the reason must not vanish with it.
-  return <LoginForm onSubmit={handleSubmit} loading={loading} error={localError ?? error} />
+  return (
+    <LoginForm
+      onSubmit={handleSubmit}
+      loading={loading}
+      error={localError ?? error}
+      initialEmail={arrivedFromInvitation.email}
+      notice={arrivedFromInvitation.invitationAccepted ? t('invite.done') : undefined}
+    />
+  )
 }

@@ -58,9 +58,10 @@ test.describe('Admin Users Management', () => {
    * 2. Click create admin button
    * 3. Fill form with unique test data
    * 4. Click confirm
-   * 5. Verify password modal appears with generated password
+   * 5. Verify the invitation modal appears with the link (migration 058 — no
+   *    password is generated any more)
    * 6. Close modal
-   * 7. Verify new admin appears in table
+   * 7. Verify new admin appears in table, marked as waiting for its invitation
    *
    * Pattern 001: Unique test data per test
    * Pattern 008: Use expect() for assertions
@@ -97,16 +98,17 @@ test.describe('Admin Users Management', () => {
     // Submit form
     await authenticatedSettingsPage.clickCreateAdminConfirm()
 
-    // Wait for password modal to appear (indicates API call succeeded)
-    await authenticatedSettingsPage.waitForPasswordModal()
+    // Wait for the invitation modal to appear (indicates API call succeeded)
+    await authenticatedSettingsPage.waitForInvitationModal()
 
-    // Assert: Password modal should be visible
-    const passwordText = await authenticatedSettingsPage.getGeneratedPassword()
-    expect(passwordText).not.toBeNull()
-    expect(passwordText?.length).toBeGreaterThan(0)
+    // Assert: the link is what the admin is shown — there is no password to
+    // show, because the account was created with none (migration 058).
+    const invitationLink = await authenticatedSettingsPage.getInvitationLink()
+    expect(invitationLink).not.toBeNull()
+    // The token rides in the fragment; the path is a constant.
+    expect(invitationLink).toContain('/invite#')
 
-    // Close password modal
-    await authenticatedSettingsPage.closePasswordModal()
+    await authenticatedSettingsPage.closeInvitationModal()
 
     // Wait for admin users list to fully reload before asserting
     await adminUsersLoaded
@@ -124,6 +126,17 @@ test.describe('Admin Users Management', () => {
     const newAdmin = await authenticatedSettingsPage.getAdminUserByEmail(testData.email)
     expect(newAdmin).not.toBeNull()
     expect(newAdmin?.email).toContain(testData.email)
+
+    // …and it is visibly not usable yet. The row looks complete otherwise —
+    // name, address, roles — so without this marker an admin wondering why a
+    // colleague has not appeared has nothing on screen to tell them the link
+    // is still outstanding.
+    await authenticatedSettingsPage.expectInvitationPending(testData.email)
+
+    // A pending account is offered a resend, not a password reset: it has no
+    // password to reset, and offering one would hand the admin a credential to
+    // carry by hand — the practice this feature exists to end.
+    expect(await authenticatedSettingsPage.hasResetPasswordButton(testData.email)).toBe(false)
   })
 
   /**
@@ -138,7 +151,7 @@ test.describe('Admin Users Management', () => {
    *
    * Pattern 008: Use expect() for assertions
    */
-  test('should display generated password in modal with copy button', async ({ authenticatedSettingsPage }) => {
+  test('should display the invitation link in a modal with a copy button', async ({ authenticatedSettingsPage }) => {
     // Arrange: Navigate to admin users tab and create admin
     await authenticatedSettingsPage.waitForLoad()
     await authenticatedSettingsPage.clickAdminUsersTab()
@@ -150,20 +163,27 @@ test.describe('Admin Users Management', () => {
     await authenticatedSettingsPage.fillCreateAdminForm(testData)
     await authenticatedSettingsPage.clickCreateAdminConfirm()
 
-    // Wait for password modal (Pattern 008: use Playwright auto-waiting)
-    await authenticatedSettingsPage.waitForPasswordModal()
+    // Wait for the invitation modal (Pattern 008: use Playwright auto-waiting)
+    await authenticatedSettingsPage.waitForInvitationModal()
 
-    // Assert: Password modal should display password
-    const password = await authenticatedSettingsPage.getGeneratedPassword()
-    expect(password).not.toBeNull()
-    expect(password).toMatch(/^[A-Za-z0-9!@#$%^&*]{12,}$/) // At least 12 chars, alphanumeric + special
+    // Assert: the link is shown in full. It is mailed as well, and shown here
+    // because an installation whose mail is not configured yet would otherwise
+    // be left with an account nobody can reach.
+    const link = await authenticatedSettingsPage.getInvitationLink()
+    expect(link).not.toBeNull()
+    // The token sits in the **fragment**: everything left of the `#` is a
+    // constant, so no web server in front of the installation ever writes the
+    // token to an access log.
+    expect(link).toMatch(/^https?:\/\/[^/]+\/invite#[A-Za-z0-9_-]{16,}$/)
 
     // Assert: Copy button is visible
-    await expect(authenticatedSettingsPage.page.getByTestId('settings-admin-password-copy-button')).toBeVisible()
+    await expect(
+      authenticatedSettingsPage.page.getByTestId('settings-admin-invitation-copy-button'),
+    ).toBeVisible()
 
-    // Act: Copy the password — the modal stays open until the copy is confirmed (#126)
-    await authenticatedSettingsPage.copyPasswordToClipboard()
-    await authenticatedSettingsPage.expectPasswordModalVisible()
+    // Act: copy it — the modal stays open until the copy is confirmed (#126)
+    await authenticatedSettingsPage.copyInvitationToClipboard()
+    await authenticatedSettingsPage.expectInvitationModalVisible()
   })
 
   /**
@@ -191,8 +211,8 @@ test.describe('Admin Users Management', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm(initialData)
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
     await authenticatedSettingsPage.page.waitForTimeout(300)
 
     // Verify admin was created
@@ -253,15 +273,14 @@ test.describe('Admin Users Management', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm(testData)
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
+    await authenticatedSettingsPage.waitForInvitationModal()
 
-    // Get original password
-    const originalPassword = await authenticatedSettingsPage.getGeneratedPassword()
-    expect(originalPassword).not.toBeNull()
-
-    // Close password modal and wait for admin list to reload
-    await authenticatedSettingsPage.closePasswordModal()
+    // A reset replaces a password, so the account needs one first — and since
+    // migration 058 the only way it gets one is by walking its invitation.
+    // Until it has, the row offers a resend instead, deliberately.
+    const originalPassword = await authenticatedSettingsPage.acceptInvitationFromModal()
     await adminUsersLoaded
+    await authenticatedSettingsPage.reloadAdminUsers()
 
     // Act: Reset password
     await authenticatedSettingsPage.clickResetPasswordButton(testData.email)
@@ -271,9 +290,10 @@ test.describe('Admin Users Management', () => {
     const newPassword = await authenticatedSettingsPage.getGeneratedPassword()
     expect(newPassword).not.toBeNull()
 
-    // Note: We can't guarantee it's different (small chance of collision),
-    // but verify it exists and has valid format
+    // A real replacement: the reset must not hand back the password the
+    // invitee had just set.
     expect(newPassword).toMatch(/^[A-Za-z0-9!@#$%^&*]{12,}$/)
+    expect(newPassword).not.toBe(originalPassword)
 
     // Close modal
     await authenticatedSettingsPage.closePasswordModal()
@@ -281,6 +301,56 @@ test.describe('Admin Users Management', () => {
     // Verify admin still exists
     const admin = await authenticatedSettingsPage.getAdminUserByEmail(testData.email)
     expect(admin).not.toBeNull()
+  })
+
+  /**
+   * Test: send a pending account a replacement invitation (migration 058)
+   *
+   * The ordinary recovery when the first link went to spam or expired. It
+   * revokes the previous link, so the confirmation is not decoration — an
+   * admin pressing this is invalidating something somebody may be holding.
+   *
+   * Pattern 001: Unique test data per test
+   * Pattern 008: Use expect() for assertions
+   */
+  test('should send a pending admin a new invitation', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickAdminUsersTab()
+
+    const testData = generateTestAdminUser()
+
+    const adminUsersLoaded = authenticatedSettingsPage.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+    )
+
+    await authenticatedSettingsPage.clickCreateAdminButton()
+    await authenticatedSettingsPage.fillCreateAdminForm(testData)
+    await authenticatedSettingsPage.clickCreateAdminConfirm()
+    await authenticatedSettingsPage.waitForInvitationModal()
+
+    const firstLink = await authenticatedSettingsPage.getInvitationLink()
+    expect(firstLink).not.toBeNull()
+
+    await authenticatedSettingsPage.closeInvitationModal()
+    await adminUsersLoaded
+
+    // Act: ask for a replacement
+    await authenticatedSettingsPage.clickResendInvitationButton(testData.email)
+    await authenticatedSettingsPage.waitForInvitationModal()
+
+    // Assert: a genuinely different link — a resend that handed back the same
+    // one would leave an admin believing they had replaced something.
+    const secondLink = await authenticatedSettingsPage.getInvitationLink()
+    expect(secondLink).not.toBeNull()
+    expect(secondLink).not.toBe(firstLink)
+
+    await authenticatedSettingsPage.closeInvitationModal()
+
+    // …and the account is still waiting: a resend does not onboard anybody.
+    await authenticatedSettingsPage.expectInvitationPending(testData.email)
   })
 
   /**
@@ -316,8 +386,8 @@ test.describe('Admin Users Management', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm(testData)
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
     await adminUsersLoaded
 
     // Verify admin was created
@@ -370,9 +440,12 @@ test.describe('Admin Users Management', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm(testData)
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    await authenticatedSettingsPage.waitForInvitationModal()
+    // Onboarded first: a pending account is offered a resend rather than a
+    // reset (migration 058), so there would be no reset button to click.
+    await authenticatedSettingsPage.acceptInvitationFromModal()
     await adminUsersLoaded
+    await authenticatedSettingsPage.reloadAdminUsers()
 
     // The reset must not fire on the click alone.
     let resetCalls = 0
@@ -429,8 +502,8 @@ test.describe('Admin Users Management', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm(testData)
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
     // Wait for admin list to fully reload before asserting status
     await adminUsersLoaded
 
@@ -538,14 +611,14 @@ test.describe('Admin Users Management', () => {
 
     // Submit with valid data
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
+    await authenticatedSettingsPage.waitForInvitationModal()
 
-    // Assert: Should show password modal (submission succeeded)
-    const password = await authenticatedSettingsPage.getGeneratedPassword()
-    expect(password).not.toBeNull()
+    // Assert: the invitation modal appeared, so the submission succeeded
+    const link = await authenticatedSettingsPage.getInvitationLink()
+    expect(link).not.toBeNull()
 
     // Cleanup
-    await authenticatedSettingsPage.closePasswordModal()
+    await authenticatedSettingsPage.closeInvitationModal()
   })
 
   /**
@@ -571,8 +644,8 @@ test.describe('Admin Users Management', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm(testData)
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
 
     // The list reloads after the create; wait for the new row before acting
     await expect
@@ -701,8 +774,8 @@ test.describe('Self-lockout protection', () => {
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm(testData)
     await authenticatedSettingsPage.clickCreateAdminConfirm()
-    await authenticatedSettingsPage.waitForPasswordModal()
-    await authenticatedSettingsPage.closePasswordModal()
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
     await adminUsersLoaded
 
     // Somebody else's row carries no marker and stays operable
@@ -718,76 +791,81 @@ test.describe('Self-lockout protection', () => {
 /**
  * Issue #126: a generated password is shown exactly once, so the modal must not
  * discard it on a stray click or on a clipboard write that never succeeded.
+ *
+ * The secret the create flow shows is the **invitation link** since migration
+ * 058 — the account is created with no password, so there is no password to
+ * display. The component and the risk are unchanged: a link that has scrolled
+ * away is unrecoverable, and getting it back means sending a whole new one.
  */
-test.describe('Password modal — one-time secret handling', () => {
+test.describe('Invitation modal — one-time secret handling', () => {
   /**
-   * Create an admin user and leave the password modal open on screen.
+   * Create an admin user and leave the invitation modal open on screen.
    */
-  async function openPasswordModal(settingsPage: SettingsPage): Promise<string> {
+  async function openInvitationModal(settingsPage: SettingsPage): Promise<string> {
     await settingsPage.waitForLoad()
     await settingsPage.clickAdminUsersTab()
 
     await settingsPage.clickCreateAdminButton()
     await settingsPage.fillCreateAdminForm(generateTestAdminUser())
     await settingsPage.clickCreateAdminConfirm()
-    await settingsPage.waitForPasswordModal()
+    await settingsPage.waitForInvitationModal()
 
-    const password = await settingsPage.getGeneratedPassword()
-    expect(password).not.toBeNull()
-    expect(password!.length).toBeGreaterThan(0)
-    return password!
+    const link = await settingsPage.getInvitationLink()
+    expect(link).not.toBeNull()
+    expect(link).toContain('/invite#')
+    return link!
   }
 
-  test('keeps the password when the backdrop is clicked', async ({ authenticatedSettingsPage }) => {
-    const password = await openPasswordModal(authenticatedSettingsPage)
+  test('keeps the link when the backdrop is clicked', async ({ authenticatedSettingsPage }) => {
+    const link = await openInvitationModal(authenticatedSettingsPage)
 
     // Act: click outside the dialog, where the old backdrop handler used to close it
-    await authenticatedSettingsPage.clickPasswordModalBackdrop()
+    await authenticatedSettingsPage.clickInvitationModalBackdrop()
 
     // Assert: the secret is still on screen, unchanged
-    await authenticatedSettingsPage.expectPasswordModalVisible()
-    expect(await authenticatedSettingsPage.getGeneratedPassword()).toBe(password)
+    await authenticatedSettingsPage.expectInvitationModalVisible()
+    expect(await authenticatedSettingsPage.getInvitationLink()).toBe(link)
 
     // And the explicit acknowledgement still closes it
-    await authenticatedSettingsPage.closePasswordModal()
-    await authenticatedSettingsPage.expectPasswordModalHidden()
+    await authenticatedSettingsPage.closeInvitationModal()
+    await authenticatedSettingsPage.expectInvitationModalHidden()
   })
 
-  test('confirms the copy and keeps the password until acknowledged', async ({
+  test('confirms the copy and keeps the link until acknowledged', async ({
     authenticatedSettingsPage,
   }) => {
     await authenticatedSettingsPage.grantClipboardPermissions()
-    const password = await openPasswordModal(authenticatedSettingsPage)
+    const link = await openInvitationModal(authenticatedSettingsPage)
 
     // Act: copy the password
-    await authenticatedSettingsPage.copyPasswordToClipboard()
+    await authenticatedSettingsPage.copyInvitationToClipboard()
 
     // Assert: the write is confirmed and the clipboard really holds the password
-    await authenticatedSettingsPage.expectPasswordCopyConfirmed()
-    expect(await authenticatedSettingsPage.readClipboard()).toBe(password)
+    await authenticatedSettingsPage.expectInvitationCopyConfirmed()
+    expect(await authenticatedSettingsPage.readClipboard()).toBe(link)
 
     // Assert: copying alone does not discard the secret
-    await authenticatedSettingsPage.expectPasswordModalVisible()
-    expect(await authenticatedSettingsPage.getGeneratedPassword()).toBe(password)
+    await authenticatedSettingsPage.expectInvitationModalVisible()
+    expect(await authenticatedSettingsPage.getInvitationLink()).toBe(link)
 
-    await authenticatedSettingsPage.closePasswordModal()
-    await authenticatedSettingsPage.expectPasswordModalHidden()
+    await authenticatedSettingsPage.closeInvitationModal()
+    await authenticatedSettingsPage.expectInvitationModalHidden()
   })
 
-  test('keeps the password visible when the clipboard write fails', async ({
+  test('keeps the link visible when the clipboard write fails', async ({
     authenticatedSettingsPage,
   }) => {
-    const password = await openPasswordModal(authenticatedSettingsPage)
+    const link = await openInvitationModal(authenticatedSettingsPage)
 
     // Arrange: a clipboard that rejects, as on a non-secure origin
     await authenticatedSettingsPage.breakClipboard()
 
     // Act
-    await authenticatedSettingsPage.copyPasswordToClipboard()
+    await authenticatedSettingsPage.copyInvitationToClipboard()
 
     // Assert: the failure is reported and the password is still recoverable
-    await authenticatedSettingsPage.expectPasswordCopyFailed()
-    await authenticatedSettingsPage.expectPasswordModalVisible()
-    expect(await authenticatedSettingsPage.getGeneratedPassword()).toBe(password)
+    await authenticatedSettingsPage.expectInvitationCopyFailed()
+    await authenticatedSettingsPage.expectInvitationModalVisible()
+    expect(await authenticatedSettingsPage.getInvitationLink()).toBe(link)
   })
 })

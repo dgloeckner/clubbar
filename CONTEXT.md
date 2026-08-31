@@ -150,3 +150,24 @@ Neither names the other address. It is **not** a verification: nothing is gated
 on it, there is no token, and the message says so.
 _Avoid_: email verification, double opt-in, confirmation (all three promise a
 gate that does not exist), address update notice
+
+**Einladung** (admin invitation):
+The one-time link a newly created admin follows to set their own password. It is
+how an admin account acquires its first credential — the account is created with
+none, so there is nothing to hand over and nothing to intercept.
+
+Distinct from everything else in this glossary that arrives by mail: it is the
+only message in the system whose body carries a working credential, and the only
+one addressed to somebody who has no account yet. It expires in seven days,
+works once, and is revoked the moment a replacement is issued.
+
+It is **not** a password reset. An account that has accepted its invitation can
+never be sent another; the way back into one of those is
+[UC-A63](./use-cases/admin/UC-A63-reset-admin-password.md), which is guarded by
+a step-up the mail channel cannot reach past. And it is not a second factor:
+following the link sets the password and nothing else, after which the invitee
+signs in normally and enrols an authenticator like every other account has.
+See [UC-A68](./use-cases/admin/UC-A68-invite-admin.md).
+_Avoid_: activation link (nothing is activated), verification link (nothing is
+verified), magic link (it signs nobody in), welcome mail (that is the member's,
+and means something else here)

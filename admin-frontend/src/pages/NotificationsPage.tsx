@@ -442,6 +442,7 @@ const KINDS = [
   'terminal_anomaly_warning',
   // Admin accounts
   'admin_account_created',
+  'admin_invitation',
   'admin_role_changed',
   'admin_email_changed',
   // Backups

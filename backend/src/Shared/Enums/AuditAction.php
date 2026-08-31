@@ -174,4 +174,22 @@ enum AuditAction: string
      * authorising the route) stops working the moment this is written.
      */
     case CRON_SECRET_ROTATED = 'cron_secret_rotated';
+    /**
+     * An invitation link was mailed to a new admin account (migration 058).
+     *
+     * The link is what turns a row in `admin_users` into an account somebody
+     * can sign in to, so issuing one is minting authority under ADR-0044 rule
+     * 2 and belongs beside `role_granted` in the log. Carries no token — only
+     * the account, who invited them, and when the link stops working.
+     */
+    case INVITATION_SENT = 'invitation_sent';
+    /**
+     * A new admin followed their invitation link and set a password.
+     *
+     * The only entry in this log written by a request that carries no session,
+     * which is exactly why it has to exist: it is the moment an account starts
+     * being usable, and without it the log jumps from `create` to a first
+     * `login` with nothing in between saying how the password came to be.
+     */
+    case INVITATION_ACCEPTED = 'invitation_accepted';
 }

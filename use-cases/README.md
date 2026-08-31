@@ -93,6 +93,7 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A65 | Configure Credit Limits | Implemented | [UC-A65](./admin/UC-A65-configure-credit-limits.md) |
 | UC-A66 | Receive the Near-Limit Digest | Implemented | [UC-A66](./admin/UC-A66-credit-limit-digest.md) |
 | UC-A67 | A Member Is Written To About Their Own Record | Implemented | [UC-A67](./admin/UC-A67-member-lifecycle-mail.md) |
+| UC-A68 | Onboard an Admin by Invitation Link | Implemented | [UC-A68](./admin/UC-A68-invite-admin.md) |
 
 ### RFID Management
 

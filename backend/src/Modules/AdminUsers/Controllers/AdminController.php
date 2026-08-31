@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\AdminUsers\Controllers;
 
 use App\Modules\AdminUsers\Enums\AdminRole;
+use App\Modules\AdminUsers\Services\AdminInvitationService;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Shared\Validation\Validator;
@@ -22,6 +23,7 @@ class AdminController
         private AdminUsersService $adminUsersService,
         private Validator $validator,
         private StepUpAuthService $stepUpAuthService,
+        private AdminInvitationService $invitationService,
     ) {}
 
     public function index(Request $request, Response $response): Response
@@ -86,9 +88,14 @@ class AdminController
             $roles,
         );
 
+        // No password in the response any more (migration 058). What comes back
+        // is the invitation: when it expires, and the link itself — so an
+        // installation whose mail is not working yet still has something to
+        // hand over, which is the situation this endpoint used to solve by
+        // returning a live password.
         return $this->json($response, [
             'admin' => $result['admin']->toArray(),
-            'password' => $result['password'],
+            'invitation' => $result['invitation']->toArray(),
         ], 201);
     }
 
@@ -271,5 +278,44 @@ class AdminController
             'admin' => $result['admin']->toArray(),
             'password' => $result['password'],
         ]);
+    }
+
+    /**
+     * POST /api/admin/admin-users/{id}/invitation — issue a replacement link.
+     *
+     * For the ordinary case: the first invitation went to spam, or expired
+     * before anyone opened it. Any live invitation for the account is revoked
+     * by the same call, so a resend never leaves two working links.
+     *
+     * Behind the same step-up as the cross-account password reset, and for the
+     * same reason: this mints a credential for somebody else's account
+     * (ADR-0044 rule 2). The service refuses an account that has already
+     * accepted one — the invitation is an onboarding credential, not a second
+     * password-reset channel that skips this gate.
+     */
+    public function resendInvitation(Request $request, Response $response, array $args): Response
+    {
+        $id = $args['id'];
+        $adminId = $request->getAttribute('admin_user_id');
+        $caller = $request->getAttribute('admin_user');
+
+        $body = $request->getParsedBody() ?? [];
+
+        if (!$this->validator->validate($body, [
+            'current_password' => ['required', 'string'],
+        ])) {
+            return $this->validationFailed($response, $this->validator->errors());
+        }
+
+        if (!$this->stepUpAuthService->verify($caller, $body, $request)) {
+            return $this->json($response, [
+                'error' => 'invalid_credentials',
+                'message' => 'Re-enter your password to send this admin a new invitation',
+            ], 401);
+        }
+
+        $invitation = $this->invitationService->reissue($id, $adminId);
+
+        return $this->json($response, ['invitation' => $invitation->toArray()], 201);
     }
 }

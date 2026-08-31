@@ -3,6 +3,7 @@ import { test, expect } from '../../fixtures/auth.fixture'
 import { loginAs } from '../../utils/csrf'
 import { generateTotp, waitForFreshTotpWindow } from '../../utils/totp'
 import { stepUp } from '../../fixtures/stepUp'
+import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
 
 /**
  * Self-service credential changes (#337 follow-up).
@@ -66,9 +67,26 @@ async function createEnrolledAdmin(
     data: { ...stepUp(), email, display_name: `Self Service ${prefix}`, locale: 'de' },
   })
   expect(createResponse.status(), await createResponse.text()).toBe(201)
-  const { admin, password } = await createResponse.json()
+  const { admin, invitation } = await createResponse.json()
 
   const raw = await playwright.request.newContext({ baseURL: API_BASE })
+
+  // The account has no password until the invitation is walked (migration
+  // 058), and the password below is this test's own choice — the API never
+  // knew one.
+  const accepted = await raw.post(
+    `${API_BASE}/invitations/accept`,
+    {
+      data: {
+        token: tokenFromInvitationUrl(invitation.url),
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: INVITED_ADMIN_PASSWORD,
+      },
+    },
+  )
+  expect(accepted.status(), await accepted.text()).toBe(200)
+  const password = INVITED_ADMIN_PASSWORD
+
   const loginResponse = await raw.post(`${API_BASE}/auth/login`, { data: { email, password } })
   expect(loginResponse.status(), await loginResponse.text()).toBe(200)
   const loginData = await loginResponse.json()

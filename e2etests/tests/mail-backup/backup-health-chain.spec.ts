@@ -50,6 +50,17 @@ import {
 import { drainMailQueue } from '../../utils/drain'
 import { stepUp } from '../../fixtures/stepUp'
 
+/**
+ * The whole queue may be waiting; a run needs room to reach these messages —
+ * the same reason the other mail chains set one. The stack's default budget is
+ * 25 seconds, which was enough while this project ran late against a short
+ * queue and stopped being enough once every created admin also queued an
+ * invitation (migration 058): a drain that runs out mid-queue never reaches
+ * the warning this file is about, and the failure reads as "nothing was
+ * delivered" rather than "the run stopped early".
+ */
+const BUDGET_SECONDS = 55
+
 const REPO_ROOT = path.resolve(__dirname, '../../..')
 const MAIL_CONFIG = 'http://localhost:8080/api/admin/mail-config'
 const CRON_SECRET = process.env.CRON_SECRET || 'dev-cron-secret-x'
@@ -164,7 +175,7 @@ test.describe('Backup health warning chain', () => {
     })
     expect(created.status(), await created.text()).toBe(201)
 
-    drainMailQueue()
+    drainMailQueue({ budgetSeconds: BUDGET_SECONDS })
 
     // The drain is synchronous, so delivery has already happened by the time it
     // returns; the poll covers Mailpit's own indexing rather than the send.
@@ -220,7 +231,7 @@ test.describe('Backup health warning chain', () => {
     const triggered = await request.post(BACKUP_TRIGGER, { headers: { 'X-Cron-Secret': CRON_SECRET } })
     expect(triggered.status()).toBe(204)
 
-    drainMailQueue()
+    drainMailQueue({ budgetSeconds: BUDGET_SECONDS })
 
     // Not an empty mailbox — creating this admin queued its own notices, and
     // those are other features working correctly. What must be absent is a

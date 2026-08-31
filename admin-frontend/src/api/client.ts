@@ -123,6 +123,23 @@ function isInsufficientRole(error: unknown): boolean {
   return response?.status === 403 && response?.data?.error === 'insufficient_role'
 }
 
+/**
+ * The screens that are *supposed* to work with no session at all.
+ *
+ * The 401 handler below signs the admin out and sends them to `/login`, which
+ * is right almost everywhere and wrong on these: the panel's boot call to
+ * `GET /auth/profile` answers 401 for a visitor who has no account yet, and
+ * bouncing them would make the invitation link (migration 058) look dead to
+ * the one person who cannot ask anybody why. `/login` was already exempt for
+ * the same reason — this makes the exemption a list rather than a special case,
+ * so the next public screen is one entry rather than one more `!==`.
+ */
+const SESSION_LESS_PATHS = [/^\/login\/?$/, /^\/invite\/?$/]
+
+function isSessionLessPath(pathname: string): boolean {
+  return SESSION_LESS_PATHS.some((pattern) => pattern.test(pathname))
+}
+
 axiosInstance.interceptors.response.use(
   (response) => {
     decrementPending()
@@ -139,7 +156,7 @@ axiosInstance.interceptors.response.use(
       localStorage.removeItem('display_name')
       localStorage.removeItem('locale')
       setCsrfToken(null)
-      if (window.location.pathname !== '/login') {
+      if (!isSessionLessPath(window.location.pathname)) {
         window.location.href = '/login'
       }
     }

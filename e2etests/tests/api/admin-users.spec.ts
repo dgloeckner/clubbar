@@ -4,6 +4,7 @@ import { loginAs } from "../../utils/csrf";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { generateTotp } from "../../utils/totp";
 import { stepUp } from "../../fixtures/stepUp";
+import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from "../../utils/adminInvitation";
 
 // Same path auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
 const ADMIN_STORAGE_STATE_PATH = path.join("playwright", ".auth", "admin.json");
@@ -71,7 +72,7 @@ test.describe("Admin Users API", () => {
 
   // ========== CREATE ADMIN USER ==========
 
-  test("should create new admin user with 16-char generated password", async ({
+  test("should create new admin user and invite them, with no password in the response", async ({
     authenticatedRequest,
   }) => {
     const timestamp = Date.now();
@@ -91,10 +92,12 @@ test.describe("Admin Users API", () => {
     const data = await response.json();
     expect(data.admin.email).toBe(`create-${timestamp}@test.example.com`);
     expect(data.admin.is_active).toBe(true);
-    expect(data.password.length).toBe(16);
-    expect(/[A-Z]/.test(data.password)).toBe(true);
-    expect(/[a-z]/.test(data.password)).toBe(true);
-    expect(/\d/.test(data.password)).toBe(true);
+    // Migration 058: no password is generated at all. The account is written
+    // with none, and the invitation link is what gives it one — so there is
+    // nothing here for the creating admin to carry to their colleague.
+    expect(data).not.toHaveProperty("password");
+    expect(data.invitation.url).toContain("/invite#");
+    expect(data.invitation.email).toBe(`create-${timestamp}@test.example.com`);
   });
 
   test("should reject duplicate email on create", async ({
@@ -468,7 +471,21 @@ test.describe("Admin Users API", () => {
 
     const createData = await createResponse.json();
     const adminId = createData.admin.id;
-    const originalPassword = createData.password;
+
+    // The account is invited rather than given a password (migration 058), so
+    // this test walks the invitation first: a reset is only meaningful against
+    // an account that has a password to replace.
+    const accepted = await authenticatedRequest.post(
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(createData.invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
+    );
+    expect(accepted.status(), await accepted.text()).toBe(200);
 
     // The caller must first re-prove their own identity with a step-up
     // credential (#337): their own password, plus their own fresh TOTP code
@@ -486,7 +503,7 @@ test.describe("Admin Users API", () => {
     expect(resetResponse.status()).toBe(200);
     const data = await resetResponse.json();
     expect(data.password.length).toBe(16);
-    expect(data.password).not.toBe(originalPassword);
+    expect(data.password).not.toBe(INVITED_ADMIN_PASSWORD);
   });
 
   test("should reject resetting an admin's password with a wrong step-up credential", async ({
@@ -553,7 +570,22 @@ test.describe("Admin Users API", () => {
       }
     );
     expect(createResponse.status()).toBe(201);
-    const { admin, password } = await createResponse.json();
+    const { admin, invitation } = await createResponse.json();
+
+    // The invitation is what gives the account a password (migration 058), and
+    // the password is this test's own — nothing in the system ever knew it.
+    const accepted = await authenticatedRequest.post(
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
+    );
+    expect(accepted.status(), await accepted.text()).toBe(200);
+    const password = INVITED_ADMIN_PASSWORD;
 
     // Login as the new admin (returns CSRF-aware context)
     const context = await loginAs(playwright, admin.email, password);
@@ -589,7 +621,22 @@ test.describe("Admin Users API", () => {
       }
     );
     expect(createResponse.status()).toBe(201);
-    const { admin, password } = await createResponse.json();
+    const { admin, invitation } = await createResponse.json();
+
+    // The invitation is what gives the account a password (migration 058), and
+    // the password is this test's own — nothing in the system ever knew it.
+    const accepted = await authenticatedRequest.post(
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
+    );
+    expect(accepted.status(), await accepted.text()).toBe(200);
+    const password = INVITED_ADMIN_PASSWORD;
 
     // Login as the new admin (returns CSRF-aware context)
     const context = await loginAs(playwright, admin.email, password);
@@ -625,7 +672,22 @@ test.describe("Admin Users API", () => {
       }
     );
     expect(createResponse.status()).toBe(201);
-    const { admin, password } = await createResponse.json();
+    const { admin, invitation } = await createResponse.json();
+
+    // The invitation is what gives the account a password (migration 058), and
+    // the password is this test's own — nothing in the system ever knew it.
+    const accepted = await authenticatedRequest.post(
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
+    );
+    expect(accepted.status(), await accepted.text()).toBe(200);
+    const password = INVITED_ADMIN_PASSWORD;
 
     // Login as the new admin (returns CSRF-aware context)
     const context = await loginAs(playwright, admin.email, password);

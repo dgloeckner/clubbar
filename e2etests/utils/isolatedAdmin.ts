@@ -26,6 +26,7 @@ import { generateTotp } from './totp'
 import { loginAs } from './csrf'
 import { stepUp } from '../fixtures/stepUp'
 import type { LoginPage } from '../pages/LoginPage'
+import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from './adminInvitation'
 
 // The `playwright` fixture's own type (PlaywrightWorkerArgs['playwright']) —
 // `@playwright/test` re-exports everything from `playwright/test` but does
@@ -78,7 +79,29 @@ export async function createIsolatedAdmin(
     if (response.status() !== 201) {
       throw new Error(`Failed to create admin (${response.status()}): ${await response.text()}`)
     }
-    return { email, password: (await response.json()).password }
+
+    // The account arrives with no password at all (migration 058) — the way in
+    // is the invitation link. Walking it here is what makes this a usable
+    // account, and the password below is the *test suite's* own: nothing in
+    // the system ever knew one.
+    const { invitation } = await response.json()
+    const accepted = await ctx.post(
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
+    )
+    if (accepted.status() !== 200) {
+      throw new Error(
+        `Failed to accept the invitation (${accepted.status()}): ${await accepted.text()}`,
+      )
+    }
+
+    return { email, password: INVITED_ADMIN_PASSWORD }
   } finally {
     await ctx.dispose()
   }

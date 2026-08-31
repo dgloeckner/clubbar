@@ -21,6 +21,7 @@ import { TEST_CREDENTIALS } from '../../config/test-credentials'
 import { generateTotp } from '../../utils/totp'
 import { loginAs } from '../../utils/csrf'
 import { stepUp } from '../../fixtures/stepUp'
+import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -47,8 +48,26 @@ async function createUnenrolledAdmin(
     if (createResp.status() !== 201) {
       throw new Error(`Failed to create admin user (${createResp.status()}): ${await createResp.text()}`)
     }
-    const data = await createResp.json()
-    return { email, password: data.password }
+    // Walking the invitation is what gives the account a password
+    // (migration 058); the account is created with none.
+    const { invitation } = await createResp.json()
+    const accepted = await ctx.post(
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
+    )
+    if (accepted.status() !== 200) {
+      throw new Error(
+        `Failed to accept the invitation (${accepted.status()}): ${await accepted.text()}`,
+      )
+    }
+
+    return { email, password: INVITED_ADMIN_PASSWORD }
   } finally {
     await ctx.dispose()
   }

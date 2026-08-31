@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Notifications\Services;
 
 use App\Modules\AdminUsers\Enums\AdminRole;
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\AdminUsers\Services\InvitationTokenCipher;
 use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Services\AdminSecurityMailBuilder;
@@ -53,7 +55,14 @@ class AdminLifecycleMailTest extends TestCase
         $mailConfigService = $this->createMock(MailConfigService::class);
         $mailConfigService->method('getConfig')->willReturn($this->mailConfig);
 
-        $this->builder = new AdminSecurityMailBuilder($this->admins, $mailConfigService, $this->roles);
+        $this->builder = new AdminSecurityMailBuilder(
+            $this->admins,
+            $mailConfigService,
+            $this->roles,
+            $this->createMock(AdminInvitationsRepository::class),
+            $this->createMock(InvitationTokenCipher::class),
+            'https://club.example.org',
+        );
     }
 
     public function test_the_builder_claims_both_lifecycle_kinds(): void

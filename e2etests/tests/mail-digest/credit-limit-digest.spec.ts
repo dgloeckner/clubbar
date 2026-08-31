@@ -61,6 +61,17 @@ const SENDER_ADDRESS = 'noreply@digest-chain.test.example'
 const BUDGET_SECONDS = 55
 
 /**
+ * The fragment that tells a digest apart from anything else in the mailbox.
+ *
+ * Needed since migration 058: every admin account this file creates is also
+ * mailed its own invitation, so "the message in the Kassenwart's mailbox" is no
+ * longer unambiguous. The claims here were always about *digests*, and this is
+ * what keeps them saying so — `MailStrings`' `credit_digest.subject`, which
+ * reads "{count} Mitglieder nahe am Deckel-Limit".
+ */
+const DIGEST_SUBJECT = 'Deckel-Limit'
+
+/**
  * The fixture members' own ceiling, and the tab put against it.
  *
  * 19,00 € of 20,00 € is 95 % — comfortably inside any warning band a club could
@@ -296,7 +307,11 @@ test.describe('Near-limit digest — cadence, cron, delivered list', () => {
     const run = drainMailQueue({ budgetSeconds: BUDGET_SECONDS })
     expect(run, run).toMatch(/claimed=\d+ sent=\d+/)
 
-    const message = await mail.waitForMessage(offices.kassenwart.email)
+    // By subject, not "the only message in the mailbox": since migration 058
+    // this account was also mailed its own invitation, and that arrives on the
+    // same drain. The claim being made is that *a digest* arrived, and exactly
+    // one of them — which `expectExactlyOneDigest` below still checks.
+    const message = await mail.waitForMessageAbout(offices.kassenwart.email, DIGEST_SUBJECT)
     const { html, text } = parts(message)
 
     for (const part of [html, text]) {
@@ -312,15 +327,21 @@ test.describe('Near-limit digest — cadence, cron, delivered list', () => {
       expect(part).not.toContain(comfortable.name)
     }
 
-    // One mail, not one per member — the aggregate the request asked for.
-    expect(await mail.messagesTo(offices.kassenwart.email)).toHaveLength(1)
+    // One digest, not one per member — the aggregate the request asked for.
+    // Counted by subject since migration 058: this account was also mailed its
+    // own invitation, which is not a digest and must not be counted as one.
+    const digests = async () =>
+      (await mail.messagesTo(offices.kassenwart.email)).filter((m) =>
+        m.Subject.includes(DIGEST_SUBJECT),
+      )
+    expect(await digests()).toHaveLength(1)
 
     // A second run inside the same window sends nothing further. Asserted at
     // the mailbox rather than at the outbox: "one row" tests our bookkeeping,
     // "one message" tests what the Kassenwart would experience if
     // `UNIQUE (kind, subject_id, dedup_key)` ever stopped doing its job.
     drainMailQueue({ budgetSeconds: BUDGET_SECONDS })
-    expect(await mail.messagesTo(offices.kassenwart.email)).toHaveLength(1)
+    expect(await digests()).toHaveLength(1)
   })
 
   /**
@@ -340,7 +361,13 @@ test.describe('Near-limit digest — cadence, cron, delivered list', () => {
 
     drainMailQueue({ budgetSeconds: BUDGET_SECONDS })
 
-    await mail.waitForMessage(offices.kassenwart.email)
-    await mail.expectNothingFor(offices.getraenkewart.email)
+    await mail.waitForMessageAbout(offices.kassenwart.email, DIGEST_SUBJECT)
+
+    // The Getränkewart's own invitation (migration 058) reached them on an
+    // earlier drain, so the claim is narrowed to what it was always about: no
+    // *digest* reaches the bar. Member balances are outside that office on
+    // every surface (ADR-0045 invariant 5).
+    const delivered = await mail.messagesTo(offices.getraenkewart.email)
+    expect(delivered.filter((m) => m.Subject.includes(DIGEST_SUBJECT))).toEqual([])
   })
 })

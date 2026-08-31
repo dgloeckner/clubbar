@@ -178,6 +178,8 @@ The package `.htaccess` already includes HTTPS redirect (skipped on localhost fo
 1. Enable SSL in your hosting panel (most providers offer free Let's Encrypt certificates)
 2. Make sure the app knows it is HTTPS-facing, so the `_session` cookie is marked `Secure` and never travels in clear text: set `app.url` in `config.php` (or `APP_URL` in `.env`) to the `https://` address. The installer writes it from the scheme it was reached on, so installing over HTTPS already does the right thing. `SESSION_COOKIE_SECURE` / `session.cookie_secure` forces the flag on or off if the derivation is wrong for your setup.
 
+   `app.url` is also the address every **admin invitation link** is built from ([UC-A68](../use-cases/admin/UC-A68-invite-admin.md)). A wrong value here does not fail loudly — it produces links that arrive in a colleague's inbox pointing at a host that is not this installation, and the person who finds out has no account yet and nobody to ask. Worth checking after a domain change.
+
 **Verify:**
 
 ```bash

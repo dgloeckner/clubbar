@@ -6,7 +6,11 @@ namespace Tests\Feature\Modules\AdminUsers;
 
 use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\AdminUsers\Services\AdminInvitationService;
+use App\Modules\AdminUsers\Services\InvitationTokenCipher;
+use App\Shared\Config\AppConfig;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Repositories\MailConfigRepository;
@@ -53,16 +57,32 @@ class AdminLifecycleNoticeTest extends DatabaseTestCase
         $this->originalClubAddress = $this->mailConfig->getConfig()['club_notification_address'] ?? null;
         $this->clubAddress = 'vorstand-' . bin2hex(random_bytes(4)) . '@example.test';
 
+        $notifier = new AdminNotifier(
+            new MailOutboxRepository($this->db, $this->logger),
+            $admins,
+            $this->createMock(AuditService::class),
+            $this->mailConfig,
+            $this->logger,
+        );
+
         $this->service = new AdminUsersService(
             $admins,
             $this->createMock(AuditService::class),
             $this->createMock(NotificationsService::class),
             $roles,
-            new AdminNotifier(
-                new MailOutboxRepository($this->db, $this->logger),
+            $notifier,
+            // A real one, not a double: creating an account also mints the
+            // invitation that gives it a password (migration 058), and that
+            // path writes to the same outbox this test reads. A double here
+            // would hide the invitation from every assertion below.
+            new AdminInvitationService(
+                new AdminInvitationsRepository($this->db, $this->logger),
                 $admins,
+                $roles,
+                new InvitationTokenCipher(),
+                $notifier,
                 $this->createMock(AuditService::class),
-                $this->mailConfig,
+                new AppConfig(),
                 $this->logger,
             ),
         );

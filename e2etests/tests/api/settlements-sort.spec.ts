@@ -30,6 +30,7 @@ import { loginAs } from '../../utils/csrf'
 import { settlementFactory as buildSettlementFactory } from '../../utils/settlements'
 import { TEST_CREDENTIALS } from '../../config/test-credentials'
 import { stepUp } from '../../fixtures/stepUp'
+import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -121,9 +122,23 @@ test.describe('Settlements list sort keys', () => {
       },
     })
     expect(createAdmin.status(), await createAdmin.text()).toBe(201)
-    const { admin, password } = await createAdmin.json()
+    const { admin, invitation } = await createAdmin.json()
 
-    const probeAdmin = await loginAs(playwright, admin.email, password)
+    // The account arrives with no password (migration 058); the invitation is
+    // what gives it one, and the password is this test's own choice.
+    const accepted = await seededAdmin.post(
+      `${API_BASE}/invitations/accept`,
+      {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      },
+    )
+    expect(accepted.status(), await accepted.text()).toBe(200)
+
+    const probeAdmin = await loginAs(playwright, admin.email, INVITED_ADMIN_PASSWORD)
     try {
       // The seeded admin ("Admin User") creates the OLDER settlement; the probe
       // admin ("Aaa …") the NEWER one. Sorting by name therefore reverses the
