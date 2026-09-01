@@ -25,6 +25,7 @@ use App\Modules\Notifications\Controllers\NotificationsController;
 use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AdminUsers\Controllers\InvitationController;
+use App\Modules\Registrations\Controllers\PublicController as RegistrationsPublicController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
 use App\Modules\Terminals\Controllers\PairingController;
@@ -102,6 +103,30 @@ return function (App $app): void {
         ->add(RateLimitMiddleware::class);
     $app->post('/api/invitations/accept', [InvitationController::class, 'accept'])
         ->add(RateLimitMiddleware::class);
+
+    // Member self-registration (ADR-0052). The one endpoint an anonymous phone
+    // reaches: a stranger standing in the clubhouse, holding a secret printed
+    // on a poster.
+    //
+    // **Deliberately outside `RouteRoleMap`, and it must stay outside.** That
+    // map governs `/api/admin/*` and `/api/auth/*` — the two groups behind
+    // `AdminSessionAuth` — and `RouteRoleMapCompletenessTest` asserts in both
+    // directions: every session route is classified, and nothing outside those
+    // groups is. A role entry here would be a claim the map does not make, and
+    // would fail that second assertion. What classifies this route is the gate
+    // below, not a role.
+    //
+    // The secret travels in the **body**, never the path, for the reason the
+    // invitation endpoints above give: a request line is written verbatim into
+    // every access log in front of the installation, twice per request in the
+    // shipped package, and unlike an invitation this credential is printed on
+    // a wall where it may still be in two years.
+    //
+    // Outside `CsrfMiddleware` for the same reason `/api/invitations/*` is:
+    // there is no session cookie for a CSRF token to protect. The gate is the
+    // secret, the meters are the service's, and both are checked server-side —
+    // not rendering the form is a UI convenience, never the gate.
+    $app->post('/api/public/registrations', [RegistrationsPublicController::class, 'store']);
 
     $app->post('/api/auth/login', [AuthController::class, 'login'])->add(RateLimitMiddleware::class);
     $app->post('/api/auth/mfa', [AuthController::class, 'mfa'])->add($factory->getMfaRateLimitMiddleware());

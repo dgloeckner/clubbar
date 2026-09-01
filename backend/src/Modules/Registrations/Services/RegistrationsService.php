@@ -76,7 +76,8 @@ class RegistrationsService
      * @throws NotFoundException the uniform refusal: no secret, wrong secret,
      *         or a club that has never generated one — indistinguishable on
      *         purpose, because telling them apart confirms a secret exists
-     * @throws BusinessRuleException the club has switched registration off
+     * @throws BusinessRuleException the club has switched registration off, or
+     *         has no document URL to point the applicant at
      * @throws TooManyAttemptsException a meter tripped — busy, not closed
      */
     public function submit(string $presentedSecret, array $data, string $ip): RegistrationReceiptDto
@@ -102,6 +103,24 @@ class RegistrationsService
                 BusinessRuleReason::REGISTRATION_DISABLED,
                 'Self-registration is currently switched off.',
                 ['reason' => $config->disabledReason ?? ''],
+            );
+        }
+
+        // The second fail-closed condition, checked here and not only where an
+        // admin flips the switch (UC-A69). Relying on the write path alone
+        // would leave the gate open to a database restore, a hand-edited row,
+        // or the URL being cleared *after* registration went live — and
+        // accepting then collects a name, a birth date and an IBAN from
+        // somebody who was never shown the notice. That is the whole reason
+        // this condition exists (ADR-0052 decision 6).
+        $documentUrl = $this->documentUrl();
+        if ($documentUrl === '') {
+            $this->attempts->record($ip, RegistrationAttemptsRepository::REFUSED);
+            $this->logger->warning('Self-registration refused: no club document URL is configured');
+
+            throw new BusinessRuleException(
+                BusinessRuleReason::DOCUMENT_URL_MISSING,
+                'Self-registration is switched on but no club document URL is configured.',
             );
         }
 
@@ -151,7 +170,7 @@ class RegistrationsService
             'iban_fingerprint' => $this->sealedBox->fingerprint($iban),
             'encryption_key_id' => $key['id'],
             'bank_name' => $bankName,
-            'privacy_notice_url' => $this->documentUrl(),
+            'privacy_notice_url' => $documentUrl,
             'privacy_notice_shown_at' => $submittedAt,
             'submitted_at' => $submittedAt,
             'expires_at' => $expiresAt,

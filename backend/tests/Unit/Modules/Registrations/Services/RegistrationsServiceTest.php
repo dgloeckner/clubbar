@@ -198,6 +198,36 @@ final class RegistrationsServiceTest extends TestCase
         $this->service->submit(self::SECRET, $this->payload(), '10.0.0.1');
     }
 
+    /**
+     * The enable gate lives on the admin write path (UC-A69), which is the
+     * wrong place to rely on alone: a database restore, a hand-edited row, or
+     * the URL being cleared *after* registration went live all leave the switch
+     * on with nothing to point the applicant at. Accepting then would collect a
+     * name, a birth date and an IBAN from somebody who was never informed —
+     * exactly what failing closed is for.
+     */
+    public function test_it_refuses_when_the_club_document_url_is_not_configured(): void
+    {
+        $this->db->exec('UPDATE sepa_config SET mandate_template_url = NULL WHERE id = 1');
+
+        try {
+            $this->service->submit(self::SECRET, $this->payload(), '10.0.0.1');
+            self::fail('Expected a refusal');
+        } catch (BusinessRuleException $e) {
+            self::assertSame(BusinessRuleReason::DOCUMENT_URL_MISSING, $e->getReason());
+        }
+
+        self::assertSame(0, (int) $this->db->query('SELECT COUNT(*) FROM pending_registrations')->fetchColumn());
+    }
+
+    public function test_an_empty_document_url_refuses_just_as_a_missing_one_does(): void
+    {
+        $this->db->exec("UPDATE sepa_config SET mandate_template_url = '' WHERE id = 1");
+
+        $this->expectException(BusinessRuleException::class);
+        $this->service->submit(self::SECRET, $this->payload(), '10.0.0.1');
+    }
+
     // --- what gets written ---------------------------------------------------
 
     public function test_a_submission_is_sealed_and_stored(): void
