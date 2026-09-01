@@ -214,6 +214,34 @@ export function MembersPage() {
     parseError: (err) => (err instanceof Error ? err.message : t('members.errors.load')),
   })
 
+  /**
+   * Seed the search box from `?search=`, once (#782).
+   *
+   * The registrations inbox sends an admin here straight after approving a
+   * submission, and an unfiltered roster of several hundred members is a poor
+   * confirmation that the one person they just created exists. There is no
+   * member *detail* route in this app — members are this list plus a modal — so
+   * a deep link into the search is the closest true thing.
+   *
+   * `list.setSearch` and not a re-render loop: the ref guard means typing in the
+   * box afterwards is never overwritten by the parameter that put it there.
+   *
+   * `window.location` rather than `useLocation`: this reads once on mount, and
+   * an implicit bare `location` here would be the DOM global by accident rather
+   * than by decision.
+   */
+  const seededSearch = useRef(false)
+  useEffect(() => {
+    if (seededSearch.current) return
+    seededSearch.current = true
+
+    const seed = new URLSearchParams(window.location.search).get('search')
+    if (seed) list.setSearch(seed)
+    // Deliberately empty: this runs once, on mount, and re-running it when the
+    // list identity changes would fight whatever the admin has typed since.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const { items: members, total: totalMembers, totalPages, loading, error, setError, search } = list
   const { status: filterIsActive, cardUid: filterCardUid, sepaStatus: filterSepaStatus, email: filterEmail, dateOfBirth: filterDateOfBirth, dataStatus: filterDataStatus } = list.filters
   const [formData, setFormData] = useState({

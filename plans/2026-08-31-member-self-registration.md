@@ -152,7 +152,7 @@ the final PR.
       and not re-fetchable on reload, the disabled state
       rendering the club's reason, the one-time PDF download, and a confirmation
       screen that says plainly: you are not a member yet, bring the signed sheet.
-- [ ] **M5 — Admin registrations inbox**
+- [x] **M5 — Admin registrations inbox**
       ([#782](https://github.com/dgloeckner/clubbar/issues/782)).
       List page per `admin-frontend/patterns/table-implementation.md`
       (`useListQuery`, no hand-rolled paging state), review drawer, print,

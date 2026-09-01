@@ -15,7 +15,8 @@
     "journalShort": "Journal",
     "settlementsShort": "Abrechn.",
     "notifications": "Benachrichtigungen",
-    "backups": "Datensicherungen"
+    "backups": "Datensicherungen",
+    "registrations": "Anmeldungen"
   },
   "common": {
     "save": "Speichern",
@@ -1524,5 +1525,68 @@
       "acceptFailed": "Das Passwort konnte nicht gespeichert werden."
     },
     "roleLabel": "Ihre Rolle"
+  },
+  "registrations": {
+    "title": "Anmeldungen",
+    "subtitle": "Selbstanmeldungen über den QR-Aushang, die auf Prüfung warten.",
+    "searchPlaceholder": "Name oder E-Mail suchen",
+    "columns": {
+      "name": "Name",
+      "email": "E-Mail",
+      "submittedAt": "Eingegangen",
+      "iban": "IBAN",
+      "bank": "Bank",
+      "flags": "Hinweise"
+    },
+    "flags": {
+      "email": "E-Mail bekannt",
+      "iban": "Konto bekannt"
+    },
+    "duplicates": {
+      "email": "Unter dieser E-Mail gibt es bereits ein Mitglied.",
+      "iban": "Auf dieses Konto läuft bereits ein Mandat."
+    },
+    "empty": {
+      "title": "Nichts zu prüfen.",
+      "body": "Anmeldungen erscheinen hier, sobald jemand den QR-Aushang im Verein scannt und das Formular ausfüllt."
+    },
+    "fields": {
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "phone": "Telefon",
+      "dateOfBirth": "Geburtsdatum",
+      "accountHolder": "Kontoinhaber",
+      "mandateReference": "Mandatsreferenz",
+      "notice": "Gezeigte Vereinsunterlagen",
+      "expires": "Wird gelöscht am",
+      "newIban": "IBAN korrigieren",
+      "newIbanPlaceholder": "Nur ausfüllen, wenn die IBAN falsch ist",
+      "newIbanHint": "Leer lassen ändert nichts. Eine neue IBAN wird geprüft und neu verschlüsselt; die alte ist danach nicht mehr wiederherstellbar."
+    },
+    "panel": {
+      "submitted": "Eingegangen am {{date}}"
+    },
+    "actions": {
+      "print": "Formular drucken",
+      "edit": "Bearbeiten",
+      "approve": "Freigeben",
+      "reject": "Ablehnen"
+    },
+    "approve": {
+      "lede": "Mit der Freigabe entstehen Mitglied und SEPA-Mandat. Vorher muss das unterschriebene Formular vorliegen.",
+      "signedAt": "Unterschrieben am",
+      "attestation": "Das unterschriebene SEPA-Mandat liegt mir vor, und die darauf angegebene IBAN passt zu {{last4}}."
+    },
+    "reject": {
+      "warning": "Die Anmeldung wird sofort gelöscht. Es gibt keinen abgelehnten Zustand und kein Zurück.",
+      "reason": "Grund (optional)",
+      "reasonHint": "Wird nur im Prüfprotokoll festgehalten und der anmeldenden Person nicht mitgeteilt.",
+      "confirm": "Endgültig löschen"
+    },
+    "errors": {
+      "load": "Die Anmeldungen konnten nicht geladen werden.",
+      "action": "Das hat nicht geklappt.",
+      "document": "Das Formular konnte nicht erzeugt werden."
+    }
   }
 }
