@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<!--
+  The onboarding page (#781, ADR-0052 decision 11).
+
+  Served as static files from the backend's own document root, which is the
+  whole architecture: one deployment, one origin, no CORS, nothing to host
+  elsewhere — the constraint ADR-0031 already imposes on the shipped package.
+
+  It is deliberately **not** the admin SPA. An anonymous visitor standing at a
+  bar on their phone must not be served the panel's routes, its strings or its
+  weight, and nothing here should ever grow an import from it.
+
+  No build step, no framework, no dependency. A club upgrading clubbar upgrades
+  this by copying files, and a page that a volunteer can open and read is worth
+  more here than one that needs a toolchain to change a sentence.
+-->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--
+  The URL carries the poster secret in its **fragment**, which browsers never
+  send to a server. `noindex` and a referrer policy keep the rest honest: a
+  search engine must not carry a clubhouse poster's URL into its index, and a
+  click on the club's Datenschutz link must not carry this URL to the club's
+  own webserver logs.
+-->
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Anmeldung</title>
+<link rel="stylesheet" href="./register.css">
+</head>
+<body>
+<main id="app" data-testid="register-app">
+  <!--
+    Every screen ships in the markup and is toggled by `hidden`. The applicant
+    is on a phone, possibly on club wifi that barely works; a second round trip
+    to render a refusal is a round trip that can fail.
+  -->
+
+  <section id="screen-loading" data-testid="screen-loading" class="screen">
+    <p class="muted" data-i18n="loading">Einen Moment…</p>
+  </section>
+
+  <!-- The club switched registration off, and said why. Not error styling: it
+       is a deliberate pause, and the visitor is holding the club's own poster. -->
+  <section id="screen-paused" data-testid="screen-paused" class="screen" hidden>
+    <h1 data-i18n="paused.title">Gerade keine Anmeldung möglich</h1>
+    <p class="lede" id="paused-reason" data-testid="paused-reason"></p>
+    <p class="muted" data-i18n="paused.ask">Frag am besten kurz an der Theke nach.</p>
+  </section>
+
+  <!-- A rotated-away poster, or a guessed URL. Says nothing about whether a
+       valid secret exists — that is the disclosure the gate is for. -->
+  <section id="screen-unknown" data-testid="screen-unknown" class="screen" hidden>
+    <h1 data-i18n="unknown.title">Dieser Link funktioniert nicht mehr</h1>
+    <p class="lede" data-i18n="unknown.body">
+      Vielleicht hängt ein neuerer Aushang im Verein. Frag kurz an der Theke nach dem aktuellen Poster.
+    </p>
+  </section>
+
+  <section id="screen-language" data-testid="screen-language" class="screen" hidden>
+    <h1 data-i18n="language.title">Sprache wählen</h1>
+    <div class="choices" id="language-choices"></div>
+  </section>
+
+  <section id="screen-form" data-testid="screen-form" class="screen" hidden>
+    <h1 data-i18n="form.title">Anmeldung Vereinsbar</h1>
+
+    <!--
+      Art. 13 informs *before* collection, so the link sits above the first
+      field and not beside a submit button. There is no checkbox on it, and
+      that is deliberate: informing is a duty, not a consent, and a box saying
+      "I have read this" edges toward a consent for processing that actually
+      rests on Art. 6(1)(b).
+    -->
+    <p class="notice">
+      <a id="document-link" data-testid="document-link" target="_blank" rel="noopener noreferrer"
+         data-i18n="form.notice">Vereinsunterlagen und Datenschutzhinweise ansehen</a>
+    </p>
+
+    <form id="registration-form" novalidate>
+      <div class="field">
+        <label for="first_name" data-i18n="form.firstName">Vorname</label>
+        <input id="first_name" name="first_name" data-testid="field-first-name"
+               type="text" autocomplete="given-name" maxlength="100" required>
+        <p class="error" data-error-for="first_name"></p>
+      </div>
+
+      <div class="field">
+        <label for="last_name" data-i18n="form.lastName">Nachname</label>
+        <input id="last_name" name="last_name" data-testid="field-last-name"
+               type="text" autocomplete="family-name" maxlength="100" required>
+        <p class="error" data-error-for="last_name"></p>
+      </div>
+
+      <div class="field">
+        <label for="date_of_birth_typed" data-i18n="form.dateOfBirth">Geburtsdatum</label>
+        <!--
+          Typed entry, not `<input type="date">`. The admin app bans that
+          control outright (admin-frontend/patterns/date-field.md) and the
+          reason applies here more, not less: on a phone it opens a spinner
+          that starts at today, so entering a 1979 birth date is dozens of
+          swipes. `23111979` becomes `23.11.1979` as you type.
+
+          `inputmode="numeric"` rather than `type="number"`: a numeric keypad
+          without a spinner, and without a control that silently drops leading
+          zeros.
+        -->
+        <input id="date_of_birth_typed" data-testid="field-date-of-birth"
+               type="text" inputmode="numeric" autocomplete="bday"
+               placeholder="TT.MM.JJJJ" maxlength="10" required>
+        <!-- The ISO value the wire carries, asserted on in E2E rather than the
+             locale-formatted display — the same rule the admin pattern sets. -->
+        <input id="date_of_birth" name="date_of_birth" data-testid="field-date-of-birth-value"
+               type="hidden">
+        <p class="error" data-error-for="date_of_birth"></p>
+      </div>
+
+      <div class="field">
+        <label for="email" data-i18n="form.email">E-Mail</label>
+        <input id="email" name="email" data-testid="field-email"
+               type="email" inputmode="email" autocomplete="email" maxlength="255" required>
+        <p class="hint" data-i18n="form.emailHint">Für die Abrechnung. Es wird nichts an dich verschickt.</p>
+        <p class="error" data-error-for="email"></p>
+      </div>
+
+      <div class="field">
+        <label for="iban" data-i18n="form.iban">IBAN</label>
+        <!-- Grouped in fours as it is typed, the way it is printed on a card. -->
+        <input id="iban" name="iban" data-testid="field-iban"
+               type="text" inputmode="text" autocomplete="off" spellcheck="false"
+               autocapitalize="characters" maxlength="42" required>
+        <p class="hint" data-i18n="form.ibanHint">Von der Karte oder aus deiner Banking-App.</p>
+        <p class="error" data-error-for="iban"></p>
+      </div>
+
+      <details class="optional">
+        <summary data-i18n="form.optional">Weitere Angaben (optional)</summary>
+
+        <div class="field">
+          <label for="phone" data-i18n="form.phone">Telefon</label>
+          <input id="phone" name="phone" data-testid="field-phone"
+                 type="tel" inputmode="tel" autocomplete="tel" maxlength="20">
+          <p class="error" data-error-for="phone"></p>
+        </div>
+
+        <div class="field">
+          <label for="account_holder_name" data-i18n="form.accountHolder">Kontoinhaber, falls abweichend</label>
+          <input id="account_holder_name" name="account_holder_name" data-testid="field-account-holder"
+                 type="text" autocomplete="name" maxlength="70">
+          <p class="hint" data-i18n="form.accountHolderHint">Nur wenn jemand anderes das Mandat unterschreibt.</p>
+          <p class="error" data-error-for="account_holder_name"></p>
+        </div>
+      </details>
+
+      <!--
+        A hidden field no person ever sees. Commodity form fillers fill
+        everything they find; the server answers them with an ordinary receipt
+        and stores nothing. `tabindex="-1"` and `aria-hidden` keep it away from
+        a keyboard and from a screen reader, which is what makes it a trap for
+        bots and not for people.
+      -->
+      <div class="honeypot" aria-hidden="true">
+        <label for="website">Website</label>
+        <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+      </div>
+
+      <p class="error form-error" id="form-error" data-testid="form-error"></p>
+
+      <button type="submit" class="primary" data-testid="submit-button" data-i18n="form.review">
+        Weiter zur Übersicht
+      </button>
+    </form>
+  </section>
+
+  <section id="screen-review" data-testid="screen-review" class="screen" hidden>
+    <h1 data-i18n="review.title">Stimmt das so?</h1>
+    <p class="lede" data-i18n="review.lede">Prüfe besonders die IBAN — sie steht später auf dem Mandat.</p>
+
+    <dl class="summary" id="review-summary" data-testid="review-summary"></dl>
+
+    <p class="error form-error" id="review-error" data-testid="review-error"></p>
+
+    <button type="button" class="primary" data-testid="confirm-button" data-i18n="review.confirm">
+      Anmeldung absenden
+    </button>
+    <button type="button" class="secondary" data-testid="back-button" data-i18n="review.back">
+      Zurück und ändern
+    </button>
+  </section>
+
+  <section id="screen-done" data-testid="screen-done" class="screen" hidden>
+    <h1 data-i18n="done.title">Geschafft!</h1>
+
+    <ol class="steps">
+      <li data-i18n="done.step1">Unterlagen herunterladen, ausdrucken und unterschreiben.</li>
+      <li data-i18n="done.step2">Das unterschriebene Blatt beim Kassenwart abgeben — oder direkt an der Theke unterschreiben, dort wird es ausgedruckt.</li>
+      <li data-i18n="done.step3">Der Kassenwart prüft es und schaltet dich frei. <strong>Vorher funktioniert das Konto noch nicht.</strong></li>
+      <li data-i18n="done.step4">Deine Karte bekommst du ebenfalls vom Kassenwart.</li>
+    </ol>
+
+    <!--
+      One chance, and the page says so. The document was rendered from a
+      plaintext IBAN that existed only for the length of the submission request;
+      reloading has nothing left to render from, and there is no endpoint that
+      could hand it over again. If it is lost, the Kassenwart prints their own
+      copy — which is why that is never a dead end.
+    -->
+    <button type="button" class="primary" id="download-button" data-testid="download-button"
+            data-i18n="done.download">Unterlagen herunterladen (PDF)</button>
+    <p class="hint" data-testid="download-hint" data-i18n="done.downloadHint">
+      Nur jetzt verfügbar. Falls du es verlierst: der Kassenwart kann es jederzeit neu ausdrucken.
+    </p>
+
+    <p class="muted" id="no-document" data-testid="no-document" hidden data-i18n="done.noDocument">
+      Die Unterlagen konnten gerade nicht erzeugt werden — deine Anmeldung ist trotzdem angekommen.
+      Der Kassenwart druckt sie für dich aus.
+    </p>
+
+    <p class="reference">
+      <span data-i18n="done.reference">Mandatsreferenz</span>
+      <code id="mandate-reference" data-testid="mandate-reference"></code>
+    </p>
+  </section>
+</main>
+
+<script src="./register.js"></script>
+</body>
+</html>

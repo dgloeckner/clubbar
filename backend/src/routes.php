@@ -128,6 +128,9 @@ return function (App $app): void {
     // secret, the meters are the service's, and both are checked server-side —
     // not rendering the form is a UI convenience, never the gate.
     $app->post('/api/public/registrations', [RegistrationsPublicController::class, 'store']);
+    // A POST for a read: the secret belongs in a body, never in a URL. The page
+    // holds it in the fragment — which browsers do not send — and posts it here.
+    $app->post('/api/public/registrations/context', [RegistrationsPublicController::class, 'context']);
 
     $app->post('/api/auth/login', [AuthController::class, 'login'])->add(RateLimitMiddleware::class);
     $app->post('/api/auth/mfa', [AuthController::class, 'mfa'])->add($factory->getMfaRateLimitMiddleware());

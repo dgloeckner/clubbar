@@ -377,6 +377,105 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyAttempts'
 
+  /public/registrations/context:
+    post:
+      tags: [Public registration]
+      summary: What the onboarding page needs before it renders anything
+      description: |
+        The QR code's landing page asks this on load, and the answer decides
+        whether it renders a form or the club's paused screen. It cannot make
+        that decision by attempting a submission — by then the applicant has
+        typed a name, a birth date and an IBAN into a form that was never going
+        to be accepted.
+
+        **A POST for a read, deliberately.** The poster secret travels in the
+        body and never in a URL: a request line is written verbatim into every
+        access log in front of an installation, and this credential is printed
+        on a wall where it may still be in two years. The page reads it from
+        the URL *fragment*, which no browser sends to a server.
+
+        **An unavailable club is a `200`, not a refusal.** `available: false`
+        carries the same `reason` (and the club's own `message`) that a refused
+        `POST /public/registrations` would, so the page renders it identically
+        whether it learned about it on load or by racing an admin who switched
+        the club off mid-form.
+
+        Only a bad secret is a refusal, and it is the same uniform `404`: a
+        missing secret, a wrong one and a club that never generated one are
+        indistinguishable, because telling them apart confirms a valid secret
+        exists — and this endpoint costs no form to try, so it would be the
+        cheapest oracle in the system.
+
+        **Metered on refusals only.** A refused lookup is a guess and spends the
+        guessing budget. A successful one does not touch the
+        accepted-submission budget: the page loads this every time it opens, and
+        a member who reads the club's document before filling anything in opens
+        it twice.
+      operationId: getRegistrationContext
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [secret]
+              properties:
+                secret:
+                  type: string
+                  description: The poster secret, from the URL fragment.
+      responses:
+        '200':
+          description: 'The club''s current state, with `Cache-Control: no-store`'
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+                    description: Whether the form should be rendered at all.
+                  reason:
+                    type: string
+                    nullable: true
+                    enum: [registration_disabled, document_url_missing]
+                    description: >
+                      Why not, when `available` is false. The page translates the
+                      code; it never shows the backend's English.
+                  message:
+                    type: string
+                    nullable: true
+                    description: >
+                      The club's own words — "Beta-Phase schon voll". Written by
+                      an admin, so it is rendered as text and never as markup.
+                  document_url:
+                    type: string
+                    nullable: true
+                    description: >
+                      The club's published Anmeldung: the Art. 13 notice linked
+                      before any data entry, and the document that gets filled.
+                      One URL, both jobs.
+                  languages:
+                    type: array
+                    items:
+                      type: string
+                    description: The languages the page may offer.
+        '404':
+          description: >
+            The uniform refusal — no secret, a wrong one, or a club that has
+            never generated one.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+
   /auth/login:
     post:
       tags: [Authentication]

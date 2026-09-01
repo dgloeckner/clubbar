@@ -1,6 +1,6 @@
 # UC-P01: Register as a Member by Scanning the Club's QR Code
 
-**Implementation Status**: Backend implemented ([#778](https://github.com/dgloeckner/clubbar/issues/778), [#780](https://github.com/dgloeckner/clubbar/issues/780)) — the submission endpoint gates on the poster secret, seals the IBAN, and returns the club's filled Anmeldung in the response itself. The page an applicant's phone actually renders is [#781](https://github.com/dgloeckner/clubbar/issues/781).
+**Implementation Status**: Backend implemented ([#778](https://github.com/dgloeckner/clubbar/issues/778), [#780](https://github.com/dgloeckner/clubbar/issues/780)) — the submission endpoint gates on the poster secret, seals the IBAN, and returns the club's filled Anmeldung in the response itself. The page an applicant's phone renders is implemented too ([#781](https://github.com/dgloeckner/clubbar/issues/781)): a framework-free bundle served from the backend's own document root at `/register/`, with the poster secret read from the URL fragment.
 
 Implements [ADR-0052](../../adr/0052-member-self-registration-via-qr-code.md).
 Feeds [UC-A17](../admin/UC-A17-review-pending-registrations.md) (an admin,

@@ -823,4 +823,118 @@ test.describe('Public self-registration', () => {
 
     expect(response.status()).toBe(403)
   })
+
+  // ── the entry lookup (#781) ────────────────────────────────────────────
+
+  test('the context tells the page to render a form', async ({ request }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    const response = await request.post(`${API}/public/registrations/context`, {
+      data: { secret },
+    })
+
+    expect(response.status()).toBe(200)
+    // A page still showing yesterday's answer is what this endpoint exists to
+    // prevent: the club's switch takes effect the moment it is flipped.
+    expect(response.headers()['cache-control']).toBe('no-store')
+
+    const body = await response.json()
+    expect(body.available).toBe(true)
+    expect(body.reason).toBeNull()
+    expect(body.document_url).toBe(CLUB_DOCUMENT_URL)
+    expect(body.languages).toContain('de')
+  })
+
+  test('a paused club answers with its own words, as a 200 rather than a refusal', async ({
+    request,
+  }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret, { enabled: false, disabledReason: 'Beta-Phase schon voll' })
+
+    const response = await request.post(`${API}/public/registrations/context`, {
+      data: { secret },
+    })
+
+    // The page is asking a question and this is the answer. Only a bad secret
+    // is a refusal.
+    expect(response.status()).toBe(200)
+    const body = await response.json()
+    expect(body.available).toBe(false)
+    expect(body.reason).toBe('registration_disabled')
+    expect(body.message).toBe('Beta-Phase schon voll')
+  })
+
+  test('the context fails closed with no club document', async ({ request }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret, { documentUrl: null })
+
+    const response = await request.post(`${API}/public/registrations/context`, {
+      data: { secret },
+    })
+
+    const body = await response.json()
+    expect(body.available).toBe(false)
+    expect(body.reason).toBe('document_url_missing')
+  })
+
+  /**
+   * Uniform with the submit path, and for the same reason — but it matters more
+   * here: this endpoint costs no form to try, so an oracle that confirmed a
+   * valid secret exists would be the cheapest one in the system.
+   */
+  test('a wrong secret and a missing one answer identically here too', async ({ request }) => {
+    configureSelfRegistration(uniqueSecret())
+
+    const wrong = await request.post(`${API}/public/registrations/context`, {
+      data: { secret: 'not-the-secret' },
+    })
+    const missing = await request.post(`${API}/public/registrations/context`, { data: {} })
+
+    expect(wrong.status()).toBe(404)
+    expect(missing.status()).toBe(404)
+    expect(await wrong.text()).toBe(await missing.text())
+  })
+
+  test('the context reveals nothing about members or the queue', async ({ request }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    const response = await request.post(`${API}/public/registrations/context`, {
+      data: { secret },
+    })
+
+    // Club configuration a poster-holder is standing in front of anyway — and
+    // nothing else. No counts, no names, no hint whether the club knows them.
+    expect(Object.keys(await response.json()).sort()).toEqual([
+      'available',
+      'document_url',
+      'languages',
+      'message',
+      'reason',
+    ])
+  })
+
+  /**
+   * The page loads this every time it opens, and a member who reads the club's
+   * document before filling anything in opens it twice. Charging that against
+   * the submission budget would refuse the sixth honest visitor at a signup
+   * evening for the crime of being careful.
+   */
+  test('reading the context does not spend the submission budget', async ({ request }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    for (let i = 0; i < 12; i++) {
+      const response = await request.post(`${API}/public/registrations/context`, {
+        data: { secret },
+      })
+      expect(response.status(), `context read ${i + 1}`).toBe(200)
+    }
+
+    const submitted = await request.post(`${API}/public/registrations`, {
+      data: { secret, ...submission() },
+    })
+    expect(submitted.status()).toBe(201)
+  })
 })

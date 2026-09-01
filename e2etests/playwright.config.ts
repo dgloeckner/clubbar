@@ -143,6 +143,32 @@ export default defineConfig({
       },
     },
 
+    /*
+     * The public onboarding page (#781).
+     *
+     * Its own project because it is its own application: served as static files
+     * from the backend's document root, at `http://localhost:8080/register/`,
+     * with no build step and no relationship to the admin SPA on :5173. Putting
+     * it in `admin-chromium` would point it at the wrong origin.
+     *
+     * **iPhone 14 metrics on Chromium**, and the mix is deliberate. The
+     * viewport, the touch flag and the mobile user agent are what these specs
+     * assert against — 375px layout, 44px targets, a numeric keypad — while the
+     * page itself is plain DOM with no framework, so there is no rendering
+     * engine's opinion in play. Pinning it to Chromium keeps it runnable in a
+     * sandbox that has only Chromium installed, which is where most of this
+     * work happens; `admin-mobile` remains the suite's WebKit lane.
+     */
+    {
+      name: 'register',
+      testDir: './tests/register',
+      use: {
+        ...devices['iPhone 14'],
+        browserName: 'chromium',
+        baseURL: process.env.API_URL || 'http://localhost:8080',
+      },
+    },
+
     // Terminal - Touch device simulation
     {
       name: 'terminal-touch',

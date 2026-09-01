@@ -20,6 +20,14 @@
     height: 6mm; box-sizing: border-box; padding: 0 1mm;
   }
   .feld label { display: block; color: #666; font-size: 7.5pt; margin-top: .8mm; }
+  /* The comb. Each box is a real border on the input — page content, so it
+     survives flattening; a field *border* is an annotation and would vanish. */
+  .kamm { display: flex; gap: 1mm; margin-bottom: 6mm; }
+  .kamm input {
+    flex: 1; min-width: 0; height: 7mm; text-align: center;
+    border: .4pt solid #666; background: #fff;
+    font: 10pt Helvetica, Arial, sans-serif; padding: 0;
+  }
   .mandatstext { font-size: 9pt; margin: 8mm 0; }
   .unterschriften { display: flex; gap: 8mm; margin-top: 14mm; }
   .unterschrift { flex: 1; border-top: .7pt solid #1a1a2e; color: #666; font-size: 7.5pt; padding-top: .8mm; }
@@ -52,6 +60,27 @@
   <div class="zeile">
     <div class="feld"><input name="iban"><label>IBAN — bei Ausdruck durch den Verein bitte handschriftlich eintragen</label></div>
     <div class="feld schmal"><input name="iban_last4"><label>Kontroll-Hinweis</label></div>
+  </div>
+
+  <!--
+    The IBAN-Kamm: one box per character, sized for a handwritten letter, which
+    is how German forms actually print an IBAN. A value drawn as one continuous
+    run across a comb lands *between* the boxes rather than in them, so a
+    template that wants its comb filled declares one field per box — the same
+    way it would be authored in HTML anyway.
+
+    22 boxes, the length of a German IBAN. A longer one is simply not writable
+    on this form, by hand or otherwise, which is a property of the club's paper
+    and not something software can fix.
+  -->
+  <div class="gruppe">IBAN in Druckbuchstaben</div>
+  <div class="kamm">
+    <input name="iban_1"><input name="iban_2"><input name="iban_3"><input name="iban_4">
+    <input name="iban_5"><input name="iban_6"><input name="iban_7"><input name="iban_8">
+    <input name="iban_9"><input name="iban_10"><input name="iban_11"><input name="iban_12">
+    <input name="iban_13"><input name="iban_14"><input name="iban_15"><input name="iban_16">
+    <input name="iban_17"><input name="iban_18"><input name="iban_19"><input name="iban_20">
+    <input name="iban_21"><input name="iban_22">
   </div>
 
   <p class="mandatstext">

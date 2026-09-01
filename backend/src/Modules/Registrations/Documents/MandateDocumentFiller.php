@@ -36,11 +36,37 @@ use setasign\Fpdi\PdfParser\CrossReference\CrossReferenceException;
  */
 class MandateDocumentFiller
 {
-    /** Points. Matches the field heights a 10pt template produces. */
+    /** The size a value is drawn at when it fits. */
     private const FONT_SIZE = 10.0;
+
+    /**
+     * The smallest a value may be shrunk to before legibility loses to fitting.
+     *
+     * Below this, a value that still does not fit is drawn at this size and
+     * allowed to be too wide — which is visibly wrong, and *meant* to be. A
+     * value silently clipped or overlapping the next field is a document that
+     * looks fine and is not; one that is obviously cramped gets looked at.
+     */
+    private const MIN_FONT_SIZE = 5.0;
 
     /** Left padding inside the field rectangle, so text does not touch the line. */
     private const TEXT_INSET = 3.0;
+
+    /**
+     * A comb cell: `iban_1`, `iban_2`, … one box per character.
+     *
+     * German forms draw the IBAN as an **IBAN-Kamm** — a row of boxes sized for
+     * a handwritten character — and a value drawn as one continuous run across
+     * it lands between the boxes rather than in them. A template that wants its
+     * comb filled declares one field per box, which is also how it would be
+     * authored in HTML: `<input name="iban_1">` and so on.
+     *
+     * Only recognised when the *base* name has a value and the numbered name
+     * does not. That second condition is what keeps `iban_last4` — base
+     * `iban_last`, index `4` — from being mistaken for the fourth box of a comb
+     * that does not exist.
+     */
+    private const COMB_CELL = '/^(?<base>.+)_(?<index>[1-9]\d*)$/';
 
     /**
      * Refuse a template this filler could not use, before anything depends on it.
@@ -98,21 +124,33 @@ class MandateDocumentFiller
             $pdf->SetFont('Helvetica', '', self::FONT_SIZE);
             $pdf->SetTextColor(26, 26, 46);
 
-            foreach ($fields as $name => [$x1, $y1, , $y2]) {
-                $value = (string) ($values[$name] ?? '');
+            foreach ($fields as $name => [$x1, $y1, $x2, $y2]) {
+                $value = $this->valueFor($name, $fields, $values);
                 if ($value === '') {
                     continue;
                 }
 
+                $text = $this->latin1($value);
+                $fieldWidth = $x2 - $x1;
+
+                // Shrink to fit rather than overflow. Not a nicety: on the
+                // reference club's own published Anmeldung the 32-character
+                // mandate reference is 166pt wide at 10pt in a 108pt field, so
+                // a fixed size runs it 58pt into whatever sits beside it.
+                $fontSize = $this->sizeThatFits($pdf, $text, $fieldWidth);
+                $pdf->SetFontSize($fontSize);
+
                 // FPDF's origin is top-left; the rectangle's is bottom-left.
                 $height = $y2 - $y1;
-                $baselineFromBottom = $y1 + ($height - self::FONT_SIZE) / 2 + 2.0;
+                $baselineFromBottom = $y1 + ($height - $fontSize) / 2 + 2.0;
 
-                $pdf->Text(
-                    $x1 + self::TEXT_INSET,
-                    (float) $size['height'] - $baselineFromBottom,
-                    $this->latin1($value),
-                );
+                // A comb cell holds one glyph and wants it in the middle of the
+                // box; anything else reads left to right from the field's edge.
+                $x = $this->isCombCell($name, $fields, $values)
+                    ? $x1 + max(0.0, ($fieldWidth - $pdf->GetStringWidth($text)) / 2)
+                    : $x1 + self::TEXT_INSET;
+
+                $pdf->Text($x, (float) $size['height'] - $baselineFromBottom, $text);
             }
 
             // Only now. FPDF cannot go back to page 1 once page 2 exists, so
@@ -128,6 +166,73 @@ class MandateDocumentFiller
         } finally {
             @unlink($source);
         }
+    }
+
+    /**
+     * What belongs in this field: a plain value, or one character of a comb.
+     *
+     * @param array<string, mixed> $fields
+     * @param array<string, string> $values
+     */
+    private function valueFor(string $name, array $fields, array $values): string
+    {
+        if (array_key_exists($name, $values)) {
+            return (string) $values[$name];
+        }
+
+        if (!$this->isCombCell($name, $fields, $values)) {
+            return '';
+        }
+
+        preg_match(self::COMB_CELL, $name, $parts);
+
+        // Whitespace never gets a box. A comb has one cell per character of the
+        // value itself, so the grouped form a single wide field would show —
+        // `DE89 3704 …` — is compacted before it is distributed.
+        $source = preg_replace('/\s+/', '', (string) $values[$parts['base']]) ?? '';
+        $index = (int) $parts['index'] - 1;
+
+        return $index < strlen($source) ? $source[$index] : '';
+    }
+
+    /**
+     * Whether this field is the *n*th box of a comb whose base value exists.
+     *
+     * @param array<string, mixed> $fields
+     * @param array<string, string> $values
+     */
+    private function isCombCell(string $name, array $fields, array $values): bool
+    {
+        if (array_key_exists($name, $values)) {
+            return false;
+        }
+        if (preg_match(self::COMB_CELL, $name, $parts) !== 1) {
+            return false;
+        }
+
+        return array_key_exists($parts['base'], $values);
+    }
+
+    /**
+     * The largest size at or below the nominal one at which this text fits.
+     *
+     * Stepped rather than solved: a half-point ladder is imperceptible on the
+     * page and avoids a division that would need guarding against a zero-width
+     * string. A value that will not fit even at the floor is drawn at the floor
+     * and allowed to look cramped — see {@see MIN_FONT_SIZE}.
+     */
+    private function sizeThatFits(Fpdi $pdf, string $text, float $fieldWidth): float
+    {
+        $usable = max(1.0, $fieldWidth - 2 * self::TEXT_INSET);
+
+        for ($size = self::FONT_SIZE; $size > self::MIN_FONT_SIZE; $size -= 0.5) {
+            $pdf->SetFontSize($size);
+            if ($pdf->GetStringWidth($text) <= $usable) {
+                return $size;
+            }
+        }
+
+        return self::MIN_FONT_SIZE;
     }
 
     /** How many pages a PDF has — for asserting that none were lost. */

@@ -395,4 +395,102 @@ final class RegistrationsServiceTest extends TestCase
         self::assertSame(1, $this->service->purgeExpired());
         self::assertSame(1, (int) $this->db->query('SELECT COUNT(*) FROM pending_registrations')->fetchColumn());
     }
+
+    // ── the entry lookup (#781) ──────────────────────────────────────────
+
+    /**
+     * The page a QR code opens has to know, before it renders anything, whether
+     * it should render a form or the club's paused screen. It asks this.
+     */
+    public function test_the_context_says_registration_is_open(): void
+    {
+        $context = $this->service->context(self::SECRET, '203.0.113.7');
+
+        self::assertTrue($context->available);
+        self::assertNull($context->reason);
+        self::assertSame('https://club.example/Anmeldung_Ruderbar.pdf', $context->documentUrl);
+    }
+
+    /**
+     * The whole point of the paused screen: the visitor is standing in the
+     * clubhouse holding the club's own poster, and is owed the club's own
+     * explanation rather than a blank wall.
+     */
+    public function test_a_disabled_club_answers_with_its_own_reason(): void
+    {
+        $this->db->exec("UPDATE self_registration_config SET enabled = 0, disabled_reason = 'Beta-Phase schon voll'");
+
+        $context = $this->service->context(self::SECRET, '203.0.113.7');
+
+        self::assertFalse($context->available);
+        self::assertSame(BusinessRuleReason::REGISTRATION_DISABLED->value, $context->reason);
+        self::assertSame('Beta-Phase schon voll', $context->message);
+    }
+
+    /**
+     * The same fail-closed condition the submit path enforces, answered *before*
+     * a single field is rendered. A form that collects a name, a birth date and
+     * an IBAN and only then discovers nobody could have been shown a notice has
+     * already wasted the applicant's time on data it must refuse.
+     */
+    public function test_no_club_document_means_the_form_is_never_rendered(): void
+    {
+        $this->db->exec('UPDATE sepa_config SET mandate_template_url = NULL');
+
+        $context = $this->service->context(self::SECRET, '203.0.113.7');
+
+        self::assertFalse($context->available);
+        self::assertSame(BusinessRuleReason::DOCUMENT_URL_MISSING->value, $context->reason);
+    }
+
+    /**
+     * Uniform with the submit path, and for the same reason: an endpoint that
+     * confirmed a valid secret exists would be a free oracle for whoever is
+     * guessing one.
+     */
+    public function test_a_wrong_secret_gets_the_same_uniform_refusal_as_a_submission(): void
+    {
+        $this->expectException(NotFoundException::class);
+        $this->service->context('not-the-secret', '203.0.113.7');
+    }
+
+    public function test_a_missing_secret_gets_the_same_refusal(): void
+    {
+        $this->expectException(NotFoundException::class);
+        $this->service->context('', '203.0.113.7');
+    }
+
+    /** A refused lookup is a guess, and is metered exactly like a refused submission. */
+    public function test_a_refused_lookup_is_metered(): void
+    {
+        for ($attempt = 0; $attempt < RegistrationsService::MAX_REFUSED_PER_WINDOW; $attempt++) {
+            try {
+                $this->service->context('wrong', '198.51.100.9');
+            } catch (NotFoundException) {
+                // expected
+            }
+        }
+
+        $this->expectException(TooManyAttemptsException::class);
+        $this->service->context('wrong', '198.51.100.9');
+    }
+
+    /**
+     * A *successful* lookup is not metered as an accepted submission.
+     *
+     * The page loads this on every open, and a member who reads the club's
+     * document before filling anything in opens it twice. Charging that against
+     * the submission budget would refuse the sixth honest visitor at a signup
+     * evening for the crime of being careful.
+     */
+    public function test_a_successful_lookup_does_not_spend_the_submission_budget(): void
+    {
+        for ($attempt = 0; $attempt < RegistrationsService::MAX_ACCEPTED_PER_WINDOW + 5; $attempt++) {
+            $this->service->context(self::SECRET, '198.51.100.10');
+        }
+
+        // The budget is untouched, so a submission from that address still lands.
+        $receipt = $this->service->submit(self::SECRET, $this->payload(), '198.51.100.10');
+        self::assertNotSame('', $receipt->id);
+    }
 }
