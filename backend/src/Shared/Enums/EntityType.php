@@ -29,4 +29,14 @@ enum EntityType: string
      * — there is no other record that the person arrived through a poster.
      */
     case REGISTRATION = 'registration';
+
+    /**
+     * The club's self-registration settings as a whole (#783).
+     *
+     * A singleton, like `sepa_config` and `instance_config` above: the entity id
+     * is the table's name rather than a row id, because there is exactly one row
+     * and an audit reader looking for "who switched registration off" should not
+     * have to know it is always `1`.
+     */
+    case SELF_REGISTRATION = 'self_registration';
 }

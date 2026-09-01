@@ -166,4 +166,19 @@ enum BusinessRuleReason: string
     case DOCUMENT_TEMPLATE_FIELD_MISSING = 'document_template_field_missing';
     /** The configured URL could not be fetched at all. */
     case DOCUMENT_TEMPLATE_UNREACHABLE = 'document_template_unreachable';
+
+    // Managing the surface (#783). Each names the precondition that does not
+    // hold, rather than greying a control out: a disabled control that will not
+    // say why is a support call.
+    /** Enabling, or reprinting, without a poster secret to enable or print. */
+    case REGISTRATION_NO_SECRET = 'registration_no_secret';
+    /** The stored secret will not decrypt — the key changed. Rotating is the way out. */
+    case REGISTRATION_SECRET_UNREADABLE = 'registration_secret_unreadable';
+    /**
+     * Switching off without a sentence for the people it affects.
+     *
+     * A blank paused screen reads as a broken feature to somebody standing in
+     * the clubhouse holding the club's own poster (ADR-0052 decision 1).
+     */
+    case REGISTRATION_REASON_REQUIRED = 'registration_reason_required';
 }

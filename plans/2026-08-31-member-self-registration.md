@@ -158,7 +158,7 @@ the final PR.
       (`useListQuery`, no hand-rolled paging state), review drawer, print,
       approve with the attestation, reject with a reason. The IBAN is never
       displayed — it can only be replaced, because the server cannot read it.
-- [ ] **M6 — Availability, secret, URLs and poster**
+- [x] **M6 — Availability, secret, URLs and poster**
       ([#783](https://github.com/dgloeckner/clubbar/issues/783)).
       Generate the first secret (until then the feature is off), reprint the
       poster without rotating, rotate — all `[ADMIN]`, and rotation invalidates
@@ -174,9 +174,25 @@ the final PR.
       The same URL is what the public page links for Art. 13, so there is no
       second field to keep consistent with it.
       **No upload flow** — clubbar stores no template copy. Printable QR poster.
-      *Verified by*: an unreachable or non-fillable template URL is refused with
-      its typed reason and not saved; a valid one is accepted and audited; with
-      none set the DK-Muster default renders.
+      *Verified by*: `api-tests` `self-registration.spec.ts` 44/44 — the
+      settings key set asserted exactly (the guarantee is about what is
+      **absent**), rotation killing the old secret observed from the public
+      surface, reprint not rotating, the trimmed reason reaching the
+      poster-holder's context, an unreachable URL refused **and not stored**,
+      both preconditions named, and the Kassenwart reaching the review inbox
+      but not this credential. `admin-chromium`
+      `settings-self-registration.spec.ts` 4/4 for the screen, and 9 component
+      tests for the gate on the switch — including that nothing on the tab can
+      render the secret. Backend Unit 2880 green.
+
+      **One deviation from the issue text, deliberate**: the DK-Muster default
+      is not implemented, and there is nothing left to implement it *for*. Under
+      the owner's one-document ruling the club's own published Anmeldung is both
+      the Art. 13 notice and the print template, so a club with no URL has
+      nothing to show an applicant before collecting their data — the surface
+      fails closed rather than falling back to a generic mandate that would drop
+      the Datenschutzhinweise the applicant was pointed at. Clearing the URL
+      therefore switches the club off, which is the same decision stated once.
 - [ ] **M7 — E2E flow and privacy assertions**
       ([#784](https://github.com/dgloeckner/clubbar/issues/784)).
       Public form → pending row → admin approve → member exists → terminal sync

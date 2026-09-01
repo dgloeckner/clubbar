@@ -154,6 +154,16 @@ final class RouteRoleMap
         'PATCH /api/admin/registrations/{registrationId}' => self::TREASURY,
         'POST /api/admin/registrations/{registrationId}/approve' => self::TREASURY,
         'GET /api/admin/registrations/{registrationId}/document' => self::TREASURY,
+
+        // The club's own controls (#783). `ADMIN`, not TREASURY, and the split
+        // is the same one ADR-0036 draws for every other credential: emptying
+        // the queue is treasury work, but the poster secret *is* the gate on an
+        // unauthenticated surface, and rotating it takes every poster in the
+        // building out of service.
+        'GET /api/admin/self-registration' => self::ADMIN_ONLY,
+        'PATCH /api/admin/self-registration' => self::ADMIN_ONLY,
+        'POST /api/admin/self-registration/secret' => self::ADMIN_ONLY,
+        'POST /api/admin/self-registration/poster' => self::ADMIN_ONLY,
         'POST /api/admin/registrations/{registrationId}/reject' => self::TREASURY,
 
         // ── the drinks list ──────────────────────────────────────────────
