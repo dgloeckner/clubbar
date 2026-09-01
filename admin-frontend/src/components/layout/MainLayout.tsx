@@ -67,8 +67,11 @@ export function MainLayout({ children }: MainLayoutProps) {
     {
       label: t('nav.registrations'),
       path: '/registrations',
+      // The badge's test id deliberately does not start with `nav-`: the E2E
+      // suite enumerates sections with `[data-testid^="nav-"]`, and a badge
+      // nested inside an entry would be counted as a section of its own.
       icon: (
-        <NavCountBadge count={pendingRegistrations} testId="nav-registrations-count">
+        <NavCountBadge count={pendingRegistrations} testId="registrations-count-badge">
           <UserPlusIcon size={20} />
         </NavCountBadge>
       ),
