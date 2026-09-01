@@ -89,9 +89,15 @@
     mein Kreditinstitut an, die vom Verein auf mein Konto gezogenen Lastschriften einzulösen.
   </p>
 
+  <!-- Real AcroForm fields, deliberately (#784). A club whose designer made
+       the signature line fillable is a template this pipeline has to handle
+       *without* filling it: the member signs in person, and a machine-printed
+       place and date on a mandate is a claim nobody made. The filler writes
+       only fields it has a value for, and it has none for these — which is
+       provable only if the fields exist to be left empty. -->
   <div class="unterschriften">
-    <div class="unterschrift">Ort, Datum (handschriftlich)</div>
-    <div class="unterschrift">Unterschrift Kontoinhaber</div>
+    <div class="unterschrift"><input name="ort_datum"><label>Ort, Datum (handschriftlich)</label></div>
+    <div class="unterschrift"><input name="unterschrift"><label>Unterschrift Kontoinhaber</label></div>
   </div>
 
   <section class="seitenumbruch">

@@ -31,6 +31,7 @@ import {
   serveClubDocument,
   stopServingClubDocument,
 } from '../../utils/sql'
+import { lockSelfRegistration, unlockSelfRegistration } from '../../utils/registrationLock'
 
 /**
  * Server-side truth is read through `page.request`, not a separate fixture:
@@ -48,6 +49,29 @@ function restoreClub(): void {
 
 test.describe('Settings — self-registration controls', () => {
   test.describe.configure({ mode: 'serial' })
+
+  /**
+   * One writer at a time on `self_registration_config` (#784).
+   *
+   * `mode: 'serial'` orders this file's tests and says nothing about the three
+   * other spec files that write the same singleton row. Without the lock, a
+   * concurrent worker overwrites the secret between the write and the request
+   * presenting it, and the valid secret comes back as the uniform 404 — a
+   * failure reported by whichever file lost the race rather than the one that
+   * caused it. Held for the whole test, because the window spans the write and
+   * the round trip that presents what was written.
+   *
+   * Declared first, so it is taken before the state below is written and
+   * released after that state is put back: Playwright runs `afterEach` hooks in
+   * reverse declaration order.
+   */
+  test.beforeEach(() => {
+    lockSelfRegistration()
+  })
+
+  test.afterEach(() => {
+    unlockSelfRegistration()
+  })
 
   /**
    * Serve a document the backend can actually fetch: the URL is validated at

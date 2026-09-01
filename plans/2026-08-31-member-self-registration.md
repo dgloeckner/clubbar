@@ -193,13 +193,37 @@ the final PR.
       fails closed rather than falling back to a generic mandate that would drop
       the Datenschutzhinweise the applicant was pointed at. Clearing the URL
       therefore switches the club off, which is the same decision stated once.
-- [ ] **M7 — E2E flow and privacy assertions**
+- [x] **M7 — E2E flow and privacy assertions**
       ([#784](https://github.com/dgloeckner/clubbar/issues/784)).
       Public form → pending row → admin approve → member exists → terminal sync
       sees them, and the same assertions one step earlier proving it did **not**.
       Plus: no plaintext IBAN anywhere in the database, no personal data in the
       public endpoint's logs, no mail queued by a submission, and a purge that
       removes an abandoned registration.
+      *Verified by*: `registration-flow.spec.ts` carries one applicant from a QR
+      scan to a member the till can serve, in two browser contexts — the
+      applicant's phone has no admin cookie, which is what keeps the public
+      surface's authorisation honest — while intercepting every JSON response
+      the panel receives and asserting the IBAN is in none of them. The terminal
+      gate is asserted from the terminal's own bearer token, before and after
+      approval. The signature line is proved unfilled **geometrically**, with a
+      control run that fills it first so a fixture rebuild cannot make the claim
+      vacuous.
+
+      **Three parallel-safety defects it found, all fixed here**: the nav count
+      badge's test id started with `nav-`, so #782 made every nav enumeration
+      see a phantom section (and `nav-overflow` was never told about the real
+      one); four spec files each deleted the shared club-document fixture in
+      their own `afterAll`, out from under the others; and four spec files write
+      one singleton config row, which `mode: 'serial'` orders within a file and
+      not across them — now serialised by `utils/registrationLock.ts`.
+
+      Backend Unit **2883** green; `admin-chromium` + `register` **400/400** and
+      `api-tests` **804/804**, both at 4 workers, in the shapes CI's `ui` and
+      `api` lanes actually run. The default `npm test` list deliberately mixes
+      lanes and still shows three pre-existing cross-lane contentions
+      (`notifications-queue`, `settings-credentials` ×2) in files this slice does
+      not touch — both are green inside their own lane.
 
 ## Testable acceptance, epic-wide
 

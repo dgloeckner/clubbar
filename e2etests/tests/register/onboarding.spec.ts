@@ -5,10 +5,12 @@ import {
   clearRegistrationAttempts,
   configureSelfRegistration,
   countPendingRegistrations,
+  execSql,
   restoreClubDocumentUrl,
   serveClubDocument,
   stopServingClubDocument,
 } from '../../utils/sql'
+import { lockSelfRegistration, unlockSelfRegistration } from '../../utils/registrationLock'
 import { test } from '../../fixtures/roleRequests'
 
 /**
@@ -34,6 +36,25 @@ const TEST_IBAN = 'DE89370400440532013000'
 test.describe('Public onboarding page', () => {
   test.describe.configure({ mode: 'serial' })
 
+  /**
+   * One writer at a time on `self_registration_config` (#784).
+   *
+   * `mode: 'serial'` orders this file's tests and says nothing about the three
+   * other spec files that write the same singleton row. Without the lock, a
+   * concurrent worker overwrites the secret between the write and the request
+   * presenting it, and the valid secret comes back as the uniform 404 — a
+   * failure reported by whichever file lost the race rather than the one that
+   * caused it. Held for the whole test, because the window spans the write and
+   * the round trip that presents what was written.
+   */
+  test.beforeEach(() => {
+    lockSelfRegistration()
+  })
+
+  test.afterEach(() => {
+    unlockSelfRegistration()
+  })
+
   test.beforeAll(() => {
     // A real Anmeldung the backend can fetch, so the success screen's document
     // is the genuine article rather than a stand-in.
@@ -50,6 +71,19 @@ test.describe('Public onboarding page', () => {
 
   test.afterEach(() => {
     restoreClubDocumentUrl()
+  })
+
+  /**
+   * Leave the club switched on, whatever this test did to it (#784).
+   *
+   * A leaked disabled state fails *other* specs, with a refusal that is
+   * entirely correct for a club that is off — so the report accuses whichever
+   * file ran next. In SQL rather than through the API because switching off
+   * needs a reason and this has to work from any state, including one a failed
+   * test left half-applied.
+   */
+  test.afterEach(() => {
+    execSql('UPDATE self_registration_config SET enabled = 1, disabled_reason = NULL WHERE id = 1')
   })
 
   const uniqueSecret = () => `secret-${randomUUID()}`

@@ -1,6 +1,6 @@
 # UC-A17: Review a Pending Registration
 
-**Implementation Status**: Backend implemented ([#779](https://github.com/dgloeckner/clubbar/issues/779)) — list, detail, edit-before-approve, approve and reject are live behind `/api/admin/registrations`, with the attestation refused rather than defaulted, the sealed IBAN copied verbatim to the mandate, and audit rows for every act. The panel screen that drives them is [#782](https://github.com/dgloeckner/clubbar/issues/782), and the printed document is [#780](https://github.com/dgloeckner/clubbar/issues/780).
+**Implementation Status**: Backend implemented ([#779](https://github.com/dgloeckner/clubbar/issues/779)) — list, detail, edit-before-approve, approve and reject are live behind `/api/admin/registrations`, with the attestation refused rather than defaulted, the sealed IBAN copied verbatim to the mandate, and audit rows for every act. The panel screen that drives them is [#782](https://github.com/dgloeckner/clubbar/issues/782), and the printed document is [#780](https://github.com/dgloeckner/clubbar/issues/780). **Fully implemented** as of [#784](https://github.com/dgloeckner/clubbar/issues/784), which also asserts what the review must never leak: every JSON response the panel receives is intercepted during a real review, and the full IBAN is in none of them.
 
 ## Actors
 

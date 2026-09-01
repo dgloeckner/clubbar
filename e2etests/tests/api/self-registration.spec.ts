@@ -13,6 +13,7 @@ import {
   serveClubDocument,
   stopServingClubDocument,
 } from '../../utils/sql'
+import { lockSelfRegistration, unlockSelfRegistration } from '../../utils/registrationLock'
 import { drainMailQueue } from '../../utils/drain'
 
 /**
@@ -103,6 +104,25 @@ test.describe('Public self-registration', () => {
    */
   test.describe.configure({ mode: 'serial' })
 
+  /**
+   * One writer at a time on `self_registration_config` (#784).
+   *
+   * `mode: 'serial'` orders this file's tests and says nothing about the three
+   * other spec files that write the same singleton row. Without the lock, a
+   * concurrent worker overwrites the secret between the write and the request
+   * presenting it, and the valid secret comes back as the uniform 404 — a
+   * failure reported by whichever file lost the race rather than the one that
+   * caused it. Held for the whole test, because the window spans the write and
+   * the round trip that presents what was written.
+   */
+  test.beforeEach(() => {
+    lockSelfRegistration()
+  })
+
+  test.afterEach(() => {
+    unlockSelfRegistration()
+  })
+
   // The rate-limit meter is per source address, and every spec here arrives
   // from the same one. Starting each from an empty meter keeps a 429 meaning
   // "the throttle works" rather than "the previous test spent the budget".
@@ -123,6 +143,19 @@ test.describe('Public self-registration', () => {
    */
   test.afterEach(() => {
     restoreClubDocumentUrl()
+  })
+
+  /**
+   * Leave the club switched on, whatever this test did to it (#784).
+   *
+   * A leaked disabled state fails *other* specs, with a refusal that is
+   * entirely correct for a club that is off — so the report accuses whichever
+   * file ran next. In SQL rather than through the API because switching off
+   * needs a reason and this has to work from any state, including one a failed
+   * test left half-applied.
+   */
+  test.afterEach(() => {
+    execSql('UPDATE self_registration_config SET enabled = 1, disabled_reason = NULL WHERE id = 1')
   })
 
   /**
@@ -937,6 +970,79 @@ test.describe('Public self-registration', () => {
       data: { secret, ...submission() },
     })
     expect(submitted.status()).toBe(201)
+  })
+
+  // ── the terminal gate (#784, ADR-0052 decision 9) ───────────────────────
+  //
+  // The claim the whole epic rests on: **a pending registration is not a
+  // member**. Not a member with a flag, not a member awaiting activation — no
+  // `members` row at all, so there is nothing for the terminal to return and
+  // nothing for it to recognise. It is asserted here from the terminal's own
+  // surface, with its own bearer token, because that is the only place the
+  // claim is actually observable: the admin API deliberately shows the queue.
+
+  test('a submitted registration is invisible to the terminal, and visible after approval', async ({
+    request,
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+  }) => {
+    const { id, data } = await submitOne(request)
+
+    // The terminal payload carries no email (ADR-0045: the till has no business
+    // knowing one), so the applicant is matched on the surname `submitOne`
+    // makes unique per test — the same reason Pattern 003 searches by identity
+    // rather than position.
+    const surname = data.last_name as string
+
+    const before = await authenticatedTerminalRequest.get(`${API}/sync/members?since=0`)
+    expect(before.status()).toBe(200)
+    const pending = (await before.json()).members ?? []
+    expect(
+      pending.filter((member: { last_name: string }) => member.last_name === surname),
+      'a pending registration must not reach the terminal',
+    ).toHaveLength(0)
+
+    const approved = await authenticatedRequest.post(`${API}/admin/registrations/${id}/approve`, {
+      data: { mandate_signed_at: '2026-08-30', signed_mandate_confirmed: true },
+    })
+    expect(approved.status()).toBe(201)
+
+    const after = await authenticatedTerminalRequest.get(`${API}/sync/members?since=0`)
+    const now = ((await after.json()).members ?? []).filter(
+      (member: { last_name: string }) => member.last_name === surname,
+    )
+    expect(now, 'the approved member must reach the terminal').toHaveLength(1)
+
+    // The mandate travelled with them: the till may serve somebody the club can
+    // actually collect from, which is the point of the attestation gate.
+    expect(now[0].is_sepa_valid).toBe(true)
+    // And the terminal still learns nothing it has no business with — no email,
+    // no IBAN in any form.
+    expect(Object.keys(now[0])).not.toContain('email')
+    expect(JSON.stringify(now[0])).not.toContain(TEST_IBAN)
+  })
+
+  test('a rejected registration reaches the terminal in neither direction', async ({
+    request,
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+  }) => {
+    const { id, data } = await submitOne(request)
+    const surname = data.last_name as string
+
+    const rejected = await authenticatedRequest.post(`${API}/admin/registrations/${id}/reject`, {
+      data: { reason: 'Not a member of the club' },
+    })
+    expect(rejected.status()).toBe(204)
+
+    // The mirror of the test above, and worth its own: a rejection deletes the
+    // submission outright rather than marking it, so the failure it guards
+    // against would be a *deleted* applicant somehow reaching the till.
+    const sync = await authenticatedTerminalRequest.get(`${API}/sync/members?since=0`)
+    const rows = ((await sync.json()).members ?? []).filter(
+      (member: { last_name: string }) => member.last_name === surname,
+    )
+    expect(rows).toHaveLength(0)
   })
 
   // ── the club's own controls (#783, UC-A69) ──────────────────────────────

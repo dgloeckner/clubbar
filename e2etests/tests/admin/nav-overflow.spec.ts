@@ -36,8 +36,8 @@ const ADMIN_SECTIONS = [
  * ~864px the row gets at this width with the seeded club name: ten sections
  * needed ~1114px in German and ~923px in English, so the tail moved into
  * "More" either way — which is what lets the two tests below assert it rather
- * than check for it. Registrations made it eleven, which only widens the
- * margin.
+ * than check for it. Registrations (#782) made it eleven, which only widens
+ * the margin.
  */
 const NARROW_DESKTOP = 1501
 
