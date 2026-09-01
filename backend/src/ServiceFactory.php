@@ -18,6 +18,11 @@ use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Reports\Repositories\ReportsRepository;
 use App\Modules\Products\Repositories\CategoriesRepository;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Registrations\Controllers\PublicController as RegistrationsPublicController;
+use App\Modules\Registrations\Repositories\RegistrationAttemptsRepository;
+use App\Modules\Registrations\Repositories\RegistrationsRepository;
+use App\Modules\Registrations\Repositories\SelfRegistrationConfigRepository;
+use App\Modules\Registrations\Services\RegistrationsService;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
@@ -214,6 +219,9 @@ class ServiceFactory implements ContainerInterface
         AdminUsersAdminController::class => 'getAdminUsersAdminController',
         InvitationController::class => 'getInvitationController',
 
+        // Registrations (ADR-0052) — the public onboarding surface
+        RegistrationsPublicController::class => 'getRegistrationsPublicController',
+
         // AuditLog
         AuditLogAdminController::class => 'getAuditLogAdminController',
         AuditLogService::class => 'getAuditLogService',
@@ -329,6 +337,51 @@ class ServiceFactory implements ContainerInterface
     public function getMailConfigRepository(): MailConfigRepository
     {
         return $this->resolve(MailConfigRepository::class, fn() => new MailConfigRepository($this->pdo, $this->logger));
+    }
+
+    // --- Registrations (ADR-0052) ---
+
+    public function getRegistrationsRepository(): RegistrationsRepository
+    {
+        return $this->resolve(RegistrationsRepository::class, fn() => new RegistrationsRepository($this->pdo));
+    }
+
+    public function getSelfRegistrationConfigRepository(): SelfRegistrationConfigRepository
+    {
+        return $this->resolve(
+            SelfRegistrationConfigRepository::class,
+            fn() => new SelfRegistrationConfigRepository($this->pdo),
+        );
+    }
+
+    public function getRegistrationAttemptsRepository(): RegistrationAttemptsRepository
+    {
+        return $this->resolve(
+            RegistrationAttemptsRepository::class,
+            fn() => new RegistrationAttemptsRepository($this->pdo),
+        );
+    }
+
+    public function getRegistrationsService(): RegistrationsService
+    {
+        return $this->resolve(RegistrationsService::class, fn() => new RegistrationsService(
+            $this->getRegistrationsRepository(),
+            $this->getSelfRegistrationConfigRepository(),
+            $this->getRegistrationAttemptsRepository(),
+            $this->getEncryptionKeysRepository(),
+            $this->getBankCodeService(),
+            $this->getSepaConfigRepository(),
+            $this->getIbanSealedBox(),
+            $this->logger,
+        ));
+    }
+
+    public function getRegistrationsPublicController(): RegistrationsPublicController
+    {
+        return $this->resolve(RegistrationsPublicController::class, fn() => new RegistrationsPublicController(
+            $this->getRegistrationsService(),
+            $this->getValidator(),
+        ));
     }
 
     public function getMailOutboxRepository(): MailOutboxRepository

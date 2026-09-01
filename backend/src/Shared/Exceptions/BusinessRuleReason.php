@@ -121,4 +121,14 @@ enum BusinessRuleReason: string
     case MANDATE_VANISHED_DURING_EXPORT = 'mandate_vanished_during_export';
     case IBAN_KEY_UNAVAILABLE = 'iban_key_unavailable';
     case SEPA_XML_MALFORMED = 'sepa_xml_malformed';
+
+    // Self-registration (ADR-0052). `REGISTRATION_DISABLED` is the only one of
+    // these an anonymous caller ever sees, and it is deliberately talkative:
+    // the person holding the poster is standing in the clubhouse, and a blank
+    // refusal there reads as a broken feature rather than as a club decision.
+    // A wrong or missing poster secret is *not* here — it answers a uniform
+    // 404, because telling a prober that a valid secret exists is the one
+    // disclosure the gate is for.
+    case REGISTRATION_DISABLED = 'registration_disabled';
+    case DOCUMENT_URL_MISSING = 'document_url_missing';
 }
