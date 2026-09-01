@@ -26,6 +26,7 @@ use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AdminUsers\Controllers\InvitationController;
 use App\Modules\Registrations\Controllers\AdminController as RegistrationsAdminController;
+use App\Modules\Registrations\Controllers\SelfRegistrationConfigController;
 use App\Modules\Registrations\Controllers\PublicController as RegistrationsPublicController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
@@ -231,6 +232,15 @@ return function (App $app): void {
         // somebody has held their signed paper — ADR-0020's mandate gate and
         // ADR-0021's card step both sit behind this route.
         $group->get('/registrations', [RegistrationsAdminController::class, 'index']);
+        // Static segments above `/registrations/{registrationId}`, or
+        // `self-registration` is read as a registration id.
+        $group->get('/self-registration', [SelfRegistrationConfigController::class, 'show']);
+        $group->patch('/self-registration', [SelfRegistrationConfigController::class, 'update']);
+        $group->post('/self-registration/secret', [SelfRegistrationConfigController::class, 'rotateSecret']);
+        // POST rather than GET: it reads a credential back, and a URL that
+        // returns the club's gate would be replayed by every prefetcher,
+        // history entry and shared link that ever touched it.
+        $group->post('/self-registration/poster', [SelfRegistrationConfigController::class, 'poster']);
         $group->get('/registrations/{registrationId}', [RegistrationsAdminController::class, 'show']);
         $group->patch('/registrations/{registrationId}', [RegistrationsAdminController::class, 'update']);
         $group->post('/registrations/{registrationId}/approve', [RegistrationsAdminController::class, 'approve']);

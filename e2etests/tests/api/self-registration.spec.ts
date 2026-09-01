@@ -5,6 +5,7 @@ import {
   clearRegistrationAttempts,
   configureSelfRegistration,
   countPendingRegistrations,
+  execSql,
   expireRegistration,
   CLUB_DOCUMENT_URL,
   pendingRowsContainingPlaintext,
@@ -936,5 +937,247 @@ test.describe('Public self-registration', () => {
       data: { secret, ...submission() },
     })
     expect(submitted.status()).toBe(201)
+  })
+
+  // ── the club's own controls (#783, UC-A69) ──────────────────────────────
+  //
+  // These write the same singleton row every test above reads, which is why
+  // they live inside this serial block rather than in a file of their own.
+  // They also *undo* what they do: the row they mutate is the one the public
+  // specs depend on, and a test that left registration switched off would fail
+  // whichever spec ran next rather than itself.
+
+  test('the settings answer describes the surface and carries no secret', async ({
+    authenticatedRequest,
+  }) => {
+    configureSelfRegistration(uniqueSecret())
+
+    const response = await authenticatedRequest.get(`${API}/admin/self-registration`)
+
+    expect(response.status()).toBe(200)
+    const body = await response.json()
+
+    // The exact key set, asserted rather than spot-checked: the guarantee here
+    // is about what is *absent*. A `secret`, `secret_hash` or `secret_cipher`
+    // appearing later would be a live credential in every page load of this
+    // screen, and nothing else in the suite would notice.
+    expect(Object.keys(body).sort()).toEqual([
+      'disabled_reason',
+      'document_url',
+      'enabled',
+      'has_secret',
+      'retention_days',
+      'secret_rotated_at',
+    ])
+    expect(body.has_secret).toBe(true)
+    expect(body.document_url).toBe(CLUB_DOCUMENT_URL)
+  })
+
+  test('rotating mints a new secret, kills the old one and never returns either', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const old = uniqueSecret()
+    configureSelfRegistration(old)
+
+    const rotated = await authenticatedRequest.post(`${API}/admin/self-registration/secret`)
+    expect(rotated.status()).toBe(200)
+
+    const body = await rotated.json()
+    // The answer is the settings, not the secret. The new poster is fetched by
+    // the download below, so the credential travels in a PDF an admin prints
+    // rather than in a JSON body a browser keeps.
+    expect(Object.keys(body)).not.toContain('secret')
+    expect(body.has_secret).toBe(true)
+    expect(body.secret_rotated_at).toBeTruthy()
+
+    // The poster on the wall is dead the moment this commits, and that is the
+    // point of rotation — asserted from the public surface, which is where it
+    // matters, and with the uniform 404 an unknown secret gets.
+    const withOld = await request.post(`${API}/public/registrations/context`, {
+      data: { secret: old },
+    })
+    expect(withOld.status()).toBe(404)
+
+    // Put a known secret back: the specs above present one they wrote.
+    configureSelfRegistration(uniqueSecret())
+  })
+
+  test('the poster carries a working secret and reprinting does not rotate', async ({
+    authenticatedRequest,
+  }) => {
+    // Minted through the API, not through `sql.ts`, and it has to be: printing
+    // reads the *sealed* copy back, and the SQL helper writes only the hash —
+    // which is all the public surface needs and none of what a reprint does.
+    const before = await (
+      await authenticatedRequest.post(`${API}/admin/self-registration/secret`)
+    ).json()
+
+    const first = await authenticatedRequest.post(`${API}/admin/self-registration/poster`, {
+      data: { language: 'de' },
+    })
+
+    expect(first.status()).toBe(200)
+    expect(first.headers()['content-type']).toContain('application/pdf')
+    // The body is the club's gate rendered as a picture; nothing between here
+    // and the printer is entitled to keep a copy.
+    expect(first.headers()['cache-control']).toContain('no-store')
+    expect((await first.body()).subarray(0, 5).toString('latin1')).toBe('%PDF-')
+
+    const second = await authenticatedRequest.post(`${API}/admin/self-registration/poster`, {
+      data: { language: 'en' },
+    })
+    expect(second.status()).toBe(200)
+
+    // Two prints, same secret. A club that had to rotate in order to reprint
+    // would invalidate every poster in the building every time somebody spilled
+    // a drink on one.
+    const after = await (await authenticatedRequest.get(`${API}/admin/self-registration`)).json()
+    expect(after.secret_rotated_at).toBe(before.secret_rotated_at)
+
+    // Put a secret the public specs know back on the row.
+    configureSelfRegistration(uniqueSecret())
+  })
+
+  test('switching off requires the club to say why, and the words reach the poster', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    const silent = await authenticatedRequest.patch(`${API}/admin/self-registration`, {
+      data: { enabled: false },
+    })
+    expect(silent.status()).toBe(409)
+    expect((await silent.json()).reason).toBe('registration_reason_required')
+
+    // Still on: a refused switch changes nothing.
+    const stillOn = await request.post(`${API}/public/registrations/context`, { data: { secret } })
+    expect((await stillOn.json()).available).toBe(true)
+
+    const off = await authenticatedRequest.patch(`${API}/admin/self-registration`, {
+      data: { enabled: false, disabled_reason: '  Wir pausieren bis zur Versammlung  ' },
+    })
+    expect(off.status()).toBe(200)
+    // Trimmed on the way in — the sentence is shown to a member, not logged.
+    expect((await off.json()).disabled_reason).toBe('Wir pausieren bis zur Versammlung')
+
+    const paused = await request.post(`${API}/public/registrations/context`, { data: { secret } })
+    const context = await paused.json()
+    expect(context.available).toBe(false)
+    expect(context.message).toBe('Wir pausieren bis zur Versammlung')
+
+    // Back on, and the stale sentence goes with it: "we paused for the AGM"
+    // left on a live surface is worse than no sentence at all.
+    const on = await authenticatedRequest.patch(`${API}/admin/self-registration`, {
+      data: { enabled: true },
+    })
+    expect(on.status()).toBe(200)
+    expect((await on.json()).disabled_reason).toBeNull()
+  })
+
+  test('a document URL is fetched and checked before it is stored', async ({
+    authenticatedRequest,
+  }) => {
+    configureSelfRegistration(uniqueSecret())
+
+    const refused = await authenticatedRequest.patch(`${API}/admin/self-registration`, {
+      data: { document_url: 'http://localhost/does-not-exist.pdf' },
+    })
+
+    expect(refused.status()).toBe(409)
+    expect((await refused.json()).reason).toBe('document_template_unreachable')
+
+    // Nothing was written. A saved-but-unusable URL is the state this check
+    // exists to make unreachable — the club would discover it weeks later, at
+    // the moment a Kassenwart tried to print.
+    const settings = await (
+      await authenticatedRequest.get(`${API}/admin/self-registration`)
+    ).json()
+    expect(settings.document_url).toBe(CLUB_DOCUMENT_URL)
+
+    // The real one is accepted, which is what makes the refusal above mean
+    // something other than "this endpoint refuses everything".
+    const accepted = await authenticatedRequest.patch(`${API}/admin/self-registration`, {
+      data: { document_url: CLUB_DOCUMENT_URL },
+    })
+    expect(accepted.status()).toBe(200)
+    expect((await accepted.json()).document_url).toBe(CLUB_DOCUMENT_URL)
+  })
+
+  test('the club document and the poster secret are both preconditions of switching on', async ({
+    authenticatedRequest,
+  }) => {
+    // No secret at all — the row exists, the credential does not.
+    execSql('UPDATE self_registration_config SET enabled = 0, secret_hash = NULL, secret_cipher = NULL WHERE id = 1')
+
+    const noSecret = await authenticatedRequest.patch(`${API}/admin/self-registration`, {
+      data: { enabled: true },
+    })
+    expect(noSecret.status()).toBe(409)
+    // Named, not greyed out: a disabled control that will not say why is a
+    // support call.
+    expect((await noSecret.json()).reason).toBe('registration_no_secret')
+
+    await authenticatedRequest.post(`${API}/admin/self-registration/secret`)
+
+    // Now the document is what is missing. Clearing it also switches the club
+    // off, so this asserts both halves of decision 6 in one step.
+    const cleared = await authenticatedRequest.patch(`${API}/admin/self-registration`, {
+      data: { document_url: '' },
+    })
+    expect(cleared.status()).toBe(200)
+    expect((await cleared.json()).enabled).toBe(false)
+
+    const noDocument = await authenticatedRequest.patch(`${API}/admin/self-registration`, {
+      data: { enabled: true },
+    })
+    expect(noDocument.status()).toBe(409)
+    expect((await noDocument.json()).reason).toBe('document_url_missing')
+
+    // Both preconditions met in the one request an admin actually sends —
+    // configure and switch on — which is why the URL is applied first.
+    const both = await authenticatedRequest.patch(`${API}/admin/self-registration`, {
+      data: { document_url: CLUB_DOCUMENT_URL, enabled: true },
+    })
+    expect(both.status()).toBe(200)
+    expect((await both.json()).enabled).toBe(true)
+
+    configureSelfRegistration(uniqueSecret())
+  })
+
+  /**
+   * ADR-0044, and the narrowing is the point.
+   *
+   * The Kassenwart reviews submissions — every endpoint in the block above is
+   * open to them — and does not mint the credential that produces them. That is
+   * the same rule that puts a terminal token's expiry behind `admin` alone,
+   * applied to a poster secret, and it is worth its own test because it is a
+   * *difference* between two adjacent route groups rather than a blanket.
+   */
+  test('the controls are admin-only, while the review inbox is not', async ({
+    kassenwartRequest,
+    getraenkewartRequest,
+  }) => {
+    configureSelfRegistration(uniqueSecret())
+
+    // The office that reviews submissions can reach the inbox…
+    expect((await kassenwartRequest.get(`${API}/admin/registrations?per_page=1`)).status()).toBe(200)
+
+    // …and not the club's own credential.
+    for (const call of [
+      () => kassenwartRequest.get(`${API}/admin/self-registration`),
+      () => kassenwartRequest.patch(`${API}/admin/self-registration`, { data: { enabled: true } }),
+      () => kassenwartRequest.post(`${API}/admin/self-registration/secret`),
+      () => kassenwartRequest.post(`${API}/admin/self-registration/poster`, { data: {} }),
+    ]) {
+      expect((await call()).status()).toBe(403)
+    }
+
+    // The bar stock office reaches none of it, inbox included: member balances
+    // and member data are outside their remit on every surface.
+    expect((await getraenkewartRequest.get(`${API}/admin/self-registration`)).status()).toBe(403)
+    expect((await getraenkewartRequest.get(`${API}/admin/registrations?per_page=1`)).status()).toBe(403)
   })
 })

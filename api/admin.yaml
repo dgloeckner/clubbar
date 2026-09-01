@@ -1901,6 +1901,201 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /admin/self-registration:
+    get:
+      tags: [Registration review]
+      summary: The club's self-registration settings
+      description: |
+        What the settings screen needs to describe the club's own registration
+        surface: whether it is on, the sentence shown when it is off, whether a
+        poster secret exists and when it was last minted, the published
+        Anmeldung the applicant is pointed at, and the retention window.
+
+        **It carries no secret material** — not the hash, not the cipher, not
+        the secret. An admin who needs the secret asks for the poster, which is
+        a separate action that produces a printable sheet. A settings payload
+        holding a live credential would put it in every page load, every browser
+        cache and every screen share of this screen.
+
+        **Roles**: `admin` (ADR-0044). The Kassenwart reviews submissions but
+        does not mint the credential that produces them.
+      operationId: getSelfRegistrationSettings
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelfRegistrationSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+
+    patch:
+      tags: [Registration review]
+      summary: Switch registration on or off, and point at the club's document
+      description: |
+        One endpoint for the switch and the document URL, because they are one
+        decision: a club clearing its document URL is a club that can no longer
+        be switched on, and doing that in two requests makes the inconsistent
+        state reachable between them. The URL is applied first for the same
+        reason — the ordinary "configure it and switch it on" arrives as a
+        single request, and the switch has to see the new URL.
+
+        A `document_url` is **fetched and checked before it is stored**: it must
+        answer with a PDF the filler can actually use, and a template that fails
+        is refused with the reason naming what is wrong (missing fields are
+        listed by name). A club that stored a broken URL would discover it at
+        the moment a Kassenwart tried to print, weeks later.
+
+        Switching **off** requires `disabled_reason`. A blank paused screen
+        reads as a broken feature to somebody standing in the clubhouse holding
+        the club's own poster (ADR-0052 decision 1). Switching **on** requires a
+        poster secret and a usable document; the refusal names which of the two
+        does not hold rather than greying the control out.
+
+        Only fields present in the body are touched, so a screen that saves one
+        control does not have to echo the others back.
+
+        **Roles**: `admin`.
+      operationId: updateSelfRegistrationSettings
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelfRegistrationUpdateRequest'
+      responses:
+        '200':
+          description: The settings as they now stand
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelfRegistrationSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '409':
+          description: |
+            A precondition does not hold. `reason` is one of
+            `registration_no_secret`, `registration_reason_required`,
+            `document_template_unreachable`, `document_template_not_a_pdf`,
+            `document_template_unreadable` or
+            `document_template_field_missing` — the last carrying the missing
+            field names.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/self-registration/secret:
+    post:
+      tags: [Registration review]
+      summary: Mint a new poster secret
+      description: |
+        Rotation, and there is no history: the old secret stops working the
+        moment this commits, which is exactly what "every poster in the building
+        is now dead" has to mean. The panel confirms before calling it.
+
+        The response is the **settings**, not the secret. The new poster is
+        fetched by `POST /admin/self-registration/poster`, so the credential
+        travels in a PDF an admin prints rather than in a JSON body a browser
+        keeps.
+
+        Audited as `registration_secret_rotated`, carrying no secret material —
+        the same rule the key and terminal-token entries follow.
+
+        **Roles**: `admin`.
+      operationId: rotateSelfRegistrationSecret
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Rotated; the settings carry the new `secret_rotated_at`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelfRegistrationSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+
+  /admin/self-registration/poster:
+    post:
+      tags: [Registration review]
+      summary: The printable QR poster
+      description: |
+        An A4 sheet carrying the club's name, a short instruction and a QR code
+        for the registration URL with the poster secret in its fragment.
+
+        A `POST` because it reads a credential back, which is not a thing a
+        `GET` should do: a URL that returned the club's gate would be replayed
+        by every prefetcher, history entry and shared link that ever touched it.
+        The response is `no-store` for the same reason.
+
+        It deliberately does **not** rotate. A club that had to rotate in order
+        to reprint would invalidate every poster in the building every time
+        somebody spilled a drink on one.
+
+        Refused with `registration_no_secret` when there is nothing to print,
+        and `registration_secret_unreadable` when the stored secret will not
+        decrypt — rotating is the way out of the second.
+
+        **Roles**: `admin`.
+      operationId: downloadSelfRegistrationPoster
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                language:
+                  type: string
+                  enum: [de, en]
+                  default: de
+                  description: The words on the sheet. The URL is the same either way.
+      responses:
+        '200':
+          description: The poster
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="anmeldung-poster.pdf"
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '409':
+          description: |
+            No secret to print (`registration_no_secret`), or one that will not
+            decrypt (`registration_secret_unreadable`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /admin/transactions/export:
     get:
       tags: [Transactions]
@@ -9199,6 +9394,77 @@ components:
             to proceed: the admin is stating that they hold the signed SEPA
             mandate and that the IBAN on it matches `iban_masked`. Never a
             client-side default.
+
+    SelfRegistrationSettings:
+      type: object
+      description: |
+        The club's registration surface as the settings screen sees it (#783).
+        Carries no secret material by construction — see
+        `GET /admin/self-registration`.
+      required: [enabled, disabled_reason, has_secret, secret_rotated_at, document_url, retention_days]
+      properties:
+        enabled:
+          type: boolean
+          description: Whether the public page accepts submissions right now.
+        disabled_reason:
+          type: string
+          nullable: true
+          description: |
+            The club's own words, shown on the public page when `enabled` is
+            false. Null while registration is on.
+          example: Wir pausieren die Anmeldung bis zur Mitgliederversammlung am 14.03.
+        has_secret:
+          type: boolean
+          description: |
+            Whether a poster secret exists. The secret itself never appears
+            here; this is what lets the screen say "a poster exists".
+        secret_rotated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the current secret was minted — the poster's age.
+        document_url:
+          type: string
+          nullable: true
+          description: |
+            The club's published Anmeldung, linked before any data is entered
+            (ADR-0052 decision 6) and used as the template the review print
+            fills. Validated at save time, not at print time.
+          example: https://frgs.example/dokumente/anmeldung-vereinsbar.pdf
+        retention_days:
+          type: integer
+          description: |
+            How long an unapproved submission survives before the purge tick
+            deletes it. Not a credential and not audited — a retention window
+            is a setting, not an act of authority.
+          example: 30
+
+    SelfRegistrationUpdateRequest:
+      type: object
+      description: |
+        Only the fields present are touched. An absent field is not "clear it".
+      properties:
+        enabled:
+          type: boolean
+          description: |
+            Switching on requires a poster secret and a usable document;
+            switching off requires `disabled_reason`.
+        disabled_reason:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: |
+            Required when `enabled` is false. Trimmed, and cleared automatically
+            when registration is switched back on — a stale "we paused for the
+            AGM" left on a live surface is worse than none.
+        document_url:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: |
+            Fetched and checked before it is stored. An empty string clears it,
+            which also switches the club off: there is nothing left to show an
+            applicant before they type.
 
     AdminUserCreateRequest:
       description: >

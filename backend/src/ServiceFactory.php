@@ -7,6 +7,7 @@ namespace App;
 use App\Shared\Config\DataDirectory;
 use App\Shared\Config\AppConfig;
 use App\Shared\Config\Env;
+use App\Shared\Security\SymmetricSecretBox;
 use App\Shared\Logging\Logger;
 use App\Shared\Validation\Validator;
 
@@ -19,6 +20,7 @@ use App\Modules\Reports\Repositories\ReportsRepository;
 use App\Modules\Products\Repositories\CategoriesRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Registrations\Controllers\AdminController as RegistrationsAdminController;
+use App\Modules\Registrations\Controllers\SelfRegistrationConfigController;
 use App\Modules\Registrations\Controllers\PublicController as RegistrationsPublicController;
 use App\Modules\Registrations\Repositories\RegistrationAttemptsRepository;
 use App\Modules\Registrations\Repositories\RegistrationsRepository;
@@ -26,6 +28,8 @@ use App\Modules\Registrations\Repositories\SelfRegistrationConfigRepository;
 use App\Modules\Registrations\Documents\CurlTemplateFetcher;
 use App\Modules\Registrations\Documents\MandateDocumentFiller;
 use App\Modules\Registrations\Documents\MandateDocumentService;
+use App\Modules\Registrations\Documents\QrPosterService;
+use App\Modules\Registrations\Services\SelfRegistrationAdminService;
 use App\Modules\Registrations\Services\RegistrationReviewService;
 use App\Modules\Registrations\Services\RegistrationsService;
 use App\Modules\Products\Repositories\ProductsRepository;
@@ -228,6 +232,7 @@ class ServiceFactory implements ContainerInterface
         // review inbox an admin empties it through
         RegistrationsPublicController::class => 'getRegistrationsPublicController',
         RegistrationsAdminController::class => 'getRegistrationsAdminController',
+        SelfRegistrationConfigController::class => 'getSelfRegistrationConfigController',
 
         // AuditLog
         AuditLogAdminController::class => 'getAuditLogAdminController',
@@ -426,6 +431,33 @@ class ServiceFactory implements ContainerInterface
             $this->pdo,
             $this->logger,
             $this->getMandateDocumentService(),
+        ));
+    }
+
+    public function getSelfRegistrationAdminService(): SelfRegistrationAdminService
+    {
+        return $this->resolve(SelfRegistrationAdminService::class, fn() => new SelfRegistrationAdminService(
+            $this->getSelfRegistrationConfigRepository(),
+            $this->getSepaConfigRepository(),
+            new CurlTemplateFetcher($this->logger),
+            new MandateDocumentFiller(),
+            // The same box and the same key an admin's TOTP secret uses: the
+            // poster secret is likewise something the server must be able to
+            // read back, to reprint a poster without rotating it.
+            new SymmetricSecretBox(Env::get('TOTP_ENCRYPTION_KEY'), 'TOTP_ENCRYPTION_KEY'),
+            $this->getAuditService(),
+            $this->logger,
+        ));
+    }
+
+    public function getSelfRegistrationConfigController(): SelfRegistrationConfigController
+    {
+        return $this->resolve(SelfRegistrationConfigController::class, fn() => new SelfRegistrationConfigController(
+            $this->getSelfRegistrationAdminService(),
+            new QrPosterService(),
+            $this->getInstanceConfigRepository(),
+            $this->config,
+            $this->getValidator(),
         ));
     }
 
