@@ -329,6 +329,58 @@ final class MandateDocumentFillerTest extends TestCase
     }
 
     /**
+     * A comb whose first boxes are pre-printed, which is what a real form does.
+     *
+     * The reference club's Anmeldung prints `D` and `E` into the first two boxes
+     * — every member's IBAN starts that way, and it helps whoever is writing by
+     * hand. Those two boxes are therefore not fields, and the remaining twenty
+     * are `iban_3` … `iban_22`.
+     *
+     * That works without a special case because **a cell's number is its
+     * character position**, not its offset among the fields present. A template
+     * pre-printing a prefix simply omits those boxes and the rest still land
+     * where they belong.
+     */
+    public function test_a_comb_may_start_partway_through_when_a_prefix_is_pre_printed(): void
+    {
+        // The fixture's own comb with its first two cells renamed away — the
+        // shape a form that pre-prints `DE` produces. Renamed to the *same
+        // length*, deliberately: a PDF's xref table holds byte offsets, so a
+        // longer name would leave the file unparseable and this test would fail
+        // for a reason that has nothing to do with combs.
+        $prefixed = str_replace(['(iban_1)', '(iban_2)'], ['(zzzz_1)', '(zzzz_2)'], $this->template);
+
+        $filled = (new MandateDocumentFiller())->fill($prefixed, [
+            'mandatsreferenz' => 'ref',
+            'vorname' => 'Lena',
+            'nachname' => 'Brandt',
+            'iban' => 'DE89 3704 0044 0532 0130 00',
+            'iban_last4' => '****3000',
+        ]);
+
+        $fields = PdfAcroFormFields::scan($prefixed);
+        preg_match_all(
+            '~BT\s+([\d.]+)\s+([\d.]+)\s+Td\s+\((.)\)\s*Tj~',
+            $this->readableText($filled),
+            $draws,
+            PREG_SET_ORDER,
+        );
+
+        // Cell 3 still holds the *third* character of the IBAN — `8` — not the
+        // first character of what remains after the prefix.
+        [$x1, , $x2] = $fields['iban_3'];
+        $found = false;
+        foreach ($draws as [, $x, , $glyph]) {
+            if ($glyph === '8' && (float) $x >= $x1 && (float) $x <= $x2) {
+                $found = true;
+                break;
+            }
+        }
+
+        self::assertTrue($found, 'iban_3 should hold the third character of the IBAN.');
+    }
+
+    /**
      * The trap this had to avoid: `iban_last4` looks exactly like the fourth box
      * of a comb named `iban_last`. It is not, and it has a value of its own —
      * mistaking it would silently drop the hint the Kassenwart checks against.
