@@ -92,6 +92,12 @@ tags:
       The public half of admin onboarding — the two requests a browser makes
       while somebody follows an invitation link. Unauthenticated by necessity:
       the invitee has no account yet.
+  - name: Public registration
+    description: >
+      Member self-registration (ADR-0052). The one endpoint an anonymous phone
+      reaches, gated by the secret a QR poster carries. Write-only: it never
+      answers a question about stored data, and its response is identical
+      whether or not the club already knows the person.
   - name: Reports
     description: Dashboard, reports, and analytics
   - name: Audit Log
@@ -220,6 +226,110 @@ paths:
                 error: business_rule_violation
                 message: This invitation link is not valid
                 reason: invitation_invalid
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+
+  /public/registrations:
+    post:
+      tags: [Public registration]
+      summary: Submit a self-registration
+      description: |
+        A prospective member fills in their own details on their own phone,
+        behind the secret a QR poster carries.
+
+        **Use Case**: UC-P01
+
+        **The secret is in the body, and the URL is constant** — for the reason
+        `POST /invitations/lookup` gives, and more so: a request line is written
+        verbatim into every access log in front of the installation, and unlike
+        an invitation this credential is printed on a wall where it may still be
+        in two years. The page reads it from the URL *fragment*, which a browser
+        never puts on the wire.
+
+        **Write-only.** The response is a receipt — the registration id and the
+        mandate reference minted for the paper (ADR-0006) — and nothing read
+        back. A submission naming somebody the club already knows is accepted
+        exactly like any other, and answers identically: the endpoint discloses
+        no membership (ADR-0052 decision 9).
+
+        **A pending registration is not a member.** It creates no `members` row
+        and no mandate, so `GET /sync/members` cannot return it and no terminal
+        can recognise the person. The member comes into existence only through
+        the admin's approve action.
+
+        Unapproved submissions are purged after the club's retention window
+        (30 days by default).
+      operationId: submitRegistration
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationRequest'
+      responses:
+        '201':
+          description: The submission was accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    description: The registration's id.
+                  mandate_reference:
+                    type: string
+                    maxLength: 35
+                    description: >
+                      The UMR minted at submission, because it is printed on the
+                      paper before the mandate exists. Approval carries it into
+                      the mandate unchanged.
+        '404':
+          description: >
+            The uniform refusal. Returned for a wrong secret, a missing one, and
+            a club that has never generated one alike — telling them apart would
+            confirm to a prober that a valid secret exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: not_found
+                message: Not found
+        '409':
+          description: >
+            Registration is switched off, or the club has configured no document
+            URL to point the applicant at before collecting anything.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                disabled:
+                  value:
+                    error: business_rule_violation
+                    message: Self-registration is currently switched off.
+                    reason: registration_disabled
+                    params:
+                      reason: Beta-Phase schon voll
+                noDocument:
+                  value:
+                    error: business_rule_violation
+                    message: Self-registration is switched on but no club document URL is configured.
+                    reason: document_url_missing
+        '413':
+          description: The body is larger than this endpoint accepts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: payload_too_large
+                message: The request body is larger than this endpoint accepts.
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
@@ -8444,6 +8554,71 @@ components:
             letter and a digit — the same rule as `PATCH /auth/change-password`.
         password_confirmation:
           type: string
+
+    RegistrationRequest:
+      description: >
+        What a prospective member fills in. The field set is UC-A11's, minus
+        everything an admin decides: no card UID (assigned later, and it is the
+        card that welcomes them — UC-A67), and no mandate signature date, since
+        nothing has been signed at submission time.
+      type: object
+      required: [secret, first_name, last_name, email, date_of_birth, preferred_language, iban]
+      properties:
+        secret:
+          type: string
+          description: >
+            The poster secret, read by the page from the URL fragment and sent
+            here in the body. Never named in a validation error: a 422 naming it
+            would tell a prober the shape of what they are guessing.
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: >
+            Unverified, and nothing is sent to it. The welcome mail is earned by
+            a card, not by a form (UC-A67 rule 1).
+        phone:
+          type: string
+          maxLength: 20
+          nullable: true
+        date_of_birth:
+          type: string
+          format: date
+          description: >
+            Must not be in the future. Drives the Jugendschutz check once the
+            member exists (ADR-0045), and the legal-representative line on the
+            printed document when the applicant is a minor.
+        preferred_language:
+          type: string
+          enum: [de, en, fr]
+          description: >
+            The language of the *page*. It selects no document: the club
+            publishes one Anmeldung, in its own language (ADR-0052 decision 6).
+        account_holder_name:
+          type: string
+          maxLength: 70
+          nullable: true
+          description: >
+            The Kontoinhaber, when whoever signs the mandate is not the
+            applicant — a parent paying for a child. When set, the printed
+            signature block names the holder.
+        iban:
+          type: string
+          maxLength: 34
+          description: >
+            Validated mod-97 and sealed under the club's active public key
+            before it is stored. The server cannot read it back (ADR-0036).
+        website:
+          type: string
+          description: >
+            A honeypot. No person ever sees this field; a filled one is answered
+            with an ordinary receipt and stored nowhere.
 
     AdminUserCreateRequest:
       description: >
