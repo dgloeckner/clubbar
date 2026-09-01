@@ -1,6 +1,6 @@
 # UC-A17: Review a Pending Registration
 
-**Implementation Status**: Not implemented — specified
+**Implementation Status**: Backend implemented ([#779](https://github.com/dgloeckner/clubbar/issues/779)) — list, detail, edit-before-approve, approve and reject are live behind `/api/admin/registrations`, with the attestation refused rather than defaulted, the sealed IBAN copied verbatim to the mandate, and audit rows for every act. The panel screen that drives them is [#782](https://github.com/dgloeckner/clubbar/issues/782), and the printed document is [#780](https://github.com/dgloeckner/clubbar/issues/780).
 
 ## Actors
 

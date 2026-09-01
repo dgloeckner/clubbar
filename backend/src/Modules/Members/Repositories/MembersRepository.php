@@ -189,7 +189,11 @@ class MembersRepository
                 ? ($data['mandate_reference'] ?: null)
                 : str_replace('-', '', $id);
 
-            if (($data['iban'] ?: null) !== null && $reference !== null) {
+            // `??` as well as `?:`: a caller creating a member with no banking
+            // data at all omits the key rather than sending an empty one, and
+            // every such call raised an "Undefined array key" warning on its way
+            // to the correct answer.
+            if ((($data['iban'] ?? null) ?: null) !== null && $reference !== null) {
                 $this->openMandate($id, ['mandate_reference' => $reference] + $data);
             }
 

@@ -98,6 +98,12 @@ tags:
       reaches, gated by the secret a QR poster carries. Write-only: it never
       answers a question about stored data, and its response is identical
       whether or not the club already knows the person.
+  - name: Registration review
+    description: >
+      The admin side of member self-registration (ADR-0052, UC-A17). Approval is
+      the only path from a pending registration to a member record: no job, no
+      import and no sync creates one, which is what keeps a self-registered
+      person off the terminal until somebody has held their signed SEPA mandate.
   - name: Reports
     description: Dashboard, reports, and analytics
   - name: Audit Log
@@ -1462,6 +1468,233 @@ paths:
   # ============================================================================
   # TRANSACTIONS
   # ============================================================================
+  /admin/registrations:
+    get:
+      tags: [Registration review]
+      summary: List pending self-registrations
+      description: |
+        The review inbox (UC-A17). Newest first.
+
+        Every row carries `iban_masked` and never the sealed material: the
+        ciphertext is the IBAN itself, and `iban_fingerprint` is a stable
+        identifier for a bank account that would let anyone holding a candidate
+        number confirm it. The duplicate check that uses the fingerprint runs
+        server-side; only its boolean answer travels.
+
+        **Roles**: `admin`, `kassenwart` (ADR-0044).
+      operationId: listRegistrations
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+        - name: search
+          in: query
+          description: Matches first name, last name or email.
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [submitted_at, expires_at, last_name, first_name, email]
+            default: submitted_at
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: One page of pending registrations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PendingRegistration'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+
+  /admin/registrations/{registrationId}:
+    parameters:
+      - $ref: '#/components/parameters/registrationId'
+
+    get:
+      tags: [Registration review]
+      summary: Get one pending registration
+      operationId: getRegistration
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: The submission, with its IBAN masked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingRegistration'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Registration review]
+      summary: Correct a submission before approving it
+      description: |
+        Edit-before-approve, for typos an applicant made on their phone.
+
+        An `iban` here is not a field write: the value re-runs the whole write
+        path — validated, sealed under today's active key, with a new last four,
+        a new fingerprint and a re-resolved bank name — because once sealed
+        there is nothing left to derive any of those from (ADR-0036).
+
+        Fields not listed in the request schema are ignored rather than refused,
+        so a form that echoes the whole row back does not fail for sending a
+        field it never edited. `mandate_reference` is one of them, deliberately:
+        it is printed on the paper the member signs (ADR-0006).
+
+        **Roles**: `admin`, `kassenwart`.
+      operationId: updateRegistration
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationUpdateRequest'
+      responses:
+        '200':
+          description: The corrected submission
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingRegistration'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/registrations/{registrationId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/registrationId'
+
+    post:
+      tags: [Registration review]
+      summary: Approve a registration — the attestation
+      description: |
+        Creates the member and their mandate, atomically, and deletes the
+        pending row. This is the **only** path from a pending registration to a
+        `members` row.
+
+        `signed_mandate_confirmed` is the point of the endpoint, not a
+        formality: it records an admin stating that the signed SEPA mandate is
+        in hand and — where the club printed the form with the IBAN comb left
+        blank for a hand-written number — that the number on it matches
+        `iban_masked`. Omitting it is a `422`; sending `false` is a `409`
+        carrying `registration_attestation_required`, because a stated refusal
+        to attest is a different conversation from a request that said nothing.
+
+        The sealed IBAN moves to the mandate **verbatim**, key id included: the
+        ciphertext can only be opened by the key that sealed it, so re-labelling
+        it would produce a mandate nobody could collect on.
+
+        No welcome mail is sent. That belongs to the card assignment (ADR-0021,
+        UC-A67), which is a separate, deliberate step.
+
+        **Roles**: `admin`, `kassenwart`.
+      operationId: approveRegistration
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationApprovalRequest'
+      responses:
+        '201':
+          description: The member that was created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            The attestation was explicitly refused
+            (`registration_attestation_required`), or the club already has a
+            member at this email address (`registration_member_email_exists`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/registrations/{registrationId}/reject:
+    parameters:
+      - $ref: '#/components/parameters/registrationId'
+
+    post:
+      tags: [Registration review]
+      summary: Reject a registration
+      description: |
+        Deletes the submission immediately — not a status change. A rejected
+        application is data about somebody who is not becoming a member, and
+        there is no reason to keep it (ADR-0052 decision 10).
+
+        The audit entry is what survives, and it carries the reason: it is the
+        only record of why, since the row it describes is gone before the
+        response is written.
+
+        **Roles**: `admin`, `kassenwart`.
+      operationId: rejectRegistration
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Recorded in the audit entry; never shown to the applicant.
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /admin/transactions/export:
     get:
       tags: [Transactions]
@@ -5210,6 +5443,13 @@ components:
       schema:
         type: string
         format: uuid
+    registrationId:
+      name: registrationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     page:
       name: page
       in: query
@@ -8619,6 +8859,140 @@ components:
           description: >
             A honeypot. No person ever sees this field; a filled one is answered
             with an ordinary receipt and stored nowhere.
+
+    PendingRegistration:
+      description: >
+        One pending submission as an admin may see it (ADR-0052, UC-A17).
+
+        The sealed material is deliberately absent. `iban_ciphertext` is the
+        IBAN itself, and `iban_fingerprint` is a stable identifier for a bank
+        account — given it, anyone holding a candidate number can confirm this
+        applicant banks there. Neither leaves the server; `iban_masked` is what
+        the paper in the admin's hand shows too, and is exactly enough to check
+        that the two match.
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        date_of_birth:
+          type: string
+          format: date
+        preferred_language:
+          type: string
+          enum: [de, en, fr]
+        account_holder_name:
+          type: string
+          nullable: true
+        mandate_reference:
+          type: string
+          description: >
+            Minted at submission, because it is printed on the paper the member
+            signs (ADR-0006). Approval carries it to the mandate unchanged, so
+            it is not editable here.
+        iban_masked:
+          type: string
+          example: '****3000'
+        iban_last4:
+          type: string
+        bank_name:
+          type: string
+          nullable: true
+          description: Resolved from the BLZ at write time; a sealed row cannot answer this again.
+        privacy_notice_url:
+          type: string
+          description: >
+            The document this applicant was pointed at before entering anything.
+            The club's evidence of what was shown — the document at that URL can
+            change afterwards, which is why the moment is recorded separately.
+        privacy_notice_shown_at:
+          type: string
+          format: date-time
+        submitted_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          description: When the TTL purge deletes this row if nobody has acted on it.
+        duplicate_email:
+          type: boolean
+          description: The club already has a member at this address.
+        duplicate_iban:
+          type: boolean
+          description: >
+            The club already holds an active mandate on this account, matched by
+            keyed fingerprint — the one comparison answerable without a key.
+
+    RegistrationUpdateRequest:
+      description: >
+        Corrections an admin may make before approving. Every field optional;
+        only what is sent is validated, so a one-field fix is not a
+        resubmission.
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        phone:
+          type: string
+          maxLength: 20
+          nullable: true
+        date_of_birth:
+          type: string
+          format: date
+        preferred_language:
+          type: string
+          enum: [de, en, fr]
+        account_holder_name:
+          type: string
+          maxLength: 70
+          nullable: true
+        iban:
+          type: string
+          maxLength: 34
+          description: >
+            A replacement, not a field write: validated mod-97, then sealed
+            under today's active key with a new last four, fingerprint and bank
+            name. The four sealed columns move as one unit — a ciphertext
+            labelled with a key that cannot open it is a row that is wrong the
+            moment it is written and looks fine until a SEPA export needs the
+            plaintext.
+
+    RegistrationApprovalRequest:
+      type: object
+      required: [mandate_signed_at, signed_mandate_confirmed]
+      properties:
+        mandate_signed_at:
+          type: string
+          format: date
+          description: >
+            The date on the paper. Must not be in the future; today is the
+            ordinary case, an admin approving at the desk.
+        signed_mandate_confirmed:
+          type: boolean
+          description: >
+            The attestation. Must be sent, and must be `true` for the approval
+            to proceed: the admin is stating that they hold the signed SEPA
+            mandate and that the IBAN on it matches `iban_masked`. Never a
+            client-side default.
 
     AdminUserCreateRequest:
       description: >
