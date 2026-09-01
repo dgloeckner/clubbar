@@ -6,6 +6,7 @@ import {
   countPendingRegistrations,
   expireRegistration,
   pendingRowsContainingPlaintext,
+  restoreClubDocumentUrl,
 } from '../../utils/sql'
 import { drainMailQueue } from '../../utils/drain'
 
@@ -76,6 +77,21 @@ test.describe('Public self-registration', () => {
   // "the throttle works" rather than "the previous test spent the budget".
   test.beforeEach(() => {
     clearRegistrationAttempts()
+  })
+
+  /**
+   * Leave `sepa_config.mandate_template_url` set, always.
+   *
+   * This block is serial, but only *within this file* — the rest of
+   * `api-tests` runs beside it on three other workers, and that column is not
+   * ours. `SepaConfigDto` treats an empty one as incomplete SEPA configuration,
+   * so the fail-closed test below, which nulls it deliberately, would otherwise
+   * leave a window in which a concurrent `settlements.spec.ts` export fails for
+   * a reason that has nothing to do with settlements. Restoring after every
+   * test closes the window even when one fails part-way.
+   */
+  test.afterEach(() => {
+    restoreClubDocumentUrl()
   })
 
   test('a submission behind the poster secret is accepted and sealed', async ({ request }) => {

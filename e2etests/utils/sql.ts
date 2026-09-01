@@ -219,6 +219,20 @@ export function configureSelfRegistration(
   execSql(`UPDATE sepa_config SET mandate_template_url = ${urlSql} WHERE id = 1`)
 }
 
+/**
+ * Put `sepa_config.mandate_template_url` back to a usable value.
+ *
+ * That column is not self-registration's alone: `SepaConfigDto` reads an empty
+ * one as incomplete SEPA configuration, and the settlement specs run beside
+ * these on other workers. Anything here that clears it — the fail-closed test —
+ * has to put it back, or it breaks a spec that never touched registrations.
+ */
+export function restoreClubDocumentUrl(
+  url = 'https://club.example/Anmeldung_Ruderbar.pdf',
+): void {
+  execSql(`UPDATE sepa_config SET mandate_template_url = '${url.replace(/'/g, "''")}' WHERE id = 1`)
+}
+
 /** How many pending registrations exist right now. */
 export function countPendingRegistrations(): number {
   const output = execSql('SELECT COUNT(*) FROM pending_registrations')
