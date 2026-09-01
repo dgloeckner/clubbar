@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\DTOs;
 
 use App\Modules\Backups\Domain\BackupScheduleStatus;
+use App\Shared\Utils\DateFormatter;
 
 /**
  * Whether a drain run has ever been observed, and what to schedule if not
@@ -91,7 +92,10 @@ final readonly class SchedulerStatusDto
             'observed_interval' => $this->observedInterval,
             'interval_disagrees' => $this->intervalDisagrees,
             'verified' => $this->verified,
-            'last_run_at' => $this->lastRunAt,
+            // Labelled UTC on the way out, like every other timestamp the API
+            // emits (#365): the column holds UTC and a bare datetime is read by
+            // the browser as local time.
+            'last_run_at' => DateFormatter::toUtcIso($this->lastRunAt),
             'source' => $this->source,
             'last_sent' => $this->lastSent,
             'last_failed' => $this->lastFailed,

@@ -208,7 +208,16 @@ final readonly class SettlementDto
                 static fn($n) => $n instanceof QueuedMailDto ? $n->toArray() : $n,
                 $this->notifications,
             ),
-            'announcements' => $this->announcements,
+            // Labelled UTC like the queue row it is copied from (#365) — the
+            // two describe the same delivery, and a payload that spells one
+            // instant two ways is a payload a reader has to reconcile.
+            'announcements' => array_map(
+                static fn(array $a) => [
+                    ...$a,
+                    'sent_at' => \App\Shared\Utils\DateFormatter::toUtcIso($a['sent_at'] ?? null),
+                ],
+                $this->announcements,
+            ),
         ];
     }
 }

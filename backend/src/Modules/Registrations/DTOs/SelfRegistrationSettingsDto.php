@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Registrations\DTOs;
 
+use App\Shared\Utils\DateFormatter;
+
 /**
  * The settings screen's view of self-registration (#783, UC-A69).
  *
@@ -34,7 +36,10 @@ final readonly class SelfRegistrationSettingsDto
             'enabled' => $this->enabled,
             'disabled_reason' => $this->disabledReason,
             'has_secret' => $this->hasSecret,
-            'secret_rotated_at' => $this->secretRotatedAt,
+            // An instant, labelled UTC on the way out (#365) — the screen
+            // renders it with the time of day, and a bare datetime would be
+            // read by the browser as local.
+            'secret_rotated_at' => DateFormatter::toUtcIso($this->secretRotatedAt),
             'document_url' => $this->documentUrl,
             'retention_days' => $this->retentionDays,
         ];

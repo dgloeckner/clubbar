@@ -841,10 +841,13 @@ export function MembersPage() {
           value={totalBalance === null ? '—' : formatters.formatPrice(totalBalance)}
           color="blue"
         />
+        {/* The last settlement is an *instant*, so it is formatted whole: the
+            `.split('T')[0]` this replaces kept the UTC calendar day, which is
+            not the reader's day for anything settled late in the evening. */}
         <StatCard
           icon={<CalendarIcon />}
           label={t('members.stats.lastSettlementDate')}
-          value={lastSettlementDate ? formatters.formatDate(lastSettlementDate.split('T')[0]) : '—'}
+          value={lastSettlementDate ? formatters.formatDate(lastSettlementDate) : '—'}
           color="blue"
         />
       </div>
@@ -1075,7 +1078,7 @@ export function MembersPage() {
                   )}
                   {/* Row 3: member since */}
                   <div style={{ fontSize: '12px', color: theme.colors.text.muted, marginBottom: '10px' }}>
-                    {t('members.memberSince')}: {member.created_at ? formatters.formatDate(member.created_at.split('T')[0]) : '—'}
+                    {t('members.memberSince')}: {member.created_at ? formatters.formatDate(member.created_at) : '—'}
                   </div>
                   {/* Row 4: actions */}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -1660,7 +1663,7 @@ export function MembersPage() {
                       {formatters.formatPrice(member.balance_cents ?? 0)}
                     </td>
                     <TableCell testId={`members-table-cell-created-${member.id}`}>
-                      {member.created_at ? formatters.formatDate(member.created_at.split('T')[0]) : '—'}
+                      {member.created_at ? formatters.formatDate(member.created_at) : '—'}
                     </TableCell>
                     <TableCell align="center">
                       <button

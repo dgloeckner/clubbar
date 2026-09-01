@@ -6,6 +6,7 @@ namespace App\Modules\Notifications\DTOs;
 
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailStatus;
+use App\Shared\Utils\DateFormatter;
 
 /**
  * One queued message, as the Kassenwart reads it (#407).
@@ -103,9 +104,14 @@ final readonly class QueuedMailDto
             'status' => $this->status->value,
             'attempts' => $this->attempts,
             'last_error' => $this->lastError,
-            'queued_at' => $this->queuedAt,
-            'next_attempt_at' => $this->nextAttemptAt,
-            'sent_at' => $this->sentAt,
+            // Labelled UTC, like every other timestamp the API emits (#365).
+            // The columns hold UTC; a bare "2026-09-01 19:33:12" is read by the
+            // browser as *local* time, so the queue read two hours early for
+            // every reader in CEST — and `admin.yaml` promises `date-time`
+            // here, which a bare MariaDB datetime is not.
+            'queued_at' => DateFormatter::toUtcIso($this->queuedAt),
+            'next_attempt_at' => DateFormatter::toUtcIso($this->nextAttemptAt),
+            'sent_at' => DateFormatter::toUtcIso($this->sentAt),
             'is_retryable' => $this->isRetryable(),
         ];
     }

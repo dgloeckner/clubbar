@@ -19,6 +19,7 @@ use App\Modules\Transactions\Repositories\JugendschutzViolationsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Security\CredentialLifecycle;
+use App\Shared\Utils\DateFormatter;
 
 /**
  * Everything the dashboard and the monthly statistics page mean, as opposed to
@@ -114,7 +115,12 @@ class DashboardService
             recentTransactions: $recentTransactions,
             terminalStatus: $terminalStatus,
             systemStatus: [
-                'last_settlement_date' => $latestSettlement['created_at'] ?? null,
+                // The instant the settlement was created, labelled UTC (#365).
+                // The card reads it as "Today"/"Yesterday", which a bare
+                // datetime answers in whatever zone the browser assumes.
+                'last_settlement_date' => DateFormatter::toUtcIso(
+                    isset($latestSettlement['created_at']) ? (string) $latestSettlement['created_at'] : null,
+                ),
                 'pending_settlement_count' => $pendingSettlements,
                 'total_members' => $totalMembers,
                 'total_transactions' => $recentTransactionCount,
@@ -407,7 +413,7 @@ class DashboardService
                 $unacknowledged,
                 $unacknowledged === 1 ? 'drink was' : 'drinks were',
             ),
-            'latest_occurred_at' => $latestOccurredAt,
+            'latest_occurred_at' => DateFormatter::toUtcIso($latestOccurredAt),
         ];
     }
 
@@ -510,7 +516,11 @@ class DashboardService
             'type' => $row['type'],
             'amount_cents' => (int) $row['amount_cents'],
             'product_name' => self::displayName($row['product_names']),
-            'timestamp' => $row['timestamp'] ? str_replace(' ', 'T', $row['timestamp']) : null,
+            // "2026-09-01 19:33:12" → "2026-09-01T19:33:12Z". Replacing only
+            // the space produced a valid ISO string *without* a zone, which the
+            // browser reads as local time — the shape parsed, so the two-hour
+            // shift was invisible (#365).
+            'timestamp' => DateFormatter::toUtcIso($row['timestamp'] === null ? null : (string) $row['timestamp']),
         ];
     }
 

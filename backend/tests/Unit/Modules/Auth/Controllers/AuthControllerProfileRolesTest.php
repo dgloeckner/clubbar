@@ -103,6 +103,32 @@ class AuthControllerProfileRolesTest extends TestCase
         $this->assertTrue($admin['totp_enabled']);
     }
 
+    /**
+     * The profile screen prints the last login with its time of day, so the
+     * value has to say which zone it is in. The column holds UTC; unlabelled,
+     * the browser reads it as the reader's own local time (#365).
+     */
+    public function test_the_last_login_is_labelled_utc(): void
+    {
+        $this->authService->method('getActiveAdmin')
+            ->willReturn(['last_login_at' => '2026-09-01 19:33:12'] + $this->adminRow());
+        $this->adminUsersService->method('getRoles')->willReturn([AdminRole::ADMIN]);
+
+        $this->assertSame(
+            '2026-09-01T19:33:12Z',
+            $this->decode($this->getProfile())['admin']['last_login_at'],
+        );
+    }
+
+    /** An account that has never signed in reports null, not the epoch. */
+    public function test_a_never_used_account_reports_no_last_login(): void
+    {
+        $this->authService->method('getActiveAdmin')->willReturn($this->adminRow());
+        $this->adminUsersService->method('getRoles')->willReturn([AdminRole::ADMIN]);
+
+        $this->assertNull($this->decode($this->getProfile())['admin']['last_login_at']);
+    }
+
     /** @return array<string, mixed> */
     private function adminRow(): array
     {
