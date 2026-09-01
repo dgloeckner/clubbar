@@ -12,6 +12,7 @@
  * which is the property the feature exists to create.
  */
 
+import { request as apiRequest } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
 import { stepUp } from '../fixtures/stepUp'
 
@@ -68,13 +69,62 @@ export function tokenFromInvitationUrl(url: string): string {
 }
 
 /**
+ * Walk an invitation link the way its recipient does: from a browser holding
+ * **no session at all**.
+ *
+ * The anonymous context is the point, not a detail (#798). `POST
+ * /api/invitations/accept` ends whatever session the caller presented — an
+ * invitee who sets a password on the club laptop must not stay signed in as
+ * the admin who invited them — so a helper that accepted through an
+ * authenticated context would quietly destroy that context's session, and in
+ * this suite the most convenient context to reach for is the one shared by
+ * every test in the run (E2E Pattern 002).
+ *
+ * @param invitationUrlOrToken Either the link as issued, or the bare token.
+ * @returns The address the account signs in with, as the endpoint reports it.
+ */
+export async function acceptInvitation(
+  invitationUrlOrToken: string,
+  password: string = INVITED_ADMIN_PASSWORD,
+): Promise<{ email: string }> {
+  const token = invitationUrlOrToken.includes('#')
+    ? tokenFromInvitationUrl(invitationUrlOrToken)
+    : invitationUrlOrToken
+
+  // `storageState` is spelled out, and it is the load-bearing part: inside a
+  // project whose `use` carries one — `admin-chromium` uses the shared seeded
+  // admin's — `newContext()` inherits it, and the "anonymous" context would
+  // arrive holding that session and destroy it for every worker in the run.
+  const anonymous = await apiRequest.newContext({
+    baseURL: API_BASE,
+    storageState: { cookies: [], origins: [] },
+  })
+  try {
+    const response = await anonymous.post(`${API_BASE}/invitations/accept`, {
+      data: { token, password, password_confirmation: password },
+    })
+
+    if (response.status() !== 200) {
+      throw new Error(
+        `Could not accept the invitation: ${response.status()} ${await response.text()}`,
+      )
+    }
+
+    return await response.json()
+  } finally {
+    await anonymous.dispose()
+  }
+}
+
+/**
  * Create an admin account and walk its invitation, so the account ends up with
  * a password the caller knows.
  *
  * `request` must be an authenticated admin context — creating an account is
  * `admin`-only and carries a step-up. The accept call deliberately does not:
- * it is the public endpoint an invitee reaches with no session at all, and
- * using the authenticated context for it would quietly stop testing that.
+ * it goes through {@link acceptInvitation}, from a context holding no session,
+ * which is both what an invitee really does and — since #798 — the only safe
+ * way to call it, because accepting ends the caller's session.
  */
 export async function createInvitedAdmin(
   request: APIRequestContext,
@@ -101,20 +151,7 @@ export async function createInvitedAdmin(
   const created = await createResponse.json()
   const invitationUrl: string = created.invitation.url
 
-  const acceptResponse = await request.post(`${API_BASE}/invitations/accept`, {
-    data: {
-      token: tokenFromInvitationUrl(invitationUrl),
-      password,
-      password_confirmation: password,
-    },
-  })
-
-  if (acceptResponse.status() !== 200) {
-    throw new Error(
-      `Could not accept the invitation for ${options.email}: ` +
-        `${acceptResponse.status()} ${await acceptResponse.text()}`,
-    )
-  }
+  await acceptInvitation(invitationUrl, password)
 
   return { admin: created.admin, password, invitationUrl }
 }

@@ -20,7 +20,7 @@ import { test, expect } from "../../fixtures/auth.fixture";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { generateTotp, submitTotpWithRetry } from "../../utils/totp";
 import { stepUp } from "../../fixtures/stepUp";
-import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
+import { acceptInvitation, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -75,19 +75,10 @@ async function createAdminUser(
   // in is the invitation. Accepting it here is what turns a fresh account into
   // one these tests can sign in as, and the password is the test's own choice
   // rather than something the API handed back.
-  const accepted = await authenticatedRequest.post(
-    `${API_BASE}/invitations/accept`,
-    {
-      data: {
-        token: tokenFromInvitationUrl(data.invitation.url),
-        password: INVITED_ADMIN_PASSWORD,
-        password_confirmation: INVITED_ADMIN_PASSWORD,
-      },
-    },
-  )
-  if (accepted.status() !== 200) {
-    throw new Error(`Failed to accept the invitation (${accepted.status()}): ${await accepted.text()}`)
-  }
+  // Through a session-less context, which is what an invitee has — and what
+  // this call now requires: accepting ends the caller's session (#798), and
+  // `authenticatedRequest` is the session the rest of the suite runs on.
+  await acceptInvitation(data.invitation.url)
 
   return { admin: data.admin, password: INVITED_ADMIN_PASSWORD }
 }

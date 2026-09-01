@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\AdminUsers\Controllers;
 
 use App\Modules\AdminUsers\Services\AdminInvitationService;
+use App\Modules\Auth\Domain\BrowserSession;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
+use App\Shared\Config\AppConfig;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Validation\Validator;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -41,7 +43,14 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * Neither route is behind `CsrfMiddleware`. There is no session cookie for a
  * CSRF token to protect, exactly as for `POST /api/auth/login`, and the only
  * thing a forged request could achieve is spending a token the forger already
- * had to know.
+ * had to know — plus, since #798, signing the victim's browser out, which
+ * costs somebody holding a live invitation link one sign-in.
+ *
+ * **`accept` is the one public route that ends a session** rather than
+ * ignoring them (#798). It hands the browser a new identity, so the old one
+ * cannot be allowed to survive the request; `lookup` deliberately does not,
+ * because reading the page is something an admin may legitimately do while
+ * signed in.
  */
 class InvitationController
 {
@@ -51,6 +60,7 @@ class InvitationController
         private AdminInvitationService $invitationService,
         private Validator $validator,
         private LoginAttemptsRepository $loginAttempts,
+        private AppConfig $config,
     ) {}
 
     /**
@@ -111,6 +121,20 @@ class InvitationController
             $this->recordRefusal($request);
             throw $e;
         }
+
+        // Whoever this browser was signed in as, it is not signed in as them
+        // any more (#798). An invitee very often follows their link on a
+        // machine the inviting admin is already signed in to, and the panel
+        // sends them to `/login` from here — a route that redirects an
+        // authenticated browser straight to the dashboard. The new admin
+        // therefore landed *inside somebody else's account*, having proven
+        // nothing but that they could read an email.
+        //
+        // Ended here rather than only in the panel, because the guarantee has
+        // to hold for the request rather than for one client of it: the
+        // browser that just set a password gets to keep exactly one identity,
+        // the one it is about to sign in with.
+        BrowserSession::endIfPresent($this->config->sessionCookieName);
 
         return $this->json($response, [
             'email' => $result['email'],

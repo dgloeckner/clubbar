@@ -1,7 +1,7 @@
 import { Page, Locator, expect } from '@playwright/test'
 import { TEST_CREDENTIALS } from '../config/test-credentials'
 import { generateTotp } from '../utils/totp'
-import { INVITED_ADMIN_PASSWORD } from '../utils/adminInvitation'
+import { acceptInvitation, INVITED_ADMIN_PASSWORD } from '../utils/adminInvitation'
 
 /**
  * Settings Page Object Model
@@ -707,10 +707,10 @@ export class SettingsPage {
    *
    * A test that wants to exercise something an *onboarded* account can do (a
    * password reset, say) has to do this first, because a pending account is
-   * deliberately not offered those actions. The accept goes through
-   * `page.request`, which is the public, session-less endpoint an invitee
-   * really reaches — so this also keeps the UI tests honest about the flow
-   * rather than reaching into the database.
+   * deliberately not offered those actions. The accept goes through the real,
+   * public endpoint — from a session-less context, as an invitee's browser is
+   * — so this keeps the UI tests honest about the flow rather than reaching
+   * into the database.
    *
    * @returns The password the account now has.
    */
@@ -722,15 +722,11 @@ export class SettingsPage {
 
     // The token is the link's fragment — it is never a path segment, so that
     // no web server in front of the installation logs it.
-    const token = link.slice(link.indexOf('#') + 1)
-    const response = await this.page.request.post('/api/invitations/accept', {
-      data: {
-        token,
-        password: INVITED_ADMIN_PASSWORD,
-        password_confirmation: INVITED_ADMIN_PASSWORD,
-      },
-    })
-    expect(response.status(), await response.text()).toBe(200)
+    //
+    // Sent from a context of its own rather than through `page.request`, which
+    // shares the browser's cookie jar: accepting ends the caller's session
+    // (#798), so accepting there would sign the page under test out mid-test.
+    await acceptInvitation(link.slice(link.indexOf('#') + 1))
 
     await this.closeInvitationModal()
 

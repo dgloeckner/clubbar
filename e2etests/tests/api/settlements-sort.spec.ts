@@ -30,7 +30,7 @@ import { loginAs } from '../../utils/csrf'
 import { settlementFactory as buildSettlementFactory } from '../../utils/settlements'
 import { TEST_CREDENTIALS } from '../../config/test-credentials'
 import { stepUp } from '../../fixtures/stepUp'
-import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
+import { acceptInvitation, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
 
 /**
  * Serial within this file: these tests perform full password+MFA logins as the
@@ -126,17 +126,9 @@ test.describe('Settlements list sort keys', () => {
 
     // The account arrives with no password (migration 058); the invitation is
     // what gives it one, and the password is this test's own choice.
-    const accepted = await seededAdmin.post(
-      `${API_BASE}/invitations/accept`,
-      {
-        data: {
-          token: tokenFromInvitationUrl(invitation.url),
-          password: INVITED_ADMIN_PASSWORD,
-          password_confirmation: INVITED_ADMIN_PASSWORD,
-        },
-      },
-    )
-    expect(accepted.status(), await accepted.text()).toBe(200)
+    // Session-less: accepting ends the caller's session (#798), and
+    // `seededAdmin` is the one every test in the run shares.
+    await acceptInvitation(invitation.url)
 
     const probeAdmin = await loginAs(playwright, admin.email, INVITED_ADMIN_PASSWORD)
     try {

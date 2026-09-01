@@ -1,7 +1,11 @@
 import { test, expect } from '../../fixtures/auth.fixture'
 import { stepUp } from '../../fixtures/stepUp'
 import { loginAs } from '../../utils/csrf'
-import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
+import {
+  createInvitedAdmin,
+  tokenFromInvitationUrl,
+  INVITED_ADMIN_PASSWORD,
+} from '../../utils/adminInvitation'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -257,6 +261,83 @@ test.describe('Admin Invitations API', () => {
       },
     })
     expect(good.status()).toBe(200)
+  })
+
+  /**
+   * The bug of #798, at the level the guarantee actually lives on.
+   *
+   * An invitee follows their link in a browser somebody else is already signed
+   * in to — the club laptop nobody logs out of. Accepting there used to leave
+   * that session untouched, and the panel's redirect to `/login` then dropped
+   * the new admin into the *other* account's dashboard, having proven nothing
+   * but that they can read an email.
+   *
+   * So the endpoint ends the session it was called with. What is asserted is
+   * the session's death, not a header: a client that keeps sending the cookie
+   * must be answered as an anonymous one.
+   */
+  test('accepting through a signed-in browser ends that browser\'s session', async ({
+    authenticatedRequest,
+    playwright,
+  }) => {
+    // The admin who is already signed in — their own account, never the shared
+    // seeded one, whose session the whole suite runs on (E2E Pattern 002).
+    const occupant = await createInvitedAdmin(authenticatedRequest, {
+      email: uniqueEmail('occupant'),
+      display_name: 'Already Signed In',
+    })
+    const browser = await loginAs(playwright, occupant.admin.email, occupant.password)
+
+    try {
+      expect((await browser.get(`${API_BASE}/auth/profile`)).status()).toBe(200)
+
+      // …and the invitee, sitting down at that same browser.
+      const { invitation } = await createAdmin(authenticatedRequest, uniqueEmail('newcomer'))
+
+      const accepted = await browser.post(`${API_BASE}/invitations/accept`, {
+        data: {
+          token: tokenFromInvitationUrl(invitation.url),
+          password: INVITED_ADMIN_PASSWORD,
+          password_confirmation: INVITED_ADMIN_PASSWORD,
+        },
+      })
+      expect(accepted.status()).toBe(200)
+
+      // The session that arrived with the request is gone: the browser holds
+      // exactly one identity now, the one it is about to sign in with.
+      const after = await browser.get(`${API_BASE}/auth/profile`)
+      expect(after.status()).toBe(401)
+    } finally {
+      await browser.dispose()
+    }
+  })
+
+  /**
+   * The other half of the same rule: *reading* the page is not accepting. An
+   * admin checking a link they issued stays signed in.
+   */
+  test('looking a link up leaves a signed-in browser signed in', async ({
+    authenticatedRequest,
+    playwright,
+  }) => {
+    const occupant = await createInvitedAdmin(authenticatedRequest, {
+      email: uniqueEmail('looker'),
+      display_name: 'Still Signed In',
+    })
+    const browser = await loginAs(playwright, occupant.admin.email, occupant.password)
+
+    try {
+      const { invitation } = await createAdmin(authenticatedRequest, uniqueEmail('looked-at'))
+
+      const lookup = await browser.post(`${API_BASE}/invitations/lookup`, {
+        data: { token: tokenFromInvitationUrl(invitation.url) },
+      })
+      expect(lookup.status()).toBe(200)
+
+      expect((await browser.get(`${API_BASE}/auth/profile`)).status()).toBe(200)
+    } finally {
+      await browser.dispose()
+    }
   })
 
   // ========== RESENDING ==========

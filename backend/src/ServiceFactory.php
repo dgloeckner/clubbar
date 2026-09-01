@@ -1526,6 +1526,7 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminInvitationService(),
             $this->getValidator(),
             $this->getLoginAttemptsRepository(),
+            $this->config,
         ));
     }
 

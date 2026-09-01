@@ -41,8 +41,9 @@ account, through a channel this system neither chose nor can see.
    greets them by name and shows the address the account will sign in with
    **and the role they are being onboarded into**.
 6. The invitee sets a password, twice.
-7. The system stores the password, spends the invitation, and sends them to the
-   sign-in form with their address filled in.
+7. The system stores the password, spends the invitation, **ends whatever
+   session this browser was holding**, and sends them to the sign-in form with
+   their address filled in.
 8. The invitee signs in. Having no second factor, they are put through
    Authenticator enrolment — the ordinary first-login path, unchanged.
 
@@ -84,6 +85,7 @@ another account or another office mentioned.
 | The two public endpoints have **constant URLs** and take the token in the request body — including the one that only reads | Same reason: request lines are logged, request bodies are not. That is worth more than the shape of the verb, so the read is a `POST` too |
 | Unknown, expired, spent and revoked answer identically | Distinguishing them for an anonymous caller confirms that a token exists |
 | Accepting mints no session | A mail link must not be able to skip the second-factor gate |
+| Accepting **ends** the session the request carried | The link is often followed on a machine somebody else is signed in to, and the sign-in form sends an authenticated browser to the dashboard — so without this the invitee landed inside the *inviting* admin's account, having proven only that they can read an email (#798). Looking the link up does not: reading the page is something an admin may legitimately do while signed in |
 | The mail and the page name the account's **own** role, and no other | A Getränkewart told they have been given an "admin account" is told something alarming and false; naming the reader's own job is not the org-structure disclosure that withholding it was meant to prevent |
 | The public endpoints are rate-limited on IP, and refused tokens count as failed attempts | Otherwise this is the one unmetered credential surface in the system |
 
@@ -93,7 +95,9 @@ another account or another office mentioned.
 - `invitation_sent` and `invitation_accepted` audit entries record how the
   account came to be usable. The second is the only entry in the log written by
   a request carrying no session.
-- Every session predating the password stops working (`credentials_changed_at`).
+- Every session predating the password stops working (`credentials_changed_at`),
+  and the browser that accepted holds no session at all — including one it
+  arrived with.
 - The account is no longer marked pending in the admin list.
 
 ## Error Cases
@@ -128,6 +132,9 @@ creation.
 - A resend revokes the previous link
 - A resend is refused for an account that has accepted
 - A resend is refused for a deactivated account
+- Accepting through a browser that already holds an admin session leaves it
+  signed in as nobody, on the sign-in form — not on that admin's dashboard
+- Looking a link up through such a browser leaves that session alone
 - The delivered mail contains a link that actually works (end to end, via the
   drain and Mailpit)
 - The list marks a pending account and offers resend instead of reset

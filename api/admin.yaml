@@ -198,6 +198,15 @@ paths:
         with it filled in; from there the ordinary first-login path takes over,
         which is what puts them through Authenticator enrolment.
 
+        **And any session sent with the request is ended** — destroyed
+        server-side, with the cookie expired in the response. An invitee often
+        follows their link in a browser somebody else is signed in to, and the
+        login form redirects an authenticated browser to the dashboard, so
+        without this the new admin landed inside the *inviting* admin's account
+        (#798). A caller that needs to stay signed in must therefore not send
+        this request from a session it wants to keep. `POST
+        /invitations/lookup` is unaffected: reading the page is not accepting.
+
         The password rules are `PATCH /auth/change-password`'s, character for
         character.
       operationId: acceptInvitation
