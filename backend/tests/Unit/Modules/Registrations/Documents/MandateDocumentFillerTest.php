@@ -381,6 +381,46 @@ final class MandateDocumentFillerTest extends TestCase
     }
 
     /**
+     * A comb too short for the IBAN it is handed is refused, not truncated.
+     *
+     * The silent outcome is the worst one available: a **legal SEPA mandate
+     * printed with a truncated IBAN** — complete-looking, signed by somebody,
+     * and failing at the bank weeks later with nothing on the paper to say why.
+     *
+     * It is also the honest answer. A 27-character French IBAN cannot be
+     * written into 22 German boxes by hand either; that is a property of the
+     * club's paper, not something software should paper over.
+     */
+    public function test_a_comb_too_short_for_the_iban_is_refused_rather_than_truncated(): void
+    {
+        // The fixture's own comb is 22 cells, and its single wide `iban` field
+        // has to go — otherwise the value has somewhere else to land.
+        $combOnly = str_replace('/T (iban)', '/T (zzzz)', $this->template);
+
+        try {
+            (new MandateDocumentFiller())->fill($combOnly, [
+                'mandatsreferenz' => 'ref',
+                'vorname' => 'Amélie',
+                'nachname' => 'Rousseau',
+                'iban' => 'FR1420041010050500013M02606',
+                'iban_last4' => '2606',
+            ]);
+            self::fail('An IBAN that does not fit the comb must be refused.');
+        } catch (UnusableTemplateException $e) {
+            self::assertStringContainsString('22', $e->getMessage());
+            self::assertStringContainsString('27', $e->getMessage());
+        }
+    }
+
+    /** A template with a wide field as well has somewhere to put it. */
+    public function test_a_long_iban_is_accepted_when_a_single_wide_field_exists(): void
+    {
+        $filled = $this->fill(['iban' => 'FR1420041010050500013M02606']);
+
+        self::assertStringContainsString('FR14', $this->readableText($filled));
+    }
+
+    /**
      * The trap this had to avoid: `iban_last4` looks exactly like the fourth box
      * of a comb named `iban_last`. It is not, and it has a value of its own —
      * mistaking it would silently drop the hint the Kassenwart checks against.

@@ -110,6 +110,8 @@ class MandateDocumentFiller
             throw new UnusableTemplateException(PdfAcroFormFields::diagnose($template));
         }
 
+        $this->assertCombCanHoldTheIban($fields, $values);
+
         $source = $this->sourceFile($template);
 
         try {
@@ -165,6 +167,55 @@ class MandateDocumentFiller
             return (string) $pdf->Output('S');
         } finally {
             @unlink($source);
+        }
+    }
+
+    /**
+     * Refuse a comb too short for the IBAN it is being handed.
+     *
+     * A German form draws 22 boxes because a German IBAN is 22 characters. Hand
+     * it a 27-character French one and the last five have nowhere to go — and
+     * the silent outcome is the worst one available: a **legal SEPA mandate
+     * printed with a truncated IBAN**, which looks complete, which somebody
+     * signs, and which fails at the bank weeks later with no way to tell from
+     * the paper what went wrong.
+     *
+     * So it fails here instead, loudly. The member's path treats that as "no
+     * document" and keeps the registration; the admin's says what happened. And
+     * it is the honest answer either way: an IBAN that will not fit the boxes
+     * cannot be written on that form by hand either, which is a property of the
+     * club's paper rather than something software should paper over.
+     *
+     * Only when the comb is the *only* place the IBAN could go: a template
+     * carrying a single wide `iban` field as well has somewhere to put it.
+     *
+     * @param array<string, mixed> $fields
+     * @param array<string, string> $values
+     * @throws UnusableTemplateException
+     */
+    private function assertCombCanHoldTheIban(array $fields, array $values): void
+    {
+        $cells = PdfAcroFormFields::combCells($fields);
+        if ($cells === [] || array_key_exists('iban', $fields)) {
+            return;
+        }
+
+        $iban = preg_replace('/\s+/', '', (string) ($values['iban'] ?? '')) ?? '';
+        if ($iban === '') {
+            return;
+        }
+
+        $highest = max(array_keys($cells));
+        if (strlen($iban) > $highest) {
+            throw new UnusableTemplateException(
+                null,
+                [],
+                sprintf(
+                    'The template\'s IBAN comb holds %d characters; this IBAN has %d.',
+                    $highest,
+                    strlen($iban),
+                ),
+            );
         }
     }
 

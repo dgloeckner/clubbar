@@ -130,11 +130,48 @@ final class PdfAcroFormFields
     /**
      * Which required fields a template is missing.
      *
+     * `iban` is satisfied **either** by a single wide field **or** by an
+     * IBAN-Kamm: a template that prints one box per character has no field
+     * called `iban` at all, and demanding one would refuse the shape a German
+     * form actually uses (#780).
+     *
      * @param array<string, mixed> $fields as returned by {@see scan()}
      * @return list<string>
      */
     public static function missingRequired(array $fields): array
     {
-        return array_values(array_diff(self::requiredFields(), array_keys($fields)));
+        $present = array_keys($fields);
+
+        if (self::combCells($fields) !== []) {
+            $present[] = 'iban';
+        }
+
+        return array_values(array_diff(self::requiredFields(), $present));
+    }
+
+    /**
+     * The IBAN comb's cells, as `index => field name`, lowest index first.
+     *
+     * The index is the **character position** in the IBAN, not the cell's
+     * ordinal among the fields present — so a form that pre-prints `DE` into
+     * the first two boxes declares `iban_3` … `iban_22` and every character
+     * still lands where it belongs.
+     *
+     * @param array<string, mixed> $fields
+     * @return array<int, string>
+     */
+    public static function combCells(array $fields): array
+    {
+        $cells = [];
+
+        foreach (array_keys($fields) as $name) {
+            if (preg_match('/^iban_([1-9]\d*)$/', (string) $name, $parts) === 1) {
+                $cells[(int) $parts[1]] = (string) $name;
+            }
+        }
+
+        ksort($cells);
+
+        return $cells;
     }
 }
