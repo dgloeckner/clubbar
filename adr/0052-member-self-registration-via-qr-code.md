@@ -203,12 +203,22 @@ on flatten — a template's writing lines must be page content (CSS borders), or
 admin variant's blank IBAN line prints as nothing at all. Core-font output needs
 Latin-1 transliteration.
 
+A third belongs beside them, found against the club's own published document:
+**a value is fitted to its field, never drawn at a fixed size.** The reference
+club's `mandatsreferenz` field is 108pt wide and holds 32 hex characters, which at
+10pt is 166pt of text — 58pt of a member's mandate reference running into whatever
+sits beside it, on a document that looks fine everywhere except on paper. The size
+steps down until the value fits, with a floor below which it is drawn cramped
+rather than clipped: a document that is visibly tight gets looked at, and one that
+is silently overlapping does not.
+
 **Field vocabulary — member-specific only:**
 
 | Field | |
 |---|---|
 | `mandatsreferenz`, `vorname`, `nachname`, `iban`, `iban_last4` | Required. A template missing any of them is refused |
 | `geburtsdatum`, `email`, `kontoinhaber`, and creditor fields in the shipped default | Optional: filled when present, ignored when absent |
+| `iban_1` … `iban_n` | Optional, and the way a German form actually prints an IBAN: an **IBAN-Kamm**, one box per character, sized for a handwritten letter. A value drawn as one continuous run across a comb lands *between* the boxes rather than in them, so a template that wants its comb filled declares one field per box — which is also how it would be authored in HTML. Each box gets one character of the compact IBAN, centred; whitespace never gets a box. A template with a single wide `iban` field is unaffected |
 | Ort/Datum, signatures, the Kenntnisnahme checkboxes | **Not fields.** Done by hand at signature, always |
 
 The creditor block is printed **statically** by a club's template — its identity

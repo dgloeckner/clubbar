@@ -241,6 +241,156 @@ final class MandateDocumentFillerTest extends TestCase
         (new MandateDocumentFiller())->assertUsable($this->template);
     }
 
+    // ── the IBAN-Kamm, and fitting a value to its field (#781 feedback) ──
+
+    /**
+     * German forms print an IBAN as a comb — one box per character, sized for a
+     * handwritten letter. A value drawn as one continuous run across it lands
+     * *between* the boxes rather than in them, so a template that wants its comb
+     * filled declares one field per box, and each gets one character.
+     */
+    public function test_a_comb_gets_one_character_per_box(): void
+    {
+        $filled = $this->fill();
+        $text = $this->readableText($filled);
+
+        // Drawn one glyph at a time, each positioned in its own box.
+        self::assertMatchesRegularExpression('/\(D\)\s*Tj/', $text);
+        self::assertMatchesRegularExpression('/\(E\)\s*Tj/', $text);
+        self::assertMatchesRegularExpression('/\(8\)\s*Tj/', $text);
+    }
+
+    /**
+     * Each glyph lands inside the box it belongs to, and centred in it.
+     *
+     * The assertion the other comb tests cannot make: that the characters were
+     * drawn is one thing, that they are in the right boxes is the thing that
+     * matters. A comb filled left-to-right from the field's edge — or from the
+     * wrong rectangle — produces a document that is subtly, unmistakably wrong
+     * on paper and looks fine in every other check.
+     */
+    public function test_each_comb_glyph_is_drawn_centred_inside_its_own_box(): void
+    {
+        $fields = PdfAcroFormFields::scan($this->template);
+        $filled = $this->fill(['iban' => 'DE89 3704 0044 0532 0130 00']);
+        $compact = 'DE89370400440532013000';
+
+        // FPDF's Text() writes `BT x y Td (s) Tj ET`.
+        preg_match_all(
+            '~BT\s+([\d.]+)\s+([\d.]+)\s+Td\s+\((.)\)\s*Tj~',
+            $this->readableText($filled),
+            $draws,
+            PREG_SET_ORDER,
+        );
+        self::assertNotSame([], $draws, 'Nothing was drawn one glyph at a time.');
+
+        $placed = [];
+        foreach ($draws as [, $x, , $glyph]) {
+            $placed[] = [(float) $x, $glyph];
+        }
+
+        $verified = 0;
+        foreach ([1, 5, 12, 22] as $cell) {
+            $name = 'iban_' . $cell;
+            self::assertArrayHasKey($name, $fields, "The fixture should carry {$name}.");
+
+            [$x1, , $x2] = $fields[$name];
+            $expected = $compact[$cell - 1];
+
+            foreach ($placed as [$x, $glyph]) {
+                if ($glyph === $expected && $x >= $x1 && $x <= $x2) {
+                    // Centred, not flush: a glyph at the very edge of its box is
+                    // what a left-aligned draw would produce.
+                    self::assertGreaterThan($x1, $x, "{$name} should be centred, not flush left.");
+                    $verified++;
+                    break;
+                }
+            }
+        }
+
+        self::assertSame(4, $verified, 'Every sampled comb cell should hold its own character.');
+    }
+
+    /**
+     * A comb has one cell per *character*, and a space is not a character that
+     * gets a box. The grouped form a single wide field shows — `DE89 3704 …` —
+     * is compacted before it is distributed, or every group would shift the
+     * rest of the number one box to the right.
+     */
+    public function test_the_comb_is_filled_from_the_compact_iban(): void
+    {
+        $filled = $this->fill(['iban' => 'DE89 3704 0044 0532 0130 00']);
+        $fields = PdfAcroFormFields::scan($this->template);
+
+        // Cell 5 is the fifth character of the compact IBAN — `3`, not the
+        // space that follows `DE89` in the grouped form.
+        self::assertArrayHasKey('iban_5', $fields);
+        self::assertStringContainsString('(3) Tj', $this->readableText($filled));
+    }
+
+    /**
+     * The trap this had to avoid: `iban_last4` looks exactly like the fourth box
+     * of a comb named `iban_last`. It is not, and it has a value of its own —
+     * mistaking it would silently drop the hint the Kassenwart checks against.
+     */
+    public function test_a_field_that_merely_ends_in_a_number_is_not_a_comb_cell(): void
+    {
+        $text = $this->readableText($this->fill(['iban_last4' => 'endet auf ****3000']));
+
+        self::assertStringContainsString('endet auf ****3000', $text);
+    }
+
+    /**
+     * The bug the comb question uncovered, and the bigger of the two.
+     *
+     * On the reference club's own published Anmeldung the mandate reference is
+     * 32 hex characters in a 108pt field: at a fixed 10pt that is 166pt of text,
+     * running 58pt into whatever sits beside it. Nothing about the output says
+     * so — it just looks wrong on paper, after printing.
+     */
+    public function test_a_value_too_wide_for_its_field_is_shrunk_rather_than_overflowing(): void
+    {
+        $reference = str_repeat('c0ffee12', 4);
+        $filled = $this->fill(['mandatsreferenz' => $reference]);
+
+        $fields = PdfAcroFormFields::scan($this->template);
+        $width = $fields['mandatsreferenz'][2] - $fields['mandatsreferenz'][0];
+
+        // Measured with the same metrics the filler uses, at the size it chose.
+        $pdf = new \setasign\Fpdi\Fpdi('P', 'pt');
+        $pdf->AddPage();
+        $pdf->SetFont('Helvetica', '', $this->fontSizeUsedFor($filled, $reference));
+
+        self::assertLessThanOrEqual($width, $pdf->GetStringWidth($reference));
+        self::assertStringContainsString($reference, $this->readableText($filled));
+    }
+
+    /** A value that already fits keeps the nominal size; nothing shrinks for fun. */
+    public function test_a_value_that_fits_is_drawn_at_the_nominal_size(): void
+    {
+        $filled = $this->fill(['vorname' => 'Lena']);
+
+        self::assertSame(10.0, $this->fontSizeUsedFor($filled, 'Lena'));
+    }
+
+    /**
+     * The size the content stream actually selected before drawing $needle.
+     *
+     * FPDF writes `/F1 9.50 Tf` ahead of each `Tj`, so the last size set before
+     * a given string is the size it was drawn at.
+     */
+    private function fontSizeUsedFor(string $pdf, string $needle): float
+    {
+        $text = $this->readableText($pdf);
+        $at = strpos($text, '(' . $needle . ')');
+        self::assertNotFalse($at, "The value {$needle} was never drawn.");
+
+        preg_match_all('~/F\d+\s+([\d.]+)\s+Tf~', substr($text, 0, $at), $sizes);
+        self::assertNotSame([], $sizes[1], 'No font size was selected before drawing.');
+
+        return (float) end($sizes[1]);
+    }
+
     /**
      * Every stream in a PDF, decompressed where it is compressed.
      *
