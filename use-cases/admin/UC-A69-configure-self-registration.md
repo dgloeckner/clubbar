@@ -1,6 +1,18 @@
 # UC-A69: Configure Self-Registration and Print the QR Poster
 
-**Implementation Status**: Not implemented — specified
+**Implementation Status**: Implemented ([#783](https://github.com/dgloeckner/clubbar/issues/783)) — the
+four `admin`-only endpoints under `/api/admin/self-registration`, the controls on
+Security & Credentials, and the printable QR poster. Verified by `api-tests`
+`self-registration.spec.ts` (44/44), `admin-chromium`
+`settings-self-registration.spec.ts` (4/4) and 9 component tests for the gate on
+the switch.
+
+One deviation, deliberate: there is **no DK-Muster fallback**. Under the
+one-document ruling the club's own published Anmeldung is both the Art. 13
+notice and the print template, so a club with no URL has nothing to show an
+applicant before collecting their data — the surface fails closed, and clearing
+the URL switches the club off rather than substituting a generic mandate that
+would drop the Datenschutzhinweise the applicant was pointed at.
 
 ## Actors
 

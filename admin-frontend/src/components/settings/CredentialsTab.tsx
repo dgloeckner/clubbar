@@ -33,6 +33,7 @@ import { StepUpConfirmDialog, type StepUpCredentials } from '../modals/StepUpCon
 import { KeyRotationDialog, type KeyRotationProgress } from '../modals/KeyRotationDialog'
 import { PrivateKeyInput } from '../modals/PrivateKeyInput'
 import { TerminalCredentials } from './TerminalCredentials'
+import { SelfRegistrationCredentials } from './SelfRegistrationCredentials'
 import { modalInputStyle, modalLabelStyle } from '../modals/ModalError'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getSecurity } from '../../api/generated/security/security'
@@ -420,6 +421,11 @@ export function CredentialsTab({ callerTotpEnabled }: CredentialsTabProps) {
           "Terminals" and the other under "Credentials" to find out which is
           about to lapse. */}
       <TerminalCredentials callerTotpEnabled={callerTotpEnabled} />
+
+      {/* The poster secret is a credential in the same sense as the two above:
+          long-lived, printed on something in the physical world, and replacing
+          it takes that thing out of service (#783). */}
+      <SelfRegistrationCredentials />
     </div>
   )
 }
