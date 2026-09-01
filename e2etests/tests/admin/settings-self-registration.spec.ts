@@ -23,7 +23,14 @@
  */
 
 import { test, expect } from '../../fixtures/pageObjects'
-import { execSql } from '../../utils/sql'
+import { randomUUID } from 'node:crypto'
+import {
+  configureSelfRegistration,
+  execSql,
+  restoreClubDocumentUrl,
+  serveClubDocument,
+  stopServingClubDocument,
+} from '../../utils/sql'
 
 /**
  * Server-side truth is read through `page.request`, not a separate fixture:
@@ -42,8 +49,37 @@ function restoreClub(): void {
 test.describe('Settings — self-registration controls', () => {
   test.describe.configure({ mode: 'serial' })
 
+  /**
+   * Serve a document the backend can actually fetch: the URL is validated at
+   * save time, so the test that saves a good one back after a refusal makes a
+   * real HTTP request from inside the backend container.
+   */
+  test.beforeAll(() => {
+    serveClubDocument()
+  })
+
+  test.afterAll(() => {
+    stopServingClubDocument()
+  })
+
+  /**
+   * Establish the state these tests read, rather than inheriting it.
+   *
+   * Every test here starts from a club that is **on**, with a secret and a
+   * document — that is what makes "pausing needs a sentence" the thing being
+   * asserted. Migration `059` seeds the row switched *off*, so on a fresh
+   * database the toggle correctly reads "switch on" and is correctly disabled
+   * for want of a secret, and the spec times out clicking it. Locally it passed
+   * only because an earlier run had left the club on: a test that depends on
+   * what ran before it is not a test (Pattern 001).
+   */
+  test.beforeEach(() => {
+    configureSelfRegistration(`secret-${randomUUID()}`)
+  })
+
   test.afterEach(() => {
     restoreClub()
+    restoreClubDocumentUrl()
   })
 
   test('the tab reports the club’s live state and never shows the secret', async ({
