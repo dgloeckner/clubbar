@@ -38,18 +38,27 @@ use App\Shared\Utils\Uuid;
 class RegistrationsService
 {
     /**
-     * Two meters, because one is not enough.
+     * Two meters, because one is not enough — and two budgets, because they are
+     * defending against opposite things.
      *
-     * Refusals are metered like a password guess: whoever is probing for a
-     * valid poster secret spends the same budget they would spend guessing a
-     * login. Accepted submissions get their own, smaller budget, because the
-     * caller this endpoint is most exposed to is not a prober at all — it is
-     * somebody who has the real secret and can fill the treasurer's queue
-     * without ever failing an attempt.
+     * **Refusals** are metered like a password guess: whoever is probing for a
+     * valid poster secret spends the budget they would spend guessing a login.
+     * Tight, and safe to keep tight, because a legitimate visitor presents the
+     * secret their poster gave them and never trips it.
+     *
+     * **Accepted submissions** are metered far more loosely, and the reason is
+     * the whole point of the feature: this is a QR code *in a clubhouse*.
+     * Everybody who scans it is on the club's wifi, behind one NAT address. A
+     * signup evening is six people in ten minutes from a single IP — which a
+     * tight budget would read as an attack and refuse, at exactly the moment
+     * the club is using the thing as designed. The budget here is sized to stop
+     * a script writing thousands of rows, not to ration a table of members.
      */
     public const MAX_REFUSED_PER_WINDOW = 10;
-    public const MAX_ACCEPTED_PER_WINDOW = 5;
-    public const WINDOW_MINUTES = 15;
+    public const REFUSED_WINDOW_MINUTES = 15;
+
+    public const MAX_ACCEPTED_PER_WINDOW = 60;
+    public const ACCEPTED_WINDOW_MINUTES = 60;
 
     /**
      * A hidden field no person ever fills.
@@ -212,10 +221,11 @@ class RegistrationsService
      */
     private function assertWithinMeters(string $ip): void
     {
-        $since = date('Y-m-d H:i:s', strtotime('-' . self::WINDOW_MINUTES . ' minutes'));
+        $refusedSince = date('Y-m-d H:i:s', strtotime('-' . self::REFUSED_WINDOW_MINUTES . ' minutes'));
+        $acceptedSince = date('Y-m-d H:i:s', strtotime('-' . self::ACCEPTED_WINDOW_MINUTES . ' minutes'));
 
-        $refused = $this->attempts->countRecent($ip, RegistrationAttemptsRepository::REFUSED, $since);
-        $accepted = $this->attempts->countRecent($ip, RegistrationAttemptsRepository::ACCEPTED, $since);
+        $refused = $this->attempts->countRecent($ip, RegistrationAttemptsRepository::REFUSED, $refusedSince);
+        $accepted = $this->attempts->countRecent($ip, RegistrationAttemptsRepository::ACCEPTED, $acceptedSince);
 
         if ($refused >= self::MAX_REFUSED_PER_WINDOW || $accepted >= self::MAX_ACCEPTED_PER_WINDOW) {
             $this->logger->info('Self-registration throttled', [
@@ -224,7 +234,7 @@ class RegistrationsService
             ]);
 
             throw new TooManyAttemptsException(
-                self::WINDOW_MINUTES * 60,
+                self::REFUSED_WINDOW_MINUTES * 60,
                 'Too many registration attempts from this address. Please try again later.',
             );
         }

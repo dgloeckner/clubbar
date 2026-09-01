@@ -343,6 +343,24 @@ final class RegistrationsServiceTest extends TestCase
     }
 
     /**
+     * The budget a clubhouse signup evening must fit inside.
+     *
+     * Everyone scanning a poster on the wall is behind one NAT address, so a
+     * table of new members looks to this meter like a single caller. The
+     * accepted budget is sized to stop a script writing thousands of rows, not
+     * to ration six people in ten minutes — which an earlier, tighter number
+     * did, refusing the sixth member at exactly the moment the club was using
+     * the feature as designed.
+     */
+    public function test_a_clubhouse_worth_of_submissions_from_one_address_is_accepted(): void
+    {
+        for ($i = 0; $i < 12; $i++) {
+            $receipt = $this->service->submit(self::SECRET, $this->payload(), '10.0.0.9');
+            self::assertNotSame('', $receipt->id, "submission {$i} from the club's wifi was refused");
+        }
+    }
+
+    /**
      * The meter the login surface does not have: somebody holding the real
      * secret never fails, and can still fill the queue.
      */
