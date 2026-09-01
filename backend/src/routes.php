@@ -25,6 +25,7 @@ use App\Modules\Notifications\Controllers\NotificationsController;
 use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AdminUsers\Controllers\InvitationController;
+use App\Modules\Registrations\Controllers\AdminController as RegistrationsAdminController;
 use App\Modules\Registrations\Controllers\PublicController as RegistrationsPublicController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
@@ -219,6 +220,18 @@ return function (App $app): void {
         // Clearing is an admin decision, not a member edit — it lets the next
         // collection run reach this member again (ruling #148 §5).
         $group->post('/members/{memberId}/collection-hold/clear', [MembersAdminController::class, 'clearCollectionHold']);
+
+        // ── the self-registration review inbox (#779, ADR-0052, UC-A17) ──
+        // Approve is the only path from a pending registration to a `members`
+        // row: there is no job, no import and no sync that materializes one.
+        // That is what keeps a self-registered person off the terminal until
+        // somebody has held their signed paper — ADR-0020's mandate gate and
+        // ADR-0021's card step both sit behind this route.
+        $group->get('/registrations', [RegistrationsAdminController::class, 'index']);
+        $group->get('/registrations/{registrationId}', [RegistrationsAdminController::class, 'show']);
+        $group->patch('/registrations/{registrationId}', [RegistrationsAdminController::class, 'update']);
+        $group->post('/registrations/{registrationId}/approve', [RegistrationsAdminController::class, 'approve']);
+        $group->post('/registrations/{registrationId}/reject', [RegistrationsAdminController::class, 'reject']);
 
         // Categories
         $group->get('/categories', [ProductsAdminController::class, 'listCategories']);

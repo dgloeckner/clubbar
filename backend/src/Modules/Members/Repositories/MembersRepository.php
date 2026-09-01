@@ -207,6 +207,178 @@ class MembersRepository
         return $this->findById($id);
     }
 
+    /**
+     * Create a member and their mandate from an **already-sealed** submission
+     * (ADR-0052 decision 9, #779).
+     *
+     * The one write path in this class that never sees a plaintext IBAN, and
+     * the reason it exists: by the time an admin approves a self-registration
+     * the plaintext is months gone — sealed at submission under a key this
+     * server does not hold (ADR-0036). There is nothing to re-seal from, so the
+     * ciphertext, its last four, its fingerprint and its key id are copied
+     * across **byte for byte**.
+     *
+     * That includes copying the key id rather than the current active key. It
+     * looks like a lapse and is the opposite of one: the ciphertext can only be
+     * opened by the key that sealed it, so relabelling it with today's active
+     * key would produce a mandate nobody can ever collect on. If the sealing key
+     * has since been retired, the row is exactly as re-sealable as every other
+     * mandate under that key, and the rotation batch is what handles it — with
+     * the private key in an operator's hand, which is the only place it exists.
+     *
+     * The mandate reference is copied too, not minted: it was printed on the
+     * paper this member signed (ADR-0006, ADR-0052 decision 4), so the mandate
+     * has to carry the reference the bank will see on the collection.
+     *
+     * Both rows land or neither does. A member created without their mandate is
+     * SEPA-invalid, invisible to the next collection, and — since approval
+     * deletes the pending row — no longer recoverable from anywhere.
+     *
+     * @param array<string, mixed> $member  the members-row fields
+     * @param array<string, mixed> $mandate reference, sealed quartet, bank name, signed_at
+     * @return array<string, mixed> the member as `findById()` sees them
+     */
+    public function createFromSealedMandate(array $member, array $mandate): array
+    {
+        $id = $member['id'] ?? Uuid::v4();
+        $now = date('Y-m-d H:i:s');
+
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            $this->db->prepare(
+                'INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, credit_limit_cents, is_active, account_holder_name, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            )->execute([
+                $id,
+                // Always null here. A self-registered member gets their card
+                // in a second, deliberate step (ADR-0021), which is also what
+                // sends the welcome mail — approval is not an onboarding.
+                null,
+                $member['first_name'],
+                $member['last_name'],
+                $member['email'],
+                $member['phone'] ?? null,
+                $member['date_of_birth'] ?? null,
+                $member['preferred_language'] ?? 'de',
+                $member['credit_limit_cents'] ?? null,
+                1,
+                $member['account_holder_name'] ?? null,
+                $now,
+                $now,
+            ]);
+
+            $mandateId = Uuid::v4();
+            $stmt = $this->db->prepare(
+                'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_ciphertext, iban_last4, iban_fingerprint, encryption_key_id, bank_name, signed_at, created_by_admin_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+
+            try {
+                $stmt->execute([
+                    $mandateId,
+                    $id,
+                    $id,
+                    $mandate['reference'],
+                    $mandate['iban_ciphertext'],
+                    $mandate['iban_last4'],
+                    $mandate['iban_fingerprint'],
+                    $mandate['encryption_key_id'],
+                    $mandate['bank_name'] ?? null,
+                    ($mandate['signed_at'] ?? null) ?: null,
+                    $mandate['created_by_admin_id'] ?? null,
+                ]);
+            } catch (\PDOException $e) {
+                // The reference was minted at submission and has been sitting
+                // in the pending row ever since — long enough for a member to
+                // have been created carrying it by some other route. That is
+                // the club's collision to resolve, not an internal error.
+                if ($this->isDuplicateReference($e)) {
+                    throw new DuplicateResourceException(
+                        "Mandate reference '{$mandate['reference']}' is already in use"
+                    );
+                }
+                throw $e;
+            }
+
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownsTransaction) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+
+        $this->logger->info('Member created from a self-registration', ['id' => $id]);
+
+        return $this->findById($id);
+    }
+
+    /**
+     * Which of these addresses the club already has a member at.
+     *
+     * Asked once per page of the review inbox rather than once per row: a
+     * twenty-row page is one query, not twenty. Anonymized members are excluded
+     * — their email is NULL, so they cannot match anyway, and a person who
+     * exercised erasure and later re-applies is a new applicant.
+     *
+     * @param list<string> $emails
+     * @return list<string> the subset that exists
+     */
+    public function findExistingEmails(array $emails): array
+    {
+        $emails = array_values(array_unique(array_filter($emails, static fn($e): bool => is_string($e) && $e !== '')));
+        if ($emails === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($emails), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT DISTINCT email FROM members WHERE deleted_at IS NULL AND email IN ({$placeholders})"
+        );
+        $stmt->execute($emails);
+
+        return array_map(static fn(array $row): string => (string) $row['email'], $stmt->fetchAll());
+    }
+
+    /**
+     * Which of these accounts the club already holds an **active** mandate on.
+     *
+     * Active only: an ended mandate is a bank the member has left (#165), and
+     * flagging a returning applicant because of an account nobody collects from
+     * any more would be noise on the one signal that matters.
+     *
+     * The fingerprint is what makes this answerable without a key — sealed
+     * boxes are randomized, so ciphertexts never compare equal (ADR-0036).
+     *
+     * @param list<string> $fingerprints
+     * @return list<string> the subset that exists
+     */
+    public function findExistingIbanFingerprints(array $fingerprints): array
+    {
+        $fingerprints = array_values(array_unique(array_filter(
+            $fingerprints,
+            static fn($f): bool => is_string($f) && $f !== '',
+        )));
+        if ($fingerprints === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($fingerprints), '?'));
+        $stmt = $this->db->prepare(
+            'SELECT DISTINCT iban_fingerprint FROM mandates '
+            . "WHERE active_member_id IS NOT NULL AND iban_fingerprint IN ({$placeholders})"
+        );
+        $stmt->execute($fingerprints);
+
+        return array_map(static fn(array $row): string => (string) $row['iban_fingerprint'], $stmt->fetchAll());
+    }
+
     public function updateById(string $id, array $data): ?array
     {
         $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'phone', 'date_of_birth', 'preferred_language', 'credit_limit_cents', 'is_active', 'account_holder_name', 'deleted_at', 'deleted_by_admin_id'];

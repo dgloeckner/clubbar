@@ -18,10 +18,12 @@ use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Reports\Repositories\ReportsRepository;
 use App\Modules\Products\Repositories\CategoriesRepository;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Registrations\Controllers\AdminController as RegistrationsAdminController;
 use App\Modules\Registrations\Controllers\PublicController as RegistrationsPublicController;
 use App\Modules\Registrations\Repositories\RegistrationAttemptsRepository;
 use App\Modules\Registrations\Repositories\RegistrationsRepository;
 use App\Modules\Registrations\Repositories\SelfRegistrationConfigRepository;
+use App\Modules\Registrations\Services\RegistrationReviewService;
 use App\Modules\Registrations\Services\RegistrationsService;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
@@ -219,8 +221,10 @@ class ServiceFactory implements ContainerInterface
         AdminUsersAdminController::class => 'getAdminUsersAdminController',
         InvitationController::class => 'getInvitationController',
 
-        // Registrations (ADR-0052) — the public onboarding surface
+        // Registrations (ADR-0052) — the public onboarding surface, and the
+        // review inbox an admin empties it through
         RegistrationsPublicController::class => 'getRegistrationsPublicController',
+        RegistrationsAdminController::class => 'getRegistrationsAdminController',
 
         // AuditLog
         AuditLogAdminController::class => 'getAuditLogAdminController',
@@ -380,6 +384,31 @@ class ServiceFactory implements ContainerInterface
     {
         return $this->resolve(RegistrationsPublicController::class, fn() => new RegistrationsPublicController(
             $this->getRegistrationsService(),
+            $this->getValidator(),
+        ));
+    }
+
+    public function getRegistrationReviewService(): RegistrationReviewService
+    {
+        return $this->resolve(RegistrationReviewService::class, fn() => new RegistrationReviewService(
+            $this->getRegistrationsRepository(),
+            $this->getMembersRepository(),
+            $this->getAuditService(),
+            $this->getEncryptionKeysRepository(),
+            $this->getBankCodeService(),
+            $this->getIbanSealedBox(),
+            // The handle itself, not a repository: approval spans two tables in
+            // two modules and the audit log, and one transaction has to cover
+            // all three.
+            $this->pdo,
+            $this->logger,
+        ));
+    }
+
+    public function getRegistrationsAdminController(): RegistrationsAdminController
+    {
+        return $this->resolve(RegistrationsAdminController::class, fn() => new RegistrationsAdminController(
+            $this->getRegistrationReviewService(),
             $this->getValidator(),
         ));
     }

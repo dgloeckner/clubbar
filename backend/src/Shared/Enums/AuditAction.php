@@ -192,4 +192,32 @@ enum AuditAction: string
      * `login` with nothing in between saying how the password came to be.
      */
     case INVITATION_ACCEPTED = 'invitation_accepted';
+
+    // Self-registration review (ADR-0052 decision 10). The boundary that table
+    // draws is "the log follows authority, not activity": a submission grants
+    // nothing and is not audited, and neither is the TTL purge. What an admin
+    // does to a submission is another matter — each of these is a person acting
+    // on somebody else's personal data, and every one of them carries a masked
+    // IBAN only (ADR-0005), never a ciphertext and never a fingerprint.
+    /**
+     * A pending registration became a member and a mandate.
+     *
+     * The attestation entry: the admin is recording that they held the signed
+     * SEPA paper and that its IBAN matched the `****last4` on file. It carries
+     * the registration id as its subject, so the origin survives the pending
+     * row's deletion, and the new member's id in its payload.
+     */
+    case REGISTRATION_APPROVED = 'registration_approved';
+    /** An admin deleted somebody's submission. The act, the actor, the reason. */
+    case REGISTRATION_REJECTED = 'registration_rejected';
+    /**
+     * An admin corrected a submission before approving it (#779).
+     *
+     * Not obviously an authority change, and audited anyway — this is the one
+     * place in the system where one person edits another's freshly submitted
+     * personal data, including which bank account a mandate will be opened
+     * against. The entry is what makes "the IBAN on file is not the one I sent"
+     * answerable.
+     */
+    case REGISTRATION_EDITED = 'registration_edited';
 }
