@@ -220,4 +220,13 @@ enum AuditAction: string
      * answerable.
      */
     case REGISTRATION_EDITED = 'registration_edited';
+    /**
+     * The club's document was printed for a pending registration (#780).
+     *
+     * A member's name, birth date, email and an IBAN hint leaving the building
+     * on paper. The entry carries the variant, so "who printed a copy carrying
+     * the last four digits of this account" is answerable — which is the only
+     * question this action exists to answer.
+     */
+    case REGISTRATION_PRINTED = 'registration_printed';
 }

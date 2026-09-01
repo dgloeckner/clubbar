@@ -151,6 +151,35 @@ class AdminController
     }
 
     /**
+     * GET …/document — the club's Anmeldung, filled, for the Kassenwart to print.
+     *
+     * Streamed as the PDF itself rather than wrapped in JSON: this is a file a
+     * person prints, and the browser is entitled to open it directly. `inline`
+     * rather than `attachment` for the same reason — the admin wants a print
+     * dialog, not a download folder.
+     *
+     * `no-store` matters here as much as it does on the member's copy. The
+     * sheet carries a name, a birth date, an email and an IBAN hint, and a
+     * cached copy of it on a shared clubhouse machine is exactly the leak the
+     * masking everywhere else in this module exists to prevent.
+     */
+    public function document(Request $request, Response $response, array $args): Response
+    {
+        $pdf = $this->registrations->renderForPrint(
+            $args['registrationId'],
+            $request->getAttribute('admin_user_id'),
+        );
+
+        $response->getBody()->write($pdf);
+
+        return $response
+            ->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition', 'inline; filename="anmeldung.pdf"')
+            ->withHeader('Cache-Control', 'no-store')
+            ->withHeader('Pragma', 'no-cache');
+    }
+
+    /**
      * POST …/reject — delete the submission.
      *
      * The reason is optional and travels only into the audit entry, which is

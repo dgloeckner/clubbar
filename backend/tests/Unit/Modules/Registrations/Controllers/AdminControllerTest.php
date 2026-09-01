@@ -252,6 +252,43 @@ final class AdminControllerTest extends TestCase
         self::assertSame(422, $response->getStatusCode());
         self::assertNull($this->service->rejectArgs);
     }
+
+    // ── printing (#780) ──────────────────────────────────────────────────
+
+    /**
+     * The PDF itself, not JSON around it: this is a file a person prints, and
+     * the browser is entitled to open it directly. `inline` rather than
+     * `attachment` because an admin wants a print dialog, not a download folder.
+     */
+    public function test_the_document_is_streamed_as_a_pdf_for_printing(): void
+    {
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('GET', '/api/admin/registrations/' . self::ID . '/document')
+            ->withAttribute('admin_user_id', self::ADMIN);
+
+        $response = $this->controller->document($request, new Response(), ['registrationId' => self::ID]);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('application/pdf', $response->getHeaderLine('Content-Type'));
+        self::assertStringStartsWith('inline;', $response->getHeaderLine('Content-Disposition'));
+        self::assertStringStartsWith('%PDF-', (string) $response->getBody());
+        self::assertSame(self::ADMIN, $this->service->printArgs['adminUserId']);
+    }
+
+    /**
+     * A sheet carrying a name, a birth date, an email and an IBAN hint, cached
+     * on a shared clubhouse machine, is exactly the leak the masking everywhere
+     * else in this module exists to prevent.
+     */
+    public function test_the_document_is_never_cached(): void
+    {
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('GET', '/api/admin/registrations/' . self::ID . '/document');
+
+        $response = $this->controller->document($request, new Response(), ['registrationId' => self::ID]);
+
+        self::assertSame('no-store', $response->getHeaderLine('Cache-Control'));
+    }
 }
 
 /**
@@ -271,6 +308,8 @@ final class RecordingReviewService extends RegistrationReviewService
     public ?array $approveArgs = null;
     /** @var array<string, mixed>|null */
     public ?array $rejectArgs = null;
+    /** @var array<string, mixed>|null */
+    public ?array $printArgs = null;
 
     public function __construct()
     {
@@ -332,6 +371,13 @@ final class RecordingReviewService extends RegistrationReviewService
     public function reject(string $id, ?string $reason = null, ?string $adminUserId = null): void
     {
         $this->rejectArgs = compact('id', 'reason', 'adminUserId');
+    }
+
+    public function renderForPrint(string $id, ?string $adminUserId = null): string
+    {
+        $this->printArgs = compact('id', 'adminUserId');
+
+        return "%PDF-1.4\npretend\n";
     }
 
     private static function row(): PendingRegistrationDto

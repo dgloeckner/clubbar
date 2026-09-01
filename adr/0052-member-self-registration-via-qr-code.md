@@ -159,6 +159,17 @@ one request, so there is nothing left to render from afterwards. The admin-print
 variant is the path that always works: it needs no plaintext at all, printing the
 hint from `iban_last4`, so a member who lost the tab is not stuck.
 
+**When the club's document cannot be fetched, the member gets no document — never
+a different one.** A webhost outage must not cost a registration that has already
+been written, so the submission stands and `document` comes back null. Substituting
+a neutral template would be worse than the gap it fills: the applicant would be
+handed a mandate they never read, missing the very pages they were pointed at,
+since for a real club document pages 2+ *are* the Datenschutzhinweise. The
+admin-print variant recovers it later, from data already stored. (This is why
+clubbar ships no default template: an instance with no club document URL cannot
+switch self-registration on at all — decision 6 — so there is no state in which a
+fallback template would be reached.)
+
 **Ort/Datum, the signatures and the Kenntnisnahme checkboxes are never
 machine-filled.** They are what the member does *at* signature, by hand, and a
 valid template carries no fields for them.

@@ -9,6 +9,8 @@
         "chillerlan/php-qrcode": "^6.0",
         "digitick/sepa-xml": "^3.1",
         "robthree/twofactorauth": "^3.0",
+        "setasign/fpdf": "^1.9",
+        "setasign/fpdi": "^2.6",
         "slim/psr7": "^1.0",
         "slim/slim": "^4.0",
         "symfony/mailer": "^7.4",

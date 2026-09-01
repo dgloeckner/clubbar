@@ -49,6 +49,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
+import { copyFileSync, rmSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 
@@ -206,7 +207,7 @@ export function configureSelfRegistration(
   const enabled = options.enabled ?? true
   const reason = options.disabledReason ?? null
   const documentUrl =
-    options.documentUrl === undefined ? 'https://club.example/Anmeldung_Ruderbar.pdf' : options.documentUrl
+    options.documentUrl === undefined ? CLUB_DOCUMENT_URL : options.documentUrl
 
   const hash = createHash('sha256').update(secret).digest('hex')
   const reasonSql = reason === null ? 'NULL' : `'${reason.replace(/'/g, "''")}'`
@@ -227,10 +228,45 @@ export function configureSelfRegistration(
  * these on other workers. Anything here that clears it — the fail-closed test —
  * has to put it back, or it breaks a spec that never touched registrations.
  */
-export function restoreClubDocumentUrl(
-  url = 'https://club.example/Anmeldung_Ruderbar.pdf',
-): void {
+export function restoreClubDocumentUrl(url = CLUB_DOCUMENT_URL): void {
   execSql(`UPDATE sepa_config SET mandate_template_url = '${url.replace(/'/g, "''")}' WHERE id = 1`)
+}
+
+/**
+ * The club document URL the suite configures — and it is deliberately one the
+ * backend can actually fetch (#780).
+ *
+ * `localhost` here is the **backend container's own** localhost, because the
+ * fetch runs inside it: the fixture is copied into `backend/public/` by
+ * `serveClubDocument()` below and served by the same nginx that serves the API.
+ * A URL on the public internet would make this suite depend on somebody else's
+ * webhost being up, and one that resolves only from the test runner would be
+ * fetched by nothing.
+ */
+export const CLUB_DOCUMENT_URL = 'http://localhost/e2e-club-anmeldung.pdf'
+
+/**
+ * Put a real, fillable Anmeldung where the backend can fetch it.
+ *
+ * The file is `backend/tests/Fixtures/documents/club-anmeldung.pdf` — a genuine
+ * WeasyPrint `--pdf-forms --uncompressed-pdf` build, three pages, fields on
+ * page 1 — so what the document specs assert is the real pipeline end to end
+ * rather than a stand-in.
+ *
+ * Copied into `backend/public/`, which is git-ignored for this name and removed
+ * by `stopServingClubDocument()`. It is not committed there: a fillable mandate
+ * template sitting in a public web root of every installation is not something
+ * to ship by accident.
+ */
+export function serveClubDocument(): void {
+  copyFileSync(
+    path.join(REPO_ROOT, 'backend/tests/Fixtures/documents/club-anmeldung.pdf'),
+    path.join(REPO_ROOT, 'backend/public/e2e-club-anmeldung.pdf'),
+  )
+}
+
+export function stopServingClubDocument(): void {
+  rmSync(path.join(REPO_ROOT, 'backend/public/e2e-club-anmeldung.pdf'), { force: true })
 }
 
 /** How many pending registrations exist right now. */

@@ -23,6 +23,9 @@ use App\Modules\Registrations\Controllers\PublicController as RegistrationsPubli
 use App\Modules\Registrations\Repositories\RegistrationAttemptsRepository;
 use App\Modules\Registrations\Repositories\RegistrationsRepository;
 use App\Modules\Registrations\Repositories\SelfRegistrationConfigRepository;
+use App\Modules\Registrations\Documents\CurlTemplateFetcher;
+use App\Modules\Registrations\Documents\MandateDocumentFiller;
+use App\Modules\Registrations\Documents\MandateDocumentService;
 use App\Modules\Registrations\Services\RegistrationReviewService;
 use App\Modules\Registrations\Services\RegistrationsService;
 use App\Modules\Products\Repositories\ProductsRepository;
@@ -377,6 +380,26 @@ class ServiceFactory implements ContainerInterface
             $this->getSepaConfigRepository(),
             $this->getIbanSealedBox(),
             $this->logger,
+            $this->getMandateDocumentService(),
+        ));
+    }
+
+    /**
+     * The club's Anmeldung, fetched and filled per request (#780, ADR-0052).
+     *
+     * Nothing about it is cached — not the template and not the filled result.
+     * A pinned copy would survive an upgrade (`package/upgrade.php` preserves
+     * `backend/storage/`) and vanish on restore (the backup dumper walks
+     * `information_schema.TABLES` only, ADR-0049), leaving the row that claimed
+     * it was pinned pointing at nothing.
+     */
+    public function getMandateDocumentService(): MandateDocumentService
+    {
+        return $this->resolve(MandateDocumentService::class, fn() => new MandateDocumentService(
+            new CurlTemplateFetcher($this->logger),
+            new MandateDocumentFiller(),
+            $this->getSepaConfigRepository(),
+            $this->logger,
         ));
     }
 
@@ -402,6 +425,7 @@ class ServiceFactory implements ContainerInterface
             // all three.
             $this->pdo,
             $this->logger,
+            $this->getMandateDocumentService(),
         ));
     }
 

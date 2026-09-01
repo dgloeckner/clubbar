@@ -7,6 +7,7 @@ namespace App\Modules\Registrations\Services;
 use App\Modules\BankCodes\Services\BankCodeService;
 use App\Modules\Members\DTOs\MemberAdminDto;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Registrations\Documents\MandateDocumentService;
 use App\Modules\Registrations\DTOs\PendingRegistrationDto;
 use App\Modules\Registrations\Repositories\RegistrationsRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
@@ -71,6 +72,10 @@ class RegistrationReviewService
         private IbanSealedBox $sealedBox,
         private PDO $db,
         private Logger $logger,
+        // Optional and last, so the wiring that predates #780 still builds. A
+        // deployment without it cannot print, and every other review action
+        // works unchanged.
+        private ?MandateDocumentService $documents = null,
     ) {}
 
     /**
@@ -308,6 +313,56 @@ class RegistrationReviewService
         }
 
         $this->logger->info('Self-registration rejected', ['registration_id' => $id]);
+    }
+
+    /**
+     * The club's Anmeldung, filled for this submission, for the Kassenwart to
+     * print (#780, ADR-0052 decision 5).
+     *
+     * The IBAN line comes back **blank**, for the member to write by hand at
+     * signature; `iban_last4` prints as the `endet auf ****3000` hint the admin
+     * checks it against. That is what keeps ADR-0036 exception-free: this path
+     * never needs a plaintext IBAN, because nobody on this server has one.
+     *
+     * Audited, because a member's name, birth date, email and an IBAN hint are
+     * leaving the building on paper — and unlike the three other review actions
+     * this one leaves the submission exactly as it was, so the audit entry is
+     * the *only* trace it happened.
+     *
+     * @return string the PDF bytes; nothing is written anywhere
+     * @throws NotFoundException no such submission
+     * @throws BusinessRuleException the club's document is unreachable or unusable
+     */
+    public function renderForPrint(string $id, ?string $adminUserId = null): string
+    {
+        $row = $this->requireRow($id);
+
+        if ($this->documents === null) {
+            throw new BusinessRuleException(
+                BusinessRuleReason::DOCUMENT_TEMPLATE_UNREACHABLE,
+                'Document rendering is not configured on this installation.',
+            );
+        }
+
+        // Rendered before the audit entry, deliberately: an entry claiming a
+        // document left the building when the render then failed is worse than
+        // no entry, because it is a record of something that did not happen.
+        $pdf = $this->documents->forAdminPrint($row);
+
+        $this->audit->log(
+            action: AuditAction::REGISTRATION_PRINTED,
+            entityType: EntityType::REGISTRATION,
+            entityId: $id,
+            newValues: [
+                'variant' => 'admin_print',
+                // The masked value only (ADR-0005) — which is also exactly what
+                // the printed sheet carries, so the log and the paper agree.
+                'iban' => '****' . $row['iban_last4'],
+            ],
+            adminUserId: $adminUserId,
+        );
+
+        return $pdf;
     }
 
     /**

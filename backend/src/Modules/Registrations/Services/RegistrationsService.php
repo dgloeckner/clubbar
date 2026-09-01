@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Registrations\Services;
 
 use App\Modules\BankCodes\Services\BankCodeService;
+use App\Modules\Registrations\Documents\MandateDocumentService;
 use App\Modules\Registrations\Domain\PosterSecret;
 use App\Modules\Registrations\DTOs\RegistrationReceiptDto;
 use App\Modules\Registrations\Repositories\RegistrationAttemptsRepository;
@@ -78,6 +79,9 @@ class RegistrationsService
         private SepaConfigRepository $sepaConfig,
         private IbanSealedBox $sealedBox,
         private Logger $logger,
+        // Optional and last: the document is best-effort by design (decision
+        // 5), and an installation wired without it still registers members.
+        private ?MandateDocumentService $documents = null,
     ) {}
 
     /**
@@ -141,8 +145,10 @@ class RegistrationsService
         if (($data[self::HONEYPOT_FIELD] ?? '') !== '') {
             $this->logger->info('Self-registration honeypot tripped');
 
-            // A receipt shaped exactly like a real one. Nothing is stored, and
-            // nothing in the response says so.
+            // Shaped exactly like a real receipt, down to the document field.
+            // A bot that could tell the trap apart by a missing key would have
+            // learned the one thing the trap exists to hide — and `document`
+            // being null is an ordinary outcome for a real submission too.
             return new RegistrationReceiptDto(
                 id: Uuid::v4(),
                 mandateReference: str_replace('-', '', Uuid::v4()),
@@ -185,10 +191,35 @@ class RegistrationsService
             'expires_at' => $expiresAt,
         ]);
 
-        // No identity, here or anywhere else on this route.
-        $this->logger->info('Self-registration accepted');
+        // The last use of the plaintext, and the only chance there will ever be
+        // to print it. After this line it exists nowhere: sealed in the row
+        // above, under a key this server does not hold (ADR-0036). Rendering
+        // here rather than behind a download endpoint is not a convenience —
+        // there is no later request that *could* render it.
+        //
+        // Best-effort: a club webhost outage must not cost a registration that
+        // has already been written, so a document that cannot be produced is
+        // absent rather than fatal. The admin-print variant needs no plaintext
+        // and still works.
+        $document = $this->documents?->forMember([
+            'first_name' => $data['first_name'],
+            'last_name' => $data['last_name'],
+            'email' => $data['email'],
+            'date_of_birth' => $data['date_of_birth'],
+            'account_holder_name' => $data['account_holder_name'] ?? null,
+            'mandate_reference' => $mandateReference,
+            'iban_last4' => IbanSealedBox::lastFour($iban),
+            'privacy_notice_url' => $documentUrl,
+        ], $iban);
 
-        return new RegistrationReceiptDto(id: $id, mandateReference: $mandateReference);
+        // No identity, here or anywhere else on this route.
+        $this->logger->info('Self-registration accepted', ['document' => $document !== null]);
+
+        return new RegistrationReceiptDto(
+            id: $id,
+            mandateReference: $mandateReference,
+            documentBase64: $document === null ? null : base64_encode($document),
+        );
     }
 
     /**

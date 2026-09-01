@@ -231,6 +231,7 @@ return function (App $app): void {
         $group->get('/registrations/{registrationId}', [RegistrationsAdminController::class, 'show']);
         $group->patch('/registrations/{registrationId}', [RegistrationsAdminController::class, 'update']);
         $group->post('/registrations/{registrationId}/approve', [RegistrationsAdminController::class, 'approve']);
+        $group->get('/registrations/{registrationId}/document', [RegistrationsAdminController::class, 'document']);
         $group->post('/registrations/{registrationId}/reject', [RegistrationsAdminController::class, 'reject']);
 
         // Categories
