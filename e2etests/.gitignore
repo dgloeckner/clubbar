@@ -6,3 +6,8 @@ playwright/.cache/
 .env
 playwright/.auth/
 walkthrough-screenshots/
+
+# The cross-file mutex over `self_registration_config` (utils/registrationLock.ts).
+# In the checkout rather than the OS temp directory: a fixed name under a
+# world-writable /tmp is somebody else's to pre-create or symlink.
+.locks/
