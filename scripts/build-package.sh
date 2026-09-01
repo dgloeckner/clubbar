@@ -182,6 +182,22 @@ PKGJSON
 # 8. Copy package files (index.php, install.php, .htaccess, etc.)
 # ------------------------------------------------------------------
 echo "--- Copying package files..."
+# The public self-registration page (ADR-0052 decision 11, #781).
+#
+# In the dev/docker layout the document root *is* `backend/public`, so
+# `/register` resolves without anybody arranging it — which is exactly why it
+# was missed here. The shipped package has its own document root, this
+# directory was never copied into it, and `/register` therefore fell through
+# `.htaccess` to the front controller, which serves `spa.html` for anything
+# that is not `/api/`. A member scanning the club's QR poster got the admin
+# login form (#796).
+#
+# It goes to the package root, not inside `backend/`, which `.htaccess` denies
+# wholesale. Three static files, no build step — see the header of
+# `register/index.html`.
+mkdir -p "$PKG_DIR/register"
+cp -R "$PROJECT_ROOT/backend/public/register/." "$PKG_DIR/register/"
+
 cp "$PROJECT_ROOT/package/index.php"         "$PKG_DIR/index.php"
 cp "$PROJECT_ROOT/package/install.php"       "$PKG_DIR/install.php"
 cp "$PROJECT_ROOT/package/install.js"        "$PKG_DIR/install.js"

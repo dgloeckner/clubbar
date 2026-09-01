@@ -73,6 +73,17 @@ RewriteRule ^backend/ - [F,L]
 # scripts/build-package.sh — for opening locally.
 RewriteRule ^tools/ - [F,L]
 
+# The public self-registration page (ADR-0052 decision 11, #781). It is a
+# *directory* holding index.html, so the `-f` check below never matches
+# `/register` or `/register/` and the front controller would answer with the
+# admin SPA — a member scanning the club's QR poster lands on a login form
+# (#796). Its own assets (register.css, register.js) are real files and are
+# served by the `-f` rule as they always were.
+#
+# Rewritten rather than left to mod_dir: mod_rewrite in .htaccess runs during
+# the fixup phase, before DirectoryIndex ever sees the request.
+RewriteRule ^register/?$ register/index.html [L]
+
 # If the file exists on disk, serve it directly (SPA assets, install.php)
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
