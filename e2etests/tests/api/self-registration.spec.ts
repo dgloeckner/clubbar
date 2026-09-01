@@ -146,6 +146,19 @@ test.describe('Public self-registration', () => {
   })
 
   /**
+   * Leave the club switched on, whatever this test did to it (#784).
+   *
+   * A leaked disabled state fails *other* specs, with a refusal that is
+   * entirely correct for a club that is off — so the report accuses whichever
+   * file ran next. In SQL rather than through the API because switching off
+   * needs a reason and this has to work from any state, including one a failed
+   * test left half-applied.
+   */
+  test.afterEach(() => {
+    execSql('UPDATE self_registration_config SET enabled = 1, disabled_reason = NULL WHERE id = 1')
+  })
+
+  /**
    * Serve a real Anmeldung the backend can fetch (#780).
    *
    * The document paths fetch the configured URL over HTTP from inside the

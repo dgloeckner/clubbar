@@ -32,6 +32,7 @@ import { test } from '../../fixtures/roleRequests'
 import {
   clearRegistrationAttempts,
   configureSelfRegistration,
+  execSql,
   restoreClubDocumentUrl,
   serveClubDocument,
   stopServingClubDocument,
@@ -67,6 +68,20 @@ test.describe('Self-registration — the whole flow', () => {
 
   test.afterEach(() => {
     restoreClubDocumentUrl()
+  })
+
+  /**
+   * Switch the club back on unconditionally, even when the test that turned it
+   * off failed half way (#784 acceptance criterion 2).
+   *
+   * A leaked disabled state is the worst kind of shared-state failure: it fails
+   * *other* specs, with a refusal that is entirely correct for a club that is
+   * off, so the report accuses whichever file ran next. Written in SQL rather
+   * than through the API because the API needs a reason to switch off and this
+   * has to work from any state, including one a failed test left half-applied.
+   */
+  test.afterEach(() => {
+    execSql('UPDATE self_registration_config SET enabled = 1, disabled_reason = NULL WHERE id = 1')
   })
 
   test('a QR scan becomes a member the terminal can serve', async ({
