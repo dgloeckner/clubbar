@@ -105,7 +105,14 @@ class PublicController
             $this->clientIp($request),
         );
 
-        return $this->json($response, $receipt->toArray(), 201);
+        // `no-store`, and it is not decoration. The body carries the member's
+        // own filled mandate, complete with their full IBAN, on a response that
+        // travels through whatever the applicant's phone, their network and the
+        // club's reverse proxy would otherwise be entitled to keep. It is the
+        // one response in this application whose body is a bank detail.
+        return $this->json($response, $receipt->toArray(), 201)
+            ->withHeader('Cache-Control', 'no-store')
+            ->withHeader('Pragma', 'no-cache');
     }
 
     /**

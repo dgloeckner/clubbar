@@ -114,7 +114,7 @@ the final PR.
       migration reads as "approving is broken", against a real database only;
       `AuditActionSchemaTest` reads the migrations as text and fails in 0.2s
       naming the missing values.
-- [ ] **M3 — Fill the club's document, and keep every page**
+- [x] **M3 — Fill the club's document, and keep every page**
       ([#780](https://github.com/dgloeckner/clubbar/issues/780)).
       Port the spike ([#786](https://github.com/dgloeckner/clubbar/pull/786)):
       enumerate AcroForm field names and rectangles from the raw PDF with

@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\Registrations\Services;
 use App\Modules\BankCodes\Repositories\BankCodesRepository;
 use App\Modules\BankCodes\Services\BankCodeService;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Registrations\Documents\MandateDocumentService;
 use App\Modules\Registrations\Repositories\RegistrationsRepository;
 use App\Modules\Registrations\Services\RegistrationReviewService;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
@@ -42,6 +43,7 @@ final class RegistrationReviewServiceTest extends TestCase
     private RegistrationsRepository $registrations;
     private MembersRepository&MockObject $members;
     private AuditService&MockObject $audit;
+    private MandateDocumentService&MockObject $documents;
     private RegistrationReviewService $service;
 
     protected function setUp(): void
@@ -95,6 +97,7 @@ final class RegistrationReviewServiceTest extends TestCase
         $this->registrations = new RegistrationsRepository($this->db);
         $this->members = $this->createMock(MembersRepository::class);
         $this->audit = $this->createMock(AuditService::class);
+        $this->documents = $this->createMock(MandateDocumentService::class);
 
         $this->service = new RegistrationReviewService(
             $this->registrations,
@@ -105,6 +108,7 @@ final class RegistrationReviewServiceTest extends TestCase
             new IbanSealedBox(str_repeat('ab', 32), 'testing'),
             $this->db,
             $logger,
+            $this->documents,
         );
     }
 
@@ -467,5 +471,70 @@ final class RegistrationReviewServiceTest extends TestCase
     {
         $this->expectException(NotFoundException::class);
         $this->service->reject('11111111-2222-4333-8444-555555555555', null, self::ADMIN);
+    }
+
+    // ── printing (#780) ──────────────────────────────────────────────────
+
+    public function test_printing_renders_the_admin_variant_from_the_stored_row(): void
+    {
+        $id = $this->pending(['first_name' => 'Lena']);
+
+        $this->documents->expects(self::once())->method('forAdminPrint')->with(
+            self::callback(static fn(array $row): bool => $row['first_name'] === 'Lena'
+                && $row['iban_last4'] === '3000'),
+        )->willReturn('%PDF-1.4 pretend');
+
+        self::assertSame('%PDF-1.4 pretend', $this->service->renderForPrint($id, self::ADMIN));
+    }
+
+    /**
+     * The print is the one review action that leaves the submission exactly as
+     * it was, so the audit entry is the only trace it happened at all.
+     */
+    public function test_printing_is_audited_with_the_masked_value_only(): void
+    {
+        $id = $this->pending();
+        $this->documents->method('forAdminPrint')->willReturn('%PDF-1.4 pretend');
+
+        $recorded = [];
+        $this->audit->method('log')->willReturnCallback(
+            function (...$args) use (&$recorded): void {
+                $recorded[] = $args;
+            }
+        );
+
+        $this->service->renderForPrint($id, self::ADMIN);
+
+        self::assertCount(1, $recorded);
+        self::assertSame(AuditAction::REGISTRATION_PRINTED, $recorded[0][0]);
+        self::assertSame(EntityType::REGISTRATION, $recorded[0][1]);
+        self::assertSame($id, $recorded[0][2]);
+        self::assertStringContainsString('****3000', json_encode($recorded));
+    }
+
+    /**
+     * An entry claiming a document left the building when the render then
+     * failed is worse than no entry: it is a record of something that did not
+     * happen, in the one log that is supposed to be trustworthy.
+     */
+    public function test_a_render_that_fails_writes_no_audit_entry(): void
+    {
+        $id = $this->pending();
+        $this->documents->method('forAdminPrint')
+            ->willThrowException(new BusinessRuleException(
+                BusinessRuleReason::DOCUMENT_TEMPLATE_UNREACHABLE,
+                'nope',
+            ));
+
+        $this->audit->expects(self::never())->method('log');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->service->renderForPrint($id, self::ADMIN);
+    }
+
+    public function test_printing_a_row_that_is_not_there_is_a_404(): void
+    {
+        $this->expectException(NotFoundException::class);
+        $this->service->renderForPrint('11111111-2222-4333-8444-555555555555', self::ADMIN);
     }
 }

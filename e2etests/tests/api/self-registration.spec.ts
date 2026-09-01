@@ -6,8 +6,11 @@ import {
   configureSelfRegistration,
   countPendingRegistrations,
   expireRegistration,
+  CLUB_DOCUMENT_URL,
   pendingRowsContainingPlaintext,
   restoreClubDocumentUrl,
+  serveClubDocument,
+  stopServingClubDocument,
 } from '../../utils/sql'
 import { drainMailQueue } from '../../utils/drain'
 
@@ -121,6 +124,24 @@ test.describe('Public self-registration', () => {
     restoreClubDocumentUrl()
   })
 
+  /**
+   * Serve a real Anmeldung the backend can fetch (#780).
+   *
+   * The document paths fetch the configured URL over HTTP from inside the
+   * backend container, so a URL on somebody's real website would make this
+   * suite depend on their webhost. The fixture — a genuine WeasyPrint
+   * `--pdf-forms --uncompressed-pdf` build — is copied into the backend's own
+   * web root instead, which is both reachable and honest: what is asserted
+   * below is the real pipeline, not a stand-in.
+   */
+  test.beforeAll(() => {
+    serveClubDocument()
+  })
+
+  test.afterAll(() => {
+    stopServingClubDocument()
+  })
+
   test('a submission behind the poster secret is accepted and sealed', async ({ request }) => {
     const secret = uniqueSecret()
     configureSelfRegistration(secret)
@@ -153,9 +174,19 @@ test.describe('Public self-registration', () => {
     })
 
     const body = await response.json()
-    expect(Object.keys(body).sort()).toEqual(['id', 'mandate_reference'])
-    // Nothing about the person, the club, or what else is stored.
-    expect(JSON.stringify(body)).not.toContain('3000')
+    expect(Object.keys(body).sort()).toEqual(['document', 'id', 'mandate_reference'])
+
+    // The claim is about what the endpoint *read back*, not about size. Two of
+    // these three fields it just minted, and the third is the caller's own
+    // submission drawn onto the club's public document — so `****3000` on that
+    // sheet is their own IBAN on their own mandate, not a disclosure.
+    //
+    // What must not be here is anything from storage: whether the club already
+    // knows this person, how many registrations are pending, what the club has
+    // configured. So the assertion is on everything except the document.
+    const { document: _document, ...saidBack } = body
+    expect(Object.keys(saidBack).sort()).toEqual(['id', 'mandate_reference'])
+    expect(JSON.stringify(saidBack)).not.toContain('3000')
   })
 
   test('a wrong secret and a missing one answer identically', async ({ request }) => {
@@ -378,7 +409,7 @@ test.describe('Public self-registration', () => {
     expect(body.mandate_reference).toBe(mandateReference)
     // The club's evidence that the Datenschutzhinweise were reachable before
     // anything was collected (ADR-0052 decision 6).
-    expect(body.privacy_notice_url).toBe('https://club.example/Anmeldung_Ruderbar.pdf')
+    expect(body.privacy_notice_url).toBe(CLUB_DOCUMENT_URL)
     expect(body.privacy_notice_shown_at).toBeTruthy()
     expect(body.expires_at).toBeTruthy()
   })
@@ -612,5 +643,184 @@ test.describe('Public self-registration', () => {
 
     // Nothing happened: the submission is still there to review.
     expect(countPendingRegistrations()).toBeGreaterThan(0)
+  })
+
+  // ── the club's document (#780, ADR-0052 decision 5) ────────────────────
+
+  /** Inflate a PDF's content streams, so drawn text is searchable. */
+  const pdfText = (pdf: Buffer): string => {
+    const zlib = require('node:zlib')
+    let text = pdf.toString('latin1')
+
+    // FPDF compresses the stream it draws into, and the imported pages arrive
+    // Flate-compressed too, so nothing on a page is literal in the raw file.
+    const pattern = /stream\r?\n([\s\S]*?)\r?\nendstream/g
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(pdf.toString('latin1'))) !== null) {
+      try {
+        text += zlib.inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1')
+      } catch {
+        // Not a compressed stream — already counted in the raw text above.
+      }
+    }
+
+    return text
+  }
+
+  test("the member's own document comes back with the submission, and only there", async ({
+    request,
+  }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    const response = await request.post(`${API}/public/registrations`, {
+      data: { secret, ...submission({ account_holder_name: 'Petra Brandt' }) },
+    })
+
+    expect(response.status()).toBe(201)
+    // The one response in this API whose body is a bank detail.
+    expect(response.headers()['cache-control']).toBe('no-store')
+
+    const body = await response.json()
+    expect(body.document).toBeTruthy()
+
+    const pdf = Buffer.from(body.document, 'base64')
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
+
+    const text = pdfText(pdf)
+    // Grouped in fours, the way it is printed and the way somebody reads it
+    // back to their bank.
+    expect(text).toContain('DE89 3704 0044 0532 0130 00')
+    expect(text).toContain('Petra Brandt')
+    expect(text).toContain('****3000')
+
+    // Flattened by construction: page 1 is imported without its annotations, so
+    // there is no form left to fill or to edit.
+    expect(pdf.toString('latin1')).not.toContain('/AcroForm')
+  })
+
+  test('every page of the club document survives the fill', async ({ request }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    const response = await request.post(`${API}/public/registrations`, {
+      data: { secret, ...submission() },
+    })
+    const pdf = Buffer.from((await response.json()).document, 'base64')
+
+    // The fixture is three pages: the form page, the Datenschutzhinweise and
+    // the Nutzungsordnung. The member signs the club's paper whole — an output
+    // that kept only page 1 would be a different document wearing its cover.
+    const pages = (pdf.toString('latin1').match(/\/Type \/Page[^s]/g) ?? []).length
+    expect(pages).toBe(3)
+  })
+
+  /**
+   * The fail-soft rule: a club webhost outage must not cost a registration that
+   * has already been written. The submission stands and the document is simply
+   * absent — and nothing else is substituted, because handing the applicant a
+   * *different* mandate would be one they never read, missing the very pages
+   * they were pointed at.
+   */
+  test('an unreachable club document costs the document, not the registration', async ({
+    request,
+  }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret, { documentUrl: 'http://localhost/nothing-is-here.pdf' })
+
+    const before = countPendingRegistrations()
+    const response = await request.post(`${API}/public/registrations`, {
+      data: { secret, ...submission() },
+    })
+
+    expect(response.status()).toBe(201)
+    const body = await response.json()
+    expect(body.id).toMatch(/^[0-9a-f-]{36}$/)
+    expect(body.document).toBeNull()
+    expect(countPendingRegistrations()).toBe(before + 1)
+  })
+
+  test("the admin print leaves the IBAN blank and prints the hint", async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id } = await submitOne(request)
+
+    const response = await authenticatedRequest.get(`${API}/admin/registrations/${id}/document`)
+
+    expect(response.status()).toBe(200)
+    expect(response.headers()['content-type']).toContain('application/pdf')
+    expect(response.headers()['cache-control']).toBe('no-store')
+
+    const text = pdfText(Buffer.from(await response.body()))
+
+    // The distinction ADR-0036 rests on: the debtor IBAN is mandatory mandate
+    // content, not mandatory *machine-printed* content. The member writes it
+    // into the comb by hand at signature; the admin checks it against the hint.
+    expect(text).not.toContain('DE89 3704')
+    expect(text).not.toContain(TEST_IBAN)
+    expect(text).toContain('endet auf ****3000')
+  })
+
+  /**
+   * The variant that still works weeks later. It needs no plaintext IBAN at
+   * all — nobody on the server has one — so a member whose phone lost the tab
+   * is never stuck.
+   */
+  test('the admin print still works long after the plaintext is gone', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id } = await submitOne(request)
+
+    for (const attempt of [1, 2]) {
+      const response = await authenticatedRequest.get(`${API}/admin/registrations/${id}/document`)
+      expect(response.status(), `attempt ${attempt}`).toBe(200)
+      expect((await response.body()).subarray(0, 5).toString()).toBe('%PDF-')
+    }
+  })
+
+  test('a club document that is not a PDF is refused by name', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    // The bad URL has to be configured *before* the submission, not after.
+    // A print renders the document the applicant was actually pointed at —
+    // recorded on their row — rather than whatever the club has configured
+    // today, so that a club republishing its Anmeldung cannot silently change
+    // the terms of a submission made last week. Reconfiguring afterwards
+    // therefore changes nothing about this row, which is the point.
+    //
+    // `localhost` with no port, because the fetch runs *inside* the backend
+    // container where nginx listens on 80 — the runner's `:8080` resolves to
+    // nothing there, and the test would pass for the wrong reason
+    // (unreachable rather than not-a-PDF).
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret, { documentUrl: 'http://localhost/api/health' })
+
+    const submitted = await request.post(`${API}/public/registrations`, {
+      data: { secret, ...submission() },
+    })
+    // The submission itself stands: an unusable document is not the
+    // applicant's problem, and they have already typed everything in.
+    expect(submitted.status()).toBe(201)
+    const body = await submitted.json()
+    expect(body.document).toBeNull()
+
+    const response = await authenticatedRequest.get(`${API}/admin/registrations/${body.id}/document`)
+
+    expect(response.status()).toBe(409)
+    expect((await response.json()).reason).toBe('document_template_not_a_pdf')
+  })
+
+  test('the Getränkewart cannot print somebody else’s mandate', async ({
+    request,
+    getraenkewartRequest,
+  }) => {
+    const { id } = await submitOne(request)
+
+    const response = await getraenkewartRequest.get(`${API}/admin/registrations/${id}/document`)
+
+    expect(response.status()).toBe(403)
   })
 })

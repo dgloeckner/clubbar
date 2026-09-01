@@ -21,14 +21,37 @@ final readonly class RegistrationReceiptDto
     public function __construct(
         public string $id,
         public string $mandateReference,
+        /**
+         * The club's Anmeldung, filled, base64-encoded — or null.
+         *
+         * It arrives here and nowhere else (ADR-0052 decision 5). There is no
+         * second endpoint and no download token: the plaintext IBAN existed
+         * only for the length of the request that produced this, so reloading
+         * the confirmation screen has nothing left to render from.
+         *
+         * **Null is a normal answer**, not an error. A club webhost that is
+         * down must not cost a registration, so the submission stands and the
+         * document is simply absent — the admin-print variant, which needs no
+         * plaintext at all, is the path that always works.
+         */
+        public ?string $documentBase64 = null,
     ) {}
 
-    /** @return array<string, string> */
+    /** @return array<string, string|null> */
     public function toArray(): array
     {
         return [
             'id' => $this->id,
             'mandate_reference' => $this->mandateReference,
+            // Always present as a key, so a client branches on the value rather
+            // than on whether the field exists.
+            'document' => $this->documentBase64,
         ];
+    }
+
+    /** Whether there is a document to hand over at all. */
+    public function hasDocument(): bool
+    {
+        return $this->documentBase64 !== null;
     }
 }

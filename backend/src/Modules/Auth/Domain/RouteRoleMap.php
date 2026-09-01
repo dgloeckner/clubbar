@@ -153,6 +153,7 @@ final class RouteRoleMap
         'GET /api/admin/registrations/{registrationId}' => self::TREASURY,
         'PATCH /api/admin/registrations/{registrationId}' => self::TREASURY,
         'POST /api/admin/registrations/{registrationId}/approve' => self::TREASURY,
+        'GET /api/admin/registrations/{registrationId}/document' => self::TREASURY,
         'POST /api/admin/registrations/{registrationId}/reject' => self::TREASURY,
 
         // ── the drinks list ──────────────────────────────────────────────

@@ -277,7 +277,17 @@ paths:
               $ref: '#/components/schemas/RegistrationRequest'
       responses:
         '201':
-          description: The submission was accepted.
+          description: |
+            The submission was accepted.
+
+            `Cache-Control: no-store`, and not as a formality: the body carries
+            the member's own filled mandate, complete with their full IBAN, and
+            it is the one response in this API whose body is a bank detail.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
           content:
             application/json:
               schema:
@@ -294,6 +304,32 @@ paths:
                       The UMR minted at submission, because it is printed on the
                       paper before the mandate exists. Approval carries it into
                       the mandate unchanged.
+                  document:
+                    type: string
+                    format: byte
+                    nullable: true
+                    description: >
+                      The club's Anmeldung, filled with this applicant's data
+                      and base64-encoded — page 1 completed, every later page
+                      (the Datenschutzhinweise, the Nutzungsordnung) carried
+                      across unchanged, and no live form fields left in it.
+
+
+                      It arrives here and nowhere else. There is no second
+                      endpoint and no download token, because there could not
+                      be: the plaintext IBAN printed on it existed only for the
+                      length of this request, so reloading the confirmation
+                      screen has nothing left to render from.
+
+
+                      **`null` is a normal answer.** A club webhost that is
+                      down must not cost a registration, so the submission
+                      stands and the document is simply absent. The
+                      admin-print variant needs no plaintext at all and still
+                      works — which is why a member who lost the tab is never
+                      stuck. Nothing else is ever substituted: handing the
+                      applicant a *different* mandate would be a document they
+                      never read, missing the very pages they were pointed at.
         '404':
           description: >
             The uniform refusal. Returned for a wrong secret, a missing one, and
@@ -1651,6 +1687,77 @@ paths:
                 $ref: '#/components/schemas/Error'
         '422':
           $ref: '#/components/responses/ValidationError'
+
+  /admin/registrations/{registrationId}/document:
+    parameters:
+      - $ref: '#/components/parameters/registrationId'
+
+    get:
+      tags: [Registration review]
+      summary: The club's Anmeldung, filled, for the Kassenwart to print
+      description: |
+        Returns the club's own multi-page document with this applicant's data
+        drawn onto page 1 and every other page carried across unchanged — the
+        Datenschutzhinweise and the Nutzungsordnung ride behind the form page
+        and are part of what the member signs (ADR-0052 decision 5).
+
+        **The IBAN line comes back blank.** The debtor IBAN is mandatory
+        *mandate content* under the EPC SDD Core Rulebook, but not mandatory
+        *machine-printed* content — the member writes it into the template's
+        IBAN comb by hand at signature, and the sheet prints `endet auf
+        ****3000` as the hint the admin checks it against. That is what keeps
+        ADR-0036 exception-free: this path never needs a plaintext IBAN,
+        because nobody on the server has one.
+
+        It is therefore also the variant that **always works**, weeks after the
+        submission, when the member's own copy is long gone.
+
+        The output carries no live form fields: page 1 is imported without its
+        annotations and the values are drawn on top, so the result is flattened
+        by construction rather than by a step that could be skipped.
+
+        Audited (`registration_printed`) with the masked IBAN only — a member's
+        name, birth date, email and account hint are leaving the building on
+        paper, and this is the one review action that leaves the submission
+        itself untouched, so the audit entry is the only trace it happened.
+
+        **Roles**: `admin`, `kassenwart`.
+      operationId: getRegistrationDocument
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 'The filled document, with `Cache-Control: no-store`'
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            The club's document could not be turned into a mandate sheet.
+            Every one of these names an actionable fix rather than saying the
+            template is invalid: `document_template_unreachable` (the URL could
+            not be fetched), `document_template_not_a_pdf` (usually a web server
+            answering a moved file with an HTML page and a 200),
+            `document_template_unreadable` (built without `--pdf-forms
+            --uncompressed-pdf`, so the fields are absent or unreadable) or
+            `document_template_field_missing`, which names the fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /admin/registrations/{registrationId}/reject:
     parameters:
