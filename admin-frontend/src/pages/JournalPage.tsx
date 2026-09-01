@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { useFormatters } from '../hooks/useFormatters'
+import { parseApiDate } from '../utils/dates'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { PillFilter, type PillFilterOption } from '../components/forms/PillFilter'
@@ -121,7 +122,7 @@ interface JournalFilters {
 
 export function JournalPage() {
   const { t } = useTranslation()
-  const { formatPrice, intlLocale } = useFormatters()
+  const { formatPrice, formatDate, intlLocale } = useFormatters()
   const navigate = useNavigate()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
@@ -397,12 +398,12 @@ export function JournalPage() {
                     {/* Row 1: date+time (left), type badge (right) */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                       <span style={{ fontSize: '12px', color: theme.colors.text.secondary }}>
-                        {new Date(tx.created_at).toLocaleDateString(intlLocale, {
+                        {parseApiDate(tx.created_at).toLocaleDateString(intlLocale, {
                           year: 'numeric',
                           month: '2-digit',
                           day: '2-digit',
                         })}{' '}
-                        {new Date(tx.created_at).toLocaleTimeString(intlLocale, {
+                        {parseApiDate(tx.created_at).toLocaleTimeString(intlLocale, {
                           hour: '2-digit',
                           minute: '2-digit',
                           hour12: false,
@@ -749,14 +750,14 @@ export function JournalPage() {
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <div>
-                            {new Date(tx.created_at).toLocaleDateString(intlLocale, {
+                            {parseApiDate(tx.created_at).toLocaleDateString(intlLocale, {
                               year: 'numeric',
                               month: '2-digit',
                               day: '2-digit',
                             })}
                           </div>
                           <div style={{ fontSize: '12px', color: tableColors.cellSecondaryText }}>
-                            {new Date(tx.created_at).toLocaleTimeString(intlLocale, {
+                            {parseApiDate(tx.created_at).toLocaleTimeString(intlLocale, {
                               hour: '2-digit',
                               minute: '2-digit',
                               second: '2-digit',
@@ -890,27 +891,11 @@ export function JournalPage() {
                           color: tableColors.cellText,
                         }}
                       >
-                        {tx.settlement_date ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <div>
-                              {new Date(tx.settlement_date).toLocaleDateString(intlLocale, {
-                                year: 'numeric',
-                                month: '2-digit',
-                                day: '2-digit',
-                              })}
-                            </div>
-                            <div style={{ fontSize: '12px', color: tableColors.cellSecondaryText }}>
-                              {new Date(tx.settlement_date).toLocaleTimeString(intlLocale, {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit',
-                                hour12: false,
-                              })}
-                            </div>
-                          </div>
-                        ) : (
-                          '—'
-                        )}
+                        {/* DATE-only (ADR-0004): a calendar day carries no
+                            time of day. `new Date('2026-08-05')` is UTC
+                            midnight, which printed a "02:00:00" nobody booked
+                            and, west of Greenwich, the previous day. */}
+                        {tx.settlement_date ? formatDate(tx.settlement_date) : '—'}
                       </td>
 
                       {/* Actions */}

@@ -79,6 +79,45 @@ describe('parseApiDate', () => {
     )
   })
 
+  it('reads a zoneless timestamp as UTC, not as local time', () => {
+    // What MariaDB stores and what an endpoint that forgot
+    // `DateFormatter::toUtcIso()` emits. `new Date()` reads it as *local*,
+    // which is how the notifications queue showed 19:33 for a mail queued at
+    // 21:33 CEST — the string parses, so nothing looks wrong (#365).
+    expect(parseApiDate('2026-09-01 19:33:12').toISOString()).toBe(
+      '2026-09-01T19:33:12.000Z'
+    )
+  })
+
+  it('reads a zoneless ISO timestamp as UTC too', () => {
+    // The dashboard's recent transactions used to be built by replacing the
+    // space with a "T" and nothing else, which is valid ISO 8601 *without* a
+    // zone — and therefore local time to every parser.
+    expect(parseApiDate('2026-09-01T19:33:12').toISOString()).toBe(
+      '2026-09-01T19:33:12.000Z'
+    )
+  })
+
+  it('reads a zoneless timestamp with no seconds, and with fractions, as UTC', () => {
+    expect(parseApiDate('2026-09-01 19:33').toISOString()).toBe(
+      '2026-09-01T19:33:00.000Z'
+    )
+    expect(parseApiDate('2026-09-01T19:33:12.500').toISOString()).toBe(
+      '2026-09-01T19:33:12.500Z'
+    )
+  })
+
+  it('leaves a labelled timestamp alone — the label wins over the default', () => {
+    // Both directions: a "Z" and an explicit offset must not be re-read as UTC
+    // a second time.
+    expect(parseApiDate('2026-09-01T19:33:12Z').toISOString()).toBe(
+      '2026-09-01T19:33:12.000Z'
+    )
+    expect(parseApiDate('2026-09-01T21:33:12+02:00').toISOString()).toBe(
+      '2026-09-01T19:33:12.000Z'
+    )
+  })
+
   it('does not roll an out-of-range date forward', () => {
     expect(parseApiDate('2026-02-30').getTime()).toBeNaN()
     expect(parseApiDate('2026-13-01').getTime()).toBeNaN()

@@ -74,6 +74,17 @@ class SchedulerStatusDtoTest extends TestCase
     }
 
     /**
+     * The heartbeat column holds UTC; the response says so (#365). A bare
+     * datetime is read by the browser as local time, which would date the last
+     * observed run by the reader's own offset.
+     */
+    public function test_the_last_run_is_labelled_utc(): void
+    {
+        $this->assertSame('2026-08-14T09:15:00Z', $this->dto(verified: true)->toArray()['last_run_at']);
+        $this->assertNull($this->dto()->toArray()['last_run_at']);
+    }
+
+    /**
      * **The second job carries no schedule.** Triggering is external — a
      * hosting panel fires the backup and the application never reads a cadence.
      * A field here would read as configuration the application honours, and the

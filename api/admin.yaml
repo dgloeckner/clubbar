@@ -9564,7 +9564,7 @@ components:
               type: integer
             last_settlement_date:
               type: string
-              format: date
+              format: date-time
               nullable: true
 
     Report:
@@ -10256,6 +10256,7 @@ components:
                   description: Human-readable alert message, naming no member
                 latest_occurred_at:
                   type: string
+                  format: date-time
                   nullable: true
                   description: When the most recent unacknowledged one was recorded
             terminal_anomaly:

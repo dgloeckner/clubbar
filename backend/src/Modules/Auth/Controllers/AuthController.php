@@ -16,6 +16,7 @@ use App\Shared\Config\AppConfig;
 use App\Shared\Services\AuditService;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Utils\DateFormatter;
 use App\Shared\Validation\Validator;
 use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -598,7 +599,11 @@ class AuthController
             'email' => $admin['email'],
             'display_name' => $admin['display_name'],
             'locale' => $admin['locale'] ?? 'de',
-            'last_login_at' => $admin['last_login_at'] ?? null,
+            // Labelled UTC (#365): the profile screen prints it with the time
+            // of day, and a bare datetime is read by the browser as local.
+            'last_login_at' => DateFormatter::toUtcIso(
+                isset($admin['last_login_at']) ? (string) $admin['last_login_at'] : null,
+            ),
             'totp_enabled' => $totpEnabled || (bool) ($admin['totp_enabled'] ?? false),
         ];
     }

@@ -129,7 +129,11 @@ class DashboardServiceTest extends TestCase
 
         $this->assertSame('error', $alert['severity']);
         $this->assertSame(1, $alert['count']);
-        $this->assertSame('2026-08-20 21:14:00', $alert['latest_occurred_at']);
+        $this->assertSame(
+            '2026-08-20T21:14:00Z',
+            $alert['latest_occurred_at'],
+            'labelled UTC on the way out, like every other timestamp the API emits (#365)',
+        );
     }
 
     public function test_the_message_counts_them(): void
@@ -529,11 +533,15 @@ class DashboardServiceTest extends TestCase
         $transaction = $dashboard['recent_transactions'][0];
         $this->assertSame('Bier', $transaction['product_name']);
         $this->assertSame(250, $transaction['amount_cents'], 'amounts come back from the driver as strings');
-        $this->assertSame('2026-07-02T19:04:11', $transaction['timestamp'], 'the API speaks ISO-8601');
+        $this->assertSame(
+            '2026-07-02T19:04:11Z',
+            $transaction['timestamp'],
+            'the API speaks ISO-8601 *with a zone* — an unlabelled instant is read as local time (#365)',
+        );
 
         $this->assertSame('warning', $dashboard['alerts']['sepa_issues']['severity']);
         $this->assertSame('error', $dashboard['alerts']['sepa_config']['severity'], 'no SEPA config was stubbed in');
-        $this->assertSame('2026-07-01 08:00:00', $dashboard['system_status']['last_settlement_date']);
+        $this->assertSame('2026-07-01T08:00:00Z', $dashboard['system_status']['last_settlement_date']);
     }
 
     public function test_a_dashboard_with_no_settlement_yet_reports_no_settlement_date(): void

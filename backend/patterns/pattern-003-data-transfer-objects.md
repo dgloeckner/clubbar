@@ -249,6 +249,56 @@ $dtos = array_map(fn($row) => MemberDto::fromRow($row), $rows);
 
 ---
 
+## Timestamps: every instant leaves labelled UTC
+
+**`toArray()` puts every instant through `DateFormatter::toUtcIso()`. No
+exceptions, and no judgement about whether "this one is only shown as a date".**
+
+```php
+use App\Shared\Utils\DateFormatter;
+
+public function toArray(): array
+{
+    return [
+        // "2026-09-01 19:33:12" → "2026-09-01T19:33:12Z"
+        'queued_at' => DateFormatter::toUtcIso($this->queuedAt),
+        'sent_at' => DateFormatter::toUtcIso($this->sentAt),
+        // A DATE column is a calendar day, not an instant: it carries no zone
+        // and must not grow one, or the deadline moves a day.
+        'settlement_date' => $this->settlementDate,
+    ];
+}
+```
+
+Why it is a rule rather than a habit: the columns hold UTC end to end
+(`Shared\Time\Utc` pins PHP, `ConnectionFactory` pins the session), and the
+frontend converts to the reader's local time. A bare `2026-09-01 19:33:12` is
+**valid input to `new Date()`** and is specified to mean *local* time — so a
+forgotten label does not fail, it silently subtracts the reader's own offset.
+An invitation queued at 21:33 CEST was listed as 19:33 for exactly this reason,
+long after #365 fixed the same class of bug elsewhere. Replacing the space with
+a `T` is not enough either: `2026-09-01T19:33:12` is ISO 8601 *without a zone*,
+which every parser also reads as local.
+
+The rule applies to anything a client can read, not only to `*Dto` classes: a
+service or controller that assembles a response array by hand (the dashboard's
+`system_status`, an auth controller's profile payload) owes the same label.
+
+Three things follow from it:
+
+1. **`format: date-time` in `api/admin.yaml` is a promise about the string**,
+   and a bare MariaDB datetime does not keep it. If the field is an instant, the
+   spec says `date-time` and the response ends in `Z`.
+2. **A date-only column stays bare.** `settlement_date`, `mandate_signed_at` and
+   `date_of_birth` denote a calendar day in every zone; the frontend's
+   `parseApiDate()` and the backend's `ClubTimeZone::moment()` both branch on
+   exactly that shape, so the shape *is* the contract.
+3. **Assert it in the DTO's unit test.** One `assertSame('…T…Z', …)` per instant
+   is what stops the next reader from having to notice a two-hour offset on a
+   screen to find out.
+
+---
+
 ## Benefits
 
 - **Type safety**: IDE knows response structure; type hints available

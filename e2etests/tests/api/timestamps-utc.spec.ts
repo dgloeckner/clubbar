@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/auth.fixture';
+import { stepUp } from '../../fixtures/stepUp';
 import { randomUUID } from 'crypto';
 
 /**
@@ -95,6 +96,60 @@ test.describe('Timestamp timezone contract', () => {
     expect(entries.length, 'the member creation should be audited').toBeGreaterThan(0);
 
     expectUtcInstantNearNow(entries[0].created_at, 'audit_log.created_at');
+  });
+
+  /**
+   * The notification queue (#407), which is where the contract was broken next:
+   * `QueuedMailDto` shipped `queued_at` as the bare MariaDB datetime, so an
+   * invitation queued at 21:33 CEST was listed as 19:33 — the UTC the column
+   * holds, printed as if it were the reader's own clock. Nothing looked wrong,
+   * because a bare datetime parses.
+   *
+   * Creating an admin is the cheapest way to make the server queue a message:
+   * onboarding is by invitation link, and the mail carrying it is enqueued in
+   * the same request.
+   */
+  test('a just-queued notification reports queued_at as a UTC instant', async ({ authenticatedRequest }) => {
+    const email = `tz-queue-${Date.now()}-${Math.floor(Math.random() * 10000)}@test.example.com`;
+
+    const created = await authenticatedRequest.post('/api/admin/admin-users', {
+      data: { ...stepUp(), email, display_name: 'Timezone Queue', locale: 'de' },
+    });
+    expect(created.status()).toBe(201);
+
+    // Searched by the snapshot recipient address, which is unique to this test
+    // — the suite runs four workers, so nothing may be read off the top of the
+    // shared queue (E2E Pattern 003).
+    const response = await authenticatedRequest.get('/api/admin/notifications', {
+      params: { search: email, per_page: 5 },
+    });
+    expect(response.status()).toBe(200);
+
+    const rows = (await response.json()).data;
+    expect(rows.length, 'the invitation mail should be queued').toBeGreaterThan(0);
+
+    expectUtcInstantNearNow(rows[0].queued_at, 'notification.queued_at');
+  });
+
+  /**
+   * The profile screen prints this one with its time of day, and it is written
+   * by PHP's `date()` on login, so nothing on the way out converts it.
+   *
+   * Only the label is asserted, not the drift: the session was established in
+   * `auth.setup.ts`, which can be many minutes before this test runs, so "near
+   * now" would be a clock on the suite's runtime rather than on the value.
+   */
+  test('the profile reports last_login_at with a UTC designator', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/auth/profile');
+    expect(response.status()).toBe(200);
+
+    const lastLoginAt = (await response.json()).admin.last_login_at;
+    expect(lastLoginAt, 'the fixture signed in, so there is a last login').toBeTruthy();
+    expect(lastLoginAt, 'last_login_at must carry an explicit UTC offset').toMatch(UTC_DESIGNATOR);
+    expect(
+      Date.parse(lastLoginAt),
+      `last_login_at ${lastLoginAt} is in the future — the value is labelled UTC but was not written in UTC`,
+    ).toBeLessThan(Date.now() + 60 * 1000);
   });
 
   /**

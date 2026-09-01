@@ -752,6 +752,25 @@ class SettlementDtoTest extends TestCase
     }
 
     /** @return array<string, mixed> A submitted direct debit, as the repository returns it. */
+    /**
+     * `announcements[]` and `notifications[]` describe the same delivery — the
+     * announcement's timestamp is copied from the queue row at send time — so
+     * they have to spell the instant the same way. Both labelled UTC (#365):
+     * unlabelled, the breakdown's "sent on" is read by the browser as local.
+     */
+    public function test_to_array_labels_the_announcement_timestamps_utc(): void
+    {
+        $dto = SettlementDto::fromRow($this->submittedRow(), announcements: [
+            ['member_id' => 'member-1', 'kind' => 'sepa_prenotification', 'sent_at' => '2026-08-09 19:33:12'],
+        ]);
+
+        $announcement = $dto->toArray()['announcements'][0];
+
+        $this->assertSame('2026-08-09T19:33:12Z', $announcement['sent_at']);
+        $this->assertSame('member-1', $announcement['member_id'], 'the rest of the row travels untouched');
+        $this->assertSame('sepa_prenotification', $announcement['kind']);
+    }
+
     private function submittedRow(array $overrides = []): array
     {
         return array_merge([

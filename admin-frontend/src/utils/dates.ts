@@ -19,6 +19,12 @@ export function toIsoDate(date: Date): string {
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
 
 /**
+ * An instant with no zone on it — `2026-09-01 19:33:12` as MariaDB spells it,
+ * or `2026-09-01T19:33:12` after somebody replaced only the space.
+ */
+const ZONELESS_INSTANT = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)$/
+
+/**
  * Parses a value from the API into a Date, reading date-only strings as the
  * *local* calendar day.
  *
@@ -33,10 +39,23 @@ const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
  * left to the platform parser. An out-of-range date-only string yields an
  * invalid Date, matching what `new Date()` would have returned for it, so
  * callers keep their existing fallbacks.
+ *
+ * An instant that arrives *without* a zone is read as UTC, not as local time.
+ * Every column behind this API holds UTC (`Shared\Time\Utc`), and the way out
+ * is `DateFormatter::toUtcIso()`, which labels it "Z" — but an endpoint that
+ * forgets the label emits a bare `2026-09-01 19:33:12`, which both `new Date()`
+ * and the spec read as the reader's *local* time. Nothing about that failure is
+ * visible: the string parses, the row renders, and every time on the screen is
+ * quietly off by the reader's own offset (#365, and again on the notifications
+ * queue). Reading it as UTC makes the frontend agree with the contract instead
+ * of with whichever endpoint last forgot it.
  */
 export function parseApiDate(value: string): Date {
   const match = DATE_ONLY.exec(value)
-  if (!match) return new Date(value)
+  if (!match) {
+    const zoneless = ZONELESS_INSTANT.exec(value)
+    return new Date(zoneless ? `${zoneless[1]}T${zoneless[2]}Z` : value)
+  }
 
   const year = Number(match[1])
   const month = Number(match[2])

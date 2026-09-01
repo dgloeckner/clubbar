@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Registrations\DTOs;
 
+use App\Shared\Utils\DateFormatter;
+
 /**
  * One pending submission, as the review screen is allowed to see it
  * (ADR-0052, UC-A17).
@@ -106,9 +108,13 @@ final readonly class PendingRegistrationDto
             // before any of the data above was collected, and the document at
             // that URL can change afterwards.
             'privacy_notice_url' => $this->privacyNoticeUrl,
-            'privacy_notice_shown_at' => $this->privacyNoticeShownAt,
-            'submitted_at' => $this->submittedAt,
-            'expires_at' => $this->expiresAt,
+            // All three are instants, labelled UTC on the way out (#365). Bare,
+            // they are read by the browser as local time, which moves a
+            // late-evening submission — and the day the review list sorts and
+            // prints it under — by the reader's own offset.
+            'privacy_notice_shown_at' => DateFormatter::toUtcIso($this->privacyNoticeShownAt),
+            'submitted_at' => DateFormatter::toUtcIso($this->submittedAt),
+            'expires_at' => DateFormatter::toUtcIso($this->expiresAt),
             'duplicate_email' => $this->duplicateEmail,
             'duplicate_iban' => $this->duplicateIban,
         ];

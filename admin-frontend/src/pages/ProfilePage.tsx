@@ -29,7 +29,7 @@ import { useAuth } from '../context/AuthContext'
 export function ProfilePage() {
   const { t } = useTranslation()
   const { apiErrorMessage } = useApiError()
-  const { intlLocale } = useFormatters()
+  const { formatDateTime } = useFormatters()
   const { updateProfile: updateAuthProfile } = useAuth()
   const [profile, setProfile] = useState<AdminProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -465,7 +465,7 @@ export function ProfilePage() {
       {/* Last Login Info */}
       {profile?.last_login_at && (
         <div style={{ color: theme.colors.text.muted, fontSize: theme.typography.fontSize.sm }}>
-          {t('profile.lastLogin')}: {new Date(profile.last_login_at).toLocaleString(intlLocale)}
+          {t('profile.lastLogin')}: {formatDateTime(profile.last_login_at)}
         </div>
       )}
 
