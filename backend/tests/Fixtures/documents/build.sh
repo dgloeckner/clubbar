@@ -1,0 +1,34 @@
+#!/usr/bin/env sh
+# Rebuild the mandate-template fixtures (#780, ADR-0052 decision 5).
+#
+#   pip install weasyprint    # v69 verified
+#   ./build.sh
+#
+# Both flags are load-bearing, and neither is a preference:
+#   --pdf-forms         turns <input name="..."> into native AcroForm fields.
+#                       Headless Chromium renders the same HTML with ZERO form
+#                       fields, so it cannot substitute for this.
+#   --uncompressed-pdf  writes a classic cross-reference table. The free FPDI
+#                       parser cannot follow a cross-reference stream, and the
+#                       field enumerator cannot see inside an object stream.
+#
+# The PDFs are committed. This script is how they are regenerated, and running
+# it is the only supported way to change them — a fixture edited by hand would
+# stop being an example of what the documented pipeline produces, which is the
+# entire reason it is the fixture.
+set -eu
+cd "$(dirname "$0")"
+
+python3 -m weasyprint --pdf-forms --uncompressed-pdf club-anmeldung.html club-anmeldung.pdf
+
+# The vocabulary a valid template must carry. A rebuild that silently dropped
+# one of these would leave the suite asserting against a template no club could
+# use — so it fails here instead.
+for field in mandatsreferenz vorname nachname iban iban_last4; do
+    grep -q "/T ($field)" club-anmeldung.pdf || {
+        echo "MISSING REQUIRED FIELD: $field" >&2
+        exit 1
+    }
+done
+
+echo "club-anmeldung.pdf rebuilt; all required fields present."

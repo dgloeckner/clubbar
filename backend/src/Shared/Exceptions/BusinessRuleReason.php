@@ -154,4 +154,16 @@ enum BusinessRuleReason: string
      * the review screen having warned first.
      */
     case REGISTRATION_MEMBER_EMAIL_EXISTS = 'registration_member_email_exists';
+
+    // The club's onboarding document (#780). Every one of these is actionable
+    // in a sentence — which is the point: "your template is invalid" costs a
+    // club an afternoon of auditing field names that were never wrong.
+    /** Readable PDF, wrong build: object streams, an xref stream, or no fields at all. */
+    case DOCUMENT_TEMPLATE_UNREADABLE = 'document_template_unreadable';
+    /** Not a PDF — most often a webhost answering a moved file with an HTML page and a 200. */
+    case DOCUMENT_TEMPLATE_NOT_A_PDF = 'document_template_not_a_pdf';
+    /** A valid PDF whose field vocabulary is incomplete. The refusal names the fields. */
+    case DOCUMENT_TEMPLATE_FIELD_MISSING = 'document_template_field_missing';
+    /** The configured URL could not be fetched at all. */
+    case DOCUMENT_TEMPLATE_UNREACHABLE = 'document_template_unreachable';
 }
