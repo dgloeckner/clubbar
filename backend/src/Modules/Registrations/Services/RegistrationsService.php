@@ -7,6 +7,8 @@ namespace App\Modules\Registrations\Services;
 use App\Modules\BankCodes\Services\BankCodeService;
 use App\Modules\Registrations\Documents\MandateDocumentService;
 use App\Modules\Registrations\Domain\PosterSecret;
+use App\Modules\Members\Enums\SupportedLanguage;
+use App\Modules\Registrations\DTOs\RegistrationContextDto;
 use App\Modules\Registrations\DTOs\RegistrationReceiptDto;
 use App\Modules\Registrations\Repositories\RegistrationAttemptsRepository;
 use App\Modules\Registrations\Repositories\RegistrationsRepository;
@@ -219,6 +221,85 @@ class RegistrationsService
             id: $id,
             mandateReference: $mandateReference,
             documentBase64: $document === null ? null : base64_encode($document),
+        );
+    }
+
+    /**
+     * What the onboarding page needs before it renders a single field (#781).
+     *
+     * Gated by the same secret and refused the same uniform way, because an
+     * endpoint that confirmed a valid secret exists would be a free oracle for
+     * whoever is guessing one — cheaper than the submit path, since it costs no
+     * form to try.
+     *
+     * ## Metered on refusals only, deliberately
+     *
+     * A refused lookup is a guess and spends the guessing budget. A *successful*
+     * one does not touch the submission budget: the page loads this every time
+     * it opens, and a member who reads the club's document before filling
+     * anything in opens it twice. Charging that against the accepted-submission
+     * meter would refuse the sixth honest visitor at a signup evening for the
+     * crime of being careful — the same miscalibration the accepted meter was
+     * already widened to avoid.
+     *
+     * ## Unavailability is answered, not thrown
+     *
+     * A club that is switched off is not an error on this path: it is the
+     * answer. The page renders the club's own paused screen from it, which is
+     * the whole reason the endpoint exists.
+     *
+     * @throws NotFoundException the uniform refusal for a wrong or missing secret
+     * @throws TooManyAttemptsException too many guesses from this address
+     */
+    public function context(string $presentedSecret, string $ip): RegistrationContextDto
+    {
+        $this->assertWithinMeters($ip);
+
+        $config = $this->config->get();
+
+        if (!PosterSecret::matches($presentedSecret, $config->secretHash)) {
+            $this->attempts->record($ip, RegistrationAttemptsRepository::REFUSED);
+            $this->logger->info('Self-registration context refused: secret did not match');
+
+            throw new NotFoundException('Not found');
+        }
+
+        $documentUrl = $this->documentUrl();
+        $languages = array_column(SupportedLanguage::cases(), 'value');
+
+        if (!$config->enabled) {
+            return new RegistrationContextDto(
+                available: false,
+                reason: BusinessRuleReason::REGISTRATION_DISABLED->value,
+                message: $config->disabledReason,
+                documentUrl: $documentUrl === '' ? null : $documentUrl,
+                languages: $languages,
+            );
+        }
+
+        // The same fail-closed condition the submit path enforces, answered
+        // *before* a field is rendered. A form that collects a name, a birth
+        // date and an IBAN and only then discovers nobody could have been shown
+        // a notice has already wasted the applicant's time on data it must
+        // refuse — and has already had it typed into a phone.
+        if ($documentUrl === '') {
+            $this->logger->warning('Self-registration context: no club document URL is configured');
+
+            return new RegistrationContextDto(
+                available: false,
+                reason: BusinessRuleReason::DOCUMENT_URL_MISSING->value,
+                message: null,
+                documentUrl: null,
+                languages: $languages,
+            );
+        }
+
+        return new RegistrationContextDto(
+            available: true,
+            reason: null,
+            message: null,
+            documentUrl: $documentUrl,
+            languages: $languages,
         );
     }
 

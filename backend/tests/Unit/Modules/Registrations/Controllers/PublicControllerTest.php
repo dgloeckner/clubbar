@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Registrations\Controllers;
 
 use App\Modules\Registrations\Controllers\PublicController;
+use App\Modules\Registrations\DTOs\RegistrationContextDto;
 use App\Modules\Registrations\DTOs\RegistrationReceiptDto;
 use App\Modules\Registrations\Services\RegistrationsService;
 use App\Shared\Validation\Validator;
@@ -200,6 +201,88 @@ final class PublicControllerTest extends TestCase
         self::assertSame(422, $response->getStatusCode());
         self::assertNull($this->service->lastPayload);
     }
+
+
+    // ── the entry lookup (#781) ──────────────────────────────────────────
+
+    /** @param array<string, mixed>|null $body */
+    private function contextRequest(?array $body): Response
+    {
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('POST', '/api/public/registrations/context')
+            ->withParsedBody($body)
+            ->withHeader('Content-Type', 'application/json');
+
+        return $this->controller->context($request, new Response());
+    }
+
+    public function test_the_context_answers_what_the_page_needs_to_render(): void
+    {
+        $response = $this->contextRequest(['secret' => 'a-secret']);
+
+        self::assertSame(200, $response->getStatusCode());
+        $body = $this->decode($response);
+        self::assertTrue($body['available']);
+        self::assertSame('https://club.example/Anmeldung.pdf', $body['document_url']);
+        self::assertSame(['de', 'en'], $body['languages']);
+    }
+
+    /**
+     * The credential is printed on a wall and may still be there in two years.
+     * It travels in the body so it never reaches an access log — the page reads
+     * it from the URL fragment, which no browser sends.
+     */
+    public function test_the_secret_is_taken_from_the_body(): void
+    {
+        $this->contextRequest(['secret' => 'poster-secret-value']);
+
+        self::assertSame('poster-secret-value', $this->service->lastSecret);
+    }
+
+    public function test_a_body_that_is_not_an_object_is_an_absent_secret(): void
+    {
+        $this->contextRequest(null);
+
+        // Passed through as empty rather than short-circuited here: one place
+        // decides what a bad secret means, and it is the place that meters it.
+        self::assertSame('', $this->service->lastSecret);
+    }
+
+    /**
+     * An unavailable club is the *answer*, not a refusal — and it arrives in the
+     * same shape a refused submission does, so the page renders it identically
+     * whether it learned about it on load or by racing an admin mid-form.
+     */
+    public function test_an_unavailable_club_is_a_200_carrying_its_own_reason(): void
+    {
+        $this->service->nextContext = new RegistrationContextDto(
+            available: false,
+            reason: 'registration_disabled',
+            message: 'Beta-Phase schon voll',
+            documentUrl: 'https://club.example/Anmeldung.pdf',
+            languages: ['de'],
+        );
+
+        $response = $this->contextRequest(['secret' => 'a-secret']);
+
+        self::assertSame(200, $response->getStatusCode());
+        $body = $this->decode($response);
+        self::assertFalse($body['available']);
+        self::assertSame('registration_disabled', $body['reason']);
+        self::assertSame('Beta-Phase schon voll', $body['message']);
+    }
+
+    /**
+     * A page still showing yesterday's answer is the one thing this endpoint
+     * exists to prevent: the club's switch takes effect the moment it is flipped.
+     */
+    public function test_the_context_is_never_cached(): void
+    {
+        self::assertSame(
+            'no-store',
+            $this->contextRequest(['secret' => 'a-secret'])->getHeaderLine('Cache-Control'),
+        );
+    }
 }
 
 /** Records what the controller passed on, so the boundary can be asserted. */
@@ -221,5 +304,21 @@ final class RecordingRegistrationsService extends RegistrationsService
         $this->lastPayload = $data;
 
         return new RegistrationReceiptDto(id: 'reg-1', mandateReference: str_repeat('a', 32));
+    }
+
+    /** Overridden for the same reason `submit()` is: this stub has no collaborators. */
+    public ?RegistrationContextDto $nextContext = null;
+
+    public function context(string $presentedSecret, string $ip): RegistrationContextDto
+    {
+        $this->lastSecret = $presentedSecret;
+
+        return $this->nextContext ?? new RegistrationContextDto(
+            available: true,
+            reason: null,
+            message: null,
+            documentUrl: 'https://club.example/Anmeldung.pdf',
+            languages: ['de', 'en'],
+        );
     }
 }

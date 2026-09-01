@@ -139,7 +139,7 @@ the final PR.
       `/Widget` annotations in either output; a `/Rect` regression test on a
       WeasyPrint-built fixture; optional fields filled when present and skipped
       when absent; no disk or database write on either render path.
-- [ ] **M4 — Public onboarding page**
+- [x] **M4 — Public onboarding page**
       ([#781](https://github.com/dgloeckner/clubbar/issues/781)).
       Small self-contained bundle under the backend document root at `/register`,
       not the admin SPA. Reads the secret from the fragment and never puts it in

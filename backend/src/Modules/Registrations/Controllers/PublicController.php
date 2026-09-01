@@ -65,6 +65,33 @@ class PublicController
         private Validator $validator,
     ) {}
 
+    /**
+     * POST /api/public/registrations/context — what the page needs on load.
+     *
+     * A POST for a read, and that is the point: the secret travels in the body,
+     * never in the URL. The onboarding page reads it from the URL **fragment**,
+     * which a browser does not send to any server, and puts it here — so the
+     * credential printed on a clubhouse wall never reaches an access log, in
+     * front of the installation or behind it.
+     *
+     * An unavailable club is a `200` carrying `available: false`, not a
+     * refusal. The page is asking a question and this is the answer; only a bad
+     * secret is a refusal, and it is the same uniform 404 a submission gets.
+     */
+    public function context(Request $request, Response $response): Response
+    {
+        $body = $request->getParsedBody();
+        $secret = is_array($body) ? (string) ($body['secret'] ?? '') : '';
+
+        $context = $this->registrations->context($secret, $this->clientIp($request));
+
+        // Not cached. The club's paused screen and its reason change the moment
+        // an admin flips the switch, and a page still showing yesterday's answer
+        // is the one thing this endpoint exists to prevent.
+        return $this->json($response, $context->toArray())
+            ->withHeader('Cache-Control', 'no-store');
+    }
+
     public function store(Request $request, Response $response): Response
     {
         $declaredLength = (int) ($request->getHeaderLine('Content-Length') ?: '0');
