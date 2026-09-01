@@ -17,6 +17,7 @@ import { MainLayoutPage } from '../../pages/MainLayoutPage'
 const ADMIN_SECTIONS = [
   'nav-dashboard',
   'nav-members',
+  'nav-registrations',
   'nav-products',
   'nav-journal',
   'nav-settlements',
@@ -32,10 +33,11 @@ const ADMIN_SECTIONS = [
  * icon-only variant, which lays out differently.
  *
  * Overflow there is not a coincidence of one locale. Measured against the
- * ~864px the row gets at this width with the seeded club name: the ten
- * sections need ~1114px in German and ~923px in English, so the tail moves
- * into "More" either way — which is what lets the two tests below assert it
- * rather than check for it.
+ * ~864px the row gets at this width with the seeded club name: ten sections
+ * needed ~1114px in German and ~923px in English, so the tail moved into
+ * "More" either way — which is what lets the two tests below assert it rather
+ * than check for it. Registrations made it eleven, which only widens the
+ * margin.
  */
 const NARROW_DESKTOP = 1501
 

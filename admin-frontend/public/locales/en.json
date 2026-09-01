@@ -15,7 +15,8 @@
     "journalShort": "Journal",
     "settlementsShort": "Settlem.",
     "notifications": "Notifications",
-    "backups": "Backups"
+    "backups": "Backups",
+    "registrations": "Registrations"
   },
   "common": {
     "save": "Save",
@@ -1524,5 +1525,68 @@
       "acceptFailed": "The password could not be saved."
     },
     "roleLabel": "Your role"
+  },
+  "registrations": {
+    "title": "Registrations",
+    "subtitle": "Self-registrations from the QR poster, waiting to be checked.",
+    "searchPlaceholder": "Search name or email",
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "submittedAt": "Received",
+      "iban": "IBAN",
+      "bank": "Bank",
+      "flags": "Flags"
+    },
+    "flags": {
+      "email": "Email known",
+      "iban": "Account known"
+    },
+    "duplicates": {
+      "email": "A member already exists at this email address.",
+      "iban": "A mandate already runs on this account."
+    },
+    "empty": {
+      "title": "Nothing to review.",
+      "body": "Registrations appear here as soon as somebody scans the club's QR poster and fills in the form."
+    },
+    "fields": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "phone": "Phone",
+      "dateOfBirth": "Date of birth",
+      "accountHolder": "Account holder",
+      "mandateReference": "Mandate reference",
+      "notice": "Club documents shown",
+      "expires": "Deleted on",
+      "newIban": "Correct the IBAN",
+      "newIbanPlaceholder": "Only fill this in if the IBAN is wrong",
+      "newIbanHint": "Leaving it empty changes nothing. A new IBAN is validated and re-encrypted; the old one cannot be recovered afterwards."
+    },
+    "panel": {
+      "submitted": "Received on {{date}}"
+    },
+    "actions": {
+      "print": "Print form",
+      "edit": "Edit",
+      "approve": "Approve",
+      "reject": "Reject"
+    },
+    "approve": {
+      "lede": "Approving creates the member and the SEPA mandate. The signed form has to be on hand first.",
+      "signedAt": "Signed on",
+      "attestation": "I have the signed SEPA mandate on hand, and the IBAN written on it matches {{last4}}."
+    },
+    "reject": {
+      "warning": "The registration is deleted immediately. There is no rejected state and no undo.",
+      "reason": "Reason (optional)",
+      "reasonHint": "Recorded in the audit log only; the applicant is never told.",
+      "confirm": "Delete permanently"
+    },
+    "errors": {
+      "load": "The registrations could not be loaded.",
+      "action": "That did not work.",
+      "document": "The form could not be produced."
+    }
   }
 }

@@ -153,4 +153,52 @@ final class PdfAcroFormFieldsTest extends TestCase
     {
         self::assertNull(PdfAcroFormFields::diagnose($this->pdf($this->widget('vorname', '72 700 300 716'))));
     }
+
+    // ── the IBAN comb (#780) ─────────────────────────────────────────────
+
+    /**
+     * A template that prints one box per character has **no** field called
+     * `iban`, and demanding one would refuse the shape a German form actually
+     * uses. The reference club's Anmeldung is exactly that shape.
+     */
+    public function test_a_comb_satisfies_the_iban_requirement(): void
+    {
+        $fields = [
+            'mandatsreferenz' => [], 'vorname' => [], 'nachname' => [], 'iban_last4' => [],
+            'iban_3' => [], 'iban_4' => [],
+        ];
+
+        self::assertSame([], PdfAcroFormFields::missingRequired($fields));
+    }
+
+    public function test_a_template_with_neither_a_field_nor_a_comb_is_missing_the_iban(): void
+    {
+        $fields = ['mandatsreferenz' => [], 'vorname' => [], 'nachname' => [], 'iban_last4' => []];
+
+        self::assertSame(['iban'], PdfAcroFormFields::missingRequired($fields));
+    }
+
+    /**
+     * The cell's number is its **character position**, so the cells come back
+     * keyed by it and in order — which is what lets a form pre-print `DE` into
+     * boxes 1 and 2 and start its fields at 3.
+     */
+    public function test_the_cells_are_keyed_by_character_position_and_ordered(): void
+    {
+        $cells = PdfAcroFormFields::combCells([
+            'iban_22' => [], 'iban_3' => [], 'iban_10' => [], 'iban_last4' => [], 'vorname' => [],
+        ]);
+
+        self::assertSame([3, 10, 22], array_keys($cells));
+    }
+
+    /**
+     * `iban_last4` is not box 4 of a comb called `iban_last`, and a template
+     * carrying only it has no comb at all — otherwise every existing template
+     * would suddenly claim to have one.
+     */
+    public function test_the_control_hint_is_not_mistaken_for_a_comb(): void
+    {
+        self::assertSame([], PdfAcroFormFields::combCells(['iban_last4' => [], 'vorname' => []]));
+    }
 }

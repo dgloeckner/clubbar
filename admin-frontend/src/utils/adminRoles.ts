@@ -45,6 +45,11 @@ const KNOWN_ROLES: AdminRole[] = EVERY_ROLE
 export const SECTION_ROLES: Record<string, AdminRole[]> = {
   '/dashboard': TREASURY,
   '/members': TREASURY,
+  // The self-registration inbox (#782, ADR-0052). Member management arriving by
+  // a different door: the same names, birth dates and bank details as
+  // `/members`, so the same office, and the Getränkewart is outside it for the
+  // same reason. Matches `RouteRoleMap`'s `/api/admin/registrations/*`.
+  '/registrations': TREASURY,
   '/products': BAR,
   '/journal': TREASURY,
   '/settlements': TREASURY,
