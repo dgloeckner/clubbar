@@ -76,6 +76,7 @@ Each ADR follows this structure:
 | [0049](./0049-encrypted-offsite-backups-on-shared-hosting.md) | Encrypted Off-Site Backups on Shared Hosting | Accepted (amends 0031, 0038, 0029, 0036) | 2026-08-24 |
 | [0050](./0050-configuration-coherence-is-the-writers-job.md) | Configuration Coherence Is the Writer's Job | Accepted (amends 0031, 0038, 0049) | 2026-08-27 |
 | [0051](./0051-member-lifecycle-mail.md) | A Member Hears From the Club When Their Card Arrives | Accepted (amends 0038) | 2026-08-29 |
+| [0052](./0052-member-self-registration-via-qr-code.md) | A Member Registers Themselves; an Admin Attests the Paper | Proposed | 2026-08-31 |
 
 ## Creating a New ADR
 
