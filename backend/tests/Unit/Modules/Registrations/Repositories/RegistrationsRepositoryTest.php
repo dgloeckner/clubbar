@@ -153,4 +153,150 @@ final class RegistrationsRepositoryTest extends TestCase
         self::assertSame(1, $this->repository->countByFingerprint(str_repeat('b', 64)));
         self::assertSame(0, $this->repository->countByFingerprint(str_repeat('c', 64)));
     }
+
+    public function test_find_by_id_returns_the_row_and_null_for_a_stranger(): void
+    {
+        $id = $this->insert(['email' => 'petra@example.org']);
+
+        $row = $this->repository->findById($id);
+
+        self::assertNotNull($row);
+        self::assertSame('petra@example.org', $row['email']);
+        self::assertNull($this->repository->findById('11111111-2222-4333-8444-555555555555'));
+    }
+
+    public function test_the_list_is_newest_first_and_carries_a_total(): void
+    {
+        $older = $this->insert(['submitted_at' => '2026-08-20 09:00:00', 'last_name' => 'Aal']);
+        $newer = $this->insert(['submitted_at' => '2026-08-29 09:00:00', 'last_name' => 'Zander']);
+
+        $result = $this->repository->listPaginated(10, 0);
+
+        self::assertSame(2, $result['total']);
+        self::assertSame([$newer, $older], array_column($result['items'], 'id'));
+    }
+
+    public function test_the_list_paginates_without_losing_the_total(): void
+    {
+        $this->insert(['submitted_at' => '2026-08-20 09:00:00']);
+        $this->insert(['submitted_at' => '2026-08-21 09:00:00']);
+        $this->insert(['submitted_at' => '2026-08-22 09:00:00']);
+
+        $result = $this->repository->listPaginated(2, 2);
+
+        self::assertSame(3, $result['total']);
+        self::assertCount(1, $result['items']);
+    }
+
+    /**
+     * An admin scanning the inbox for the person on the phone types a name, and
+     * the search has to cover the three things they might type.
+     */
+    public function test_the_list_searches_names_and_email(): void
+    {
+        $this->insert(['first_name' => 'Petra', 'last_name' => 'Vogel', 'email' => 'pv@example.org']);
+        $this->insert(['first_name' => 'Lena', 'last_name' => 'Brandt', 'email' => 'lb@example.org']);
+
+        self::assertCount(1, $this->repository->listPaginated(10, 0, 'submitted_at', 'desc', 'vogel')['items']);
+        self::assertCount(1, $this->repository->listPaginated(10, 0, 'submitted_at', 'desc', 'Petra')['items']);
+        self::assertCount(1, $this->repository->listPaginated(10, 0, 'submitted_at', 'desc', 'lb@')['items']);
+        self::assertCount(0, $this->repository->listPaginated(10, 0, 'submitted_at', 'desc', 'nobody')['items']);
+    }
+
+    /**
+     * A sort key is a column name reaching SQL, so the allow-list is the whole
+     * defence — anything else falls back to the default rather than being
+     * interpolated.
+     */
+    public function test_an_unknown_sort_key_falls_back_instead_of_reaching_sql(): void
+    {
+        $older = $this->insert(['submitted_at' => '2026-08-20 09:00:00']);
+        $newer = $this->insert(['submitted_at' => '2026-08-29 09:00:00']);
+
+        $result = $this->repository->listPaginated(10, 0, 'id; DROP TABLE pending_registrations', 'desc');
+
+        self::assertSame([$newer, $older], array_column($result['items'], 'id'));
+    }
+
+    public function test_update_writes_only_the_fields_it_is_given(): void
+    {
+        $id = $this->insert(['first_name' => 'Lena', 'phone' => null]);
+
+        $row = $this->repository->updateById($id, ['first_name' => 'Magdalena', 'phone' => '+49 69 1234']);
+
+        self::assertNotNull($row);
+        self::assertSame('Magdalena', $row['first_name']);
+        self::assertSame('+49 69 1234', $row['phone']);
+        self::assertSame('Brandt', $row['last_name']);
+    }
+
+    /**
+     * The pending row is the applicant's data, not a place to reset the clock
+     * on it. An expiry an admin could push out is a retention rule that never
+     * runs (decision 10).
+     */
+    public function test_update_ignores_columns_outside_its_allow_list(): void
+    {
+        $id = $this->insert(['expires_at' => '2026-09-30 10:00:00']);
+
+        $row = $this->repository->updateById($id, [
+            'first_name' => 'Magdalena',
+            'expires_at' => '2099-01-01 00:00:00',
+            'submitted_at' => '2099-01-01 00:00:00',
+            'mandate_reference' => 'somebodyelses',
+        ]);
+
+        self::assertSame('Magdalena', $row['first_name']);
+        self::assertSame('2026-09-30 10:00:00', $row['expires_at']);
+        self::assertSame('2026-08-31 10:00:00', $row['submitted_at']);
+    }
+
+    /**
+     * Four columns, one fact. A key id arriving without the ciphertext it
+     * belongs to labels the old seal with a key that cannot open it — a row
+     * that is wrong the moment it is written and looks fine until a SEPA export
+     * needs the plaintext, by which time the plaintext is gone.
+     */
+    public function test_update_refuses_a_partial_write_of_the_sealed_columns(): void
+    {
+        $id = $this->insert();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->repository->updateById($id, ['encryption_key_id' => '99999999-9999-4999-8999-999999999999']);
+    }
+
+    public function test_update_replaces_the_sealed_iban_material_as_one_unit(): void
+    {
+        $id = $this->insert();
+
+        $row = $this->repository->updateById($id, [
+            'iban_ciphertext' => 'v1:bmV3',
+            'iban_last4' => '7777',
+            'iban_fingerprint' => str_repeat('d', 64),
+            'encryption_key_id' => '22222222-2222-4222-8222-222222222222',
+            'bank_name' => 'Volksbank',
+        ]);
+
+        self::assertSame('v1:bmV3', $row['iban_ciphertext']);
+        self::assertSame('7777', $row['iban_last4']);
+        self::assertSame(str_repeat('d', 64), $row['iban_fingerprint']);
+        // The key id travels *with* the ciphertext and only with it: a row
+        // sealed under one key and labelled with another cannot be opened.
+        self::assertSame('22222222-2222-4222-8222-222222222222', $row['encryption_key_id']);
+        self::assertSame('Volksbank', $row['bank_name']);
+    }
+
+    public function test_update_returns_null_for_a_row_that_is_not_there(): void
+    {
+        self::assertNull($this->repository->updateById('11111111-2222-4333-8444-555555555555', ['first_name' => 'X']));
+    }
+
+    public function test_delete_removes_the_row_and_reports_whether_it_did(): void
+    {
+        $id = $this->insert();
+
+        self::assertTrue($this->repository->deleteById($id));
+        self::assertSame(0, (int) $this->db->query('SELECT COUNT(*) FROM pending_registrations')->fetchColumn());
+        self::assertFalse($this->repository->deleteById($id));
+    }
 }

@@ -412,13 +412,18 @@ and a queue nobody empties is exactly how it would.
 |---|---|---|
 | **Approve** | Yes | The moment a member and a mandate come into existence, carrying the admin's attestation that they held the signed paper and matched `****last4`. It records the **pending registration's id**, so a member's origin stays traceable after the pending row is gone, and a masked IBAN only (ADR-0005) |
 | **Reject** | Yes | An admin decided to delete somebody's data. The act, the actor and the reason are exactly what a log is for |
+| **Edit** | Yes | Not obviously an authority change, and audited anyway — this is the one place in the system where one person edits another's freshly submitted personal data, including which bank account a mandate will be opened against. The entry is what makes "the IBAN on file is not the one I sent" answerable, and it carries the masked value on both sides, never the number |
 | **Print** | Yes | An IBAN hint and a member's details leave the building on paper |
 | **Submission** | **No** | It grants nothing. Unlike an accepted invitation — the one sessionless act this log does record, because it makes an account *usable* — a pending registration is not a member and no terminal can see it, so the entry that matters is the approval. And the audit log is retained while this store purges at 30 days: an entry naming the applicant would be a copy of their personal data outliving the deletion that exists to remove them. The trail that does exist is `registration_attempts`, metering submissions per address, and an identity-free application-log line |
 | **TTL purge** | **No** | Every automated sweep in this system logs a count and writes no audit rows — the login-attempt prune, mail retention, the rest. Per-row entries here would either name the people just deleted, which is the same leak, or say nothing at all. One aggregate line is what demonstrates the retention runs |
 
-The shape of that table is one rule: **the log follows authority, not activity.**
-An act that changes what somebody may do is audited; an act that only parks data
-which will delete itself is not, because auditing it would outlive the data.
+The shape of that table is one rule: **the log follows the actor, not the
+activity.** Every act an *admin* takes on somebody else's submission is audited —
+approving, rejecting, correcting, printing — because each is a person exercising
+authority over another's personal data. Everything the store does by itself is
+not: a stranger submitting grants nothing, and the TTL purge is a sweep. Auditing
+either would leave an entry naming the applicant behind after the very deletion
+that exists to remove them.
 
 ### 11. The public page is served by the backend
 

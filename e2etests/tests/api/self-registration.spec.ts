@@ -1,5 +1,6 @@
-import { test, expect } from '@playwright/test'
+import { expect } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
+import { test } from '../../fixtures/roleRequests'
 import {
   clearRegistrationAttempts,
   configureSelfRegistration,
@@ -20,10 +21,36 @@ import { drainMailQueue } from '../../utils/drain'
  * The club's configuration is written through `sql.ts` rather than an API,
  * because the secret is minted server-side and shown once; no endpoint hands a
  * *known* secret back on demand, and one that did would defeat the credential.
+ *
+ * ### Why the review endpoints (#779) are in this file and not their own
+ *
+ * They need a pending registration to review, and the honest way to get one is
+ * to submit it — which needs the poster secret, which is the same singleton
+ * config row this file already serialises around. A second spec file writing
+ * that row would clobber this one from another worker, and the failure would
+ * read as "a valid secret answered 404" in whichever file lost the race. One
+ * file, one serial block, one owner of that row.
+ *
+ * It buys something as well as costing a longer file: these tests carry a real
+ * submission all the way through to a real member, so the claim that matters
+ * most — the IBAN sealed by a stranger's phone is the one the club will collect
+ * on — is asserted across the whole chain rather than at either end of it.
  */
 
 const API = 'http://localhost:8080/api'
 const TEST_IBAN = 'DE89370400440532013000'
+
+/**
+ * A second account, at a different bank, for the edit-before-approve path.
+ *
+ * Its BLZ (37050299 — Kreissparkasse Köln) is one the seed actually carries, and
+ * that is the point: the bank name is resolved from the BLZ at write time and
+ * can never be resolved again once the row is sealed (ADR-0036), so a
+ * corrected IBAN landing with the *old* bank's name would be invisible
+ * afterwards. Picking an unseeded BLZ would have asserted only that the lookup
+ * returned null.
+ */
+const CORRECTED_IBAN = 'DE39370502991234567890'
 
 /**
  * Run `bin/cron.php` for its purge tick without delivering any mail.
@@ -287,5 +314,303 @@ test.describe('Public self-registration', () => {
     expireRegistration(freshId)
     runPurgeTick()
     expect(countPendingRegistrations()).toBe(before - 2)
+  })
+
+  // ── the review inbox (#779, UC-A17) ────────────────────────────────────
+  //
+  // Each of these submits through the *public* endpoint first, so what is being
+  // reviewed is a real submission and not a hand-written row. That is what
+  // makes the sealed-material assertion below worth anything: the IBAN a
+  // stranger's phone sealed is the one the club ends up with a mandate on.
+
+  /** Submit one registration and return its id and its details. */
+  const submitOne = async (
+    request: any,
+    overrides: Record<string, unknown> = {},
+  ): Promise<{ id: string; mandateReference: string; data: Record<string, unknown> }> => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    const data = submission(overrides)
+    const response = await request.post(`${API}/public/registrations`, {
+      data: { secret, ...data },
+    })
+    expect(response.status()).toBe(201)
+    const body = await response.json()
+
+    return { id: body.id, mandateReference: body.mandate_reference, data }
+  }
+
+  test('the inbox lists a submission, masked, with no sealed material', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id, data } = await submitOne(request)
+
+    const response = await authenticatedRequest.get(`${API}/admin/registrations?per_page=100`)
+    expect(response.status()).toBe(200)
+
+    const body = await response.json()
+    // Pattern 003: find the row by id rather than assuming a position.
+    const row = body.data.find((r: any) => r.id === id)
+    expect(row).toBeTruthy()
+    expect(row.email).toBe(data.email)
+    expect(row.iban_masked).toBe('****3000')
+
+    // The two values that must never leave the server: the ciphertext is the
+    // IBAN, and the fingerprint identifies the account to anyone holding a
+    // candidate number.
+    expect(row).not.toHaveProperty('iban_ciphertext')
+    expect(row).not.toHaveProperty('iban_fingerprint')
+    expect(JSON.stringify(body)).not.toContain(TEST_IBAN)
+  })
+
+  test('the detail view carries the notice the applicant was shown', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id, mandateReference } = await submitOne(request)
+
+    const response = await authenticatedRequest.get(`${API}/admin/registrations/${id}`)
+    expect(response.status()).toBe(200)
+
+    const body = await response.json()
+    expect(body.mandate_reference).toBe(mandateReference)
+    // The club's evidence that the Datenschutzhinweise were reachable before
+    // anything was collected (ADR-0052 decision 6).
+    expect(body.privacy_notice_url).toBe('https://club.example/Anmeldung_Ruderbar.pdf')
+    expect(body.privacy_notice_shown_at).toBeTruthy()
+    expect(body.expires_at).toBeTruthy()
+  })
+
+  test('an edit corrects a typo and re-seals a corrected IBAN', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id } = await submitOne(request, { first_name: 'Lenna' })
+
+    const before = await (await authenticatedRequest.get(`${API}/admin/registrations/${id}`)).json()
+    expect(before.bank_name).toBe('Commerzbank')
+
+    const response = await authenticatedRequest.patch(`${API}/admin/registrations/${id}`, {
+      data: { first_name: 'Lena', iban: CORRECTED_IBAN },
+    })
+
+    expect(response.status()).toBe(200)
+    const body = await response.json()
+    expect(body.first_name).toBe('Lena')
+    // The whole quartet moved: a new last four, and a bank name re-resolved
+    // from the new BLZ — there is nothing left to derive it from afterwards.
+    expect(body.iban_masked).toBe('****7890')
+    expect(body.bank_name).toBe('Kreissparkasse Köln')
+
+    // And the corrected number is no more readable in the database than the
+    // original was.
+    expect(pendingRowsContainingPlaintext(CORRECTED_IBAN)).toBe(0)
+  })
+
+  test('an edit cannot rewrite the reference printed on the signed paper', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id, mandateReference } = await submitOne(request)
+
+    const response = await authenticatedRequest.patch(`${API}/admin/registrations/${id}`, {
+      data: { mandate_reference: 'somebodyelses', first_name: 'Lena' },
+    })
+
+    expect(response.status()).toBe(200)
+    // Ignored rather than refused — a form echoing the whole row back should
+    // not fail — but it is not an admin's to change (ADR-0006).
+    expect((await response.json()).mandate_reference).toBe(mandateReference)
+  })
+
+  test('an invalid edit is refused and changes nothing', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id, data } = await submitOne(request)
+
+    const response = await authenticatedRequest.patch(`${API}/admin/registrations/${id}`, {
+      data: { email: 'not-an-address' },
+    })
+
+    expect(response.status()).toBe(422)
+    expect((await response.json()).messages).toHaveProperty('email')
+
+    const after = await authenticatedRequest.get(`${API}/admin/registrations/${id}`)
+    expect((await after.json()).email).toBe(data.email)
+  })
+
+  test('approval creates the member and mandate, and empties the queue', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id, mandateReference, data } = await submitOne(request)
+    const before = countPendingRegistrations()
+
+    const response = await authenticatedRequest.post(
+      `${API}/admin/registrations/${id}/approve`,
+      { data: { mandate_signed_at: '2026-08-30', signed_mandate_confirmed: true } },
+    )
+
+    expect(response.status()).toBe(201)
+    const member = await response.json()
+    expect(member.email).toBe(data.email)
+    // The reference minted at submission travels to the mandate unchanged: it
+    // is what the bank will see on the collection, and it is printed on the
+    // paper this member signed.
+    expect(member.mandate_reference).toBe(mandateReference)
+    expect(member.mandate_signed_at).toBe('2026-08-30')
+    expect(member.iban_masked).toBe('****3000')
+    // No card yet — that is a separate, deliberate step, and it is the card
+    // that welcomes them (ADR-0021, UC-A67).
+    expect(member.card_uid).toBeNull()
+
+    expect(countPendingRegistrations()).toBe(before - 1)
+
+    // Reachable as an ordinary member from here on, and gone from the queue.
+    const fetched = await authenticatedRequest.get(`${API}/admin/members/${member.id}`)
+    expect(fetched.status()).toBe(200)
+    const gone = await authenticatedRequest.get(`${API}/admin/registrations/${id}`)
+    expect(gone.status()).toBe(404)
+  })
+
+  test('approval without the attestation is refused, and the row survives', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id } = await submitOne(request)
+
+    const silent = await authenticatedRequest.post(`${API}/admin/registrations/${id}/approve`, {
+      data: { mandate_signed_at: '2026-08-30' },
+    })
+    // A request that said nothing about the attestation is a validation error.
+    expect(silent.status()).toBe(422)
+    expect((await silent.json()).messages).toHaveProperty('signed_mandate_confirmed')
+
+    const refused = await authenticatedRequest.post(`${API}/admin/registrations/${id}/approve`, {
+      data: { mandate_signed_at: '2026-08-30', signed_mandate_confirmed: false },
+    })
+    // An explicit `false` is somebody stating they cannot attest — a different
+    // conversation, and one the panel translates.
+    expect(refused.status()).toBe(409)
+    expect((await refused.json()).reason).toBe('registration_attestation_required')
+
+    const still = await authenticatedRequest.get(`${API}/admin/registrations/${id}`)
+    expect(still.status()).toBe(200)
+  })
+
+  test('approving twice creates one member, not two', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id } = await submitOne(request)
+    const payload = { data: { mandate_signed_at: '2026-08-30', signed_mandate_confirmed: true } }
+
+    const first = await authenticatedRequest.post(`${API}/admin/registrations/${id}/approve`, payload)
+    expect(first.status()).toBe(201)
+
+    const second = await authenticatedRequest.post(`${API}/admin/registrations/${id}/approve`, payload)
+    expect(second.status()).toBe(404)
+  })
+
+  test('an email the club already has refuses the approval by name', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id, data } = await submitOne(request)
+    const payload = { data: { mandate_signed_at: '2026-08-30', signed_mandate_confirmed: true } }
+
+    expect(
+      (await authenticatedRequest.post(`${API}/admin/registrations/${id}/approve`, payload)).status(),
+    ).toBe(201)
+
+    // The same person submits again — and this time the club already has them.
+    const again = await submitOne(request, { email: data.email as string })
+
+    const response = await authenticatedRequest.post(
+      `${API}/admin/registrations/${again.id}/approve`,
+      payload,
+    )
+
+    // `members.email` carries no UNIQUE constraint, so nothing below would have
+    // refused: the club would have ended up with two member records for one
+    // person and found out at the next settlement, when both got a statement.
+    expect(response.status()).toBe(409)
+    expect((await response.json()).reason).toBe('registration_member_email_exists')
+
+    const flagged = await authenticatedRequest.get(`${API}/admin/registrations/${again.id}`)
+    expect((await flagged.json()).duplicate_email).toBe(true)
+  })
+
+  test('rejection deletes the submission and creates nothing', async ({
+    request,
+    authenticatedRequest,
+  }) => {
+    const { id } = await submitOne(request)
+    const before = countPendingRegistrations()
+
+    const response = await authenticatedRequest.post(`${API}/admin/registrations/${id}/reject`, {
+      data: { reason: 'No signed mandate arrived' },
+    })
+
+    expect(response.status()).toBe(204)
+    expect(countPendingRegistrations()).toBe(before - 1)
+    expect((await authenticatedRequest.get(`${API}/admin/registrations/${id}`)).status()).toBe(404)
+  })
+
+  /**
+   * Pattern 011, and the ADR-0044 derivation this route was classified by: the
+   * review inbox is member management arriving by a different door, so the
+   * Kassenwart works it and the Getränkewart is nowhere near it — same as
+   * `GET /api/admin/members`, and for the same reason.
+   */
+  test('the Kassenwart can work the queue; the Getränkewart cannot see it', async ({
+    request,
+    kassenwartRequest,
+    getraenkewartRequest,
+  }) => {
+    const { id } = await submitOne(request)
+
+    const treasurerList = await kassenwartRequest.get(`${API}/admin/registrations?per_page=100`)
+    expect(treasurerList.status()).toBe(200)
+    expect((await treasurerList.json()).data.some((r: any) => r.id === id)).toBe(true)
+
+    const treasurerApproval = await kassenwartRequest.post(
+      `${API}/admin/registrations/${id}/approve`,
+      { data: { mandate_signed_at: '2026-08-30', signed_mandate_confirmed: true } },
+    )
+    expect(treasurerApproval.status()).toBe(201)
+
+    const barList = await getraenkewartRequest.get(`${API}/admin/registrations`)
+    expect(barList.status()).toBe(403)
+    expect((await barList.json()).error).toBe('insufficient_role')
+
+    const barDetail = await getraenkewartRequest.get(`${API}/admin/registrations/${id}`)
+    // 403 and not 404: the refusal is about the caller's role, and it must not
+    // depend on whether the row exists — an answer that varied would let a
+    // Getränkewart probe the queue they cannot read.
+    expect(barDetail.status()).toBe(403)
+  })
+
+  test('an anonymous caller reaches none of the review endpoints', async ({ request }) => {
+    const { id } = await submitOne(request)
+
+    for (const call of [
+      request.get(`${API}/admin/registrations`),
+      request.get(`${API}/admin/registrations/${id}`),
+      request.patch(`${API}/admin/registrations/${id}`, { data: { first_name: 'X' } }),
+      request.post(`${API}/admin/registrations/${id}/approve`, {
+        data: { mandate_signed_at: '2026-08-30', signed_mandate_confirmed: true },
+      }),
+      request.post(`${API}/admin/registrations/${id}/reject`, { data: {} }),
+    ]) {
+      const response = await call
+      expect([401, 403]).toContain(response.status())
+    }
+
+    // Nothing happened: the submission is still there to review.
+    expect(countPendingRegistrations()).toBeGreaterThan(0)
   })
 })

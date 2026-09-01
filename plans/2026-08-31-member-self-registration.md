@@ -58,7 +58,7 @@ the final PR.
       confirmation, before M1 starts. Three open questions are listed in the ADR
       (TTL length, schema, per-language documents), and the on-hosting spike
       run #777 asks for.
-- [ ] **M1 — Registrations module and the sealed pending store**
+- [x] **M1 — Registrations module and the sealed pending store**
       ([#778](https://github.com/dgloeckner/clubbar/issues/778)).
       Migration `059` (+ rollback) for both tables. `POST /api/public/registrations`
       and the context endpoint: secret in the body, uniform refusal, disabled
@@ -69,20 +69,51 @@ the final PR.
       The enable gate has two conditions, not one: a poster secret and the
       configured club document URL, the second refused with a typed
       `document_url_missing`.
-      *Verified by*: unit tests for the gate, the validator and the purge;
-      `e2etests/tests/api/self-registration.spec.ts` for the three availability
-      answers, the silent duplicate, and a submission that stores ciphertext and
-      no plaintext.
-- [ ] **M2 — Admin review endpoints**
+      *Verified*: PR [#787](https://github.com/dgloeckner/clubbar/pull/787).
+      Unit tests for the gate, the validator, the meters and the purge;
+      `e2etests/tests/api/self-registration.spec.ts` green for the three
+      availability answers, the silent duplicate, and a submission that stores
+      ciphertext and no plaintext.
+      *Two things the tests found that reading did not.* The accepted-submission
+      meter was calibrated for a login form and would have refused the sixth
+      person at a signup evening — everyone scanning a clubhouse poster is
+      behind one NAT address — so it is now 60/hour with the refusal meter left
+      tight at 10/15 min. And enabling by a direct row write, which is what a
+      restore does, got past the enable gate with no document URL: the service
+      fails closed on that too, not only the admin write path.
+      *One acceptance criterion could not be met as written.* #778 asks for the
+      public route to be classified `public` in `RouteRoleMap`; adding it fails
+      `RouteRoleMapCompletenessTest::test_the_map_classifies_nothing_outside_the_session_groups`,
+      because that map governs `/api/admin/*` and `/api/auth/*` only. The gate is
+      documented where the route is registered instead, and the existing test
+      stands as the proof the map claims nothing about it.
+- [x] **M2 — Admin review endpoints**
       ([#779](https://github.com/dgloeckner/clubbar/issues/779)).
       List (with duplicate flags by `email` and `iban_fingerprint`, and days to
       purge), edit-before-approve, approve, reject. `[ADMIN, KASSENWART]` in
       `RouteRoleMap`. Approve copies the ciphertext **verbatim** and carries the
       reference across; reject deletes at once. Audit rows for both, masked IBAN
       only.
-      *Verified by*: `RouteRoleMapCompletenessTest`; a role test proving a
-      Getränkewart gets 403 on every route here; an API test proving approval
-      produces exactly what UC-A11 produces.
+      *Verified*: PR [#788](https://github.com/dgloeckner/clubbar/pull/788).
+      Unit suite 2775 green (18 service specs, 19 controller specs, 8 repository
+      specs); `RegistrationApprovalTest` against MariaDB for atomicity, for the
+      copied ciphertext still opening to the submitted IBAN, and for a pending
+      registration never reaching the terminal sync; 24 API specs green
+      including the Kassenwart working the whole queue and the Getränkewart
+      getting 403 on every route.
+      *Design note.* The plaintext is gone by approval time, so the sealed
+      quartet is copied verbatim — key id included, because relabelling the
+      ciphertext with today's active key would produce a mandate nobody could
+      collect on. `MembersRepository::createFromSealedMandate()` is the one
+      write path in that class that never sees a plaintext IBAN.
+      *Two silent failures closed.* `members.email` has no UNIQUE constraint, so
+      approving a colliding address would have created a second member record
+      for one person, found at the next settlement when both got a statement —
+      now a typed refusal. And `audit_log.action` is a MariaDB ENUM while the
+      approval audits *inside* its own transaction, so a case added without a
+      migration reads as "approving is broken", against a real database only;
+      `AuditActionSchemaTest` reads the migrations as text and fails in 0.2s
+      naming the missing values.
 - [ ] **M3 — Fill the club's document, and keep every page**
       ([#780](https://github.com/dgloeckner/clubbar/issues/780)).
       Port the spike ([#786](https://github.com/dgloeckner/clubbar/pull/786)):
