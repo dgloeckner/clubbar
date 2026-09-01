@@ -191,19 +191,33 @@ class RouteRoleMapTest extends TestCase
         $this->assertFalse(RouteRoleMap::permits($wart, 'GET', '/api/admin/sepa-config'));
     }
 
-    /** The one surface all three offices share. */
+    /** The sales figures are the one surface all three offices share. */
     public function test_every_role_reads_the_reports(): void
     {
         foreach (AdminRole::cases() as $role) {
-            $this->assertTrue(
-                RouteRoleMap::permits([$role], 'GET', '/api/admin/reports/terminal-activity'),
-                $role->value . ' must reach terminal activity',
-            );
             $this->assertTrue(
                 RouteRoleMap::permits([$role], 'GET', '/api/admin/reports/{reportType}'),
                 $role->value . ' must reach the reports',
             );
         }
+    }
+
+    /**
+     * Terminal activity is not one of them. Its rows are till sessions and
+     * per-terminal takings — a cash-handling question rather than a drinks
+     * one — so it follows the treasury and not the reports route beside it.
+     */
+    public function test_terminal_activity_is_treasury_work(): void
+    {
+        $this->assertTrue(
+            RouteRoleMap::permits([AdminRole::ADMIN], 'GET', '/api/admin/reports/terminal-activity'),
+        );
+        $this->assertTrue(
+            RouteRoleMap::permits([AdminRole::KASSENWART], 'GET', '/api/admin/reports/terminal-activity'),
+        );
+        $this->assertFalse(
+            RouteRoleMap::permits([AdminRole::GETRAENKEWART], 'GET', '/api/admin/reports/terminal-activity'),
+        );
     }
 
     /**

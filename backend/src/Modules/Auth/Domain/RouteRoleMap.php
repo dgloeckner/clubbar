@@ -268,11 +268,20 @@ final class RouteRoleMap
         'GET /api/admin/notifications' => self::TREASURY,
         'POST /api/admin/notifications/{id}/retry' => self::TREASURY,
 
-        // ── reports: the one surface all three offices share ─────────────
+        // ── reports: the sales figures are shared, the till is not ───────
         // `group_by` is further restricted for `getraenkewart` by an
         // allow-list inside the controller (#515) — the one boundary in this
         // design that lands on a parameter rather than a route.
-        'GET /api/admin/reports/terminal-activity' => self::EVERY_ROLE,
+        //
+        // Terminal activity is the exception, and it is TREASURY. The report
+        // is not a drinks report: its rows are till *sessions* — when a till
+        // opened, when it closed, how many sales it took and how much money
+        // went through it — plus the same figures per terminal. That is a
+        // cash-handling question, which is the office that reconciles the
+        // takings. Every other view of terminal state is `admin`-only for a
+        // related reason, so the bar office reading a per-terminal revenue
+        // ledger was the odd row out.
+        'GET /api/admin/reports/terminal-activity' => self::TREASURY,
         'GET /api/admin/reports/{reportType}' => self::EVERY_ROLE,
 
         // ── bank lookup: resolving an IBAN's institute is treasury work ───

@@ -195,6 +195,66 @@ test.describe('Role-aware navigation', () => {
     expect(await settings.getVisibleTabTestIds()).toEqual(['settings-tab-limits'])
   })
 
+  /**
+   * The same move on `/reports` (#519 follow-up). The section stays open to all
+   * three offices — the drinks figures are what the bar office runs on — so the
+   * boundary lives on the tabs: terminal activity is till sessions and
+   * per-terminal takings, which is the treasurer's reconciliation and not the
+   * stock manager's. The tab is absent rather than present and answering 403.
+   */
+  test('a Getränkewart opening Reports finds the sales figures and no terminal activity', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    const { email, password } = await createIsolatedAdmin(playwright, 'role-bar-reports', [
+      'getraenkewart',
+    ])
+    await signInAndEnroll(loginPage, page, email, password, '/products')
+
+    await page.goto('/reports')
+    await expect(page.locator('[data-testid="reports-page"]')).toBeVisible()
+
+    const tabs = await page
+      .locator('[data-testid^="report-tab-"]')
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-testid') ?? ''))
+
+    expect(tabs).toEqual(['report-tab-revenue', 'report-tab-consumption'])
+
+    // Not merely hidden behind a scroll container: the tab is not rendered, and
+    // the panel it opens is not on screen either.
+    await expect(page.locator('[data-testid="report-tab-terminal-activity"]')).toHaveCount(0)
+    await expect(page.locator('[data-testid="terminal-sessions"]')).toHaveCount(0)
+    await new MainLayoutPage(page).expectNoInsufficientRoleScreen()
+  })
+
+  /**
+   * The other side of the same grant, end to end: the treasurer opens the tab
+   * and the server answers it. A hidden tab proves nothing on its own — this is
+   * what shows the boundary landed on the right office.
+   */
+  test('a Kassenwart opening Reports still reads terminal activity', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    const { email, password } = await createIsolatedAdmin(playwright, 'role-treasury-reports', [
+      'kassenwart',
+    ])
+    await signInAndEnroll(loginPage, page, email, password)
+
+    await page.goto('/reports')
+    await expect(page.locator('[data-testid="reports-page"]')).toBeVisible()
+
+    const activity = page.waitForResponse(
+      (resp) => resp.url().includes('/reports/terminal-activity') && resp.status() === 200,
+    )
+    await page.locator('[data-testid="report-tab-terminal-activity"]').click()
+    await activity
+
+    await expect(page.locator('[data-testid="terminal-sessions"]')).toBeVisible({ timeout: 15000 })
+  })
+
 
   /**
    * Grants are additive (ADR-0044 rule 2). Somebody covering both lesser

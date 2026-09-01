@@ -130,7 +130,7 @@ class RoleEnforcementHttpTest extends HttpTestCase
 
         $this->assertNotRefused('GET', '/api/admin/products');
         $this->assertNotRefused('GET', '/api/admin/categories');
-        $this->assertNotRefused('GET', '/api/admin/reports/terminal-activity');
+        $this->assertNotRefused('GET', '/api/admin/reports/revenue');
     }
 
     public function test_a_getraenkewart_reaches_no_member_or_money_surface(): void
@@ -145,6 +145,9 @@ class RoleEnforcementHttpTest extends HttpTestCase
             '/api/admin/transactions',
             '/api/admin/sepa-config',
             '/api/admin/bank-lookup',
+            // The till's own ledger: session takings and per-terminal revenue.
+            // The sales figures beside it stay open — this row is the money.
+            '/api/admin/reports/terminal-activity',
         ] as $path) {
             $this->assertRefused('GET', $path);
         }

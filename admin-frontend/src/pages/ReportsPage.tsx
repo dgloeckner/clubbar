@@ -5,7 +5,7 @@
  * Implements UC-A50, UC-A52
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '../components/layout/PageHeader'
 import {
@@ -21,6 +21,8 @@ import { getReports } from '../api/generated/reports/reports'
 import type { GetReportGroupBy } from '../api/generated'
 import { toIsoDate } from '../utils/dates'
 import { reportDimensionLabel } from '../utils/reportDimensions'
+import { useAuth } from '../context/AuthContext'
+import { reportTabsFor, firstReportTab } from '../utils/adminRoles'
 
 // ─── Local Types (UI-facing, mapped from generated API types) ─────────────────
 
@@ -404,7 +406,24 @@ export function ReportsPage() {
   const reportRequest = useLatestRequest()
   const terminalRequest = useLatestRequest()
 
+  // Which tabs this office may open (#519 follow-up). Hiding a tab is not
+  // enforcement — the server refuses `/reports/terminal-activity` for anyone
+  // outside the treasury on its own — but it is what keeps a Getränkewart from
+  // being shown a door that answers 403.
+  const { roles } = useAuth()
+  const visibleTabs = useMemo(() => reportTabsFor(roles) as TabId[], [roles])
+
   const [activeTab, setActiveTab] = useState<TabId>('revenue')
+
+  // The correction when the roles arrive after first paint, or when a role
+  // change takes the open tab away: leaving it selected would render a panel
+  // whose request the server refuses.
+  useEffect(() => {
+    if (visibleTabs.length === 0) return
+    if (!visibleTabs.includes(activeTab)) {
+      setActiveTab((firstReportTab(roles) as TabId) ?? 'revenue')
+    }
+  }, [visibleTabs, activeTab, roles])
 
   // ── Date range shared across most tabs ──
   const defaultRange = defaultDateRange()
@@ -468,7 +487,7 @@ export function ReportsPage() {
       loadReport()
       return () => reportRequest.abort()
     }
-    if (activeTab === 'terminal-activity') {
+    if (activeTab === 'terminal-activity' && visibleTabs.includes('terminal-activity')) {
       loadTerminalActivity()
       return () => terminalRequest.abort()
     }
@@ -1007,32 +1026,40 @@ export function ReportsPage() {
           ...(isMobile ? { WebkitOverflowScrolling: 'touch' as any } : {}),
         }}
       >
-        <button
-          data-testid="report-tab-revenue"
-          onClick={() => setActiveTab('revenue')}
-          style={tabStyle('revenue')}
-        >
-          {t('reports.tabRevenue')}
-        </button>
-        <button
-          data-testid="report-tab-consumption"
-          onClick={() => setActiveTab('consumption')}
-          style={tabStyle('consumption')}
-        >
-          {t('reports.tabConsumption')}
-        </button>
-        <button
-          data-testid="report-tab-terminal-activity"
-          onClick={() => setActiveTab('terminal-activity')}
-          style={tabStyle('terminal-activity')}
-        >
-          {t('reports.tabTerminalActivity')}
-        </button>
+        {visibleTabs.includes('revenue') && (
+          <button
+            data-testid="report-tab-revenue"
+            onClick={() => setActiveTab('revenue')}
+            style={tabStyle('revenue')}
+          >
+            {t('reports.tabRevenue')}
+          </button>
+        )}
+        {visibleTabs.includes('consumption') && (
+          <button
+            data-testid="report-tab-consumption"
+            onClick={() => setActiveTab('consumption')}
+            style={tabStyle('consumption')}
+          >
+            {t('reports.tabConsumption')}
+          </button>
+        )}
+        {visibleTabs.includes('terminal-activity') && (
+          <button
+            data-testid="report-tab-terminal-activity"
+            onClick={() => setActiveTab('terminal-activity')}
+            style={tabStyle('terminal-activity')}
+          >
+            {t('reports.tabTerminalActivity')}
+          </button>
+        )}
       </div>
 
       {/* Tab Content */}
       {(activeTab === 'revenue' || activeTab === 'consumption') && renderStandardReport()}
-      {activeTab === 'terminal-activity' && renderTerminalActivity()}
+      {activeTab === 'terminal-activity' &&
+        visibleTabs.includes('terminal-activity') &&
+        renderTerminalActivity()}
     </div>
   )
 }
