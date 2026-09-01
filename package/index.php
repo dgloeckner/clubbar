@@ -37,6 +37,24 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 if (str_starts_with($path, '/api/')) {
     $app = require __DIR__ . '/backend/bootstrap.php';
     $app->run();
+} elseif ($path === '/register' || $path === '/register/') {
+    // The public self-registration page (ADR-0052 decision 11, #781), served
+    // from its own directory rather than by the SPA.
+    //
+    // `.htaccess` rewrites this path to the file directly and normally gets
+    // here first; this branch is the belt for a request that reaches the front
+    // controller anyway. Without it the fallback below answers with the admin
+    // panel, so a member scanning the club's QR poster is shown a login form
+    // (#796) — which is a refusal they cannot act on, and one the club only
+    // finds out about from the member.
+    $registerIndex = __DIR__ . '/register/index.html';
+    if (is_file($registerIndex)) {
+        header('Content-Type: text/html; charset=utf-8');
+        readfile($registerIndex);
+    } else {
+        http_response_code(404);
+        echo 'Registration page not found. Check that register/index.html exists.';
+    }
 } else {
     // Fallback — serve SPA for client-side routing
     $spaIndex = __DIR__ . '/spa.html';

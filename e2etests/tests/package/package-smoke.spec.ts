@@ -634,6 +634,70 @@ test.describe('Package: SPA serving', () => {
   });
 });
 
+/**
+ * The public self-registration page, in the layout an installed release
+ * actually has (ADR-0052 decision 11, #781, #796).
+ *
+ * These are the tests that would have caught the shipped bug. In the docker
+ * layout the document root *is* `backend/public`, so `/register` resolves for
+ * free and every other suite that touches it — the `register` project included
+ * — proves nothing about the package: the build script did not copy the
+ * directory, `.htaccess` has no rule for a path that is a directory rather
+ * than a file, and the front controller answers `spa.html` for anything that
+ * is not `/api/`. A member scanning the club's QR poster got the admin login
+ * form, and the club's only signal was the member saying so.
+ *
+ * Asserted against Apache with the shipped `.htaccess`, which is the whole
+ * point — the rewrite ordering is what was wrong, and no unit test can see it.
+ */
+test.describe('Package: self-registration page', () => {
+  test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
+
+  test('/register serves the onboarding page, not the admin SPA', async ({ request }) => {
+    const response = await request.get(`${PACKAGE_URL}/register`);
+    expect(response.ok()).toBeTruthy();
+
+    const html = await response.text();
+    expect(html).toContain('data-testid="register-app"');
+    // The failure this guards is not "404" — it is "200, wrong page".
+    expect(html).not.toContain('<div id="root">');
+  });
+
+  test('/register/ with the trailing slash serves it too', async ({ request }) => {
+    const response = await request.get(`${PACKAGE_URL}/register/`);
+    expect(response.ok()).toBeTruthy();
+
+    const html = await response.text();
+    expect(html).toContain('data-testid="register-app"');
+    expect(html).not.toContain('<div id="root">');
+  });
+
+  test('its stylesheet and script are served from the same directory', async ({ request }) => {
+    // Relative hrefs in the page, so a rewrite that served the HTML from
+    // somewhere else would leave an unstyled, inert form rather than an error.
+    const css = await request.get(`${PACKAGE_URL}/register/register.css`);
+    expect(css.ok()).toBeTruthy();
+    expect(css.headers()['content-type']).toContain('text/css');
+
+    const js = await request.get(`${PACKAGE_URL}/register/register.js`);
+    expect(js.ok()).toBeTruthy();
+    expect(await js.text()).toContain('/api/public/registrations');
+  });
+
+  test('the public submission endpoint is reachable through the front controller', async ({
+    request,
+  }) => {
+    // Uniform refusal, no detail (ADR-0052 decision 2) — what matters here is
+    // that the route exists in the packaged layout at all, and that it is not
+    // the SPA shell answering 200 to a POST.
+    const response = await request.post(`${PACKAGE_URL}/api/public/registrations/context`, {
+      data: { secret: 'not-a-real-poster-secret' },
+    });
+    expect(response.status()).toBeGreaterThanOrEqual(400);
+    expect(response.headers()['content-type']).toContain('application/json');
+  });
+});
+
 test.describe.serial('Package: Upgrade Runner', () => {
   test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
 

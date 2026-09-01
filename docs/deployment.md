@@ -36,6 +36,37 @@ The installer guides you through five steps:
 > rm install.php
 > ```
 
+### The Self-Registration Page
+
+The public onboarding page a member reaches by scanning the club's QR poster
+(ADR-0052) is part of the same installation — three static files in
+`register/`, beside `index.php` and `spa.html`. There is nothing to deploy
+separately and no second origin: the page calls `/api/public/registrations` on
+the site it was served from.
+
+The release did not always carry it. A package built before this fix has no
+`register/` directory, so `/register` fell through to the front controller and
+answered with the admin panel — a member scanning the poster was shown a
+**login form**, at HTTP 200, with nothing logged anywhere. Upgrading fixes it:
+the upgrade extracts the whole package, so the directory and the `.htaccess`
+rule that routes to it arrive together.
+
+Check it from outside, on a fresh browser or with `curl` — the poster secret is
+not needed, and must not be typed into a shell in any case, because the page
+reads it from the URL fragment:
+
+```bash
+curl -sL https://your-club.example/register/ | grep -c 'register-app'   # 1
+```
+
+`0` means the SPA is answering that path and the club's posters lead to a login
+form. `/register` without the trailing slash redirects to `/register/`, which
+is normal — the fragment carrying the secret survives the redirect.
+
+Self-registration stays switched off until an admin configures it (Settings →
+Security & Credentials → Self-Registration); serving this page changes nothing
+on its own.
+
 ---
 
 ## Security Hardening
