@@ -1,6 +1,37 @@
-# CocoaPods files for the (unused) Flutter macOS build target are the only
-# Ruby content in this repository. Without this, GitHub's language detection
-# counts the repo as containing Ruby, which makes CodeQL's default setup
-# auto-enable a Ruby scan that then fails with "No Ruby code found".
+# Flutter's desktop-embedding scaffolding, hidden from GitHub's language
+# detection.
+#
+# `flutter create` writes terminal-frontend/linux/ and terminal-frontend/macos/
+# and nothing here has touched them since; the terminal's own logic is Dart
+# under terminal-frontend/lib/. CI builds the Linux target only
+# (`flutter build linux --release` in build.yaml) — the macOS target has never
+# been built by anything.
+#
+# That scaffolding is nonetheless the only Ruby, Swift and C/C++ in the
+# repository, and GitHub counts it. CodeQL's *default* setup picks its
+# languages from that count, so each of these files is a lane that can switch
+# itself on and then fail: Ruby did exactly that (#722, "No Ruby code found"),
+# and Swift and C/C++ are the same trap one language over — both would also
+# demand a build (Swift needs a macos-latest runner and autobuild) for code
+# that carries no first-party logic to find.
+#
+# codeql.yml states these exclusions in prose, but prose only binds the
+# *advanced* workflow. This file is what makes them true for anything that
+# asks GitHub what languages this repository contains.
+#
+# `linguist-detectable=false` rather than `linguist-generated`: these files
+# stay visible in diffs, because a reviewer who does touch the scaffolding
+# should still see what changed.
+
+# Ruby — CocoaPods (#722).
 terminal-frontend/macos/Podfile linguist-detectable=false
 terminal-frontend/macos/Podfile.lock linguist-generated=true
+
+# Swift — the macOS Runner: AppDelegate, MainFlutterWindow, the generated
+# plugin registrant and the stub test case.
+terminal-frontend/macos/**/*.swift linguist-detectable=false
+
+# C/C++ — the Linux runner: main.cc, my_application.cc/.h and the generated
+# plugin registrant.
+terminal-frontend/linux/**/*.cc linguist-detectable=false
+terminal-frontend/linux/**/*.h linguist-detectable=false

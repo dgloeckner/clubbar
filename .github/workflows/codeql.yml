@@ -25,6 +25,18 @@ on:
   schedule:
     - cron: '34 11 * * 3'
 
+# Nothing at workflow level; each job asks for exactly what it needs, as
+# build.yaml and osv-scanner.yaml already do.
+permissions: {}
+
+# Superseded runs on the same branch are pointless — cancel them, the same way
+# build.yaml does and for the same reason. main is exempt: its result is the
+# alert set shown in the Security tab, and cancelling that halfway leaves the
+# branch's findings stale rather than merely re-computed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
@@ -53,12 +65,17 @@ jobs:
         # ("could not process any code written in Python"), so an empty lane is
         # a red build, not a clean one. Restore this entry if Python returns.
     steps:
+    # Every `uses:` below is pinned to a commit SHA, not a floating major tag.
+    # This file arrived from GitHub's template after #646/#647 had already
+    # SHA-pinned the rest of the repository, so it was the only workflow left
+    # resolving a tag at run time — and a tag is mutable by whoever owns it.
+    # Dependabot's github-actions ecosystem keeps these current.
     - name: Checkout repository
-      uses: actions/checkout@v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4
+      uses: github/codeql-action/init@a35ac6e6798d72df5475948b28efb89edc2e19ca # v4.37.9
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
@@ -69,6 +86,6 @@ jobs:
         queries: security-extended
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v4
+      uses: github/codeql-action/analyze@a35ac6e6798d72df5475948b28efb89edc2e19ca # v4.37.9
       with:
         category: "/language:${{matrix.language}}"
