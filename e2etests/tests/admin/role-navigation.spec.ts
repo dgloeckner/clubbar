@@ -129,6 +129,9 @@ test.describe('Role-aware navigation', () => {
     expect(nav).toEqual([
       'nav-dashboard',
       'nav-members',
+      // The self-registration inbox (#782): member management arriving by a
+      // different door, so the same office works it.
+      'nav-registrations',
       'nav-journal',
       'nav-settlements',
       'nav-reports',
@@ -138,6 +141,31 @@ test.describe('Role-aware navigation', () => {
 
     await page.goto('/audit-log')
     await layout.expectInsufficientRoleScreen()
+  })
+
+  /**
+   * The registrations inbox carries the same names, birth dates and bank
+   * details as the members roster — it is member management arriving by a
+   * different door — so a Getränkewart is outside it for exactly the reason
+   * they are outside `/members`. Hidden navigation is not enforcement, so the
+   * bookmark case is asserted too.
+   */
+  test('a Getränkewart cannot reach the registrations inbox', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    const { email, password } = await createIsolatedAdmin(playwright, 'role-bar-reg', ['getraenkewart'])
+    await signInAndEnroll(loginPage, page, email, password, '/products')
+
+    const layout = new MainLayoutPage(page)
+    expect(await layout.getVisibleNavTestIds()).not.toContain('nav-registrations')
+
+    await page.goto('/registrations')
+    await layout.expectInsufficientRoleScreen()
+
+    // And the queue itself is not behind the refusal.
+    await expect(page.locator('[data-testid="registrations-page"]')).toBeHidden()
   })
 
   /**
@@ -239,6 +267,7 @@ test.describe('Role-aware navigation', () => {
     expect(nav).toEqual([
       'nav-dashboard',
       'nav-members',
+      'nav-registrations',
       'nav-products',
       'nav-journal',
       'nav-settlements',

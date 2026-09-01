@@ -90,6 +90,27 @@ erDiagram
         boolean is_active "VIRTUAL: active_member_id IS NOT NULL"
     }
 
+    pending_registrations {
+        char_36 id PK "UUID; not a member id"
+        varchar_100 first_name "NOT NULL; never anonymised, only deleted"
+        varchar_100 last_name "NOT NULL"
+        varchar_255 email "NOT NULL; unverified"
+        varchar_20 phone "Optional"
+        date date_of_birth "NOT NULL; Jugendschutz + minor signature line"
+        varchar_10 preferred_language "ISO 639-1"
+        varchar_70 account_holder_name "Kontoinhaber case (nullable)"
+        varchar_35 mandate_reference UK "Minted at submission (ADR-0006 format)"
+        varbinary_512 iban_ciphertext "Sealed IBAN; exactly the mandates shape"
+        char_4 iban_last4 "Last four, for display"
+        char_64 iban_fingerprint "Duplicate flag at review"
+        char_36 encryption_key_id FK "Key generation sealed under"
+        varchar_255 bank_name "Resolved from the BLZ at submission"
+        varchar_500 privacy_notice_url "URL of the club's Art. 13 notice, as shown"
+        datetime privacy_notice_shown_at "When the page carrying the link was submitted"
+        datetime submitted_at "Submission time"
+        datetime expires_at "TTL purge deadline (drafted, #776)"
+    }
+
     encryption_keys {
         binary_16 id PK "UUID"
         varchar_100 key_identifier UK "Human-readable label (e.g. 'club-2026')"
@@ -219,6 +240,8 @@ erDiagram
         varchar_70 creditor_address_street "Street address"
         varchar_70 creditor_address_city "City and postal code"
         varchar_2 creditor_address_country "ISO 3166-1 alpha-2"
+        varchar_100 payment_reference_prefix "Remittance line prefix"
+        varchar_255 mandate_template_url "Club's onboarding document (#360; linked and filled, ADR-0052)"
         binary_16 updated_by_admin_id FK "Who last modified"
         datetime created_at "Initial setup"
         datetime updated_at "Last modification"
@@ -240,6 +263,19 @@ erDiagram
         char_36 updated_by_admin_id FK "Who last modified"
         timestamp created_at "Initial configuration"
         timestamp updated_at "Last modification"
+    }
+
+    self_registration_config {
+        tinyint id PK "Single row (id=1)"
+        boolean enabled "Fails closed; DEFAULT FALSE"
+        varchar_500 disabled_reason "Member-facing text when switched off"
+        char_64 secret_hash "SHA-256 of the poster secret"
+        text secret_cipher "Sealed copy, for reprinting without rotating"
+        datetime secret_rotated_at "When last (re)generated"
+        smallint retention_days "pending_registrations TTL; DEFAULT 30"
+        char_36 updated_by_admin_id FK "Who last modified"
+        datetime created_at "Initial configuration (drafted, #776)"
+        datetime updated_at "Last modification"
     }
 
     audit_log {
@@ -274,6 +310,7 @@ erDiagram
     members ||--o{ mandates : "grants"
     admin_users ||--o{ mandates : "records"
     encryption_keys ||--o{ mandates : "seals"
+    encryption_keys ||--o{ pending_registrations : "seals"
     admin_users ||--o{ settlements : "creates"
     admin_users ||--o{ settlements : "cancels"
     admin_users ||--o{ settlements : "submits"
@@ -283,6 +320,7 @@ erDiagram
     admin_users ||--o{ sepa_config : "modifies"
     admin_users ||--o{ instance_config : "modifies"
     admin_users ||--o{ credit_limit_config : "modifies"
+    admin_users ||--o{ self_registration_config : "modifies"
 
     bank_codes {
         char_8 bank_code PK "Bankleitzahl (BLZ)"
@@ -445,6 +483,64 @@ A mandate is **one record**, or the member has none. Rows are **append-only** �
 **No stored mandate document.** `document_id` and the `mandate_documents` table it pointed at existed for OCR prefill; migration `023` dropped both ([ADR-0037](../adr/0037-mandate-documents-not-retained.md)). Extraction from a scan is still available (stateless — nothing written to disk or database), but the signed paper original, archived by the treasurer outside the system, is now the Beleg rather than a stored copy of it.
 
 **Beleg-bearing** — `reference`, `iban_ciphertext` and `signed_at` survive a GDPR erasure request under [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md). Do not null them on anonymisation; the current code does, and that is a bug. The ciphertext is retained rather than the plaintext, which is the point: the record survives without the club being able to read it day to day.
+
+---
+
+### pending_registrations
+
+A member's own submission, sealed and parked behind a URL secret until an
+admin holding the signed paper approves or rejects it. Not a member, and not
+the retention tier either — every exit deletes the row outright rather than
+anonymising it ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)).
+
+**Drafted for [#776](https://github.com/dgloeckner/clubbar/issues/776), not
+yet migrated** — migration `059` lands with the backend issue and needs the
+owner's confirmation of this schema first.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | CHAR(36) | PK | UUID identifying the registration itself — never a member id. `CHAR(36)`, matching what `001_initial_schema.sql` and every migration since actually create; the `BINARY(16)` this document claims for older tables is a documentation error, not the shipped schema |
+| first_name | VARCHAR(100) | NOT NULL | First name, as submitted. **NOT NULL is the opposite of `members.first_name`**, which is nullable only so GDPR erasure can empty it in place. Nothing here is ever anonymised: the whole row is deleted at approval, rejection or TTL purge, so there is nothing to empty (ADR-0052 decision 10) |
+| last_name | VARCHAR(100) | NOT NULL | Last name, as submitted — same NOT NULL reasoning as `first_name` |
+| email | VARCHAR(255) | NOT NULL | Contact email, as submitted. Unverified — no confirmation mail is sent at submission (ADR-0052 decision 9) — and a match against an existing member is disclosed only at admin review, never at submission (no enumeration) |
+| phone | VARCHAR(20) | NULL | Contact phone number, as submitted |
+| date_of_birth | DATE | NOT NULL | Date of birth. Drives the Jugendschutz check once the member exists ([ADR-0045](../adr/0045-age-restricted-products.md)), and the legal-representative signature line the printed mandate carries when the applicant is a minor (ADR-0052 decision 7) |
+| preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code; carried into `members.preferred_language` unchanged at approval |
+| account_holder_name | VARCHAR(70) | NULL | The Kontoinhaber case — set when whoever signs the mandate is not the applicant, e.g. a parent paying for a child. When set, the printed mandate's signature block names the account holder, not the member (ADR-0052 decision 7). No separate Kontoinhaber entity is modelled; a name is all the payment needs |
+| mandate_reference | VARCHAR(35) | UNIQUE, NOT NULL | SEPA mandate ID (UMR), minted at submission from this row's own UUID in [ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md)'s format — before approval, because the reference has to be printed on the paper the member signs (ADR-0052 decision 4). Carried into `mandates.reference` unchanged at approval; a rejected or purged registration takes its reference with it |
+| iban_ciphertext | VARBINARY(512) | NOT NULL | The IBAN, sealed under the club's active public key — **exactly the `mandates` column shape**: same sealed box, same key generation, same fingerprint. [ADR-0036](../adr/0036-iban-encryption-sealed-box.md) gets no exception for the pending state. Moved verbatim into `mandates.iban_ciphertext` at approval; the server never opens it, at submission or at approval, because it cannot |
+| iban_last4 | CHAR(4) | NOT NULL | Last four characters, in the clear — the duplicate flag at review and the printed `****3000` hint on the admin-print mandate variant |
+| iban_fingerprint | CHAR(64) | NOT NULL | Keyed BLAKE2b of the normalized IBAN, hex — how the review list flags a match against an existing member's `mandates` row, answerable without a key (ADR-0052 decision 9) |
+| encryption_key_id | CHAR(36) | FK → encryption_keys.id, NOT NULL | Which key generation this row is sealed under — what lets approval move the ciphertext into `mandates` without a second lookup to decide the attribution |
+| bank_name | VARCHAR(255) | NULL | Resolved from the BLZ at submission — the last moment the plaintext IBAN exists |
+| privacy_notice_url | VARCHAR(500) | NOT NULL | The **exact URL** of the club's document that was shown, copied from `sepa_config.mandate_template_url` at submission. Its Datenschutzhinweise are pages 2+ of that same file (ADR-0052 decision 6). Club Bar neither hosts nor authors it — the link is displayed and the member navigates to it — so the URL displayed is the most this row can honestly record; a club wanting versioning puts it in the URL |
+| privacy_notice_shown_at | DATETIME | NOT NULL | When the page carrying that link was submitted. Paired with `privacy_notice_url` — a timestamp with no record of *what* was pointed at proves nothing once the club republishes. **Not an acknowledgement**: there is no checkbox (ADR-0052 decision 6), because Art. 13 is a duty to inform and a box declaring the notice was read edges toward a consent for processing that rests on Art. 6(1)(b) |
+| submitted_at | DATETIME | NOT NULL | When the registration was submitted |
+| expires_at | DATETIME | NOT NULL | TTL purge deadline — `submitted_at` + the club's `self_registration_config.retention_days` (default 30). The `bin/cron.php` tick deletes rows past this and logs a **count**, never identities (ADR-0052 decision 10) |
+
+**Indexes:**
+- `mandate_reference` (UNIQUE)
+- `expires_at` — the purge scan
+- `email` — the duplicate flag at review
+- `iban_fingerprint` — the duplicate flag at review, answerable without a key
+
+**Not a member.** No FK to `members`. `GET /api/sync/members` cannot return a pending registration by construction, not by filter — there is no row for any terminal to have ever synced ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)).
+
+**Same sealing as `mandates`, no exception.** [ADR-0036](../adr/0036-iban-encryption-sealed-box.md) applies here exactly as it does to `mandates` — the ciphertext moves verbatim at approval and is never re-sealed and never opened.
+
+**Not Beleg-bearing.** Unlike `mandates`, [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md) does not attach: no money has moved and no contract has been performed, so none of ADR-0029's ten-year accounting retention applies. The row is **deleted**, never restricted.
+
+**No template is stored, here or anywhere.** The onboarding document is rendered
+by filling page 1 of the club's own WeasyPrint-built PDF and appending its
+remaining pages unchanged; the pointer to it is
+`sepa_config.mandate_template_url` — the column [#360](https://github.com/dgloeckner/clubbar/issues/360)
+already added for exactly this artifact. Club Bar keeps no copy: the backup dumper
+walks `information_schema.TABLES` only ([ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md)),
+so a file under `backend/storage/` would survive an upgrade and vanish on restore,
+while a row claiming it was pinned came back. See [ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)
+decision 5a.
+
+**Deleted three ways, never updated in place:** approval moves the ciphertext and reference into `members`/`mandates` and deletes the row; rejection deletes it immediately, with the audit entry recording the act, the reason and the IBAN masked ([ADR-0005](../adr/0005-iban-storage-and-validation.md)); the TTL purge (`expires_at`) deletes it silently, logging only a count.
 
 ---
 
@@ -820,6 +916,8 @@ Organization-level SEPA Direct Debit configuration. Single-row table.
 | creditor_address_street | VARCHAR(70) | NOT NULL | Street address |
 | creditor_address_city | VARCHAR(70) | NOT NULL | City and postal code |
 | creditor_address_country | VARCHAR(2) | NOT NULL, DEFAULT 'DE' | ISO 3166-1 alpha-2 country code |
+| payment_reference_prefix | VARCHAR(100) | NULL | Prefix on the remittance line of a collection |
+| mandate_template_url | VARCHAR(255) | NULL | Where the club publishes its onboarding document (migration `028`, [#360](https://github.com/dgloeckner/clubbar/issues/360)) — *"a link, not a secret"*, nullable and historically unvalidated. The name predates the job: for FRGS this is the **combined four-page Anmeldung** (form page with the SEPA mandate and the Kenntnisnahme, then Datenschutzhinweise, then Nutzungsordnung). **Since [ADR-0052](../adr/0052-member-self-registration-via-qr-code.md) it has three consumers**: the admin panel links it, the public onboarding page links it to discharge Art. 13 before any data entry, and self-registration fetches it to fill page 1. One published file, one pointer, no copy stored. Saving it is therefore validated now (reachable, `https://`, required AcroForm fields present), which the earlier column was not |
 | updated_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who last modified |
 | created_at | DATETIME | NOT NULL | Initial configuration timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
@@ -859,6 +957,54 @@ What the club sets as the ceiling a member's Deckel may reach, and the share of 
 **Why the club default lives here and not on `/health`.** `/health` carries only what a terminal needs *before* it can authenticate; a spending ceiling is not that. And it cannot ride `/sync/members` either, which is a delta on `updated_at` — a club setting touches no member row, so a terminal that had already synced would never see the change. Hence its own authenticated `GET /api/sync/config`.
 
 **Reads and writes:** both verbs are TREASURY (admin + Kassenwart) in `RouteRoleMap`; the terminal reads the resolved policy through `/api/sync/config` with its bearer token.
+
+---
+
+### self_registration_config
+
+Whether the club's QR-code self-registration is open, and the poster secret
+that gates it ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)).
+Single-row table, same pattern as `sepa_config`, `instance_config` and
+`credit_limit_config`.
+
+**Drafted for [#776](https://github.com/dgloeckner/clubbar/issues/776), not
+yet migrated** — see [`pending_registrations`](#pending_registrations) above.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | TINYINT UNSIGNED | PK | Always 1 (single row) |
+| enabled | BOOLEAN | NOT NULL, DEFAULT FALSE | Fails closed: a fresh installation and a half-configured one both answer `registration_unavailable` rather than accepting registrations nobody is watching for (ADR-0052 decision 2) |
+| disabled_reason | VARCHAR(500) | NULL | Member-facing text shown when the secret is right but registration is switched off, e.g. *„Beta-Phase schon voll"* — a blank refusal to somebody standing at the poster is a bug report, not a UX choice (ADR-0052 decision 2) |
+| secret_hash | CHAR(64) | NULL | SHA-256 of the poster secret — the lookup key, so a database dump yields no working poster |
+| secret_cipher | TEXT | NULL | `SymmetricSecretBox` copy of the same secret, same reasoning as `admin_user_invitations.token_cipher`: it lets an admin **reprint** the poster without rotating and invalidating the one already on the clubhouse wall |
+| secret_rotated_at | DATETIME | NULL | When the secret was last (re)generated |
+| retention_days | SMALLINT UNSIGNED | NOT NULL, DEFAULT 30 | How long a `pending_registrations` row lives before the TTL purge deletes it |
+| updated_by_admin_id | CHAR(36) | FK → admin_users.id, NULL | Admin who last modified |
+| created_at | TIMESTAMP | NOT NULL | Initial configuration timestamp |
+| updated_at | TIMESTAMP | NOT NULL | Last modification timestamp |
+
+**Disabled until a secret exists — and until the club's Datenschutz URL does.**
+`enabled = FALSE` and `secret_hash = NULL` is the shipped state, and it is what
+`registration_unavailable` answers before any admin has ever rotated a secret.
+Switching `enabled` on requires *both* a `secret_hash` and a configured
+`sepa_config.mandate_template_url`; without the second the write is refused with a
+typed `document_url_missing`, never a silently disabled button (ADR-0052 decision
+6). Collecting a name, a birth date and an IBAN from somebody who was
+never told what happens to them is the failure this second condition exists to
+prevent.
+
+**The document URL lives elsewhere on purpose.** It is
+`sepa_config.mandate_template_url`, already there since #360, and one setting
+covers both jobs — the Art. 13 link on the public page and the source the fill
+reads — because the club's Datenschutzhinweise are pages 2+ of the very document
+being filled. It is not duplicated here; this table holds the switch and the
+secret.
+
+**Reads and writes:** minting or rotating the secret is `[ADMIN]` only — ADR-0044
+rule 2 territory, the same reasoning that makes terminal token rotation
+admin-only. The availability switch (`enabled`, `disabled_reason`) is `[ADMIN]` too — it sits
+on the Security & Credentials page beside the secret it depends on, and switching
+the feature on is what exposes the public write surface (ADR-0052 decision 8).
 
 ---
 
@@ -980,6 +1126,7 @@ flowchart TB
         SI[settlement_items]
         SR[settlement_reversals]
         MD[mandates]
+        PR[pending_registrations]
     end
 
     subgraph Admin["Administration"]
@@ -988,6 +1135,7 @@ flowchart TB
         SC[sepa_config]
         IC[instance_config]
         CL[credit_limit_config]
+        SRC[self_registration_config]
         EK[encryption_keys]
     end
 
@@ -1006,10 +1154,12 @@ flowchart TB
     M -->|"1:N"| MD
     AU -->|"1:N"| MD
     EK -->|"1:N"| MD
+    EK -->|"1:N"| PR
     AU -->|"1:N"| S
     AU -->|"1:N"| AL
     AU -->|"1:N"| SC
     AU -->|"1:N"| IC
+    AU -->|"1:N"| SRC
 
     M -.->|"audited"| AL
     P -.->|"audited"| AL
@@ -1042,8 +1192,11 @@ flowchart TB
 | members → mandates | 1:N | Member's mandate history (append-only; at most one active) |
 | admin_users → mandates | 1:N | Admin who recorded the mandate |
 | encryption_keys → mandates | 1:N | The key generation a mandate's IBAN is sealed under; what a rotation batch walks |
+| encryption_keys → pending_registrations | 1:N | The key generation a pending registration's IBAN is sealed under (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) |
 | admin_users → settlements | 1:N | Admin creates/cancels/submits settlements |
 | admin_users → audit_log | 1:N | Admin performs many audited actions |
+| admin_users → self_registration_config | 1:N | Admin who last modified the availability switch or rotated the poster secret (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) |
+| *(none)* pending_registrations → members | — | Deliberate absence: a pending registration is not a member, so no FK connects them ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)) |
 
 ---
 
@@ -1084,6 +1237,8 @@ flowchart TB
 | sepa_config | updated_by_admin_id | admin_users | SET NULL |
 | instance_config | updated_by_admin_id | admin_users | SET NULL |
 | credit_limit_config | updated_by_admin_id | admin_users | SET NULL |
+| pending_registrations | encryption_key_id | encryption_keys | RESTRICT (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) |
+| self_registration_config | updated_by_admin_id | admin_users | SET NULL (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) |
 
 ### Business Rules
 
@@ -1130,6 +1285,8 @@ When a member requests deletion (GDPR Art. 17):
 
 `iban` and `mandate_reference` no longer live on `members` at all — they moved to `mandates` in [#164](https://github.com/dgloeckner/clubbar/issues/164)/[#165](https://github.com/dgloeckner/clubbar/issues/165) and are **not** touched by member anonymization ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): both are Beleg-bearing, and nulling them would break matching a returned collection that arrives after the erasure request.
 
+`pending_registrations` (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) is **never anonymised** — there is no mapping for it in this section because approval, rejection and the TTL purge all delete the row outright ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)); anonymisation is a members-table operation on a person who has already joined.
+
 The outbox is the **second place a member's address lives**, and erasure covers it in the same transaction ([#408](https://github.com/dgloeckner/clubbar/issues/408)) — otherwise anonymisation clears `members.email` and leaves the same address sitting in a queue row:
 
 | Table.column | Before | After |
@@ -1151,6 +1308,7 @@ The outbox is the **second place a member's address lives**, and erasure covers 
 | settlement_announcements | 10 years (with the settlement) | § 147 AO; proof the Nutzungsordnung § 7 Abs. 3 announcement was made |
 | mail_outbox (`sent` rows) | 90 days from delivery, per kind | Operational tier — a delivered message has no reason to keep an address ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) |
 | mail_outbox (`pending`/`failed`/`superseded`) | Not pruned | A failed row is the record that somebody was **not** reached |
+| pending_registrations (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) | 30 days from submission by default (`self_registration_config.retention_days`, configurable), or immediately on reject | Not a Beleg — no money moved, no contract performed, so ADR-0029's ten-year tier does not attach ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)) |
 
 ---
 
@@ -1170,3 +1328,4 @@ The outbox is the **second place a member's address lives**, and erasure covers 
 - [ADR-0037: Mandate Documents Are Not Retained in the System](../adr/0037-mandate-documents-not-retained.md)
 - [ADR-0038: Transactional Mail Outbox on Shared Hosting](../adr/0038-transactional-mail-outbox-on-shared-hosting.md)
 - [ADR-0047: Configurable Credit Limits](../adr/0047-configurable-credit-limits.md)
+- [ADR-0052: Member Self-Registration via QR Code](../adr/0052-member-self-registration-via-qr-code.md) — **drafted**, awaiting owner confirmation of the schema below before migration `059` is written

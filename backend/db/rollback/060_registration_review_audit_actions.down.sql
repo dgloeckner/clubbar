@@ -1,0 +1,67 @@
+-- Undo 060: drop the three self-registration review actions.
+--
+-- Rows already carrying one of them would be truncated to '' by a plain MODIFY,
+-- so they are deleted first. That is safe here and only here: these entries can
+-- only exist if migration 060 had been applied, and rolling it back means the
+-- feature is being withdrawn. Any other audit row is untouched.
+
+DELETE FROM audit_log
+WHERE action IN ('registration_approved', 'registration_rejected', 'registration_edited');
+
+ALTER TABLE audit_log MODIFY COLUMN action ENUM(
+    'create',
+    'update',
+    'delete',
+    'anonymize',
+    'login',
+    'logout',
+    'login_failed',
+    'export',
+    'settlement_create',
+    'settlement_cancel',
+    'settlement_export',
+    'settlement_submit',
+    'settlement_reverse',
+    'transaction_storno',
+    'transaction_price_divergence',
+    'collection_hold_placed',
+    'collection_hold_cleared',
+    'activate',
+    'deactivate',
+    'reorder',
+    'totp_enrolled',
+    'totp_reset',
+    'mandate_document_upload',
+    'mandate_document_delete',
+    'terminal_repair',
+    'key_registered',
+    'key_activated',
+    'key_rotation_started',
+    'key_rotation_batch_completed',
+    'key_rotation_completed',
+    'key_retired',
+    'key_revoked',
+    'key_marked_compromised',
+    'sepa_export',
+    'iban_full_view',
+    'terminal_token_created',
+    'terminal_token_activated',
+    'terminal_token_rotated',
+    'terminal_token_revoked',
+    'terminal_token_expired',
+    'mail_enqueued',
+    'mail_superseded',
+    'mail_retried',
+    'mail_test_sent',
+    'terminal_anomaly_detected',
+    'terminal_anomaly_acknowledged',
+    'cron_secret_rotated',
+    'password_changed',
+    'email_changed',
+    'role_granted',
+    'role_revoked',
+    'jugendschutz_violation',
+    'jugendschutz_violation_acknowledged',
+    'invitation_sent',
+    'invitation_accepted'
+) NOT NULL;

@@ -7,6 +7,7 @@ namespace App;
 use App\Shared\Config\DataDirectory;
 use App\Shared\Config\AppConfig;
 use App\Shared\Config\Env;
+use App\Shared\Security\SymmetricSecretBox;
 use App\Shared\Logging\Logger;
 use App\Shared\Validation\Validator;
 
@@ -18,6 +19,19 @@ use App\Modules\Dashboard\Repositories\DashboardRepository;
 use App\Modules\Reports\Repositories\ReportsRepository;
 use App\Modules\Products\Repositories\CategoriesRepository;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Registrations\Controllers\AdminController as RegistrationsAdminController;
+use App\Modules\Registrations\Controllers\SelfRegistrationConfigController;
+use App\Modules\Registrations\Controllers\PublicController as RegistrationsPublicController;
+use App\Modules\Registrations\Repositories\RegistrationAttemptsRepository;
+use App\Modules\Registrations\Repositories\RegistrationsRepository;
+use App\Modules\Registrations\Repositories\SelfRegistrationConfigRepository;
+use App\Modules\Registrations\Documents\CurlTemplateFetcher;
+use App\Modules\Registrations\Documents\MandateDocumentFiller;
+use App\Modules\Registrations\Documents\MandateDocumentService;
+use App\Modules\Registrations\Documents\QrPosterService;
+use App\Modules\Registrations\Services\SelfRegistrationAdminService;
+use App\Modules\Registrations\Services\RegistrationReviewService;
+use App\Modules\Registrations\Services\RegistrationsService;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
@@ -214,6 +228,12 @@ class ServiceFactory implements ContainerInterface
         AdminUsersAdminController::class => 'getAdminUsersAdminController',
         InvitationController::class => 'getInvitationController',
 
+        // Registrations (ADR-0052) — the public onboarding surface, and the
+        // review inbox an admin empties it through
+        RegistrationsPublicController::class => 'getRegistrationsPublicController',
+        RegistrationsAdminController::class => 'getRegistrationsAdminController',
+        SelfRegistrationConfigController::class => 'getSelfRegistrationConfigController',
+
         // AuditLog
         AuditLogAdminController::class => 'getAuditLogAdminController',
         AuditLogService::class => 'getAuditLogService',
@@ -329,6 +349,124 @@ class ServiceFactory implements ContainerInterface
     public function getMailConfigRepository(): MailConfigRepository
     {
         return $this->resolve(MailConfigRepository::class, fn() => new MailConfigRepository($this->pdo, $this->logger));
+    }
+
+    // --- Registrations (ADR-0052) ---
+
+    public function getRegistrationsRepository(): RegistrationsRepository
+    {
+        return $this->resolve(RegistrationsRepository::class, fn() => new RegistrationsRepository($this->pdo));
+    }
+
+    public function getSelfRegistrationConfigRepository(): SelfRegistrationConfigRepository
+    {
+        return $this->resolve(
+            SelfRegistrationConfigRepository::class,
+            fn() => new SelfRegistrationConfigRepository($this->pdo),
+        );
+    }
+
+    public function getRegistrationAttemptsRepository(): RegistrationAttemptsRepository
+    {
+        return $this->resolve(
+            RegistrationAttemptsRepository::class,
+            fn() => new RegistrationAttemptsRepository($this->pdo),
+        );
+    }
+
+    public function getRegistrationsService(): RegistrationsService
+    {
+        return $this->resolve(RegistrationsService::class, fn() => new RegistrationsService(
+            $this->getRegistrationsRepository(),
+            $this->getSelfRegistrationConfigRepository(),
+            $this->getRegistrationAttemptsRepository(),
+            $this->getEncryptionKeysRepository(),
+            $this->getBankCodeService(),
+            $this->getSepaConfigRepository(),
+            $this->getIbanSealedBox(),
+            $this->logger,
+            $this->getMandateDocumentService(),
+        ));
+    }
+
+    /**
+     * The club's Anmeldung, fetched and filled per request (#780, ADR-0052).
+     *
+     * Nothing about it is cached — not the template and not the filled result.
+     * A pinned copy would survive an upgrade (`package/upgrade.php` preserves
+     * `backend/storage/`) and vanish on restore (the backup dumper walks
+     * `information_schema.TABLES` only, ADR-0049), leaving the row that claimed
+     * it was pinned pointing at nothing.
+     */
+    public function getMandateDocumentService(): MandateDocumentService
+    {
+        return $this->resolve(MandateDocumentService::class, fn() => new MandateDocumentService(
+            new CurlTemplateFetcher($this->logger),
+            new MandateDocumentFiller(),
+            $this->getSepaConfigRepository(),
+            $this->logger,
+        ));
+    }
+
+    public function getRegistrationsPublicController(): RegistrationsPublicController
+    {
+        return $this->resolve(RegistrationsPublicController::class, fn() => new RegistrationsPublicController(
+            $this->getRegistrationsService(),
+            $this->getValidator(),
+        ));
+    }
+
+    public function getRegistrationReviewService(): RegistrationReviewService
+    {
+        return $this->resolve(RegistrationReviewService::class, fn() => new RegistrationReviewService(
+            $this->getRegistrationsRepository(),
+            $this->getMembersRepository(),
+            $this->getAuditService(),
+            $this->getEncryptionKeysRepository(),
+            $this->getBankCodeService(),
+            $this->getIbanSealedBox(),
+            // The handle itself, not a repository: approval spans two tables in
+            // two modules and the audit log, and one transaction has to cover
+            // all three.
+            $this->pdo,
+            $this->logger,
+            $this->getMandateDocumentService(),
+        ));
+    }
+
+    public function getSelfRegistrationAdminService(): SelfRegistrationAdminService
+    {
+        return $this->resolve(SelfRegistrationAdminService::class, fn() => new SelfRegistrationAdminService(
+            $this->getSelfRegistrationConfigRepository(),
+            $this->getSepaConfigRepository(),
+            new CurlTemplateFetcher($this->logger),
+            new MandateDocumentFiller(),
+            // The same box and the same key an admin's TOTP secret uses: the
+            // poster secret is likewise something the server must be able to
+            // read back, to reprint a poster without rotating it.
+            new SymmetricSecretBox(Env::get('TOTP_ENCRYPTION_KEY'), 'TOTP_ENCRYPTION_KEY'),
+            $this->getAuditService(),
+            $this->logger,
+        ));
+    }
+
+    public function getSelfRegistrationConfigController(): SelfRegistrationConfigController
+    {
+        return $this->resolve(SelfRegistrationConfigController::class, fn() => new SelfRegistrationConfigController(
+            $this->getSelfRegistrationAdminService(),
+            new QrPosterService(),
+            $this->getInstanceConfigRepository(),
+            $this->config,
+            $this->getValidator(),
+        ));
+    }
+
+    public function getRegistrationsAdminController(): RegistrationsAdminController
+    {
+        return $this->resolve(RegistrationsAdminController::class, fn() => new RegistrationsAdminController(
+            $this->getRegistrationReviewService(),
+            $this->getValidator(),
+        ));
     }
 
     public function getMailOutboxRepository(): MailOutboxRepository

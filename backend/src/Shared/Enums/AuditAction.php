@@ -192,4 +192,71 @@ enum AuditAction: string
      * `login` with nothing in between saying how the password came to be.
      */
     case INVITATION_ACCEPTED = 'invitation_accepted';
+
+    // Self-registration review (ADR-0052 decision 10). The boundary that table
+    // draws is "the log follows authority, not activity": a submission grants
+    // nothing and is not audited, and neither is the TTL purge. What an admin
+    // does to a submission is another matter — each of these is a person acting
+    // on somebody else's personal data, and every one of them carries a masked
+    // IBAN only (ADR-0005), never a ciphertext and never a fingerprint.
+    /**
+     * A pending registration became a member and a mandate.
+     *
+     * The attestation entry: the admin is recording that they held the signed
+     * SEPA paper and that its IBAN matched the `****last4` on file. It carries
+     * the registration id as its subject, so the origin survives the pending
+     * row's deletion, and the new member's id in its payload.
+     */
+    case REGISTRATION_APPROVED = 'registration_approved';
+    /** An admin deleted somebody's submission. The act, the actor, the reason. */
+    case REGISTRATION_REJECTED = 'registration_rejected';
+    /**
+     * An admin corrected a submission before approving it (#779).
+     *
+     * Not obviously an authority change, and audited anyway — this is the one
+     * place in the system where one person edits another's freshly submitted
+     * personal data, including which bank account a mandate will be opened
+     * against. The entry is what makes "the IBAN on file is not the one I sent"
+     * answerable.
+     */
+    case REGISTRATION_EDITED = 'registration_edited';
+    /**
+     * The club's document was printed for a pending registration (#780).
+     *
+     * A member's name, birth date, email and an IBAN hint leaving the building
+     * on paper. The entry carries the variant, so "who printed a copy carrying
+     * the last four digits of this account" is answerable — which is the only
+     * question this action exists to answer.
+     */
+    case REGISTRATION_PRINTED = 'registration_printed';
+
+    // The club's control over its own registration surface (#783). Each of
+    // these is a credential or a public promise, not a preference — which is
+    // why they are audited and a retention-days change would not be.
+    /**
+     * A new poster secret was minted, and every poster in the building died.
+     *
+     * Carries no secret material, the same rule the key and terminal-token
+     * entries follow: what is recorded is that a rotation happened, by whom and
+     * when. The value is the one thing a log must never hold.
+     */
+    case REGISTRATION_SECRET_ROTATED = 'registration_secret_rotated';
+    /** Self-registration was switched on. */
+    case REGISTRATION_ENABLED = 'registration_enabled';
+    /**
+     * Switched off, with the club's own words for the people it affects.
+     *
+     * The reason *is* in the payload, unlike a secret: it is a public statement
+     * the club made to its members, and "who said what, and when" is exactly
+     * what this log is for.
+     */
+    case REGISTRATION_DISABLED = 'registration_disabled';
+    /**
+     * The club pointed at a different published Anmeldung.
+     *
+     * Worth an entry because that document is what an applicant is shown before
+     * any data is collected — changing it changes what everybody registering
+     * afterwards was told (ADR-0052 decision 6).
+     */
+    case REGISTRATION_DOCUMENT_URL_CHANGED = 'registration_document_url_changed';
 }

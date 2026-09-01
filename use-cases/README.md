@@ -31,6 +31,7 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A14 | Remove RFID Card | Implemented (diverges) | [UC-A14](./admin/UC-A14-remove-rfid-card.md) |
 | UC-A15 | Deactivate Member | Implemented | [UC-A15](./admin/UC-A15-deactivate-member.md) |
 | UC-A16 | Import Members (CSV) | Not implemented — nice to have | _no document yet_ |
+| UC-A17 | Review a Pending Registration | Not implemented — specified ([#779](https://github.com/dgloeckner/clubbar/issues/779)) | [UC-A17](./admin/UC-A17-review-pending-registrations.md) |
 
 ### Tab Management
 
@@ -94,6 +95,7 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A66 | Receive the Near-Limit Digest | Implemented | [UC-A66](./admin/UC-A66-credit-limit-digest.md) |
 | UC-A67 | A Member Is Written To About Their Own Record | Implemented | [UC-A67](./admin/UC-A67-member-lifecycle-mail.md) |
 | UC-A68 | Onboard an Admin by Invitation Link | Implemented | [UC-A68](./admin/UC-A68-invite-admin.md) |
+| UC-A69 | Configure Self-Registration and Print the QR Poster | Not implemented — specified ([#783](https://github.com/dgloeckner/clubbar/issues/783)) | [UC-A69](./admin/UC-A69-configure-self-registration.md) |
 
 ### RFID Management
 
@@ -110,6 +112,15 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A81 | Audit Log | Implemented | [UC-A81](./admin/UC-A81-audit-log.md) |
 | UC-A82 | Members Needing SEPA Data | Implemented (diverges) | [UC-A82](./admin/UC-A82-sepa-invalid-report.md) |
 | UC-A83 | Database Backup | Not implemented — in progress ([#686](https://github.com/dgloeckner/clubbar/issues/686)) | [UC-A83](./admin/UC-A83-database-backup.md) |
+
+## Public (Self-Service)
+
+The only surface whose actor holds no credential at all — a prospective member
+with a phone, a QR poster and no account ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)).
+
+| ID | Name | Status | Link |
+|----|------|--------|------|
+| UC-P01 | Register as a Member by Scanning the Club's QR Code | Not implemented — specified ([#776](https://github.com/dgloeckner/clubbar/issues/776)) | [UC-P01](./public/UC-P01-member-self-registration.md) |
 
 ## Terminal App
 
@@ -152,11 +163,12 @@ Complete index of all use cases across domains, with implementation status.
 
 | Domain | Total | Implemented | Diverges | Partial | Not Impl. | Closed |
 |--------|-------|-------------|----------|---------|-----------|--------|
-| Admin Panel | 47 | 32 | 5 | 2 | 6 | 2 |
+| Admin Panel | 49 | 32 | 5 | 2 | 8 | 2 |
+| Public | 1 | 0 | 0 | 0 | 1 | 0 |
 | Terminal | 7 | 4 | 3 | 0 | 0 | 0 |
 | GDPR | 6 | 3 | 1 | 2 | 0 | 0 |
 | SEPA | 9 | 7 | 2 | 0 | 0 | 0 |
-| **Total** | **69** | **46** | **11** | **4** | **6** | **2** |
+| **Total** | **72** | **46** | **11** | **4** | **9** | **2** |
 
 "Closed" is UC-A21 (rejected, kept as a tombstone) and UC-A51 (removed).
 

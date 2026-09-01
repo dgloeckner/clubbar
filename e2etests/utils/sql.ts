@@ -30,6 +30,16 @@
  * an outbox. So the *suite's* backlog, which is an artefact of the suite and
  * not of the product, has nowhere else to be cleared from.
  *
+ * ### The third exception (#778)
+ *
+ * `configureSelfRegistration()` below. The poster secret and the availability
+ * switch have no admin endpoint until #783 builds one, and even then the secret
+ * is minted server-side and shown once — a test cannot ask for a *known* secret
+ * through any API this product will ever have, because handing one back on
+ * demand is exactly what a poster credential must not do. So the suite writes
+ * the hash it wants to test against, the same way it writes a token expiry it
+ * cannot request.
+ *
  * ### Shape
  *
  * `docker compose exec` and `spawnSync`, the same mechanism (and the same
@@ -39,6 +49,8 @@
  */
 
 import { spawnSync } from 'node:child_process'
+import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 
 /** `e2etests/utils` → the checkout root, where docker-compose.yml lives. */
@@ -168,4 +180,170 @@ export function countPendingMail(): number {
   const match = output.match(/(\d+)/g)
 
   return match ? Number(match[match.length - 1]) : 0
+}
+
+/**
+ * Put the club's self-registration into a known state.
+ *
+ * Writes the SHA-256 of a secret the test chose, so the test can then present
+ * that secret to the public endpoint. `PosterSecret::hash()` is a plain
+ * SHA-256 of the raw value — see `backend/src/Modules/Registrations/Domain/PosterSecret.php`,
+ * where the reasoning for it not being a password hash is written down.
+ *
+ * The document URL matters as much as the switch: self-registration fails
+ * closed without one, because collecting a name, a birth date and an IBAN from
+ * somebody who was never shown a notice is the failure that condition exists to
+ * prevent (ADR-0052 decision 6).
+ *
+ * @param secret The raw secret the test will present. Hashed here, never stored raw.
+ * @param options `enabled` defaults to true; `disabledReason` is the club's
+ *        member-facing text; `documentUrl` defaults to a plausible published
+ *        Anmeldung. Pass `documentUrl: null` to assert the fail-closed path.
+ */
+export function configureSelfRegistration(
+  secret: string,
+  options: { enabled?: boolean; disabledReason?: string | null; documentUrl?: string | null } = {},
+): void {
+  const enabled = options.enabled ?? true
+  const reason = options.disabledReason ?? null
+  const documentUrl =
+    options.documentUrl === undefined ? CLUB_DOCUMENT_URL : options.documentUrl
+
+  const hash = createHash('sha256').update(secret).digest('hex')
+  const reasonSql = reason === null ? 'NULL' : `'${reason.replace(/'/g, "''")}'`
+  const urlSql = documentUrl === null ? 'NULL' : `'${documentUrl.replace(/'/g, "''")}'`
+
+  execSql(
+    `UPDATE self_registration_config SET enabled = ${enabled ? 1 : 0}, ` +
+      `secret_hash = '${hash}', disabled_reason = ${reasonSql} WHERE id = 1`,
+  )
+  execSql(`UPDATE sepa_config SET mandate_template_url = ${urlSql} WHERE id = 1`)
+}
+
+/**
+ * Put `sepa_config.mandate_template_url` back to a usable value.
+ *
+ * That column is not self-registration's alone: `SepaConfigDto` reads an empty
+ * one as incomplete SEPA configuration, and the settlement specs run beside
+ * these on other workers. Anything here that clears it — the fail-closed test —
+ * has to put it back, or it breaks a spec that never touched registrations.
+ */
+export function restoreClubDocumentUrl(url = CLUB_DOCUMENT_URL): void {
+  execSql(`UPDATE sepa_config SET mandate_template_url = '${url.replace(/'/g, "''")}' WHERE id = 1`)
+}
+
+/**
+ * The club document URL the suite configures — and it is deliberately one the
+ * backend can actually fetch (#780).
+ *
+ * `localhost` here is the **backend container's own** localhost, because the
+ * fetch runs inside it: the fixture is copied into `backend/public/` by
+ * `serveClubDocument()` below and served by the same nginx that serves the API.
+ * A URL on the public internet would make this suite depend on somebody else's
+ * webhost being up, and one that resolves only from the test runner would be
+ * fetched by nothing.
+ */
+export const CLUB_DOCUMENT_URL = 'http://localhost/e2e-club-anmeldung.pdf'
+
+/**
+ * Put a real, fillable Anmeldung where the backend can fetch it.
+ *
+ * The file is `backend/tests/Fixtures/documents/club-anmeldung.pdf` — a genuine
+ * WeasyPrint `--pdf-forms --uncompressed-pdf` build, three pages, fields on
+ * page 1 — so what the document specs assert is the real pipeline end to end
+ * rather than a stand-in.
+ *
+ * Copied into `backend/public/`, which is git-ignored for this name and removed
+ * by `stopServingClubDocument()`. It is not committed there: a fillable mandate
+ * template sitting in a public web root of every installation is not something
+ * to ship by accident.
+ */
+/**
+ * Reference-counted, and it has to be (#784).
+ *
+ * Four spec files serve this document, each in its own `beforeAll` and each
+ * removing it in its own `afterAll`. Run in one job they overlap, so the first
+ * file to finish deletes the fixture out from under the three still using it —
+ * and the failure lands as a print that returned no PDF, in a spec that never
+ * touched the file. Locally that is a full-suite run; in CI the lanes are
+ * separate jobs, which is the only reason it has not bitten before.
+ *
+ * One token per holder, named by process and file. The document goes when the
+ * last token does, so a worker crashing mid-run leaves at worst a stale PDF in
+ * a git-ignored path rather than breaking somebody else's test.
+ */
+const CLUB_DOCUMENT = path.join(REPO_ROOT, 'backend/public/e2e-club-anmeldung.pdf')
+const CLUB_DOCUMENT_HOLDERS = path.join(REPO_ROOT, 'backend/public/.e2e-club-anmeldung-holders')
+
+/** This process's token — one per worker is enough; hooks within it nest. */
+const holderToken = `${process.pid}`
+
+export function serveClubDocument(): void {
+  mkdirSync(CLUB_DOCUMENT_HOLDERS, { recursive: true })
+  writeFileSync(path.join(CLUB_DOCUMENT_HOLDERS, holderToken), '')
+  copyFileSync(
+    path.join(REPO_ROOT, 'backend/tests/Fixtures/documents/club-anmeldung.pdf'),
+    CLUB_DOCUMENT,
+  )
+}
+
+export function stopServingClubDocument(): void {
+  rmSync(path.join(CLUB_DOCUMENT_HOLDERS, holderToken), { force: true })
+
+  let remaining: string[] = []
+  try {
+    remaining = readdirSync(CLUB_DOCUMENT_HOLDERS)
+  } catch {
+    // The directory is gone, so nobody is holding it.
+  }
+
+  if (remaining.length === 0) {
+    rmSync(CLUB_DOCUMENT, { force: true })
+    rmSync(CLUB_DOCUMENT_HOLDERS, { recursive: true, force: true })
+  }
+}
+
+/** How many pending registrations exist right now. */
+export function countPendingRegistrations(): number {
+  const output = execSql('SELECT COUNT(*) FROM pending_registrations')
+  const match = output.match(/(\d+)/g)
+
+  return match ? Number(match[match.length - 1]) : 0
+}
+
+/**
+ * Whether any stored row holds this IBAN in the clear.
+ *
+ * The one guarantee the pending store exists to keep, asserted from outside the
+ * application: a database dump reveals no readable IBAN (ADR-0036).
+ */
+export function pendingRowsContainingPlaintext(iban: string): number {
+  const needle = iban.replace(/'/g, '')
+  const output = execSql(
+    `SELECT COUNT(*) FROM pending_registrations WHERE CONCAT_WS('|', first_name, last_name, email, ` +
+      `COALESCE(phone, ''), COALESCE(account_holder_name, ''), mandate_reference, ` +
+      `CAST(iban_ciphertext AS CHAR), iban_last4, iban_fingerprint, COALESCE(bank_name, ''), ` +
+      `privacy_notice_url) LIKE '%${needle}%'`,
+  )
+  const match = output.match(/(\d+)/g)
+
+  return match ? Number(match[match.length - 1]) : 0
+}
+
+/**
+ * Empty the registration rate-limit meter.
+ *
+ * The meter is per source address, and every spec in the suite arrives from the
+ * same one — so without this a long run, or several runs inside the window,
+ * spends a budget sized for a clubhouse rather than for a test runner, and
+ * specs start failing on a 429 that says nothing about the code under test.
+ */
+export function clearRegistrationAttempts(): void {
+  execSql('DELETE FROM registration_attempts')
+}
+
+/** Age a registration past its expiry, so a real cron run has something to purge. */
+export function expireRegistration(registrationId: string): void {
+  const id = registrationId.replace(/'/g, '')
+  execSql(`UPDATE pending_registrations SET expires_at = '2000-01-01 00:00:00' WHERE id = '${id}'`)
 }

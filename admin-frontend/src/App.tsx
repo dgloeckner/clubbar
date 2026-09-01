@@ -15,6 +15,7 @@ import { theme } from './styles/design-system'
 import { LoginPage } from './pages/LoginPage'
 import { AcceptInvitationPage } from './pages/AcceptInvitationPage'
 import { MembersPage } from './pages/MembersPage'
+import { RegistrationsPage } from './pages/RegistrationsPage'
 import { ExcludedFromCollectionPage } from './pages/ExcludedFromCollectionPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { CategoriesPage } from './pages/CategoriesPage'
@@ -170,6 +171,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <MembersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/registrations"
+        element={
+          <ProtectedRoute>
+            <RegistrationsPage />
           </ProtectedRoute>
         }
       />

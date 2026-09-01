@@ -15,7 +15,8 @@
     "journalShort": "Journal",
     "settlementsShort": "Settlem.",
     "notifications": "Notifications",
-    "backups": "Backups"
+    "backups": "Backups",
+    "registrations": "Registrations"
   },
   "common": {
     "save": "Save",
@@ -144,6 +145,11 @@
       "admin_user_needs_a_role": "An admin account must hold at least one role.",
       "cannot_deactivate_self": "You cannot deactivate your own account.",
       "category_inactive": "This category is inactive.",
+      "document_template_field_missing": "The club document does not carry every required form field. Missing: {{fields}}. Add them to the HTML source and rebuild the PDF.",
+      "document_template_not_a_pdf": "The configured address does not return a PDF. Most often a web server answering a moved file with an HTML error page — open the URL in a browser to check.",
+      "document_template_unreachable": "The club document could not be fetched. Check that the configured address is publicly reachable.",
+      "document_template_unreadable": "The club document cannot be read. Rebuild it with WeasyPrint using --pdf-forms --uncompressed-pdf; a Chromium print carries no form fields at all.",
+      "document_url_missing": "Self-registration cannot be switched on until the club document URL is set in the SEPA settings — its Datenschutzhinweise have to be reachable before anything is collected.",
       "execution_date_not_business_day": "The execution date {{execution_date}} is not a bank business day (Mon–Fri, excluding TARGET2 closing days). Cancel the settlement and recreate it with a valid date.",
       "iban_key_unavailable": "Every stored IBAN is sealed; the SEPA export needs the club's private key.",
       "invitation_invalid": "This invitation link is no longer valid. Ask for a new invitation.",
@@ -160,6 +166,12 @@
       "no_members_named": "No members were selected.",
       "no_unsettled_transactions": "No unsettled transactions were found.",
       "no_unsettled_transactions_for_filters": "No unsettled transactions match the selected filters.",
+      "registration_attestation_required": "Approval requires confirming that the signed SEPA mandate is on hand and that the IBAN written on it matches the last four digits on file.",
+      "registration_disabled": "Registration is not possible at the moment. {{reason}}",
+      "registration_member_email_exists": "A member already exists at {{email}}. Check whether this is the same person — approving would create a second member record.",
+      "registration_no_secret": "There is no poster secret yet. Generate one first — without it the QR code on the poster leads nowhere.",
+      "registration_reason_required": "Switching off needs a sentence for the people standing in front of the poster. Say briefly why registration is paused.",
+      "registration_secret_unreadable": "The stored poster secret can no longer be decrypted. Generate a new secret and reprint the poster.",
       "sepa_config_incomplete": "The SEPA configuration is incomplete. Complete it under Settings before exporting.",
       "sepa_export_every_member_excluded": "There is nothing left to collect: all {{excluded_count}} members in this settlement are excluded. A SEPA file needs at least one direct debit.",
       "sepa_export_nothing_owed": "There is nothing left to collect: every member in this settlement owes exactly nothing. A SEPA file needs at least one direct debit.",
@@ -925,6 +937,44 @@
         }
       }
     },
+    "selfRegistration": {
+      "title": "Registration by poster",
+      "description": "The QR code on the poster carries a secret. Somebody who scans it reaches the registration page; somebody who knows the address without the secret does not. A new secret makes every poster in the building worthless.",
+      "status": "Status",
+      "statusOn": "Open for registrations",
+      "statusOff": "Paused",
+      "poster": "Poster",
+      "posterPrinted": "Secret minted on {{date}}",
+      "posterNone": "No secret generated yet",
+      "downloadPoster": "Poster as PDF",
+      "generate": "Generate secret",
+      "rotate": "Replace secret",
+      "rotateTitle": "Generate a new secret?",
+      "rotateWarning": "Every poster in the building stops working immediately. Print a new one afterwards and put it up. This cannot be undone.",
+      "generateWarning": "This mints the poster secret. Afterwards you can download the poster and switch registration on.",
+      "rotateConfirm": "Generate",
+      "documentUrl": "Address of the club document",
+      "documentUrlHint": "The published Anmeldung with its privacy notice — shown to everybody before they type anything. The address is fetched and checked when you save it, not when somebody prints. Leaving it empty switches registration off.",
+      "save": "Save address",
+      "saved": "The address was checked and saved.",
+      "reason": "Text shown while registration is paused",
+      "reasonPlaceholder": "e.g. We are pausing registration until the general meeting on 14 March.",
+      "reasonHint": "Shown to anybody scanning the poster while registration is off. A blank page reads as a broken feature to somebody standing in the clubhouse.",
+      "switchOn": "Switch registration on",
+      "switchOff": "Pause registration",
+      "enabled": "Registration is switched on.",
+      "disabled": "Registration is paused.",
+      "rotated": "A new secret was generated. Reprint the poster.",
+      "printed": "The poster was downloaded.",
+      "blockedReason": "Pausing needs a sentence for the people standing in front of the poster.",
+      "blockedSecret": "Generate a poster secret first.",
+      "blockedDocument": "Configure the address of the club document first.",
+      "errors": {
+        "load": "The registration settings could not be loaded.",
+        "save": "The change could not be saved.",
+        "poster": "The poster could not be generated."
+      }
+    },
     "mail": {
       "tab": "Mail",
       "transportTitle": "Mail server",
@@ -1516,5 +1566,68 @@
       "acceptFailed": "The password could not be saved."
     },
     "roleLabel": "Your role"
+  },
+  "registrations": {
+    "title": "Registrations",
+    "subtitle": "Self-registrations from the QR poster, waiting to be checked.",
+    "searchPlaceholder": "Search name or email",
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "submittedAt": "Received",
+      "iban": "IBAN",
+      "bank": "Bank",
+      "flags": "Flags"
+    },
+    "flags": {
+      "email": "Email known",
+      "iban": "Account known"
+    },
+    "duplicates": {
+      "email": "A member already exists at this email address.",
+      "iban": "A mandate already runs on this account."
+    },
+    "empty": {
+      "title": "Nothing to review.",
+      "body": "Registrations appear here as soon as somebody scans the club's QR poster and fills in the form."
+    },
+    "fields": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "phone": "Phone",
+      "dateOfBirth": "Date of birth",
+      "accountHolder": "Account holder",
+      "mandateReference": "Mandate reference",
+      "notice": "Club documents shown",
+      "expires": "Deleted on",
+      "newIban": "Correct the IBAN",
+      "newIbanPlaceholder": "Only fill this in if the IBAN is wrong",
+      "newIbanHint": "Leaving it empty changes nothing. A new IBAN is validated and re-encrypted; the old one cannot be recovered afterwards."
+    },
+    "panel": {
+      "submitted": "Received on {{date}}"
+    },
+    "actions": {
+      "print": "Print form",
+      "edit": "Edit",
+      "approve": "Approve",
+      "reject": "Reject"
+    },
+    "approve": {
+      "lede": "Approving creates the member and the SEPA mandate. The signed form has to be on hand first.",
+      "signedAt": "Signed on",
+      "attestation": "I have the signed SEPA mandate on hand, and the IBAN written on it matches {{last4}}."
+    },
+    "reject": {
+      "warning": "The registration is deleted immediately. There is no rejected state and no undo.",
+      "reason": "Reason (optional)",
+      "reasonHint": "Recorded in the audit log only; the applicant is never told.",
+      "confirm": "Delete permanently"
+    },
+    "errors": {
+      "load": "The registrations could not be loaded.",
+      "action": "That did not work.",
+      "document": "The form could not be produced."
+    }
   }
 }

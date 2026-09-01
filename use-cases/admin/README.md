@@ -40,6 +40,7 @@ The admin panel provides management and accounting functions for the bar system:
 | [UC-A13](./UC-A13-assign-rfid-card.md) | Assign RFID Card | Link card to member |
 | [UC-A14](./UC-A14-remove-rfid-card.md) | Remove RFID Card | Unlink card from member |
 | [UC-A15](./UC-A15-deactivate-member.md) | Deactivate Member | Disable member account |
+| [UC-A17](./UC-A17-review-pending-registrations.md) | Review a Pending Registration | Check the signed mandate, correct a typo, approve or reject a QR self-registration ([ADR-0052](../../adr/0052-member-self-registration-via-qr-code.md)) |
 
 ### Tab Management
 
@@ -88,6 +89,7 @@ The admin panel provides management and accounting functions for the bar system:
 | [UC-A62](./UC-A62-create-admin.md) | Create Admin | Add admin user |
 | [UC-A63](./UC-A63-reset-admin-password.md) | Reset Admin Password | Generate new password |
 | [UC-A66](./UC-A66-credit-limit-digest.md) | Near-Limit Digest | One scheduled mail listing members close to their Deckel limit |
+| [UC-A69](./UC-A69-configure-self-registration.md) | Configure Self-Registration | The poster secret, the QR poster, and the availability switch with its member-facing reason |
 
 ### System
 

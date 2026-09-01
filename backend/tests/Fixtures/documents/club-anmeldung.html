@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<title>Anmeldung Vereinsbar (Testvorlage)</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  body { font: 10pt/1.45 Helvetica, Arial, sans-serif; color: #1a1a2e; margin: 0; }
+  h1 { font-size: 15pt; margin: 0 0 2mm; }
+  h2 { font-size: 12pt; margin: 0 0 3mm; }
+  .gruppe { color: #666; font-size: 8pt; margin: 6mm 0 1mm; }
+  .zeile { display: flex; gap: 6mm; }
+  .feld { flex: 1; }
+  .feld.schmal { flex: 0 0 45mm; }
+  /* The writing line is a CSS border on the input — page content, so it
+     survives flattening. A field *border* is an annotation property and would
+     vanish, leaving the admin variant's blank IBAN line printing as nothing. */
+  .feld input {
+    width: 100%; border: none; border-bottom: .5pt solid #666;
+    background: #f4f6fa; font: 10pt Helvetica, Arial, sans-serif;
+    height: 6mm; box-sizing: border-box; padding: 0 1mm;
+  }
+  .feld label { display: block; color: #666; font-size: 7.5pt; margin-top: .8mm; }
+  /* The comb. Each box is a real border on the input — page content, so it
+     survives flattening; a field *border* is an annotation and would vanish. */
+  .kamm { display: flex; gap: 1mm; margin-bottom: 6mm; }
+  .kamm input {
+    flex: 1; min-width: 0; height: 7mm; text-align: center;
+    border: .4pt solid #666; background: #fff;
+    font: 10pt Helvetica, Arial, sans-serif; padding: 0;
+  }
+  .mandatstext { font-size: 9pt; margin: 8mm 0; }
+  .unterschriften { display: flex; gap: 8mm; margin-top: 14mm; }
+  .unterschrift { flex: 1; border-top: .7pt solid #1a1a2e; color: #666; font-size: 7.5pt; padding-top: .8mm; }
+  .seitenumbruch { break-before: page; }
+</style>
+<body>
+  <h1>Anmeldung Vereinsbar</h1>
+
+  <div class="gruppe">Zahlungsempfänger (Gläubiger)</div>
+  <div class="zeile">
+    <div class="feld"><input name="glaeubiger_name"><label>Name des Vereins</label></div>
+    <div class="feld schmal"><input name="glaeubiger_id"><label>Gläubiger-ID</label></div>
+  </div>
+  <div class="zeile">
+    <div class="feld"><input name="mandatsreferenz"><label>Mandatsreferenz</label></div>
+  </div>
+
+  <div class="gruppe">Zahlungspflichtiger (Kontoinhaber)</div>
+  <div class="zeile">
+    <div class="feld"><input name="vorname"><label>Vorname</label></div>
+    <div class="feld"><input name="nachname"><label>Nachname</label></div>
+  </div>
+  <div class="zeile">
+    <div class="feld"><input name="geburtsdatum"><label>Geburtsdatum</label></div>
+    <div class="feld"><input name="email"><label>E-Mail</label></div>
+  </div>
+  <div class="zeile">
+    <div class="feld"><input name="kontoinhaber"><label>Kontoinhaber, falls abweichend</label></div>
+  </div>
+  <div class="zeile">
+    <div class="feld"><input name="iban"><label>IBAN — bei Ausdruck durch den Verein bitte handschriftlich eintragen</label></div>
+    <div class="feld schmal"><input name="iban_last4"><label>Kontroll-Hinweis</label></div>
+  </div>
+
+  <!--
+    The IBAN-Kamm: one box per character, sized for a handwritten letter, which
+    is how German forms actually print an IBAN. A value drawn as one continuous
+    run across a comb lands *between* the boxes rather than in them, so a
+    template that wants its comb filled declares one field per box — the same
+    way it would be authored in HTML anyway.
+
+    22 boxes, the length of a German IBAN. A longer one is simply not writable
+    on this form, by hand or otherwise, which is a property of the club's paper
+    and not something software can fix.
+  -->
+  <div class="gruppe">IBAN in Druckbuchstaben</div>
+  <div class="kamm">
+    <input name="iban_1"><input name="iban_2"><input name="iban_3"><input name="iban_4">
+    <input name="iban_5"><input name="iban_6"><input name="iban_7"><input name="iban_8">
+    <input name="iban_9"><input name="iban_10"><input name="iban_11"><input name="iban_12">
+    <input name="iban_13"><input name="iban_14"><input name="iban_15"><input name="iban_16">
+    <input name="iban_17"><input name="iban_18"><input name="iban_19"><input name="iban_20">
+    <input name="iban_21"><input name="iban_22">
+  </div>
+
+  <p class="mandatstext">
+    Ich ermächtige den oben genannten Verein, wiederkehrende Zahlungen aus der Nutzung der
+    bargeldlosen Vereinsbar von meinem Konto mittels Lastschrift einzuziehen. Zugleich weise ich
+    mein Kreditinstitut an, die vom Verein auf mein Konto gezogenen Lastschriften einzulösen.
+  </p>
+
+  <!-- Real AcroForm fields, deliberately (#784). A club whose designer made
+       the signature line fillable is a template this pipeline has to handle
+       *without* filling it: the member signs in person, and a machine-printed
+       place and date on a mandate is a claim nobody made. The filler writes
+       only fields it has a value for, and it has none for these — which is
+       provable only if the fields exist to be left empty. -->
+  <div class="unterschriften">
+    <div class="unterschrift"><input name="ort_datum"><label>Ort, Datum (handschriftlich)</label></div>
+    <div class="unterschrift"><input name="unterschrift"><label>Unterschrift Kontoinhaber</label></div>
+  </div>
+
+  <section class="seitenumbruch">
+    <h2>Datenschutzhinweise</h2>
+    <p>SEITE-ZWEI-MARKER — Informationen nach Art. 13 DSGVO. Diese Seite trägt keine
+    Formularfelder und muss die Füllung unverändert überleben.</p>
+  </section>
+
+  <section class="seitenumbruch">
+    <h2>Nutzungsordnung</h2>
+    <p>SEITE-DREI-MARKER — Die Ordnung der Vereinsbar. Ebenfalls ohne Formularfelder.</p>
+  </section>
+</body>
+</html>

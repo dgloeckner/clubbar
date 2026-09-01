@@ -25,6 +25,9 @@ use App\Modules\Notifications\Controllers\NotificationsController;
 use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AdminUsers\Controllers\InvitationController;
+use App\Modules\Registrations\Controllers\AdminController as RegistrationsAdminController;
+use App\Modules\Registrations\Controllers\SelfRegistrationConfigController;
+use App\Modules\Registrations\Controllers\PublicController as RegistrationsPublicController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
 use App\Modules\Terminals\Controllers\PairingController;
@@ -102,6 +105,33 @@ return function (App $app): void {
         ->add(RateLimitMiddleware::class);
     $app->post('/api/invitations/accept', [InvitationController::class, 'accept'])
         ->add(RateLimitMiddleware::class);
+
+    // Member self-registration (ADR-0052). The one endpoint an anonymous phone
+    // reaches: a stranger standing in the clubhouse, holding a secret printed
+    // on a poster.
+    //
+    // **Deliberately outside `RouteRoleMap`, and it must stay outside.** That
+    // map governs `/api/admin/*` and `/api/auth/*` — the two groups behind
+    // `AdminSessionAuth` — and `RouteRoleMapCompletenessTest` asserts in both
+    // directions: every session route is classified, and nothing outside those
+    // groups is. A role entry here would be a claim the map does not make, and
+    // would fail that second assertion. What classifies this route is the gate
+    // below, not a role.
+    //
+    // The secret travels in the **body**, never the path, for the reason the
+    // invitation endpoints above give: a request line is written verbatim into
+    // every access log in front of the installation, twice per request in the
+    // shipped package, and unlike an invitation this credential is printed on
+    // a wall where it may still be in two years.
+    //
+    // Outside `CsrfMiddleware` for the same reason `/api/invitations/*` is:
+    // there is no session cookie for a CSRF token to protect. The gate is the
+    // secret, the meters are the service's, and both are checked server-side —
+    // not rendering the form is a UI convenience, never the gate.
+    $app->post('/api/public/registrations', [RegistrationsPublicController::class, 'store']);
+    // A POST for a read: the secret belongs in a body, never in a URL. The page
+    // holds it in the fragment — which browsers do not send — and posts it here.
+    $app->post('/api/public/registrations/context', [RegistrationsPublicController::class, 'context']);
 
     $app->post('/api/auth/login', [AuthController::class, 'login'])->add(RateLimitMiddleware::class);
     $app->post('/api/auth/mfa', [AuthController::class, 'mfa'])->add($factory->getMfaRateLimitMiddleware());
@@ -194,6 +224,28 @@ return function (App $app): void {
         // Clearing is an admin decision, not a member edit — it lets the next
         // collection run reach this member again (ruling #148 §5).
         $group->post('/members/{memberId}/collection-hold/clear', [MembersAdminController::class, 'clearCollectionHold']);
+
+        // ── the self-registration review inbox (#779, ADR-0052, UC-A17) ──
+        // Approve is the only path from a pending registration to a `members`
+        // row: there is no job, no import and no sync that materializes one.
+        // That is what keeps a self-registered person off the terminal until
+        // somebody has held their signed paper — ADR-0020's mandate gate and
+        // ADR-0021's card step both sit behind this route.
+        $group->get('/registrations', [RegistrationsAdminController::class, 'index']);
+        // Static segments above `/registrations/{registrationId}`, or
+        // `self-registration` is read as a registration id.
+        $group->get('/self-registration', [SelfRegistrationConfigController::class, 'show']);
+        $group->patch('/self-registration', [SelfRegistrationConfigController::class, 'update']);
+        $group->post('/self-registration/secret', [SelfRegistrationConfigController::class, 'rotateSecret']);
+        // POST rather than GET: it reads a credential back, and a URL that
+        // returns the club's gate would be replayed by every prefetcher,
+        // history entry and shared link that ever touched it.
+        $group->post('/self-registration/poster', [SelfRegistrationConfigController::class, 'poster']);
+        $group->get('/registrations/{registrationId}', [RegistrationsAdminController::class, 'show']);
+        $group->patch('/registrations/{registrationId}', [RegistrationsAdminController::class, 'update']);
+        $group->post('/registrations/{registrationId}/approve', [RegistrationsAdminController::class, 'approve']);
+        $group->get('/registrations/{registrationId}/document', [RegistrationsAdminController::class, 'document']);
+        $group->post('/registrations/{registrationId}/reject', [RegistrationsAdminController::class, 'reject']);
 
         // Categories
         $group->get('/categories', [ProductsAdminController::class, 'listCategories']);

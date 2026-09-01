@@ -202,6 +202,32 @@ try {
         fwrite(STDERR, "Warning: auth attempt pruning failed: {$e->getMessage()}\n");
     }
 
+    // Unapproved registrations, past the club's retention window (ADR-0052
+    // decision 10). A pending registration is data about somebody who never
+    // joined and is not a Beleg — no money moved, no contract was performed —
+    // so nothing here earns the retention an actual member's record gets, and a
+    // queue nobody empties is exactly how it would accumulate.
+    //
+    // The line says how many went and never who they were: a purge log naming
+    // the people it deleted would be a copy of the data outliving the deletion,
+    // in the one place nobody thinks to look for personal data.
+    //
+    // The attempt meter is pruned beside it — those rows are IP addresses, kept
+    // no longer than the rate-limit window needs them.
+    try {
+        $purged = $factory->getRegistrationsService()->purgeExpired();
+        $prunedAttempts = $factory->getRegistrationAttemptsRepository()
+            ->pruneOlderThan(date('Y-m-d H:i:s', time() - 86400));
+        if ($purged > 0) {
+            $say("Purged {$purged} expired registration(s).");
+        }
+        if ($prunedAttempts > 0) {
+            $say("Pruned {$prunedAttempts} registration attempt(s).");
+        }
+    } catch (\Throwable $e) {
+        fwrite(STDERR, "Warning: registration purge failed: {$e->getMessage()}\n");
+    }
+
     // ADR-0041, before the drain on purpose: a warning raised by this scan is
     // queued into the outbox, and running it first means that warning leaves in
     // the same tick rather than waiting for the next one.

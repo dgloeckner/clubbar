@@ -15,7 +15,8 @@
     "journalShort": "Journal",
     "settlementsShort": "Abrechn.",
     "notifications": "Benachrichtigungen",
-    "backups": "Datensicherungen"
+    "backups": "Datensicherungen",
+    "registrations": "Anmeldungen"
   },
   "common": {
     "save": "Speichern",
@@ -144,6 +145,11 @@
       "admin_user_needs_a_role": "Ein Admin-Konto muss mindestens eine Rolle haben.",
       "cannot_deactivate_self": "Sie können Ihr eigenes Konto nicht deaktivieren.",
       "category_inactive": "Diese Kategorie ist inaktiv.",
+      "document_template_field_missing": "Das Vereinsdokument hat nicht alle benötigten Formularfelder. Es fehlt: {{fields}}. Ergänzen Sie die Felder in der HTML-Quelle und bauen Sie das PDF neu.",
+      "document_template_not_a_pdf": "Unter der hinterlegten Adresse liegt kein PDF. Meist antwortet der Webserver auf eine verschobene Datei mit einer HTML-Fehlerseite – prüfen Sie die URL im Browser.",
+      "document_template_unreachable": "Das Vereinsdokument konnte nicht geladen werden. Prüfen Sie, ob die hinterlegte Adresse öffentlich erreichbar ist.",
+      "document_template_unreadable": "Das Vereinsdokument lässt sich nicht auslesen. Bauen Sie es mit WeasyPrint und den Optionen --pdf-forms --uncompressed-pdf neu; ein Chromium-Ausdruck enthält keine Formularfelder.",
+      "document_url_missing": "Die Selbstanmeldung lässt sich erst einschalten, wenn die URL des Vereinsdokuments in den SEPA-Einstellungen hinterlegt ist – die Datenschutzhinweise darin müssen vor der Eingabe erreichbar sein.",
       "execution_date_not_business_day": "Das Ausführungsdatum {{execution_date}} ist kein Bankarbeitstag (Mo–Fr, ohne TARGET2-Schließtage). Stornieren Sie die Abrechnung und legen Sie sie mit einem gültigen Datum neu an.",
       "iban_key_unavailable": "Alle gespeicherten IBANs sind versiegelt; der SEPA-Export benötigt den privaten Schlüssel des Vereins.",
       "invitation_invalid": "Dieser Einladungslink ist nicht mehr gültig. Bitten Sie um eine neue Einladung.",
@@ -160,6 +166,12 @@
       "no_members_named": "Es wurden keine Mitglieder ausgewählt.",
       "no_unsettled_transactions": "Es wurden keine offenen Buchungen gefunden.",
       "no_unsettled_transactions_for_filters": "Zu den gewählten Filtern gibt es keine offenen Buchungen.",
+      "registration_attestation_required": "Die Freigabe verlangt die Bestätigung, dass das unterschriebene SEPA-Mandat vorliegt und die darauf angegebene IBAN zur hinterlegten Endziffernfolge passt.",
+      "registration_disabled": "Die Anmeldung ist derzeit nicht möglich. {{reason}}",
+      "registration_member_email_exists": "Unter {{email}} gibt es bereits ein Mitglied. Prüfen Sie, ob es dieselbe Person ist – eine Freigabe würde ein zweites Mitgliedskonto anlegen.",
+      "registration_no_secret": "Es gibt noch kein Aushang-Geheimnis. Erzeugen Sie zuerst eines – ohne Geheimnis führt der QR-Code auf dem Aushang ins Leere.",
+      "registration_reason_required": "Zum Abschalten gehört ein Satz für die Menschen, die vor dem Aushang stehen. Formulieren Sie kurz, warum die Anmeldung pausiert.",
+      "registration_secret_unreadable": "Das hinterlegte Aushang-Geheimnis lässt sich nicht mehr entschlüsseln. Erzeugen Sie ein neues Geheimnis und drucken Sie den Aushang neu.",
       "sepa_config_incomplete": "Die SEPA-Konfiguration ist unvollständig. Vervollständigen Sie sie in den Einstellungen, bevor Sie exportieren.",
       "sepa_export_every_member_excluded": "Es ist nichts mehr einzuziehen: Alle {{excluded_count}} Mitglieder dieser Abrechnung sind ausgeschlossen. Eine SEPA-Datei braucht mindestens eine Lastschrift.",
       "sepa_export_nothing_owed": "Es ist nichts mehr einzuziehen: Jedes Mitglied dieser Abrechnung schuldet exakt nichts. Eine SEPA-Datei braucht mindestens eine Lastschrift.",
@@ -925,6 +937,44 @@
         }
       }
     },
+    "selfRegistration": {
+      "title": "Anmeldung über Aushang",
+      "description": "Der QR-Code auf dem Aushang trägt ein Geheimnis. Wer ihn scannt, kommt auf die Anmeldeseite; wer die Adresse ohne das Geheimnis kennt, nicht. Ein neues Geheimnis macht jeden ausgehängten Zettel im Haus wertlos.",
+      "status": "Status",
+      "statusOn": "Anmeldung möglich",
+      "statusOff": "Pausiert",
+      "poster": "Aushang",
+      "posterPrinted": "Geheimnis erzeugt am {{date}}",
+      "posterNone": "Noch kein Geheimnis erzeugt",
+      "downloadPoster": "Aushang als PDF",
+      "generate": "Geheimnis erzeugen",
+      "rotate": "Geheimnis erneuern",
+      "rotateTitle": "Neues Geheimnis erzeugen?",
+      "rotateWarning": "Jeder Aushang im Haus hört damit sofort auf zu funktionieren. Drucken Sie danach einen neuen aus und hängen Sie ihn aus. Das lässt sich nicht rückgängig machen.",
+      "generateWarning": "Damit wird das Geheimnis für den Aushang erzeugt. Danach können Sie den Aushang herunterladen und die Anmeldung einschalten.",
+      "rotateConfirm": "Erzeugen",
+      "documentUrl": "Adresse des Vereinsdokuments",
+      "documentUrlHint": "Die veröffentlichte Anmeldung mit Datenschutzhinweisen – wird jedem gezeigt, bevor er etwas eingibt. Die Adresse wird beim Speichern geladen und geprüft, nicht erst beim Drucken. Leer lassen schaltet die Anmeldung ab.",
+      "save": "Adresse speichern",
+      "saved": "Die Adresse wurde geprüft und gespeichert.",
+      "reason": "Text bei pausierter Anmeldung",
+      "reasonPlaceholder": "z. B. Wir pausieren die Anmeldung bis zur Mitgliederversammlung am 14.03.",
+      "reasonHint": "Wird angezeigt, wenn jemand den Aushang scannt, während die Anmeldung aus ist. Eine leere Seite liest sich für die Person im Vereinsheim wie ein Defekt.",
+      "switchOn": "Anmeldung einschalten",
+      "switchOff": "Anmeldung pausieren",
+      "enabled": "Die Anmeldung ist eingeschaltet.",
+      "disabled": "Die Anmeldung ist pausiert.",
+      "rotated": "Ein neues Geheimnis wurde erzeugt. Drucken Sie den Aushang neu.",
+      "printed": "Der Aushang wurde heruntergeladen.",
+      "blockedReason": "Zum Pausieren fehlt der Text für die Menschen vor dem Aushang.",
+      "blockedSecret": "Erzeugen Sie zuerst ein Geheimnis für den Aushang.",
+      "blockedDocument": "Hinterlegen Sie zuerst die Adresse des Vereinsdokuments.",
+      "errors": {
+        "load": "Die Einstellungen zur Anmeldung konnten nicht geladen werden.",
+        "save": "Die Änderung konnte nicht gespeichert werden.",
+        "poster": "Der Aushang konnte nicht erzeugt werden."
+      }
+    },
     "mail": {
       "tab": "E-Mail",
       "transportTitle": "Mailserver",
@@ -1516,5 +1566,68 @@
       "acceptFailed": "Das Passwort konnte nicht gespeichert werden."
     },
     "roleLabel": "Ihre Rolle"
+  },
+  "registrations": {
+    "title": "Anmeldungen",
+    "subtitle": "Selbstanmeldungen über den QR-Aushang, die auf Prüfung warten.",
+    "searchPlaceholder": "Name oder E-Mail suchen",
+    "columns": {
+      "name": "Name",
+      "email": "E-Mail",
+      "submittedAt": "Eingegangen",
+      "iban": "IBAN",
+      "bank": "Bank",
+      "flags": "Hinweise"
+    },
+    "flags": {
+      "email": "E-Mail bekannt",
+      "iban": "Konto bekannt"
+    },
+    "duplicates": {
+      "email": "Unter dieser E-Mail gibt es bereits ein Mitglied.",
+      "iban": "Auf dieses Konto läuft bereits ein Mandat."
+    },
+    "empty": {
+      "title": "Nichts zu prüfen.",
+      "body": "Anmeldungen erscheinen hier, sobald jemand den QR-Aushang im Verein scannt und das Formular ausfüllt."
+    },
+    "fields": {
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "phone": "Telefon",
+      "dateOfBirth": "Geburtsdatum",
+      "accountHolder": "Kontoinhaber",
+      "mandateReference": "Mandatsreferenz",
+      "notice": "Gezeigte Vereinsunterlagen",
+      "expires": "Wird gelöscht am",
+      "newIban": "IBAN korrigieren",
+      "newIbanPlaceholder": "Nur ausfüllen, wenn die IBAN falsch ist",
+      "newIbanHint": "Leer lassen ändert nichts. Eine neue IBAN wird geprüft und neu verschlüsselt; die alte ist danach nicht mehr wiederherstellbar."
+    },
+    "panel": {
+      "submitted": "Eingegangen am {{date}}"
+    },
+    "actions": {
+      "print": "Formular drucken",
+      "edit": "Bearbeiten",
+      "approve": "Freigeben",
+      "reject": "Ablehnen"
+    },
+    "approve": {
+      "lede": "Mit der Freigabe entstehen Mitglied und SEPA-Mandat. Vorher muss das unterschriebene Formular vorliegen.",
+      "signedAt": "Unterschrieben am",
+      "attestation": "Das unterschriebene SEPA-Mandat liegt mir vor, und die darauf angegebene IBAN passt zu {{last4}}."
+    },
+    "reject": {
+      "warning": "Die Anmeldung wird sofort gelöscht. Es gibt keinen abgelehnten Zustand und kein Zurück.",
+      "reason": "Grund (optional)",
+      "reasonHint": "Wird nur im Prüfprotokoll festgehalten und der anmeldenden Person nicht mitgeteilt.",
+      "confirm": "Endgültig löschen"
+    },
+    "errors": {
+      "load": "Die Anmeldungen konnten nicht geladen werden.",
+      "action": "Das hat nicht geklappt.",
+      "document": "Das Formular konnte nicht erzeugt werden."
+    }
   }
 }

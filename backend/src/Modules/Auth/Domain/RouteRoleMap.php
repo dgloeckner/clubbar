@@ -128,6 +128,44 @@ final class RouteRoleMap
         'POST /api/admin/members/{memberId}/anonymize' => self::ADMIN_ONLY,
         'POST /api/admin/members/{memberId}/collection-hold/clear' => self::TREASURY,
 
+        // ── the self-registration review inbox (#779, ADR-0052) ──────────
+        // TREASURY, derived the way rule 2 asks: this surface is member
+        // management — the same names, birth dates and bank details as the
+        // routes directly above, arriving by a different door — so it carries
+        // the same role set, and the Getränkewart is outside it for the same
+        // reason they are outside `GET /api/admin/members`.
+        //
+        // Approve is not narrowed to ADMIN, and the split with `DELETE
+        // /members/{id}` above is the reason why. Erasure and the
+        // subject-access export are admin-only because they are irreversible
+        // or hand over everything about one named person; approving a
+        // registration is neither. It creates the same member a Kassenwart may
+        // already create by hand with `POST /api/admin/members`, and it is
+        // *their* work: the attestation being recorded is that the signed SEPA
+        // mandate is in hand, which is a treasury judgement.
+        //
+        // Reject deletes personal data, which looks like the erasure case and
+        // is not: it deletes a submission from somebody who never became a
+        // member, within a store that deletes itself in 30 days regardless. A
+        // Kassenwart who may not clear the queue they are working would leave
+        // it to expire, which is the same deletion, later, unrecorded.
+        'GET /api/admin/registrations' => self::TREASURY,
+        'GET /api/admin/registrations/{registrationId}' => self::TREASURY,
+        'PATCH /api/admin/registrations/{registrationId}' => self::TREASURY,
+        'POST /api/admin/registrations/{registrationId}/approve' => self::TREASURY,
+        'GET /api/admin/registrations/{registrationId}/document' => self::TREASURY,
+
+        // The club's own controls (#783). `ADMIN`, not TREASURY, and the split
+        // is the same one ADR-0036 draws for every other credential: emptying
+        // the queue is treasury work, but the poster secret *is* the gate on an
+        // unauthenticated surface, and rotating it takes every poster in the
+        // building out of service.
+        'GET /api/admin/self-registration' => self::ADMIN_ONLY,
+        'PATCH /api/admin/self-registration' => self::ADMIN_ONLY,
+        'POST /api/admin/self-registration/secret' => self::ADMIN_ONLY,
+        'POST /api/admin/self-registration/poster' => self::ADMIN_ONLY,
+        'POST /api/admin/registrations/{registrationId}/reject' => self::TREASURY,
+
         // ── the drinks list ──────────────────────────────────────────────
         // The most frequent and least sensitive work in the panel, and the
         // reason the whole epic exists: it can now be handed to somebody

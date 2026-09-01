@@ -121,4 +121,64 @@ enum BusinessRuleReason: string
     case MANDATE_VANISHED_DURING_EXPORT = 'mandate_vanished_during_export';
     case IBAN_KEY_UNAVAILABLE = 'iban_key_unavailable';
     case SEPA_XML_MALFORMED = 'sepa_xml_malformed';
+
+    // Self-registration (ADR-0052). `REGISTRATION_DISABLED` is the only one of
+    // these an anonymous caller ever sees, and it is deliberately talkative:
+    // the person holding the poster is standing in the clubhouse, and a blank
+    // refusal there reads as a broken feature rather than as a club decision.
+    // A wrong or missing poster secret is *not* here — it answers a uniform
+    // 404, because telling a prober that a valid secret exists is the one
+    // disclosure the gate is for.
+    case REGISTRATION_DISABLED = 'registration_disabled';
+    case DOCUMENT_URL_MISSING = 'document_url_missing';
+
+    // Review refusals (#779). These an admin sees, in the panel, in their own
+    // language — so each needs its `errors.reasons.<code>` entry in both locale
+    // files, which `reasons.test.ts` enforces.
+    /**
+     * Approval without the attestation.
+     *
+     * The confirmation flag is the whole point of the approve endpoint: it is
+     * an admin stating they have the signed mandate in hand and that its IBAN
+     * matches the `****last4` on file. Defaulting it to true, or letting it be
+     * absent, would turn a legal attestation into a button.
+     */
+    case REGISTRATION_ATTESTATION_REQUIRED = 'registration_attestation_required';
+    /**
+     * The club already has a member at this address.
+     *
+     * `members.email` carries no UNIQUE constraint, so nothing in the database
+     * would have refused this — approval would quietly create a second member
+     * for one person, and the club would find out at the next settlement, when
+     * both got a statement. Refused here instead, with the duplicate flag on
+     * the review screen having warned first.
+     */
+    case REGISTRATION_MEMBER_EMAIL_EXISTS = 'registration_member_email_exists';
+
+    // The club's onboarding document (#780). Every one of these is actionable
+    // in a sentence — which is the point: "your template is invalid" costs a
+    // club an afternoon of auditing field names that were never wrong.
+    /** Readable PDF, wrong build: object streams, an xref stream, or no fields at all. */
+    case DOCUMENT_TEMPLATE_UNREADABLE = 'document_template_unreadable';
+    /** Not a PDF — most often a webhost answering a moved file with an HTML page and a 200. */
+    case DOCUMENT_TEMPLATE_NOT_A_PDF = 'document_template_not_a_pdf';
+    /** A valid PDF whose field vocabulary is incomplete. The refusal names the fields. */
+    case DOCUMENT_TEMPLATE_FIELD_MISSING = 'document_template_field_missing';
+    /** The configured URL could not be fetched at all. */
+    case DOCUMENT_TEMPLATE_UNREACHABLE = 'document_template_unreachable';
+
+    // Managing the surface (#783). Each names the precondition that does not
+    // hold, rather than greying a control out: a disabled control that will not
+    // say why is a support call.
+    /** Enabling, or reprinting, without a poster secret to enable or print. */
+    case REGISTRATION_NO_SECRET = 'registration_no_secret';
+    /** The stored secret will not decrypt — the key changed. Rotating is the way out. */
+    case REGISTRATION_SECRET_UNREADABLE = 'registration_secret_unreadable';
+    /**
+     * Switching off without a sentence for the people it affects.
+     *
+     * A blank paused screen reads as a broken feature to somebody standing in
+     * the clubhouse holding the club's own poster (ADR-0052 decision 1).
+     */
+    case REGISTRATION_REASON_REQUIRED = 'registration_reason_required';
 }

@@ -32,3 +32,11 @@ Thumbs.db
 .phpunit.cache/
 /coverage/
 /VERSION
+
+# The fillable Anmeldung the E2E suite serves to itself (#780). Copied into the
+# web root for the length of a run, from the fixture that *is* committed, so the
+# backend can fetch it over HTTP the way it fetches a club's real one. A
+# fillable mandate template sitting in the public web root of every
+# installation is not something to ship by accident.
+/public/e2e-club-anmeldung.pdf
+/public/.e2e-club-anmeldung-holders/

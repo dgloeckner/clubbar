@@ -6,6 +6,7 @@ namespace Tests\Unit\Shared\Middleware;
 
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\BusinessRuleReason;
+use App\Shared\Exceptions\TooManyAttemptsException;
 use App\Shared\Exceptions\InvalidQueryParameterException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\ValidationException;
@@ -98,6 +99,26 @@ class ErrorHandlerTest extends TestCase
 
         $this->assertSame(404, $response->getStatusCode());
         $this->assertSame('not_found', $this->decode($response)['error']);
+    }
+
+    // ── A throttle is not a refusal ────────────────────────
+    //
+    // 429, with how long to wait, in the same shape `RateLimitMiddleware`
+    // writes when it refuses before the request is understood. The distinction
+    // from a 409 is the point: "not right now" is answered by waiting, "this
+    // cannot be done" by changing something.
+
+    public function test_a_throttle_is_429_with_a_retry_after(): void
+    {
+        $response = $this->handle(new TooManyAttemptsException(900, 'Too many attempts.'));
+
+        $this->assertSame(429, $response->getStatusCode());
+        $this->assertSame('900', $response->getHeaderLine('Retry-After'));
+
+        $body = $this->decode($response);
+        $this->assertSame('too_many_attempts', $body['error']);
+        $this->assertSame(900, $body['retry_after_seconds']);
+        $this->assertArrayNotHasKey('reason', $body, 'a throttle names no business rule');
     }
 
     public function test_a_business_rule_violation_stays_409(): void

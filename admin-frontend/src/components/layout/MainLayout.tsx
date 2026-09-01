@@ -12,6 +12,8 @@ import { useInstanceConfig } from '../../context/InstanceConfigContext'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { permitsPath } from '../../utils/adminRoles'
 import { LoadingIndicator } from '../common/LoadingIndicator'
+import { NavCountBadge } from './NavCountBadge'
+import { usePendingRegistrationCount } from '../../hooks/usePendingRegistrationCount'
 import { BottomTabBar } from './BottomTabBar'
 import { DesktopNav } from './DesktopNav'
 import { SchedulerBanner } from './SchedulerBanner'
@@ -21,6 +23,7 @@ import {
   MailIcon,
   HomeIcon,
   UsersIcon,
+  UserPlusIcon,
   PackageIcon,
   BookIcon,
   ReceiptIcon,
@@ -42,6 +45,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const { isLoading } = useLoading()
   const { instanceName } = useInstanceConfig()
   const breakpoint = useBreakpoint()
+  const pendingRegistrations = usePendingRegistrationCount(roles)
 
   const handleLogout = async () => {
     await logout()
@@ -60,6 +64,19 @@ export function MainLayout({ children }: MainLayoutProps) {
   const navItems = [
     { label: t('nav.dashboard'), path: '/dashboard', icon: <HomeIcon size={20} />, testId: 'nav-dashboard' },
     { label: t('nav.members'), path: '/members', icon: <UsersIcon size={20} />, testId: 'nav-members' },
+    {
+      label: t('nav.registrations'),
+      path: '/registrations',
+      // The badge's test id deliberately does not start with `nav-`: the E2E
+      // suite enumerates sections with `[data-testid^="nav-"]`, and a badge
+      // nested inside an entry would be counted as a section of its own.
+      icon: (
+        <NavCountBadge count={pendingRegistrations} testId="registrations-count-badge">
+          <UserPlusIcon size={20} />
+        </NavCountBadge>
+      ),
+      testId: 'nav-registrations',
+    },
     { label: t('nav.products'), path: '/products', icon: <PackageIcon size={20} />, testId: 'nav-products' },
     { label: t('nav.journal'), path: '/journal', icon: <BookIcon size={20} />, testId: 'nav-journal' },
     { label: t('nav.settlements'), path: '/settlements', icon: <ReceiptIcon size={20} />, testId: 'nav-settlements' },
