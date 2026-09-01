@@ -76,7 +76,7 @@ Read-only surfaces are grouped with their module unless noted.
 | Notifications — list, retry | ✅ | ✅ | — |
 | `/bank-lookup` | ✅ | ✅ | — |
 | Categories, Products — including status and pricing | ✅ | — | ✅ |
-| `/reports/terminal-activity` | ✅ | ✅ | ✅ |
+| `/reports/terminal-activity` | ✅ | ✅ | — ᶜ |
 | `/reports/{revenue\|consumption\|transactions}` | ✅ | ✅ | ✅ ᵃ |
 | `/api/auth/*` — own profile, password, 2FA | ✅ | ✅ | ✅ |
 | `/api/sync/*` — terminal bearer auth | *unaffected* | | |
@@ -84,6 +84,8 @@ Read-only surfaces are grouped with their module unless noted.
 ᵃ `group_by` restricted to an allow-list for `getraenkewart` — see §"Fail closed".
 
 ᵇ The response is split rather than the route (#677): a `kassenwart` receives `verified` and the recommended interval, and the operator half — `setup.cli_command`, `drain_url`, the drain's PHP build and the interval pair — stays `admin`-only. See §"The scheduler status is granted to the office it blocks".
+
+ᶜ Narrowed from all three offices after the fact. The report's rows are till *sessions* and per-terminal takings, not product figures — see §"Terminal activity is the till's ledger, not a drinks report".
 
 ### Why the boundary falls where it does
 
@@ -99,7 +101,11 @@ This is the only row where the grant is wider than the body, and it is a route-l
 
 **The Kassenwart reads SEPA configuration but does not write it.** They need to verify the Gläubiger-Identifikationsnummer on screen against what the bank holds before submitting a batch. Writing it is a once-in-years act whose blast radius is a rejected collection run and a Vorabankündigung the club already sent that no longer matches what happened — the same class as encryption keys and terminal tokens.
 
-**The Getränkewart sees product sales but not the club's financial position.** `GET /dashboard` and `GET /statistics/monthly` are not aggregates: `recent_transactions` carries `member_id` and full `member_name`, `members_near_limit` lists five named members with their individual Deckel, and `top_members[]` ranks named members by personal spend. `GET /reports/terminal-activity` is genuinely clean. The rule is not "is it aggregated" but **what does the office need** — total outstanding Deckel tells nobody whether to stock Alt.
+**The Getränkewart sees product sales but not the club's financial position.** `GET /dashboard` and `GET /statistics/monthly` are not aggregates: `recent_transactions` carries `member_id` and full `member_name`, `members_near_limit` lists five named members with their individual Deckel, and `top_members[]` ranks named members by personal spend. The rule is not "is it aggregated" but **what does the office need** — total outstanding Deckel tells nobody whether to stock Alt.
+
+**Terminal activity is the till's ledger, not a drinks report.** This row was originally granted to all three offices, on the reading that the report carries no member data and is therefore clean. That reading answered the wrong question: the rule stated one paragraph above is *what does the office need*, and by that rule the report is treasury work. Its rows are till **sessions** — when a till opened, when it closed, how many sales passed through it and how much money did — plus the same figures per terminal. That is the shape somebody uses to reconcile an evening's takings against what the cash box holds, which is the Kassenwart's job and nobody else's. It contains no product, no category and no price: it cannot answer a single stock question, so the office it was granted to had no use for it. Every other view of terminal state is already `admin`-only, and a per-terminal revenue ledger sitting open to the bar office was the odd row out rather than a considered exception.
+
+The consequence recorded below — that a Getränkewart infers a dead bar terminal from this report going quiet — went with it. It was a weak signal in the first place (a quiet terminal and a quiet evening look identical), and it is now the same answer as for every other terminal-state question: they learn it from a person.
 
 **No deny rules.** Grants are additive only. Deny would make the effective permission set non-obvious the moment somebody holds two roles, which is routine by design. A future role needing "everything except X" is a signal that X belongs behind its own grant.
 
@@ -194,7 +200,7 @@ A migration that inferred roles from activity — "whoever last ran a settlement
 - **A permission dimension now exists on every endpoint, every test and every page.** Every new admin route needs a map entry and a decision; every list page needs a role-aware nav entry. That tax is permanent.
 - **The Kassenwart cannot complete a member erasure alone.** Somebody leaves the club and asks to be forgotten: the Kassenwart runs the final settlement, then an `admin` presses the button. A handful of times a year, and a real dependency on a second person being available.
 - **The `group_by` allow-list is the one place this can regress silently**, and it regresses by omission rather than by commission — a reviewer has to notice that a new dimension was *not* added, which is the harder thing to notice.
-- **A Getränkewart cannot see terminal state** (`GET /terminals` is `admin`-only). They will learn the bar terminal is down from a person, or infer it from `/reports/terminal-activity` going quiet.
+- **A Getränkewart cannot see terminal state** (`GET /terminals` is `admin`-only), nor the till's activity report (`/reports/terminal-activity` is treasury work — see §"Terminal activity is the till's ledger, not a drinks report"). They will learn the bar terminal is down from a person.
 - **Key rotation on office handover is remembered, not enforced.** An outgoing Kassenwart keeps their private key file; the system does not prompt. Accepted because the sealed box exists to protect against database theft by an outside attacker, not against people who legitimately held the key.
 
 ### Relationship to ADR-0015

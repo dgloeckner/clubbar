@@ -4436,6 +4436,11 @@ paths:
       description: |
         Retrieve terminal activity statistics.
 
+        **Roles**: `admin`, `kassenwart` (ADR-0044). The report's rows are till
+        sessions and per-terminal takings — money rather than stock — so
+        `getraenkewart` gets `403 insufficient_role`, unlike the sales reports
+        beside it.
+
         **Use Case**: UC-A52
         **Status**: Not implemented — action needed (2026-03-07 audit)
       operationId: getTerminalActivity
@@ -4470,6 +4475,8 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
 
   # /reports/sepa-issues — REMOVED (2026-03-07 audit)
   # Covered by member list filter (sepa_status=missing). See use-case-implementation-audit.md.

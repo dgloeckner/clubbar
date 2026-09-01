@@ -105,19 +105,34 @@ class ReportGroupByRoleHttpTest extends HttpTestCase
         $this->assertArrayHasKey('unique_member_count', $body['summary'] ?? []);
     }
 
-    /** Terminal activity is granted to every office outright — no dimension to argue about. */
-    public function test_terminal_activity_stays_open_to_every_role(): void
+    /**
+     * Terminal activity is settled on the route, not on a dimension: the whole
+     * report is till sessions and per-terminal takings, so there is no grouping
+     * to argue about — the bar office is simply outside it.
+     */
+    public function test_terminal_activity_is_the_treasury_report(): void
     {
-        foreach (AdminRole::cases() as $role) {
+        foreach ([AdminRole::ADMIN, AdminRole::KASSENWART] as $role) {
             $this->signInHolding($role);
 
-            $response = $this->request(
-                'GET',
-                '/api/admin/reports/terminal-activity?date_from=2026-01-01&date_to=2026-12-31',
+            $this->assertNotSame(
+                403,
+                $this->terminalActivity()->getStatusCode(),
+                "{$role->value} must reach terminal activity",
             );
-
-            $this->assertNotSame(403, $response->getStatusCode(), "{$role->value} must reach terminal activity");
         }
+
+        $this->signInHolding(AdminRole::GETRAENKEWART);
+
+        $this->assertSame(403, $this->terminalActivity()->getStatusCode());
+    }
+
+    private function terminalActivity(): \Psr\Http\Message\ResponseInterface
+    {
+        return $this->request(
+            'GET',
+            '/api/admin/reports/terminal-activity?date_from=2026-01-01&date_to=2026-12-31',
+        );
     }
 
     private function report(string $type, string $groupBy): \Psr\Http\Message\ResponseInterface

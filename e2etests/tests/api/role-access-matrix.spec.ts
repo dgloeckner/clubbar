@@ -189,8 +189,8 @@ const MATRIX: Entry[] = [
   { method: 'GET', path: '/admin/notifications', roles: TREASURY },
   { method: 'POST', path: `/admin/notifications/${NOWHERE}/retry`, roles: TREASURY },
 
-  // ── reports: the one surface all three offices share ────────────────────
-  { method: 'GET', path: '/admin/reports/terminal-activity', roles: EVERY },
+  // ── reports: the sales figures are shared, the till's ledger is not ─────
+  { method: 'GET', path: '/admin/reports/terminal-activity', roles: TREASURY },
   { method: 'GET', path: '/admin/reports/revenue', roles: EVERY },
 
   // ── bank lookup ─────────────────────────────────────────────────────────

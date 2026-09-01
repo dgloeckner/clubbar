@@ -3,10 +3,14 @@
 **Implementation Status**: Not implemented — action needed (see plans/action-items-use-cases.md)
 
 ## Actor
-Admin
+Admin, Kassenwart
+
+The report is till sessions and per-terminal takings — money rather than stock —
+so it follows the treasury (ADR-0044). A Getränkewart does not see the tab and
+`GET /api/admin/reports/terminal-activity` answers them 403 `insufficient_role`.
 
 ## Preconditions
-- Admin is logged in
+- Admin or Kassenwart is logged in
 
 ## Trigger
 Admin opens Reports → Terminal Activity
@@ -57,6 +61,7 @@ Admin opens Reports → Terminal Activity
 - Monitor terminal usage
 
 ## Test Derivation
+- Role: a Kassenwart reads it; a Getränkewart is refused and is not shown the tab
 - Session grouping: 30min gap = new session
 - Date range: only activity in range
 - Peak hours: chart shows correct distribution

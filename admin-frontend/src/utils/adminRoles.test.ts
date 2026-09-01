@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import mainLayoutSource from '../components/layout/MainLayout.tsx?raw'
 import bottomTabBarSource from '../components/layout/BottomTabBar.tsx?raw'
 import settingsPageSource from '../pages/SettingsPage.tsx?raw'
+import reportsPageSource from '../pages/ReportsPage.tsx?raw'
 import {
   parseRoles,
   rolesForPath,
@@ -18,6 +19,10 @@ import {
   settingsTabsFor,
   maySeeSettingsTab,
   firstSettingsTab,
+  REPORT_TAB_ROLES,
+  reportTabsFor,
+  maySeeReportTab,
+  firstReportTab,
 } from './adminRoles'
 
 describe('parseRoles', () => {
@@ -350,5 +355,80 @@ describe('SCHEDULER_BANNER_ROLES', () => {
   /** A session whose profile has not loaded holds nothing, and asks nothing. */
   it('grants nothing to a session holding no role', () => {
     expect(holdsAnyRole([], SCHEDULER_BANNER_ROLES)).toBe(false)
+  })
+})
+
+/**
+ * The Reports page's own table (#519 follow-up).
+ *
+ * `/reports` stays open to all three offices — the drinks figures are what the
+ * Getränkewart's whole job runs on — so the terminal-activity boundary lives
+ * here, one screen in, under the same two rules as `SETTINGS_TAB_ROLES`.
+ */
+describe('REPORT_TAB_ROLES', () => {
+  it('leaves every tab open to an admin', () => {
+    expect(reportTabsFor(['admin'])).toEqual(Object.keys(REPORT_TAB_ROLES))
+  })
+
+  it('gives the Kassenwart every tab, terminal activity included', () => {
+    expect(reportTabsFor(['kassenwart'])).toEqual(['revenue', 'consumption', 'terminal-activity'])
+  })
+
+  /**
+   * The one grant this table exists for. Session takings and per-terminal
+   * revenue are cash handling, so the bar office reads the sales figures and
+   * not the till's ledger — and the tab is absent rather than present and
+   * answering 403.
+   */
+  it('keeps the Getränkewart out of terminal activity but not out of the sales figures', () => {
+    const visible = reportTabsFor(['getraenkewart'])
+
+    expect(visible).toEqual(['revenue', 'consumption'])
+    expect(visible).not.toContain('terminal-activity')
+  })
+
+  it('unions the tabs of several roles held at once', () => {
+    expect(reportTabsFor(['kassenwart', 'getraenkewart'])).toEqual([
+      'revenue',
+      'consumption',
+      'terminal-activity',
+    ])
+  })
+
+  /** Default-deny: an unclassified tab is invisible to everyone, `admin` included. */
+  it('refuses a tab it has never heard of', () => {
+    expect(maySeeReportTab(['getraenkewart'], 'invented-later')).toBe(false)
+    expect(maySeeReportTab(['admin'], 'invented-later')).toBe(false)
+  })
+
+  it('opens the first tab the caller may actually see', () => {
+    expect(firstReportTab(['admin'])).toBe('revenue')
+    expect(firstReportTab(['getraenkewart'])).toBe('revenue')
+  })
+
+  /** The client table must not be wider than the route it stands in front of. */
+  it('matches the server grant on terminal activity', () => {
+    expect(REPORT_TAB_ROLES['terminal-activity']).toEqual(['admin', 'kassenwart'])
+  })
+})
+
+/**
+ * The same completeness property the Settings table has: a tab the page renders
+ * but that the table does not name would be `admin`-only by default, and a tab
+ * named here that no longer exists is a grant that reads as live.
+ */
+describe('every Reports tab is classified', () => {
+  it('covers every tab the page renders, and names no tab it does not', () => {
+    const rendered = [
+      ...reportsPageSource.matchAll(/data-testid="report-tab-([a-z-]+)"/g),
+    ].map((m) => m[1])
+
+    expect(rendered.length).toBeGreaterThan(0)
+    for (const tab of rendered) {
+      expect(Object.keys(REPORT_TAB_ROLES), `${tab} is not classified`).toContain(tab)
+    }
+    for (const tab of Object.keys(REPORT_TAB_ROLES)) {
+      expect(rendered, `${tab} is classified but never rendered`).toContain(tab)
+    }
   })
 })

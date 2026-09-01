@@ -97,7 +97,7 @@ _Avoid_: treasurer (the club says Kassenwart), finance admin, accountant
 **Getränkewart**:
 Whoever looks after the bar stock: the drinks list, prices, availability, and what actually sells. Holds no encryption key and therefore *cannot* decrypt any IBAN — the only role whose exclusion from member banking data is cryptographic rather than a matter of which pages they can open.
 
-Sees no member: no names, no Deckel, no transaction rows, no dashboard. Product and terminal figures only. Sets a product's **Jugendschutz** age — a legal number on a drink — and still sees no member and no birth date. Sets no **Limit**: a ceiling is about a member's money, and this office sees no member.
+Sees no member: no names, no Deckel, no transaction rows, no dashboard. Product figures only — not the terminal-activity report either, whose rows are till sessions and per-terminal takings and therefore money rather than stock. Sets a product's **Jugendschutz** age — a legal number on a drink — and still sees no member and no birth date. Sets no **Limit**: a ceiling is about a member's money, and this office sees no member.
 _Avoid_: bar operator, bar manager, Barwart, product admin
 
 ### Notifications

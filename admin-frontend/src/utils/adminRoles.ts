@@ -25,7 +25,9 @@
  *
  * That split is {@link SETTINGS_TAB_ROLES} below. The section is TREASURY now,
  * and the boundary moved one level down rather than disappearing — same two
- * rules, in a table one screen further in.
+ * rules, in a table one screen further in. {@link REPORT_TAB_ROLES} is the
+ * same move on `/reports`, which every office opens but whose terminal-activity
+ * tab is treasury work.
  */
 
 import { AdminRole } from '../api/generated/adminRole'
@@ -113,6 +115,54 @@ export const SETTINGS_TAB_ROLES: Record<string, AdminRole[]> = {
   instance: ADMIN_ONLY,
   mail: ADMIN_ONLY,
   limits: TREASURY,
+}
+
+/**
+ * Reports tab → the roles that may see it (#519 follow-up).
+ *
+ * The same shape as {@link SETTINGS_TAB_ROLES}, and here for the same reason:
+ * `/reports` is one screen carrying tabs with different audiences, so opening
+ * the section to all three offices moves the boundary one level in rather than
+ * removing it. Same two rules — **default-deny**, so a tab added without an
+ * entry is `admin`-only until somebody grants it in a diff a reviewer sees,
+ * and **additive**, so holding several roles is the union.
+ *
+ * Revenue and consumption are the drinks figures, which is why the section is
+ * open to the Getränkewart at all — the server narrows those further on the
+ * `group_by` parameter rather than on the route.
+ *
+ * Terminal activity is TREASURY, matching `RouteRoleMap`: its rows are till
+ * sessions and per-terminal takings, which is cash handling rather than stock.
+ * Leaving the tab on screen for the bar office would show a door that answers
+ * 403, which is exactly what this table exists to prevent.
+ *
+ * Keys are the `data-testid` suffixes the page renders, which is what lets a
+ * unit test check that the two lists still describe the same set of tabs.
+ */
+export const REPORT_TAB_ROLES: Record<string, AdminRole[]> = {
+  revenue: EVERY_ROLE,
+  consumption: EVERY_ROLE,
+  'terminal-activity': TREASURY,
+}
+
+/** Whether `held` may see one Reports tab — false for a tab with no entry. */
+export function maySeeReportTab(held: AdminRole[], tab: string): boolean {
+  const allowed = REPORT_TAB_ROLES[tab]
+
+  return allowed ? held.some((role) => allowed.includes(role)) : false
+}
+
+/** The Reports tabs `held` may see, in the order the page renders them. */
+export function reportTabsFor(held: AdminRole[]): string[] {
+  return Object.keys(REPORT_TAB_ROLES).filter((tab) => maySeeReportTab(held, tab))
+}
+
+/**
+ * The Reports tab a caller lands on: the first one they may actually open,
+ * rather than a hardcoded default that answers 403 for some offices.
+ */
+export function firstReportTab(held: AdminRole[]): string | undefined {
+  return reportTabsFor(held)[0]
 }
 
 /** Whether `held` may see one Settings tab — false for a tab with no entry. */
