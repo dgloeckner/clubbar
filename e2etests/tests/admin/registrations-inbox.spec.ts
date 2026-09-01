@@ -8,6 +8,7 @@ import {
   serveClubDocument,
   stopServingClubDocument,
 } from '../../utils/sql'
+import { lockSelfRegistration, unlockSelfRegistration } from '../../utils/registrationLock'
 import { test } from '../../fixtures/roleRequests'
 
 /**
@@ -28,6 +29,25 @@ const TEST_IBAN = 'DE89370400440532013000'
 
 test.describe('Registrations inbox', () => {
   test.describe.configure({ mode: 'serial' })
+
+  /**
+   * One writer at a time on `self_registration_config` (#784).
+   *
+   * `mode: 'serial'` orders this file's tests and says nothing about the three
+   * other spec files that write the same singleton row. Without the lock, a
+   * concurrent worker overwrites the secret between the write and the request
+   * presenting it, and the valid secret comes back as the uniform 404 — a
+   * failure reported by whichever file lost the race rather than the one that
+   * caused it. Held for the whole test, because the window spans the write and
+   * the round trip that presents what was written.
+   */
+  test.beforeEach(() => {
+    lockSelfRegistration()
+  })
+
+  test.afterEach(() => {
+    unlockSelfRegistration()
+  })
 
   test.beforeAll(() => {
     serveClubDocument()
@@ -100,7 +120,7 @@ test.describe('Registrations inbox', () => {
     // it. A badge rendered outside the entry would change the real width
     // without changing the measured one, and the last section in the row would
     // fall off the end for a reason nothing explains (#742).
-    const badge = page.getByTestId('nav-registrations-count').first()
+    const badge = page.getByTestId('registrations-count-badge').first()
     await expect(badge).toBeVisible()
     // Not an exact number: the dev stack accumulates rows across runs, and what
     // this asserts is that the count reaches the nav at all.

@@ -165,21 +165,27 @@ final class MandateDocumentFillerTest extends TestCase
     }
 
     /**
-     * Ort/Datum, the signatures and the Kenntnisnahme boxes are done by hand at
-     * signature and are not fields in a valid template — so there is nowhere
-     * for a value to be drawn even if one were supplied. Asserted rather than
+     * A value has nowhere to go when the template has no field for it, and is
+     * dropped rather than drawn somewhere plausible. Asserted rather than
      * assumed, because "we simply never pass it" is a property of a caller and
      * this is a property of the document.
+     *
+     * The names here are deliberately ones this fixture does **not** carry.
+     * `unterschrift` used to be among them and no longer is: since #784 the
+     * fixture makes the signature line fillable on purpose, so that leaving it
+     * empty is provable instead of merely inevitable — see
+     * {@see self::test_nothing_is_ever_drawn_on_the_signature_line()}.
      */
     public function test_nothing_can_be_written_where_the_template_has_no_field(): void
     {
         $text = $this->readableText($this->fill([
             'datum_ort' => 'Frankfurt, 30.08.2026',
-            'unterschrift' => 'Lena Brandt',
+            'mitgliedsnummer' => 'M-4711',
         ]));
 
         self::assertStringNotContainsString('Frankfurt', $text);
         self::assertStringNotContainsString('30.08.2026', $text);
+        self::assertStringNotContainsString('M-4711', $text);
     }
 
     /**
@@ -488,6 +494,94 @@ final class MandateDocumentFillerTest extends TestCase
      *
      * @return list<string>
      */
+    /**
+     * The signature line comes back untouched (#784, epic decision 3).
+     *
+     * The fixture makes `ort_datum` and `unterschrift` real AcroForm fields
+     * exactly so this is provable rather than incidental. A club whose designer
+     * made the signature line fillable is a template this pipeline has to
+     * handle **without** filling it: a machine-printed place and date on a SEPA
+     * mandate is a claim nobody made, and the handwriting on those two lines is
+     * what the Kassenwart's later attestation refers to.
+     *
+     * Asserted geometrically rather than by searching for a string, because the
+     * failure to catch is "somebody added today's date as a convenience" and
+     * the string it would print is not knowable in advance. What is knowable is
+     * *where* it would land — so this checks that nothing was drawn inside
+     * either rectangle at all.
+     */
+    public function test_nothing_is_ever_drawn_on_the_signature_line(): void
+    {
+        $fields = PdfAcroFormFields::scan($this->template);
+
+        // A control run first: without it, a rebuild that dropped the two
+        // fields would leave this test asserting that nothing was drawn into
+        // nothing, and passing forever.
+        $control = $this->drawnRuns($this->fill(['ort_datum' => 'Musterstadt', 'unterschrift' => 'Lena B.']));
+        foreach (['ort_datum', 'unterschrift'] as $name) {
+            self::assertArrayHasKey($name, $fields, 'the fixture must still carry ' . $name);
+            self::assertNotEmpty(
+                $this->runsInside($control, $fields[$name]),
+                $name . ' is not actually fillable, so leaving it empty proves nothing',
+            );
+        }
+
+        // And the real thing: the filler is given no value for either, so
+        // neither rectangle has anything in it.
+        $drawn = $this->drawnRuns($this->fill());
+        foreach (['ort_datum', 'unterschrift'] as $name) {
+            self::assertSame(
+                [],
+                $this->runsInside($drawn, $fields[$name]),
+                $name . ' was written into',
+            );
+        }
+    }
+
+    /**
+     * Every `(text) Tj` the filler added, with the baseline it was drawn at.
+     *
+     * FPDF writes each value as `BT x y Td (…) Tj ET` in its own uncompressed
+     * stream, in PDF user space measured from the page's bottom-left — the same
+     * space `/Rect` uses, which is what makes the comparison above meaningful
+     * rather than approximate.
+     *
+     * @return list<array{x: float, y: float, text: string}>
+     */
+    private function drawnRuns(string $pdf): array
+    {
+        $runs = [];
+
+        foreach ($this->contentStreams($pdf) as $stream) {
+            if (preg_match_all('~BT\s+([0-9.-]+)\s+([0-9.-]+)\s+Td\s*\((.*?)\)\s*Tj~s', $stream, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $match) {
+                    $runs[] = ['x' => (float) $match[1], 'y' => (float) $match[2], 'text' => $match[3]];
+                }
+            }
+        }
+
+        return $runs;
+    }
+
+    /**
+     * @param list<array{x: float, y: float, text: string}> $runs
+     * @param array{0: float, 1: float, 2: float, 3: float} $rect
+     * @return list<string>
+     */
+    private function runsInside(array $runs, array $rect): array
+    {
+        [$x1, $y1, $x2, $y2] = $rect;
+
+        return array_values(array_map(
+            static fn(array $run): string => $run['text'],
+            array_filter(
+                $runs,
+                static fn(array $run): bool => $run['x'] >= $x1 - 1 && $run['x'] <= $x2 + 1
+                    && $run['y'] >= $y1 - 1 && $run['y'] <= $y2 + 1,
+            ),
+        ));
+    }
+
     private function contentStreams(string $pdf): array
     {
         $streams = [];

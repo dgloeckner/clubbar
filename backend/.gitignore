@@ -39,3 +39,4 @@ Thumbs.db
 # fillable mandate template sitting in the public web root of every
 # installation is not something to ship by accident.
 /public/e2e-club-anmeldung.pdf
+/public/.e2e-club-anmeldung-holders/

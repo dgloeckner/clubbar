@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Registrations\Documents;
 
 use App\Modules\Registrations\Documents\MandateDocumentFiller;
+use App\Modules\Registrations\Documents\PdfAcroFormFields;
 use App\Modules\Registrations\Documents\MandateDocumentService;
 use App\Modules\Registrations\Documents\TemplateFetcher;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
@@ -87,6 +88,25 @@ final class MandateDocumentServiceTest extends TestCase
         return $text;
     }
 
+    /**
+     * Every content stream, inflated where it is compressed.
+     *
+     * @return list<string>
+     */
+    private function contentStreams(string $pdf): array
+    {
+        $streams = [];
+
+        if (preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $matches)) {
+            foreach ($matches[1] as $stream) {
+                $inflated = @gzuncompress($stream);
+                $streams[] = $inflated === false ? $stream : $inflated;
+            }
+        }
+
+        return $streams;
+    }
+
     public function test_the_member_document_carries_the_full_iban_grouped_for_reading(): void
     {
         $pdf = $this->service->forMember($this->registration(), self::IBAN);
@@ -147,6 +167,116 @@ final class MandateDocumentServiceTest extends TestCase
      * is the shipped neutral case. A club's own document prints its identity
      * statically, and those values are simply dropped.
      */
+    /**
+     * The signature line stays empty, in **both** variants (#784).
+     *
+     * The fixture makes `ort_datum` and `unterschrift` real AcroForm fields
+     * precisely so this is provable rather than incidental: a club whose
+     * designer made the signature line fillable is a template this pipeline has
+     * to handle *without* filling it. A machine-printed place and date on a SEPA
+     * mandate is a claim nobody made — the member writes both at signature, and
+     * that handwriting is what the Kassenwart's attestation later refers to.
+     *
+     * `MandateDocumentFillerTest` proves the same thing about the mechanism,
+     * with a control run showing the fields really are fillable. This is the
+     * claim one level up: that **neither variant's value map** carries a key for
+     * them, which is the half a caller could break on its own.
+     */
+    public function test_neither_variant_fills_the_place_or_the_signature(): void
+    {
+        $fields = PdfAcroFormFields::scan(
+            (string) file_get_contents(__DIR__ . '/../../../../Fixtures/documents/club-anmeldung.pdf'),
+        );
+        // Vacuous otherwise: a rebuild that dropped the fields would leave this
+        // asserting that nothing was written into nothing.
+        self::assertArrayHasKey('ort_datum', $fields);
+        self::assertArrayHasKey('unterschrift', $fields);
+
+        $documents = [
+            'member' => (string) $this->service->forMember($this->registration(), self::IBAN),
+            'admin' => $this->service->forAdminPrint($this->registration()),
+        ];
+
+        foreach ($documents as $variant => $pdf) {
+            foreach (['ort_datum', 'unterschrift'] as $name) {
+                self::assertSame(
+                    [],
+                    $this->runsInside($pdf, $fields[$name]),
+                    "{$variant} variant wrote into {$name}",
+                );
+            }
+        }
+    }
+
+    /**
+     * The text drawn inside one field's rectangle, if any.
+     *
+     * FPDF writes each value as `BT x y Td (…) Tj ET` in PDF user space measured
+     * from the page's bottom-left — the same space `/Rect` uses, which is what
+     * makes the comparison exact rather than approximate. Checking *where*
+     * rather than *what* is the point: the failure to catch is somebody adding
+     * today's date as a convenience, and the string that would print is not
+     * knowable in advance.
+     *
+     * @param array{0: float, 1: float, 2: float, 3: float} $rect
+     * @return list<string>
+     */
+    private function runsInside(string $pdf, array $rect): array
+    {
+        [$x1, $y1, $x2, $y2] = $rect;
+        $found = [];
+
+        // Inflated first: FPDF's own stream is uncompressed but the imported
+        // pages are Flate, and a scan over the raw bytes silently finds nothing
+        // at all — which reads as "the field was left empty" for every field,
+        // including the ones that were filled.
+        foreach ($this->contentStreams($pdf) as $chunk) {
+            if (preg_match_all('~BT\s+([0-9.-]+)\s+([0-9.-]+)\s+Td\s*\((.*?)\)\s*Tj~s', $chunk, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $match) {
+                    $x = (float) $match[1];
+                    $y = (float) $match[2];
+                    if ($x >= $x1 - 1 && $x <= $x2 + 1 && $y >= $y1 - 1 && $y <= $y2 + 1) {
+                        $found[] = $match[3];
+                    }
+                }
+            }
+        }
+
+        return $found;
+    }
+
+    /**
+     * Every page of the club's document survives, in both variants (#784).
+     *
+     * The Datenschutzhinweise and the Nutzungsordnung ride behind the form page
+     * and are part of what the member signs (ADR-0052 decision 5). Losing them
+     * would be invisible on screen — page one looks perfect — and would hand the
+     * member a mandate without the notice they were pointed at.
+     */
+    public function test_both_variants_keep_every_page_of_the_template(): void
+    {
+        $template = (string) file_get_contents(__DIR__ . '/../../../../Fixtures/documents/club-anmeldung.pdf');
+        $expected = $this->pageCount($template);
+        self::assertGreaterThan(1, $expected, 'a single-page fixture would prove nothing');
+
+        self::assertSame(
+            $expected,
+            $this->pageCount((string) $this->service->forMember($this->registration(), self::IBAN)),
+            'member variant lost a page',
+        );
+        self::assertSame(
+            $expected,
+            $this->pageCount($this->service->forAdminPrint($this->registration())),
+            'admin variant lost a page',
+        );
+    }
+
+    /** `/Type /Page` occurrences, minus the one `/Type /Pages` node they hang from. */
+    private function pageCount(string $pdf): int
+    {
+        return preg_match_all('~/Type\s*/Page[^s]~', $pdf);
+    }
+
     public function test_the_creditor_block_is_filled_when_the_template_has_fields_for_it(): void
     {
         $pdf = $this->text((string) $this->service->forMember($this->registration(), self::IBAN));

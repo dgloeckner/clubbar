@@ -49,7 +49,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, rmSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 
@@ -258,15 +258,49 @@ export const CLUB_DOCUMENT_URL = 'http://localhost/e2e-club-anmeldung.pdf'
  * template sitting in a public web root of every installation is not something
  * to ship by accident.
  */
+/**
+ * Reference-counted, and it has to be (#784).
+ *
+ * Four spec files serve this document, each in its own `beforeAll` and each
+ * removing it in its own `afterAll`. Run in one job they overlap, so the first
+ * file to finish deletes the fixture out from under the three still using it —
+ * and the failure lands as a print that returned no PDF, in a spec that never
+ * touched the file. Locally that is a full-suite run; in CI the lanes are
+ * separate jobs, which is the only reason it has not bitten before.
+ *
+ * One token per holder, named by process and file. The document goes when the
+ * last token does, so a worker crashing mid-run leaves at worst a stale PDF in
+ * a git-ignored path rather than breaking somebody else's test.
+ */
+const CLUB_DOCUMENT = path.join(REPO_ROOT, 'backend/public/e2e-club-anmeldung.pdf')
+const CLUB_DOCUMENT_HOLDERS = path.join(REPO_ROOT, 'backend/public/.e2e-club-anmeldung-holders')
+
+/** This process's token — one per worker is enough; hooks within it nest. */
+const holderToken = `${process.pid}`
+
 export function serveClubDocument(): void {
+  mkdirSync(CLUB_DOCUMENT_HOLDERS, { recursive: true })
+  writeFileSync(path.join(CLUB_DOCUMENT_HOLDERS, holderToken), '')
   copyFileSync(
     path.join(REPO_ROOT, 'backend/tests/Fixtures/documents/club-anmeldung.pdf'),
-    path.join(REPO_ROOT, 'backend/public/e2e-club-anmeldung.pdf'),
+    CLUB_DOCUMENT,
   )
 }
 
 export function stopServingClubDocument(): void {
-  rmSync(path.join(REPO_ROOT, 'backend/public/e2e-club-anmeldung.pdf'), { force: true })
+  rmSync(path.join(CLUB_DOCUMENT_HOLDERS, holderToken), { force: true })
+
+  let remaining: string[] = []
+  try {
+    remaining = readdirSync(CLUB_DOCUMENT_HOLDERS)
+  } catch {
+    // The directory is gone, so nobody is holding it.
+  }
+
+  if (remaining.length === 0) {
+    rmSync(CLUB_DOCUMENT, { force: true })
+    rmSync(CLUB_DOCUMENT_HOLDERS, { recursive: true, force: true })
+  }
 }
 
 /** How many pending registrations exist right now. */
