@@ -100,7 +100,7 @@ test.describe('Registrations inbox', () => {
     // it. A badge rendered outside the entry would change the real width
     // without changing the measured one, and the last section in the row would
     // fall off the end for a reason nothing explains (#742).
-    const badge = page.getByTestId('nav-registrations-count').first()
+    const badge = page.getByTestId('registrations-count-badge').first()
     await expect(badge).toBeVisible()
     // Not an exact number: the dev stack accumulates rows across runs, and what
     // this asserts is that the count reaches the nav at all.
