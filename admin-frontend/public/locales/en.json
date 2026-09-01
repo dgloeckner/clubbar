@@ -1565,7 +1565,8 @@
       "invalidLink": "This invitation link has expired or has already been used. Ask for a new invitation.",
       "acceptFailed": "The password could not be saved."
     },
-    "roleLabel": "Your role"
+    "roleLabel": "Your role",
+    "signedInWarning": "This browser is signed in as {{name}}. Setting your password signs that account out here — you then sign in with your own address."
   },
   "registrations": {
     "title": "Registrations",

@@ -278,6 +278,40 @@ test('health endpoint is public', async ({ request }) => {
 
 **No special handling needed** - use standard `request` fixture.
 
+#### …except when the public endpoint ends your session
+
+`POST /api/invitations/accept` destroys whatever session the caller presented
+(#798): an invitee setting a password on the club laptop must not stay signed
+in as the admin who invited them. Called through `authenticatedRequest`, or
+through a `loginAs()` context for the seeded admin, or through `page.request` on
+a signed-in page, it therefore **signs that context out** — and the seeded
+admin's session is shared by every test in the run, so one such call can fail a
+whole suite in ways that point everywhere but at the accept.
+
+Always accept through `acceptInvitation()` (`utils/adminInvitation.ts`), which
+sends the request from a context of its own, holding no cookies — which is also
+exactly what an invitee's browser is:
+
+```typescript
+import { acceptInvitation, createInvitedAdmin } from '../../utils/adminInvitation'
+
+// An account with a password the test chose, created through the real flow.
+const { admin, password } = await createInvitedAdmin(authenticatedRequest, {
+  email: uniqueEmail('probe'),
+})
+
+// …or, when the link is already in hand:
+await acceptInvitation(invitation.url)
+```
+
+**A context is only session-less if you say so.** `request.newContext()` inherits
+the project's `use` options, and `admin-chromium` sets `storageState` to the
+shared admin's — so a context created for "an anonymous call" inside a UI
+project arrives holding that session. `acceptInvitation()` passes
+`storageState: { cookies: [], origins: [] }` explicitly for that reason; any
+other helper that means *anonymous* has to do the same, or it means "whatever
+the project was signed in as".
+
 ---
 
 ## Authentication Testing Patterns

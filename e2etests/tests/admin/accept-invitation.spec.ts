@@ -1,8 +1,14 @@
+import type { Page } from '@playwright/test'
 import { test, expect } from '../../fixtures/pageObjects'
 import { loginAs } from '../../utils/csrf'
 import { TEST_CREDENTIALS } from '../../config/test-credentials'
 import { stepUp } from '../../fixtures/stepUp'
-import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
+import { generateTotp } from '../../utils/totp'
+import {
+  acceptInvitation,
+  tokenFromInvitationUrl,
+  INVITED_ADMIN_PASSWORD,
+} from '../../utils/adminInvitation'
 
 /**
  * The invitee's own journey through the panel (migration 058, UC-A68):
@@ -36,6 +42,7 @@ async function inviteAdmin(
   playwright: Parameters<typeof loginAs>[0],
   email: string,
   roles?: string[],
+  displayName = 'Invited Colleague',
 ): Promise<string> {
   const ctx = await loginAs(playwright, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
   try {
@@ -43,7 +50,7 @@ async function inviteAdmin(
       data: {
         ...stepUp(),
         email,
-        display_name: 'Invited Colleague',
+        display_name: displayName,
         locale: 'de',
         ...(roles ? { roles } : {}),
       },
@@ -170,20 +177,10 @@ test.describe('Accepting an invitation (UI)', () => {
     const invitationUrl = await inviteAdmin(playwright, email)
 
     // Spend it out of band, the way a second click on a link in a mailbox
-    // would — or a colleague forwarding the mail on.
-    const ctx = await loginAs(playwright, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
-    const accepted = await ctx.post(
-      `${API_BASE}/invitations/accept`,
-      {
-        data: {
-          token: tokenFromInvitationUrl(invitationUrl),
-          password: INVITED_ADMIN_PASSWORD,
-          password_confirmation: INVITED_ADMIN_PASSWORD,
-        },
-      },
-    )
-    expect(accepted.status(), await accepted.text()).toBe(200)
-    await ctx.dispose()
+    // would — or a colleague forwarding the mail on. Session-less, because that
+    // is what an invitee's browser is and because accepting ends whatever
+    // session it is sent with (#798).
+    await acceptInvitation(invitationUrl)
 
     await page.goto(invitePath(invitationUrl))
 
@@ -202,5 +199,103 @@ test.describe('Accepting an invitation (UI)', () => {
 
     await expect(page.getByTestId('invite-link-error')).toBeVisible()
     await expect(page.getByTestId('invite-password-input')).toHaveCount(0)
+  })
+})
+/**
+ * The same journey, on a browser that is already signed in as somebody else
+ * (#798) — the club laptop the inviting admin never logs out of, which is how
+ * an invitation is followed at least as often as on a private machine.
+ *
+ * Until this was fixed, accepting there left the other session alive and the
+ * panel's redirect to `/login` bounced the invitee straight into the *other*
+ * admin's dashboard: a new admin inside an account they never authenticated
+ * as, seeing every screen that account can open.
+ *
+ * The occupant is a disposable account of this spec's own, never the seeded
+ * admin whose session the whole suite shares (E2E Pattern 002) — signing that
+ * one out would take the run with it.
+ */
+test.describe('Accepting an invitation on a browser somebody is signed in to', () => {
+  /**
+   * Sign this browser context in as `email`, through the API, so the page under
+   * test carries a real session cookie — the same technique `auth.setup.ts`
+   * uses. A freshly invited account has no second factor, so this walks the
+   * enrolment gate that the first sign-in always presents.
+   */
+  async function signInBrowserAs(page: Page, email: string, password: string): Promise<void> {
+    const login = await page.request.post(`${API_BASE}/auth/login`, { data: { email, password } })
+    expect(login.status(), await login.text()).toBe(200)
+    const { csrf_token: csrf, requiresTotpSetup } = await login.json()
+    expect(requiresTotpSetup).toBe(true)
+
+    const setup = await page.request.post(`${API_BASE}/auth/2fa/setup`, {
+      headers: { 'X-CSRF-Token': csrf },
+    })
+    expect(setup.status(), await setup.text()).toBe(200)
+
+    const confirm = await page.request.post(`${API_BASE}/auth/2fa/confirm`, {
+      data: { code: generateTotp((await setup.json()).secret) },
+      headers: { 'X-CSRF-Token': csrf },
+    })
+    expect(confirm.status(), await confirm.text()).toBe(200)
+  }
+
+  test('the invitee is signed in as nobody, and lands on the sign-in form', async ({
+    page,
+    playwright,
+  }) => {
+    const occupantEmail = uniqueEmail('occupant')
+    await acceptInvitation(await inviteAdmin(playwright, occupantEmail, undefined, 'Already Signed In'))
+    await signInBrowserAs(page, occupantEmail, INVITED_ADMIN_PASSWORD)
+
+    const inviteeEmail = uniqueEmail('newcomer')
+    const invitationUrl = await inviteAdmin(playwright, inviteeEmail)
+
+    await page.goto(invitePath(invitationUrl))
+
+    // Told before they type, not after: this browser belongs to somebody else,
+    // and saving ends that session.
+    await expect(page.getByTestId('invite-signed-in-warning')).toContainText('Already Signed In')
+    await expect(page.getByTestId('invite-email')).toHaveValue(inviteeEmail)
+
+    await page.getByTestId('invite-password-input').fill(INVITED_ADMIN_PASSWORD)
+    await page.getByTestId('invite-password-confirmation-input').fill(INVITED_ADMIN_PASSWORD)
+    await page.getByTestId('invite-submit-button').click()
+
+    // The sign-in *form*, with their own address — not the occupant's
+    // dashboard, which is where `/login` sends an authenticated browser.
+    await expect(page).toHaveURL(/\/login$/)
+    await expect(page.getByTestId('login-email-input')).toHaveValue(inviteeEmail)
+    await expect(page.getByTestId('login-password-input')).toBeVisible()
+
+    // And the occupant's session is really gone, not merely forgotten by the
+    // panel: the cookie jar this browser still holds is answered as anonymous.
+    const profile = await page.request.get(`${API_BASE}/auth/profile`)
+    expect(profile.status()).toBe(401)
+
+    // Reloading cannot bring it back either — the dashboard is behind a login
+    // again, for whoever sits down at this machine next.
+    await page.goto('/dashboard')
+    await expect(page.getByTestId('login-password-input')).toBeVisible()
+  })
+
+  /**
+   * The other half of the rule: *opening* the page changes nothing. An admin
+   * checking that the link they issued works stays signed in — a page view is
+   * not an acceptance.
+   */
+  test('merely opening the link leaves the signed-in admin signed in', async ({
+    page,
+    playwright,
+  }) => {
+    const occupantEmail = uniqueEmail('looker')
+    await acceptInvitation(await inviteAdmin(playwright, occupantEmail, undefined, 'Still Signed In'))
+    await signInBrowserAs(page, occupantEmail, INVITED_ADMIN_PASSWORD)
+
+    const invitationUrl = await inviteAdmin(playwright, uniqueEmail('looked-at'))
+    await page.goto(invitePath(invitationUrl))
+
+    await expect(page.getByTestId('invite-password-input')).toBeVisible()
+    expect((await page.request.get(`${API_BASE}/auth/profile`)).status()).toBe(200)
   })
 })

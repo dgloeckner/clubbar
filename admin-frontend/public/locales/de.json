@@ -1565,7 +1565,8 @@
       "invalidLink": "Dieser Einladungslink ist abgelaufen oder wurde bereits verwendet. Bitten Sie um eine neue Einladung.",
       "acceptFailed": "Das Passwort konnte nicht gespeichert werden."
     },
-    "roleLabel": "Ihre Rolle"
+    "roleLabel": "Ihre Rolle",
+    "signedInWarning": "Dieser Browser ist als {{name}} angemeldet. Mit dem Festlegen Ihres Passworts wird dieses Konto hier abgemeldet — anschließend melden Sie sich mit Ihrer eigenen Adresse an."
   },
   "registrations": {
     "title": "Anmeldungen",

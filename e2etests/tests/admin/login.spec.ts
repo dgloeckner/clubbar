@@ -21,7 +21,7 @@ import { TEST_CREDENTIALS } from '../../config/test-credentials'
 import { generateTotp } from '../../utils/totp'
 import { loginAs } from '../../utils/csrf'
 import { stepUp } from '../../fixtures/stepUp'
-import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
+import { acceptInvitation, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -51,21 +51,9 @@ async function createUnenrolledAdmin(
     // Walking the invitation is what gives the account a password
     // (migration 058); the account is created with none.
     const { invitation } = await createResp.json()
-    const accepted = await ctx.post(
-      `${API_BASE}/invitations/accept`,
-      {
-        data: {
-          token: tokenFromInvitationUrl(invitation.url),
-          password: INVITED_ADMIN_PASSWORD,
-          password_confirmation: INVITED_ADMIN_PASSWORD,
-        },
-      },
-    )
-    if (accepted.status() !== 200) {
-      throw new Error(
-        `Failed to accept the invitation (${accepted.status()}): ${await accepted.text()}`,
-      )
-    }
+    // Session-less, as an invitee's browser is — and as it must be: accepting
+    // ends the caller's session (#798), and `ctx` is the shared seeded admin's.
+    await acceptInvitation(invitation.url)
 
     return { email, password: INVITED_ADMIN_PASSWORD }
   } finally {

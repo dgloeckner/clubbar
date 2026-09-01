@@ -24,6 +24,17 @@
  * has no second factor, so `AuthController::login` answers
  * `requiresTotpSetup`. Minting a session from a mail link would skip that gate
  * and would make the link worth more than it should ever be worth.
+ *
+ * **And it signs anybody else out** (#798). This page is regularly opened in a
+ * browser that already holds an admin session — the club laptop the inviting
+ * admin never logs out of — and `/login` sends an authenticated browser to the
+ * dashboard, so the invitee used to arrive inside the *other* admin's account
+ * without entering a password. `POST /api/invitations/accept` now ends that
+ * session server-side; this page drops the panel's own copy of it so the
+ * redirect to `/login` shows the sign-in form rather than bouncing off stale
+ * state. Opening the page still changes nothing: an admin may legitimately be
+ * looking at a link they issued, and only setting a password hands this
+ * browser a new identity.
  */
 
 import { FormEvent, useEffect, useState } from 'react'
@@ -35,6 +46,7 @@ import { Input } from '../components/common/Input'
 import { Badge, type BadgeProps } from '../components/common/Badge'
 import type { AdminRole } from '../api/generated/adminRole'
 import { getInvitations } from '../api/generated/invitations/invitations'
+import { useAuth } from '../context/AuthContext'
 import { useApiError } from '../hooks/useApiError'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { theme } from '../styles/design-system'
@@ -76,8 +88,20 @@ const labelStyle = {
   color: theme.colors.text.primary,
 } as const
 
-function Banner({ message, testId, tone }: { message: string; testId: string; tone: 'danger' | 'success' }) {
-  const color = tone === 'danger' ? theme.colors.semantic.danger : theme.colors.semantic.success
+function Banner({
+  message,
+  testId,
+  tone,
+}: {
+  message: string
+  testId: string
+  tone: 'danger' | 'success' | 'warning'
+}) {
+  const color = {
+    danger: theme.colors.semantic.danger,
+    success: theme.colors.semantic.success,
+    warning: theme.colors.semantic.warning,
+  }[tone]
 
   return (
     <div
@@ -107,6 +131,8 @@ export function AcceptInvitationPage() {
   const token = hash.startsWith('#') ? decodeURIComponent(hash.slice(1)) : ''
   const { apiErrorMessage } = useApiError()
   const latest = useLatestRequest()
+  // Whoever this browser was signed in as before the invitee sat down at it.
+  const { isAuthenticated, displayName, email: signedInEmail, logout } = useAuth()
 
   const [invitee, setInvitee] = useState<{
     email: string
@@ -177,6 +203,15 @@ export function AcceptInvitationPage() {
         password_confirmation: confirmation,
       })
       setDone(true)
+      // The password is set, so this browser now belongs to the invitee. The
+      // backend has already destroyed the session it arrived with (#798); this
+      // clears the panel's in-memory copy of it, without which `/login` would
+      // still believe it was authenticated and redirect to the dashboard —
+      // the bug itself. The request it sends is answered 401 by the session
+      // that no longer exists, which `logout()` treats as success.
+      if (isAuthenticated) {
+        await logout()
+      }
       // The address is carried to the login form rather than asked for again:
       // the invitee has only ever seen it in an email, and it is the account's
       // identifier, not something they chose.
@@ -216,6 +251,19 @@ export function AcceptInvitationPage() {
 
   return (
     <AuthCard title={t('invite.title')} subtitle={t('invite.subtitle', { name: invitee.display_name })}>
+      {/*
+        Said before the password is set, not discovered afterwards: this browser
+        is signed in as somebody else, and saving ends that session. Without it
+        the sign-out reads as the panel losing the other admin's session for no
+        reason (#798).
+      */}
+      {isAuthenticated && (
+        <Banner
+          message={t('invite.signedInWarning', { name: displayName || signedInEmail || '' })}
+          testId="invite-signed-in-warning"
+          tone="warning"
+        />
+      )}
       {formError && <Banner message={formError} testId="invite-error" tone="danger" />}
       {done && <Banner message={t('invite.done')} testId="invite-done" tone="success" />}
 

@@ -633,6 +633,25 @@ Cookie: _session=...
 - Redirect to /login
 ```
 
+### The other place a session ends: accepting an invitation (#798)
+
+`POST /api/invitations/accept` is public and mints no session — and it also
+**ends the one the request arrived with**, through
+`Auth\Domain\BrowserSession::endIfPresent()`: `$_SESSION = []`,
+`session_destroy()`, and an expired cookie in the response.
+
+It is the one public route that touches a session, and the reason is that it
+hands the browser a *new identity*. An invitee frequently follows their link on
+a machine the inviting admin is already signed in to; the panel then sends them
+to `/login`, which redirects an authenticated browser to the dashboard — so the
+new admin arrived inside somebody else's account without ever entering a
+password.
+
+The rule this generalises to: **a public route that credentials a different
+account must end the session it was called with.** Reading is not credentialing
+— `POST /api/invitations/lookup` deliberately leaves the session alone, because
+an admin may legitimately look at a link they issued.
+
 ---
 
 ## Consequences

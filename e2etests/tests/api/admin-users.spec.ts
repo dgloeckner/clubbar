@@ -4,7 +4,7 @@ import { loginAs } from "../../utils/csrf";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { generateTotp } from "../../utils/totp";
 import { stepUp } from "../../fixtures/stepUp";
-import { tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from "../../utils/adminInvitation";
+import { acceptInvitation, tokenFromInvitationUrl, INVITED_ADMIN_PASSWORD } from "../../utils/adminInvitation";
 
 // Same path auth.setup.ts writes its storageState to (see tests/auth.setup.ts).
 const ADMIN_STORAGE_STATE_PATH = path.join("playwright", ".auth", "admin.json");
@@ -475,17 +475,9 @@ test.describe("Admin Users API", () => {
     // The account is invited rather than given a password (migration 058), so
     // this test walks the invitation first: a reset is only meaningful against
     // an account that has a password to replace.
-    const accepted = await authenticatedRequest.post(
-      `${API_BASE}/invitations/accept`,
-      {
-        data: {
-          token: tokenFromInvitationUrl(createData.invitation.url),
-          password: INVITED_ADMIN_PASSWORD,
-          password_confirmation: INVITED_ADMIN_PASSWORD,
-        },
-      },
-    );
-    expect(accepted.status(), await accepted.text()).toBe(200);
+    // Session-less, as an invitee's browser is: accepting ends the caller's
+    // session (#798), and `authenticatedRequest` is the one the run shares.
+    await acceptInvitation(createData.invitation.url);
 
     // The caller must first re-prove their own identity with a step-up
     // credential (#337): their own password, plus their own fresh TOTP code
@@ -574,17 +566,9 @@ test.describe("Admin Users API", () => {
 
     // The invitation is what gives the account a password (migration 058), and
     // the password is this test's own — nothing in the system ever knew it.
-    const accepted = await authenticatedRequest.post(
-      `${API_BASE}/invitations/accept`,
-      {
-        data: {
-          token: tokenFromInvitationUrl(invitation.url),
-          password: INVITED_ADMIN_PASSWORD,
-          password_confirmation: INVITED_ADMIN_PASSWORD,
-        },
-      },
-    );
-    expect(accepted.status(), await accepted.text()).toBe(200);
+    // Session-less, as an invitee's browser is: accepting ends the caller's
+    // session (#798), and `authenticatedRequest` is the one the run shares.
+    await acceptInvitation(invitation.url);
     const password = INVITED_ADMIN_PASSWORD;
 
     // Login as the new admin (returns CSRF-aware context)
@@ -625,17 +609,9 @@ test.describe("Admin Users API", () => {
 
     // The invitation is what gives the account a password (migration 058), and
     // the password is this test's own — nothing in the system ever knew it.
-    const accepted = await authenticatedRequest.post(
-      `${API_BASE}/invitations/accept`,
-      {
-        data: {
-          token: tokenFromInvitationUrl(invitation.url),
-          password: INVITED_ADMIN_PASSWORD,
-          password_confirmation: INVITED_ADMIN_PASSWORD,
-        },
-      },
-    );
-    expect(accepted.status(), await accepted.text()).toBe(200);
+    // Session-less, as an invitee's browser is: accepting ends the caller's
+    // session (#798), and `authenticatedRequest` is the one the run shares.
+    await acceptInvitation(invitation.url);
     const password = INVITED_ADMIN_PASSWORD;
 
     // Login as the new admin (returns CSRF-aware context)
@@ -676,17 +652,9 @@ test.describe("Admin Users API", () => {
 
     // The invitation is what gives the account a password (migration 058), and
     // the password is this test's own — nothing in the system ever knew it.
-    const accepted = await authenticatedRequest.post(
-      `${API_BASE}/invitations/accept`,
-      {
-        data: {
-          token: tokenFromInvitationUrl(invitation.url),
-          password: INVITED_ADMIN_PASSWORD,
-          password_confirmation: INVITED_ADMIN_PASSWORD,
-        },
-      },
-    );
-    expect(accepted.status(), await accepted.text()).toBe(200);
+    // Session-less, as an invitee's browser is: accepting ends the caller's
+    // session (#798), and `authenticatedRequest` is the one the run shares.
+    await acceptInvitation(invitation.url);
     const password = INVITED_ADMIN_PASSWORD;
 
     // Login as the new admin (returns CSRF-aware context)
