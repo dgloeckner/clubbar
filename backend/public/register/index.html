@@ -217,29 +217,87 @@
   <section id="screen-done" data-testid="screen-done" class="screen" hidden>
     <h1 data-i18n="done.title">Geschafft!</h1>
 
+    <!--
+      Saving comes first, before any explanation (#804).
+
+      The applicant is on a phone that may reload the tab from under them, and
+      the filled document arrived exactly once — in the submission response, and
+      by design nowhere else. An explanation they read before saving is an
+      explanation read at the cost of the thing being explained, so the steps
+      moved below this block and the save is the first thing under the heading.
+    -->
+    <div class="save" id="save-block" data-testid="save-block">
+      <p class="lede" data-i18n="done.saveLede">
+        Speichere zuerst deine Unterlagen — sie sind nur hier verfügbar.
+      </p>
+
+      <!--
+        The system share sheet, where the phone has one. On an iPhone this is
+        the sheet with „In Dateien sichern“, „Drucken“ (AirPrint) and „Mail“ —
+        which covers the commonest case of all: no printer at home, one at work.
+        Hidden unless `navigator.canShare` accepts a file, so a desktop browser
+        never sees a button that would do nothing.
+      -->
+      <button type="button" class="primary" id="share-button" data-testid="share-button"
+              data-i18n="done.share" hidden>Unterlagen teilen oder drucken</button>
+
+      <!--
+        The download, which is also attempted automatically the moment the
+        receipt arrives — inside the user activation of the „Absenden“ tap, so
+        the commonest way to lose the document (never tapping a second button)
+        is answered before it can happen. The attempt is a bonus and never a
+        guarantee: a browser may refuse it, which is why this button stays.
+      -->
+      <button type="button" class="secondary" id="download-button" data-testid="download-button"
+              data-i18n="done.download">Unterlagen herunterladen (PDF)</button>
+
+      <!-- One line, chosen by user agent: where the file actually went. -->
+      <p class="hint" id="platform-hint" data-testid="platform-hint"></p>
+
+      <!--
+        The document stays in this tab's `sessionStorage` until the applicant
+        says they have it — that is what survives iOS reloading a backgrounded
+        tab. It leaves on this tap, when the share sheet reports a successful
+        save, or after 30 minutes, whichever comes first.
+      -->
+      <button type="button" class="secondary" id="clear-button" data-testid="clear-button"
+              data-i18n="done.clear" hidden>Gespeichert, aus dem Browser entfernen</button>
+
+      <p class="hint" data-testid="download-hint" data-i18n="done.downloadHint">
+        Die Unterlagen bleiben nur in diesem Tab und nur für kurze Zeit. Falls sie verloren gehen:
+        der Kassenwart kann sie jederzeit neu ausdrucken.
+      </p>
+
+      <p class="hint" id="cleared-note" data-testid="cleared-note" hidden data-i18n="done.cleared">
+        Aus dem Browser entfernt.
+      </p>
+    </div>
+
+    <p class="muted" id="no-document" data-testid="no-document" hidden data-i18n="done.noDocument">
+      Die Unterlagen konnten gerade nicht erzeugt werden — deine Anmeldung ist trotzdem angekommen.
+      Der Kassenwart druckt sie für dich aus.
+    </p>
+
     <ol class="steps">
-      <li data-i18n="done.step1">Unterlagen herunterladen, ausdrucken und unterschreiben.</li>
+      <li data-i18n="done.step1">Unterlagen ausdrucken und unterschreiben.</li>
       <li data-i18n="done.step2">Das unterschriebene Blatt beim Kassenwart abgeben.</li>
       <li data-i18n="done.step3">Der Kassenwart prüft es und schaltet dich frei. <strong>Vorher funktioniert das Konto noch nicht.</strong></li>
       <li data-i18n="done.step4">Deine Karte bekommst du ebenfalls vom Kassenwart.</li>
     </ol>
 
     <!--
-      One chance, and the page says so. The document was rendered from a
-      plaintext IBAN that existed only for the length of the submission request;
-      reloading has nothing left to render from, and there is no endpoint that
-      could hand it over again. If it is lost, the Kassenwart prints their own
-      copy — which is why that is never a dead end.
+      What happens next, and by when. The welcome mail (ADR-0051) is sent at
+      exactly one moment — when the card is assigned — and until this sentence
+      existed the applicant did not know what they were waiting for. The second
+      sentence is the retention rule (`self_registration_config.retention_days`)
+      the purge already enforces, said out loud for the one person it affects;
+      the number comes from the context answer rather than from this markup.
     -->
-    <button type="button" class="primary" id="download-button" data-testid="download-button"
-            data-i18n="done.download">Unterlagen herunterladen (PDF)</button>
-    <p class="hint" data-testid="download-hint" data-i18n="done.downloadHint">
-      Nur jetzt verfügbar. Falls du es verlierst: der Kassenwart kann es jederzeit neu ausdrucken.
+    <p class="outlook" data-testid="done-card" data-i18n="done.card">
+      Du bekommst eine E-Mail, sobald deine Karte zugewiesen ist.
     </p>
-
-    <p class="muted" id="no-document" data-testid="no-document" hidden data-i18n="done.noDocument">
-      Die Unterlagen konnten gerade nicht erzeugt werden — deine Anmeldung ist trotzdem angekommen.
-      Der Kassenwart druckt sie für dich aus.
+    <p class="outlook muted" data-testid="done-expiry" data-i18n="done.expiry">
+      Deine Anmeldung wird nach 30 Tagen gelöscht, wenn sie bis dahin nicht bestätigt wurde.
     </p>
 
     <p class="reference">

@@ -370,7 +370,39 @@ button[disabled] { opacity: 0.55; cursor: progress; }
 
 .summary dd:last-of-type { border-bottom: 0; }
 
-/* ── done ────────────────────────────────────────────────────────────────── */
+/* ── done ──────────────────────────────────────────────────────────────────
+   Saving first, and visibly so (#804). The document arrived once and cannot be
+   asked for again, so the block that saves it sits directly under the heading,
+   on its own ground, above the explanation of what to do with it — an
+   applicant who reads before saving has read at the cost of the thing being
+   explained. */
+
+.save {
+  margin: 0 0 26px;
+  padding: 20px;
+  background: var(--ink-050);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius);
+}
+
+.save[hidden] { display: none; }
+
+.save .lede { margin-bottom: 18px; }
+
+/* A button following a hint is still a button following a button, as far as
+   the eye is concerned: the platform hint sits between the download and the
+   “remove it again” tap, and without this they touch. */
+.save .hint + button { margin-top: 14px; }
+
+.save .hint { margin-top: 10px; }
+
+.outlook {
+  margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.outlook[hidden] { display: none; }
 
 .steps {
   padding-left: 20px;

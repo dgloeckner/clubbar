@@ -251,6 +251,33 @@ the final PR.
       branded, a refused link is not branded at all, and a club with no mark
       renders no image rather than a broken one.
 
+- [x] **M9 — The download survives a phone, and the done screen says what
+      happens next** ([#804](https://github.com/dgloeckner/clubbar/issues/804)).
+      The filled Anmeldung arrives once and by design cannot be re-fetched,
+      which on a phone meant three ordinary ways to lose it: the tab reloads
+      after a call, the second tap never happens, or it comes a minute late and
+      the blob URL has already been revoked. The page now **saves without being
+      asked**, inside the user activation of the „Absenden“ tap; keeps the
+      document in that tab's `sessionStorage` so a reload re-renders the done
+      screen instead of an empty form, until the applicant confirms they have
+      it, a share succeeds, or 30 minutes pass; offers the phone's **share
+      sheet** where one takes files, which is the only route to AirPrint or mail
+      for an applicant with no printer at home; and releases blob URLs on
+      `pagehide` rather than after 60 seconds. The done screen puts saving
+      first, names where the file lands on that platform, and finally says the
+      two things the applicant could not know: a mail follows when the card is
+      assigned (UC-A67), and an unconfirmed registration is deleted after the
+      club's own `retention_days` — read from the context answer, not typed into
+      the page. **The server is untouched** apart from that number: no re-fetch
+      endpoint, no token, no mail carrying an IBAN, and ADR-0052 decision 5
+      carries a footnote saying exactly which sentence moved.
+      *Verified by*: `register` **33/33** at 4 workers and serially,
+      `registration-flow.spec.ts` **3/3**, `api-tests --grep registration`
+      **47/47**, backend Unit **2928** green. The privacy assertion is
+      re-scoped rather than weakened — before submit nothing is stored at all,
+      after submit only `sessionStorage`, and `localStorage`, cookies and the
+      URL never carry the e-mail, the name or `DE89` at any point.
+
 ## Testable acceptance, epic-wide
 
 These are the assertions that decide whether the epic is done, independent of

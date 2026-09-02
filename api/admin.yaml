@@ -474,6 +474,17 @@ paths:
                     items:
                       type: string
                     description: The languages the page may offer.
+                  retention_days:
+                    type: integer
+                    example: 30
+                    description: >
+                      How long an unconfirmed registration is kept before the
+                      purge takes it. The done screen says it out loud — "your
+                      registration is deleted after 30 days if it has not been
+                      confirmed by then" — and reads the number from here, so a
+                      club that widens the setting does not leave the page
+                      promising the old one. Club configuration, like every
+                      other field on this answer.
                   club_name:
                     type: string
                     nullable: true

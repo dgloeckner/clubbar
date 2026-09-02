@@ -12,13 +12,24 @@
  * never sent to a server by any browser, which is why the poster credential
  * goes there rather than in a path — a request line is written verbatim into
  * every access log in front of an installation, and this credential may still
- * be on a wall in two years. It is read once and held in a closure. Nothing
- * here writes to `localStorage`, `sessionStorage` or a cookie.
+ * be on a wall in two years. It is read once and held in a closure, and it is
+ * never written to storage of any kind.
  *
  * **No personal data leaves this page except to the submission endpoint.** Form
  * state is a variable. The one outbound navigation is the club's own document
  * link, and `<meta name="referrer" content="no-referrer">` keeps this URL —
  * fragment included — out of the club webserver's logs.
+ *
+ * **The one thing that is stored is the finished document, in this tab only**
+ * (#804). `sessionStorage` — never `localStorage`, never a cookie, never the
+ * URL — holds the filled Anmeldung between the submission and the moment the
+ * applicant says they have saved it, and it is dropped on that tap, on a
+ * successful share, or after thirty minutes. It is there because the document
+ * arrives exactly once and cannot be re-fetched: iOS Safari reloads a
+ * backgrounded tab after a phone call, and without this the applicant comes
+ * back to an empty form with their Anmeldung gone. `sessionStorage` is scoped
+ * to the tab and dies with it, which is the property that makes this the
+ * smallest change that answers the failure.
  *
  * **The server is the authority.** Everything validated here is validated again
  * there; the client-side checks exist so somebody standing at a bar finds a
@@ -65,12 +76,22 @@
       'review.back': 'Zurück und ändern',
       'review.sending': 'Wird gesendet…',
       'done.title': 'Geschafft!',
-      'done.step1': 'Unterlagen herunterladen, ausdrucken und unterschreiben.',
+      'done.saveLede': 'Speichere zuerst deine Unterlagen — sie sind nur hier verfügbar.',
+      'done.step1': 'Unterlagen ausdrucken und unterschreiben.',
       'done.step2': 'Das unterschriebene Blatt beim Kassenwart abgeben.',
       'done.step3': 'Der Kassenwart prüft es und schaltet dich frei. Vorher funktioniert das Konto noch nicht.',
       'done.step4': 'Deine Karte bekommst du ebenfalls vom Kassenwart.',
+      'done.share': 'Unterlagen teilen oder drucken',
       'done.download': 'Unterlagen herunterladen (PDF)',
-      'done.downloadHint': 'Nur jetzt verfügbar. Falls du es verlierst: der Kassenwart kann es jederzeit neu ausdrucken.',
+      'done.downloadAgain': 'Erneut speichern',
+      'done.clear': 'Gespeichert, aus dem Browser entfernen',
+      'done.cleared': 'Aus dem Browser entfernt. In diesem Tab kannst du sie noch einmal speichern.',
+      'done.downloadHint': 'Die Unterlagen bleiben nur in diesem Tab und nur für kurze Zeit. Falls sie verloren gehen: der Kassenwart kann sie jederzeit neu ausdrucken.',
+      'done.hintIos': 'iPhone: Teilen, dann „In Dateien sichern“ oder „Drucken“.',
+      'done.hintAndroid': 'Android: die Datei liegt danach unter „Downloads“.',
+      'done.hintDesktop': 'Die Datei landet im Download-Ordner dieses Geräts.',
+      'done.card': 'Du bekommst eine E-Mail, sobald deine Karte zugewiesen ist.',
+      'done.expiry': 'Deine Anmeldung wird nach {days} Tagen gelöscht, wenn sie bis dahin nicht bestätigt wurde.',
       'done.noDocument': 'Die Unterlagen konnten gerade nicht erzeugt werden — deine Anmeldung ist trotzdem angekommen. Der Kassenwart druckt sie für dich aus.',
       'done.reference': 'Mandatsreferenz',
       'error.required': 'Bitte ausfüllen.',
@@ -120,12 +141,22 @@
       'review.back': 'Back to change something',
       'review.sending': 'Sending…',
       'done.title': 'All done!',
-      'done.step1': 'Download the documents, print them and sign.',
+      'done.saveLede': 'Save your documents first — this is the only place they exist.',
+      'done.step1': 'Print the documents and sign them.',
       'done.step2': 'Hand the signed sheet to the treasurer.',
       'done.step3': 'The treasurer checks it and activates you. Until then your account does not work yet.',
       'done.step4': 'Your card comes from the treasurer too.',
+      'done.share': 'Share or print the documents',
       'done.download': 'Download documents (PDF)',
-      'done.downloadHint': 'Available now only. If you lose it, the treasurer can print it again any time.',
+      'done.downloadAgain': 'Save again',
+      'done.clear': 'Saved — remove from this browser',
+      'done.cleared': 'Removed from this browser. You can still save again from this tab.',
+      'done.downloadHint': 'The documents stay in this tab only, and only for a short while. If they are lost, the treasurer can print them again any time.',
+      'done.hintIos': 'iPhone: Share, then “Save to Files” or “Print”.',
+      'done.hintAndroid': 'Android: the file lands in “Downloads”.',
+      'done.hintDesktop': 'The file lands in this device’s downloads folder.',
+      'done.card': 'You will get an email as soon as your card has been assigned.',
+      'done.expiry': 'Your registration is deleted after {days} days if it has not been confirmed by then.',
       'done.noDocument': 'The documents could not be produced just now — your registration arrived all the same. The treasurer will print them for you.',
       'done.reference': 'Mandate reference',
       'error.required': 'Please fill this in.',
@@ -164,11 +195,142 @@
   var context = null
   var draft = {}
 
+  /** The document this tab is holding, base64, or '' once it is gone. */
+  var document64 = ''
+
+  /**
+   * Values the strings interpolate — today only the club's retention period.
+   *
+   * A default so the sentence is never wrong before the context answers, and a
+   * variable rather than a literal in the string table because the number is
+   * `self_registration_config.retention_days` and a club may change it.
+   */
+  var params = { days: 30 }
+
+  /* ── the tab's copy of the document (#804) ────────────────────────────────
+     The filled Anmeldung exists in exactly one place — the submission response
+     — and cannot be asked for again, because the plaintext IBAN it was rendered
+     from lived only for the length of that request. A phone that reloads the
+     tab, and they do, would otherwise take it with them.
+
+     `sessionStorage` is the whole answer: it survives a reload of *this* tab
+     and nothing else. Not `localStorage`, which would outlive the visit on a
+     shared phone; not a cookie, which would be sent to the server on every
+     request from here on. Everything else the page knows stays in memory. */
+
+  var STORE_KEY = 'clubbar.registration'
+  var STORE_TTL_MS = 30 * 60 * 1000
+  var storeTimer = null
+
+  /** `sessionStorage` throws rather than returns in Safari's private mode. */
+  function store() {
+    try {
+      return window.sessionStorage
+    } catch (error) {
+      return null
+    }
+  }
+
+  function remember(receipt) {
+    var jar = store()
+    if (jar === null) return
+
+    try {
+      jar.setItem(
+        STORE_KEY,
+        JSON.stringify({
+          v: 1,
+          lang: lang,
+          saved_at: Date.now(),
+          days: params.days,
+          mandate_reference: receipt.mandate_reference || '',
+          document: receipt.document || '',
+          // Club configuration, not the applicant: without it a restored screen
+          // would lose the club's header and read like somebody else's page.
+          club_name: (context && context.club_name) || '',
+          logo_url: (context && context.logo_url) || '',
+        }),
+      )
+    } catch (error) {
+      // A quota refusal is not a failure of the registration. The tab still
+      // holds the document in memory; only the reload rescue is gone.
+    }
+  }
+
+  function forget() {
+    var jar = store()
+    if (jar !== null) {
+      try {
+        jar.removeItem(STORE_KEY)
+      } catch (error) {
+        /* nothing to do — there is no other place to remove it from */
+      }
+    }
+
+    if (storeTimer !== null) {
+      window.clearTimeout(storeTimer)
+      storeTimer = null
+    }
+  }
+
+  /** @returns {object|null} what this tab stored before it was reloaded. */
+  function recall() {
+    var jar = store()
+    if (jar === null) return null
+
+    var raw = null
+    try {
+      raw = jar.getItem(STORE_KEY)
+    } catch (error) {
+      return null
+    }
+    if (raw === null) return null
+
+    var saved = null
+    try {
+      saved = JSON.parse(raw)
+    } catch (error) {
+      forget()
+      return null
+    }
+
+    // A shape from an older version of this page, or one past its half hour.
+    // The expiry is enforced on read as well as by the timer: a tab restored
+    // from the phone's memory hours later never ran that timer.
+    if (saved === null || typeof saved !== 'object' || saved.v !== 1) {
+      forget()
+      return null
+    }
+    if (typeof saved.saved_at !== 'number' || Date.now() - saved.saved_at >= STORE_TTL_MS) {
+      forget()
+      return null
+    }
+
+    return saved
+  }
+
+  /** Drop the stored copy when its half hour is up, tab still open. */
+  function armExpiry(savedAt) {
+    if (storeTimer !== null) window.clearTimeout(storeTimer)
+
+    var remaining = Math.max(0, savedAt + STORE_TTL_MS - Date.now())
+    storeTimer = window.setTimeout(function () {
+      forget()
+      markCleared()
+    }, remaining)
+  }
+
   var $ = function (id) { return document.getElementById(id) }
 
   function t(key) {
     var table = STRINGS[lang] || STRINGS.de
-    return table[key] !== undefined ? table[key] : (STRINGS.de[key] !== undefined ? STRINGS.de[key] : key)
+    var value = table[key] !== undefined ? table[key] : (STRINGS.de[key] !== undefined ? STRINGS.de[key] : key)
+
+    // `{days}` and nothing cleverer. A string table this page can read out loud
+    // does not need a template language.
+    return value.replace(/\{(\w+)\}/g, function (whole, name) {
+      return params[name] !== undefined ? String(params[name]) : whole
+    })
   }
 
   /* ── branding ─────────────────────────────────────────────────────────────
@@ -464,6 +626,14 @@
         context = body
         applyBranding(body)
 
+        // The club's own retention period, into the sentence the done screen
+        // says it in. Read here rather than typed into the page, because a club
+        // that widens it would otherwise keep promising thirty days.
+        if (typeof body.retention_days === 'number' && body.retention_days > 0) {
+          params.days = body.retention_days
+          translate()
+        }
+
         if (!body.available) {
           renderPaused(body.reason, body.message)
           return
@@ -538,7 +708,26 @@
       })
       .then(function (result) {
         if (result.status === 201) {
-          renderDone(result.body)
+          if (result.body.document) {
+            // Kept first, saved second. If the browser refuses the download the
+            // stored copy is what the applicant comes back to; if it accepts
+            // it, the copy costs a reload's worth of memory for half an hour.
+            remember(result.body)
+            armExpiry(Date.now())
+          }
+
+          renderDone(result.body, false)
+
+          if (result.body.document) {
+            // The one save that needs no second tap. This runs inside the user
+            // activation of the „Absenden“ tap that started the request, which
+            // is what lets a browser accept a programmatic download at all —
+            // and an applicant who is interrupted here has the document
+            // already. It is a bonus, never a guarantee: a slow round trip
+            // outlives the activation and the browser is entitled to refuse.
+            downloadPdf('anmeldung.pdf')
+            label($('download-button'), 'done.downloadAgain')
+          }
           return
         }
 
@@ -577,25 +766,36 @@
     $('review-error').textContent = message
   }
 
-  function renderDone(receipt) {
+  /* ── the done screen ──────────────────────────────────────────────────────
+     Saving is the first thing under the heading, and it happens three ways:
+     automatically the moment the receipt arrives, through the system share
+     sheet where the phone has one, and through a plain download. All three are
+     the same bytes; none of them can be re-fetched. */
+
+  function renderDone(receipt, restored) {
     $('mandate-reference').textContent = receipt.mandate_reference || ''
+    document64 = receipt.document || ''
 
-    var button = $('download-button')
-    var missing = $('no-document')
+    if (document64 !== '') {
+      $('save-block').hidden = false
+      $('no-document').hidden = true
 
-    if (receipt.document) {
-      // Held in a closure for as long as this tab lives, and nowhere else. It
-      // cannot be re-fetched: the plaintext IBAN it was rendered from existed
-      // only for the length of the request that returned it.
-      button.hidden = false
-      missing.hidden = true
-      button.addEventListener('click', function () {
-        downloadPdf(receipt.document, 'anmeldung.pdf')
-      })
+      offerShare()
+      // On a restored screen the automatic attempt already happened in the life
+      // of the tab before the reload, so the button says what it does now.
+      label($('download-button'), restored ? 'done.downloadAgain' : 'done.download')
+
+      // The "remove it again" tap only makes sense while there is something to
+      // remove; the note that it is gone is a reply to that tap and to nothing
+      // else, so it starts hidden even when no copy could be kept at all.
+      $('clear-button').hidden = recall() === null
+      $('cleared-note').hidden = true
     } else {
-      button.hidden = true
-      document.querySelector('[data-testid="download-hint"]').hidden = true
-      missing.hidden = false
+      // Nothing to save, so nothing to offer and nothing to keep. The
+      // registration itself stands — the Kassenwart prints their own variant.
+      $('save-block').hidden = true
+      $('no-document').hidden = false
+      forget()
     }
 
     // The form is cleared on the way out. It is only memory, but a phone handed
@@ -607,27 +807,145 @@
     show('screen-done')
   }
 
-  function downloadPdf(base64, filename) {
-    var binary = atob(base64)
+  /** Set a button's label *and* its key, so a re-`translate()` keeps it. */
+  function label(node, key) {
+    node.setAttribute('data-i18n', key)
+    node.textContent = t(key)
+  }
+
+  /**
+   * The stored copy is gone — by a tap, by a successful share, or by the clock.
+   * The document stays in this tab's memory: the button that saves it again is
+   * still honest until the tab is closed or reloaded.
+   */
+  function markCleared() {
+    $('clear-button').hidden = true
+    $('cleared-note').hidden = false
+  }
+
+  /* ── saving ───────────────────────────────────────────────────────────────
+     One decode behind all three paths — the automatic save, the share sheet
+     and the button — so base64 becomes bytes in one place and the filename is
+     written once. Decoded per save rather than kept: a megabyte of Anmeldung
+     decodes in a blink, and a second copy held for the life of the tab is a
+     second copy. */
+
+  function documentBytes() {
+    var binary = atob(document64)
     var bytes = new Uint8Array(binary.length)
     for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return bytes
+  }
 
-    var url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+  function documentBlob() {
+    return new Blob([documentBytes()], { type: 'application/pdf' })
+  }
+
+  /* Every object URL this page hands out, released together on `pagehide`.
+
+     Not on a timer, which is what this replaced: iOS shows a confirmation
+     dialog before it saves a download, and an applicant who answers it a minute
+     later got an empty file out of a URL that had already been revoked. A blob
+     URL costs a megabyte of the tab's own memory and the tab is about to end. */
+  var objectUrls = []
+
+  function releaseObjectUrls() {
+    for (var i = 0; i < objectUrls.length; i++) URL.revokeObjectURL(objectUrls[i])
+    objectUrls = []
+  }
+
+  function downloadPdf(filename) {
+    if (document64 === '') return
+
+    var url = URL.createObjectURL(documentBlob())
+    objectUrls.push(url)
+
     var link = document.createElement('a')
     link.href = url
     link.download = filename
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
 
-    // Released on the next tick rather than immediately: revoking synchronously
-    // races the download on some mobile browsers, which then save nothing.
-    setTimeout(function () { URL.revokeObjectURL(url) }, 60000)
+  /**
+   * The share sheet, when the phone has one that takes files.
+   *
+   * On an iPhone this is where „In Dateien sichern“, „Drucken“ (AirPrint) and
+   * „Mail“ live — the last of which covers the case a download cannot: no
+   * printer at home, one at work. Feature-detected with the very object that
+   * will be shared, because `navigator.share` existing says nothing about
+   * whether *files* are shareable, and a button that throws is worse than one
+   * that was never rendered.
+   */
+  function shareableFile() {
+    if (document64 === '') return null
+    if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function') return null
+    if (typeof window.File !== 'function') return null
+
+    try {
+      var file = new File([documentBytes()], 'anmeldung.pdf', { type: 'application/pdf' })
+      return navigator.canShare({ files: [file] }) ? file : null
+    } catch (error) {
+      return null
+    }
+  }
+
+  function offerShare() {
+    var available = shareableFile() !== null
+    $('share-button').hidden = !available
+
+    // Whichever button actually saves is the loud one. With a share sheet the
+    // download is the alternative below it; without one it is the only way out
+    // of this screen and must not read as an afterthought.
+    $('download-button').className = available ? 'secondary' : 'primary'
+  }
+
+  function share() {
+    // Built fresh: a `File` is consumed by a share on some platforms, and this
+    // button can be tapped twice.
+    var file = shareableFile()
+    if (file === null) return
+
+    navigator
+      .share({ files: [file] })
+      .then(function () {
+        // The sheet only resolves when something took it — saved to Files,
+        // printed, mailed. That is the confirmation the stored copy was
+        // waiting for.
+        forget()
+        markCleared()
+      })
+      .catch(function () {
+        // Cancelled, or refused by the platform. Nothing was saved, so nothing
+        // is cleared and the download button is still there.
+      })
+  }
+
+  /* ── where the file actually went ─────────────────────────────────────────
+     One line under the button, chosen by user agent, because the answer really
+     is different: an iPhone hides a downloaded file behind the share sheet, an
+     Android puts it in Downloads, and a laptop has a downloads folder. Guessing
+     from the UA string is unreliable in general and reliable enough for this:
+     the worst case is a sentence that names the wrong folder, and the buttons
+     above it work either way. */
+
+  function platformHintKey() {
+    var ua = navigator.userAgent || ''
+
+    // iPadOS 13+ reports itself as a Mac; the touch points are what give it
+    // away, and they are what decide whether the share sheet is the answer.
+    if (/iPhone|iPad|iPod/i.test(ua)) return 'done.hintIos'
+    if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) return 'done.hintIos'
+    if (/Android/i.test(ua)) return 'done.hintAndroid'
+
+    return 'done.hintDesktop'
   }
 
   /* ── wiring ──────────────────────────────────────────────────────────────── */
 
   document.addEventListener('DOMContentLoaded', function () {
+    $('platform-hint').setAttribute('data-i18n', platformHintKey())
     translate()
 
     $('date_of_birth_typed').addEventListener('input', function (event) {
@@ -660,6 +978,49 @@
       show('screen-form')
     })
 
+    $('download-button').addEventListener('click', function () {
+      downloadPdf('anmeldung.pdf')
+    })
+    $('share-button').addEventListener('click', share)
+    $('clear-button').addEventListener('click', function () {
+      forget()
+      markCleared()
+    })
+
+    // The tab is going away — with it every blob URL, and there is nothing
+    // after this that could still want one. `pagehide` rather than `unload`
+    // because iOS Safari does not reliably fire `unload` at all.
+    window.addEventListener('pagehide', releaseObjectUrls)
+
+    if (restore()) return
+
     start()
   })
+
+  /**
+   * The done screen, after a reload of the same tab (#804).
+   *
+   * The failure this exists for is ordinary: a phone call arrives, iOS reloads
+   * the backgrounded tab, and the applicant comes back to an empty form with
+   * the one copy of their Anmeldung gone. Rendered entirely from what this tab
+   * stored — no request, so it also works on the clubhouse wifi that dropped —
+   * and the language and the club's header come back with it.
+   *
+   * @returns {boolean} whether the done screen took over the page.
+   */
+  function restore() {
+    var saved = recall()
+    if (saved === null) return false
+
+    if (STRINGS[saved.lang] !== undefined) lang = saved.lang
+    if (typeof saved.days === 'number' && saved.days > 0) params.days = saved.days
+    translate()
+
+    applyBranding({ club_name: saved.club_name, logo_url: saved.logo_url })
+    armExpiry(saved.saved_at)
+
+    renderDone({ mandate_reference: saved.mandate_reference, document: saved.document }, true)
+
+    return true
+  }
 })()

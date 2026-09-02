@@ -447,6 +447,39 @@ final class RegistrationsServiceTest extends TestCase
     }
 
     /**
+     * The done screen tells the applicant their registration is deleted after
+     * N days if nobody confirms it (#804), and N is the club's own setting.
+     *
+     * On the answer rather than typed into the page for the reason every other
+     * number on a public surface belongs to the configuration: a club that
+     * widened its retention to sixty days would otherwise keep promising thirty
+     * to every applicant, and nothing would ever say so.
+     */
+    public function test_the_context_carries_the_clubs_retention_period(): void
+    {
+        $this->db->exec('UPDATE self_registration_config SET retention_days = 45');
+
+        $context = $this->service->context(self::SECRET, '203.0.113.7');
+
+        self::assertSame(45, $context->retentionDays);
+        self::assertSame(45, $context->toArray()['retention_days']);
+    }
+
+    /**
+     * A paused club still answers it: the number belongs to the club, not to
+     * the availability of the form, and one rendering path reads it.
+     */
+    public function test_a_paused_club_carries_the_retention_period_too(): void
+    {
+        $this->db->exec("UPDATE self_registration_config SET enabled = 0, retention_days = 45");
+
+        $context = $this->service->context(self::SECRET, '203.0.113.7');
+
+        self::assertFalse($context->available);
+        self::assertSame(45, $context->retentionDays);
+    }
+
+    /**
      * Who is asking, on every screen past the gate.
      *
      * A form that wants a name, a birth date and an IBAN and does not say whose

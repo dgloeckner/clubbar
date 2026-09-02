@@ -61,6 +61,18 @@ final readonly class RegistrationContextDto
         /** @var list<string> The languages the page may offer. */
         public array $languages,
         /**
+         * How long an unconfirmed registration is kept before the purge takes
+         * it (`self_registration_config.retention_days`, decision 10).
+         *
+         * On the answer because the done screen tells the applicant about it —
+         * "deine Anmeldung wird nach 30 Tagen gelöscht, wenn sie bis dahin
+         * nicht bestätigt wurde" — and a number typed into a page is a number
+         * that goes stale the first time a club changes the setting. It is
+         * club configuration, like every other field here, and says nothing
+         * about who has registered.
+         */
+        public int $retentionDays = SelfRegistrationConfigDto::DEFAULT_RETENTION_DAYS,
+        /**
          * Who is asking, for the page's masthead and footer.
          *
          * Optional and last: an installation wired without a branding provider
@@ -79,6 +91,7 @@ final readonly class RegistrationContextDto
             'message' => $this->message,
             'document_url' => $this->documentUrl,
             'languages' => $this->languages,
+            'retention_days' => $this->retentionDays,
         ] + $this->branding->toArray();
     }
 }
