@@ -37,6 +37,7 @@
     de: {
       loading: 'Einen Moment…',
       languageName: 'Deutsch',
+      'brand.fallback': 'Anmeldung',
       'language.title': 'Sprache wählen',
       'paused.title': 'Gerade keine Anmeldung möglich',
       'paused.ask': 'Frag am besten kurz an der Theke nach.',
@@ -65,7 +66,7 @@
       'review.sending': 'Wird gesendet…',
       'done.title': 'Geschafft!',
       'done.step1': 'Unterlagen herunterladen, ausdrucken und unterschreiben.',
-      'done.step2': 'Das unterschriebene Blatt beim Kassenwart abgeben — oder direkt an der Theke unterschreiben, dort wird es ausgedruckt.',
+      'done.step2': 'Das unterschriebene Blatt beim Kassenwart abgeben.',
       'done.step3': 'Der Kassenwart prüft es und schaltet dich frei. Vorher funktioniert das Konto noch nicht.',
       'done.step4': 'Deine Karte bekommst du ebenfalls vom Kassenwart.',
       'done.download': 'Unterlagen herunterladen (PDF)',
@@ -91,6 +92,7 @@
     en: {
       loading: 'One moment…',
       languageName: 'English',
+      'brand.fallback': 'Registration',
       'language.title': 'Choose a language',
       'paused.title': 'Registration is paused right now',
       'paused.ask': 'Just ask at the bar.',
@@ -119,7 +121,7 @@
       'review.sending': 'Sending…',
       'done.title': 'All done!',
       'done.step1': 'Download the documents, print them and sign.',
-      'done.step2': 'Hand the signed sheet to the treasurer — or sign at the bar, where they will print it for you.',
+      'done.step2': 'Hand the signed sheet to the treasurer.',
       'done.step3': 'The treasurer checks it and activates you. Until then your account does not work yet.',
       'done.step4': 'Your card comes from the treasurer too.',
       'done.download': 'Download documents (PDF)',
@@ -167,6 +169,42 @@
   function t(key) {
     var table = STRINGS[lang] || STRINGS.de
     return table[key] !== undefined ? table[key] : (STRINGS.de[key] !== undefined ? STRINGS.de[key] : key)
+  }
+
+  /* ── branding ─────────────────────────────────────────────────────────────
+     The club's name and mark, from the context answer, into the mail layout's
+     masthead and footer. Applied once, before any screen is shown: a header
+     that arrives after the form has rendered is a header that flashes.
+
+     Nothing here trusts the values. The name is set as `textContent` — it is
+     admin-written configuration, like the paused reason beside it — and the
+     logo is only ever pointed at what the backend already narrowed to an
+     `http(s)` or same-origin URL. A logo that fails to load hides itself again
+     rather than leaving a broken-image box in the club's header. */
+
+  function applyBranding(branding) {
+    if (!branding) return
+
+    var name = typeof branding.club_name === 'string' ? branding.club_name.trim() : ''
+    if (name !== '') {
+      var wordmark = $('brand-name')
+      // The neutral fallback is a translated string; a real club name is not,
+      // so the key goes with it or the next language switch would overwrite
+      // the club with "Anmeldung".
+      wordmark.removeAttribute('data-i18n')
+      wordmark.textContent = name
+
+      $('colophon-name').textContent = name
+      $('colophon').hidden = false
+    }
+
+    var logo = typeof branding.logo_url === 'string' ? branding.logo_url.trim() : ''
+    if (logo !== '') {
+      var image = $('brand-logo')
+      image.addEventListener('error', function () { image.hidden = true })
+      image.src = logo
+      image.hidden = false
+    }
   }
 
   function show(id) {
@@ -424,6 +462,8 @@
         if (body === null) return
 
         context = body
+        applyBranding(body)
+
         if (!body.available) {
           renderPaused(body.reason, body.message)
           return

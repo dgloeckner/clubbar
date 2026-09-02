@@ -1,104 +1,218 @@
 /*
  * The onboarding page's styles (#781).
  *
- * Mobile-first without a media query in sight, because there is no desktop
- * layout to switch to: this page is filled standing in a clubhouse, on a phone,
- * and a `max-width` is the only concession a wider screen needs.
+ * ## It wears the club's mail
+ *
+ * Every design decision here is taken from `App\Shared\Mail\MailLayout` — the
+ * palette, the serif/grotesque pairing, the 600px sheet on a warm grey ground,
+ * the paper masthead with its red rule, the petrol footer. That is not a
+ * flourish: this page and the club's mail are the two surfaces a member meets
+ * outside the clubhouse, and the second one arrives days later saying "this is
+ * about the form you filled in". They have to look like the same club.
+ *
+ * The *values* are mirrored; the technique is not. MailLayout writes tables and
+ * inline styles because Outlook renders with the Word engine — a constraint a
+ * browser does not have. When a colour changes there it changes here, and the
+ * comment in MailLayout saying "Spiegel von tokens.css" now has a third mirror.
+ *
+ * ## Light only, deliberately
+ *
+ * The mail declares `color-scheme: light` and is designed for one ground. A
+ * page that inverted itself at dusk would stop matching the mail at exactly the
+ * hour a clubhouse fills up, so this one does not: the palette is fixed and
+ * every colour is stated, rather than inherited from whatever the phone
+ * prefers.
+ *
+ * Mobile-first, because that is the only screen this page really has: it is
+ * filled standing in a clubhouse, on a phone. The single breakpoint is the
+ * mail's own — below it the sheet goes full-bleed, exactly as the mail card
+ * does.
  *
  * No framework, no build. A club changing a colour edits this file.
  */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
-  --ink: #1a1a2e;
-  --muted: #5c5c72;
-  --line: #d6d6e0;
-  --paper: #ffffff;
-  --ground: #f4f6fa;
-  --accent: #1f4b99;
-  --accent-ink: #ffffff;
-  --danger: #a4262c;
+  /* Farben — Spiegel von MailLayout, dort mitpflegen */
+  --red: #c8332e;
+  --red-dark: #a8241f;
+  --red-soft: #fbeae9;
+  --petrol: #24363e;
+  --petrol-ink: #9fb0b7;
+  --ink-900: #141414;
+  --ink-700: #3a3a3a;
+  --ink-500: #6b6b6b;
+  --ink-200: #e2e2e0;
+  --ink-100: #f1f0ec;
+  --ink-050: #fafaf7;
+  --white: #ffffff;
+
+  /* The mail's two stacks. Fraunces and Inter are fetched by a mail client
+     from the club's own site; nothing serves them here, so the fallbacks do
+     the work — which is the same contrast the mail falls back to: a serif for
+     headings, a grotesque for everything else. */
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --display: Georgia, "Times New Roman", Times, serif;
 
   /* Touch targets. 44px is the floor #781 asks for and the floor every
      platform guideline agrees on; it is a variable so it cannot drift between
      the inputs and the buttons. */
   --touch: 44px;
-  --radius: 10px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #f2f2f7;
-    --muted: #a9a9bd;
-    --line: #3a3a4d;
-    --paper: #1c1c28;
-    --ground: #12121a;
-    --accent: #6f9de8;
-    --accent-ink: #0d0d14;
-    --danger: #ff8a8a;
-  }
+  --radius: 8px;
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: var(--ground);
-  color: var(--ink);
-  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--ink-100);
+  color: var(--ink-700);
+  font: 16px/1.65 var(--sans);
+  -webkit-text-size-adjust: 100%;
   /* 16px is not a taste: iOS Safari zooms the whole page when a focused input
      is smaller, which on a form this long throws the layout sideways mid-typing. */
 }
 
+/* ── the sheet ────────────────────────────────────────────────────────────
+   The mail's 600px card, down to the border, the radius and the way it goes
+   full-bleed on a narrow screen. */
+
+.sheet {
+  max-width: 600px;
+  margin: 28px auto 36px;
+  background: var(--white);
+  border: 1px solid var(--ink-200);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+@media (max-width: 620px) {
+  .sheet {
+    margin: 0;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    min-height: 100vh;
+  }
+}
+
+/* ── masthead ─────────────────────────────────────────────────────────────
+   MailLayout's `paper` header: the club's mark beside its name in small
+   letterspaced capitals, on the palest ground, over a red rule.
+
+   The name is text, never baked into the logo — the same reason the mail keeps
+   it text, which there is blocked images and here is a club that has no logo
+   configured at all. */
+
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 26px;
+  background: var(--ink-050);
+  border-bottom: 3px solid var(--red);
+}
+
+.masthead-logo {
+  /* Fixed like the mail's, so a club's 900px PNG cannot push the name off a
+     phone. `object-fit` keeps a wide or tall mark inside that box unstretched. */
+  width: 47px;
+  height: 53px;
+  object-fit: contain;
+  flex: none;
+}
+
+.masthead-logo[hidden] { display: none; }
+
+.wordmark {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  color: var(--ink-900);
+  /* A long club name wraps rather than widening the sheet. */
+  overflow-wrap: anywhere;
+}
+
+/* ── content ─────────────────────────────────────────────────────────────── */
+
 main {
-  max-width: 34rem;
-  margin: 0 auto;
-  padding: 1.5rem 1.25rem calc(2rem + env(safe-area-inset-bottom));
+  display: block;
+  padding: 30px 26px calc(32px + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 620px) {
+  main { padding-left: 22px; padding-right: 22px; }
 }
 
 h1 {
-  font-size: 1.45rem;
-  line-height: 1.25;
-  margin: 0 0 0.75rem;
+  margin: 0 0 16px;
+  font-family: var(--display);
+  font-size: 29px;
+  font-weight: 500;
+  line-height: 1.22;
+  color: var(--ink-900);
 }
 
-.lede { margin: 0 0 1.25rem; }
-.muted { color: var(--muted); }
-.hint { color: var(--muted); font-size: 0.875rem; margin: 0.35rem 0 0; }
+@media (max-width: 620px) {
+  h1 { font-size: 25px; }
+}
+
+.lede {
+  margin: 0 0 22px;
+  font-size: 17px;
+  line-height: 1.62;
+  color: var(--ink-700);
+}
+
+.muted { color: var(--ink-500); }
+
+.hint {
+  color: var(--ink-500);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
 
 .screen[hidden] { display: none; }
 
 /* ── the Art. 13 link ─────────────────────────────────────────────────────
+   MailLayout's note box — red bar down the left, soft red ground — used for
+   what the mail uses it for: the one line that must not be skimmed past.
    Prominent by position and by weight, above the first field rather than
    beside the submit button: informing happens *before* collection. */
 .notice {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--radius);
-  padding: 0.85rem 1rem;
-  margin: 0 0 1.5rem;
+  display: flex;
+  margin: 0 0 24px;
+  background: var(--red-soft);
+  border-left: 4px solid var(--red);
 }
 
 .notice a {
-  color: var(--accent);
-  font-weight: 600;
+  display: block;
   /* A link is a touch target too, and one people tap while holding a phone
      one-handed at a bar. */
-  display: inline-block;
   min-height: var(--touch);
-  line-height: var(--touch);
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--red-dark);
 }
 
 /* ── fields ──────────────────────────────────────────────────────────────── */
 
-.field { margin: 0 0 1.25rem; }
+.field { margin: 0 0 20px; }
 
 label {
   display: block;
+  font-size: 14px;
   font-weight: 600;
-  margin-bottom: 0.3rem;
+  line-height: 1.45;
+  color: var(--ink-900);
+  margin-bottom: 6px;
 }
 
 input[type="text"],
@@ -106,11 +220,11 @@ input[type="email"],
 input[type="tel"] {
   width: 100%;
   min-height: var(--touch);
-  padding: 0.6rem 0.75rem;
+  padding: 10px 12px;
   font: inherit;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--line);
+  color: var(--ink-900);
+  background: var(--ink-050);
+  border: 1px solid var(--ink-200);
   border-radius: var(--radius);
 }
 
@@ -118,13 +232,16 @@ input:focus-visible,
 button:focus-visible,
 summary:focus-visible,
 a:focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--red);
   outline-offset: 2px;
 }
 
 /* An invalid field is marked by more than colour: `aria-invalid` drives this,
    and the message below it says what is wrong in words. */
-input[aria-invalid="true"] { border-color: var(--danger); }
+input[aria-invalid="true"] {
+  border-color: var(--red);
+  background: var(--white);
+}
 
 #iban {
   /* Grouped in fours; a tabular face keeps the groups from dancing as they
@@ -134,33 +251,37 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 }
 
 .error {
-  color: var(--danger);
-  font-size: 0.9rem;
-  margin: 0.35rem 0 0;
-  min-height: 0;
+  color: var(--red-dark);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 6px 0 0;
 }
 
 .error:empty { display: none; }
 
-.form-error { margin: 1rem 0; font-weight: 600; }
+.form-error { margin: 16px 0; font-weight: 600; }
 
 .optional {
-  border: 1px solid var(--line);
+  border: 1px solid var(--ink-200);
   border-radius: var(--radius);
-  background: var(--paper);
-  padding: 0 1rem;
-  margin: 0 0 1.5rem;
+  background: var(--ink-050);
+  padding: 0 16px;
+  margin: 0 0 24px;
 }
 
 .optional summary {
   min-height: var(--touch);
   display: flex;
   align-items: center;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-900);
   cursor: pointer;
 }
 
-.optional[open] { padding-bottom: 0.25rem; }
+.optional[open] { padding-bottom: 4px; }
 
 /* The honeypot. Off-screen rather than `display: none` — some form fillers
    skip what is not rendered, and the point is that they fill it. */
@@ -172,88 +293,122 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   overflow: hidden;
 }
 
-/* ── buttons ─────────────────────────────────────────────────────────────── */
+/* ── buttons ──────────────────────────────────────────────────────────────
+   The mail's red primary, at the size a thumb needs. */
 
 button {
   width: 100%;
   min-height: var(--touch);
-  padding: 0.75rem 1rem;
+  padding: 13px 26px;
   font: inherit;
+  font-size: 15px;
   font-weight: 600;
+  line-height: 1.2;
   border-radius: var(--radius);
   border: 1px solid transparent;
   cursor: pointer;
 }
 
-button + button { margin-top: 0.75rem; }
+button + button { margin-top: 12px; }
 
 .primary {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--red);
+  color: var(--white);
 }
 
 .secondary {
-  background: transparent;
-  color: var(--accent);
-  border-color: var(--line);
+  background: var(--white);
+  color: var(--red-dark);
+  border-color: var(--ink-200);
 }
 
 button[disabled] { opacity: 0.55; cursor: progress; }
 
 /* ── language choice ─────────────────────────────────────────────────────── */
 
-.choices { display: grid; gap: 0.75rem; }
+.choices { display: grid; gap: 12px; }
 
 .choices button {
-  background: var(--paper);
-  color: var(--ink);
-  border-color: var(--line);
+  background: var(--ink-050);
+  color: var(--ink-900);
+  border-color: var(--ink-200);
   text-align: left;
+  font-weight: 600;
 }
 
-/* ── review ──────────────────────────────────────────────────────────────── */
+/* ── review ──────────────────────────────────────────────────────────────
+   MailLayout's data table: label left, value right, hairlines between. What a
+   pre-notification uses for the mandate reference and the masked IBAN is what
+   this screen is asking somebody to check. */
 
 .summary {
-  background: var(--paper);
-  border: 1px solid var(--line);
+  background: var(--ink-050);
+  border: 1px solid var(--ink-200);
   border-radius: var(--radius);
-  padding: 1rem;
-  margin: 0 0 1.5rem;
+  padding: 6px 20px 8px;
+  margin: 0 0 24px;
 }
 
 .summary dt {
-  color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-500);
+  padding-top: 10px;
 }
 
 .summary dd {
-  margin: 0 0 0.9rem;
-  font-weight: 600;
+  margin: 0;
+  padding: 2px 0 10px;
+  border-bottom: 1px solid var(--ink-200);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--ink-900);
   /* A long email or a grouped IBAN must wrap rather than widen the page. */
   overflow-wrap: anywhere;
 }
 
-.summary dd:last-of-type { margin-bottom: 0; }
+.summary dd:last-of-type { border-bottom: 0; }
 
 /* ── done ────────────────────────────────────────────────────────────────── */
 
 .steps {
-  padding-left: 1.25rem;
-  margin: 0 0 1.5rem;
+  padding-left: 20px;
+  margin: 0 0 24px;
+  font-size: 16px;
+  line-height: 1.65;
 }
 
-.steps li { margin-bottom: 0.6rem; }
+.steps li { margin-bottom: 10px; }
 
 .reference {
-  margin-top: 1.5rem;
-  color: var(--muted);
-  font-size: 0.9rem;
+  margin: 24px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--ink-200);
+  color: var(--ink-500);
+  font-size: 14px;
 }
 
 .reference code {
   display: block;
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
+  margin-top: 4px;
+  font-size: 13px;
   overflow-wrap: anywhere;
-  color: var(--ink);
+  color: var(--ink-900);
 }
+
+/* ── colophon ─────────────────────────────────────────────────────────────
+   The mail's petrol footer, carrying the same one thing it carries there: who
+   sent this. Hidden until the club's name is known, because a footer band
+   saying nothing is a band saying nothing. */
+
+.colophon {
+  padding: 24px 26px;
+  background: var(--petrol);
+  color: var(--white);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.colophon[hidden] { display: none; }

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import {
   CLUB_DOCUMENT_URL,
   clearRegistrationAttempts,
+  clubInstanceName,
   configureSelfRegistration,
   countPendingRegistrations,
   execSql,
@@ -198,6 +199,104 @@ test.describe('Public onboarding page', () => {
 
     await expect(page.getByTestId('screen-paused')).toBeVisible()
     await expect(page.getByTestId('screen-form')).toBeHidden()
+  })
+
+  // ── branding ───────────────────────────────────────────────────────────
+
+  /**
+   * The page says whose form it is, in the club's own name (#781).
+   *
+   * A form that asks a stranger for a birth date and an IBAN without naming the
+   * club it belongs to is indistinguishable from a phishing page — and "type
+   * your IBAN in here" is exactly the sentence a phishing page opens with. End
+   * to end: the name is read from `instance_config`, travels on the context
+   * answer, and is rendered in the masthead the club's mail also wears.
+   */
+  test('the club is named in the masthead and the footer', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+    const club = clubInstanceName()
+
+    await openWith(page, secret)
+    await page.getByTestId('language-de').click()
+    await expect(page.getByTestId('screen-form')).toBeVisible()
+
+    await expect(page.getByTestId('brand-name')).toHaveText(club)
+    await expect(page.getByTestId('colophon-name')).toHaveText(club)
+  })
+
+  /** The paused screen is the club speaking, so it is the club's header. */
+  test('a paused club is still the club, header and all', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret, { enabled: false, disabledReason: 'Beta-Phase schon voll' })
+
+    await openWith(page, secret)
+
+    await expect(page.getByTestId('screen-paused')).toBeVisible()
+    await expect(page.getByTestId('brand-name')).toHaveText(clubInstanceName())
+  })
+
+  /**
+   * A guessed URL learns nothing — not even who the club is.
+   *
+   * The refusal is the uniform 404 with no body at all, so the masthead has
+   * nothing to render and falls back to the neutral word. Everything the gate
+   * protects is protected here too.
+   */
+  test('an unknown link is not branded', async ({ page }) => {
+    configureSelfRegistration(uniqueSecret())
+
+    await openWith(page, 'definitely-not-the-secret')
+
+    await expect(page.getByTestId('screen-unknown')).toBeVisible()
+    await expect(page.getByTestId('brand-name')).toHaveText('Anmeldung')
+    await expect(page.getByTestId('colophon')).toBeHidden()
+  })
+
+  /**
+   * The club's mark, when it has one.
+   *
+   * Stubbed at the network boundary rather than written to `mail_config`: that
+   * row is a global singleton the mail specs read, restore and assert delivered
+   * HTML against, so a logo written here would surface in somebody else's mail
+   * on another worker. What is under test is what the *page* does with a logo
+   * the backend already narrowed to a fetchable URL — the narrowing itself has
+   * its own unit tests (`PublicBrandingTest`), and the field's presence on the
+   * wire is asserted in `tests/api/self-registration.spec.ts`.
+   */
+  const answerContextWith = (page: any, branding: Record<string, string | null>) =>
+    page.route('**/api/public/registrations/context', async (route: any) => {
+      const original = await route.fetch()
+      await route.fulfill({
+        response: original,
+        json: { ...(await original.json()), ...branding },
+      })
+    })
+
+  test('a configured mark is shown in the masthead', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    await answerContextWith(page, { logo_url: '/register/e2e-logo.svg' })
+    await openWith(page, secret)
+    await page.getByTestId('language-de').click()
+
+    await expect(page.getByTestId('screen-form')).toBeVisible()
+    await expect(page.getByTestId('brand-logo')).toHaveAttribute('src', '/register/e2e-logo.svg')
+  })
+
+  test('a club with no mark shows no broken image', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    await answerContextWith(page, { logo_url: null })
+    await openWith(page, secret)
+    await page.getByTestId('language-de').click()
+
+    // The club's name carries the masthead on its own, exactly as it does in
+    // the mail when a client blocks the image.
+    await expect(page.getByTestId('screen-form')).toBeVisible()
+    await expect(page.getByTestId('brand-logo')).toBeHidden()
   })
 
   // ── the form ───────────────────────────────────────────────────────────

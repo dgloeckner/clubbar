@@ -162,6 +162,7 @@ the paper in front of them (UC-A17).
 | Rule | Why |
 |------|-----|
 | The secret lives in the URL fragment, never the path, and both public endpoints take it in the request body — including the one that only reads | A fragment is the one part of a URL a browser never sends; a path is written verbatim into every access log in front of the installation, twice per request in the shipped package |
+| Every screen past the gate carries the club's identity — its name, and the mark its mail already uses | A page that asks a stranger for a birth date and an IBAN without naming whose form it is is indistinguishable from a phishing page. The values come from `instance_config.instance_name` and `mail_config.logo_url`, so there is no third place to configure and no way for the page to disagree with the club's mail. Nothing is branded before the gate: a wrong secret is still the uniform refusal, with no body to read a club name out of |
 | Three gate answers exist, and only two carry detail | No secret, or a wrong one → uniform `registration_unavailable`, no detail — an anonymous prober must not learn a valid secret exists. Right secret, switched off → `registration_disabled` plus the club's own reason text — the person is standing in the clubhouse holding a poster the club printed. Right secret, switched on → the form |
 | Registration is disabled by default until a secret has been generated | A fresh install and a half-configured one both refuse quietly, rather than accepting submissions nobody is watching for |
 | The refusal is enforced on the submission endpoint itself, server-side | Not rendering the form is a UI convenience, never the gate |
@@ -263,6 +264,12 @@ in the response tells the filler that anything different happened.
   the served bundle
 - The page renders no Datenschutz acknowledgement control of any kind — no
   checkbox, and nothing gating the rest of the form on ticking one
+- The club's name appears on the form and on the paused screen, and is the name
+  `instance_config` holds — not a string compiled into the page
+- A refused link is branded with nothing: the neutral header, and no club name
+  anywhere on the screen
+- A club with no logo configured renders no image at all, rather than a broken
+  one
 - The Datenschutz link points at the one configured URL whatever language the
   applicant chose; changing the language changes the page, not the document
 - A second submission reusing a known email or IBAN is accepted identically to

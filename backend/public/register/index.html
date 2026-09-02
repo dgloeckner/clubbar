@@ -31,6 +31,30 @@
 <link rel="stylesheet" href="./register.css">
 </head>
 <body>
+<!--
+  The sheet, the masthead and the colophon are the club's mail layout
+  (`App\Shared\Mail\MailLayout`) rendered as a page: the same 600px card, the
+  same paper header over a red rule, the same petrol footer. A member meets
+  exactly two of this club's surfaces outside the clubhouse — this form and the
+  mail that follows it days later — and they have to look like the same club.
+-->
+<div class="sheet">
+
+<!--
+  Who is asking. An anonymous page that wants a name, a birth date and an IBAN
+  and does not say whose it is looks exactly like a phishing page, and "type
+  your IBAN in here" is not something this project should ever ask unbranded.
+
+  The name is text rather than part of the logo, for the reason the mail keeps
+  it text: a club may have no logo configured at all, and the header still has
+  to say who this is. Until the context answers, it reads the neutral fallback
+  below — a stranger who guessed the URL learns nothing from it.
+-->
+<header class="masthead" data-testid="masthead">
+  <img id="brand-logo" class="masthead-logo" data-testid="brand-logo" alt="" hidden>
+  <span class="wordmark" id="brand-name" data-testid="brand-name" data-i18n="brand.fallback">Anmeldung</span>
+</header>
+
 <main id="app" data-testid="register-app">
   <!--
     Every screen ships in the markup and is toggled by `hidden`. The applicant
@@ -195,7 +219,7 @@
 
     <ol class="steps">
       <li data-i18n="done.step1">Unterlagen herunterladen, ausdrucken und unterschreiben.</li>
-      <li data-i18n="done.step2">Das unterschriebene Blatt beim Kassenwart abgeben — oder direkt an der Theke unterschreiben, dort wird es ausgedruckt.</li>
+      <li data-i18n="done.step2">Das unterschriebene Blatt beim Kassenwart abgeben.</li>
       <li data-i18n="done.step3">Der Kassenwart prüft es und schaltet dich frei. <strong>Vorher funktioniert das Konto noch nicht.</strong></li>
       <li data-i18n="done.step4">Deine Karte bekommst du ebenfalls vom Kassenwart.</li>
     </ol>
@@ -224,6 +248,14 @@
     </p>
   </section>
 </main>
+
+<!-- The mail's footer band, carrying the one thing it carries there: who sent
+     this. Hidden until the club's name is known. -->
+<footer class="colophon" id="colophon" data-testid="colophon" hidden>
+  <span id="colophon-name" data-testid="colophon-name"></span>
+</footer>
+
+</div>
 
 <script src="./register.js"></script>
 </body>

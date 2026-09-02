@@ -17,6 +17,9 @@ use App\Modules\BankCodes\Repositories\BankCodesRepository;
 use App\Modules\BankCodes\Services\BankCodeService;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
+use App\Modules\Instance\Services\InstanceConfigService;
+use App\Modules\Notifications\Repositories\MailConfigRepository;
+use App\Shared\Branding\PublicBrandingProvider;
 use App\Shared\Logging\Logger;
 use App\Shared\Security\IbanSealedBox;
 use PDO;
@@ -441,6 +444,74 @@ final class RegistrationsServiceTest extends TestCase
 
         self::assertFalse($context->available);
         self::assertSame(BusinessRuleReason::DOCUMENT_URL_MISSING->value, $context->reason);
+    }
+
+    /**
+     * Who is asking, on every screen past the gate.
+     *
+     * A form that wants a name, a birth date and an IBAN and does not say whose
+     * it is looks exactly like a phishing page. The values come from the two
+     * rows the club already filled in for its mail, so there is nothing further
+     * to configure.
+     */
+    public function test_the_context_carries_the_club_the_mail_is_signed_with(): void
+    {
+        $context = $this->brandedService('Ruderclub Musterstadt', 'https://club.example/logo.png')
+            ->context(self::SECRET, '203.0.113.7');
+
+        self::assertSame('Ruderclub Musterstadt', $context->branding->clubName);
+        self::assertSame('https://club.example/logo.png', $context->branding->logoUrl);
+        self::assertSame('Ruderclub Musterstadt', $context->toArray()['club_name']);
+    }
+
+    /** The paused screen is the club speaking, so it is the club's header. */
+    public function test_a_paused_club_is_branded_too(): void
+    {
+        $this->db->exec("UPDATE self_registration_config SET enabled = 0, disabled_reason = 'Beta-Phase schon voll'");
+
+        $context = $this->brandedService('Ruderclub Musterstadt', null)->context(self::SECRET, '203.0.113.7');
+
+        self::assertFalse($context->available);
+        self::assertSame('Ruderclub Musterstadt', $context->branding->clubName);
+    }
+
+    /**
+     * Branding decorates a page that must still work without it: an
+     * installation wired with no provider answers the same shape, with nothing
+     * in it, and the page renders its neutral header.
+     */
+    public function test_an_unbranded_installation_still_answers_the_same_shape(): void
+    {
+        $context = $this->service->context(self::SECRET, '203.0.113.7');
+
+        self::assertNull($context->branding->clubName);
+        self::assertArrayHasKey('club_name', $context->toArray());
+        self::assertArrayHasKey('logo_url', $context->toArray());
+    }
+
+    /** The service of {@see setUp()}, with a branding provider wired in. */
+    private function brandedService(string $clubName, ?string $logoUrl): RegistrationsService
+    {
+        $instance = $this->createMock(InstanceConfigService::class);
+        $instance->method('getInstanceName')->willReturn($clubName);
+
+        $mailConfig = $this->createMock(MailConfigRepository::class);
+        $mailConfig->method('getConfig')->willReturn(['logo_url' => $logoUrl]);
+
+        $logger = new Logger(sys_get_temp_dir() . '/registrations-tests', 'CRITICAL');
+
+        return new RegistrationsService(
+            new RegistrationsRepository($this->db),
+            new SelfRegistrationConfigRepository($this->db),
+            new RegistrationAttemptsRepository($this->db),
+            new EncryptionKeysRepository($this->db, $logger),
+            new BankCodeService(new BankCodesRepository($this->db, $logger), $logger),
+            new SepaConfigRepository($this->db, $logger),
+            new IbanSealedBox(str_repeat('ab', 32), 'testing'),
+            $logger,
+            null,
+            new PublicBrandingProvider($instance, $mailConfig),
+        );
     }
 
     /**
