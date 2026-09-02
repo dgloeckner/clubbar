@@ -14,6 +14,7 @@ Every legal constraint established by research during the money-semantics work, 
 | `175-onboarding-form-datenschutz.md` | Art. 13 content; legal basis per purpose; mandate-vs-consent; Art. 30 / § 38 BDSG; form practice |
 | `credit-limit-precedents.md` | Credit-balance and refund precedents |
 | `juschg-age-limits.md` | JuSchG § 9's two thresholds; why the limit rides the product; why the terminal prevents and the server only records |
+| `electronic-signature-onboarding.md` | Which simple electronic signatures hold for the Beitritt, the SEPA mandate and the Kenntnisnahme; what courts wanted as proof; what the bank decides; minors; the 2027 wallet QES |
 
 ---
 
