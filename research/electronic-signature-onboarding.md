@@ -29,7 +29,7 @@ that is *rechtssicher*?
 |---|---|
 | None of the three declarations carries a **statutory** form requirement, so a simple electronic signature is legally *valid* | ✅ **Holds.** Beitritt: form set by the Satzung, not the law (§ 58 Nr. 1 BGB); a Satzung "schriftlich" is satisfied by telecommunicative transmission (§ 127 Abs. 2 BGB, four OLGs). Mandate: "no special legal requirements" (Bundesbank), the scheme "does not prescribe nor limit the methods of signing" (EPC132-17). Art. 13: an information duty, nothing to sign. See §§2–4. |
 | A qualified electronic signature (QES) is what "rechtssicher" requires | ❌ **Does not hold — with one exception.** QES is needed only to *replace* a statutory Schriftform (§ 126a BGB) and it alone earns the § 371a ZPO Anscheinsbeweis; neither applies here. The exception: a *separately signed Empfangsbekenntnis* escapes § 309 Nr. 12 b BGB only if handwritten or QES-signed — which is one more reason not to collect a Kenntnisnahme checkbox at all. See §4.3. |
-| "Rechtssicher" for the mandate is decided by a court | ❌ **Does not hold.** It is decided by **the club's own bank**, as "erste Inkassostelle" under the Inkassovereinbarung (Bundesbank), and, in a dispute, by the *member's* bank reading a mandate copy the club must produce within seven business days. No German court decision on a disputed online SEPA mandate exists. See §3. |
+| "Rechtssicher" for the mandate is decided by a court | ❌ **Does not hold.** It is decided by **the club's own bank**, as "erste Inkassostelle" under the Inkassovereinbarung (Bundesbank), and, in a dispute, by the *member's* bank reading a mandate copy the club must produce within seven business days. No German court decision on a disputed online SEPA mandate exists. For Frankfurter Sparkasse the readable editions of the Sparkassen form say „schriftliche und vom Zahlungspflichtigen unterzeichnete", while the group's own PSP runs click mandates — the bank has to be asked, and §3.5 says how. |
 | What a simple signature lacks is *integrity* — so a drawn signature image or a hash chain is the fix | ❌ **Wrong target.** What it lacks is **identity**: no Anscheinsbeweis flows from a mailbox, an account or a password (BGH VIII ZR 289/09, OLG Köln, LG Bonn); AG München dismissed a claim for want of an attributable IP, an authentication step and a protected link. A drawn scribble on a phone is legally the same as a typed name (Bundesarchiv). The fix is a **confirmation from the mailbox on file** plus a **complete, printable record of the process** — exactly the two things courts asked for (BGH I ZR 164/09; VG Düsseldorf 29 K 9714/24). See §5. |
 | Minors need a parent's handwritten signature | ❌ **Does not hold in law, holds in practice.** The parent's consent is form-free even where the Satzung requires Schriftform (§ 182 Abs. 2 BGB); one parent suffices for the ordinary case (AG Ahlen, § 1357 BGB). But a browser cannot tell a parent from a child, so the minor path stays on paper in v1. See §6. |
 
@@ -264,6 +264,82 @@ Assembled from the DK terms, Bundesbank, EPC173-14 and Hettwer (excerpts, consis
 - **Mandate reference.** Danske Bank's guide (excerpt): "The mandate reference should be included in the mandate signed by the debtor. If that is not possible, you must inform your debtor of the mandate reference before you send him the first collection." Bundesbank agrees. The current design mints the UMR at submission and prints it on the sheet — already the strong form. **Confidence: High.**
 - **Vorabankündigung.** Any notice stating amount and due date, by any channel including e-mail; 14 calendar days by default, shortenable by agreement including in AGB (Bundesbank, EPC132-17, Hettwer, excerpts). The signing receipt cannot serve as pre-notification for a variable first collection because the amount is unknown; the settlement mail the club already sends is the pre-notification, and the mandate text should state the shortened period and the e-mail channel. **Confidence: High.**
 
+### 3.5 The club's bank: Frankfurter Sparkasse
+
+The club banks with Frankfurter Sparkasse (a 100 % subsidiary of Helaba,
+operating as an ordinary Sparkasse on the Sparkassen-Finanzgruppe's standard
+forms, which are published by S-Management Services / DSV-Gruppe). Everything
+below is from search excerpts — `frankfurter-sparkasse.de` is denied by the
+sandbox's egress policy, and the bank's own Inkassovereinbarung PDF additionally
+sits behind a verification page — so the owner must open the documents named
+here and read the clauses in the club's own copy.
+
+#### What Frankfurter Sparkasse publishes
+
+| Document | What it is | What it says about the form of a mandate |
+|---|---|---|
+| [*Bedingungen für Zahlungen mittels Lastschrift im SEPA-Basis-Lastschriftverfahren*](https://www.frankfurter-sparkasse.de/content/dam/myif/sk-frankfurt/work/dokumente/pdf/vertragsbedingungen/bedingungen-fuer-zahlungen-mittels-lastschrift-im-SEPA-basis-lastschriftverfahren.pdf) — DSV form 114 248.000 D1, Fassung Okt. 2025, v13.0 | The **debtor-side** conditions: what a *member* who banks at Frankfurter Sparkasse has agreed with it | Nr. 2.2.1 (excerpt, verbatim): „Das Mandat ist schriftlich oder in der mit seiner Sparkasse vereinbarten Art und Weise zu erteilen." The group text of §3.2, unchanged. **Confidence: High** |
+| [*Bedingungen … im SEPA-Firmen-Lastschriftverfahren*](https://www.frankfurter-sparkasse.de/content/dam/myif/sk-frankfurt/work/dokumente/pdf/vertragsbedingungen/bedingungen-fuer-zahlungen-mittels-lastschrift-im-SEPA-firmen-lastschriftverfahren.pdf) — 114 247.000 D1, Okt. 2025, v14.0 | B2B scheme | Not applicable — members are consumers, the club collects Basislastschriften |
+| [*Inkassovereinbarung*](https://www.frankfurter-sparkasse.de/content/dam/myif/spk-frankfurt/work/dokumente/pdf/firmenkunden/inkassovereinbarung.pdf) (Firmenkunden download) | The **creditor-side** agreement — the one the club signed, and the one the Bundesbank says decides | **Content not obtained**: the PDF is behind a verification page and the host is denied. It is the DSV *Vereinbarung über den Einzug von Forderungen durch SEPA-Basislastschriften* family (form 114 910.000 in its 2013/2014 editions); which edition Frankfurter Sparkasse currently issues, and which one the club signed, is unknown here. **NO ACCESS** |
+| [*Lastschriftmandat* online service](https://www.frankfurter-sparkasse.de/fi/home/services-und-kontakt/online-services/alle-services/lastschriftmandat.html) | A Firmenkunden online-banking function: create, change and delete **Firmenlastschrift** mandates online, as the *debtor* | Not the club's case (Basislastschrift, the club is the creditor). Relevant only as a signal: the bank already runs mandate declarations as an online-banking act. **Confidence: Medium** |
+| [*SEPA* service page](https://www.frankfurter-sparkasse.de/de/home/service/sepa.html) | Explains Gläubiger-ID and Mandatsreferenz, "both shown on the account statement" | Nothing on electronic mandates |
+| [BusinessCenter](https://www.frankfurter-sparkasse.de/fi/home/beratung/service-firmenkunden.html) | „Ihr direkter Kontakt für alles rund um Ihr Geschäftskonto und den Zahlungsverkehr", **069 2641-7000**; also the [FirmenkundenCenter](https://www.frankfurter-sparkasse.de/fi/home/beratung/firmenkunden-beratung.html) by phone, e-mail and video | Where the question gets asked |
+
+#### What the Sparkassen standard Inkassovereinbarung says
+
+The DSV form the Sparkassen issue to creditors, in the editions that are
+readable online (Sparkasse Jena-Saale-Holzland, 114 910.000 D1, Fassung Aug.
+2013; Kreissparkasse Ravensburg, 02/2014), excerpt in German:
+
+> „Der Zahlungsempfänger verpflichtet sich, Lastschriften nur dann zum Einzug einzureichen, wenn ihm hierzu das schriftliche und vom Zahlungspflichtigen unterzeichnete SEPA-Lastschriftmandat … vorliegt."
+
+**Confidence: Medium-High** (the same sentence came back, in German, from two
+editions; neither PDF was read in full). The companion obligations, from the
+same family (excerpts, English renderings): the mandate is produced **on
+request within seven Geschäftstage**; after the mandate ends it is kept **at
+least 14 months from the submission date of the last collection**; storage on
+image or data carriers under § 257 HGB / § 147 AO is allowed.
+
+Two Sparkassen state the conservative reading of that clause in their own
+guidance: Kreissparkasse Ahrweiler's SEPA checklist (2016, excerpt) — mandates
+not given in writing, „z. B. telefonisch oder über das Internet", are „nicht
+SEPA-fähig"; and the Sparkassen-Finanzgruppe's Vereinsbroschüre (Kreissparkasse
+Rottweil copy, excerpt) — the mandate „muss schriftlich vorliegen und vom
+Mitglied unterschrieben sein". **Confidence: Medium.** Whether any later
+edition of the form (2016 onward) carries an "in einer anderen mit der
+Sparkasse vereinbarten Form" option, as the debtor-side conditions do: **NO
+AUTHORITY FOUND** — the 2025/2026 form numbers that surface (114 247.000,
+114 248.000) are the debtor-side *Bedingungen*, not the Inkassovereinbarung.
+
+#### What the same group does in practice
+
+- **PAYONE** — the Sparkassen-Finanzgruppe's own payment service provider, marketed to Sparkasse business customers on [sparkasse.de](https://www.sparkasse.de/unsere-loesungen/firmenkunden/e-commerce/payone.html). Its SEPA guidance (excerpt): printed mandates need a signature, **online mandates do not**. Its `managemandate` API (excerpts of the developer documentation, consistent across three pages) takes the consumer's **IP address**, generates an **EPC-compliant mandate text** in the consumer's language for confirmation by **checkbox**, can render the mandate as a **PDF**, sends or offers it by **e-mail**, and keeps the mandate „valid up to 36 months after the last transaction or until revoked". That is the group's own PSP running click mandates for Sparkasse merchants, with exactly the evidence set in §5. **Confidence: High.**
+- **S-Verein** — the Vereinssoftware sold through Sparkassen, made by S-Management Services (DSV-Gruppe). Its help pages (excerpts) describe a mandate register in which the signature date must be recorded before a collection file is generated, and integration of the SEPA mandate into a digital membership application. Whether its "digital" mandate is a typed-name form or a scanned sheet could not be read (`hilfe.s-verein.de` is denied). **Confidence: Medium.**
+- **Online banking** — Firmenlastschrift mandates are created and confirmed online by the payer at Frankfurter Sparkasse itself (table above).
+
+The picture is consistent: **the paper the club signed very likely says
+„schriftlich und unterzeichnet", the group's own products treat a click with
+an evidence record as a mandate, and the bank's branch guidance is
+conservative.** That is precisely the gap the Bundesbank describes — the
+"erste Inkassostelle" decides — and only the bank closes it.
+
+#### What the owner does with this
+
+1. **Get the club's copy of the Inkassovereinbarung** — the one on file, and the current form from the Firmenkunden download (link above, behind the verification page). Read the mandate clause. If it says „schriftliche und vom Zahlungspflichtigen unterzeichnete", the electronic path is outside the letter of the contract until the bank says otherwise.
+2. **Ask the BusinessCenter (069 2641-7000) or the Firmenkundenberater, in writing**, and file the answer with the date. A form of words that names what the bank needs to see:
+
+   > Wir möchten SEPA-Basislastschriftmandate unserer Mitglieder künftig auch elektronisch einholen: Das Mitglied füllt das Mandat (DK-Mustertext, Gläubiger-ID, Mandatsreferenz, Name, IBAN) auf seinem Telefon aus, bestätigt es mit Namenseingabe und bestätigt anschließend den Vorgang über einen einmaligen Link an die angegebene E-Mail-Adresse. Wir bewahren das erteilte Mandat als unverändertes Dokument mit Zeitstempel, IP-Adresse, dem bestätigten Text und der E-Mail-Bestätigung auf und können es auf Anforderung innerhalb von sieben Geschäftstagen als Mandatskopie (PDF) vorlegen. Bitte bestätigen Sie uns, dass ein so erteiltes Mandat für unsere Inkassovereinbarung als „in einer anderen mit der Sparkasse vereinbarten Form" erteilt gilt — oder nennen Sie uns, welche Form Sie stattdessen akzeptieren.
+
+3. **Record the answer in the settings screen** (ADR-0053 decision 2): the date, the edition of the agreement, and the note. A "yes" enables the path; a "no" leaves the club on paper and the feature refuses to enable — that is the intended failure mode. A bank that points to PAYONE instead is answering a different question: a PSP contract is not what a members' club needs to collect a bar tab.
+
+**What the answer does not change.** The financial risk of a disputed mandate
+is the club's under every edition of the form — a returned collection is
+re-debited to the club whether the mandate was paper or electronic, and the
+club's claim against the member survives (ADR-0028 §1). What the bank's
+confirmation settles is the *contractual* position: without it, an electronic
+mandate is a breach of the Inkassovereinbarung the bank could invoke, with
+termination of the agreement as the sanction that would actually hurt.
+
 ---
 
 ## 4. The Kenntnisnahme of the Datenschutzhinweise
@@ -471,7 +547,7 @@ retention-tier artefact). ADR-0038 gains a subject type and loses nothing.
 **Owner actions that gate enabling, not shipping** — the same shape as the
 document URL in ADR-0052:
 
-1. **Bank.** Obtain the current *Vereinbarung über den Einzug von Forderungen durch SEPA-Basislastschriften* and either find the "andere vereinbarte Form" clause or get a written confirmation that mandates given electronically with the record described in §5 are accepted. Record the date in the settings screen; the feature refuses to enable without it.
+1. **Bank.** Frankfurter Sparkasse — see §3.5 for the documents, the BusinessCenter line and a form of words. Obtain the club's *Inkassovereinbarung* and either find an "andere vereinbarte Form" clause or get a written confirmation that mandates given electronically with the record described in §5 are accepted. Record the date in the settings screen; the feature refuses to enable without it.
 2. **Satzung.** Read the Beitritt clause. If it says "schriftlich", it is very likely fine (§2); if it says "eigenhändig", amend it; in any case the next Satzungsänderung should adopt Textform expressly.
 3. **Beitragsordnung / mandate text.** State the shortened Vorabankündigung period and the e-mail channel, so that the settlement mail is contractually the pre-notification.
 4. **Art. 13 notice.** The notice gains one row: proof-of-signature data (IP, user agent, timestamps, confirmation token) processed on Art. 6(1)(b) with Art. 6(1)(f) for the technical proof, retained with the mandate (§ 147 AO / § 257 HGB; Art. 17(3)(b) and (e)). The document is the club's, outside this repository (frgs-website).

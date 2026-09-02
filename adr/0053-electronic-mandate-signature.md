@@ -359,7 +359,7 @@ sequenceDiagram
 ## Open questions — the owner decides before M1
 
 1. **The ADR and the schema.** One new table, two new columns (`mandates.signing_method`, `self_registration_config.membership_declaration`), three new config fields for the bank confirmation and the switch, one new mail kind and subject, one new audit action. Explicit confirmation required.
-2. **Bank.** Which edition of the Inkassovereinbarung the club holds, and whether it or a side letter accepts electronic mandates. The feature refuses to enable without a recorded answer.
+2. **Bank.** Which edition of the Frankfurter Sparkasse Inkassovereinbarung the club holds — the readable 2013/2014 editions of the Sparkassen form say „schriftliche und vom Zahlungspflichtigen unterzeichnete" — and whether the bank confirms in writing that a mandate given as described here counts as „in einer anderen mit der Sparkasse vereinbarten Form". The research (§3.5) names the documents, the BusinessCenter line and a form of words. The feature refuses to enable without a recorded answer.
 3. **Satzung.** What the Beitritt clause says; whether to adopt Textform expressly at the next amendment.
 4. **The DK mandate text in the repository.** It is scheme text, not club prose, and every creditor ships it verbatim — but it is the first legal wording committed here. Acceptable, or should it too be club-configured?
 5. **Last-4 in the mail.** Stripe and Adyen mail it; the club may prefer none.
