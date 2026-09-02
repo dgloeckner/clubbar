@@ -303,6 +303,26 @@ export function stopServingClubDocument(): void {
   }
 }
 
+/**
+ * The club's own name, as the onboarding page's masthead should show it.
+ *
+ * Read rather than written: `instance_config` is a global singleton (ADR-0034)
+ * and `tests/admin/settings-instance-branding.spec.ts` renames it as part of
+ * its own assertions. A test that wrote a name here would be racing that file
+ * for a value neither of them needs to control — what the register page has to
+ * prove is that it renders *whatever the club is called*, not a fixed string.
+ */
+export function clubInstanceName(): string {
+  const output = execSql('SELECT instance_name FROM instance_config WHERE id = 1')
+
+  // `mariadb -e` prints the column name and then the value, one per line. The
+  // header is dropped by position rather than by matching it, so a club that
+  // happens to be called "instance_name" still reads back correctly.
+  const [, value] = output.split('\n')
+
+  return (value ?? '').trim()
+}
+
 /** How many pending registrations exist right now. */
 export function countPendingRegistrations(): number {
   const output = execSql('SELECT COUNT(*) FROM pending_registrations')

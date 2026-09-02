@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { test } from '../../fixtures/roleRequests'
 import {
   clearRegistrationAttempts,
+  clubInstanceName,
   configureSelfRegistration,
   countPendingRegistrations,
   execSql,
@@ -942,11 +943,36 @@ test.describe('Public self-registration', () => {
     // nothing else. No counts, no names, no hint whether the club knows them.
     expect(Object.keys(await response.json()).sort()).toEqual([
       'available',
+      'club_name',
       'document_url',
       'languages',
+      'logo_url',
       'message',
       'reason',
     ])
+  })
+
+  /**
+   * Who is asking (#781).
+   *
+   * A page that wants a name, a birth date and an IBAN and does not say whose
+   * form it is is indistinguishable from a phishing page. The name comes from
+   * `instance_config` — the same value the club's mail is signed with — so a
+   * club that has branded one has branded the other.
+   */
+  test('the context names the club, so the page can say who is asking', async ({ request }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    const response = await request.post(`${API}/public/registrations/context`, {
+      data: { secret },
+    })
+
+    const body = await response.json()
+    // Whatever the club is called right now, rather than a fixed string: this
+    // row is a singleton another spec renames as part of its own assertions.
+    expect(body.club_name).toBe(clubInstanceName())
+    expect(body.club_name).not.toBe('')
   })
 
   /**

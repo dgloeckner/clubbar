@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Registrations\DTOs;
 
+use App\Shared\Branding\PublicBranding;
+
 /**
  * What the onboarding page needs to know before it renders anything (#781).
  *
@@ -25,6 +27,18 @@ namespace App\Modules\Registrations\DTOs;
  * nothing about whether this club already knows the visitor. The endpoint
  * behind it is reached by an anonymous phone, and every field here is club
  * configuration a poster-holder is standing in front of anyway.
+ *
+ * ## Branding travels with it, and only past the gate
+ *
+ * The club's name and mark ({@see PublicBranding}) are what let a stranger see
+ * whose form is asking for their IBAN — an unbranded one is indistinguishable
+ * from a phishing page. They ride this answer rather than a second request
+ * because the page has already made one round trip on clubhouse wifi and a
+ * header that arrives late is a header that flashes.
+ *
+ * They are on the answer to a *matching* secret only. A wrong one is still the
+ * uniform 404 with no body at all, so nothing here is an oracle: what a
+ * poster-holder learns is what the poster already told them.
  */
 final readonly class RegistrationContextDto
 {
@@ -46,6 +60,14 @@ final readonly class RegistrationContextDto
         public ?string $documentUrl,
         /** @var list<string> The languages the page may offer. */
         public array $languages,
+        /**
+         * Who is asking, for the page's masthead and footer.
+         *
+         * Optional and last: an installation wired without a branding provider
+         * still renders a working form, under the neutral header the page falls
+         * back to.
+         */
+        public PublicBranding $branding = new PublicBranding(),
     ) {}
 
     /** @return array<string, mixed> */
@@ -57,6 +79,6 @@ final readonly class RegistrationContextDto
             'message' => $this->message,
             'document_url' => $this->documentUrl,
             'languages' => $this->languages,
-        ];
+        ] + $this->branding->toArray();
     }
 }

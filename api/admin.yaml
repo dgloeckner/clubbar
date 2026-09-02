@@ -474,6 +474,25 @@ paths:
                     items:
                       type: string
                     description: The languages the page may offer.
+                  club_name:
+                    type: string
+                    nullable: true
+                    description: >
+                      The instance name, for the page's masthead and footer —
+                      the same value the club's mail signs off with. A form
+                      asking a stranger for an IBAN without saying whose it is
+                      is indistinguishable from a phishing page, which is why
+                      this travels. It is on the answer to a *matching* secret
+                      only: a wrong one is still the uniform 404 with no body.
+                  logo_url:
+                    type: string
+                    nullable: true
+                    description: >
+                      The club's mark — `mail_config.logo_url`, so a club that
+                      branded its mail has branded this page with nothing
+                      further to configure. Narrowed to an `http(s)` or
+                      same-origin URL before it is returned; anything else
+                      answers null.
         '404':
           description: >
             The uniform refusal — no secret, a wrong one, or a club that has

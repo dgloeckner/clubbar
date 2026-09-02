@@ -225,6 +225,32 @@ the final PR.
       (`notifications-queue`, `settings-credentials` ×2) in files this slice does
       not touch — both are green inside their own lane.
 
+- [x] **M8 — The onboarding page wears the club's mail design**.
+      The page a QR code opens and the mail that follows it days later are the
+      only two surfaces a member meets outside the clubhouse, and they looked
+      like two different products. The page now mirrors
+      `App\Shared\Mail\MailLayout` — the same palette, the same 600px sheet on
+      its warm grey ground, the paper masthead over a red rule, the petrol
+      footer, the red note box around the Art. 13 link — light-only, as the mail
+      is, so it does not stop matching at dusk. **It says who is asking**: the
+      instance name and `mail_config.logo_url` travel on the context answer, so a
+      club that branded its mail has branded this page with nothing further to
+      configure; a form that wants a birth date and an IBAN without naming the
+      club is indistinguishable from a phishing page. Nothing is branded before
+      the gate — a wrong secret is still the uniform 404 with no body. **And the
+      confirmation screen no longer offers to print at the Theke**: the club
+      cannot, so step 2 is now "hand the signed sheet to the Kassenwart" and
+      nothing else.
+      *Verified by*: backend Unit **2926** green (`php8.3`), including
+      `PublicBrandingTest` on what may become an `img src` — `javascript:`,
+      `data:`, a protocol-relative host and a mail-only `cid:` all dropped — and
+      `PublicBrandingProviderTest` on the fail-soft path an installation with no
+      `mail_config` row takes. `register` **22/22** and `api-tests`
+      `self-registration.spec.ts` **47/47**: the club named in the masthead and
+      the footer is the one `instance_config` holds, a paused club is still
+      branded, a refused link is not branded at all, and a club with no mark
+      renders no image rather than a broken one.
+
 ## Testable acceptance, epic-wide
 
 These are the assertions that decide whether the epic is done, independent of

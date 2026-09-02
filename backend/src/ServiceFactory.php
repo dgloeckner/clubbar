@@ -39,6 +39,7 @@ use App\Modules\Security\Repositories\SealedIbanRepository;
 use App\Modules\Security\Services\EncryptionKeyService;
 use App\Modules\Security\Services\KeyRotationService;
 use App\Modules\Security\Controllers\EncryptionKeysController;
+use App\Shared\Branding\PublicBrandingProvider;
 use App\Shared\Security\IbanSealedBox;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
 use App\Modules\CreditLimits\Repositories\CreditLimitConfigRepository;
@@ -386,6 +387,21 @@ class ServiceFactory implements ContainerInterface
             $this->getIbanSealedBox(),
             $this->logger,
             $this->getMandateDocumentService(),
+            $this->getPublicBrandingProvider(),
+        ));
+    }
+
+    /**
+     * The club's name and mark, for the surfaces nobody has logged into.
+     *
+     * Reads the same two singleton rows the mail branding does, so a club that
+     * branded its mail has branded its onboarding page (#781).
+     */
+    public function getPublicBrandingProvider(): PublicBrandingProvider
+    {
+        return $this->resolve(PublicBrandingProvider::class, fn() => new PublicBrandingProvider(
+            $this->getInstanceConfigService(),
+            $this->getMailConfigRepository(),
         ));
     }
 

@@ -19,6 +19,8 @@ use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\TooManyAttemptsException;
+use App\Shared\Branding\PublicBranding;
+use App\Shared\Branding\PublicBrandingProvider;
 use App\Shared\Logging\Logger;
 use App\Shared\Security\IbanSealedBox;
 use App\Shared\Utils\Uuid;
@@ -84,6 +86,9 @@ class RegistrationsService
         // Optional and last: the document is best-effort by design (decision
         // 5), and an installation wired without it still registers members.
         private ?MandateDocumentService $documents = null,
+        // Optional for the same reason: the club's name and mark decorate the
+        // onboarding page, and a page without them still registers members.
+        private ?PublicBrandingProvider $branding = null,
     ) {}
 
     /**
@@ -266,6 +271,10 @@ class RegistrationsService
 
         $documentUrl = $this->documentUrl();
         $languages = array_column(SupportedLanguage::cases(), 'value');
+        // Past the gate, so the caller demonstrably holds the club's poster.
+        // Every screen the page can now render is one the club puts its name
+        // on — the paused one included, which is the club speaking.
+        $branding = $this->branding?->get() ?? new PublicBranding();
 
         if (!$config->enabled) {
             return new RegistrationContextDto(
@@ -274,6 +283,7 @@ class RegistrationsService
                 message: $config->disabledReason,
                 documentUrl: $documentUrl === '' ? null : $documentUrl,
                 languages: $languages,
+                branding: $branding,
             );
         }
 
@@ -291,6 +301,7 @@ class RegistrationsService
                 message: null,
                 documentUrl: null,
                 languages: $languages,
+                branding: $branding,
             );
         }
 
@@ -300,6 +311,7 @@ class RegistrationsService
             message: null,
             documentUrl: $documentUrl,
             languages: $languages,
+            branding: $branding,
         );
     }
 
