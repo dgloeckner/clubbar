@@ -199,15 +199,25 @@ export function countPendingMail(): number {
  * @param options `enabled` defaults to true; `disabledReason` is the club's
  *        member-facing text; `documentUrl` defaults to a plausible published
  *        Anmeldung. Pass `documentUrl: null` to assert the fail-closed path.
+ *        `retentionDays` is the club's purge horizon, which the onboarding
+ *        page's done screen says out loud (#804); it defaults to the shipped
+ *        30 so a test that does not care leaves the row as every other test
+ *        expects to find it.
  */
 export function configureSelfRegistration(
   secret: string,
-  options: { enabled?: boolean; disabledReason?: string | null; documentUrl?: string | null } = {},
+  options: {
+    enabled?: boolean
+    disabledReason?: string | null
+    documentUrl?: string | null
+    retentionDays?: number
+  } = {},
 ): void {
   const enabled = options.enabled ?? true
   const reason = options.disabledReason ?? null
   const documentUrl =
     options.documentUrl === undefined ? CLUB_DOCUMENT_URL : options.documentUrl
+  const retentionDays = options.retentionDays ?? 30
 
   const hash = createHash('sha256').update(secret).digest('hex')
   const reasonSql = reason === null ? 'NULL' : `'${reason.replace(/'/g, "''")}'`
@@ -215,7 +225,8 @@ export function configureSelfRegistration(
 
   execSql(
     `UPDATE self_registration_config SET enabled = ${enabled ? 1 : 0}, ` +
-      `secret_hash = '${hash}', disabled_reason = ${reasonSql} WHERE id = 1`,
+      `secret_hash = '${hash}', disabled_reason = ${reasonSql}, ` +
+      `retention_days = ${Number(retentionDays)} WHERE id = 1`,
   )
   execSql(`UPDATE sepa_config SET mandate_template_url = ${urlSql} WHERE id = 1`)
 }

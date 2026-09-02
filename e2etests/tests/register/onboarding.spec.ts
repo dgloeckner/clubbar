@@ -84,7 +84,10 @@ test.describe('Public onboarding page', () => {
    * test left half-applied.
    */
   test.afterEach(() => {
-    execSql('UPDATE self_registration_config SET enabled = 1, disabled_reason = NULL WHERE id = 1')
+    execSql(
+      'UPDATE self_registration_config SET enabled = 1, disabled_reason = NULL, ' +
+        'retention_days = 30 WHERE id = 1',
+    )
   })
 
   const uniqueSecret = () => `secret-${randomUUID()}`
@@ -382,6 +385,14 @@ test.describe('Public onboarding page', () => {
     }
   })
 
+  const browserState = (page: any) =>
+    page.evaluate(() => ({
+      local: JSON.stringify(window.localStorage),
+      session: JSON.stringify(window.sessionStorage),
+      cookie: document.cookie,
+      url: window.location.href,
+    }))
+
   /** Nothing about this flow may outlive the tab it happened in. */
   test('nothing personal is written to browser storage or the URL', async ({ page }) => {
     await openForm(page)
@@ -389,12 +400,10 @@ test.describe('Public onboarding page', () => {
     await page.getByTestId('submit-button').click()
     await expect(page.getByTestId('screen-review')).toBeVisible()
 
-    const stored = await page.evaluate(() => ({
-      local: JSON.stringify(window.localStorage),
-      session: JSON.stringify(window.sessionStorage),
-      cookie: document.cookie,
-      url: window.location.href,
-    }))
+    // Before the submission there is nothing to keep, so nothing is kept —
+    // `sessionStorage` included.
+    const stored = await browserState(page)
+    expect(stored.session).toBe('{}')
 
     for (const haystack of [stored.local, stored.session, stored.cookie]) {
       expect(haystack).not.toContain(values['field-email'])
@@ -405,6 +414,41 @@ test.describe('Public onboarding page', () => {
     // name, no IBAN, nothing a shared screenshot would leak.
     expect(stored.url).not.toContain(values['field-email'])
     expect(stored.url).not.toContain('DE89')
+  })
+
+  /**
+   * After the submission, exactly one thing is kept and exactly one place keeps
+   * it (#804).
+   *
+   * The filled document arrives once and cannot be asked for again, and phones
+   * reload backgrounded tabs — so it lives in this tab's `sessionStorage` until
+   * the applicant says they have it. `localStorage`, cookies and the URL are
+   * unchanged by that: they never carry anything about the applicant, before or
+   * after, and the stored copy leaves on the tap that says it was saved.
+   */
+  test('after submitting, only sessionStorage holds the document — and only until the clear tap', async ({
+    page,
+  }) => {
+    const values = await submitRegistration(page)
+
+    const afterSubmit = await browserState(page)
+    const kept = JSON.parse(JSON.parse(afterSubmit.session)['clubbar.registration'])
+    expect(kept.document.length).toBeGreaterThan(0)
+
+    // Everywhere else is still empty of them — the name, the address and the
+    // IBAN they typed are in none of it, at any point.
+    for (const haystack of [afterSubmit.local, afterSubmit.cookie, afterSubmit.url]) {
+      expect(haystack).not.toContain(values['field-email'])
+      expect(haystack).not.toContain('DE89')
+      expect(haystack).not.toContain(values['field-last-name'])
+    }
+
+    await page.getByTestId('clear-button').click()
+
+    const afterClear = await browserState(page)
+    expect(afterClear.session).toBe('{}')
+    await expect(page.getByTestId('clear-button')).toBeHidden()
+    await expect(page.getByTestId('cleared-note')).toBeVisible()
   })
 
   // ── review and submit ──────────────────────────────────────────────────
@@ -444,26 +488,296 @@ test.describe('Public onboarding page', () => {
     await expect(page.getByTestId('mandate-reference')).not.toBeEmpty()
   })
 
-  test('the filled document downloads from the response, and cannot be re-fetched', async ({
-    page,
-  }) => {
+  // ── saving the filled document (#804) ──────────────────────────────────
+  //
+  // The document arrives once, in the submission response, and by design can
+  // never be asked for again — the plaintext IBAN it was rendered from existed
+  // only for the length of that request. Everything below is about that one
+  // copy surviving a phone: an automatic save, a share sheet, a reload, and a
+  // blob URL that outlives an iOS confirmation dialog.
+
+  /**
+   * Fill, review and submit, and wait for the automatic save on the way (#804).
+   *
+   * The download event is consumed here rather than ignored: it fires without a
+   * tap, so a test that did not expect it would race its own later one.
+   */
+  const submitRegistration = async (page: any, overrides: Record<string, string> = {}) => {
     await openForm(page)
-    await fillForm(page)
+    const values = await fillForm(page, overrides)
     await page.getByTestId('submit-button').click()
-    await page.getByTestId('confirm-button').click()
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('confirm-button').click(),
+    ])
+    expect(download.suggestedFilename()).toBe('anmeldung.pdf')
+
     await expect(page.getByTestId('screen-done')).toBeVisible()
+
+    return values
+  }
+
+  /**
+   * The commonest way to lose the document is never tapping a second button, so
+   * there is no second button to tap: the save is attempted inside the user
+   * activation of the „Absenden“ tap itself. The button stays, saying what it
+   * now does.
+   */
+  test('the filled document saves itself, and the button then saves it again', async ({ page }) => {
+    await submitRegistration(page)
+
+    await expect(page.getByTestId('download-button')).toHaveText('Erneut speichern')
+
+    const [again] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('download-button').click(),
+    ])
+    expect(again.suggestedFilename()).toBe('anmeldung.pdf')
+  })
+
+  /**
+   * The reload rescue (#804), which is the actual answer to "was interrupted".
+   *
+   * iOS Safari reloads a backgrounded tab after a phone call and Android Chrome
+   * discards tabs under memory pressure. Before this, that put the applicant
+   * back at an empty form with their Anmeldung gone. It is still never
+   * re-fetched — the screen is rebuilt from what this tab kept, and the tab is
+   * the only place that copy exists.
+   */
+  test('a reload of the done screen brings the same document back', async ({ page }) => {
+    await submitRegistration(page)
+    const reference = await page.getByTestId('mandate-reference').textContent()
+    expect(reference).not.toBe('')
+
+    await page.reload()
+
+    await expect(page.getByTestId('screen-done')).toBeVisible()
+    await expect(page.getByTestId('mandate-reference')).toHaveText(reference!)
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
       page.getByTestId('download-button').click(),
     ])
     expect(download.suggestedFilename()).toBe('anmeldung.pdf')
+  })
 
-    // One chance, and the page is honest about it: the plaintext IBAN it was
-    // rendered from existed only for the length of the submission request, so
-    // a reload has nothing left to render from and no endpoint to ask.
+  /** And once the applicant says they have it, the tab lets go of it for good. */
+  test('after the clear tap a reload lands on the form, not the done screen', async ({ page }) => {
+    await submitRegistration(page)
+
+    await page.getByTestId('clear-button').click()
     await page.reload()
+
+    // Back at the start of the flow the poster's secret opens — the language
+    // choice, then the form — and not at a done screen with nothing behind it.
     await expect(page.getByTestId('screen-done')).toBeHidden()
+    await expect(page.getByTestId('screen-language')).toBeVisible()
+    await page.getByTestId('language-de').click()
+    await expect(page.getByTestId('screen-form')).toBeVisible()
+  })
+
+  /**
+   * The share sheet is what an iPhone actually offers: „In Dateien sichern“,
+   * „Drucken“ over AirPrint, and „Mail“ — the last of which covers the case a
+   * download cannot, no printer at home but one at work.
+   *
+   * `navigator.share` is stubbed because no headless browser has one. What is
+   * under test is what the page hands it and what it does with the answer: one
+   * PDF file under the right name, and the kept copy released once the sheet
+   * reports that something took it.
+   */
+  const stubShare = (page: any) =>
+    page.addInitScript(() => {
+      const win = window as any
+      win.__shared = []
+      Object.defineProperty(navigator, 'canShare', {
+        configurable: true,
+        value: (data: any) => Array.isArray(data?.files) && data.files.length > 0,
+      })
+      Object.defineProperty(navigator, 'share', {
+        configurable: true,
+        value: (data: any) => {
+          win.__shared.push(
+            (data.files || []).map((file: File) => ({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+            })),
+          )
+          return Promise.resolve()
+        },
+      })
+    })
+
+  test('the share sheet gets one PDF, and a successful share releases the kept copy', async ({
+    page,
+  }) => {
+    await stubShare(page)
+    await submitRegistration(page)
+
+    await expect(page.getByTestId('share-button')).toBeVisible()
+    await page.getByTestId('share-button').click()
+
+    await expect
+      .poll(() => page.evaluate(() => (window as any).__shared.length))
+      .toBeGreaterThan(0)
+
+    expect(await page.evaluate(() => (window as any).__shared[0])).toEqual([
+      { name: 'anmeldung.pdf', type: 'application/pdf', size: expect.any(Number) },
+    ])
+
+    // A resolved share is a save. Nothing is left in the browser to clean up,
+    // and a reload from here lands on the form.
+    await expect(page.getByTestId('cleared-note')).toBeVisible()
+    expect(await page.evaluate(() => JSON.stringify(window.sessionStorage))).toBe('{}')
+  })
+
+  test('a browser with no share sheet is offered the download alone', async ({ page }) => {
+    await page.addInitScript(() => {
+      // Chromium on Linux has neither, but saying so explicitly keeps this test
+      // honest on a runner whose browser grew one. `defineProperty` rather than
+      // `delete`: both live on `Navigator.prototype`, where deleting an
+      // instance property does nothing.
+      Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
+      Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
+    })
+
+    await submitRegistration(page)
+
+    await expect(page.getByTestId('share-button')).toBeHidden()
+    await expect(page.getByTestId('download-button')).toBeVisible()
+  })
+
+  /**
+   * The blob URL outlives the tap that made it (#804).
+   *
+   * iOS shows a confirmation dialog before it saves a download, and the old
+   * 60-second timer meant answering that dialog late produced an empty file.
+   * Asserted by counting revocations rather than by waiting 61 seconds: nothing
+   * is released while the page lives, and everything is released when it goes.
+   */
+  test('the document’s blob URL is released on pagehide, not on a timer', async ({ page }) => {
+    await page.addInitScript(() => {
+      const win = window as any
+      win.__revoked = 0
+      const revoke = URL.revokeObjectURL.bind(URL)
+      URL.revokeObjectURL = (url: string) => {
+        win.__revoked += 1
+        revoke(url)
+      }
+    })
+
+    await submitRegistration(page)
+
+    expect(await page.evaluate(() => (window as any).__revoked)).toBe(0)
+
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')))
+    expect(await page.evaluate(() => (window as any).__revoked)).toBeGreaterThan(0)
+  })
+
+  // ── what the done screen says ──────────────────────────────────────────
+
+  /**
+   * The applicant leaves knowing three things they could not know before
+   * (#804): save this now, an email is coming when the card is assigned, and
+   * this registration is deleted if nobody confirms it — with the club's own
+   * number, read from the context answer rather than typed into the page.
+   */
+  test('the done screen saves first, then says what happens next', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret, { retentionDays: 45 })
+
+    await openWith(page, secret)
+    await page.getByTestId('language-de').click()
+    await expect(page.getByTestId('screen-form')).toBeVisible()
+    await fillForm(page)
+    await page.getByTestId('submit-button').click()
+    await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('confirm-button').click(),
+    ])
+    await expect(page.getByTestId('screen-done')).toBeVisible()
+
+    // Saving is above the explanation of what to do with what was saved.
+    const saveTop = (await page.getByTestId('save-block').boundingBox())!.y
+    const stepsTop = (await page.locator('#screen-done .steps').boundingBox())!.y
+    expect(saveTop).toBeLessThan(stepsTop)
+
+    await expect(page.getByTestId('done-card')).toContainText('E-Mail')
+    await expect(page.getByTestId('done-expiry')).toContainText('45 Tagen')
+  })
+
+  test('the done screen is English end to end when English was chosen', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    await openWith(page, secret)
+    await page.getByTestId('language-en').click()
+    await expect(page.getByTestId('screen-form')).toBeVisible()
+    await fillForm(page)
+    await page.getByTestId('submit-button').click()
+    await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('confirm-button').click(),
+    ])
+
+    await expect(page.getByTestId('screen-done')).toBeVisible()
+    await expect(page.getByTestId('done-card')).toContainText('email')
+    await expect(page.getByTestId('done-expiry')).toContainText('30 days')
+    await expect(page.getByTestId('platform-hint')).toContainText('iPhone')
+    await expect(page.getByTestId('download-button')).toHaveText('Save again')
+
+    // …and it is still English after the reload rescue, which is rebuilt from
+    // what the tab kept rather than from a fresh context answer.
+    await page.reload()
+    await expect(page.getByTestId('done-expiry')).toContainText('30 days')
+  })
+
+  /**
+   * Where the file went is a different sentence on every platform, and a wrong
+   * one is worse than none: on an iPhone a downloaded file is behind the share
+   * sheet, on Android it is in Downloads.
+   */
+  test('the platform hint follows the user agent', async ({ page }) => {
+    // The project runs iPhone 14 metrics, so this is the phone the page thinks
+    // it is talking to.
+    await submitRegistration(page)
+    await expect(page.getByTestId('platform-hint')).toContainText('iPhone')
+  })
+
+  test('an Android phone is told where its Downloads are', async ({ browser }) => {
+    const context = await browser.newContext({
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36',
+      viewport: { width: 375, height: 812 },
+      baseURL: 'http://localhost:8080',
+    })
+    const page = await context.newPage()
+
+    try {
+      await submitRegistration(page)
+      await expect(page.getByTestId('platform-hint')).toContainText('Android')
+      await expect(page.getByTestId('platform-hint')).not.toContainText('iPhone')
+    } finally {
+      await context.close()
+    }
+  })
+
+  /** The 44px floor is not only the form's: the done screen is thumbs too. */
+  test('every button on the done screen is at least 44px tall', async ({ page }) => {
+    await stubShare(page)
+    await submitRegistration(page)
+
+    const buttons = page.locator('#screen-done button:visible')
+    const count = await buttons.count()
+    expect(count).toBeGreaterThanOrEqual(3)
+
+    for (let i = 0; i < count; i++) {
+      const box = await buttons.nth(i).boundingBox()
+      expect(box, `button ${i} should be laid out`).not.toBeNull()
+      expect(box!.height, `button ${i} is ${box!.height}px tall`).toBeGreaterThanOrEqual(44)
+    }
   })
 
   /**

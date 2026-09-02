@@ -80,12 +80,20 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
    Anmeldung and appending the remaining pages as they are (the shipped
    DK-Muster default if that document cannot be reached, in which case the
    response says so).
-7. The confirmation screen states plainly that the applicant is **not a
-   member yet**, that the PDF just returned is the only chance to save it —
-   nothing renders it a second time, not even reloading this screen — and
-   what has to happen next: print it, tick the Kenntnisnahme box on page 1 by
-   hand, sign, and bring it, or have it brought, to the club, where a
-   Kassenwart still has to see it (UC-A17).
+7. The confirmation screen puts saving first. The page attempts the save
+   itself, without waiting for a tap, and offers the phone's own share sheet
+   beside the download — on an iPhone that is where "save to Files", AirPrint
+   and mail live, which covers the applicant with no printer at home. The
+   document stays in that browser tab until the applicant says they have it,
+   so a phone that reloads the tab does not take it with them ([#804](https://github.com/dgloeckner/clubbar/issues/804));
+   it is still never re-fetched from the server, and it is gone from the
+   browser on that confirmation, on a successful share, or after 30 minutes.
+   Below the save, the screen states plainly that the applicant is **not a
+   member yet**, what has to happen next — print it, tick the Kenntnisnahme
+   box on page 1 by hand, sign, and bring it, or have it brought, to the club,
+   where a Kassenwart still has to see it (UC-A17) — that an email follows
+   when the card is assigned (UC-A67), and that the registration is deleted
+   after the club's retention period if nobody confirms it.
 8. The applicant saves the document, prints it, ticks the Kenntnisnahme box,
    signs it, and brings it to the club. This use case ends here. Nothing the
    applicant does after this point is observable to the system until an
@@ -110,9 +118,11 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
 ## Alternative Flow: The Applicant Never Saves the Document
 
 1. The applicant closes the tab at step 7, loses the phone, or simply never
-   saves the PDF that arrived with the submission response. There is no
-   token to lapse and no second request to make — the document existed only
-   inside that one response, and it is not obtainable again.
+   saves the PDF that arrived with the submission response. Reloading that
+   tab brings the confirmation screen back for half an hour ([#804](https://github.com/dgloeckner/clubbar/issues/804)),
+   but closing it is final: there is no token to lapse and no second request
+   to make — the document existed only inside that one response, and the
+   server cannot produce it again.
 2. Nothing is lost that step 6 did not already capture: the pending row, the
    sealed IBAN and the mandate reference all still exist, keyed by the
    applicant's own submission, not by whether a PDF was ever saved.
@@ -132,7 +142,7 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
 | Datenschutzhinweis | A prominent link to the club's own Anmeldung — no checkbox, nothing to tick |
 | The form | Child's first name, last name and date of birth as the member; the parent's own name in **account holder name** — "if this account isn't yours, whose is it?"; the parent's email and phone as the contact the club can reach; the parent's IBAN |
 | Submit | Accepted. Nothing on the response says whether the family was already known to the club |
-| Confirmation screen | "You are not a member yet." A button to save the document that arrived with the response, and instructions to print it, tick the Kenntnisnahme box, sign, and bring it in |
+| Confirmation screen | The save first — attempted for them, with the share sheet and the download beside it and a line saying where the file lands on their phone — then "You are not a member yet", the instructions to print it, tick the Kenntnisnahme box, sign and bring it in, that an email follows when the card is assigned, and by when an unconfirmed registration is deleted |
 | The PDF (already in the response) | IBAN fully pre-filled on page 1; the signature line reads the parent's name, with a second line, "gesetzlicher Vertreter", because the member named on the document is a minor; pages 2–4 arrive exactly as the club published them |
 | At the bar | The parent ticks the Kenntnisnahme box, signs, and hands the document to the Kassenwart — UC-A17 begins there, not here |
 
@@ -169,7 +179,7 @@ the paper in front of them (UC-A17).
 | The submission endpoint is write-only | It validates, resolves the bank name, allocates the reference, seals the IBAN, writes one row, and returns — it answers no question about what is stored, and its response is identical whether or not the club already knows this person |
 | The IBAN is stored in exactly the `mandates` column shape | `iban_ciphertext` + `iban_last4` + `iban_fingerprint` + `encryption_key_id` — no plaintext column and no weaker cipher for the pending state; ADR-0036 gets no exception here |
 | The mandate reference is minted at submission, from the row's own UUID | It has to be printed on the paper before a mandate exists, and the paper and the eventual `mandates` row must name the same UMR |
-| The member's document arrives inside the `POST /api/public/registrations` response itself, `Cache-Control: no-store`, and nowhere else | The plaintext IBAN needed to fill page 1 exists only for the length of that one request; there is no second endpoint and no token to re-request it from — reloading the confirmation screen cannot bring it back |
+| The member's document arrives inside the `POST /api/public/registrations` response itself, `Cache-Control: no-store`, and nowhere else. The applicant's own tab may keep it in `sessionStorage` for up to 30 minutes so a reload does not lose it, and drops it on confirmation, on a successful share, or when that half hour is up | The plaintext IBAN needed to fill page 1 exists only for the length of that one request; there is no second endpoint and no token to re-request it from. What the tab keeps dies with the tab and is reachable from nowhere else — not another tab, not another site, not the server |
 | The document is the club's own combined Anmeldung, WeasyPrint-built; clubbar fills page 1 and appends the remaining pages unchanged. Ort/Datum, every signature and the Kenntnisnahme checkbox are always handwritten | clubbar addresses AcroForm fields by name and draws values at them on page 1 alone — it cannot originate a date, a signature or a tick, only carry what a person writes by hand |
 | If the club's document cannot be reached, the shipped DK-Muster default renders instead, and the response says which template was used | A club's webhost outage must not fail a registration |
 | The admin-print fallback needs no plaintext IBAN at all | It prints `****<last4>` off the sealed row; this is the variant that always works, whether or not the member's own document was ever saved |

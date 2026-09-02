@@ -159,6 +159,25 @@ one request, so there is nothing left to render from afterwards. The admin-print
 variant is the path that always works: it needs no plaintext at all, printing the
 hint from `iban_last4`, so a member who lost the tab is not stuck.
 
+> **Footnote ([#804](https://github.com/dgloeckner/clubbar/issues/804)): the tab
+> may keep it, for half an hour.** This decision originally said the member's
+> document is held in a closure for as long as the tab lives *and nowhere else*.
+> On a phone that reading loses documents for a reason unrelated to the
+> architecture: iOS Safari reloads a backgrounded tab after a call, Android
+> Chrome discards tabs under memory pressure, and the reload lands the applicant
+> back at an empty form with their Anmeldung gone. So the onboarding page keeps
+> the returned document in that tab's **`sessionStorage`** — never
+> `localStorage`, never a cookie, never the URL — and drops it when the
+> applicant confirms they have saved it, when the system share sheet reports a
+> successful save, or after **30 minutes**, whichever comes first.
+>
+> The half of this decision that carries the privacy claim is unchanged: **no
+> re-fetch, no second endpoint, no download token, and no mail carrying an
+> IBAN.** `sessionStorage` is scoped to the tab and dies with it, so the copy
+> still cannot outlive the visit or be reached from another tab, another site or
+> the server. What changed is only how long *this* tab may hold what it was
+> already holding.
+
 **When the club's document cannot be fetched, the member gets no document — never
 a different one.** A webhost outage must not cost a registration that has already
 been written, so the submission stands and `document` comes back null. Substituting

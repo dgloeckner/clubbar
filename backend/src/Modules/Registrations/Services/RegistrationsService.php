@@ -283,6 +283,7 @@ class RegistrationsService
                 message: $config->disabledReason,
                 documentUrl: $documentUrl === '' ? null : $documentUrl,
                 languages: $languages,
+                retentionDays: $config->retentionDays,
                 branding: $branding,
             );
         }
@@ -301,6 +302,7 @@ class RegistrationsService
                 message: null,
                 documentUrl: null,
                 languages: $languages,
+                retentionDays: $config->retentionDays,
                 branding: $branding,
             );
         }
@@ -311,6 +313,7 @@ class RegistrationsService
             message: null,
             documentUrl: $documentUrl,
             languages: $languages,
+            retentionDays: $config->retentionDays,
             branding: $branding,
         );
     }

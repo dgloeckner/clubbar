@@ -879,6 +879,9 @@ test.describe('Public self-registration', () => {
     expect(body.reason).toBeNull()
     expect(body.document_url).toBe(CLUB_DOCUMENT_URL)
     expect(body.languages).toContain('de')
+    // The done screen's "deleted after N days" sentence reads N from here
+    // rather than from its own markup (#804).
+    expect(body.retention_days).toBeGreaterThan(0)
   })
 
   test('a paused club answers with its own words, as a 200 rather than a refusal', async ({
@@ -949,6 +952,7 @@ test.describe('Public self-registration', () => {
       'logo_url',
       'message',
       'reason',
+      'retention_days',
     ])
   })
 
