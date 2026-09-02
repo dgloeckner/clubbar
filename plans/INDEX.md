@@ -39,12 +39,6 @@ This index tracks the status of all implementation plans for Club Bar.
 
 ---
 
-## Proposed Plans
-
-| Plan | Status | Summary |
-|------|--------|---------|
-| [Electronic Mandate Signature in the Browser](./2026-09-02-electronic-mandate-signature.md) | Proposed — M0 drafted, gated on the owner accepting [ADR-0053](../adr/0053-electronic-mandate-signature.md) and confirming its schema; enabling additionally needs the bank's position on electronic mandates | An adult applicant signing for their own account signs the Anmeldung on their phone: the request that seals the IBAN also freezes the document and the declarations into a hashed record, one mail asks the submitted address to confirm, and the Kassenwart approves by reviewing the record instead of holding paper. A Mandatskopie export answers a bank's *kein Mandat?* inside seven business days. Minors and third-party account holders stay on paper. Research in [`research/electronic-signature-onboarding.md`](../research/electronic-signature-onboarding.md) |
-
 ## Previous Current Plans
 
 | Plan | Status | Summary |

@@ -77,7 +77,7 @@ Each ADR follows this structure:
 | [0050](./0050-configuration-coherence-is-the-writers-job.md) | Configuration Coherence Is the Writer's Job | Accepted (amends 0031, 0038, 0049) | 2026-08-27 |
 | [0051](./0051-member-lifecycle-mail.md) | A Member Hears From the Club When Their Card Arrives | Accepted (amends 0038) | 2026-08-29 |
 | [0052](./0052-member-self-registration-via-qr-code.md) | A Member Registers Themselves; an Admin Attests the Paper | Proposed | 2026-08-31 |
-| [0053](./0053-electronic-mandate-signature.md) | An Adult Signs Their Own Mandate in the Browser; the Record Is the Beleg | Proposed (amends 0037, 0052, 0029, 0038 if accepted) | 2026-09-02 |
+| [0053](./0053-electronic-mandate-signature.md) | An Adult Signs Their Own Mandate in the Browser; the Record Is the Beleg | Rejected — the paper flow of 0052 stays; the download is hardened in #804 | 2026-09-02 |
 
 ## Creating a New ADR
 

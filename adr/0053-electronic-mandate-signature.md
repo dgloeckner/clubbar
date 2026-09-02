@@ -1,12 +1,26 @@
 # ADR-0053: An Adult Signs Their Own Mandate in the Browser; the Record Is the Beleg
 
-**Status**: Proposed
+**Status**: Rejected (2026-09-02)
 
 **Date**: 2026-09-02
 
+> ### Outcome
+>
+> **Rejected by the owner on the day it was proposed. The club keeps the paper
+> flow of ADR-0052**: the applicant prints the filled Anmeldung, signs it by
+> hand, and the Kassenwart's approval attests the signed sheet. What the
+> research behind this ADR changed is the *download* of that sheet on a phone,
+> not the signature — that work is
+> [#804](https://github.com/dgloeckner/clubbar/issues/804). Nothing below was
+> built; the ADR stays as the record of the design that was considered and
+> why it would have held, so that the question is not researched a third time.
+> The research it rests on ([`research/electronic-signature-onboarding.md`](../research/electronic-signature-onboarding.md))
+> remains current, including the Frankfurter Sparkasse findings, and would be
+> the starting point if the decision were ever reopened.
+
 **Relates to**: [ADR-0052](./0052-member-self-registration-via-qr-code.md) (the paper flow this extends), [ADR-0036](./0036-iban-encryption-sealed-box.md) (no exception), [ADR-0037](./0037-mandate-documents-not-retained.md), [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md), [ADR-0029](./0029-two-tier-retention-and-erasure.md), [ADR-0006](./0006-sepa-mandate-reference-strategy.md), [ADR-0020](./0020-sepa-mandate-requirement-terminal-access.md), [ADR-0028](./0028-legal-constraints-on-money-handling.md) §3, [ADR-0044](./0044-tiered-admin-roles.md), [ADR-0048](./0048-shared-symmetric-crypto-abstraction.md)
 
-**Amends, if accepted**: ADR-0037 (an *electronic* mandate document is retained, sealed — there is no paper to be the Beleg), ADR-0052 (approval attests the signature record where there is no paper; "a submission queues no mail" narrows to the paper path), ADR-0029 (one new retention-tier artefact), ADR-0038 (one new mail subject type; nothing about sending changes)
+**Would have amended**: ADR-0037 (an *electronic* mandate document is retained, sealed — there is no paper to be the Beleg), ADR-0052 (approval attests the signature record where there is no paper; "a submission queues no mail" narrows to the paper path), ADR-0029 (one new retention-tier artefact), ADR-0038 (one new mail subject type; nothing about sending changes)
 
 **Research**: [`research/electronic-signature-onboarding.md`](../research/electronic-signature-onboarding.md) — read it first; this ADR states what was decided, the research states why it holds.
 
@@ -356,7 +370,7 @@ sequenceDiagram
 | **Auto-approve on confirmation** | Removes the human that catches a duplicate, a colliding e-mail, a typo in a name — and ADR-0052's invariant that approval is a person's act |
 | **Redact IP and user agent after 14 months** | Would break the hash the applicant holds. Listed as an open question instead of decided |
 
-## Open questions — the owner decides before M1
+## Open questions — as they stood at rejection
 
 1. **The ADR and the schema.** One new table, two new columns (`mandates.signing_method`, `self_registration_config.membership_declaration`), three new config fields for the bank confirmation and the switch, one new mail kind and subject, one new audit action. Explicit confirmation required.
 2. **Bank.** Which edition of the Frankfurter Sparkasse Inkassovereinbarung the club holds — the readable 2013/2014 editions of the Sparkassen form say „schriftliche und vom Zahlungspflichtigen unterzeichnete" — and whether the bank confirms in writing that a mandate given as described here counts as „in einer anderen mit der Sparkasse vereinbarten Form". The research (§3.5) names the documents, the BusinessCenter line and a form of words. The feature refuses to enable without a recorded answer.

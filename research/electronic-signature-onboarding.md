@@ -3,7 +3,7 @@
 **Branch:** `claude/digital-signature-onboarding-m1h500` (no issue yet — this document is the M0 of a possible epic)
 **Date:** 2026-09-02
 **Companions:** `research/175-onboarding-form-datenschutz.md` (Art. 13, legal bases, mandate-vs-consent — not repeated here), [ADR-0028](../adr/0028-legal-constraints-on-money-handling.md) §3 (return windows), [ADR-0052](../adr/0052-member-self-registration-via-qr-code.md) (the paper flow this would extend)
-**Design derived from it:** [ADR-0053](../adr/0053-electronic-mandate-signature.md) (Proposed)
+**Design derived from it:** [ADR-0053](../adr/0053-electronic-mandate-signature.md) — **Rejected 2026-09-02**: the club keeps the paper flow; the phone download of the filled sheet is hardened in [#804](https://github.com/dgloeckner/clubbar/issues/804) instead
 
 > ⚠️ Not legal advice. Confidence stated per finding. **NO AUTHORITY FOUND** = looked for, not found.
 >
@@ -523,6 +523,14 @@ Nothing below reaches § 371a except the last row. "Form" = satisfies a Satzung
 ---
 
 ## 9. What this means for Club Bar
+
+> **Outcome (2026-09-02).** The owner decided to keep the paper flow. The
+> design below was written up as ADR-0053 and rejected the same day; it is kept
+> as the record of what an electronic path would look like, and #804 takes the
+> one practical finding — that the filled PDF must survive a phone — into the
+> paper flow. The owner actions at the end of this section (bank, Satzung,
+> Beitragsordnung, Art. 13 row) are therefore not needed unless the decision is
+> reopened.
 
 The design that falls out is recorded in [ADR-0053](../adr/0053-electronic-mandate-signature.md).
 In one paragraph: the applicant, an adult signing for their own account, chooses
