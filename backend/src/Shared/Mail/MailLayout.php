@@ -34,7 +34,15 @@ namespace App\Shared\Mail;
  */
 final class MailLayout
 {
-    /* Farben — Spiegel von tokens.css, dort mitpflegen */
+    /* Farben — Spiegel von tokens.css, dort mitpflegen.
+     *
+     * This block is where the club's design is written down, and two other
+     * surfaces depend on it: `backend/public/register/register.css` mirrors
+     * these values by hand (a browser cannot read a PHP constant) and says so
+     * in its own header, while `App\Shared\Pdf\BrandedSheet` — the printed
+     * poster — reads them straight from here. A colour changed here therefore
+     * reaches paper in the same commit and needs one deliberate edit in the
+     * stylesheet. */
     public const RED         = '#C8332E';
     public const RED_DARK    = '#A8241F';
     public const RED_SOFT    = '#FBEAE9';

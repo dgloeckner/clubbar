@@ -193,6 +193,23 @@ the final PR.
       fails closed rather than falling back to a generic mandate that would drop
       the Datenschutzhinweise the applicant was pointed at. Clearing the URL
       therefore switches the club off, which is the same decision stated once.
+
+      **M6a — the poster wears the club's design.** The sheet M6 shipped was
+      typeset rather than designed: centred Helvetica on white, in a colour
+      belonging to nothing. It is the *first* surface of this feature anybody
+      meets, and the onboarding page it leads to and the mail that follows days
+      later were already the club's, so it now carries the same masthead with
+      its red rule, serif headline, note box and petrol footer. The palette is
+      not copied a fourth time — `App\Shared\Pdf\BrandedSheet` reads
+      `MailLayout`'s constants, so a colour changed in the mail reaches paper
+      in the same commit. The layout is elastic: the words are measured first
+      and the code is given every point they leave, which is what lets a long
+      club name shrink and wrap without either pushing the sheet over a page
+      or quietly losing its last words.
+      *Verified by*: Backend Unit 2949 green on `php8.3` (0 failures), with the
+      poster suite decoding the rendered sheet — the code still carries the URL
+      and its fragment, and is asserted to print at least 7cm across. Patch
+      coverage 100%.
 - [x] **M7 — E2E flow and privacy assertions**
       ([#784](https://github.com/dgloeckner/clubbar/issues/784)).
       Public form → pending row → admin approve → member exists → terminal sync
