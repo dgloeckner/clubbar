@@ -121,7 +121,6 @@ class AdminControllerDateOfBirthTest extends TestCase
                 'Lovelace',
                 'ada@example.org',
                 null,
-                null,
                 SupportedLanguage::from('de'),
                 null,
                 null,
@@ -252,11 +251,11 @@ class AdminControllerDateOfBirthTest extends TestCase
     {
         $this->membersService->expects($this->once())
             ->method('updateMember')
-            ->with('m-1', ['phone' => '+49 170 1234567'], 'admin-1')
+            ->with('m-1', ['first_name' => 'Magdalena'], 'admin-1')
             ->willReturn($this->member());
 
         $response = $this->controller->update(
-            $this->patch(['phone' => '+49 170 1234567']),
+            $this->patch(['first_name' => 'Magdalena']),
             new Response(),
             ['memberId' => 'm-1'],
         );
@@ -283,7 +282,7 @@ class AdminControllerDateOfBirthTest extends TestCase
      *
      * Erasure is `anonymizeMember()`'s job and nothing else's — it is
      * irreversible and reserved to the `admin` role (ADR-0044). If a blank
-     * normalized to null here like `phone` does, an admin clearing the field by
+     * normalized to null here like `card_uid` does, an admin clearing the field by
      * accident would produce a member the terminal reads as anonymized
      * (ADR-0045 rule 3) while they are still active and still buying drinks.
      */

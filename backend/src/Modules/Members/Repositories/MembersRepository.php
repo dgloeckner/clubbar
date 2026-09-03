@@ -150,8 +150,8 @@ class MembersRepository
         $now = date('Y-m-d H:i:s');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, credit_limit_cents, is_active, account_holder_name, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO members (id, card_uid, first_name, last_name, email, date_of_birth, preferred_language, credit_limit_cents, is_active, account_holder_name, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
 
         // The member and their mandate are created as one unit: openMandate can
@@ -171,7 +171,6 @@ class MembersRepository
                 $data['first_name'],
                 $data['last_name'],
                 $data['email'],
-                $data['phone'] ?? null,
                 $data['date_of_birth'] ?? null,
                 $data['preferred_language'] ?? 'de',
                 $data['credit_limit_cents'] ?? null,
@@ -254,8 +253,8 @@ class MembersRepository
 
         try {
             $this->db->prepare(
-                'INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, credit_limit_cents, is_active, account_holder_name, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                'INSERT INTO members (id, card_uid, first_name, last_name, email, date_of_birth, preferred_language, credit_limit_cents, is_active, account_holder_name, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([
                 $id,
                 // Always null here. A self-registered member gets their card
@@ -265,7 +264,6 @@ class MembersRepository
                 $member['first_name'],
                 $member['last_name'],
                 $member['email'],
-                $member['phone'] ?? null,
                 $member['date_of_birth'] ?? null,
                 $member['preferred_language'] ?? 'de',
                 $member['credit_limit_cents'] ?? null,
@@ -385,7 +383,7 @@ class MembersRepository
 
     public function updateById(string $id, array $data): ?array
     {
-        $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'phone', 'date_of_birth', 'preferred_language', 'credit_limit_cents', 'is_active', 'account_holder_name', 'deleted_at', 'deleted_by_admin_id'];
+        $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'date_of_birth', 'preferred_language', 'credit_limit_cents', 'is_active', 'account_holder_name', 'deleted_at', 'deleted_by_admin_id'];
 
         // Banking data lives on the mandate now, so an update may legitimately
         // carry nothing the members row owns — "change this member's IBAN" is
@@ -685,7 +683,7 @@ class MembersRepository
         // card_uid is VARCHAR(20), so use ANON- + 15 chars of UUID = 20 chars max
         $anonCardUid = 'ANON-' . substr(str_replace('-', '', Uuid::v4()), 0, 15);
         $stmt = $this->db->prepare(
-            'UPDATE members SET first_name = NULL, last_name = NULL, email = NULL, phone = NULL, date_of_birth = NULL, account_holder_name = NULL, collection_hold_reason = NULL, card_uid = ?, is_active = 0, deleted_at = ?, deleted_by_admin_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+            'UPDATE members SET first_name = NULL, last_name = NULL, email = NULL, date_of_birth = NULL, account_holder_name = NULL, collection_hold_reason = NULL, card_uid = ?, is_active = 0, deleted_at = ?, deleted_by_admin_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
         );
         $stmt->execute([$anonCardUid, $now, $adminUserId, $now, $id]);
 

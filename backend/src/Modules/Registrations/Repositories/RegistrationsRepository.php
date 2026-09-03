@@ -43,12 +43,12 @@ class RegistrationsRepository
 
         $stmt = $this->db->prepare(
             'INSERT INTO pending_registrations (
-                id, first_name, last_name, email, phone, date_of_birth,
+                id, first_name, last_name, email, date_of_birth,
                 preferred_language, account_holder_name, mandate_reference,
                 iban_ciphertext, iban_last4, iban_fingerprint, encryption_key_id,
                 bank_name, privacy_notice_url, privacy_notice_shown_at,
                 submitted_at, expires_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
 
         $stmt->execute([
@@ -56,7 +56,6 @@ class RegistrationsRepository
             $data['first_name'],
             $data['last_name'],
             $data['email'],
-            $data['phone'] ?? null,
             $data['date_of_birth'],
             $data['preferred_language'],
             $data['account_holder_name'] ?? null,
@@ -161,7 +160,7 @@ class RegistrationsRepository
     public function updateById(string $id, array $data): ?array
     {
         $allowed = [
-            'first_name', 'last_name', 'email', 'phone', 'date_of_birth',
+            'first_name', 'last_name', 'email', 'date_of_birth',
             'preferred_language', 'account_holder_name', 'bank_name',
             'iban_ciphertext', 'iban_last4', 'iban_fingerprint', 'encryption_key_id',
         ];

@@ -24,10 +24,10 @@ class AdminController
      * One rule set for the member fields a client may write.
      *
      * Create and update used to disagree about which fields were checked at
-     * all: `phone`, `email`, `mandate_reference` and `mandate_signed_at`
-     * carried no length or format rule on either path, so an over-long phone
-     * number or a malformed date reached MariaDB in strict mode and came back
-     * as a PDOException — a 500 that named nothing (#117). The lengths mirror
+     * all: `email`, `mandate_reference` and `mandate_signed_at` carried no
+     * length or format rule on either path, so a malformed date reached
+     * MariaDB in strict mode and came back as a PDOException — a 500 that
+     * named nothing (#117). The lengths mirror
      * the column widths in `001_initial_schema.sql` and `007_critical_remediation.sql`.
      *
      * Create adds `required` (and the `unique` card check) on top; update
@@ -38,7 +38,6 @@ class AdminController
         'first_name' => ['nullable', 'string', 'max:100'],
         'last_name' => ['nullable', 'string', 'max:100'],
         'email' => ['nullable', 'email', 'max:255'],
-        'phone' => ['nullable', 'string', 'max:20'],
         // Required on create, never clearable on update, nullable in the column:
         // the split is what makes a NULL birth date mean "anonymized member"
         // and nothing else (ADR-0045).
@@ -71,8 +70,8 @@ class AdminController
      * A form has no way to send "absent": a field the volunteer cleared arrives
      * as `""`. Create normalized three of these inline and update normalized
      * none, so the same cleared field meant different things depending on which
-     * button produced the request (#111). `phone` and `account_holder_name`
-     * were stored as the empty string on update; `card_uid` could not be
+     * button produced the request (#111). `account_holder_name` was stored as
+     * the empty string on update; `card_uid` could not be
      * cleared at all, since a blank fell foul of its own `min:8` rule and came
      * back as "must be at least 8 characters" for a card that had simply been
      * handed back. That length rule is also the only thing standing between an
@@ -98,7 +97,6 @@ class AdminController
      * with `?:` on both paths before it can reach the UNIQUE column.
      */
     private const BLANK_MEANS_NULL = [
-        'phone',
         'card_uid',
         'iban',
         'account_holder_name',
@@ -141,7 +139,7 @@ class AdminController
      * returns only the last four characters (ADR-0036) — so the field arrives
      * blank on every save that did not deliberately retype it. Under
      * `BLANK_MEANS_NULL` that blank read as "clear it", which would revoke the
-     * mandate of every member whose phone number an admin corrected (#392).
+     * mandate of every member whose name an admin corrected (#392).
      *
      * Dropping the key entirely is what `applyMandateChange` already reads as
      * "the caller said nothing about banking data". Revoking a mandate stays
@@ -286,7 +284,6 @@ class AdminController
             firstName: $body['first_name'],
             lastName: $body['last_name'],
             email: $body['email'],
-            phone: $body['phone'] ?? null,
             cardUid: $body['card_uid'] ?? null,
             language: $language,
             iban: $body['iban'] ?? null,

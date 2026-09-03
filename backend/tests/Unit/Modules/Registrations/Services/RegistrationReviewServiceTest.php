@@ -56,7 +56,7 @@ final class RegistrationReviewServiceTest extends TestCase
             'CREATE TABLE pending_registrations (
                 id CHAR(36) NOT NULL PRIMARY KEY,
                 first_name VARCHAR(100) NOT NULL, last_name VARCHAR(100) NOT NULL,
-                email VARCHAR(255) NOT NULL, phone VARCHAR(20) NULL,
+                email VARCHAR(255) NOT NULL,
                 date_of_birth DATE NOT NULL, preferred_language VARCHAR(10) NOT NULL,
                 account_holder_name VARCHAR(70) NULL,
                 mandate_reference VARCHAR(35) NOT NULL UNIQUE,
@@ -119,7 +119,6 @@ final class RegistrationReviewServiceTest extends TestCase
             'first_name' => 'Lena',
             'last_name' => 'Brandt',
             'email' => 'lena@example.org',
-            'phone' => null,
             'date_of_birth' => '1998-04-02',
             'preferred_language' => 'de',
             'account_holder_name' => null,
@@ -295,7 +294,7 @@ final class RegistrationReviewServiceTest extends TestCase
         return [
             'id' => '77777777-7777-7777-7777-777777777777',
             'first_name' => 'Lena', 'last_name' => 'Brandt', 'email' => 'lena@example.org',
-            'phone' => null, 'date_of_birth' => '1998-04-02', 'card_uid' => null,
+            'date_of_birth' => '1998-04-02', 'card_uid' => null,
             'preferred_language' => 'de', 'credit_limit_cents' => null, 'is_active' => 1,
             'account_holder_name' => null, 'iban_last4' => '3000', 'has_iban' => 1,
             'bank_name' => 'Sparkasse', 'mandate_reference' => 'ref', 'mandate_signed_at' => '2026-08-30',

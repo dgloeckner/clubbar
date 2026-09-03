@@ -71,7 +71,7 @@ flowchart TD
     F --> H
     G --> H["Balance resolved"]
 
-    H --> I["Delete operational tier<br/>email · phone · card UID · credentials<br/>avatar · notes · address · DOB"]
+    H --> I["Delete operational tier<br/>email · card UID · credentials<br/>avatar · notes · address · DOB"]
     I --> J["Restrict retention tier<br/>transactions · settlements<br/>IBAN · UMR · mandate document"]
     J --> K["Stamp retention_expires_at<br/>31.12. of last transaction year + 10y"]
     K --> L["Set deleted_at<br/>— this IS 'gone'"]

@@ -93,7 +93,6 @@ class MemberLifecycleMailTest extends DatabaseTestCase
             firstName: 'Lifecycle',
             lastName: 'Test',
             email: $email ?? ('m' . bin2hex(random_bytes(6)) . '@example.com'),
-            phone: null,
             cardUid: $cardUid,
             language: SupportedLanguage::German,
         );
@@ -242,7 +241,7 @@ class MemberLifecycleMailTest extends DatabaseTestCase
         $card = $this->cardUid();
         $memberId = $this->create($card);
 
-        $this->service->updateMember($memberId, ['card_uid' => $card, 'phone' => '0123']);
+        $this->service->updateMember($memberId, ['card_uid' => $card, 'first_name' => 'Magdalena']);
 
         $this->assertSame([MailKind::MEMBER_WELCOME->value], $this->queuedKinds($memberId));
     }

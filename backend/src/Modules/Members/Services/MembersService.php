@@ -175,7 +175,6 @@ class MembersService
         string $firstName,
         string $lastName,
         string $email,
-        ?string $phone,
         ?string $cardUid,
         SupportedLanguage $language,
         ?string $iban = null,
@@ -190,7 +189,6 @@ class MembersService
             'first_name' => $firstName,
             'last_name' => $lastName,
             'email' => $email,
-            'phone' => $phone,
             'date_of_birth' => $dateOfBirth,
             'card_uid' => $cardUid,
             'preferred_language' => $language->value,
@@ -277,7 +275,7 @@ class MembersService
         // nothing, so a caller sending `firstName` was silently dropped either
         // way (#120).
         $updatable = [
-            'first_name', 'last_name', 'email', 'phone', 'card_uid',
+            'first_name', 'last_name', 'email', 'card_uid',
             // A birth date may be *corrected* — the value on file is what the
             // terminal's Jugendschutz check trusts, so a typo has to be fixable
             // (ADR-0045). It cannot be *cleared*: the controller rejects a blank

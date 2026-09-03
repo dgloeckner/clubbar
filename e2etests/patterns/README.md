@@ -97,11 +97,11 @@ const MOCK_MEMBER_ID = '123e4567-e89b-12d3-a456-426614174000';
 test('update member', async ({ authenticatedRequest }) => {
   const response = await authenticatedRequest.patch(
     `/api/admin/members/${MOCK_MEMBER_ID}`,  // ❌ Hardcoded ID
-    { data: { phone: '+41791234567' } }
+    { data: { last_name: 'Corrected' } }
   );
 
   const body = await response.json();
-  expect(body.phone).toBe('+41791234567');  // ❌ Assumes this member exists
+  expect(body.last_name).toBe('Corrected');  // ❌ Assumes this member exists
 });
 
 test('member in list', async ({ authenticatedRequest }) => {
@@ -138,13 +138,13 @@ test('create and update member', async ({ authenticatedRequest }) => {
   // Update the member we just created
   const patchResponse = await authenticatedRequest.patch(
     `/api/admin/members/${memberId}`,
-    { data: { phone: '+41791234567' } }
+    { data: { last_name: 'Corrected' } }
   );
 
   // Pattern 003: Verify our specific update
   const updated = await patchResponse.json();
   expect(updated.id).toBe(memberId);
-  expect(updated.phone).toBe('+41791234567');
+  expect(updated.last_name).toBe('Corrected');
 });
 
 test('member appears in list', async ({ authenticatedRequest }) => {

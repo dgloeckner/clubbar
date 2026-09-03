@@ -59,7 +59,7 @@ class RegistrationReviewService
      * from the repository's allow-list too, so neither layer is the only guard.
      */
     private const EDITABLE = [
-        'first_name', 'last_name', 'email', 'phone',
+        'first_name', 'last_name', 'email',
         'date_of_birth', 'preferred_language', 'account_holder_name',
     ];
 
@@ -203,7 +203,6 @@ class RegistrationReviewService
                     'first_name' => $row['first_name'],
                     'last_name' => $row['last_name'],
                     'email' => $row['email'],
-                    'phone' => $row['phone'],
                     'date_of_birth' => $row['date_of_birth'],
                     'preferred_language' => $row['preferred_language'],
                     'account_holder_name' => $row['account_holder_name'],

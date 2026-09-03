@@ -107,7 +107,7 @@ final class AdminControllerTest extends TestCase
      */
     public function test_a_partial_edit_is_not_refused_for_the_fields_it_omits(): void
     {
-        self::assertSame(200, $this->send('PATCH', ['phone' => '+49 69 1234'])->getStatusCode());
+        self::assertSame(200, $this->send('PATCH', ['first_name' => 'Magdalena'])->getStatusCode());
     }
 
     /**
@@ -359,7 +359,7 @@ final class RecordingReviewService extends RegistrationReviewService
         return MemberAdminDto::fromRow([
             'id' => '77777777-7777-7777-7777-777777777777',
             'card_uid' => null, 'first_name' => 'Lena', 'last_name' => 'Brandt',
-            'email' => 'lena@example.org', 'date_of_birth' => '1998-04-02', 'phone' => null,
+            'email' => 'lena@example.org', 'date_of_birth' => '1998-04-02',
             'preferred_language' => 'de', 'credit_limit_cents' => null, 'is_active' => 1,
             'account_holder_name' => null, 'iban_last4' => '3000', 'has_iban' => 1,
             'bank_name' => 'Sparkasse', 'mandate_reference' => 'ref', 'mandate_signed_at' => '2026-08-30',
@@ -385,7 +385,7 @@ final class RecordingReviewService extends RegistrationReviewService
         return PendingRegistrationDto::fromRow([
             'id' => '33333333-3333-4333-8333-333333333333',
             'first_name' => 'Lena', 'last_name' => 'Brandt', 'email' => 'lena@example.org',
-            'phone' => null, 'date_of_birth' => '1998-04-02', 'preferred_language' => 'de',
+            'date_of_birth' => '1998-04-02', 'preferred_language' => 'de',
             'account_holder_name' => null, 'mandate_reference' => 'abc',
             'iban_last4' => '3000', 'bank_name' => 'Sparkasse',
             'privacy_notice_url' => 'https://club.example/Anmeldung.pdf',

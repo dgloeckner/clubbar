@@ -1601,7 +1601,6 @@
     "fields": {
       "firstName": "Vorname",
       "lastName": "Nachname",
-      "phone": "Telefon",
       "dateOfBirth": "Geburtsdatum",
       "accountHolder": "Kontoinhaber",
       "mandateReference": "Mandatsreferenz",

@@ -58,7 +58,6 @@ CREATE TABLE members (
     first_name VARCHAR(255) NOT NULL,
     last_name VARCHAR(255) NOT NULL,
     email VARCHAR(255),
-    phone VARCHAR(20),
 
     -- Account Status
     is_active BOOLEAN DEFAULT TRUE COMMENT 'False = member cannot make purchases',
@@ -392,7 +391,6 @@ $valid = $validator->validate($body, [
     'first_name' => ['required', 'string', 'max:100'],
     'last_name'  => ['required', 'string', 'max:100'],
     'email'      => ['required', 'email', 'max:255'],
-    'phone'      => ['nullable', 'string', 'max:20'],
     'card_uid'   => ['required', 'string', 'regex:/^[A-F0-9]{8,12}$/i', 'unique:members,card_uid'],
     'preferred_language' => ['nullable', 'in:de,en,fr,it'],
 ]);
@@ -493,7 +491,7 @@ RFID card UID and transaction history are subject to GDPR. Admins can:
    - Include spending history
 
 2. **Anonymize member** (Article 17)
-   - Remove personal data (name, email, phone, IBAN)
+   - Remove personal data (name, email, IBAN)
    - **Retain** card_uid in transaction history (for accounting)
    - **Retain** transaction history (immutable)
    - Mark member as deleted/anonymous

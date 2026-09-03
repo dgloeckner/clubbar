@@ -91,9 +91,9 @@ class MembersRepository
         $now = date('Y-m-d H:i:s');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO members (id, card_uid, first_name, last_name, email, phone,
+            'INSERT INTO members (id, card_uid, first_name, last_name, email,
              preferred_language, is_active, iban, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id,
@@ -101,7 +101,6 @@ class MembersRepository
             $data['first_name'],
             $data['last_name'],
             $data['email'],
-            $data['phone'] ?? null,
             $data['preferred_language'] ?? 'de',
             $data['is_active'] ?? true ? 1 : 0,
             $data['iban'] ?? null,
@@ -115,7 +114,7 @@ class MembersRepository
 
     public function updateById(string $id, array $data): ?array
     {
-        $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'phone',
+        $allowed = ['card_uid', 'first_name', 'last_name', 'email',
                      'preferred_language', 'is_active', 'iban', 'deleted_at'];
         [$set, $values] = $this->buildUpdate($data, $allowed);
         $values[] = date('Y-m-d H:i:s'); // updated_at

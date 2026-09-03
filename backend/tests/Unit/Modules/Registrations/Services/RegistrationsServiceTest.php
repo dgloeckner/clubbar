@@ -51,7 +51,7 @@ final class RegistrationsServiceTest extends TestCase
             'CREATE TABLE pending_registrations (
                 id CHAR(36) NOT NULL PRIMARY KEY,
                 first_name VARCHAR(100) NOT NULL, last_name VARCHAR(100) NOT NULL,
-                email VARCHAR(255) NOT NULL, phone VARCHAR(20) NULL,
+                email VARCHAR(255) NOT NULL,
                 date_of_birth DATE NOT NULL, preferred_language VARCHAR(10) NOT NULL,
                 account_holder_name VARCHAR(70) NULL,
                 mandate_reference VARCHAR(35) NOT NULL UNIQUE,

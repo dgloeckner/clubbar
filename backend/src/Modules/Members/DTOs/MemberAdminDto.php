@@ -12,7 +12,6 @@ final readonly class MemberAdminDto
         public ?string $firstName,
         public ?string $lastName,
         public ?string $email,
-        public ?string $phone,
         public ?string $dateOfBirth,
         public string $preferredLanguage,
         public ?int $creditLimitCents,
@@ -50,7 +49,6 @@ final readonly class MemberAdminDto
             lastName: $row['last_name'] ?? null,
             email: $row['email'] ?? null,
             dateOfBirth: $row['date_of_birth'] ?? null,
-            phone: $row['phone'] ?? null,
             preferredLanguage: $row['preferred_language'],
             // Left null rather than defaulted: NULL is this member following
             // the club default, and 0 is a deliberate absence of a ceiling —
@@ -79,7 +77,6 @@ final readonly class MemberAdminDto
             'first_name' => $this->firstName,
             'last_name' => $this->lastName,
             'email' => $this->email,
-            'phone' => $this->phone,
             // DATE-only, like mandate_signed_at: no timezone to shift it a day.
             // NULL means the member has been anonymized (ADR-0045 rule 3).
             'date_of_birth' => $this->dateOfBirth,

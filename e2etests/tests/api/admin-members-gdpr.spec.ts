@@ -118,7 +118,6 @@ test.describe('Admin Members GDPR Endpoints', () => {
     expect(body.first_name).toBeNull();
     expect(body.last_name).toBeNull();
     expect(body.email).toBeNull();
-    expect(body.phone).toBeNull();
     expect(body.card_uid).toMatch(/^ANON-/);
     expect(body.iban_masked).toBeNull();
 

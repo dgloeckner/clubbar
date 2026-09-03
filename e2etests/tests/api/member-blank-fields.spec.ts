@@ -7,8 +7,8 @@ import { test, expect } from '../../fixtures/auth.fixture'
  * A form has no way to send "absent" — a field the volunteer emptied arrives as
  * `""`. Create normalized a few of those to null inline and update normalized
  * none, so the same body meant different things depending on which button
- * produced it: `phone` and `account_holder_name` were stored as the empty
- * string, and a cleared `card_uid` was refused outright by its own `min:8` rule
+ * produced it: `account_holder_name` was stored as the empty string, and a
+ * cleared `card_uid` was refused outright by its own `min:8` rule
  * — the volunteer could not save a member whose card had been handed back. That
  * rule is also all that keeps an empty `card_uid` off the UNIQUE index it
  * shares, which permits many NULLs but only one empty string.
@@ -30,7 +30,6 @@ const uniqueMemberBody = (overrides: Record<string, unknown> = {}) => {
     // member-date-of-birth.spec.ts.
     date_of_birth: '1985-06-15',
     preferred_language: 'de',
-    phone: '+49 170 1234567',
     card_uid: id.toUpperCase().replace(/[^0-9A-F]/g, '0'),
     iban: 'DE89370400440532013000',
     account_holder_name: `Blank ${id}`,
@@ -44,7 +43,7 @@ test.describe('Clearing an optional member field', () => {
   // `iban` is deliberately absent: it is sealed and never returned, so blank
   // means "keep" rather than "clear" for that one field. Its own contract is
   // covered below.
-  const clearable = ['phone', 'card_uid', 'account_holder_name', 'mandate_signed_at']
+  const clearable = ['card_uid', 'account_holder_name', 'mandate_signed_at']
 
   for (const field of clearable) {
     test(`PATCH /admin/members/{id} clears ${field} to null`, async ({ authenticatedRequest }) => {
@@ -98,7 +97,6 @@ test.describe('Clearing an optional member field', () => {
   }) => {
     const response = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
       data: uniqueMemberBody({
-        phone: '',
         card_uid: '',
         iban: '',
         account_holder_name: '',
@@ -212,7 +210,7 @@ test.describe('Clearing an optional member field', () => {
    * characters, so the edit form cannot prefill it and the field arrives blank on
    * every save that did not deliberately retype it. Blank therefore has to mean
    * "keep the stored account" — the previous "clear it" reading would revoke the
-   * mandate of every member whose phone number an admin corrected.
+   * mandate of every member whose name an admin corrected.
    */
   test('PATCH /admin/members/{id} with a blank IBAN keeps the stored account', async ({
     authenticatedRequest,
@@ -225,12 +223,12 @@ test.describe('Clearing an optional member field', () => {
     expect(member.iban_last4).toBe('3000')
 
     const patched = await authenticatedRequest.patch(`${API_BASE}/admin/members/${member.id}`, {
-      data: { iban: '', phone: '+49 170 7654321' },
+      data: { iban: '', last_name: 'Corrected' },
     })
 
     expect(patched.status()).toBe(200)
     const updated = await patched.json()
-    expect(updated.phone).toBe('+49 170 7654321')
+    expect(updated.last_name).toBe('Corrected')
     expect(updated.iban_last4, 'a blank IBAN must not revoke the mandate').toBe('3000')
     expect(updated.mandate_reference).toBe(member.mandate_reference)
     expect(updated.is_sepa_valid).toBe(true)

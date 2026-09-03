@@ -115,7 +115,6 @@ final class RegistrationApprovalTest extends DatabaseTestCase
             'first_name' => 'Selbst',
             'last_name' => 'Anmeldung' . $suffix,
             'email' => "selfreg-{$suffix}@example.org",
-            'phone' => null,
             'date_of_birth' => '1998-04-02',
             'preferred_language' => 'de',
             'account_holder_name' => null,

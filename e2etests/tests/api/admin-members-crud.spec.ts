@@ -23,7 +23,6 @@ test.describe('Admin Members CRUD Endpoints', () => {
         last_name: 'Member',
         email: 'test@example.com',
         date_of_birth: '1985-06-15',
-        phone: '+41791234567',
         preferred_language: 'en',
       },
     });
@@ -37,7 +36,6 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.first_name).toBe('Test');
     expect(body.last_name).toBe('Member');
     expect(body.email).toBe('test@example.com');
-    expect(body.phone).toBe('+41791234567');
     expect(body.preferred_language).toBe('en');
     expect(body.is_active).toBe(true);
     expect(body.created_at).toBeDefined();
@@ -96,24 +94,6 @@ test.describe('Admin Members CRUD Endpoints', () => {
 
     const body = await response.json();
     expect(body.messages.preferred_language).toBeDefined();
-  });
-
-  test('POST /api/admin/members allows optional phone field', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post('/api/admin/members', {
-      data: {
-        first_name: 'Test',
-        last_name: 'Member',
-        email: 'test@example.com',
-        date_of_birth: '1985-06-15',
-        preferred_language: 'en',
-        // phone is optional
-      },
-    });
-
-    expect(response.status()).toBe(201);
-
-    const body = await response.json();
-    expect(body.phone).toBeNull();
   });
 
   // GET Single - Show Member
@@ -178,7 +158,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
     const updateResponse = await authenticatedRequest.patch(`/api/admin/members/${createdMember.id}`, {
       data: {
         preferred_language: 'fr',
-        phone: '+41798765432',
+        last_name: 'Corrected',
       },
     });
 
@@ -189,7 +169,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
 
     expect(body.id).toBe(createdMember.id);
     expect(body.preferred_language).toBe('fr');
-    expect(body.phone).toBe('+41798765432');
+    expect(body.last_name).toBe('Corrected');
     // Unchanged fields should remain
     expect(body.first_name).toBe('PatchTest');
     expect(body.email).toBe('patchtest@example.com');
@@ -198,7 +178,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
   test('PATCH /api/admin/members/{id} returns 404 for non-existent member', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.patch('/api/admin/members/nonexistent-id', {
       data: {
-        phone: '+41791234567',
+        preferred_language: 'fr',
       },
     });
 
@@ -470,7 +450,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(getResponse.headers()['content-type']).toContain('application/json');
 
     const patchResponse = await authenticatedRequest.patch(`/api/admin/members/${createdId}`, {
-      data: { phone: '+41791111111' },
+      data: { preferred_language: 'fr' },
     });
     expect(patchResponse.headers()['content-type']).toContain('application/json');
 

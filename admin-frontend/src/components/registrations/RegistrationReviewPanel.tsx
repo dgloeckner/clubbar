@@ -57,7 +57,6 @@ export function RegistrationReviewPanel({ registration, onClose, onDone, onError
     first_name: registration.first_name ?? '',
     last_name: registration.last_name ?? '',
     email: registration.email ?? '',
-    phone: registration.phone ?? '',
     date_of_birth: registration.date_of_birth ?? '',
     account_holder_name: registration.account_holder_name ?? '',
     iban: '',
@@ -96,7 +95,6 @@ export function RegistrationReviewPanel({ registration, onClose, onDone, onError
         first_name: edit.first_name,
         last_name: edit.last_name,
         email: edit.email,
-        phone: edit.phone === '' ? null : edit.phone,
         date_of_birth: edit.date_of_birth,
         account_holder_name: edit.account_holder_name === '' ? null : edit.account_holder_name,
         // Absent unless retyped. An empty string here would ask the server to
@@ -189,7 +187,6 @@ export function RegistrationReviewPanel({ registration, onClose, onDone, onError
                 label={t('registrations.fields.dateOfBirth')}
                 value={registration.date_of_birth ? formatDate(registration.date_of_birth) : '—'}
               />
-              <Detail label={t('registrations.fields.phone')} value={registration.phone ?? '—'} />
               <Detail
                 label={t('registrations.fields.accountHolder')}
                 value={registration.account_holder_name ?? '—'}
@@ -234,8 +231,6 @@ export function RegistrationReviewPanel({ registration, onClose, onDone, onError
               value={edit.last_name} onChange={(v) => setEdit({ ...edit, last_name: v })} />
             <Field label={t('registrations.columns.email')} testId="edit-email"
               value={edit.email} onChange={(v) => setEdit({ ...edit, email: v })} />
-            <Field label={t('registrations.fields.phone')} testId="edit-phone"
-              value={edit.phone} onChange={(v) => setEdit({ ...edit, phone: v })} />
 
             <label style={labelStyle}>{t('registrations.fields.dateOfBirth')}</label>
             <DateField

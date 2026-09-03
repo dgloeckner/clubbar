@@ -29,7 +29,6 @@ final class RegistrationsRepositoryTest extends TestCase
                 first_name VARCHAR(100) NOT NULL,
                 last_name VARCHAR(100) NOT NULL,
                 email VARCHAR(255) NOT NULL,
-                phone VARCHAR(20) NULL,
                 date_of_birth DATE NOT NULL,
                 preferred_language VARCHAR(10) NOT NULL,
                 account_holder_name VARCHAR(70) NULL,
@@ -56,7 +55,6 @@ final class RegistrationsRepositoryTest extends TestCase
             'first_name' => 'Lena',
             'last_name' => 'Brandt',
             'email' => 'lena@example.org',
-            'phone' => null,
             'date_of_birth' => '2010-04-02',
             'preferred_language' => 'de',
             'account_holder_name' => null,
@@ -220,14 +218,22 @@ final class RegistrationsRepositoryTest extends TestCase
 
     public function test_update_writes_only_the_fields_it_is_given(): void
     {
-        $id = $this->insert(['first_name' => 'Lena', 'phone' => null]);
+        $id = $this->insert(['first_name' => 'Lena']);
 
-        $row = $this->repository->updateById($id, ['first_name' => 'Magdalena', 'phone' => '+49 69 1234']);
+        $row = $this->repository->updateById($id, [
+            'first_name' => 'Magdalena',
+            'account_holder_name' => 'Petra Brandt',
+            // Not in the allow-list — and not a column any more either, so a
+            // caller still sending it must be ignored rather than reaching the
+            // UPDATE and erroring on an unknown column.
+            'phone' => '+49 69 1234',
+        ]);
 
         self::assertNotNull($row);
         self::assertSame('Magdalena', $row['first_name']);
-        self::assertSame('+49 69 1234', $row['phone']);
+        self::assertSame('Petra Brandt', $row['account_holder_name']);
         self::assertSame('Brandt', $row['last_name']);
+        self::assertArrayNotHasKey('phone', $row);
     }
 
     /**

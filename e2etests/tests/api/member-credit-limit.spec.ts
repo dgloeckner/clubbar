@@ -70,7 +70,7 @@ test.describe('Member credit limit override API', () => {
       authenticatedRequest.patch(`${API_BASE}/admin/members/${member.id}`, { data })
 
     // Omitted: untouched.
-    await patch({ phone: '+49 170 1234567' })
+    await patch({ last_name: 'Corrected' })
     expect(await stored(authenticatedRequest, member.id)).toBe(5_000)
 
     // Explicit null: back to the club default.

@@ -352,7 +352,7 @@ export function pendingRowsContainingPlaintext(iban: string): number {
   const needle = iban.replace(/'/g, '')
   const output = execSql(
     `SELECT COUNT(*) FROM pending_registrations WHERE CONCAT_WS('|', first_name, last_name, email, ` +
-      `COALESCE(phone, ''), COALESCE(account_holder_name, ''), mandate_reference, ` +
+      `COALESCE(account_holder_name, ''), mandate_reference, ` +
       `CAST(iban_ciphertext AS CHAR), iban_last4, iban_fingerprint, COALESCE(bank_name, ''), ` +
       `privacy_notice_url) LIKE '%${needle}%'`,
   )

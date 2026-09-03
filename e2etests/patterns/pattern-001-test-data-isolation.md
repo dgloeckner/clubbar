@@ -146,7 +146,7 @@ Never hardcode entity IDs in tests unless testing error cases (404, validation):
 const MOCK_MEMBER_ID = '123e4567-e89b-12d3-a456-426614174000';
 test('update member', async ({ authenticatedRequest }) => {
   const response = await authenticatedRequest.patch(`/api/admin/members/${MOCK_MEMBER_ID}`, {
-    data: { phone: '+41791234567' }
+    data: { last_name: 'Corrected' }
   });
   // Depends on this specific member existing in seeded data
 });
@@ -159,9 +159,9 @@ test('update member', async ({ authenticatedRequest }) => {
   const member = await createResponse.json();
 
   const patchResponse = await authenticatedRequest.patch(`/api/admin/members/${member.id}`, {
-    data: { phone: '+41791234567' }
+    data: { last_name: 'Corrected' }
   });
-  expect(patchResponse.json().phone).toBe('+41791234567');
+  expect(patchResponse.json().last_name).toBe('Corrected');
 });
 
 // ✅ Exception: Error cases can use invalid IDs
@@ -231,7 +231,7 @@ test('PATCH updates member fields', async ({ authenticatedRequest }) => {
     {
       data: {
         preferred_language: 'fr',
-        phone: '+41798765432',
+        last_name: 'Corrected',
       },
     }
   );
@@ -242,7 +242,7 @@ test('PATCH updates member fields', async ({ authenticatedRequest }) => {
 
   expect(updated.id).toBe(member.id);
   expect(updated.preferred_language).toBe('fr');
-  expect(updated.phone).toBe('+41798765432');
+  expect(updated.last_name).toBe('Corrected');
   expect(updated.first_name).toBe('PatchTest');  // Unchanged
   expect(updated.email).toBe(member.email);      // Unchanged
 

@@ -140,7 +140,7 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
 | Scans the poster | The club's onboarding page opens directly — no typing, no app store |
 | Gate check | Secret valid, registration switched on: the form loads with no mention of the check that just happened |
 | Datenschutzhinweis | A prominent link to the club's own Anmeldung — no checkbox, nothing to tick |
-| The form | Child's first name, last name and date of birth as the member; the parent's own name in **account holder name** — "if this account isn't yours, whose is it?"; the parent's email and phone as the contact the club can reach; the parent's IBAN |
+| The form | Child's first name, last name and date of birth as the member; the parent's own name in **account holder name** — "if this account isn't yours, whose is it?"; the parent's email as the contact the club can reach; the parent's IBAN |
 | Submit | Accepted. Nothing on the response says whether the family was already known to the club |
 | Confirmation screen | The save first — attempted for them, with the share sheet and the download beside it and a line saying where the file lands on their phone — then "You are not a member yet", the instructions to print it, tick the Kenntnisnahme box, sign and bring it in, that an email follows when the card is assigned, and by when an unconfirmed registration is deleted |
 | The PDF (already in the response) | IBAN fully pre-filled on page 1; the signature line reads the parent's name, with a second line, "gesetzlicher Vertreter", because the member named on the document is a minor; pages 2–4 arrive exactly as the club published them |
@@ -154,7 +154,6 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
 | Last name | Yes | Non-empty, max 100 chars | |
 | Date of birth | Yes | Date, not in the future | Jugendschutz (ADR-0045); also decides whether the document gets a legal-representative line |
 | Email | Yes | Valid email format | Never checked against existing members before accepting — a duplicate is accepted like any first-time submission (ADR-0052 §9) |
-| Phone | No | Max 20 chars | |
 | Preferred language | Yes | ISO 639-1 code from the enabled list | Selects the language of this page and the confirmation, and is carried to `members.preferred_language` at approval. It selects **no document**: the club's Anmeldung is what it is, in whatever language the club published it in |
 | IBAN | Yes | Valid IBAN format + checksum | Unlike UC-A11, there is no path through this form that leaves it empty — the point of registering is a signed mandate |
 | Account holder name | No | Max 70 chars | When set, the printed signature block names the holder, not the applicant (ADR-0052 §7) |
@@ -162,6 +161,15 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
 **No card UID field.** A card is assigned by an admin, later, and assigning it
 is what actually welcomes the member (UC-A67) — self-registration never
 touches that step.
+
+**No phone field either.** There was one until it was measured against what
+reads it: nothing. The club's Anmeldung has no `telefon` field to print it
+into, the member form has no phone input, no export carries it, and after the
+one approval screen no surface in the panel could show it again. A number
+collected for no purpose is retained for no purpose, which Art. 5(1)(c) does
+not allow — so the field is gone and so are both columns behind it. Restoring
+it means giving it a reader first: a place it is displayed, printed or
+exported, named in this use case before the input comes back.
 
 **No mandate date field.** The applicant has not signed anything yet at
 submission time; the signature date is what the admin records at review, from
