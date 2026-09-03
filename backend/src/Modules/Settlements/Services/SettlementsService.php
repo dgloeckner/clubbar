@@ -24,6 +24,7 @@ use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Exceptions\ValidationException;
+use App\Modules\Members\Domain\MandateCompleteness;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
@@ -222,13 +223,16 @@ class SettlementsService
     /**
      * SEPA validity is one question — does the member hold an active mandate
      * (#164) — asked of the mandate record the member row joins in, not a
-     * conjunction of loosely-maintained columns. `is_active` is deliberately
+     * conjunction of loosely-maintained columns. It is asked through
+     * {@see MandateCompleteness}, which is where that conjunction finally
+     * stopped being copied: this method's body used to be the two-column
+     * version its own comment argues against, signature date and all. `is_active` is deliberately
      * not part of it: deactivation is temporary (a lost card), and must not
      * strand debt the member genuinely owes (ruling #173).
      */
     private function hasActiveMandate(array $member): bool
     {
-        return !empty($member['mandate_reference']) && !empty($member['has_iban']);
+        return MandateCompleteness::isComplete($member);
     }
 
     /**

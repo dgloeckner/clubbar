@@ -336,6 +336,26 @@ class DashboardRepositoryTest extends DatabaseTestCase
         $this->assertSame($before, $this->repository->countMembersWithoutMandate());
     }
 
+    /**
+     * A mandate row is not enough — the member has to have signed it.
+     *
+     * This count feeds the dashboard's "missing SEPA data" figure, and it read
+     * `md.id IS NULL`: a member whose mandate carried no signature date was
+     * counted as fine here, while the SEPA export could not collect from them
+     * and (before #164 reached the code) invented a `DtOfSgntr` to try. A
+     * number that says nothing is wrong is worse than no number, because it is
+     * the one an admin trusts.
+     */
+    public function test_countMembersWithoutMandate_counts_a_member_whose_mandate_has_no_signature_date(): void
+    {
+        $before = $this->repository->countMembersWithoutMandate();
+
+        $member = $this->createMember();
+        $this->createMandate($member, signedAt: null);
+
+        $this->assertSame($before + 1, $this->repository->countMembersWithoutMandate());
+    }
+
     public function test_countMembersWithoutMandate_ignores_deleted_members(): void
     {
         $before = $this->repository->countMembersWithoutMandate();
@@ -367,7 +387,7 @@ class DashboardRepositoryTest extends DatabaseTestCase
         return $id;
     }
 
-    private function createMandate(string $memberId): string
+    private function createMandate(string $memberId, ?string $signedAt = '2025-01-15'): string
     {
         // A sealed mandate names the key generation it was sealed under, and
         // the FK insists that key exists. CI applies migrations without the
@@ -378,7 +398,7 @@ class DashboardRepositoryTest extends DatabaseTestCase
         $this->testMandateIds[] = $id;
 
         $this->db->prepare(
-            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_ciphertext, iban_last4, encryption_key_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_ciphertext, iban_last4, encryption_key_id, signed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $id,
             $memberId,
@@ -387,6 +407,12 @@ class DashboardRepositoryTest extends DatabaseTestCase
             $this->sealIban('DE89370400440532013000'),
             '3000',
             self::DEV_KEY_ID,
+            // A mandate is reference, IBAN *and* the date the member signed
+            // (ADR-0020, #164). `signed_at` is nullable on the table, so a row
+            // without one is a real state — it is just not a mandate the club
+            // can collect against, and this helper's callers mean one that is
+            // unless they say otherwise.
+            $signedAt,
         ]);
 
         return $id;

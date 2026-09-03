@@ -9,6 +9,7 @@ use App\Shared\Exceptions\DuplicateResourceException;
 use App\Shared\Security\IbanSealedBox;
 use App\Shared\Utils\Uuid;
 use PDO;
+use App\Modules\Members\Domain\MandateCompleteness;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
 use App\Shared\Repository\UnsettledTransactions;
@@ -727,9 +728,9 @@ class MembersRepository
             . ' COALESCE(SUM(m.card_uid IS NULL), 0) AS without_card_uid,'
             . ' COALESCE(SUM(m.email IS NULL), 0) AS without_email,'
             . ' COALESCE(SUM(m.date_of_birth IS NULL), 0) AS without_date_of_birth,'
-            . ' COALESCE(SUM(md.id IS NULL), 0) AS without_mandate,'
+            . ' COALESCE(SUM(' . MandateCompleteness::SQL_INCOMPLETE . '), 0) AS without_mandate,'
             . ' COALESCE(SUM(m.card_uid IS NULL OR m.email IS NULL'
-            . ' OR m.date_of_birth IS NULL OR md.id IS NULL), 0) AS incomplete'
+            . ' OR m.date_of_birth IS NULL OR ' . MandateCompleteness::SQL_INCOMPLETE . '), 0) AS incomplete'
             . ' FROM members m ' . self::MANDATE_JOIN
             . ' WHERE m.deleted_at IS NULL AND m.is_active = 1',
         );
@@ -775,11 +776,17 @@ class MembersRepository
                 $where[] = 'm.email IS NULL';
             }
         }
-        // SEPA status filter. An active mandate is now the whole predicate: the
-        // record cannot exist without both an IBAN and a reference, since both
-        // are NOT NULL on `mandates`.
+        // SEPA status filter. An active mandate is the whole predicate, and
+        // `MandateCompleteness` is what "active" means — the record plus its
+        // signature date (ADR-0020, #164). The record cannot exist without an
+        // IBAN and a reference, since both are NOT NULL on `mandates`; the
+        // date is the third fact, and it is nullable, so it has to be asked
+        // for. Filtering for `invalid` therefore returns exactly the members
+        // the terminal now refuses and the SEPA export now excludes.
         if (isset($filters['sepa_status'])) {
-            $where[] = $filters['sepa_status'] === 'valid' ? 'md.id IS NOT NULL' : 'md.id IS NULL';
+            $where[] = $filters['sepa_status'] === 'valid'
+                ? MandateCompleteness::SQL
+                : MandateCompleteness::SQL_INCOMPLETE;
         }
         // Birth-date presence filter (#629). Not the date — the roster never
         // carries one (ADR-0045) — only whether there is one, which is what
@@ -796,7 +803,7 @@ class MembersRepository
         // union would be wrong the moment the result spans a page.
         if (isset($filters['data_status'])) {
             $incomplete = '(m.card_uid IS NULL OR m.email IS NULL'
-                . ' OR m.date_of_birth IS NULL OR md.id IS NULL)';
+                . ' OR m.date_of_birth IS NULL OR ' . MandateCompleteness::SQL_INCOMPLETE . ')';
             $where[] = $filters['data_status'] === 'incomplete' ? $incomplete : "NOT {$incomplete}";
         }
         if ($search) {

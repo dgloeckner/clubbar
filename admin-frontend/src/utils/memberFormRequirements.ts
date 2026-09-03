@@ -17,10 +17,18 @@
  *    there: the card UID gates terminal access, IBAN + mandate gate SEPA
  *    collection (ADR-0020). The form names the capability rather than calling
  *    the field "optional", which understates it.
- *  - **clearable** — genuinely optional values that are nonetheless *stored*,
- *    so emptying the input on an edit deletes something. `handleSubmit` sends
- *    `null` for a blank one (#131), which is the silent half of this: nothing
- *    on screen said the save was a deletion.
+ *  - **clearable** — values that are *stored*, so emptying the input on an edit
+ *    deletes something. `handleSubmit` sends `null` for a blank one (#131),
+ *    which is the silent half of this: nothing on screen said the save was a
+ *    deletion.
+ *
+ * The tiers are not exclusive, and `mandate_signed_at` is in two of them: it
+ * is clearable (blanking it deletes a stored date) *and* conditional (without
+ * it the member has no collectable mandate — ADR-0020, #164 — so the SEPA
+ * export excludes them and the terminal refuses the card). It is listed below
+ * for the first, and carries the conditional marker in the form; being
+ * clearable is why it must not simply become `required`, since a member with
+ * no mandate at all is a legitimate state.
  *
  * This module is the pure half — no i18n, no React — so the rules can be
  * asserted directly rather than through the modal.

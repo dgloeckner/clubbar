@@ -38,10 +38,34 @@ class MemberDtoTest extends TestCase
             'is_active' => 1,
             'has_iban' => 1,
             'mandate_reference' => 'MANDATE-1',
+            'mandate_signed_at' => '2025-01-15',
             'deleted_at' => null,
             'created_at' => '2026-01-01 00:00:00',
             'updated_at' => '2026-01-02 00:00:00',
         ];
+    }
+
+    /**
+     * A mandate the member never signed does not open the bar.
+     *
+     * This flag is the terminal's whole gate (ADR-0020: block at card scan, no
+     * grace period), and the ADR's amended definition of a mandate is
+     * "reference, IBAN **and signature date**". The code implemented the first
+     * two, so a member whose signature date was never recorded could run up a
+     * tab that the SEPA export then had to invent a `DtOfSgntr` for in order to
+     * collect (#164). Refusing the card is the preventive half — it costs
+     * nothing, because the drink is not yet poured.
+     */
+    public function test_a_mandate_without_a_signature_date_is_not_valid_for_the_terminal(): void
+    {
+        $payload = MemberDto::fromRow(self::row(['mandate_signed_at' => null]))->toArray();
+
+        $this->assertFalse($payload['is_sepa_valid']);
+    }
+
+    public function test_a_complete_mandate_is_valid_for_the_terminal(): void
+    {
+        $this->assertTrue(MemberDto::fromRow(self::row())->toArray()['is_sepa_valid']);
     }
 
     public function test_the_terminal_receives_the_raw_birth_date(): void

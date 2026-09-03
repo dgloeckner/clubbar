@@ -442,6 +442,119 @@ class SepaExportServiceTest extends TestCase
         }
     }
 
+    /**
+     * The export must never invent a `DtOfSgntr`.
+     *
+     * `debtorMandateSignDate` used to fall back to the settlement's own date
+     * when the mandate carried none — writing the day the treasurer pressed
+     * *export* into the bank file as the day the member signed. It is the one
+     * field the club would have to stand behind if the debit were challenged
+     * inside the eight-week window (§ 675x BGB), and a fabricated one is worse
+     * than a collection deferred to next month: the collection can still be
+     * made once somebody types the real date in, and this exclusion is what
+     * asks them to (ADR-0020, #164).
+     */
+    public function test_a_mandate_without_a_signature_date_is_excluded_rather_than_dated_by_the_export(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 3500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
+        $this->givenMembers([
+            self::MEMBER_ID => self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => ['mandate_signed_at' => null] + self::member('Grace', 'Hopper'),
+        ]);
+
+        $result = $this->service->export(self::SETTLEMENT_ID, self::opener());
+
+        // Only the member with a real signature date is collected from.
+        $this->assertSame(1500, $result->collectedAmountCents);
+        $this->assertSame(1, $result->collectedMemberCount);
+
+        $excluded = $result->excludedFor(SepaExclusionReason::NO_MANDATE_DATE);
+        $this->assertCount(1, $excluded);
+        $this->assertSame(self::OTHER_MEMBER_ID, $excluded[0]->memberId);
+        $this->assertSame(2000, $excluded[0]->amountCents);
+
+        // The settlement date must appear nowhere as a signature date, which
+        // is exactly what the removed fallback would have put there.
+        $this->assertSame(['2025-01-15'], $this->signatureDates($result->xml));
+        $this->assertStringNotContainsString('<DtOfSgntr>2026-08-06</DtOfSgntr>', $result->xml);
+    }
+
+    /**
+     * Its own reason, not a shade of NO_ACTIVE_MANDATE: the remedy differs.
+     * The bank details are present and correct; somebody has to read a date
+     * off a signed form. A treasurer told "no active SEPA mandate" goes
+     * looking for an IBAN that is already there.
+     */
+    public function test_a_missing_signature_date_is_reported_apart_from_a_missing_mandate(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 4500);
+        $this->givenItems([
+            [self::MEMBER_ID, 1500],
+            [self::OTHER_MEMBER_ID, 2000],
+            [self::THIRD_MEMBER_ID, 1000],
+        ]);
+        $this->givenMembers([
+            self::MEMBER_ID => self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => ['mandate_signed_at' => null] + self::member('Grace', 'Hopper'),
+            self::THIRD_MEMBER_ID => ['has_iban' => 0, 'iban_last4' => null] + self::member('Alan', 'Turing'),
+        ]);
+
+        $summary = $this->service->export(self::SETTLEMENT_ID, self::opener())->toAuditSummary();
+
+        $reasons = array_column($summary['excluded_members'], 'reason', 'member_id');
+        $this->assertSame('no_mandate_date', $reasons[self::OTHER_MEMBER_ID]);
+        $this->assertSame('no_active_mandate', $reasons[self::THIRD_MEMBER_ID]);
+    }
+
+    /**
+     * A missing date costs the club money it is owed, so it belongs in the
+     * shortfall — the alarm the treasurer acts on — and not in the credit
+     * bucket, which needs the opposite remedy (ruling #141 §3).
+     */
+    public function test_a_missing_signature_date_counts_towards_the_shortfall(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 3500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
+        $this->givenMembers([
+            self::MEMBER_ID => self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => ['mandate_signed_at' => null] + self::member('Grace', 'Hopper'),
+        ]);
+
+        $result = $this->service->export(self::SETTLEMENT_ID, self::opener());
+
+        $this->assertSame(2000, $result->shortfallAmountCents());
+        $this->assertSame(
+            [self::OTHER_MEMBER_ID],
+            array_map(static fn($m) => $m->memberId, $result->uncollectableMembers()),
+        );
+    }
+
+    /**
+     * An empty string is not a date. The column is a nullable DATE, but a row
+     * assembled from an import or an older write can carry `''`, and that is
+     * exactly the divergence ADR-0020 records for the IBAN — valid on one
+     * screen, invalid on every other.
+     */
+    public function test_a_blank_signature_date_is_treated_as_missing(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->givenMembers([
+            self::MEMBER_ID => ['mandate_signed_at' => ''] + self::member('Ada', 'Lovelace'),
+        ]);
+
+        $this->expectException(BusinessRuleException::class);
+
+        // Every member excluded leaves nothing to collect, which #372 refuses
+        // rather than shipping an empty PmtInf.
+        $this->service->export(self::SETTLEMENT_ID, self::opener());
+    }
+
     public function test_the_end_to_end_id_identifies_the_settlement_and_the_member(): void
     {
         // #150: a bank return quotes the EndToEndId back as `EREF+`, and that
@@ -617,6 +730,8 @@ class SepaExportServiceTest extends TestCase
     private const SETTLEMENT_ID = '11111111-2222-3333-4444-555555555555';
     private const MEMBER_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
     private const OTHER_MEMBER_ID = '99999999-8888-7777-6666-555555555555';
+    /** Distinct in its first 12 hex digits, which is all EndToEndId keeps. */
+    private const THIRD_MEMBER_ID = '77777777-6666-5555-4444-333333333333';
 
     private function givenSepaConfig(?string $paymentReferencePrefix = null): void
     {
@@ -687,6 +802,22 @@ class SepaExportServiceTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    /** @return list<string> every DtOfSgntr in the file, in document order. */
+    private function signatureDates(string $xml): array
+    {
+        $dom = new \DOMDocument();
+        $dom->loadXML($xml);
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('pain', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.08');
+
+        $dates = [];
+        foreach ($xpath->query('//pain:MndtRltdInf/pain:DtOfSgntr') as $node) {
+            $dates[] = $node->textContent;
+        }
+
+        return $dates;
+    }
+
     private static function member(string $first, string $last): array
     {
         return [
