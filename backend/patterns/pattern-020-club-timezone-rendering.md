@@ -103,6 +103,12 @@ empty or unknown value falls back to the default rather than throwing: a mail
 that arrives with the wrong hour still reaches somebody, one that throws in the
 builder reaches nobody and blocks the drain behind it.
 
+A self-hosted install states it as `app.timezone` in `config.php`, which
+`ConfigFile` mirrors into the same env var. **The installer asks for it on the
+database screen**, pre-selecting `Europe/Berlin` — and it is the one place a bad
+zone is refused out loud rather than fallen back from, because it is the only
+one with a human present to read the refusal.
+
 ### The fallback is silent, and therefore reported
 
 `ClubTimeZone::source()` says whether the effective zone was `configured`,

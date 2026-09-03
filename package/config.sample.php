@@ -32,7 +32,9 @@ return [
         // name ('Europe/Vienna', 'Europe/Zurich'); an unknown one falls back to
         // Europe/Berlin rather than failing. Left unset or unreadable, the admin
         // dashboard says so — a club on the wrong clock cannot tell from any
-        // figure on any screen, so it has to be told outright.
+        // figure on any screen, so it has to be told outright. The installer
+        // asks for this on its database screen, so a file written by the wizard
+        // has it stated rather than commented out.
         // 'timezone' => 'Europe/Berlin',
     ],
     'session' => [

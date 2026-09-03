@@ -513,7 +513,12 @@ class SyncService {
       }
 
       existing.add({
-        'timestamp': DateTime.now().toIso8601String(),
+        // UTC, like every other timestamp this app writes. Without `.toUtc()`
+        // this is a wall-clock string with no zone on it, in a file whose only
+        // use is being lined up against the backend log of the sync that
+        // failed — where it is silently an hour or two out, and nothing in the
+        // string says so (#365).
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
         'error': error.toString(),
         'transaction_count': txns.length,
         'transactions': txns.map((t) => {
