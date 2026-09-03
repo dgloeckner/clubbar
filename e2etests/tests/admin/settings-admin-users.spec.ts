@@ -789,6 +789,84 @@ test.describe('Self-lockout protection', () => {
 })
 
 /**
+ * Deleting an admin account (UC-A61).
+ *
+ * The list used to accumulate greyed-out rows with no way to remove them: an
+ * invitation sent to the wrong address stayed on the roster forever. Deletion
+ * is offered only for an account that has never signed in, because
+ * `settlements` and `mandate_documents` reference their creating admin with
+ * `ON DELETE RESTRICT`, while `audit_log.admin_user_id` has no constraint at
+ * all — removing an admin who did work would either be refused by the database
+ * or silently blank the actor on every row they wrote.
+ *
+ * So the button's presence is itself the assertion: it is on the fresh
+ * account's row and not on the signed-in admin's.
+ */
+test.describe('Deleting an admin account', () => {
+  /**
+   * One flow rather than an assertion per test (Pattern 009), and end-to-end
+   * rather than UI-only: the row must be gone from a list *refetched after a
+   * full page reload*, which is what proves the DELETE reached the database
+   * rather than the dialog merely closing over local state.
+   *
+   * Deliberately not a row-count comparison. The admin list is shared, and
+   * other workers create accounts on it throughout the run, so `countBefore -
+   * 1` is a race that fails whenever a sibling test's create lands between the
+   * two reads (Pattern 003: assert on the specific data, never on a position
+   * or a total).
+   */
+  test('removes an account that has never signed in', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickAdminUsersTab()
+
+    const testData = generateTestAdminUser()
+
+    const adminUsersLoaded = authenticatedSettingsPage.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+    )
+
+    await authenticatedSettingsPage.clickCreateAdminButton()
+    await authenticatedSettingsPage.fillCreateAdminForm(testData)
+    await authenticatedSettingsPage.clickCreateAdminConfirm()
+    await authenticatedSettingsPage.waitForInvitationModal()
+    await authenticatedSettingsPage.closeInvitationModal()
+    await adminUsersLoaded
+
+    // The row exists and offers deletion — the precondition the assertion
+    // below would otherwise pass vacuously against.
+    await authenticatedSettingsPage.expectAdminUserPresent(testData.email)
+    await authenticatedSettingsPage.expectAdminUserDeletable(testData.email)
+
+    await authenticatedSettingsPage.clickDeleteAdminButton(testData.email)
+
+    expect(await authenticatedSettingsPage.getErrorMessage()).toBeNull()
+    await authenticatedSettingsPage.expectAdminUserAbsent(testData.email)
+
+    // Reload the whole page and ask the server again: the row is gone from the
+    // database, not merely from this page's state.
+    await authenticatedSettingsPage.reloadAdminUsers()
+    await authenticatedSettingsPage.expectAdminUserAbsent(testData.email)
+  })
+
+  /**
+   * The signed-in admin has, by definition, signed in — so their own row never
+   * offers the button. Withheld rather than offered and then refused, the same
+   * reasoning as the own-row switch (#382).
+   */
+  test('withholds the button from an account that has signed in', async ({
+    authenticatedSettingsPage,
+  }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickAdminUsersTab()
+
+    await authenticatedSettingsPage.expectAdminUserNotDeletable(TEST_CREDENTIALS.admin.email)
+  })
+})
+
+/**
  * Issue #126: a generated password is shown exactly once, so the modal must not
  * discard it on a stray click or on a clipboard write that never succeeded.
  *

@@ -148,6 +148,7 @@ const MATRIX: Entry[] = [
   { method: 'GET', path: `/admin/admin-users/${NOWHERE}`, roles: ADMIN_ONLY },
   { method: 'PATCH', path: `/admin/admin-users/${NOWHERE}`, roles: ADMIN_ONLY },
   { method: 'DELETE', path: `/admin/admin-users/${NOWHERE}`, roles: ADMIN_ONLY },
+  { method: 'POST', path: `/admin/admin-users/${NOWHERE}/deactivate`, roles: ADMIN_ONLY },
   { method: 'POST', path: `/admin/admin-users/${NOWHERE}/reactivate`, roles: ADMIN_ONLY },
   { method: 'POST', path: `/admin/admin-users/${NOWHERE}/reset-password`, roles: ADMIN_ONLY },
   { method: 'GET', path: '/admin/audit-log', roles: ADMIN_ONLY },

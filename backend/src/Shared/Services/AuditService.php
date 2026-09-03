@@ -37,6 +37,18 @@ class AuditService
     }
 
     /**
+     * Whether this admin account has ever authored an audit row.
+     *
+     * Delegates to the repository; exposed here because `AuditService` is what
+     * modules are wired to (Pattern 008), and `AdminUsersService` already
+     * holds one.
+     */
+    public function hasEntriesByActor(string $adminUserId): bool
+    {
+        return $this->auditLogRepository->hasEntriesByActor($adminUserId);
+    }
+
+    /**
      * Write this entry only if the same (entity, action) pair has not been
      * recorded since $since — for conditions that are *observed* rather than
      * performed, and would otherwise be re-observed on every poll (#395).

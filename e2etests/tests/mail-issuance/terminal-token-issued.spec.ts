@@ -135,7 +135,7 @@ test.describe('Terminal credential issuance — mint, cron, delivered mail', () 
       await authenticatedRequest.delete(`/api/admin/terminals/${terminalId}`)
     }
     if (adminUserId) {
-      await authenticatedRequest.delete(`/api/admin/admin-users/${adminUserId}`)
+      await authenticatedRequest.post(`/api/admin/admin-users/${adminUserId}/deactivate`)
     }
     await disposeMailpit?.()
   })

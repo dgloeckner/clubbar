@@ -425,7 +425,7 @@ test.describe('Admin Invitations API', () => {
     const email = uniqueEmail('inactive')
     const { admin } = await createAdmin(authenticatedRequest, email, ['kassenwart'])
 
-    const deactivated = await authenticatedRequest.delete(`${API_BASE}/admin/admin-users/${admin.id}`)
+    const deactivated = await authenticatedRequest.post(`${API_BASE}/admin/admin-users/${admin.id}/deactivate`)
     expect(deactivated.status()).toBe(200)
 
     const resend = await authenticatedRequest.post(

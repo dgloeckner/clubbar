@@ -204,6 +204,7 @@ final class RouteRoleMap
         'GET /api/admin/admin-users/{id}' => self::ADMIN_ONLY,
         'PATCH /api/admin/admin-users/{id}' => self::ADMIN_ONLY,
         'DELETE /api/admin/admin-users/{id}' => self::ADMIN_ONLY,
+        'POST /api/admin/admin-users/{id}/deactivate' => self::ADMIN_ONLY,
         'POST /api/admin/admin-users/{id}/reactivate' => self::ADMIN_ONLY,
         'POST /api/admin/admin-users/{id}/reset-password' => self::ADMIN_ONLY,
         // The replacement invitation (migration 058) sits on the same grant as

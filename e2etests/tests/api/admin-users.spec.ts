@@ -394,8 +394,8 @@ test.describe("Admin Users API", () => {
     const createData = await createResponse.json();
     const adminId = createData.admin.id;
 
-    const deactivateResponse = await authenticatedRequest.delete(
-      `${API_BASE}/admin/admin-users/${adminId}`
+    const deactivateResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users/${adminId}/deactivate`
     );
 
     expect(deactivateResponse.status()).toBe(200);
@@ -410,8 +410,8 @@ test.describe("Admin Users API", () => {
     const profileData = await profileResponse.json();
     const currentAdminId = profileData.admin.id;
 
-    const response = await authenticatedRequest.delete(
-      `${API_BASE}/admin/admin-users/${currentAdminId}`
+    const response = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users/${currentAdminId}/deactivate`
     );
 
     expect(response.status()).toBe(409);
@@ -440,7 +440,9 @@ test.describe("Admin Users API", () => {
     const createData = await createResponse.json();
     const adminId = createData.admin.id;
 
-    await authenticatedRequest.delete(`${API_BASE}/admin/admin-users/${adminId}`);
+    await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users/${adminId}/deactivate`
+    );
 
     const reactivateResponse = await authenticatedRequest.post(
       `${API_BASE}/admin/admin-users/${adminId}/reactivate`
@@ -449,6 +451,159 @@ test.describe("Admin Users API", () => {
     expect(reactivateResponse.status()).toBe(200);
     const data = await reactivateResponse.json();
     expect(data.admin.is_active).toBe(true);
+  });
+
+  // ========== DELETE ADMIN USER ==========
+
+  /**
+   * `DELETE` removes the row. It used to deactivate, which said the opposite of
+   * what the verb means — deactivation now lives at `POST .../deactivate`,
+   * beside the `POST .../reactivate` it pairs with.
+   *
+   * Deletion is offered only for an account that has never signed in and never
+   * authored an audit row: `settlements` and `mandate_documents` reference
+   * their creating admin with `ON DELETE RESTRICT`, while
+   * `audit_log.admin_user_id` has no constraint at all, so a wider delete would
+   * either be refused by the database or silently blank the actor on every row
+   * that admin ever wrote.
+   */
+  test("deletes an admin account that has never signed in", async ({
+    authenticatedRequest,
+  }) => {
+    const timestamp = Date.now();
+    const createResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users`,
+      {
+        data: {
+          ...stepUp(),
+          email: `delete-${timestamp}@test.example.com`,
+          display_name: "To Delete",
+          locale: "de",
+        },
+      }
+    );
+
+    const createData = await createResponse.json();
+    const adminId = createData.admin.id;
+
+    const deleteResponse = await authenticatedRequest.delete(
+      `${API_BASE}/admin/admin-users/${adminId}`
+    );
+    expect(deleteResponse.status()).toBe(204);
+
+    // Gone, not deactivated — the distinction this endpoint changed hands over.
+    const after = await authenticatedRequest.get(
+      `${API_BASE}/admin/admin-users/${adminId}`
+    );
+    expect(after.status()).toBe(404);
+  });
+
+  /**
+   * The refusal that keeps the audit trail readable. An account that has signed
+   * in is retired by deactivating it, and the reason code says so.
+   */
+  test("refuses to delete an admin account that has signed in", async ({
+    authenticatedRequest,
+  }) => {
+    const timestamp = Date.now();
+    const createResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users`,
+      {
+        data: {
+          ...stepUp(),
+          email: `delete-used-${timestamp}@test.example.com`,
+          display_name: "Has History",
+          locale: "de",
+        },
+      }
+    );
+
+    const createData = await createResponse.json();
+    const adminId = createData.admin.id;
+
+    // Accepting the invitation is enough, and it is the interesting case:
+    // `INVITATION_ACCEPTED` is attributed to the invitee and is the one audit
+    // row in the system written by a request carrying no session, so the
+    // account owns history while `last_login_at` is still null. A guard that
+    // only looked at the login timestamp would delete this account and strand
+    // that row.
+    await acceptInvitation(createData.invitation.url);
+
+    const deleteResponse = await authenticatedRequest.delete(
+      `${API_BASE}/admin/admin-users/${adminId}`
+    );
+
+    expect(deleteResponse.status()).toBe(409);
+    const body = await deleteResponse.json();
+    expect(body.error).toBe("business_rule_violation");
+    expect(body.reason).toBe("admin_user_has_history");
+
+    // Still there, and still usable — a refused delete changes nothing.
+    const after = await authenticatedRequest.get(
+      `${API_BASE}/admin/admin-users/${adminId}`
+    );
+    expect(after.status()).toBe(200);
+
+    await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users/${adminId}/deactivate`
+    );
+  });
+
+  test("refuses to delete your own account", async ({
+    authenticatedRequest,
+  }) => {
+    const profileResponse = await authenticatedRequest.get(
+      `${API_BASE}/auth/profile`
+    );
+    const currentAdminId = (await profileResponse.json()).admin.id;
+
+    const response = await authenticatedRequest.delete(
+      `${API_BASE}/admin/admin-users/${currentAdminId}`
+    );
+
+    expect(response.status()).toBe(409);
+    expect((await response.json()).error).toBe("business_rule_violation");
+  });
+
+  /**
+   * Deleting the account takes its outstanding invitation with it
+   * (`admin_user_invitations` cascades), so a link already in somebody's inbox
+   * stops working rather than pointing at an account nobody can see.
+   */
+  test("deleting an account invalidates its outstanding invitation", async ({
+    authenticatedRequest,
+    request,
+  }) => {
+    const timestamp = Date.now();
+    const createResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users`,
+      {
+        data: {
+          ...stepUp(),
+          email: `delete-invite-${timestamp}@test.example.com`,
+          display_name: "Invited Then Deleted",
+          locale: "de",
+        },
+      }
+    );
+
+    const createData = await createResponse.json();
+    const token = tokenFromInvitationUrl(createData.invitation.url);
+
+    const deleted = await authenticatedRequest.delete(
+      `${API_BASE}/admin/admin-users/${createData.admin.id}`
+    );
+    expect(deleted.status()).toBe(204);
+
+    const accept = await request.post(`${API_BASE}/invitations/accept`, {
+      data: {
+        token,
+        password: INVITED_ADMIN_PASSWORD,
+        password_confirmation: INVITED_ADMIN_PASSWORD,
+      },
+    });
+    expect(accept.status()).toBe(409);
+    expect((await accept.json()).reason).toBe("invitation_invalid");
   });
 
   // ========== RESET PASSWORD ==========

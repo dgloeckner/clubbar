@@ -4261,6 +4261,160 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyAttempts'
 
+    get:
+      tags: [Admin Users]
+      summary: Get admin user
+      description: Read one admin account, including its roles (UC-A61).
+      operationId: getAdminUser
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: The admin account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+        '403':
+          description: The caller lacks `admin` (`insufficient_role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Admin Users]
+      summary: Delete admin user
+      description: |
+        Remove an admin account permanently (UC-A61).
+
+        **Only an account that has never signed in and never acted can be
+        deleted.** This covers the case that actually arises — an invitation
+        sent to the wrong address, or a colleague who never took up the post —
+        and deliberately nothing beyond it.
+
+        The narrowness is a data-integrity rule, not caution. `admin_users.id`
+        is referenced across the schema with two incompatible meanings:
+        `settlements.created_by_admin_id` and
+        `mandate_documents.uploaded_by_admin_id` are `ON DELETE RESTRICT`, so
+        the database refuses; `audit_log.admin_user_id` has no constraint at
+        all, so the database allows it and every past action by that admin
+        then renders with a blank actor. An account that never held a session
+        can have produced neither.
+
+        To retire an admin who *has* done work, deactivate them instead —
+        `POST /admin/admin-users/{adminUserId}/deactivate`.
+
+        Deleting the account also cascades away any outstanding invitation, so
+        a link issued for it stops working immediately.
+      operationId: deleteAdminUser
+      security:
+        - sessionAuth: []
+      responses:
+        '204':
+          description: Admin user deleted; no content.
+        '403':
+          description: The caller lacks `admin` (`insufficient_role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            The account cannot be deleted: it has already signed in or acted
+            (`admin_user_has_history`), it is the caller's own account
+            (`cannot_deactivate_self`), or it is the last active `admin`
+            (`last_active_admin`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/admin-users/{adminUserId}/deactivate:
+    parameters:
+      - name: adminUserId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [Admin Users]
+      summary: Deactivate admin user
+      description: |
+        Switch an admin account inactive (UC-A61). The account keeps its rows
+        and its history; it simply cannot sign in, and an outstanding
+        invitation for it can no longer be renewed.
+
+        This is how an admin who has done work is retired — deletion is
+        reserved for accounts that never signed in.
+
+        Refused for the caller's own account, and for the last account holding
+        `admin`.
+      operationId: deactivateAdminUser
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Admin user deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+        '403':
+          description: The caller lacks `admin` (`insufficient_role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            The caller's own account (`cannot_deactivate_self`), or the last
+            active `admin` (`last_active_admin`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/admin-users/{adminUserId}/reactivate:
+    parameters:
+      - name: adminUserId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [Admin Users]
+      summary: Reactivate admin user
+      description: Switch a deactivated admin account back to active (UC-A61).
+      operationId: reactivateAdminUser
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Admin user reactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+        '403':
+          description: The caller lacks `admin` (`insufficient_role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /admin/admin-users/{adminUserId}/reset-password:
     parameters:
       - name: adminUserId
