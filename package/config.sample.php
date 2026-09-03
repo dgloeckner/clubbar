@@ -25,6 +25,15 @@ return [
         'env' => 'production',
         'debug' => false,
         'url' => 'https://example.com',
+        // The clock your club's books are stated in. Every time is stored in
+        // UTC and converted back into this zone on every surface — the admin
+        // panel, the CSV exports, the day and hour buckets behind the reports,
+        // and the mails, which have no browser to do it for them. Any IANA
+        // name ('Europe/Vienna', 'Europe/Zurich'); an unknown one falls back to
+        // Europe/Berlin rather than failing. Left unset or unreadable, the admin
+        // dashboard says so — a club on the wrong clock cannot tell from any
+        // figure on any screen, so it has to be told outright.
+        // 'timezone' => 'Europe/Berlin',
     ],
     'session' => [
         'max_age' => 7200,

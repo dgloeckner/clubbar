@@ -3,7 +3,8 @@
  * Based on prototypes/frgs-admin.html specifications
  */
 
-import { parseApiDate } from '../utils/dates'
+import { getClubTimeZone } from '../utils/clubTimeZone'
+import { isDateOnly, parseApiDate } from '../utils/dates'
 
 /**
  * Compose a hex color with an alpha channel into a canonical `rgba()` string.
@@ -360,6 +361,22 @@ export function formatIban(iban: string): string {
 }
 
 /**
+ * Which zone an API value is rendered in.
+ *
+ * An **instant** is rendered in the club's zone: the books are the club's, and
+ * reading them in whatever zone the reader's laptop happens to be in made the
+ * screen disagree with the mail for the same row (#365).
+ *
+ * A **calendar day** is rendered in none. `parseApiDate` already anchors it at
+ * *local* midnight so the day survives the trip, and pushing that instant into
+ * another zone is what would move it: local midnight in Tokyo is the previous
+ * afternoon in Berlin, which would show `2026-08-05` as the 4th.
+ */
+function renderingZone(dateString: string): string | undefined {
+  return isDateOnly(dateString) ? undefined : getClubTimeZone()
+}
+
+/**
  * Utility function to format dates (German DD.MM.YYYY format)
  *
  * Date-only values are parsed as local calendar days (see `parseApiDate`), so a
@@ -372,6 +389,7 @@ export function formatDate(dateString: string, locale: string = 'de-DE'): string
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
+      timeZone: renderingZone(dateString),
     }).format(date)
   } catch {
     return dateString
@@ -390,6 +408,7 @@ export function formatDateTime(dateString: string, locale: string = 'de-DE'): st
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: renderingZone(dateString),
     }).format(date)
   } catch {
     return dateString

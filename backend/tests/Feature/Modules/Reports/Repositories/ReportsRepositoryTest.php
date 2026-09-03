@@ -393,7 +393,17 @@ class ReportsRepositoryTest extends DatabaseTestCase
         $this->assertSame(100, $rows[0]['amount_cents']);
     }
 
-    public function test_hourlyDistribution_reports_only_the_hours_that_saw_something(): void
+    /**
+     * The hour the *club* was in. Berlin is +01:00 in March, so sales stored at
+     * 19:00Z and 21:00Z were rung up at 20:00 and 22:00 by everyone who was
+     * standing at the till.
+     *
+     * This is the worst of the shifted figures to leave wrong, because it is
+     * the only one with no second surface to disagree with it: an hour-of-day
+     * histogram is a smooth, believable curve with a clear peak whichever way
+     * it has been moved, so nobody can catch it by reading the screen (#365).
+     */
+    public function test_hourlyDistribution_buckets_by_the_hour_the_club_was_in(): void
     {
         $member = $this->createMember();
         $this->createTransaction($member, 100, '2019-03-05 19:00:00');
@@ -402,7 +412,7 @@ class ReportsRepositoryTest extends DatabaseTestCase
 
         $byHour = $this->repository->hourlyDistribution($this->window());
 
-        $this->assertSame([19 => 2, 21 => 1], $byHour);
+        $this->assertSame([20 => 2, 22 => 1], $byHour);
     }
 
     public function test_terminalSummary_counts_per_terminal_busiest_first(): void

@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { parseApiDate, toIsoDate } from './dates'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setClubTimeZone, resetClubTimeZone } from './clubTimeZone'
+import { isDateOnly, parseApiDate, toClubIsoDate, toIsoDate } from './dates'
 
 describe('the timezone these tests run in', () => {
   it('is not UTC — on UTC none of the assertions below can fail', () => {
@@ -140,5 +141,43 @@ describe('parseApiDate', () => {
 
   it('rejects a leap day in a common year', () => {
     expect(parseApiDate('2027-02-29').getTime()).toBeNaN()
+  })
+})
+
+describe('toClubIsoDate', () => {
+  afterEach(() => resetClubTimeZone())
+
+  /**
+   * A filter names a day of the club's books. Built from the reader's calendar
+   * instead, a Kassenwart in Tokyo asking for "today" asked for a day the club
+   * had not reached yet for the nine hours after their midnight.
+   */
+  it('is the club’s calendar day, not the reader’s', () => {
+    setClubTimeZone('Europe/Berlin')
+
+    // 22:30Z is already the 3rd in Berlin.
+    expect(toClubIsoDate(new Date('2026-09-02T22:30:00Z'))).toBe('2026-09-03')
+    // …and still the 2nd an hour earlier.
+    expect(toClubIsoDate(new Date('2026-09-02T21:30:00Z'))).toBe('2026-09-02')
+  })
+
+  it('honours a club west of Greenwich', () => {
+    setClubTimeZone('America/New_York')
+
+    expect(toClubIsoDate(new Date('2026-09-02T02:30:00Z'))).toBe('2026-09-01')
+  })
+
+  it('falls back to the local calendar day before the config has been read', () => {
+    const midday = new Date('2026-09-02T12:00:00Z')
+
+    expect(toClubIsoDate(midday)).toBe(toIsoDate(midday))
+  })
+})
+
+describe('isDateOnly', () => {
+  it('tells a calendar day from an instant, which is what decides zone shifting', () => {
+    expect(isDateOnly('2026-08-05')).toBe(true)
+    expect(isDateOnly('2026-08-05T22:15:00Z')).toBe(false)
+    expect(isDateOnly('2026-08-05 22:15:00')).toBe(false)
   })
 })

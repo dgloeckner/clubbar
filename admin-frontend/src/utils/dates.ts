@@ -1,3 +1,5 @@
+import { getClubTimeZone } from './clubTimeZone'
+
 /**
  * Formats a Date as an ISO calendar date (YYYY-MM-DD) in the *local* timezone.
  *
@@ -17,6 +19,19 @@ export function toIsoDate(date: Date): string {
 }
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/**
+ * Is this API value a calendar day rather than an instant?
+ *
+ * The shape is the contract, on both sides of the wire — the backend's
+ * `ClubTimeZone::moment()` branches on exactly the same rule. It decides
+ * whether a value may be shifted into another zone at all: an instant must
+ * be, and a calendar day must never be, because `settlement_date` means the
+ * 21st everywhere and moving it is how a deadline loses a day.
+ */
+export function isDateOnly(value: string): boolean {
+  return DATE_ONLY.test(value)
+}
 
 /**
  * An instant with no zone on it — `2026-09-01 19:33:12` as MariaDB spells it,
@@ -73,4 +88,39 @@ export function parseApiDate(value: string): Date {
     return new Date(NaN)
   }
   return parsed
+}
+
+/**
+ * The calendar day `date` falls on **in the club's zone**, as `YYYY-MM-DD`.
+ *
+ * `toIsoDate` answers the same question for the reader's own zone, which is
+ * what a date *input* wants. A filter is different: it names a day of the
+ * club's books, and the backend resolves it against a UTC column as the club's
+ * day. Building it from the browser's calendar instead put a reader an hour
+ * ahead of the club onto tomorrow's date for the two hours after their
+ * midnight.
+ *
+ * Falls back to the local calendar day before the club's zone is known, which
+ * is the behaviour this replaced.
+ */
+export function toClubIsoDate(date: Date, timeZone: string | undefined = getClubTimeZone()): string {
+  if (timeZone === undefined) {
+    return toIsoDate(date)
+  }
+
+  // `en-CA` renders ISO-ish, but assembling from parts is immune to a runtime
+  // that disagrees about that.
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+
+  const at = (type: string): string => parts.find((p) => p.type === type)?.value ?? ''
+  const year = at('year')
+  const month = at('month')
+  const day = at('day')
+
+  return year && month && day ? `${year}-${month}-${day}` : toIsoDate(date)
 }

@@ -25,8 +25,15 @@ class InstanceConfigDtoTest extends TestCase
 
     public function test_toArray_round_trips(): void
     {
-        $dto = new InstanceConfigDto(instanceName: 'FRGS Ruderbar');
+        $dto = new InstanceConfigDto(instanceName: 'FRGS Ruderbar', timeZone: 'Europe/Berlin', timeZoneSource: 'configured');
 
-        $this->assertSame(['instance_name' => 'FRGS Ruderbar'], $dto->toArray());
+        $this->assertSame(
+            [
+                'instance_name' => 'FRGS Ruderbar',
+                'time_zone' => 'Europe/Berlin',
+                'time_zone_source' => 'configured',
+            ],
+            $dto->toArray(),
+        );
     }
 }

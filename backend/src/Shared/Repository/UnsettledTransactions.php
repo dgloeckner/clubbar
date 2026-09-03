@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Shared\Repository;
 
+use App\Shared\Time\ClubTimeZone;
+
 /**
  * What "unsettled" means, in one place.
  *
@@ -141,9 +143,32 @@ final class UnsettledTransactions
      */
     public static function endOfDay(string $date): string
     {
-        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1
-            ? $date . ' 23:59:59'
-            : $date;
+        // A filter names a **club** calendar day; the column holds UTC. The
+        // inclusive end of that day is one second before the next one starts,
+        // which in Berlin summer is 21:59:59Z and not 23:59:59Z. Comparing the
+        // bare day against the column put both ends of every range two hours
+        // late: it dropped the first two hours of the first day and picked up
+        // the first two of the day after the last (#365). Immaterial on a
+        // three-month preset, wrong on the single-day filter someone reaches
+        // for when reconciling one evening.
+        $endsBefore = ClubTimeZone::endsBeforeUtc($date);
+        if ($endsBefore === null) {
+            return $date;
+        }
+
+        return (new \DateTimeImmutable($endsBefore, new \DateTimeZone('UTC')))
+            ->modify('-1 second')
+            ->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * The UTC instant a club calendar day begins at — the `>=` half of the
+     * same window. Anything that is not a calendar day is passed through, so a
+     * caller that already holds an instant keeps it.
+     */
+    public static function startOfDay(string $date): string
+    {
+        return ClubTimeZone::startsAtUtc($date) ?? $date;
     }
 
     /**
@@ -165,7 +190,7 @@ final class UnsettledTransactions
 
         if (isset($filters['date_from'])) {
             $where[] = 't.occurred_at >= ?';
-            $params[] = $filters['date_from'];
+            $params[] = self::startOfDay((string) $filters['date_from']);
         }
         if (isset($filters['date_to'])) {
             $where[] = 't.occurred_at <= ?';

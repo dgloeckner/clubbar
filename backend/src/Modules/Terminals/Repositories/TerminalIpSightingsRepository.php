@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Terminals\Repositories;
 
+use App\Shared\Utils\DateFormatter;
 use PDO;
 
 /**
@@ -94,8 +95,10 @@ class TerminalIpSightingsRepository
             $rows[] = [
                 'terminal_id' => (string) $row['terminal_id'],
                 'ip_address' => (string) $row['ip_address'],
-                'first_seen_at' => (string) $row['first_seen_at'],
-                'last_seen_at' => (string) $row['last_seen_at'],
+                'first_seen_at' => DateFormatter::toUtcIso((string) $row['first_seen_at'])
+                    ?? (string) $row['first_seen_at'],
+                'last_seen_at' => DateFormatter::toUtcIso((string) $row['last_seen_at'])
+                    ?? (string) $row['last_seen_at'],
                 'request_count' => (int) $row['request_count'],
             ];
         }

@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { useFormatters } from '../hooks/useFormatters'
+import { getClubTimeZone } from '../utils/clubTimeZone'
 import { parseApiDate } from '../utils/dates'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
@@ -402,11 +403,13 @@ export function JournalPage() {
                           year: 'numeric',
                           month: '2-digit',
                           day: '2-digit',
+                          timeZone: getClubTimeZone(),
                         })}{' '}
                         {parseApiDate(tx.created_at).toLocaleTimeString(intlLocale, {
                           hour: '2-digit',
                           minute: '2-digit',
                           hour12: false,
+                          timeZone: getClubTimeZone(),
                         })}
                       </span>
                       <span
@@ -754,6 +757,7 @@ export function JournalPage() {
                               year: 'numeric',
                               month: '2-digit',
                               day: '2-digit',
+                              timeZone: getClubTimeZone(),
                             })}
                           </div>
                           <div style={{ fontSize: '12px', color: tableColors.cellSecondaryText }}>
@@ -762,6 +766,7 @@ export function JournalPage() {
                               minute: '2-digit',
                               second: '2-digit',
                               hour12: false,
+                              timeZone: getClubTimeZone(),
                             })}
                           </div>
                         </div>

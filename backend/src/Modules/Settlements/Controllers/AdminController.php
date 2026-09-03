@@ -22,6 +22,7 @@ use App\Shared\Validation\Validator;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Http\ListQuery;
 use App\Shared\Http\PaginatedResponse;
+use App\Shared\Time\ClubTimeZone;
 use App\Shared\Utils\Csv;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -449,7 +450,7 @@ class AdminController
         }
 
         $data = $settlement->toArray();
-        $items = $data['items'] ?? [];
+        $items = array_map(self::onTheClubClock(...), $data['items'] ?? []);
 
         $csv = $this->buildCsv($items);
 
@@ -539,6 +540,40 @@ class AdminController
                 Csv::money((int) $row['amount_cents']),
             ], $memberRows),
         );
+    }
+
+
+    /**
+     * A settlement item with its `transaction_date` on the club's clock.
+     *
+     * The API ships that column as a labelled UTC instant, which is right for a
+     * browser — it converts. A CSV has no browser: the column would reach the
+     * Kassenwart's spreadsheet as `2026-09-02T22:30:00Z` under a heading that
+     * says "date", naming the 2nd for a sale everyone present remembers buying
+     * on the 3rd. The books are the club's, so the export states them in the
+     * club's zone (#365), keeping the time of day rather than truncating it.
+     *
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private static function onTheClubClock(array $item): array
+    {
+        $value = $item['transaction_date'] ?? null;
+        if (!is_string($value) || trim($value) === '') {
+            return $item;
+        }
+
+        $moment = ClubTimeZone::moment($value);
+        if ($moment === null) {
+            return $item;
+        }
+
+        // Assigned in place: `buildCsv()` takes its header from the first
+        // row's key order, so rebuilding the array would silently move the
+        // column to the front of every export.
+        $item['transaction_date'] = $moment->format('Y-m-d H:i:s');
+
+        return $item;
     }
 
     private function buildCsv(array $items): string

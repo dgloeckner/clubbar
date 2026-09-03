@@ -205,8 +205,11 @@ class ReportsServiceTest extends TestCase
         $this->assertCount(1, $sessions);
         $this->assertSame(3, $sessions[0]['transaction_count']);
         $this->assertSame(1000, $sessions[0]['revenue_cents']);
-        $this->assertSame('19:00:00', $sessions[0]['start_time']);
-        $this->assertSame('19:45:00', $sessions[0]['end_time']);
+        // Stored UTC, printed on the club's clock: Berlin is +01:00 in
+        // February, so a till that opened at 19:00Z was open at 20:00 to
+        // everyone who was standing at it (#365).
+        $this->assertSame('20:00:00', $sessions[0]['start_time']);
+        $this->assertSame('20:45:00', $sessions[0]['end_time']);
         $this->assertSame('2026-02-03', $sessions[0]['date']);
     }
 
@@ -245,7 +248,7 @@ class ReportsServiceTest extends TestCase
         ]);
 
         $this->assertCount(1, $sessions);
-        $this->assertSame('20:20:00', $sessions[0]['end_time']);
+        $this->assertSame('21:20:00', $sessions[0]['end_time']);
     }
 
     public function test_a_session_does_not_leak_its_bookkeeping_into_the_response(): void

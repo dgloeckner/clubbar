@@ -54,7 +54,7 @@ class InstanceConfigControllerTest extends TestCase
 
     public function test_show_returns_the_current_instance_name(): void
     {
-        $this->service->method('getConfig')->willReturn(new InstanceConfigDto(instanceName: 'FRGS Ruderbar'));
+        $this->service->method('getConfig')->willReturn(new InstanceConfigDto(instanceName: 'FRGS Ruderbar', timeZone: 'Europe/Berlin', timeZoneSource: 'configured'));
 
         $response = $this->controller->show($this->write('GET', []), new Response());
 
@@ -69,7 +69,7 @@ class InstanceConfigControllerTest extends TestCase
         $this->service->expects($this->once())
             ->method('updateConfig')
             ->with(['instance_name' => 'FRGS Ruderbar'], 'admin-1')
-            ->willReturn(new InstanceConfigDto(instanceName: 'FRGS Ruderbar'));
+            ->willReturn(new InstanceConfigDto(instanceName: 'FRGS Ruderbar', timeZone: 'Europe/Berlin', timeZoneSource: 'configured'));
 
         $response = $this->controller->update(
             $this->write('PATCH', ['instance_name' => 'FRGS Ruderbar']),
@@ -110,7 +110,7 @@ class InstanceConfigControllerTest extends TestCase
     {
         $this->service->expects($this->once())
             ->method('updateConfig')
-            ->willReturn(new InstanceConfigDto(instanceName: str_repeat('x', 100)));
+            ->willReturn(new InstanceConfigDto(instanceName: str_repeat('x', 100), timeZone: 'Europe/Berlin', timeZoneSource: 'configured'));
 
         $response = $this->controller->update(
             $this->write('PATCH', ['instance_name' => str_repeat('x', 100)]),

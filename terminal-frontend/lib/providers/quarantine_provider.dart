@@ -38,7 +38,11 @@ class QuarantineProvider extends ChangeNotifier {
         memberId: row.memberId,
         memberName: _displayName(member?.firstName, member?.lastName),
         amountCents: row.amountCents,
-        occurredAt: DateTime.parse(row.createdAt),
+        // `created_at` is stored UTC, so parsing it yields a UTC DateTime and
+        // formatting it prints UTC components. The transaction history
+        // screen renders the same column with `.toLocal()`, so without this
+        // the same sale read two different times on the same device (#365).
+        occurredAt: DateTime.parse(row.createdAt).toLocal(),
         reason: row.quarantineReason,
       ));
     }

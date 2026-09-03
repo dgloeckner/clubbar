@@ -15,6 +15,8 @@ export class DashboardPage extends BasePage {
     this.page.getByTestId(`dashboard-member-near-limit-${memberId}`)
   private readonly transactionAmount = (transactionId: string) =>
     this.page.getByTestId(`dashboard-transaction-amount-${transactionId}`)
+  private readonly transactionTime = (transactionId: string) =>
+    this.page.getByTestId(`dashboard-transaction-time-${transactionId}`)
   private readonly loadingIndicator = () => this.page.getByTestId('dashboard-loading')
   private readonly staleWarning = () => this.page.getByTestId('dashboard-stale-warning')
 
@@ -130,10 +132,16 @@ export class DashboardPage extends BasePage {
 
   async getTransactionCount(): Promise<number> {
     // The rows are counted by prefix, and elements *inside* a row share that
-    // prefix (`dashboard-transaction-amount-{id}`), so they have to be excluded
-    // or every row counts twice — the same trap the stat-card count avoids.
+    // prefix (`dashboard-transaction-amount-{id}`, `-time-{id}`), so every one
+    // of them has to be excluded or a row counts once per child — the same trap
+    // the stat-card count avoids. Any further child testid added under this
+    // prefix belongs in this list too.
     return this.page
-      .locator('[data-testid^="dashboard-transaction-"]:not([data-testid^="dashboard-transaction-amount-"])')
+      .locator(
+        '[data-testid^="dashboard-transaction-"]' +
+          ':not([data-testid^="dashboard-transaction-amount-"])' +
+          ':not([data-testid^="dashboard-transaction-time-"])'
+      )
       .count()
   }
 
@@ -147,5 +155,19 @@ export class DashboardPage extends BasePage {
 
   async waitForLoadingToComplete() {
     await expect(this.loadingIndicator()).not.toBeVisible({ timeout: 10000 })
+  }
+
+  /**
+   * The wall-clock time the dashboard prints for one sale.
+   *
+   * The club's clock, not the browser's: the panel reads `time_zone` from
+   * `GET /api/instance-config` at bootstrap so that this row, the journal, the
+   * CSV export and the Deckelauszug all name the same time for it (#365).
+   */
+  async getTransactionTime(transactionId: string): Promise<string> {
+    const time = this.transactionTime(transactionId)
+    await expect(time).toBeVisible()
+
+    return ((await time.textContent()) ?? '').trim()
   }
 }

@@ -8283,6 +8283,28 @@ components:
           maxLength: 100
           description: The deploying club's display name, shown in the admin UI, Terminal, and as the TOTP issuer
           example: FRGS Ruderbar
+        time_zone:
+          type: string
+          description: >-
+            IANA name of the zone the club reads in (`CLUB_TIMEZONE`, default
+            `Europe/Berlin`). Every instant in this API is UTC and labelled `Z`;
+            this is the zone a client converts them back into, so that a screen,
+            an export and a mail all name the same wall-clock time for the same
+            row. Deployment configuration, not a stored setting — it is absent
+            from InstanceConfigUpdateRequest on purpose.
+          example: Europe/Berlin
+        time_zone_source:
+          type: string
+          enum: [configured, default, invalid]
+          description: >-
+            Why `time_zone` is what it is. `configured` — the deployment stated
+            it. `default` — nothing was stated, so Europe/Berlin applies.
+            `invalid` — something was stated that is not an IANA zone, so
+            Europe/Berlin applies. The fallback is silent where it is used, so
+            a client is the only place the last two can be reported: a club
+            reading its books on the wrong clock has nothing on any screen to
+            tell it so.
+          example: configured
 
     InstanceConfigUpdateRequest:
       type: object

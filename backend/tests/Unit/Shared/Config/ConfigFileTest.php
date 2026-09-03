@@ -53,6 +53,38 @@ class ConfigFileTest extends TestCase
         $this->assertSame('false', $_ENV['APP_DEBUG']);
     }
 
+    /**
+     * The club's zone reaches the environment from `config.php`, which is the
+     * only place a self-hosted installation can set it — it governs every
+     * surface that states the club's books, not just the mails.
+     */
+    public function test_the_club_timezone_reaches_the_environment(): void
+    {
+        $config = $this->config();
+        $config['app']['timezone'] = 'Europe/Vienna';
+
+        ConfigFile::applyToEnvironment($config, '/srv/clubbar-data');
+
+        $this->assertSame('Europe/Vienna', $_ENV['CLUB_TIMEZONE']);
+    }
+
+    /**
+     * Absent, blank or whitespace publishes nothing rather than an empty
+     * string: ClubTimeZone's own default is then what applies, and `''` would
+     * read as a configured value on its way through `Env::get()`.
+     */
+    public function test_an_unset_or_blank_timezone_publishes_nothing(): void
+    {
+        unset($_ENV['CLUB_TIMEZONE']);
+        ConfigFile::applyToEnvironment($this->config(), '/srv/clubbar-data');
+        $this->assertArrayNotHasKey('CLUB_TIMEZONE', $_ENV);
+
+        $config = $this->config();
+        $config['app']['timezone'] = '   ';
+        ConfigFile::applyToEnvironment($config, '/srv/clubbar-data');
+        $this->assertArrayNotHasKey('CLUB_TIMEZONE', $_ENV);
+    }
+
     public function test_a_config_written_before_a_feature_existed_still_boots(): void
     {
         // The shape install.php has always written: no mail section, no cron

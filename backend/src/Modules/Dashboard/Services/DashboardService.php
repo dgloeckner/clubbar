@@ -19,6 +19,7 @@ use App\Modules\Transactions\Repositories\JugendschutzViolationsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Security\CredentialLifecycle;
+use App\Shared\Time\ClubTimeZone;
 use App\Shared\Utils\DateFormatter;
 
 /**
@@ -74,10 +75,14 @@ class DashboardService
         $recentTransactionCount = $this->transactionsRepository->countRecentTransactions(days: self::REVENUE_WINDOW_DAYS);
         $pendingSettlements = $this->settlementsRepository->countPending();
 
-        // Revenue: today, week-to-date (Monday), month-to-date (1st)
-        $todaysRevenueCents = $this->dashboardRepository->sumRevenueSince(date('Y-m-d'));
-        $wtdRevenueCents = $this->dashboardRepository->sumRevenueSince(date('Y-m-d', strtotime('monday this week')));
-        $mtdRevenueCents = $this->dashboardRepository->sumRevenueSince(date('Y-m-01'));
+        // Revenue: today, week-to-date (Monday), month-to-date (1st) — all in
+        // the club's calendar. With the runtime pinned to UTC (#365) `date()`
+        // named the UTC day here, so for a bar serving past midnight every sale
+        // between 00:00 and 02:00 local was missing from "today" and had been
+        // counted in yesterday. The same offset moved the week and month ends.
+        $todaysRevenueCents = $this->dashboardRepository->sumRevenueSince(ClubTimeZone::today());
+        $wtdRevenueCents = $this->dashboardRepository->sumRevenueSince(ClubTimeZone::startOfWeek());
+        $mtdRevenueCents = $this->dashboardRepository->sumRevenueSince(ClubTimeZone::startOfMonth());
 
         $latestSettlement = $this->settlementsRepository->getLatest();
         $outstandingBalanceCents = $this->transactionsRepository->sumUnsettledAmountCents();
@@ -562,7 +567,9 @@ class DashboardService
             'name' => $terminal['name'],
             'device_id' => $terminal['device_id'],
             'is_active' => (bool) $terminal['is_active'],
-            'last_sync_at' => $terminal['last_sync_at'] ?? null,
+            'last_sync_at' => DateFormatter::toUtcIso(
+                isset($terminal['last_sync_at']) ? (string) $terminal['last_sync_at'] : null,
+            ),
             'status' => self::terminalStatus($terminal, $now),
         ];
     }

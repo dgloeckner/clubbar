@@ -90,6 +90,7 @@ Reference backend code patterns in `backend/patterns/` directory:
 - **Pattern 017**: Shared HTTP Layer — one envelope, one parser, one responder
 - **Pattern 018**: Custom Domain Exceptions — typed exceptions instead of parsing exception messages
 - **Pattern 019**: Translatable Refusals — a refusal names a `BusinessRuleReason`; the code travels, the English sentence stays in the log
+- **Pattern 020**: One Clock for the Books — columns hold UTC; every conversion back to `CLUB_TIMEZONE` is explicit, and a calendar day is never shifted
 
 **Important**: All backend work must follow these patterns for consistency with ADR-0018 (Modular Architecture) and to maintain code quality across modules.
 
