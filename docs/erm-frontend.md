@@ -102,7 +102,7 @@ Read-only cache of member data synced from backend. Used for RFID card lookups.
 
 **Data NOT cached** (privacy/data minimization):
 - IBAN, mandate reference, mandate signature date (now `mandates` rows on the backend — see `erm-master.md`)
-- Contact details (email, phone)
+- Contact details (email)
 - Postal address, account holder name
 
 **Cached, deliberately: `date_of_birth`.** This document used to say the terminal

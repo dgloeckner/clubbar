@@ -28,7 +28,6 @@ test.describe('Admin Members Database Persistence', () => {
         last_name: 'Test',
         email: 'persistence@example.com',
         date_of_birth: '1985-06-15',
-        phone: '+41791111111',
         preferred_language: 'en',
       },
     });
@@ -47,34 +46,10 @@ test.describe('Admin Members Database Persistence', () => {
     expect(retrievedBody.first_name).toBe('Persistence');
     expect(retrievedBody.last_name).toBe('Test');
     expect(retrievedBody.email).toBe('persistence@example.com');
-    expect(retrievedBody.phone).toBe('+41791111111');
     expect(retrievedBody.preferred_language).toBe('en');
     expect(retrievedBody.is_active).toBe(true);
     expect(retrievedBody.created_at).toBeDefined();
     expect(retrievedBody.updated_at).toBeDefined();
-  });
-
-  test('Create member without optional phone persists correctly', async ({ authenticatedRequest }) => {
-    const createRes = await authenticatedRequest.post('/api/admin/members', {
-      data: {
-        first_name: 'NoPhone',
-        last_name: 'Member',
-        email: 'nophone@example.com',
-        date_of_birth: '1985-06-15',
-        preferred_language: 'de',
-        // phone is optional - not included
-      },
-    });
-
-    expect(createRes.status()).toBe(201);
-    const memberId = (await createRes.json()).id;
-
-    const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
-    const body = await getRes.json();
-
-    expect(body.first_name).toBe('NoPhone');
-    expect(body.phone).toBeNull();
-    expect(body.preferred_language).toBe('de');
   });
 
   test('Create multiple members generates unique IDs', async ({ authenticatedRequest }) => {
@@ -154,7 +129,6 @@ test.describe('Admin Members Database Persistence', () => {
         last_name: 'Original',
         email: 'update@example.com',
         date_of_birth: '1985-06-15',
-        phone: '+41790000000',
         preferred_language: 'de',
       },
     });
@@ -164,7 +138,6 @@ test.describe('Admin Members Database Persistence', () => {
     const updateRes = await authenticatedRequest.patch(`/api/admin/members/${memberId}`, {
       data: {
         last_name: 'Updated',
-        phone: '+41799999999',
         preferred_language: 'fr',
       },
     });
@@ -177,7 +150,6 @@ test.describe('Admin Members Database Persistence', () => {
 
     // 4. VALIDATE PERSISTENCE - Changes should be in database
     expect(body.last_name).toBe('Updated');
-    expect(body.phone).toBe('+41799999999');
     expect(body.preferred_language).toBe('fr');
     // Unchanged field should remain
     expect(body.first_name).toBe('UpdateTest');
@@ -192,26 +164,24 @@ test.describe('Admin Members Database Persistence', () => {
         last_name: 'Test',
         email: 'singlefield@example.com',
         date_of_birth: '1985-06-15',
-        phone: '+41781234567',
         preferred_language: 'en',
       },
     });
     const memberId = (await createRes.json()).id;
 
-    // Update only phone
+    // Update only the language
     await authenticatedRequest.patch(`/api/admin/members/${memberId}`, {
-      data: { phone: '+41789999999' },
+      data: { preferred_language: 'fr' },
     });
 
-    // Verify phone changed but others preserved
+    // Verify the language changed but others preserved
     const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     const body = await getRes.json();
 
-    expect(body.phone).toBe('+41789999999');
+    expect(body.preferred_language).toBe('fr');
     expect(body.first_name).toBe('SingleField');
     expect(body.last_name).toBe('Test');
     expect(body.email).toBe('singlefield@example.com');
-    expect(body.preferred_language).toBe('en');
   });
 
   test('Updated member reflected in list', async ({ authenticatedRequest }) => {
@@ -259,7 +229,7 @@ test.describe('Admin Members Database Persistence', () => {
 
     // Update member
     const updateRes = await authenticatedRequest.patch(`/api/admin/members/${memberId}`, {
-      data: { phone: '+41789999999' },
+      data: { preferred_language: 'fr' },
     });
     const updatedBody = await updateRes.json();
 
@@ -443,7 +413,6 @@ test.describe('Admin Members Database Persistence', () => {
         last_name: 'Member',
         email: 'gdpr@example.com',
         date_of_birth: '1985-06-15',
-        phone: '+41791234567',
         preferred_language: 'en',
       },
     });
@@ -460,7 +429,6 @@ test.describe('Admin Members Database Persistence', () => {
     expect(body.first_name).toBeNull();
     expect(body.last_name).toBeNull();
     expect(body.email).toBeNull();
-    expect(body.phone).toBeNull();
     expect(body.is_active).toBe(false);
     expect(body.deleted_at).toBeDefined();
   });
@@ -473,7 +441,6 @@ test.describe('Admin Members Database Persistence', () => {
         last_name: 'Member',
         email: 'exporttest@example.com',
         date_of_birth: '1985-06-15',
-        phone: '+41798765432',
         preferred_language: 'en',
       },
     });
@@ -492,7 +459,6 @@ test.describe('Admin Members Database Persistence', () => {
     expect(exportBody.member.id).toBe(getBody.id);
     expect(exportBody.member.first_name).toBe(getBody.first_name);
     expect(exportBody.member.email).toBe(getBody.email);
-    expect(exportBody.member.phone).toBe(getBody.phone);
   });
 
   // ============================================================================
@@ -603,26 +569,4 @@ test.describe('Admin Members Database Persistence', () => {
     expect(body.email).toBe(specialEmail);
   });
 
-  test('Phone number formats persist correctly', async ({ authenticatedRequest }) => {
-    const phoneNumbers = ['+41791234567', '0041791234567', '0791234567'];
-
-    for (const phone of phoneNumbers) {
-      const createRes = await authenticatedRequest.post('/api/admin/members', {
-        data: {
-          first_name: 'PhoneTest',
-          last_name: 'Member',
-          email: `phone${Math.random()}@example.com`,
-          date_of_birth: '1985-06-15',
-          phone: phone,
-          preferred_language: 'en',
-        },
-      });
-      const memberId = (await createRes.json()).id;
-
-      const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
-      const body = await getRes.json();
-
-      expect(body.phone).toBe(phone);
-    }
-  });
 });

@@ -68,7 +68,6 @@ All personal data fields set to NULL — true anonymization, not pseudonymizatio
 | first_name | "Max" | NULL |
 | last_name | "Mustermann" | NULL |
 | email | "max@example.com" | NULL |
-| phone | "+49 170 1234567" | NULL |
 | iban | "DE89370400440532013000" | NULL |
 | account_holder_name | "Max Mustermann" | NULL |
 | mandate_reference | "ABC123..." | NULL |

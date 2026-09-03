@@ -137,25 +137,43 @@ final class PublicControllerTest extends TestCase
         ];
     }
 
-    /** The Kontoinhaber and the phone are optional, and absence is not an error. */
+    /** The Kontoinhaber is optional, and absence is not an error. */
     public function test_the_optional_fields_may_be_absent(): void
     {
         $response = $this->post($this->validBody());
 
         self::assertSame(201, $response->getStatusCode());
         self::assertNull($this->service->lastPayload['account_holder_name'] ?? null);
-        self::assertNull($this->service->lastPayload['phone'] ?? null);
     }
 
     public function test_the_optional_fields_are_passed_through_when_given(): void
     {
         $this->post($this->validBody([
             'account_holder_name' => 'Petra Brandt',
-            'phone' => '+49 69 123456',
         ]));
 
         self::assertSame('Petra Brandt', $this->service->lastPayload['account_holder_name']);
-        self::assertSame('+49 69 123456', $this->service->lastPayload['phone']);
+    }
+
+    /**
+     * A phone number is not a field this endpoint has, and a caller sending one
+     * anyway must not have it stored.
+     *
+     * It was collected here for a while and read nowhere — not on the printed
+     * Anmeldung, not in the panel after approval, not in any export — so it was
+     * dropped end to end. The controller builds an explicit payload rather than
+     * forwarding the body, which is what makes an unknown key a no-op instead
+     * of a column write; this test is what keeps that true. Accepting the
+     * request rather than refusing it is deliberate: an old cached copy of the
+     * onboarding page still posting `phone` should register the applicant, not
+     * fail in front of them.
+     */
+    public function test_a_phone_number_is_ignored_rather_than_stored(): void
+    {
+        $response = $this->post($this->validBody(['phone' => '+49 69 123456']));
+
+        self::assertSame(201, $response->getStatusCode());
+        self::assertArrayNotHasKey('phone', $this->service->lastPayload);
     }
 
     /**

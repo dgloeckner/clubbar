@@ -879,7 +879,6 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->assertNull($row['first_name']);
         $this->assertNull($row['last_name']);
         $this->assertNull($row['email']);
-        $this->assertNull($row['phone']);
         $this->assertNull($row['account_holder_name']);
     }
 

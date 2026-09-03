@@ -74,7 +74,7 @@ test.describe('Admin Members Audit Logging', () => {
     await authenticatedRequest.patch(`/api/admin/members/${memberId}`, {
       data: {
         preferred_language: 'fr',
-        phone: '+41791234567',
+        last_name: 'Corrected',
       },
     });
 
@@ -91,7 +91,7 @@ test.describe('Admin Members Audit Logging', () => {
     expect(updateEntry).toBeDefined();
     expect(updateEntry.old_values).toHaveProperty('preferred_language', 'en');
     expect(updateEntry.new_values).toHaveProperty('preferred_language', 'fr');
-    expect(updateEntry.new_values).toHaveProperty('phone', '+41791234567');
+    expect(updateEntry.new_values).toHaveProperty('last_name', 'Corrected');
   });
 
   // Test 3: IBAN Masking in Audit Logs

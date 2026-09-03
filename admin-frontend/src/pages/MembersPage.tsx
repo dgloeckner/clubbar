@@ -572,7 +572,7 @@ export function MembersPage() {
           // The IBAN is the one field where that rule inverts (#392). It cannot
           // be prefilled, so a blank input is the normal state of a save that
           // was about something else; sending null there would revoke the
-          // mandate of every member whose phone number was corrected. Blank
+          // mandate of every member whose name was corrected. Blank
           // therefore drops the key, and removing the account is its own
           // deliberate action.
           iban: removeStoredIban ? null : formData.iban || undefined,

@@ -341,7 +341,7 @@ final class MembersRepository extends BaseRepository
 
     protected function getAllowedUpdateColumns(): array
     {
-        return ['card_uid', 'first_name', 'last_name', 'email', 'phone',
+        return ['card_uid', 'first_name', 'last_name', 'email',
                 'preferred_language', 'is_active', 'iban', 'account_holder_name',
                 'mandate_reference', 'mandate_signed_at', 'deleted_at', 'deleted_by_admin_id'];
     }
@@ -402,14 +402,14 @@ final class MembersRepository extends BaseRepository
             : ($iban !== null ? str_replace('-', '', $id) : null);
 
         $stmt = $this->db->prepare(
-            'INSERT INTO members (id, card_uid, first_name, last_name, email, phone,
+            'INSERT INTO members (id, card_uid, first_name, last_name, email,
              preferred_language, is_active, iban, account_holder_name,
              mandate_reference, mandate_signed_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id, $data['card_uid'] ?? null, $data['first_name'], $data['last_name'],
-            $data['email'], $data['phone'] ?? null, $data['preferred_language'] ?? 'de',
+            $data['email'], $data['preferred_language'] ?? 'de',
             $data['is_active'] ?? true ? 1 : 0, $iban, $data['account_holder_name'] ?? null,
             $mandateReference, $data['mandate_signed_at'] ?? null, $now, $now,
         ]);
@@ -427,7 +427,7 @@ final class MembersRepository extends BaseRepository
         $now = date('Y-m-d H:i:s');
         $stmt = $this->db->prepare(
             'UPDATE members SET first_name = ?, last_name = ?, email = ?,
-             phone = NULL, iban = NULL, account_holder_name = NULL,
+             iban = NULL, account_holder_name = NULL,
              mandate_reference = NULL, card_uid = NULL, is_active = 0,
              deleted_at = ?, updated_at = ? WHERE id = ?'
         );

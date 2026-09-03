@@ -1544,7 +1544,7 @@ paths:
         **Status**: Not implemented — nice to have (2026-03-07 audit)
 
         **CSV columns** (required): first_name, last_name, email, date_of_birth
-        **CSV columns** (optional): iban, mandate_signed_at, preferred_language, phone
+        **CSV columns** (optional): iban, mandate_signed_at, preferred_language
 
         The required set tracks `MemberCreateRequest`, which this endpoint would
         have to satisfy row by row. Two corrections since it was written: `email`
@@ -6972,7 +6972,7 @@ components:
       description: >-
         An optional field left empty may be sent as `""` as well as omitted or
         `null`: a form has no way to send "absent", so a blank string is read as
-        no value for `phone`, `card_uid`, `iban`, `account_holder_name` and
+        no value for `card_uid`, `iban`, `account_holder_name` and
         `mandate_signed_at`. `mandate_reference` is the exception — a blank one
         says the member has no mandate, while an omitted one is minted from the
         member id (ADR-0006).
@@ -6997,9 +6997,6 @@ components:
             Required — the pre-notification and settlement statement emails
             are a contractual promise (Nutzungsordnung § 7), so a member
             cannot be onboarded without one (#362).
-        phone:
-          type: string
-          maxLength: 20
         preferred_language:
           type: string
           description: ISO 639-1 language code
@@ -7053,7 +7050,7 @@ components:
       description: >-
         Only the fields the request carries are changed. A field being cleared
         may be sent as `""` as well as `null` — a blank string is read as no
-        value for `phone`, `card_uid`, `account_holder_name`, `email` and
+        value for `card_uid`, `account_holder_name`, `email` and
         `mandate_signed_at`, so a form that empties an input clears the field
         rather than storing the empty string. `email` is the exception that
         does not always clear: see the field for when it is rejected instead.
@@ -7080,10 +7077,6 @@ components:
             finds) the member inactive — an active member's email cannot be
             cleared (#362); the DB column stays nullable for GDPR erasure,
             which anonymizes through a separate endpoint.
-        phone:
-          type: string
-          maxLength: 20
-          nullable: true
         credit_limit_cents:
           type: integer
           nullable: true
@@ -9446,10 +9439,6 @@ components:
           description: >
             Unverified, and nothing is sent to it. The welcome mail is earned by
             a card, not by a form (UC-A67 rule 1).
-        phone:
-          type: string
-          maxLength: 20
-          nullable: true
         date_of_birth:
           type: string
           format: date
@@ -9505,9 +9494,6 @@ components:
         email:
           type: string
           format: email
-        phone:
-          type: string
-          nullable: true
         date_of_birth:
           type: string
           format: date
@@ -9574,10 +9560,6 @@ components:
           type: string
           format: email
           maxLength: 255
-        phone:
-          type: string
-          maxLength: 20
-          nullable: true
         date_of_birth:
           type: string
           format: date

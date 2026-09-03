@@ -153,7 +153,7 @@ test.describe('Member date of birth', () => {
     const member = await created.json()
 
     const patched = await authenticatedRequest.patch(`${API_BASE}/admin/members/${member.id}`, {
-      data: { phone: '+49 170 7654321' },
+      data: { last_name: 'Corrected' },
     })
 
     expect(patched.status(), await patched.text()).toBe(200)

@@ -43,7 +43,6 @@ class AdminController
         'first_name' => ['nullable', 'string', 'max:100'],
         'last_name' => ['nullable', 'string', 'max:100'],
         'email' => ['nullable', 'email', 'max:255'],
-        'phone' => ['nullable', 'string', 'max:20'],
         'date_of_birth' => ['nullable', 'date', 'past_date'],
         'preferred_language' => ['nullable', 'string'],
         'account_holder_name' => ['nullable', 'string', 'max:70'],
@@ -57,7 +56,7 @@ class AdminController
      * store nothing — the column is NOT NULL — so it stays a validation error
      * rather than becoming a 500 from MariaDB.
      */
-    private const BLANK_MEANS_NULL = ['phone', 'account_holder_name'];
+    private const BLANK_MEANS_NULL = ['account_holder_name'];
 
     public function __construct(
         private RegistrationReviewService $registrations,

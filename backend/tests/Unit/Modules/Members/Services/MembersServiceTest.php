@@ -111,7 +111,6 @@ class MembersServiceTest extends TestCase
             'first_name' => 'Max',
             'last_name' => 'Mustermann',
             'email' => 'max@example.com',
-            'phone' => '+491234567',
             'card_uid' => 'CARD-1',
             'preferred_language' => 'de',
             'is_active' => 1,
@@ -201,7 +200,6 @@ class MembersServiceTest extends TestCase
             firstName: 'Ada',
             lastName: 'Lovelace',
             email: 'ada@example.org',
-            phone: null,
             cardUid: null,
             language: \App\Modules\Members\Enums\SupportedLanguage::from('de'),
             dateOfBirth: '1990-05-04',
@@ -476,7 +474,6 @@ class MembersServiceTest extends TestCase
             'first_name' => null,
             'last_name' => null,
             'email' => null,
-            'phone' => null,
             'card_uid' => 'ANON-abc123',
             'account_holder_name' => null,
             'is_active' => 0,
@@ -561,7 +558,7 @@ class MembersServiceTest extends TestCase
                 null,
                 $this->callback(function (?array $newValues): bool {
                     // Only the anonymization timestamp is logged — no name, email,
-                    // phone, iban, or any other PII may leak into the audit trail.
+                    // iban, or any other PII may leak into the audit trail.
                     return $newValues === ['deleted_at' => '2026-08-08 12:00:00'];
                 }),
                 'admin-1',

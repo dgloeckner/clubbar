@@ -66,7 +66,6 @@
       'form.iban': 'IBAN',
       'form.ibanHint': 'Von der Karte oder aus deiner Banking-App.',
       'form.optional': 'Weitere Angaben (optional)',
-      'form.phone': 'Telefon',
       'form.accountHolder': 'Kontoinhaber, falls abweichend',
       'form.accountHolderHint': 'Nur wenn jemand anderes das Mandat unterschreibt.',
       'form.review': 'Weiter zur Übersicht',
@@ -106,7 +105,6 @@
       'summary.dateOfBirth': 'Geburtsdatum',
       'summary.email': 'E-Mail',
       'summary.iban': 'IBAN',
-      'summary.phone': 'Telefon',
       'summary.accountHolder': 'Kontoinhaber',
       datePlaceholder: 'TT.MM.JJJJ',
     },
@@ -131,7 +129,6 @@
       'form.iban': 'IBAN',
       'form.ibanHint': 'From your card or your banking app.',
       'form.optional': 'More details (optional)',
-      'form.phone': 'Phone',
       'form.accountHolder': 'Account holder, if different',
       'form.accountHolderHint': 'Only if somebody else signs the mandate.',
       'form.review': 'Continue to review',
@@ -171,7 +168,6 @@
       'summary.dateOfBirth': 'Date of birth',
       'summary.email': 'Email',
       'summary.iban': 'IBAN',
-      'summary.phone': 'Phone',
       'summary.accountHolder': 'Account holder',
       datePlaceholder: 'DD.MM.YYYY',
     },
@@ -502,7 +498,6 @@
       last_name: $('last_name').value.trim(),
       email: $('email').value.trim(),
       iban: $('iban').value.replace(/\s+/g, '').toUpperCase(),
-      phone: $('phone').value.trim(),
       account_holder_name: $('account_holder_name').value.trim(),
       website: $('website').value,
     }
@@ -560,7 +555,6 @@
       ['summary.email', values.email],
       ['summary.iban', groupIban(values.iban)],
     ]
-    if (values.phone !== '') rows.push(['summary.phone', values.phone])
     if (values.account_holder_name !== '') rows.push(['summary.accountHolder', values.account_holder_name])
 
     var list = $('review-summary')
@@ -697,7 +691,6 @@
       iban: draft.iban,
       website: draft.website,
     }
-    if (draft.phone !== '') payload.phone = draft.phone
     if (draft.account_holder_name !== '') payload.account_holder_name = draft.account_holder_name
 
     post(API, payload)

@@ -182,7 +182,6 @@ class RegistrationsService
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
             'email' => $data['email'],
-            'phone' => $data['phone'] ?? null,
             'date_of_birth' => $data['date_of_birth'],
             'preferred_language' => $data['preferred_language'],
             'account_holder_name' => $data['account_holder_name'] ?? null,

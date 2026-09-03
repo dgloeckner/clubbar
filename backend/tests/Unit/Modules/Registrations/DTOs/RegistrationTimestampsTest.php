@@ -26,7 +26,6 @@ class RegistrationTimestampsTest extends TestCase
             'first_name' => 'Lena',
             'last_name' => 'Brandt',
             'email' => 'lena@example.org',
-            'phone' => null,
             'date_of_birth' => '1998-04-02',
             'preferred_language' => 'de',
             'account_holder_name' => null,

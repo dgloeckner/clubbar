@@ -78,7 +78,7 @@ class MemberCreditLimitHttpTest extends HttpTestCase
     {
         $id = $this->createMember(['credit_limit_cents' => 5_000]);
 
-        $response = $this->patch($id, ['phone' => '+49 170 1234567']);
+        $response = $this->patch($id, ['first_name' => 'Magdalena']);
 
         $this->assertSame(200, $response->getStatusCode(), (string) $response->getBody());
         $this->assertSame(5_000, (int) $this->storedOverride($id));

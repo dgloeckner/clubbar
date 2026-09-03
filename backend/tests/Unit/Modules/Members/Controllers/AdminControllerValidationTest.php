@@ -19,8 +19,8 @@ use Slim\Psr7\Response;
 /**
  * Member field validation on create and update (issue #117).
  *
- * `phone`, `email`, `mandate_reference` and `mandate_signed_at` carried no
- * length or format rule, so an over-long value or a malformed date reached
+ * `email`, `mandate_reference` and `mandate_signed_at` carried no length or
+ * format rule, so an over-long value or a malformed date reached
  * MariaDB in strict mode and returned a PDOException — a 500 that named
  * nothing. Update was worse: it checked three fields in three separate passes
  * and left the other seven unchecked entirely.
@@ -87,7 +87,6 @@ class AdminControllerValidationTest extends TestCase
     public static function overlongOrMalformedFields(): array
     {
         return [
-            'phone past VARCHAR(20)' => ['phone', str_repeat('9', 21)],
             'email past VARCHAR(255)' => ['email', str_repeat('a', 250) . '@example.org'],
             'mandate_reference past VARCHAR(35)' => ['mandate_reference', str_repeat('R', 36)],
             'mandate_signed_at as prose' => ['mandate_signed_at', 'next tuesday'],
@@ -178,7 +177,6 @@ class AdminControllerValidationTest extends TestCase
             ->willReturn($this->member());
 
         $response = $this->controller->store($this->post(self::validBody([
-            'phone' => '+49 170 1234567',
             'mandate_reference' => 'MANDATE-0001',
             'mandate_signed_at' => '2026-01-15',
         ])), new Response());
@@ -194,11 +192,11 @@ class AdminControllerValidationTest extends TestCase
     {
         $this->membersService->expects($this->once())
             ->method('updateMember')
-            ->with('m-1', ['phone' => '+49 170 1234567'], 'admin-1')
+            ->with('m-1', ['first_name' => 'Magdalena'], 'admin-1')
             ->willReturn($this->member());
 
         $response = $this->controller->update(
-            $this->patch(['phone' => '+49 170 1234567']),
+            $this->patch(['first_name' => 'Magdalena']),
             new Response(),
             ['memberId' => 'm-1'],
         );
@@ -209,7 +207,7 @@ class AdminControllerValidationTest extends TestCase
     public function test_update_reports_every_offending_field_at_once(): void
     {
         $response = $this->controller->update(
-            $this->patch(['phone' => str_repeat('9', 21), 'mandate_signed_at' => 'whenever']),
+            $this->patch(['first_name' => str_repeat('A', 101), 'mandate_signed_at' => 'whenever']),
             new Response(),
             ['memberId' => 'm-1'],
         );
@@ -217,7 +215,7 @@ class AdminControllerValidationTest extends TestCase
         $this->assertSame(422, $response->getStatusCode());
 
         $messages = $this->decode($response)['messages'];
-        $this->assertArrayHasKey('phone', $messages);
+        $this->assertArrayHasKey('first_name', $messages);
         $this->assertArrayHasKey('mandate_signed_at', $messages);
     }
 
@@ -228,7 +226,6 @@ class AdminControllerValidationTest extends TestCase
         // arrives blank on every save that did not retype it. Blank means "keep"
         // there — see the overwrite-only tests below.
         return [
-            'phone' => ['phone'],
             'card_uid' => ['card_uid'],
             'account_holder_name' => ['account_holder_name'],
             'mandate_signed_at' => ['mandate_signed_at'],
@@ -271,7 +268,6 @@ class AdminControllerValidationTest extends TestCase
                 'Ada',
                 'Lovelace',
                 'ada@example.org',
-                $this->identicalTo(null),
                 $this->identicalTo(null),
                 $this->anything(),
                 $this->identicalTo(null),
@@ -323,7 +319,6 @@ class AdminControllerValidationTest extends TestCase
                 $this->anything(),
                 $this->anything(),
                 $this->anything(),
-                $this->anything(),
                 $this->identicalTo(''),
                 $this->anything(),
                 $this->anything(),
@@ -363,13 +358,13 @@ class AdminControllerValidationTest extends TestCase
             ->method('updateMember')
             ->with(
                 'm-1',
-                $this->callback(fn (array $data) => !array_key_exists('iban', $data) && $data['phone'] === '+49 170 1234567'),
+                $this->callback(fn (array $data) => !array_key_exists('iban', $data) && $data['first_name'] === 'Magdalena'),
                 'admin-1',
             )
             ->willReturn($this->member());
 
         $response = $this->controller->update(
-            $this->patch(['iban' => '', 'phone' => '+49 170 1234567']),
+            $this->patch(['iban' => '', 'first_name' => 'Magdalena']),
             new Response(),
             ['memberId' => 'm-1'],
         );

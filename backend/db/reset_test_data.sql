@@ -337,14 +337,13 @@ VALUES (
 -- DE02120300000000202051 - Another valid format
 
 -- Member 1: Hans Müller (active rower)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555551-5555-5555-5555-555555555551',
     '0003195661',
     'Hans',
     'Müller',
     'hans.mueller@example.de',
-    '+49 170 1234567',
     '1978-03-14',  -- 40s
     'de',
     'Hans Müller',
@@ -354,14 +353,13 @@ VALUES (
 );
 
 -- Member 2: Maria Schmidt (team captain)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555552-5555-5555-5555-555555555552',
     '0013466849',
     'Maria',
     'Schmidt',
     'maria.schmidt@example.de',
-    '+49 171 2345678',
     '1985-07-22',  -- 40
     'de',
     'Maria Schmidt',
@@ -371,14 +369,13 @@ VALUES (
 );
 
 -- Member 3: Thomas Weber (English preferred)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555553-5555-5555-5555-555555555553',
     'CARD003',
     'Thomas',
     'Weber',
     'thomas.weber@example.de',
-    '+49 172 3456789',
     '1992-11-02',  -- 30s
     'en',
     'Thomas Weber',
@@ -388,14 +385,13 @@ VALUES (
 );
 
 -- Member 4: Anna Fischer (sauna enthusiast)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555554-5555-5555-5555-555555555554',
     'CARD004',
     'Anna',
     'Fischer',
     'anna.fischer@example.de',
-    '+49 173 4567890',
     '1969-01-30',  -- 50s
     'de',
     'Anna Fischer',
@@ -405,14 +401,13 @@ VALUES (
 );
 
 -- Member 5: Michael Bauer (veteran rower)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555555-5555-5555-5555-555555555555',
     'CARD005',
     'Michael',
     'Bauer',
     'michael.bauer@example.de',
-    '+49 174 5678901',
     '1955-09-08',  -- 70
     'de',
     'Michael Bauer',
@@ -422,14 +417,13 @@ VALUES (
 );
 
 -- Member 6: Sabine Klein (new member)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555556-5555-5555-5555-555555555556',
     'CARD006',
     'Sabine',
     'Klein',
     'sabine.klein@example.de',
-    '+49 175 6789012',
     (CURDATE() - INTERVAL 15 YEAR),  -- under 16 -- Jugendschutz fixture
     'de',
     'Sabine Klein',
@@ -439,14 +433,13 @@ VALUES (
 );
 
 -- Member 7: Peter Hoffmann (board member)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555557-5555-5555-5555-555555555557',
     'CARD007',
     'Peter',
     'Hoffmann',
     'peter.hoffmann@example.de',
-    '+49 176 7890123',
     '1974-05-19',  -- 50s
     'de',
     'Peter Hoffmann',
@@ -456,14 +449,13 @@ VALUES (
 );
 
 -- Member 8: Julia Wagner (youth coach)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, date_of_birth, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555558-5555-5555-5555-555555555558',
     'CARD008',
     'Julia',
     'Wagner',
     'julia.wagner@example.de',
-    '+49 177 8901234',
     (CURDATE() - INTERVAL 17 YEAR),  -- 16 or 17 -- Jugendschutz fixture
     'de',
     'Julia Wagner',

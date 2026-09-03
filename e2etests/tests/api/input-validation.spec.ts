@@ -33,7 +33,6 @@ const uniqueMemberBody = (overrides: Record<string, unknown> = {}) => {
 
 test.describe('Member field validation', () => {
   const rejected: Array<{ label: string; field: string; value: string }> = [
-    { label: 'a phone number past VARCHAR(20)', field: 'phone', value: '9'.repeat(21) },
     { label: 'an email past VARCHAR(255)', field: 'email', value: `${'a'.repeat(250)}@example.com` },
     { label: 'a mandate reference past VARCHAR(35)', field: 'mandate_reference', value: 'R'.repeat(36) },
     { label: 'a mandate date written as prose', field: 'mandate_signed_at', value: 'next tuesday' },
@@ -80,8 +79,11 @@ test.describe('Member field validation', () => {
   test('a body that fits every column is still accepted and persisted', async ({
     authenticatedRequest,
   }) => {
+    // With an IBAN, so the mandate the signature date lives on actually
+    // exists: `mandate_signed_at` is a `mandates` column, and a member created
+    // without bank details has no row for it to persist into.
     const body = uniqueMemberBody({
-      phone: '+49 170 1234567',
+      iban: 'DE89370400440532013000',
       mandate_signed_at: '2026-01-15',
     })
 
@@ -92,7 +94,7 @@ test.describe('Member field validation', () => {
     const fetched = await authenticatedRequest.get(`${API_BASE}/admin/members/${member.id}`)
 
     expect(fetched.status()).toBe(200)
-    expect((await fetched.json()).phone).toBe('+49 170 1234567')
+    expect((await fetched.json()).mandate_signed_at).toBe('2026-01-15')
   })
 })
 

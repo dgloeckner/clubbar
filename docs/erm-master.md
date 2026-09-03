@@ -14,7 +14,6 @@ erDiagram
         varchar_100 first_name "First name (nullable for GDPR)"
         varchar_100 last_name "Last name (nullable for GDPR)"
         varchar_255 email "Contact email"
-        varchar_20 phone "Contact phone number"
         date date_of_birth "Jugendschutz (ADR-0045); NULL = anonymized"
         varchar_70 account_holder_name "If different from member (still on members)"
         varchar_10 preferred_language "ISO 639-1 (e.g., 'de', 'en')"
@@ -95,7 +94,6 @@ erDiagram
         varchar_100 first_name "NOT NULL; never anonymised, only deleted"
         varchar_100 last_name "NOT NULL"
         varchar_255 email "NOT NULL; unverified"
-        varchar_20 phone "Optional"
         date date_of_birth "NOT NULL; Jugendschutz + minor signature line"
         varchar_10 preferred_language "ISO 639-1"
         varchar_70 account_holder_name "Kontoinhaber case (nullable)"
@@ -348,7 +346,6 @@ Stores all organization members with payment information.
 | first_name | VARCHAR(100) | NULL | First name (nullable for GDPR anonymization) |
 | last_name | VARCHAR(100) | NULL | Last name (nullable for GDPR anonymization) |
 | email | VARCHAR(255) | NULL | Contact email address |
-| phone | VARCHAR(20) | NULL | Contact phone number |
 | date_of_birth | DATE | NULL | Date of birth, for the Jugendschutz check ([ADR-0045](../adr/0045-age-restricted-products.md)). **Required when a member is created** and on any write that names it — the column is nullable only so that erasure can empty it, so NULL means *anonymized*, never *unknown*. Synced to terminals as the **raw date**, never an age in years: an age is wrong from the member's next birthday until the kiosk next reaches the server |
 | account_holder_name | VARCHAR(70) | NULL | Still on `members` — only banking fields moved to `mandates` ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md), amended) |
 | preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code for product display |
@@ -382,7 +379,7 @@ Stores all organization members with payment information.
 
 | Deleted | Retained (restricted) |
 |---|---|
-| `first_name`, `last_name`, `email`, `phone` | Per-transaction records incl. the member link |
+| `first_name`, `last_name`, `email` | Per-transaction records incl. the member link |
 | `date_of_birth`, `account_holder_name`, `collection_hold_reason` | `mandates` rows: reference, IBAN, signature date |
 | `card_uid`, credentials, sessions | Settlement, payment, return and reversal records |
 | Postal address ⚠️ *(deletable only while the club issues no invoices)* | `preferred_language` — a display setting, not personal data, and `NOT NULL` |
@@ -503,7 +500,6 @@ owner's confirmation of this schema first.
 | first_name | VARCHAR(100) | NOT NULL | First name, as submitted. **NOT NULL is the opposite of `members.first_name`**, which is nullable only so GDPR erasure can empty it in place. Nothing here is ever anonymised: the whole row is deleted at approval, rejection or TTL purge, so there is nothing to empty (ADR-0052 decision 10) |
 | last_name | VARCHAR(100) | NOT NULL | Last name, as submitted — same NOT NULL reasoning as `first_name` |
 | email | VARCHAR(255) | NOT NULL | Contact email, as submitted. Unverified — no confirmation mail is sent at submission (ADR-0052 decision 9) — and a match against an existing member is disclosed only at admin review, never at submission (no enumeration) |
-| phone | VARCHAR(20) | NULL | Contact phone number, as submitted |
 | date_of_birth | DATE | NOT NULL | Date of birth. Drives the Jugendschutz check once the member exists ([ADR-0045](../adr/0045-age-restricted-products.md)), and the legal-representative signature line the printed mandate carries when the applicant is a minor (ADR-0052 decision 7) |
 | preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code; carried into `members.preferred_language` unchanged at approval |
 | account_holder_name | VARCHAR(70) | NULL | The Kontoinhaber case — set when whoever signs the mandate is not the applicant, e.g. a parent paying for a child. When set, the printed mandate's signature block names the account holder, not the member (ADR-0052 decision 7). No separate Kontoinhaber entity is modelled; a name is all the payment needs |
@@ -1286,7 +1282,6 @@ When a member requests deletion (GDPR Art. 17):
 | first_name | "Max" | NULL |
 | last_name | "Mustermann" | NULL |
 | email | "max@example.com" | NULL |
-| phone | "+49 170 ..." | NULL |
 | date_of_birth | "2009-03-04" | NULL |
 | account_holder_name | "Erika Mustermann" | NULL |
 | collection_hold_reason | "Rücklastschrift 03/2026" | NULL |

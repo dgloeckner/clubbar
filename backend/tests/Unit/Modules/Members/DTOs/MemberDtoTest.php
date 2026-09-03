@@ -81,7 +81,7 @@ class MemberDtoTest extends TestCase
             'updated_at',
         ], $this->sortedKeys($payload));
 
-        foreach (['email', 'phone', 'iban', 'iban_last4', 'mandate_reference', 'balance_cents', 'account_holder_name'] as $withheld) {
+        foreach (['email', 'iban', 'iban_last4', 'mandate_reference', 'balance_cents', 'account_holder_name'] as $withheld) {
             $this->assertArrayNotHasKey($withheld, $payload, "{$withheld} must not reach a terminal");
         }
     }

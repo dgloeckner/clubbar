@@ -40,7 +40,6 @@ test.describe('Admin Members List Endpoint', () => {
     expect(member.first_name).toBeDefined();
     expect(member.last_name).toBeDefined();
     expect(member.email).toBeDefined();
-    expect(member.phone).toBeDefined();
     expect(member.preferred_language).toBeDefined();
     expect(member.is_active).toBeDefined();
     expect(member.is_sepa_valid).toBeDefined();

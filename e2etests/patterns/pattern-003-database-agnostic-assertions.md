@@ -274,7 +274,7 @@ test('filter audit log by date range', async ({ authenticatedRequest }) => {
 
   // Create audit entry by modifying member
   await authenticatedRequest.patch(`/api/admin/members/${member.id}`, {
-    data: { phone: '+41791234567' }
+    data: { last_name: 'Corrected' }
   });
 
   // Query audit log for today
