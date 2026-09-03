@@ -179,6 +179,51 @@ test.describe('Package: Install Wizard', () => {
     expect(await step4.text()).toContain('Install Key Required');
   });
 
+  /**
+   * Step 2 refuses a zone it cannot resolve, and says so (#365).
+   *
+   * This is the one screen in the system that turns a bad zone name into a
+   * sentence a human reads. Everywhere else the fallback is deliberately
+   * silent — a mail that throws in the builder reaches nobody — so if this
+   * refusal ever went quiet, `Europe/Berlim` would cost a club a year of
+   * books stated an hour out with nothing anywhere saying so.
+   *
+   * Nothing is written by a refused step, so this leaves the installation
+   * exactly where it found it: at completed_step 0, for the test below.
+   */
+  test('step 2 refuses a time zone the zone database does not know', async ({ request }) => {
+    await request.post(`${PACKAGE_URL}/install.php`, { form: { install_key: CI_INSTALL_KEY } });
+
+    const refused = await request.post(`${PACKAGE_URL}/install.php?step=2`, {
+      form: {
+        step: '2',
+        db_host: 'database',
+        db_port: '3306',
+        db_name: 'clubbar',
+        db_user: 'clubbar',
+        db_pass: 'clubbar',
+        app_timezone: 'Europe/Berlim',
+      },
+      maxRedirects: 0,
+    });
+
+    expect(refused.status(), 'a misspelled zone must not advance the wizard').toBe(200);
+    expect(await refused.text()).toContain('choose the time zone');
+
+    // The refusal is a refusal: nothing was written behind it. Asked through
+    // the same resolver the installer uses, because where `config.php` belongs
+    // is a decision this host makes (ADR-0031 decision 2), not a fixed path.
+    expect(
+      inPackageContainer(
+        [
+          'require "/app/backend/vendor/autoload.php";',
+          'echo is_file(App\\Shared\\Config\\DataDirectory::configPath("/app")) ? "yes" : "no";',
+        ].join('\n')
+      ),
+      'a refused step 2 wrote a config.php'
+    ).toBe('no');
+  });
+
   test('install wizard completes via POST steps', async ({ request }) => {
     // Enter install key — sets session cookie on this request context
     const keyResponse = await request.post(`${PACKAGE_URL}/install.php`, {
@@ -188,7 +233,15 @@ test.describe('Package: Install Wizard', () => {
     const html = await keyResponse.text();
     expect(html).toContain('Prerequisites');
 
-    // Step 2: DB credentials
+    // Step 2: DB credentials and the club's clock.
+    //
+    // `app_timezone` is required since #365 — the wizard's own select always
+    // sends it, so a POST harness that omits it is not simulating a browser,
+    // it is exercising a path no club can reach. Vienna rather than the
+    // pre-selected Europe/Berlin so the assertion below can tell "what the
+    // club chose" apart from "what the application falls back to"; the two
+    // zones share every offset and every DST transition, so nothing else in
+    // this suite can see the difference.
     const step2 = await request.post(`${PACKAGE_URL}/install.php?step=2`, {
       form: {
         step: '2',
@@ -197,11 +250,24 @@ test.describe('Package: Install Wizard', () => {
         db_name: 'clubbar',
         db_user: 'clubbar',
         db_pass: 'clubbar',
+        app_timezone: 'Europe/Vienna',
       },
       maxRedirects: 0,
     });
     expect(step2.status()).toBe(302);
     expect(step2.headers()['location']).toContain('step=3');
+
+    // The zone the club chose is what landed in config.php — stated, not
+    // inferred, and not the fallback that happens to agree with it.
+    expect(
+      inPackageContainer(
+        [
+          'require "/app/backend/vendor/autoload.php";',
+          '$config = require App\\Shared\\Config\\DataDirectory::configPath("/app");',
+          'echo $config["app"]["timezone"] ?? "";',
+        ].join('\n')
+      )
+    ).toBe('Europe/Vienna');
 
     // Step 3: Migrations.
     //
