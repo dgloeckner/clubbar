@@ -298,6 +298,7 @@ export function MembersPage() {
     removalPending: removeStoredIban,
     typedIban: formData.iban,
     mandateReference: formData.mandate_reference,
+    mandateSignedAt: formData.mandate_signed_at,
   })
 
   /** Clears the banking fields' opt-in states — every path that opens or closes the form. */
@@ -2077,11 +2078,17 @@ export function MembersPage() {
                 error={formErrors.mandate_reference}
               />
 
+              {/* Not "SEPA, optional", which is what it said while the export
+                  quietly filled `DtOfSgntr` with the settlement date when this
+                  was blank. The date the member signed is the third part of a
+                  mandate (ADR-0020, #164): without it there is no collection,
+                  and the marker has to say so rather than understate the field
+                  the way the two above it do not. */}
               <div>
                 <FieldLabel
                   label={t('members.mandateSignedAt')}
-                  requirement="optional"
-                  optionalNote={`${t('common.sepa')}, ${t('common.optional')}`}
+                  requirement="conditional"
+                  unlocks={t('common.requiredForSepa')}
                   testId="members-form-mandate-date-label"
                 />
                 <div ref={registerField('mandate_signed_at')}>

@@ -17,6 +17,7 @@ use App\Modules\Notifications\Services\AdminNotifier;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\NotFoundException;
+use App\Modules\Members\Domain\MandateCompleteness;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Shared\Logging\Logger;
@@ -624,8 +625,12 @@ class TransactionsService
         }
     }
 
+    /**
+     * One definition, shared (ADR-0020, #164) — including the signature date,
+     * which this used to leave out. {@see MandateCompleteness}.
+     */
     private function hasActiveMandate(array $member): bool
     {
-        return !empty($member['mandate_reference']) && !empty($member['has_iban']);
+        return MandateCompleteness::isComplete($member);
     }
 }

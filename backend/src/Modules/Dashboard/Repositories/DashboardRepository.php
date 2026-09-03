@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Dashboard\Repositories;
 
+use App\Modules\Members\Domain\MandateCompleteness;
 use App\Shared\Time\ClubLocalSql;
 use App\Shared\Time\ClubTimeZone;
 use PDO;
@@ -85,14 +86,21 @@ class DashboardRepository
      * Members with no mandate in force.
      *
      * Banking data moved to the append-only `mandates` record (#164), so
-     * "missing SEPA data" is now "no mandate row points at this member".
+     * "missing SEPA data" is now "no mandate row points at this member" — and,
+     * since that record's `signed_at` is nullable, no signature date either.
+     * The predicate comes from {@see MandateCompleteness} rather than being
+     * spelled out here: this method is exactly the kind of place ADR-0020
+     * records drifting last time, when the dashboard read
+     * `iban IS NULL OR mandate_reference IS NULL` while every other caller used
+     * `empty()` and a member with `iban = ''` was counted as fine here and
+     * broken everywhere else.
      */
     public function countMembersWithoutMandate(): int
     {
         return (int) $this->db->query(
             'SELECT COUNT(*) FROM members m
               LEFT JOIN mandates md ON md.active_member_id = m.id
-              WHERE md.id IS NULL AND m.deleted_at IS NULL'
+              WHERE ' . MandateCompleteness::SQL_INCOMPLETE . ' AND m.deleted_at IS NULL'
         )->fetchColumn();
     }
 

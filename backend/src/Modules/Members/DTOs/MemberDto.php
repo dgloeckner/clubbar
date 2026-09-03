@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Members\DTOs;
 
+use App\Modules\Members\Domain\MandateCompleteness;
+
 /**
  * A member as an offline terminal sees them.
  *
@@ -41,7 +43,7 @@ final readonly class MemberDto
             preferredLanguage: $row['preferred_language'],
             creditLimitCents: isset($row['credit_limit_cents']) ? (int) $row['credit_limit_cents'] : null,
             isActive: (bool) $row['is_active'],
-            isSepaValid: !empty($row['has_iban']) && !empty($row['mandate_reference']),
+            isSepaValid: MandateCompleteness::isComplete($row),
             deletedAt: $row['deleted_at'] ?? null,
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],

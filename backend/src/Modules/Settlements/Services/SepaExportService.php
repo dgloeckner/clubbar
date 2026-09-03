@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Services;
 
+use App\Modules\Members\Domain\MandateCompleteness;
 use App\Modules\Settlements\Domain\EndToEndId;
 use App\Modules\Settlements\Domain\SettlementReference;
 use App\Modules\Settlements\DTOs\ExcludedMemberDto;
@@ -245,12 +246,36 @@ class SepaExportService
             // The mandate is read again here, not trusted from settlement
             // creation: it can be revoked or its IBAN cleared in between, and
             // a direct debit without a live mandate is one the bank returns.
-            if (empty($member['has_iban']) || empty($member['mandate_reference'])) {
+            //
+            // All three parts are asked for, through the one predicate that
+            // defines them (ADR-0020, #164) rather than a conjunction spelled
+            // out again here — this loop used to hold one of the five copies
+            // that had drifted, and the part it had dropped was the signature
+            // date. That omission was not cosmetic: `debtorMandateSignDate`
+            // fell back to `$settlement['settlement_date']`, writing the day
+            // the treasurer pressed *export* into the bank file as the day the
+            // member signed. #164 §3 answers whether it may ever fall back
+            // with "never", because the alternative is asserting a mandate to
+            // a bank on a member's behalf that the member never gave — and a
+            // collection made without a valid mandate is not an authorised
+            // direct debit at all. It is reclaimable for **13 months**
+            // (§ 676b Abs. 2 BGB, ADR-0028 §3), not the eight weeks the
+            // reversal model is built around.
+            //
+            // Deferring the collection costs the club a month; inventing the
+            // date costs it the defence. The reason names which of the two
+            // remedies applies, because they are not the same size: a missing
+            // date is one field typed off a signed form, while missing bank
+            // details are a member to chase.
+            $missingMandateParts = MandateCompleteness::missingParts($member);
+            if ($missingMandateParts !== []) {
                 $excludedMembers[] = ExcludedMemberDto::fromMember(
                     $entry['member_id'],
                     $member,
                     $amountCents,
-                    SepaExclusionReason::NO_ACTIVE_MANDATE,
+                    $missingMandateParts === ['mandate_signed_at']
+                        ? SepaExclusionReason::NO_MANDATE_DATE
+                        : SepaExclusionReason::NO_ACTIVE_MANDATE,
                 );
                 continue;
             }
@@ -271,7 +296,10 @@ class SepaExportService
                     // yields <DbtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id>.
                     'debtorName' => $this->sanitizeName($member['account_holder_name'] ?? ($member['first_name'] . ' ' . $member['last_name'])),
                     'debtorMandate' => $member['mandate_reference'],
-                    'debtorMandateSignDate' => $member['mandate_signed_at'] ?? $settlement['settlement_date'],
+                    // No `??`: the gate above refuses a member without a
+                    // signature date, so no branch remains that could invent
+                    // one (#164 §3).
+                    'debtorMandateSignDate' => $member['mandate_signed_at'],
                     'remittanceInformation' => $this->buildRemittanceInfo($config, $settlement, $reference),
                 ]
             );

@@ -62,6 +62,9 @@ class TransactionsServiceTest extends TestCase
             'has_iban' => 1,
             'iban_last4' => '3000',
             'mandate_reference' => 'MANDATE-' . $id,
+            // A mandate is reference + IBAN + signature date (ADR-0020, #164);
+            // this helper's name promises all three.
+            'mandate_signed_at' => '2025-01-15',
         ];
     }
 

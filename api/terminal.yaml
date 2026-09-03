@@ -935,7 +935,10 @@ components:
           description: |
             Indicates whether the member has an active SEPA mandate.
             Banking data lives in the append-only `mandates` table (not on the member
-            record); this is true when the member has an active mandate there.
+            record); this is true when the member has an active mandate there —
+            one carrying an IBAN, a reference and the date the member signed.
+            All three are required: a mandate with no signature date cannot be
+            collected against, so it does not count as active here either.
             If false, terminal should reject member with "SEPA mandate missing" message.
             See [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md).
         deleted_at:

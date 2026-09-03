@@ -143,6 +143,10 @@ class SettlementsServiceTest extends TestCase
             'has_iban' => empty($iban) ? 0 : 1,
             'iban_last4' => empty($iban) ? null : substr(str_replace(' ', '', $iban), -4),
             'mandate_reference' => 'F3332CA866B249E7A202BFBF4836B605',
+            // The third part of a mandate (ADR-0020, #164): a member who
+            // never signed has nothing to collect against, so the default
+            // fixture — an ordinary, collectable member — carries a date.
+            'mandate_signed_at' => '2025-01-15',
             'is_active' => 1,
         ], $overrides);
     }

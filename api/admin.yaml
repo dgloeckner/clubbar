@@ -6548,7 +6548,11 @@ components:
           type: boolean
         is_sepa_valid:
           type: boolean
-          description: Whether member has valid IBAN and mandate_reference
+          description: >-
+            Whether the member holds a complete mandate — IBAN, reference and
+            the date they signed. All three are required (ADR-0020); a mandate
+            without a signature date cannot be collected against, because there
+            is nothing truthful to put in the pain.008 `DtOfSgntr`.
         has_date_of_birth:
           type: boolean
           description: >-

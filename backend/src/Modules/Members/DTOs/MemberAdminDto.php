@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Members\DTOs;
 
+use App\Modules\Members\Domain\MandateCompleteness;
+
 final readonly class MemberAdminDto
 {
     public function __construct(
@@ -55,7 +57,7 @@ final readonly class MemberAdminDto
             // two different answers (ADR-0047 decision 3).
             creditLimitCents: isset($row['credit_limit_cents']) ? (int) $row['credit_limit_cents'] : null,
             isActive: (bool) $row['is_active'],
-            isSepaValid: !empty($row['has_iban']) && !empty($row['mandate_reference']),
+            isSepaValid: MandateCompleteness::isComplete($row),
             ibanMasked: $last4 ? '****' . $last4 : null,
             ibanLast4: $last4,
             accountHolderName: $row['account_holder_name'] ?? null,

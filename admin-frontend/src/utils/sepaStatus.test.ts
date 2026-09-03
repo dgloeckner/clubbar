@@ -12,6 +12,7 @@ function base(overrides: Partial<SepaFormStatusInput> = {}): SepaFormStatusInput
     removalPending: false,
     typedIban: '',
     mandateReference: 'MREF123',
+    mandateSignedAt: '2025-01-15',
     ...overrides,
   }
 }
@@ -27,6 +28,51 @@ describe('deriveSepaFormStatus', () => {
         base({ savedIsValid: false, hasStoredIban: false, mandateReference: '' })
       )
     ).toBe('missing')
+  })
+
+  describe('the signature date (ADR-0020, #164)', () => {
+    it('does not call a mandate valid while the date is empty', () => {
+      // What the screen used to show: "SEPA-Mandat gültig" above an empty
+      // Mandatsdatum, on a member the export would then collect from under an
+      // invented DtOfSgntr.
+      expect(deriveSepaFormStatus(base({ mandateSignedAt: '' }))).toBe('willBecomeInvalid')
+    })
+
+    it('previews the revocation when the admin clears a stored date', () => {
+      // The same warning removing the account gets, because it costs the same
+      // thing: a member the club can no longer collect from.
+      expect(
+        deriveSepaFormStatus(base({ savedIsValid: true, mandateSignedAt: '   ' }))
+      ).toBe('willBecomeInvalid')
+    })
+
+    it('does not promise validity for a typed IBAN with no signature date', () => {
+      expect(
+        deriveSepaFormStatus(
+          base({
+            savedIsValid: false,
+            hasStoredIban: false,
+            typedIban: VALID_IBAN,
+            mandateReference: '',
+            mandateSignedAt: '',
+          })
+        )
+      ).toBe('missing')
+    })
+
+    it('promises validity once the IBAN and the date are both there', () => {
+      expect(
+        deriveSepaFormStatus(
+          base({
+            savedIsValid: false,
+            hasStoredIban: false,
+            typedIban: VALID_IBAN,
+            mandateReference: '',
+            mandateSignedAt: '2026-02-01',
+          })
+        )
+      ).toBe('willBecomeValid')
+    })
   })
 
   describe('pending removal', () => {

@@ -29,12 +29,25 @@ enum SepaExclusionReason: string
     /** The member was deleted (GDPR erasure, offboarding) after the run was created. */
     case MEMBER_DELETED = 'member_deleted';
 
+    /**
+     * The mandate has an IBAN and a reference but no signature date, so there
+     * is nothing truthful to put in `DtOfSgntr`.
+     *
+     * Its own case rather than a shade of {@see self::NO_ACTIVE_MANDATE},
+     * because the remedy is different and much smaller: the bank details are
+     * already there and correct, and somebody has to read a date off a signed
+     * form and type it in. Told "no active SEPA mandate", a treasurer goes
+     * looking for a missing IBAN they will not find.
+     */
+    case NO_MANDATE_DATE = 'no_mandate_date';
+
     public function label(): string
     {
         return match ($this) {
             self::CREDIT_BALANCE => 'In credit — the club owes this member money',
             self::NO_ACTIVE_MANDATE => 'No active SEPA mandate at export time',
             self::MEMBER_DELETED => 'Member record was deleted after the settlement was created',
+            self::NO_MANDATE_DATE => 'Mandate has no signature date — the date the member signed is required for DtOfSgntr',
         };
     }
 
