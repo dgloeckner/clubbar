@@ -198,6 +198,52 @@ echo "--- Copying package files..."
 mkdir -p "$PKG_DIR/register"
 cp -R "$PROJECT_ROOT/backend/public/register/." "$PKG_DIR/register/"
 
+# Cache-busting for the two assets the page loads (#812).
+#
+# `register.css` and `register.js` are hand-written files with stable names —
+# no build, no content hash — and the shipped `.htaccess` grants every stylesheet
+# and script `Expires: access plus 1 year`, which is correct for the SPA's
+# hashed `assets/` and catastrophic here. An upgrade rewrites `index.html`
+# (HTML gets no expiry, so it revalidates) while every phone that has already
+# visited keeps last year's stylesheet: the club's masthead and colophon arrive
+# as markup no rule styles, flush to the edge of the screen, in the palette of
+# whichever release that phone saw first. The member reports "no styling"; the
+# club upgraded weeks ago; nothing on the server is wrong.
+#
+# A header change alone cannot fix that, because a cached response already
+# carries its year — only a different URL does. So the reference gets the
+# asset's own content hash, which changes exactly when the file does and never
+# when it does not. `.htaccess` still carves these two out of the long expiry:
+# if this stamp ever silently stops applying, the cost is one revalidation per
+# load rather than a year of a broken page.
+asset_hash() {
+    if command -v sha1sum > /dev/null 2>&1; then
+        sha1sum "$1" | cut -c1-8
+    else
+        shasum "$1" | cut -c1-8
+    fi
+}
+
+stamp_register_asset() {
+    local file="$1"
+    local index="$PKG_DIR/register/index.html"
+    local version
+
+    # Loudly, not quietly: a rename or a rewritten tag would otherwise turn this
+    # into a no-op that nobody notices until a club upgrades and its members do.
+    if ! grep -q "\"\./$file\"" "$index"; then
+        echo "ERROR: register/index.html no longer references \"./$file\" — the cache-busting stamp would do nothing" >&2
+        exit 1
+    fi
+
+    version="$(asset_hash "$PKG_DIR/register/$file")"
+    sed -i.bak "s|\"\./$file\"|\"./$file?v=$version\"|g" "$index"
+    rm -f "$index.bak"
+}
+
+stamp_register_asset register.css
+stamp_register_asset register.js
+
 cp "$PROJECT_ROOT/package/index.php"         "$PKG_DIR/index.php"
 cp "$PROJECT_ROOT/package/install.php"       "$PKG_DIR/install.php"
 cp "$PROJECT_ROOT/package/install.js"        "$PKG_DIR/install.js"

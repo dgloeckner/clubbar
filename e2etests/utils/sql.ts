@@ -49,7 +49,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 
@@ -296,6 +296,66 @@ export function serveClubDocument(): void {
     path.join(REPO_ROOT, 'backend/tests/Fixtures/documents/club-anmeldung.pdf'),
     CLUB_DOCUMENT,
   )
+}
+
+/**
+ * The same document, published with somebody's data still in its fields (#812).
+ *
+ * Not a second fixture: the genuine one with `/V ()` replaced on the field that
+ * matters, which is exactly the shape WeasyPrint produces from an
+ * `<input value="…">` left in a club's HTML master. A club that built its
+ * Anmeldung once with example data — or with a real registration, to check the
+ * layout — publishes that value at the URL every applicant is linked to before
+ * typing anything, and reads a stranger's IBAN off page 1 of the club's own
+ * Datenschutzhinweis.
+ *
+ * Reference-counted the same way and for the same reason as the blank one.
+ */
+export const PREFILLED_DOCUMENT_URL = 'http://localhost/e2e-club-anmeldung-prefilled.pdf'
+
+const PREFILLED_DOCUMENT = path.join(REPO_ROOT, 'backend/public/e2e-club-anmeldung-prefilled.pdf')
+const PREFILLED_DOCUMENT_HOLDERS = path.join(
+  REPO_ROOT,
+  'backend/public/.e2e-club-anmeldung-prefilled-holders',
+)
+
+export function servePrefilledClubDocument(): void {
+  mkdirSync(PREFILLED_DOCUMENT_HOLDERS, { recursive: true })
+  writeFileSync(path.join(PREFILLED_DOCUMENT_HOLDERS, holderToken), '')
+
+  const template = readFileSync(
+    path.join(REPO_ROOT, 'backend/tests/Fixtures/documents/club-anmeldung.pdf'),
+  ).toString('latin1')
+
+  const blank = '/T (iban)/FT /Tx/DA (/a1.0 gs 0.101961 0.101961 0.180392 rg /SDLPBP 10 Tf)/V ()'
+  if (!template.includes(blank)) {
+    throw new Error('the club document fixture no longer writes /V () for its iban field (#812)')
+  }
+
+  // The file grows by the length of the value, so its cross-reference offsets
+  // no longer line up — and that is fine for what this fixture is for. The
+  // check under test reads the raw bytes looking for a value in a field; it
+  // never follows the xref, and it runs before anything that would.
+  writeFileSync(
+    PREFILLED_DOCUMENT,
+    Buffer.from(template.replace(blank, blank.replace('/V ()', '/V (DE89370400440532013000)')), 'latin1'),
+  )
+}
+
+export function stopServingPrefilledClubDocument(): void {
+  rmSync(path.join(PREFILLED_DOCUMENT_HOLDERS, holderToken), { force: true })
+
+  let remaining: string[] = []
+  try {
+    remaining = readdirSync(PREFILLED_DOCUMENT_HOLDERS)
+  } catch {
+    // The directory is gone, so nobody is holding it.
+  }
+
+  if (remaining.length === 0) {
+    rmSync(PREFILLED_DOCUMENT, { force: true })
+    rmSync(PREFILLED_DOCUMENT_HOLDERS, { recursive: true, force: true })
+  }
 }
 
 export function stopServingClubDocument(): void {

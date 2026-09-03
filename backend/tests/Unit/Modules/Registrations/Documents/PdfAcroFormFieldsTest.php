@@ -27,10 +27,18 @@ use PHPUnit\Framework\TestCase;
  */
 final class PdfAcroFormFieldsTest extends TestCase
 {
-    /** A widget object as an uncompressed PDF writes one. */
-    private function widget(string $name, string $rect): string
+    /**
+     * A widget object as an uncompressed PDF writes one.
+     *
+     * `$value` is the `/V` entry, and it is written even when empty because a
+     * real WeasyPrint build writes `/V ()` for every field it emits — a blank
+     * template is not one *without* the key, and a check that keyed on the
+     * key's presence would refuse every genuine template (#812).
+     */
+    private function widget(string $name, string $rect, string $value = ''): string
     {
-        return "4 0 obj\n<< /Type /Annot /Subtype /Widget /FT /Tx /T ({$name}) /Rect [ {$rect} ] >>\nendobj\n";
+        return "4 0 obj\n<< /Type /Annot /Subtype /Widget /FT /Tx /T ({$name}) "
+            . "/V ({$value}) /Rect [ {$rect} ] >>\nendobj\n";
     }
 
     private function pdf(string $body): string
@@ -200,5 +208,97 @@ final class PdfAcroFormFieldsTest extends TestCase
     public function test_the_control_hint_is_not_mistaken_for_a_comb(): void
     {
         self::assertSame([], PdfAcroFormFields::combCells(['iban_last4' => [], 'vorname' => []]));
+    }
+
+    // ── values left in the template (#812) ──────────────────────────────────
+    //
+    // The same file is the club's Datenschutzhinweis: ADR-0052 decision 6 links
+    // it to every applicant before they type anything. So a value left in a
+    // field is not a fill problem — the fill drops annotations and never sees
+    // one — it is somebody's data published to strangers, which is how a real
+    // IBAN came to be readable from the onboarding page.
+
+    public function test_a_blank_template_carries_nothing_prefilled(): void
+    {
+        // `/V ()` on every field, which is what WeasyPrint writes.
+        $pdf = $this->pdf(
+            $this->widget('vorname', '72 700 300 716') . $this->widget('iban', '72 600 300 616')
+        );
+
+        self::assertSame([], PdfAcroFormFields::prefilledFields($pdf));
+    }
+
+    public function test_it_names_the_fields_a_template_arrived_with_values_in(): void
+    {
+        $pdf = $this->pdf(
+            $this->widget('vorname', '72 700 300 716', 'Anna')
+            . $this->widget('nachname', '72 680 300 696')
+            . $this->widget('iban', '72 600 300 616', 'DE89 3704 0044 0532 0130 00')
+        );
+
+        self::assertSame(['vorname', 'iban'], PdfAcroFormFields::prefilledFields($pdf));
+    }
+
+    /**
+     * A field holding only spaces is blank on the page, and refusing it would
+     * send a club to hunt for data that is not there.
+     */
+    public function test_whitespace_is_not_a_value(): void
+    {
+        $pdf = $this->pdf($this->widget('vorname', '72 700 300 716', '   '));
+
+        self::assertSame([], PdfAcroFormFields::prefilledFields($pdf));
+    }
+
+    /**
+     * A viewer that saved the file writes the value as a hex string — the same
+     * leak wearing a different encoding. `<0000>` is UTF-16 padding around
+     * nothing and stays blank.
+     */
+    public function test_it_reads_a_hex_string_value(): void
+    {
+        $written = "4 0 obj\n<< /Type /Annot /Subtype /Widget /FT /Tx /T (iban) "
+            . "/V <FEFF004400450038003900> /Rect [ 72 600 300 616 ] >>\nendobj\n";
+        $empty = "5 0 obj\n<< /Type /Annot /Subtype /Widget /FT /Tx /T (vorname) "
+            . "/V <0000> /Rect [ 72 700 300 716 ] >>\nendobj\n";
+
+        self::assertSame(['iban'], PdfAcroFormFields::prefilledFields($this->pdf($written . $empty)));
+    }
+
+    /**
+     * `/V /Off` is a checkbox that is not ticked — the shipped state of the
+     * Kenntnisnahme box on a real Anmeldung, and not something anybody left
+     * behind.
+     */
+    public function test_an_unticked_checkbox_is_not_a_leftover_value(): void
+    {
+        $checkbox = "4 0 obj\n<< /Type /Annot /Subtype /Widget /FT /Btn /T (kenntnisnahme) "
+            . "/V /Off /Rect [ 72 500 86 514 ] >>\nendobj\n";
+
+        self::assertSame([], PdfAcroFormFields::prefilledFields($this->pdf($checkbox)));
+    }
+
+    /**
+     * `/DV` is what a *reset* would restore, not what a reader sees. Scanning
+     * for it would refuse templates that display nothing at all.
+     */
+    public function test_a_default_value_alone_is_not_a_prefilled_field(): void
+    {
+        $withDefault = "4 0 obj\n<< /Type /Annot /Subtype /Widget /FT /Tx /T (vorname) "
+            . "/DV (Anna) /V () /Rect [ 72 700 300 716 ] >>\nendobj\n";
+
+        self::assertSame([], PdfAcroFormFields::prefilledFields($this->pdf($withDefault)));
+    }
+
+    /**
+     * An outline entry carries a `/T` too, and the scan proper already refuses
+     * to treat one as a field. The value scan has to agree, or a bookmarked
+     * document would be refused for carrying its own chapter titles.
+     */
+    public function test_a_titled_object_that_is_not_a_widget_is_ignored(): void
+    {
+        $outline = "6 0 obj\n<< /Type /Outlines /T (Anmeldung) /V (Anna) >>\nendobj\n";
+
+        self::assertSame([], PdfAcroFormFields::prefilledFields($this->pdf($outline)));
     }
 }

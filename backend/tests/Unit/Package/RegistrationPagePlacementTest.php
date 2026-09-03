@@ -105,12 +105,12 @@ class RegistrationPagePlacementTest extends TestCase
         $htaccess = self::read('package/.htaccess');
 
         $this->assertStringContainsString(
-            'RewriteRule ^register/?$ register/index.html [L]',
+            'RewriteRule ^register/$ register/index.html [L]',
             $htaccess,
-            'the shipped .htaccess no longer routes /register to the page (#796)'
+            'the shipped .htaccess no longer routes /register/ to the page (#796)'
         );
 
-        $registerRule = strpos($htaccess, 'RewriteRule ^register/?$');
+        $registerRule = strpos($htaccess, 'RewriteRule ^register');
         $frontController = strpos($htaccess, 'RewriteRule ^ index.php [L,QSA]');
 
         $this->assertIsInt($registerRule);
@@ -123,6 +123,86 @@ class RegistrationPagePlacementTest extends TestCase
     }
 
     /**
+     * **The slashless form redirects rather than being rewritten in place**
+     * (#812).
+     *
+     * `PosterSecret::PATH` is `/register`, so that is the URL on every QR
+     * poster. An internal rewrite leaves the browser at `/register`, where the
+     * page's own `./register.css` and `./register.js` resolve to
+     * `/register.css` and `/register.js` — siblings that are not files, so the
+     * front controller answers with the SPA's HTML and the form renders
+     * unstyled and inert, at 200, with nothing logged anywhere.
+     *
+     * mod_dir issues exactly this redirect for a directory; taking the path
+     * over with a rule is what removed it, which is why the docker layout —
+     * where nothing claims `/register` — never showed the failure.
+     */
+    public function test_the_htaccess_redirects_the_slashless_poster_url(): void
+    {
+        $htaccess = self::read('package/.htaccess');
+
+        $this->assertStringContainsString(
+            'RewriteRule ^register$ /register/ [R=301,L]',
+            $htaccess,
+            'the poster URL no longer redirects, so the page loads its assets from the wrong path (#812)'
+        );
+
+        $this->assertStringNotContainsString(
+            'RewriteRule ^register/?$',
+            $htaccess,
+            'a rule matching both forms rewrites the slashless one in place again (#812)'
+        );
+    }
+
+    /**
+     * The page's two assets have stable names and no build step, so the
+     * blanket year-long expiry that is right for the SPA's content-hashed
+     * `assets/` is what strands a phone on last year's stylesheet (#812).
+     */
+    public function test_the_htaccess_does_not_cache_the_page_assets_for_a_year(): void
+    {
+        $htaccess = self::read('package/.htaccess');
+
+        $carveOut = strpos($htaccess, '<FilesMatch "^register\.(css|js)$">');
+
+        $this->assertIsInt(
+            $carveOut,
+            'the onboarding assets are back under the one-year expiry (#812)'
+        );
+        $this->assertStringContainsString(
+            'Cache-Control "no-cache, must-revalidate"',
+            substr($htaccess, $carveOut),
+            'the carve-out no longer makes the assets revalidate (#812)'
+        );
+    }
+
+    /**
+     * And the reference the browser asks for changes when the file does —
+     * which is the only thing that reaches a cache already holding a copy
+     * stamped with a year.
+     */
+    public function test_the_build_stamps_the_assets_with_their_content_hash(): void
+    {
+        $build = self::read('scripts/build-package.sh');
+
+        $this->assertStringContainsString('stamp_register_asset register.css', $build);
+        $this->assertStringContainsString('stamp_register_asset register.js', $build);
+
+        // The stamp rewrites exactly this reference form. If the page ever
+        // writes its `<link>` differently, the build stops rather than
+        // silently shipping an unversioned URL — this asserts the two still
+        // agree, so that guard is never the first thing to find out.
+        $page = self::read('backend/public/register/index.html');
+        foreach (['register.css', 'register.js'] as $asset) {
+            $this->assertStringContainsString(
+                '"./' . $asset . '"',
+                $page,
+                "index.html no longer references \"./{$asset}\"; the build's cache-busting stamp cannot match it (#812)"
+            );
+        }
+    }
+
+    /**
      * The belt: a request that reaches the front controller anyway — a host
      * that rewrites differently, a rule edited later — gets the page rather
      * than the admin panel.
@@ -132,9 +212,17 @@ class RegistrationPagePlacementTest extends TestCase
         $index = self::read('package/index.php');
 
         $this->assertStringContainsString(
-            "\$path === '/register' || \$path === '/register/'",
+            "\$path === '/register/'",
             $index,
-            'index.php no longer has the /register branch, so the SPA fallback claims it (#796)'
+            'index.php no longer has the /register/ branch, so the SPA fallback claims it (#796)'
+        );
+
+        // And the slashless poster URL is sent on rather than served in place,
+        // for the reason the .htaccess rule above is two rules (#812).
+        $this->assertStringContainsString(
+            "header('Location: /register/', true, 301)",
+            $index,
+            'the front controller serves /register in place again, so its assets resolve to the root (#812)'
         );
 
         $registerBranch = strpos($index, "'/register'");

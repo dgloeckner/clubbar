@@ -684,6 +684,58 @@ test.describe('Package: self-registration page', () => {
     expect(await js.text()).toContain('/api/public/registrations');
   });
 
+  /**
+   * The QR poster's own URL — `PosterSecret::PATH` is `/register`, with no
+   * trailing slash — has to end up at the directory (#812).
+   *
+   * Served in place, the browser stays at `/register` and the page's relative
+   * `./register.css` and `./register.js` resolve to `/register.css` and
+   * `/register.js`: not files, so the front controller answers with the admin
+   * SPA's HTML at 200. Nothing 404s, nothing is logged, and the member gets an
+   * unstyled form whose buttons do nothing.
+   *
+   * `maxRedirects: 0` is what makes this test see the answer at all — every
+   * other test here follows the redirect, which is exactly why the failure was
+   * invisible.
+   */
+  test('/register redirects to /register/ so the page finds its own assets', async ({
+    request,
+  }) => {
+    const response = await request.get(`${PACKAGE_URL}/register`, { maxRedirects: 0 });
+
+    expect(response.status()).toBe(301);
+    // Apache expands a leading-slash rewrite target into a fully-qualified URL,
+    // so the assertion is on where it points rather than on how it is written.
+    expect(response.headers()['location']).toMatch(/(^|:\/\/[^/]+)\/register\/$/);
+  });
+
+  /**
+   * The two assets have stable names and no build step, and the shipped
+   * `.htaccess` gives every stylesheet and script a year — right for Vite's
+   * content-hashed `assets/`, and the reason a phone that opened `/register`
+   * before an upgrade keeps rendering the new markup with the old stylesheet
+   * (#812). Both halves of the fix are asserted here because either alone
+   * leaves a club upgrading into a page its members see broken.
+   */
+  test('the page assets revalidate and are referenced by content hash', async ({ request }) => {
+    const page = await request.get(`${PACKAGE_URL}/register/`);
+    const html = await page.text();
+
+    // Stamped by build-package.sh from the file's own bytes, so an upgrade
+    // asks for a URL no cache is holding.
+    expect(html).toMatch(/href="\.\/register\.css\?v=[0-9a-f]{8}"/);
+    expect(html).toMatch(/src="\.\/register\.js\?v=[0-9a-f]{8}"/);
+
+    // And the belt: were the stamp ever lost, the cost is a revalidation per
+    // load rather than a year of a broken form.
+    for (const asset of ['register.css', 'register.js']) {
+      const response = await request.get(`${PACKAGE_URL}/register/${asset}`);
+      expect(response.ok()).toBeTruthy();
+      expect(response.headers()['cache-control']).toContain('no-cache');
+      expect(response.headers()['expires']).toBeUndefined();
+    }
+  });
+
   test('the public submission endpoint is reachable through the front controller', async ({
     request,
   }) => {

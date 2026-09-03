@@ -40,3 +40,5 @@ Thumbs.db
 # installation is not something to ship by accident.
 /public/e2e-club-anmeldung.pdf
 /public/.e2e-club-anmeldung-holders/
+/public/e2e-club-anmeldung-prefilled.pdf
+/public/.e2e-club-anmeldung-prefilled-holders/

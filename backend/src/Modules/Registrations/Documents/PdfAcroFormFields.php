@@ -80,6 +80,87 @@ final class PdfAcroFormFields
     }
 
     /**
+     * The fields the template already carries a value in (#812).
+     *
+     * ## Why a template with values in it is refused rather than filled over
+     *
+     * The fill never sees them: FPDI imports page 1 without annotations, so a
+     * `/V` is dropped along with the widget that held it and the output is
+     * correct whatever the template says. The damage is done by the *other* job
+     * this one file has. ADR-0052 decision 6 points every applicant at the same
+     * URL before they type anything, because pages 2+ are the club's
+     * Datenschutzhinweise — so a value left in a field is shown, in a PDF
+     * viewer, to every stranger who scans the poster.
+     *
+     * That is how a real club's IBAN reached the onboarding page: an applicant
+     * tapped "Vereinsunterlagen ansehen" and read somebody else's bank details
+     * off page 1. WeasyPrint writes an `<input value="…">` straight through to
+     * `/V`, so a master built once with example data — or with a real
+     * registration used to check the layout — publishes it. Nothing about the
+     * resulting document looks wrong to the club that built it.
+     *
+     * Only `/V` is read, not `/DV`: a default value is what a *reset* would
+     * restore, and a viewer opening the file does not show it.
+     *
+     * @return list<string> field names carrying a non-empty value, in file order
+     */
+    public static function prefilledFields(string $raw): array
+    {
+        $prefilled = [];
+
+        if (!preg_match_all('~\d+\s+\d+\s+obj(.*?)endobj~s', $raw, $objects)) {
+            return [];
+        }
+
+        foreach ($objects[1] as $object) {
+            if (!str_contains($object, '/Widget')) {
+                continue;
+            }
+            if (!preg_match('~/T\s*\(([^)]*)\)~', $object, $name)) {
+                continue;
+            }
+            if (self::fieldValue($object) === '') {
+                continue;
+            }
+
+            $prefilled[$name[1]] = true;
+        }
+
+        return array_keys($prefilled);
+    }
+
+    /**
+     * A widget's `/V`, as text, or `''` when it has none worth reporting.
+     *
+     * Three shapes reach this. A literal string is what WeasyPrint writes and
+     * what a filled form carries; a hex string is what a viewer may write back
+     * after somebody typed into the file and saved it; and a *name* — `/V /Off`
+     * — is a checkbox in its unticked state, which is not a value anybody left
+     * behind. Whitespace-only counts as empty for the same reason `/V ()` does:
+     * the field is blank on the page.
+     */
+    private static function fieldValue(string $object): string
+    {
+        if (preg_match('~/V\s*\(([^)]*)\)~', $object, $literal) === 1) {
+            return trim($literal[1]);
+        }
+
+        if (preg_match('~/V\s*<([0-9A-Fa-f\s]*)>~', $object, $hex) === 1) {
+            $digits = (string) preg_replace('~\s~', '', $hex[1]);
+            // PDF pads an odd-length hex string with a trailing zero rather
+            // than treating it as malformed, and so does this.
+            $decoded = (string) hex2bin(strlen($digits) % 2 === 1 ? $digits . '0' : $digits);
+
+            // A viewer writes anything beyond ASCII as UTF-16BE behind a BOM.
+            // The NULs are that encoding's padding, not content, so a value of
+            // one space must not survive them as three characters.
+            return trim(str_replace("\0", '', $decoded), " \t\n\r\x0B\xFE\xFF");
+        }
+
+        return '';
+    }
+
+    /**
      * Why {@see scan()} found nothing — or null if it found something.
      *
      * Ordered by how badly the alternatives mislead. "Not a PDF" comes first

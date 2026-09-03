@@ -106,6 +106,25 @@ class MandateDocumentService
             );
         }
 
+        // An instance that configured its URL before the save-time check existed
+        // (#812) is the one place a published template carrying somebody's data
+        // still reaches a member — and it reaches them through the *link*, not
+        // through this fill, which drops annotations and is unaffected. So this
+        // is a log line and not a refusal: the registration must still produce
+        // its document, and the club needs to be told that the file it points
+        // every applicant at is showing them a stranger's details.
+        //
+        // The template is already in memory here, so this costs no fetch. The
+        // field *names* are logged; their values never are.
+        $prefilled = PdfAcroFormFields::prefilledFields($template);
+        if ($prefilled !== []) {
+            $this->logger->warning(
+                'The club document is published with values in its form fields; '
+                . 'every applicant is linked to it before entering anything',
+                ['url' => $url, 'fields' => $prefilled],
+            );
+        }
+
         return $this->filler->fill($template, $this->values($registration, $variant, $iban));
     }
 
