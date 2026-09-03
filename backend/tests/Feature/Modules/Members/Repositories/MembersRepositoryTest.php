@@ -1227,6 +1227,45 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->assertSame([$complete], array_column($completeOnly['items'], 'id'));
     }
 
+    /**
+     * An unsigned mandate is a gap, on the filter as well as the flag.
+     *
+     * The roster's `sepa_status` filter read `md.id IS NULL`, so a member whose
+     * mandate carried no signature date was listed as SEPA-valid — while
+     * `is_sepa_valid` (after #164 reached the code) calls them invalid and the
+     * export excludes them. The two renderings of one rule have to agree, or
+     * the treasurer's worklist stops holding the members the export refuses,
+     * which is exactly the drift ADR-0020 records from the last time these
+     * expressions were written out separately.
+     */
+    public function test_sepa_status_treats_a_mandate_without_a_signature_date_as_invalid(): void
+    {
+        $surname = $this->uniqueSurname('Unsigned');
+
+        $signed = $this->createMemberWithData('Signed', $surname, cardUid: 'CCDDEEFF01', withMandate: true);
+        $unsigned = $this->createMemberWithData(
+            'Unsigned',
+            $surname,
+            cardUid: 'CCDDEEFF02',
+            withMandate: true,
+            mandateSignedAt: null,
+        );
+
+        $valid = $this->membersRepository->listPaginated(50, 0, ['sepa_status' => 'valid'], 'created_at', 'desc', $surname);
+        $this->assertSame([$signed], array_column($valid['items'], 'id'));
+
+        $invalid = $this->membersRepository->listPaginated(50, 0, ['sepa_status' => 'invalid'], 'created_at', 'desc', $surname);
+        $this->assertSame([$unsigned], array_column($invalid['items'], 'id'));
+
+        // And the same member is a gap in the counts the panel renders, so the
+        // number and the list it links to cannot disagree.
+        $before = $this->membersRepository->countDataGaps();
+        $this->createMemberWithData('Second', $surname, cardUid: 'CCDDEEFF03', withMandate: true, mandateSignedAt: null);
+        $after = $this->membersRepository->countDataGaps();
+
+        $this->assertSame($before['without_mandate'] + 1, $after['without_mandate']);
+    }
+
     public function test_data_status_counts_a_member_with_several_gaps_once(): void
     {
         $surname = $this->uniqueSurname('MultiGap');
@@ -1340,6 +1379,7 @@ class MembersRepositoryTest extends DatabaseTestCase
         ?string $dateOfBirth = '1985-06-15',
         bool $withMandate = false,
         bool $isActive = true,
+        ?string $mandateSignedAt = '2025-01-15',
     ): string {
         $memberId = $this->generateUuid();
         $this->testMemberIds[] = $memberId;
@@ -1364,16 +1404,21 @@ class MembersRepositoryTest extends DatabaseTestCase
         ]);
 
         if ($withMandate) {
-            // The SEPA predicate is `md.id IS NOT NULL` over the active-mandate
-            // join, so the row only has to exist and be active.
+            // The SEPA predicate is `MandateCompleteness::SQL` over the
+            // active-mandate join: the row has to exist, be active, and carry
+            // the date the member signed (ADR-0020, #164). `signed_at` is
+            // nullable, so a mandate row without one is a real state — it just
+            // is not one the club can collect against, and `withMandate: true`
+            // means a member who counts as complete.
             $this->db->prepare(
-                'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_last4) VALUES (?, ?, ?, ?, ?)'
+                'INSERT INTO mandates (id, member_id, active_member_id, reference, iban_last4, signed_at) VALUES (?, ?, ?, ?, ?, ?)'
             )->execute([
                 $this->generateUuid(),
                 $memberId,
                 $memberId,
                 'MREF' . substr(str_replace('-', '', $memberId), 0, 20),
                 '3000',
+                $mandateSignedAt,
             ]);
         }
 
