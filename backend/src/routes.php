@@ -288,7 +288,13 @@ return function (App $app): void {
         // controller only reaches after deciding to demand a credential is a
         // limiter an attacker can call unboundedly.
         $group->patch('/admin-users/{id}', [AdminUsersAdminController::class, 'update'])->add($stepUpRateLimit);
+        // Removes the row. Only ever succeeds for an account that never signed
+        // in and never acted — see `AdminUsersService::deleteAdminUser()`.
         $group->delete('/admin-users/{id}', [AdminUsersAdminController::class, 'destroy']);
+        // Deactivate and reactivate are a pair, and now read like one. The
+        // deactivate half used to be spelled `DELETE`, which said the opposite
+        // of what it did.
+        $group->post('/admin-users/{id}/deactivate', [AdminUsersAdminController::class, 'deactivate']);
         $group->post('/admin-users/{id}/reactivate', [AdminUsersAdminController::class, 'reactivate']);
         // Cross-account password reset requires a step-up credential (#337),
         // same rate-limit dimension as the 2FA reset above.

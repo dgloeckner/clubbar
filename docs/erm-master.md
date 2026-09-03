@@ -865,9 +865,25 @@ Administrator accounts for the admin panel.
   "cannot sign in yet" falls out of the ordinary password comparison instead of
   needing a branch in `AuthService::authenticate()`. See
   [`admin_user_invitations`](#admin_user_invitations).
+- **A row is deletable only while it has never signed in and never authored an
+  audit row** ([UC-A61](../use-cases/admin/UC-A61-manage-admins.md)). Other
+  tables reference this one with two incompatible meanings:
+  `settlements.created_by_admin_id`,
+  `settlements.cancelled_by_admin_id`,
+  `mandate_documents.uploaded_by_admin_id` and
+  `registrations.submitted_by_admin_id` are `ON DELETE RESTRICT`, so the
+  database refuses; `audit_log.admin_user_id` is a *logical* reference with no
+  constraint at all, so the database allows the delete and the audit list —
+  which `LEFT JOIN`s this table — then renders that admin's every past action
+  with a blank actor. Retiring an admin who has done work is
+  `is_active = 0`, never a delete. `admin_user_roles`,
+  `admin_user_invitations` and `mail_outbox` cascade.
 
 **Access:**
-- All admin users have full access: CRUD on all entities, settlements, GDPR operations, user management, audit log
+- Every route under `/admin/admin-users` is `admin`-only — creating accounts and
+  granting roles is the `admin` capability that defines the role
+  ([ADR-0044](../adr/0044-tiered-admin-roles.md)). This entry previously read
+  "all admin users have full access", which predates tiered roles.
 
 ---
 

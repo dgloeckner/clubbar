@@ -145,6 +145,37 @@ class AdminUsersRepository
     }
 
     /**
+     * Remove an admin account outright.
+     *
+     * Only ever reached for an account that has never signed in and has never
+     * authored an audit row — `AdminUsersService::deleteAdminUser()` owns that
+     * rule, and it is what makes this safe. The schema disagrees with itself
+     * about what deleting an admin means: `settlements.created_by_admin_id`
+     * and `mandate_documents.uploaded_by_admin_id` are `ON DELETE RESTRICT`,
+     * while `audit_log.admin_user_id` carries no constraint at all and would
+     * silently be left pointing at nothing. An account that never held a
+     * session can have produced neither, so neither disagreement can bite.
+     *
+     * What does cascade is exactly what should: `admin_user_roles`,
+     * `admin_user_invitations` (so an outstanding invitation link stops
+     * working the moment the account it names is gone) and `mail_outbox`.
+     *
+     * @return bool Whether a row was actually removed.
+     */
+    public function deleteById(string $id): bool
+    {
+        $stmt = $this->db->prepare('DELETE FROM admin_users WHERE id = ?');
+        $stmt->execute([$id]);
+
+        $deleted = $stmt->rowCount() > 0;
+        if ($deleted) {
+            $this->logger->info('Admin user deleted', ['id' => $id]);
+        }
+
+        return $deleted;
+    }
+
+    /**
      * Persist an encrypted TOTP secret, mark the account as enrolled, and
      * record the time-step of the code that confirmed enrollment so the very
      * next MFA login cannot replay it (#338).

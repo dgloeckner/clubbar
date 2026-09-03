@@ -514,6 +514,105 @@ class AdminUsersService
         return $this->withRoles($admin);
     }
 
+    /**
+     * Remove an admin account permanently (UC-A61).
+     *
+     * **Only an account that never signed in and never acted.** That narrowness
+     * is the whole design, not a first cut. `admin_users.id` is referenced all
+     * over the schema and the references disagree about what deleting one
+     * means: `settlements.created_by_admin_id`,
+     * `mandate_documents.uploaded_by_admin_id` and
+     * `registrations.submitted_by_admin_id` are `ON DELETE RESTRICT`, so the
+     * database refuses outright; `audit_log.admin_user_id` carries no
+     * constraint at all, so the database allows it and the audit list — which
+     * `LEFT JOIN`s `admin_users` — then renders that admin's every past action
+     * with a blank actor. One half fails loudly, the other destroys the
+     * evidence ADR-0013 exists to keep.
+     *
+     * An account that has never held a session can have produced neither, so
+     * both disagreements are out of reach rather than handled. What this
+     * covers is the case that actually arises: an invitation sent to the wrong
+     * address, or a colleague who never took up the post. A departed admin who
+     * did work is retired by deactivating them, and the refusal says so.
+     *
+     * The `CASCADE`s do the rest of the cleanup, and one of them matters:
+     * `admin_user_invitations` goes with the account, so an outstanding
+     * invitation link stops working the moment the account it names is gone.
+     */
+    public function deleteAdminUser(string $id, string $currentAdminId): void
+    {
+        // Unreachable in practice — the caller holds a session, so they own a
+        // `last_login_at` and would be refused by the history guard below
+        // anyway. Kept as the cheapest and clearest of the three refusals, and
+        // for the same reason `applyRoles()` keeps its last-admin guard: an
+        // invariant whose only backing is "the check after it happens to cover
+        // this too" is worth two lines to state.
+        if ($id === $currentAdminId) {
+            throw new BusinessRuleException(
+                BusinessRuleReason::CANNOT_DEACTIVATE_SELF,
+                'Cannot delete own account',
+            );
+        }
+
+        $admin = $this->adminUsersRepository->findById($id);
+        if (!$admin) throw NotFoundException::forResource('AdminUser', $id);
+
+        // Same role-aware count as `deactivateAdminUser()` (#548). Also all but
+        // unreachable — the last active admin has signed in — but a system that
+        // can be left with no way in is worth refusing twice.
+        $roles = $this->adminUserRolesRepository->rolesFor($id);
+        if (in_array(AdminRole::ADMIN, $roles, true)
+            && $this->adminUserRolesRepository->countActiveHolders(AdminRole::ADMIN) <= 1
+        ) {
+            throw new BusinessRuleException(
+                BusinessRuleReason::LAST_ACTIVE_ADMIN,
+                'Cannot delete the last active admin',
+            );
+        }
+
+        // Both halves, not just the cheap one. A sign-in is the ordinary way an
+        // account acquires history, but accepting an invitation audits under
+        // the invitee's own name before any `last_login_at` exists — and it is
+        // the audit rows, not the login timestamp, that deletion would strand.
+        if (($admin['last_login_at'] ?? null) !== null || $this->auditService->hasEntriesByActor($id)) {
+            throw new BusinessRuleException(
+                BusinessRuleReason::ADMIN_USER_HAS_HISTORY,
+                'Cannot delete an admin account that has already signed in or acted; deactivate it instead',
+            );
+        }
+
+        // Audited before the delete, and carrying the identity: once the row is
+        // gone the audit entry is the only thing that still says *who* was
+        // removed, and `entity_id` alone is a UUID nobody can resolve. The
+        // actor is the admin doing the deleting, so this row — unlike the
+        // account — survives with a name attached.
+        $this->auditService->log(
+            action: AuditAction::DELETE,
+            entityType: EntityType::ADMIN_USER,
+            entityId: $id,
+            oldValues: [
+                'email' => $admin['email'],
+                'display_name' => $admin['display_name'],
+                'roles' => AdminRole::toValues($roles),
+            ],
+            adminUserId: $currentAdminId,
+        );
+
+        // Defense in depth for a `RESTRICT` the guards above did not anticipate
+        // — a reference added later to a table nobody thought of here. Without
+        // this the admin gets a 500 on a rule the system does in fact have.
+        try {
+            $deleted = $this->adminUsersRepository->deleteById($id);
+        } catch (\PDOException $e) {
+            throw new BusinessRuleException(
+                BusinessRuleReason::ADMIN_USER_HAS_HISTORY,
+                'Cannot delete an admin account that other records still reference: ' . $e->getMessage(),
+            );
+        }
+
+        if (!$deleted) throw NotFoundException::forResource('AdminUser', $id);
+    }
+
     public function reactivateAdminUser(string $id, ?string $currentAdminId = null): AdminUserDto
     {
         $admin = $this->adminUsersRepository->updateById($id, ['is_active' => 1]);

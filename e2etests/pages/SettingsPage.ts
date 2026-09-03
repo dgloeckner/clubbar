@@ -1138,6 +1138,73 @@ export class SettingsPage {
   }
 
   /**
+   * Delete an admin account outright and confirm the dialog (UC-A61).
+   *
+   * Distinct from {@link clickDeactivateButton}, which drives the switch beside
+   * it: that one retires a colleague and keeps everything they did, this one
+   * removes a row that never did anything. Only a row that has never signed in
+   * carries the button at all.
+   */
+  async clickDeleteAdminButton(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+
+    await this.page.getByTestId(`settings-admin-delete-button-${adminId}`).scrollIntoViewIfNeeded()
+    await this.page.getByTestId(`settings-admin-delete-button-${adminId}`).click()
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 10000 })
+
+    // Watch for the reload GET before confirming, same as the deactivate flow:
+    // the assertion that follows is about the list *after* it has been refetched.
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET',
+      { timeout: 15000 }
+    )
+    await this.page.getByTestId('confirm-dialog-ok').click()
+    await responsePromise
+  }
+
+  /** The delete button on this admin's row, if the row offers one. */
+  private async adminUserDeleteButton(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+    return this.page.getByTestId(`settings-admin-delete-button-${adminId}`)
+  }
+
+  /** Expect this admin's row to offer deletion — it has never signed in. */
+  async expectAdminUserDeletable(email: string) {
+    await expect(await this.adminUserDeleteButton(email)).toBeVisible()
+  }
+
+  /**
+   * Expect this admin's row *not* to offer deletion. An account that has signed
+   * in is retired with the switch, so the button is withheld rather than
+   * offered and then refused (the same reasoning as the own-row switch, #382).
+   */
+  async expectAdminUserNotDeletable(email: string) {
+    await expect(await this.adminUserDeleteButton(email)).toHaveCount(0)
+  }
+
+  /** Expect a row for this admin to be on the list. */
+  async expectAdminUserPresent(email: string) {
+    await expect
+      .poll(async () => (await this.findAdminUserRowByEmail(email)) !== null, { timeout: 10000 })
+      .toBe(true)
+  }
+
+  /** Expect no row for this admin at all — it has been deleted. */
+  async expectAdminUserAbsent(email: string) {
+    await expect
+      .poll(async () => (await this.findAdminUserRowByEmail(email)) === null, { timeout: 10000 })
+      .toBe(true)
+  }
+
+  /**
    * Get admin user status by email
    */
   async getAdminUserStatus(email: string): Promise<string | null> {

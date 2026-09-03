@@ -175,6 +175,9 @@ export function SettingsPage() {
   // the caller's own step-up credential, as the password reset does.
   const [resendInvitationConfirm, setResendInvitationConfirm] = useState<string | null>(null)
   const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null)
+  // The whole account, not just its id: the confirmation names the email, and
+  // once the row is gone there is nothing left to look it up from.
+  const [deleteAdminConfirm, setDeleteAdminConfirm] = useState<AdminUser | null>(null)
   const [reset2faConfirm, setReset2faConfirm] = useState<string | null>(null)
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState<string | null>(null)
   // Whether the *caller* (not the target being acted on) has 2FA enabled —
@@ -556,6 +559,29 @@ export function SettingsPage() {
       await loadAdminUsers()
     } catch (err: unknown) {
       reportError(err, 'settings.errors.reactivateAdminUser')
+    }
+  }
+
+  const handleDeleteAdmin = (admin: AdminUser) => {
+    setDeleteAdminConfirm(admin)
+  }
+
+  /**
+   * Deletion is irreversible and the backend's rule is stricter than the one
+   * the button can see (it also refuses an account that authored an audit
+   * row), so a refusal here is expected rather than exceptional — `reportError`
+   * resolves the reason code to a sentence telling the admin to deactivate
+   * instead.
+   */
+  const handleDeleteAdminConfirmed = async () => {
+    if (!deleteAdminConfirm) return
+    const id = deleteAdminConfirm.id
+    setDeleteAdminConfirm(null)
+    try {
+      await getAdminUsers().deleteAdminUser(id)
+      await loadAdminUsers()
+    } catch (err: unknown) {
+      reportError(err, 'settings.errors.deleteAdminUser')
     }
   }
 
@@ -1172,6 +1198,7 @@ export function SettingsPage() {
           onReset2fa={handleReset2fa}
           onDeactivateUser={handleDeactivateAdmin}
           onReactivateUser={handleReactivateAdmin}
+          onDeleteUser={handleDeleteAdmin}
         />
       )}
 
@@ -1351,6 +1378,15 @@ export function SettingsPage() {
         variant="danger"
         onConfirm={handleDeactivateAdminConfirmed}
         onCancel={() => setDeactivateConfirm(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteAdminConfirm}
+        message={t('settings.deleteAdminConfirm', { email: deleteAdminConfirm?.email ?? '' })}
+        confirmLabel={t('common.delete')}
+        variant="danger"
+        onConfirm={handleDeleteAdminConfirmed}
+        onCancel={() => setDeleteAdminConfirm(null)}
       />
 
       <StepUpConfirmDialog

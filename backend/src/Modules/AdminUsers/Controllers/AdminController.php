@@ -231,7 +231,29 @@ class AdminController
         ]);
     }
 
+    /**
+     * DELETE /api/admin/admin-users/{id} — remove the account permanently.
+     *
+     * This verb used to deactivate, which is why `POST .../deactivate` now
+     * exists beside `POST .../reactivate`: a `DELETE` that leaves the row in
+     * place is a trap for the next reader, and ADR-0044's grant table has
+     * always named delete as an `admin` capability in its own right. The panel
+     * was never a caller — it deactivates with `PATCH {is_active: false}` —
+     * so nothing in the UI changes meaning underneath.
+     *
+     * 204: there is no resource left to describe.
+     */
     public function destroy(Request $request, Response $response, array $args): Response
+    {
+        $id = $args['id'];
+        $adminId = $request->getAttribute('admin_user_id');
+
+        $this->adminUsersService->deleteAdminUser($id, $adminId);
+
+        return $response->withStatus(204);
+    }
+
+    public function deactivate(Request $request, Response $response, array $args): Response
     {
         $id = $args['id'];
         $adminId = $request->getAttribute('admin_user_id');

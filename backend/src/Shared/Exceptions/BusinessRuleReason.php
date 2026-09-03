@@ -53,6 +53,20 @@ enum BusinessRuleReason: string
     case CANNOT_DEACTIVATE_SELF = 'cannot_deactivate_self';
     case LAST_ACTIVE_ADMIN = 'last_active_admin';
     /**
+     * An admin account cannot be deleted because it has already acted.
+     *
+     * Deletion is offered only for an account that has never signed in and
+     * never authored an audit row — an invitation sent to the wrong address, a
+     * colleague who never took up the post. Anything more than that is kept:
+     * `settlements` and `mandate_documents` reference their creating admin with
+     * `ON DELETE RESTRICT`, and `audit_log.admin_user_id` has no constraint at
+     * all, so removing an admin who did work would either be refused by the
+     * database or quietly blank the actor on every row they wrote — which is
+     * the evidence ADR-0013 exists to keep. The way to retire such an account
+     * is to deactivate it.
+     */
+    case ADMIN_USER_HAS_HISTORY = 'admin_user_has_history';
+    /**
      * A presented invitation link is not usable — unknown, expired, already
      * accepted, or replaced by a newer one.
      *

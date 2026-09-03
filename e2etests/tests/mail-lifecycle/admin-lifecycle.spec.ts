@@ -113,7 +113,7 @@ test.describe('Admin lifecycle — account, roles, cron, delivered mail', () => 
     // reads, and a club address left set would put this file's mailbox on
     // every later lifecycle event.
     if (targetId) {
-      await authenticatedRequest.delete(`/api/admin/admin-users/${targetId}`)
+      await authenticatedRequest.post(`/api/admin/admin-users/${targetId}/deactivate`)
     }
     await authenticatedRequest.patch(MAIL_CONFIG, {
       data: { club_notification_address: previousClubAddress },

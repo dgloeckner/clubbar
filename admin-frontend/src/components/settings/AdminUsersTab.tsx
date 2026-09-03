@@ -8,6 +8,7 @@ import { theme } from '../../styles/design-system'
 import { Toggle } from '../common/Toggle'
 import { Badge, type BadgeProps } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
+import { TrashIcon } from '../icons/TrashIcon'
 import type { AdminUser as GeneratedAdminUser } from '../../api/generated'
 import type { AdminRole } from '../../api/generated/adminRole'
 
@@ -83,6 +84,14 @@ export interface AdminUsersTabProps {
   onReset2fa: (id: string) => void
   onDeactivateUser: (id: string) => void
   onReactivateUser: (id: string) => void
+  /**
+   * Remove an account outright (UC-A61).
+   *
+   * Distinct from `onDeactivateUser`, which is the switch beside it: that one
+   * retires a colleague and keeps everything they did, this one destroys a row
+   * that never did anything. See `renderDeleteAction` for which rows offer it.
+   */
+  onDeleteUser: (admin: AdminUser) => void
 }
 
 
@@ -97,6 +106,7 @@ export function AdminUsersTab({
   onReset2fa,
   onDeactivateUser,
   onReactivateUser,
+  onDeleteUser,
 }: AdminUsersTabProps) {
   const { t } = useTranslation()
   const { formatRelativeDate } = useFormatters()
@@ -212,6 +222,37 @@ export function AdminUsersTab({
         </button>
       </Tooltip>
     )
+
+  /**
+   * The delete button, on the rows that can actually be deleted.
+   *
+   * Offered only for an account that has never signed in — an invitation sent
+   * to the wrong address, a colleague who never took up the post. Everyone
+   * else is retired with the switch, which keeps what they did.
+   *
+   * `last_login_at` is the visible half of the rule; the backend also refuses
+   * an account that authored an audit row, which the client cannot see and
+   * does not need to — the refusal comes back as `admin_user_has_history` and
+   * the error banner renders it in the admin's language. Withholding the
+   * button on the half we *can* see is what stops the common case ever
+   * reaching that refusal.
+   *
+   * The caller's own row never qualifies: holding a session means having a
+   * last login.
+   */
+  const renderDeleteAction = (admin: AdminUser, hover: HoverHandlers) =>
+    admin.last_login_at == null ? (
+      <Tooltip content={t('settings.deleteAdminUser')} position="top">
+        <button
+          data-testid={`settings-admin-delete-button-${admin.id}`}
+          onClick={() => onDeleteUser(admin)}
+          style={ICON_BUTTON_STYLE}
+          {...hover}
+        >
+          <TrashIcon size={16} />
+        </button>
+      </Tooltip>
+    ) : null
 
   const renderSelfBadge = (admin: AdminUser) =>
     isSelf(admin.id) ? (
@@ -399,6 +440,9 @@ export function AdminUsersTab({
                         <line x1="12" y1="15" x2="12" y2="17" />
                       </svg>
                     </button>
+
+                    {/* Delete — only on a row that never signed in. */}
+                    {renderDeleteAction(admin, {})}
                   </div>
                 </div>
               </div>
@@ -606,6 +650,17 @@ export function AdminUsersTab({
                           </button>
                         </Tooltip>
 
+                        {/* Delete — only on a row that never signed in. */}
+                        {renderDeleteAction(admin, {
+                            onMouseEnter: (e) => {
+                              e.currentTarget.style.background = theme.badges.danger.strong
+                              e.currentTarget.style.color = theme.colors.semantic.danger
+                            },
+                            onMouseLeave: (e) => {
+                              e.currentTarget.style.background = 'transparent'
+                              e.currentTarget.style.color = theme.colors.text.secondary
+                            },
+                          })}
                       </div>
                     </td>
                   </tr>

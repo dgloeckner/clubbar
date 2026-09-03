@@ -93,6 +93,29 @@ class AuditLogRepository
     }
 
     /**
+     * Whether this admin account has ever authored an audit row.
+     *
+     * Asked before deleting an admin account (UC-A61). `audit_log.admin_user_id`
+     * is a *logical* reference with no foreign key behind it
+     * (`001_initial_schema.sql:12`), so the database will not stop a delete
+     * that strands the actor of a row — and the audit list `LEFT JOIN`s
+     * `admin_users`, so a stranded row renders with a blank actor rather than
+     * an error. This is the check that keeps that from happening.
+     *
+     * Rows *about* the account (`entity_id`) are deliberately not counted: the
+     * record of somebody being created, invited and then deleted is exactly
+     * what must survive the deletion, and its actor is the admin who acted,
+     * not the account acted upon.
+     */
+    public function hasEntriesByActor(string $adminUserId): bool
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM audit_log WHERE admin_user_id = ? LIMIT 1');
+        $stmt->execute([$adminUserId]);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
+    /**
      * @param array<string, mixed> $filters
      * @param string $sortKey Only `created_at` is orderable; anything else is
      *        rejected rather than silently ignored, because the audit screen
