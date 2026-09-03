@@ -4,6 +4,7 @@
  * Updates in real-time as name, price, and icon change
  */
 
+import { useTranslation } from 'react-i18next'
 import { getProductIcon } from '../icons/IconRegistry'
 import { parsePriceToCents } from '../../utils/price'
 import { theme } from '../../styles/design-system'
@@ -16,6 +17,8 @@ interface ProductPreviewProps {
 }
 
 export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
+  const { t } = useTranslation()
+
   // Format price like terminal: "3,50 €"
   const formatPrice = (priceStr: string) => {
     const cents = parsePriceToCents(priceStr)
@@ -25,7 +28,7 @@ export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
 
   // Get icon component
   const IconComponent = getProductIcon(iconName)
-  const displayName = name.trim() || '(Product name)'
+  const displayName = name.trim() || t('products.previewNamePlaceholder')
   const displayPrice = formatPrice(price)
 
   return (
