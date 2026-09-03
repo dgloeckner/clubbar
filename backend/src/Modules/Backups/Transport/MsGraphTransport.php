@@ -81,6 +81,16 @@ final class MsGraphTransport implements BackupTransport
     private ?string $token = null;
     private ?string $driveId = null;
 
+    /**
+     * Requests made by this instance, retries included.
+     *
+     * Logged with the outcome of an upload because it is the cheapest possible
+     * answer to "was the night slow, or was it retrying?" — a run that made
+     * four requests and one that made forty look identical in every other
+     * field.
+     */
+    private int $requestsMade = 0;
+
     /** Wall clock this run may still spend; `PHP_INT_MAX` outside a transfer. */
     private int $deadline = PHP_INT_MAX;
 
@@ -120,12 +130,34 @@ final class MsGraphTransport implements BackupTransport
         $this->deadline = time() + max(0, $budgetSeconds);
         $remotePath = $this->dsn->remotePathFor(basename($localPath));
 
+        $startedAt = time();
+
         try {
-            return $this->transfer($localPath, $remotePath);
+            $result = $this->transfer($localPath, $remotePath);
+
+            $this->logger->info('Backup upload finished', [
+                'remote' => $this->describe(),
+                'archive' => basename($localPath),
+                'status' => $result->status,
+                'bytes_sent' => $result->bytesSent,
+                'took_seconds' => time() - $startedAt,
+                'requests' => $this->requestsMade,
+            ]);
+
+            return $result;
         } catch (BackupTransportException $e) {
+            // The human-readable half. The machine-readable half — which
+            // request, which status, which correlation id — is already in the
+            // warnings {@see self::logRequestFailure()} wrote for each attempt,
+            // so this line stays a sentence rather than growing a second copy
+            // of it.
             $this->logger->error('Backup upload failed', [
                 'remote' => $this->describe(),
                 'archive' => basename($localPath),
+                'bytes' => (int) @filesize($localPath),
+                'took_seconds' => time() - $startedAt,
+                'requests' => $this->requestsMade,
+                'budget_seconds' => $budgetSeconds,
                 'message' => $e->getMessage(),
             ]);
 
@@ -428,14 +460,24 @@ final class MsGraphTransport implements BackupTransport
         ));
     }
 
-    /** @throws BackupTransportException */
+    /**
+     * Sign in, once per run.
+     *
+     * Goes through {@see self::send()} like every other request — with
+     * `authenticated: false`, which is also what keeps it from recursing into
+     * itself. It did not until this was fixed, and that was the gap this method's own
+     * failure exposed: the one request the whole night depends on was the one
+     * request with no retry, while the three that follow it each had three.
+     *
+     * @throws BackupTransportException
+     */
     private function token(): string
     {
         if ($this->token !== null) {
             return $this->token;
         }
 
-        $response = $this->http->send(
+        $response = $this->send(
             'POST',
             self::LOGIN . '/' . rawurlencode($this->dsn->tenantId) . '/oauth2/v2.0/token',
             ['Content-Type' => 'application/x-www-form-urlencoded'],
@@ -445,15 +487,10 @@ final class MsGraphTransport implements BackupTransport
                 'scope' => 'https://graph.microsoft.com/.default',
                 'grant_type' => 'client_credentials',
             ]),
-            $this->timeoutSeconds,
+            // Never a bearer token on the request that fetches one, and never
+            // the body in a log line: it carries the client secret.
+            authenticated: false,
         );
-
-        if ($response->status === 0) {
-            throw new BackupTransportException(
-                'Could not reach Microsoft to sign in: ' . $response->body
-                . '. The archive is on the webspace; nothing was uploaded.'
-            );
-        }
 
         if (!$response->isSuccess()) {
             // AADSTS7000222 is *the* expected failure of this whole feature.
@@ -471,12 +508,30 @@ final class MsGraphTransport implements BackupTransport
                 );
             }
 
+            $diagnosis = $this->classifySignInFailure($response);
+
+            // The one line worth grepping for the next morning. It names the
+            // *configuration value* to look at rather than describing the
+            // symptom, and it carries the tenant and client ids so they can be
+            // compared against the tenant by eye — neither is a secret, and
+            // between them they are what a wrong DSN gets wrong. The secret
+            // itself is never logged, in any form.
+            $this->logger->error('Microsoft refused the backup app\'s sign-in', [
+                'cause' => $diagnosis['cause'],
+                'check' => $diagnosis['check'],
+                'status' => $response->status,
+                'error_code' => self::errorCodeIn($response) ?? '(none)',
+                'tenant_id' => $this->dsn->tenantId,
+                'client_id' => $this->dsn->clientId,
+                'from_microsoft' => self::looksLikeMicrosoft($response),
+                'body' => self::firstLine($response->body),
+            ]);
+
             throw new BackupTransportException(sprintf(
-                'Microsoft refused the backup app\'s sign-in (HTTP %d): %s. Check backup.client_secret '
-                . '— a client secret expires (24 months at most), and an expired one looks exactly '
-                . 'like a wrong one from here.',
+                'Microsoft refused the backup app\'s sign-in (HTTP %d): %s.%s',
                 $response->status,
-                self::firstLine($response->body)
+                self::firstLine($response->body),
+                $diagnosis['hint']
             ));
         }
 
@@ -489,14 +544,123 @@ final class MsGraphTransport implements BackupTransport
     }
 
     /**
-     * One request, with the two retries that are worth having.
+     * Which of the four things that can be wrong is wrong.
      *
-     * **429 and 503 only.** Graph throttles per tenant, so a 429 is an
-     * ordinary event a club shares with everything else in its tenant, and
-     * `Retry-After` is the server telling us exactly how to stop making it
-     * worse. A refused connection is deliberately *not* retried: the run is
-     * nightly, and a network that is down now is down in five seconds too —
-     * retrying it spends the budget that the next chunk needed.
+     * The point of this method is that a nightly job fails while nobody is
+     * watching, and the log is all anybody has the next morning. "Microsoft
+     * said no" is not enough to act on — it leaves an operator guessing
+     * between a tenant that has moved, an app registration that was deleted, a
+     * secret that expired and a network that is being intercepted, and the
+     * first three are edits to different lines of `config.php`.
+     *
+     * Entra says which, in an `AADSTS` code, and those codes are stable and
+     * documented. Translating the handful that can actually occur for a
+     * client-credentials grant turns the guess into a field.
+     *
+     * | Code | What is wrong | Where the fix is |
+     * |---|---|---|
+     * | `AADSTS90002`, `AADSTS900023` | The tenant does not exist, or is not spelled the way it is here | `backup.dsn`, tenant id |
+     * | `AADSTS700016` | The tenant exists; no app registration in it has this client id. Usually a deleted registration, or a DSN pointing at the wrong tenant | `backup.dsn`, client id |
+     * | `AADSTS7000215` | The registration exists and the secret is not its secret | `backup.client_secret` |
+     * | `AADSTS7000222` | The secret was right and has expired — named on its own above, before this runs | `backup.client_secret` |
+     * | `AADSTS7000112`, `AADSTS700027` | The registration is disabled or its credential was revoked in the tenant | the tenant, not this host |
+     * | *no code at all* | Nothing that speaks Entra answered | the network between here and Microsoft |
+     *
+     * @return array{cause: string, check: string, hint: string}
+     */
+    private function classifySignInFailure(HttpResponse $response): array
+    {
+        if (!self::looksLikeMicrosoft($response)) {
+            return [
+                'cause' => 'not-an-answer-from-microsoft',
+                'check' => 'network reachability of login.microsoftonline.com',
+                'hint' => sprintf(
+                    ' This does not look like an answer from Microsoft: the body carries no AADSTS '
+                    . 'code (Content-Type: %s), and Entra refuses a credential with a 400 or a 401 '
+                    . 'that has one. Something between this server and login.microsoftonline.com — '
+                    . 'an outbound proxy, a captive portal, a DNS answer — is likely answering '
+                    . 'instead. Check that this host can reach login.microsoftonline.com before '
+                    . 'touching the configuration.%s',
+                    $response->header('Content-Type') ?? 'none',
+                    // The tenant id is a path segment of the URL that was
+                    // requested, so a malformed one is the other way to get a
+                    // bare 404 here — and it is the one an operator can check
+                    // in ten seconds against the id in the log line.
+                    $response->status === 404
+                        ? ' A malformed tenant id would also produce a 404, because it is part of '
+                            . 'that URL\'s path — compare the tenant_id in this log entry against '
+                            . 'the tenant before looking further.'
+                        : ''
+                ),
+            ];
+        }
+
+        $code = self::errorCodeIn($response) ?? '';
+
+        return match ($code) {
+            'AADSTS90002', 'AADSTS900023' => [
+                'cause' => 'tenant-not-found',
+                'check' => 'backup.dsn (tenant id)',
+                'hint' => ' Microsoft has no tenant with the id in backup.dsn. The client secret is '
+                    . 'not the problem — it was never read. Check the tenant id, which is the '
+                    . 'first path segment of the DSN.',
+            ],
+            'AADSTS700016' => [
+                'cause' => 'client-id-not-in-tenant',
+                'check' => 'backup.dsn (client id)',
+                'hint' => ' The tenant exists but has no app registration with the client id in '
+                    . 'backup.dsn — the registration was deleted, or the DSN names the wrong '
+                    . 'tenant. Re-run scripts/setup-msgraph-backup.ps1 to see what is actually '
+                    . 'registered.',
+            ],
+            'AADSTS7000215' => [
+                'cause' => 'client-secret-wrong',
+                'check' => 'backup.client_secret',
+                'hint' => ' The app registration exists and the value in backup.client_secret is '
+                    . 'not its secret. Mint a new one (scripts/setup-msgraph-backup.ps1 '
+                    . '-RotateSecretOnly) — the value is shown exactly once and cannot be read '
+                    . 'back afterwards, so a secret that was copied short is copied short forever.',
+            ],
+            'AADSTS7000112', 'AADSTS700027' => [
+                'cause' => 'registration-disabled-or-revoked',
+                'check' => 'the app registration in the tenant',
+                'hint' => ' The app registration is disabled or its credential was revoked in the '
+                    . 'tenant. This is fixed in Entra, not in config.php.',
+            ],
+            default => [
+                'cause' => $code === '' ? 'refused' : 'refused:' . $code,
+                'check' => 'backup.client_secret',
+                'hint' => ' Check backup.client_secret — a client secret expires (24 months at '
+                    . 'most), and an expired one looks exactly like a wrong one from here.',
+            ],
+        };
+    }
+
+    /**
+     * One request, with the retries that are worth having.
+     *
+     * ## What is retried, and what must never be
+     *
+     * Only the failures that are *about the moment rather than the request*:
+     * a throttle, a gateway that was briefly out, and a connection that never
+     * completed at all. Everything else is deterministic — a 401 is a bad
+     * secret, a 403 is a missing grant, a 404 is a name that does not resolve
+     * — and retrying a deterministic failure buys nothing but three more
+     * identical lines in the log and three more chances to be killed by a
+     * host's execution limit.
+     *
+     * | | |
+     * |---|---|
+     * | `429` | Graph throttles per tenant, so this is an ordinary event a club shares with everything else in its tenant. `Retry-After` is the server saying exactly how to stop making it worse |
+     * | `500`, `502`, `503`, `504` | The tenant is fine and something in front of it was not. Every request this class makes is safe to repeat — a range `PUT` is idempotent by construction, and `createUploadSession` carries `conflictBehavior: replace` |
+     * | status `0` | No response at all: DNS, a refused connection, a timeout. **Retried** — the nightly job runs on shared hosting, where a name that does not resolve for one second is a normal night, and losing a whole night's off-site copy to it is not |
+     *
+     * Status `0` was previously not retried, on the reasoning that a network
+     * which is down now is down in five seconds too. That is true of an outage
+     * and false of the failure that actually happens, and the budget it was
+     * protecting is already protected: every wait is checked against the run's
+     * own deadline below, so a genuine outage still stops rather than sleeping
+     * into the host's kill.
      *
      * @param array<string, string> $headers
      * @throws BackupTransportException
@@ -514,15 +678,25 @@ final class MsGraphTransport implements BackupTransport
                 $all['Authorization'] = 'Bearer ' . $this->token();
             }
 
+            $startedAt = microtime(true);
+            $this->requestsMade++;
             $response = $this->http->send($method, $url, $all, $body, $this->timeoutSeconds);
+            $tookMs = (int) round((microtime(true) - $startedAt) * 1000);
 
-            if ($response->status === 0) {
-                throw new BackupTransportException(
-                    'Could not reach ' . parse_url($url, PHP_URL_HOST) . ': ' . $response->body
-                );
-            }
+            if (!self::isWorthRetrying($response) || $attempt >= $this->maxRetries) {
+                if (!$response->isSuccess()) {
+                    $this->logRequestFailure($method, $url, $response, $attempt, $tookMs, null);
+                }
 
-            if (!self::isThrottled($response) || $attempt >= $this->maxRetries) {
+                if ($response->status === 0) {
+                    throw new BackupTransportException(sprintf(
+                        'Could not reach %s%s: %s',
+                        parse_url($url, PHP_URL_HOST),
+                        $attempt === 0 ? '' : ' after ' . ($attempt + 1) . ' attempts',
+                        $response->body
+                    ));
+                }
+
                 return $response;
             }
 
@@ -532,23 +706,148 @@ final class MsGraphTransport implements BackupTransport
                 // killed mid-write by a host's execution limit. Stop cleanly
                 // instead; the sidecar already knows where we got to.
                 throw new UploadBudgetExhaustedException(sprintf(
-                    'Throttled, and the %d second wait the server asked for is longer than this run '
-                    . 'has left.',
+                    'Gave up after %s: the %d second wait before the next attempt is longer than '
+                    . 'this run has left.',
+                    $response->status === 0 ? 'a connection that never completed' : 'HTTP ' . $response->status,
                     $wait
                 ));
             }
 
-            $this->logger->info('Throttled by Microsoft Graph; waiting as asked', [
-                'seconds' => $wait,
-                'attempt' => $attempt + 1,
-            ]);
+            $this->logRequestFailure($method, $url, $response, $attempt, $tookMs, $wait);
             ($this->sleeper)($wait);
         }
     }
 
-    private static function isThrottled(HttpResponse $response): bool
+    /**
+     * One line per failed attempt, with the fields that make a failure
+     * diagnosable without a second night.
+     *
+     * The message an operator reads is built by {@see self::explain()} and
+     * logged once, by the caller. This is the other half: the machine-readable
+     * record of *which* request failed and what the wire actually carried —
+     * which is what separates "Microsoft said no" from "something between this
+     * server and Microsoft said no", a distinction no human-readable sentence
+     * can make on its own.
+     *
+     * @param int|null $retryInSeconds null when this attempt was the last
+     */
+    private function logRequestFailure(
+        string $method,
+        string $url,
+        HttpResponse $response,
+        int $attempt,
+        int $tookMs,
+        ?int $retryInSeconds,
+    ): void {
+        $context = [
+            'method' => strtoupper($method),
+            'url' => self::loggableUrl($url),
+            'status' => $response->status,
+            'attempt' => $attempt + 1,
+            'of' => $this->maxRetries + 1,
+            'took_ms' => $tookMs,
+        ];
+
+        if ($retryInSeconds !== null) {
+            $context['retry_in_seconds'] = $retryInSeconds;
+        }
+
+        // For status 0 the body is cURL's own explanation — "Could not resolve
+        // host", "Connection timed out" — which is the only thing there is to
+        // go on, so it is logged in both cases.
+        $context['body'] = self::firstLine($response->body);
+
+        if ($response->status !== 0) {
+            $context['content_type'] = $response->header('Content-Type') ?? '(none)';
+            // Entra and Graph both stamp every response with a correlation id,
+            // and it is the first thing Microsoft support asks for. Logging it
+            // costs one field and turns "our backup fails" into a ticket.
+            $context['request_id'] = $response->header('request-id')
+                ?? $response->header('x-ms-request-id')
+                ?? $response->header('client-request-id')
+                ?? '(none)';
+            $context['error_code'] = self::errorCodeIn($response) ?? '(none)';
+            $context['from_microsoft'] = self::looksLikeMicrosoft($response);
+        }
+
+        // Warning, not error: the caller decides whether a failed request is a
+        // failed *run*. A retried 429 is neither.
+        $this->logger->warning(
+            $retryInSeconds === null
+                ? 'A Microsoft Graph request failed'
+                : 'A Microsoft Graph request failed and will be retried',
+            $context
+        );
+    }
+
+    private static function isWorthRetrying(HttpResponse $response): bool
     {
-        return in_array($response->status, [429, 503, 504], true);
+        return in_array($response->status, [0, 429, 500, 502, 503, 504], true);
+    }
+
+    /**
+     * The URL with its query string removed.
+     *
+     * **Never log the query.** An upload-session URL is a bearer capability in
+     * its own right — its `tempauth` parameter grants write access to the
+     * archive path without any other credential — so a log line carrying one
+     * is a credential in a file that gets mailed, shipped and pasted into
+     * issues. The path alone is what identifies the request.
+     */
+    private static function loggableUrl(string $url): string
+    {
+        $end = strpos($url, '?');
+
+        return $end === false ? $url : substr($url, 0, $end) . '?…';
+    }
+
+    /**
+     * The error code Microsoft put in the body, in either of its two shapes.
+     *
+     * Entra answers `{"error":"invalid_client","error_description":"AADSTS7000222: …"}`
+     * and Graph answers `{"error":{"code":"accessDenied"}}`. The AADSTS number
+     * is the one worth pulling out of prose: it is the identifier Microsoft's
+     * own documentation is indexed by.
+     */
+    private static function errorCodeIn(HttpResponse $response): ?string
+    {
+        $body = $response->json();
+        $error = $body['error'] ?? null;
+
+        if (is_array($error)) {
+            $code = (string) ($error['code'] ?? '');
+
+            return $code === '' ? null : $code;
+        }
+
+        if (preg_match('/AADSTS\d+/', (string) ($body['error_description'] ?? ''), $match) === 1) {
+            return $match[0];
+        }
+
+        return is_string($error) && $error !== '' ? $error : null;
+    }
+
+    /**
+     * Did this answer come from Microsoft at all?
+     *
+     * The question is not pedantry. A shared host with an outbound proxy, a
+     * captive portal or a DNS answer that has been taken over returns a plain
+     * `404 Not Found` for the token endpoint — and Entra never does that for a
+     * bad credential, which is a `400` or `401` carrying an `AADSTS` code. The
+     * two are indistinguishable from the status alone, and telling them apart
+     * is the difference between rotating a secret that was never wrong and
+     * looking at the network.
+     */
+    private static function looksLikeMicrosoft(HttpResponse $response): bool
+    {
+        // The *body* decides, not the `Content-Type` header. Both Entra and
+        // Graph refuse in a documented JSON shape carrying a code, and nothing
+        // that merely sits in the path — a proxy's error page, a captive
+        // portal, a bare `Not Found` — produces one. Requiring the header as
+        // well would be stricter and wrong in the expensive direction: it
+        // would flag a real Microsoft refusal as suspect and send an operator
+        // to look at the network instead of at the credential.
+        return self::errorCodeIn($response) !== null;
     }
 
     private static function backoffFor(HttpResponse $response, int $attempt): int
@@ -601,6 +900,19 @@ final class MsGraphTransport implements BackupTransport
             507 => ' The library is out of space.',
             default => '',
         };
+
+        // The same distinction the sign-in makes: an answer that is not JSON
+        // and carries no Graph error code did not come from Graph, and the
+        // hints above would then be sending an operator to look at a
+        // configuration that is fine.
+        if (!self::looksLikeMicrosoft($response)) {
+            $hint = sprintf(
+                ' The answer came back as %s with no error code, so it may not be from Microsoft '
+                . 'at all — check that this host can reach graph.microsoft.com before changing '
+                . 'anything.',
+                $response->header('Content-Type') ?? 'a response with no content type'
+            );
+        }
 
         return sprintf(
             'Could not %s (HTTP %d): %s.%s',

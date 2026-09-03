@@ -272,12 +272,156 @@ class MsGraphTransportTest extends TestCase
 
     public function test_a_network_that_is_simply_down_is_reported_not_thrown(): void
     {
-        $this->http->willFailToConnect('Could not resolve host: login.microsoftonline.com');
+        // Four, because a connection that never completes is now retried like
+        // any other transient failure — see the test below.
+        $this->http
+            ->willFailToConnect('Could not resolve host: login.microsoftonline.com')
+            ->willFailToConnect('Could not resolve host: login.microsoftonline.com')
+            ->willFailToConnect('Could not resolve host: login.microsoftonline.com')
+            ->willFailToConnect('Could not resolve host: login.microsoftonline.com');
 
         $result = $this->transport()->upload($this->archive, 600);
 
         $this->assertSame('failed', $result->status);
         $this->assertStringContainsString('Could not resolve host', $result->summary);
+        $this->assertStringContainsString('after 4 attempts', $result->summary);
+    }
+
+    /**
+     * The sign-in used to be the one request with no retry, while the three
+     * that follow it each had three — so a single lost packet on the first
+     * request of the night cost the whole night's off-site copy, and the
+     * resumable upload underneath it never got the chance it was built for.
+     */
+    public function test_a_sign_in_that_fails_to_connect_is_tried_again(): void
+    {
+        $this->http->willFailToConnect('Connection reset by peer');
+        $this->scriptSessionSetup();
+        $this->http
+            ->willAnswer(202, json_encode(['nextExpectedRanges' => [MsGraphTransport::CHUNK_BYTES . '-']]))
+            ->willAnswer(202, json_encode(['nextExpectedRanges' => [(MsGraphTransport::CHUNK_BYTES * 2) . '-']]))
+            ->willAnswer(201, json_encode(['id' => 'item-1']));
+
+        $result = $this->transport()->upload($this->archive, 600);
+
+        $this->assertSame('uploaded', $result->status, $result->summary);
+        $this->assertNotSame([], $this->slept, 'the second attempt must back off, not hammer');
+    }
+
+    /**
+     * A gateway error is about the moment, not about the request. Every
+     * request this transport makes is safe to repeat, so the only thing a
+     * `502` should cost is a few seconds.
+     */
+    public function test_a_gateway_error_is_retried(): void
+    {
+        $this->http
+            ->willAnswer(200, json_encode(['access_token' => 'token-1', 'expires_in' => 3600]))
+            ->willAnswer(502, '<html>Bad Gateway</html>')
+            ->willAnswer(200, json_encode(['id' => 'site-1']))
+            ->willAnswer(200, json_encode(['value' => [['id' => 'drive-1', 'name' => 'Dokumente']]]))
+            ->willAnswer(200, json_encode(['uploadUrl' => 'https://upload.example/session-1?tempauth=secret']))
+            ->willAnswer(202, json_encode(['nextExpectedRanges' => [MsGraphTransport::CHUNK_BYTES . '-']]))
+            ->willAnswer(202, json_encode(['nextExpectedRanges' => [(MsGraphTransport::CHUNK_BYTES * 2) . '-']]))
+            ->willAnswer(201, json_encode(['id' => 'item-1']));
+
+        $result = $this->transport()->upload($this->archive, 600);
+
+        $this->assertSame('uploaded', $result->status, $result->summary);
+    }
+
+    /**
+     * The failures that are *about the request* must not be retried. Three
+     * more identical 403s are three more chances to be killed by a host's
+     * execution limit, and no chance at all of a different answer.
+     */
+    public function test_a_refusal_is_not_retried(): void
+    {
+        $this->http
+            ->willAnswer(200, json_encode(['access_token' => 'token-1', 'expires_in' => 3600]))
+            ->willAnswer(403, '{"error":{"code":"accessDenied"}}');
+
+        $result = $this->transport()->upload($this->archive, 600);
+
+        $this->assertSame('failed', $result->status);
+        $this->assertSame(2, $this->http->requestCount(), 'a 403 is deterministic; asking again is waste');
+        $this->assertSame([], $this->slept);
+    }
+
+    /**
+     * The morning-after question is never "did it fail" — the cron mail
+     * already says that. It is *which of the four things* is wrong, because
+     * they are edits to different lines of config.php. So the log names one.
+     */
+    public function test_the_log_names_which_configuration_value_to_look_at(): void
+    {
+        $this->http->willAnswer(400, json_encode([
+            'error' => 'invalid_request',
+            'error_description' => 'AADSTS90002: Tenant \'nope\' not found.',
+        ]));
+
+        $this->transport()->upload($this->archive, 600);
+
+        $entry = $this->logLineContaining('refused the backup app');
+        $this->assertSame('tenant-not-found', $entry['ctx']['cause']);
+        $this->assertSame('backup.dsn (tenant id)', $entry['ctx']['check']);
+        $this->assertSame('AADSTS90002', $entry['ctx']['error_code']);
+        $this->assertSame('tenant-id', $entry['ctx']['tenant_id']);
+        $this->assertTrue($entry['ctx']['from_microsoft']);
+    }
+
+    /** A secret that is simply wrong must not be reported as a missing tenant, and vice versa. */
+    public function test_a_wrong_secret_and_a_missing_tenant_are_told_apart(): void
+    {
+        $this->http->willAnswer(401, json_encode([
+            'error' => 'invalid_client',
+            'error_description' => 'AADSTS7000215: Invalid client secret provided.',
+        ]));
+
+        $result = $this->transport()->upload($this->archive, 600);
+
+        $this->assertSame('client-secret-wrong', $this->logLineContaining('refused the backup app')['ctx']['cause']);
+        $this->assertStringContainsString('not its secret', $result->summary);
+    }
+
+    /**
+     * The failure this whole slice was rebuilt around: a bare `404 Not Found`
+     * on the token endpoint, which Entra never sends for a bad credential.
+     * Reporting it as "check backup.client_secret" sent an operator to rotate
+     * a credential that had not even been read.
+     */
+    public function test_a_404_with_no_aadsts_code_is_not_blamed_on_the_client_secret(): void
+    {
+        $this->http->willAnswer(404, 'Not Found', ['Content-Type' => 'text/plain']);
+
+        $result = $this->transport()->upload($this->archive, 600);
+
+        $entry = $this->logLineContaining('refused the backup app');
+        $this->assertSame('not-an-answer-from-microsoft', $entry['ctx']['cause']);
+        $this->assertFalse($entry['ctx']['from_microsoft']);
+        $this->assertSame('text/plain', $entry['ctx']['content_type'] ?? 'text/plain');
+        $this->assertStringNotContainsString('Check backup.client_secret', $result->summary);
+        $this->assertStringContainsString('login.microsoftonline.com', $result->summary);
+        $this->assertStringContainsString('tenant_id', $result->summary);
+    }
+
+    /**
+     * An upload-session URL is a bearer capability: its `tempauth` parameter
+     * grants write access to the archive path with no other credential. A log
+     * file is mailed, shipped in a backup and pasted into issues.
+     */
+    public function test_a_pre_authorised_upload_url_never_reaches_the_log(): void
+    {
+        $this->scriptSessionSetup();
+        $this->http->willAnswer(500, 'upstream exploded');
+        $this->http->willAnswer(500, 'upstream exploded');
+        $this->http->willAnswer(500, 'upstream exploded');
+        $this->http->willAnswer(500, 'upstream exploded');
+
+        $this->transport()->upload($this->archive, 600);
+
+        $this->assertStringNotContainsString('tempauth', $this->logContents());
+        $this->assertStringNotContainsString('s3cr3t-value', $this->logContents());
     }
 
     /** The secret must never reach a log line, a journal entry or a summary. */
@@ -428,6 +572,36 @@ class MsGraphTransportTest extends TestCase
 
         $this->assertArrayNotHasKey('Authorization', $this->http->request(4)['headers']);
         $this->assertArrayHasKey('Authorization', $this->http->request(3)['headers']);
+    }
+
+    /** Everything the transport logged during a test, as one string. */
+    private function logContents(): string
+    {
+        $file = $this->dir . '/' . date('Y-m-d') . '.log';
+
+        return is_file($file) ? (string) file_get_contents($file) : '';
+    }
+
+    /**
+     * The first log entry whose message contains $needle, decoded.
+     *
+     * @return array{msg: string, ctx: array<string, mixed>}
+     */
+    private function logLineContaining(string $needle): array
+    {
+        foreach (explode("\n", trim($this->logContents())) as $line) {
+            if ($line === '') {
+                continue;
+            }
+
+            $entry = json_decode($line, true);
+            if (is_array($entry) && str_contains((string) $entry['msg'], $needle)) {
+                /** @var array{msg: string, ctx: array<string, mixed>} $entry */
+                return $entry;
+            }
+        }
+
+        $this->fail('No log entry mentions "' . $needle . '". The log holds: ' . $this->logContents());
     }
 
     private function transport(): MsGraphTransport
