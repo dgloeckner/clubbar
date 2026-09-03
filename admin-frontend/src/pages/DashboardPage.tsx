@@ -22,6 +22,8 @@ import { UsersIcon, ReceiptIcon, BookIcon } from '../components/icons'
 import { HomeIcon } from '../components/icons/HomeIcon'
 import { getTransactionAmountColor } from '../utils/transactions'
 import { encryptionKeyMessage, sepaConfigMessage } from '../utils/dashboardAlerts'
+import { getClubTimeZone } from '../utils/clubTimeZone'
+import { useInstanceConfig } from '../context/InstanceConfigContext'
 
 const AUTO_REFRESH_INTERVAL = 10_000 // 10 seconds
 
@@ -29,6 +31,7 @@ export function DashboardPage() {
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
   const { formatPrice, formatDateTime, formatRelativeDate, intlLocale } = useFormatters()
+  const { timeZone, timeZoneSource } = useInstanceConfig()
 
   const [data, setData] = useState<DashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -246,7 +249,7 @@ export function DashboardPage() {
         >
           <span>
             {lastUpdatedAt
-              ? t('dashboard.staleSince', { time: lastUpdatedAt.toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) })
+              ? t('dashboard.staleSince', { time: lastUpdatedAt.toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: getClubTimeZone() }) })
               : t('dashboard.stale')}
           </span>
           <button
@@ -272,6 +275,33 @@ export function DashboardPage() {
           Nothing evaluates expiry on a schedule — shared hosting has no cron —
           so the landing page is where the club finds out, while there is still
           time to rotate. Silent while the key is comfortably valid. */}
+      {/* The club's clock. Every figure on this page — and in every export and
+          mail — is stated in it, and a wrong one is invisible: an hour that is
+          two hours out looks exactly like an hour that is not. The fallback has
+          to stay silent where it is used, so this banner is the only place a
+          club can find out that it never chose (#365). */}
+      {(timeZoneSource === 'default' || timeZoneSource === 'invalid') && (
+        <div
+          data-testid="dashboard-timezone-warning"
+          data-severity={timeZoneSource === 'invalid' ? 'error' : 'warning'}
+          data-source={timeZoneSource}
+          style={{
+            padding: theme.spacing.md,
+            marginBottom: theme.spacing.lg,
+            background:
+              timeZoneSource === 'invalid' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(249, 115, 22, 0.12)',
+            border: `1px solid ${severityColor(timeZoneSource === 'invalid' ? 'error' : 'warning')}`,
+            borderRadius: theme.borderRadius.md,
+            color: severityColor(timeZoneSource === 'invalid' ? 'error' : 'warning'),
+            fontSize: theme.typography.fontSize.sm,
+          }}
+        >
+          {timeZoneSource === 'invalid'
+            ? t('dashboard.timeZoneInvalid', { zone: timeZone ?? '' })
+            : t('dashboard.timeZoneUnset', { zone: timeZone ?? '' })}
+        </div>
+      )}
+
       {encryptionKeyAlert && encryptionKeySeverity !== 'none' && (
         <div
           data-testid="dashboard-encryption-key-warning"
@@ -594,7 +624,8 @@ export function DashboardPage() {
                       {tx.member_name}
                     </div>
                     <div style={{ fontSize: theme.typography.fontSize.xs, color: theme.colors.text.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {tx.product_name || t(`dashboard.${tx.type}`)}{tx.terminal_name ? ` · ${tx.terminal_name}` : ''} · {formatDateTime(tx.timestamp)}
+                      {tx.product_name || t(`dashboard.${tx.type}`)}{tx.terminal_name ? ` · ${tx.terminal_name}` : ''} ·{' '}
+                      <span data-testid={`dashboard-transaction-time-${tx.id}`}>{formatDateTime(tx.timestamp)}</span>
                     </div>
                   </div>
                   <div data-testid={`dashboard-transaction-amount-${tx.id}`} style={{

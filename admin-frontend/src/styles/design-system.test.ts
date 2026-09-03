@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { theme, withAlpha } from './design-system'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setClubTimeZone, resetClubTimeZone } from '../utils/clubTimeZone'
+import { formatDate, formatDateTime, theme, withAlpha } from './design-system'
 
 describe('withAlpha', () => {
   it('composes a black hex color with an alpha channel', () => {
@@ -110,5 +111,52 @@ describe('theme.shadows.modalStrong', () => {
 describe('theme.shadows.dropdown', () => {
   it('exposes a canonical dropdown/popover shadow', () => {
     expect(theme.shadows.dropdown).toBe('0 10px 40px rgba(0, 0, 0, 0.4)')
+  })
+})
+
+describe('rendering in the club’s zone rather than the reader’s', () => {
+  afterEach(() => resetClubTimeZone())
+
+  /**
+   * The bug this closes: the same sale read 18:42 on the dashboard and 20:42
+   * in the journal, and for a reader abroad it disagreed with the mail too.
+   * The books are the club's, so the clock is the club's — whatever zone the
+   * suite itself is running in (`test:timezones` runs it in two).
+   */
+  it('renders an instant on the club’s clock, not the browser’s', () => {
+    setClubTimeZone('Europe/Berlin')
+
+    expect(formatDateTime('2026-09-02T18:42:12Z', 'de-DE')).toBe('02.09.2026, 20:42')
+  })
+
+  it('crosses midnight into the club’s day, not the reader’s', () => {
+    setClubTimeZone('Europe/Berlin')
+
+    // 22:30Z on the 2nd is 00:30 on the 3rd in Berlin.
+    expect(formatDateTime('2026-09-02T22:30:00Z', 'de-DE')).toBe('03.09.2026, 00:30')
+  })
+
+  it('honours a club that is not in Berlin', () => {
+    setClubTimeZone('Atlantic/Reykjavik')
+
+    expect(formatDateTime('2026-09-02T18:42:12Z', 'de-DE')).toBe('02.09.2026, 18:42')
+  })
+
+  /**
+   * A calendar day carries no instant to convert. `parseApiDate` anchors it at
+   * *local* midnight so the day survives the trip, and pushing that into
+   * another zone is exactly what would move it — local midnight in Tokyo is the
+   * previous afternoon in Berlin.
+   */
+  it('never shifts a date-only value into the club’s zone', () => {
+    setClubTimeZone('Europe/Berlin')
+
+    expect(formatDate('2026-08-05', 'de-DE')).toBe('05.08.2026')
+  })
+
+  it('falls back to the reader’s zone before the config has been read', () => {
+    // Unset: whatever Intl does by default, which is what this replaced. The
+    // point is that it renders rather than throwing.
+    expect(formatDateTime('2026-09-02T18:42:12Z', 'de-DE')).toMatch(/^02\.09\.2026, \d{2}:\d{2}$/)
   })
 })

@@ -64,14 +64,20 @@ class AuditLogRepositoryTest extends DatabaseTestCase
      * it with plain range comparisons). These pin the boundary semantics that
      * rewrite has to preserve: `date_to` is a calendar day, inclusive of every
      * second in it, not just its midnight instant.
+     *
+     * The days are the **club's**, and `created_at` holds UTC. Berlin is +01:00
+     * in January, so the window is [2025-12-31 23:00:00Z, 2026-01-03 23:00:00Z)
+     * — the club's 1st of January starts an hour before UTC's. Comparing the
+     * bare day against the column put both ends of the range an hour late
+     * (#365).
      */
-    public function test_listWithFilters_date_range_includes_both_boundary_instants(): void
+    public function test_listWithFilters_date_range_covers_the_whole_club_days(): void
     {
         $entityId = $this->entityId();
-        $onFromDay = $this->insertEntry($entityId, 'create', '2026-01-01 00:00:00');
-        $onToDay = $this->insertEntry($entityId, 'update', '2026-01-03 23:59:59');
-        $beforeRange = $this->insertEntry($entityId, 'delete', '2025-12-31 23:59:59');
-        $afterRange = $this->insertEntry($entityId, 'export', '2026-01-04 00:00:00');
+        $firstInstant = $this->insertEntry($entityId, 'create', '2025-12-31 23:00:00');
+        $lastInstant = $this->insertEntry($entityId, 'update', '2026-01-03 22:59:59');
+        $justBefore = $this->insertEntry($entityId, 'delete', '2025-12-31 22:59:59');
+        $justAfter = $this->insertEntry($entityId, 'export', '2026-01-03 23:00:00');
 
         $result = $this->repository->listWithFilters(10, 0, [
             'entity_id' => $entityId,
@@ -79,9 +85,9 @@ class AuditLogRepositoryTest extends DatabaseTestCase
             'date_to' => '2026-01-03',
         ], 'created_at', 'asc');
 
-        $this->assertSame([$onFromDay, $onToDay], $this->ids($result['items']));
-        $this->assertNotContains($beforeRange, $this->ids($result['items']));
-        $this->assertNotContains($afterRange, $this->ids($result['items']));
+        $this->assertSame([$firstInstant, $lastInstant], $this->ids($result['items']));
+        $this->assertNotContains($justBefore, $this->ids($result['items']));
+        $this->assertNotContains($justAfter, $this->ids($result['items']));
     }
 
     private function createAdminUser(string $email): string

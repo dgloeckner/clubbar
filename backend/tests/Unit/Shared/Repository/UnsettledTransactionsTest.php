@@ -30,9 +30,27 @@ class UnsettledTransactionsTest extends TestCase
 
     // ── End of day ────────────────────────────────────────────────────
 
-    public function test_a_bare_date_is_widened_to_the_end_of_that_day(): void
+    /**
+     * A bare date names a **club** calendar day, and the column it is compared
+     * against holds UTC: the last instant of 31 January in Berlin is 22:59:59Z,
+     * an hour earlier than the naive reading and two in summer (#365).
+     */
+    public function test_a_bare_date_is_widened_to_the_end_of_that_club_day(): void
     {
-        $this->assertSame('2026-01-31 23:59:59', UnsettledTransactions::endOfDay('2026-01-31'));
+        $this->assertSame('2026-01-31 22:59:59', UnsettledTransactions::endOfDay('2026-01-31'));
+    }
+
+    /** The `>=` half of the same window. */
+    public function test_a_bare_date_starts_when_the_club_day_starts(): void
+    {
+        $this->assertSame('2025-12-31 23:00:00', UnsettledTransactions::startOfDay('2026-01-01'));
+        $this->assertSame('2026-06-30 22:00:00', UnsettledTransactions::startOfDay('2026-07-01'));
+    }
+
+    /** An instant is already one; only a calendar day needs resolving. */
+    public function test_a_timestamp_passes_through_the_lower_bound(): void
+    {
+        $this->assertSame('2026-01-31 12:00:00', UnsettledTransactions::startOfDay('2026-01-31 12:00:00'));
     }
 
     /**
@@ -60,15 +78,15 @@ class UnsettledTransactionsTest extends TestCase
         [$where, $params] = UnsettledTransactions::buildUnsettledWhere(['date_from' => '2026-01-01']);
 
         $this->assertContains('t.occurred_at >= ?', $where);
-        $this->assertSame(['2026-01-01'], $params);
+        $this->assertSame(['2025-12-31 23:00:00'], $params);
     }
 
-    public function test_date_to_is_bound_to_the_end_of_the_day(): void
+    public function test_date_to_is_bound_to_the_end_of_the_club_day(): void
     {
         [$where, $params] = UnsettledTransactions::buildUnsettledWhere(['date_to' => '2026-01-31']);
 
         $this->assertContains('t.occurred_at <= ?', $where);
-        $this->assertSame(['2026-01-31 23:59:59'], $params);
+        $this->assertSame(['2026-01-31 22:59:59'], $params);
     }
 
     public function test_member_id_is_bound(): void
@@ -116,7 +134,7 @@ class UnsettledTransactionsTest extends TestCase
             'every placeholder must have exactly one bound parameter'
         );
         $this->assertSame(
-            ['2026-01-01', '2026-01-31 23:59:59', '%bier%', '%bier%', '%bier%', 'm-1'],
+            ['2025-12-31 23:00:00', '2026-01-31 22:59:59', '%bier%', '%bier%', '%bier%', 'm-1'],
             $params
         );
     }

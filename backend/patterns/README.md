@@ -72,6 +72,12 @@ All backend code must follow these patterns. Reference them when implementing fe
 - Money as integer cents, never a pre-formatted amount
 - **When**: Any refusal an admin can see — every 409 the modules raise
 
+**[Pattern 020: One Clock for the Books](./pattern-020-club-timezone-rendering.md)**
+- Columns hold UTC; every conversion back to the club's zone is explicit
+- `ClubTimeZone` for one value, `ClubLocalSql` for a `GROUP BY`, `toUtcIso()` for a DTO
+- A calendar day is never shifted — the shape of the value is the contract
+- **When**: Any `date()`, `DATE()`, `HOUR()` or date filter touching a UTC column
+
 **[Pattern 017: Shared HTTP Layer](./pattern-017-shared-http-layer.md)**
 - `JsonResponder` trait, `ListQuery` parser, `PaginatedResponse` envelope
 - One list-response shape, one pagination cap, all sort dialects

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\Reports\Repositories;
 
 use App\Modules\Reports\Domain\ReportFilters;
+use App\Shared\Time\ClubLocalSql;
+use App\Shared\Time\ClubTimeZone;
+use App\Shared\Utils\DateFormatter;
 use PDO;
 
 /**
@@ -59,20 +62,20 @@ class ReportsRepository
             'group' => 't.member_id',
             'joins' => 'LEFT JOIN members m ON t.member_id = m.id',
         ],
-        'day' => ['dimension' => 'DATE(t.occurred_at)', 'id' => 'NULL', 'group' => 'DATE(t.occurred_at)', 'joins' => ''],
+        'day' => ['dimension' => 'DATE({local})', 'id' => 'NULL', 'group' => 'DATE({local})', 'joins' => ''],
         'week' => [
-            'dimension' => "CONCAT(YEAR(t.occurred_at), '-W', LPAD(WEEK(t.occurred_at, 1), 2, '0'))",
+            'dimension' => "CONCAT(YEAR({local}), '-W', LPAD(WEEK({local}, 1), 2, '0'))",
             'id' => 'NULL',
-            'group' => 'YEAR(t.occurred_at), WEEK(t.occurred_at, 1)',
+            'group' => 'YEAR({local}), WEEK({local}, 1)',
             'joins' => '',
         ],
         'month' => [
-            'dimension' => "DATE_FORMAT(t.occurred_at, '%Y-%m')",
+            'dimension' => "DATE_FORMAT({local}, '%Y-%m')",
             'id' => 'NULL',
-            'group' => "DATE_FORMAT(t.occurred_at, '%Y-%m')",
+            'group' => "DATE_FORMAT({local}, '%Y-%m')",
             'joins' => '',
         ],
-        'year' => ['dimension' => 'YEAR(t.occurred_at)', 'id' => 'NULL', 'group' => 'YEAR(t.occurred_at)', 'joins' => ''],
+        'year' => ['dimension' => 'YEAR({local})', 'id' => 'NULL', 'group' => 'YEAR({local})', 'joins' => ''],
     ];
 
     /** Sort keys the grouped query accepts, mapped to their ORDER BY clause. */
@@ -116,7 +119,7 @@ class ReportsRepository
     public function countGroups(ReportFilters $filters, string $groupBy): int
     {
         [$where, $params] = $this->purchaseConditions($filters);
-        $grouping = $this->groupBySql($groupBy);
+        $grouping = $this->groupBySql($groupBy, $filters);
 
         $stmt = $this->db->prepare(
             "SELECT COUNT(*) FROM (
@@ -147,7 +150,7 @@ class ReportsRepository
         int $offset,
     ): array {
         [$where, $params] = $this->purchaseConditions($filters);
-        $grouping = $this->groupBySql($groupBy);
+        $grouping = $this->groupBySql($groupBy, $filters);
         $orderByClause = self::ORDER_BY_SQL[$orderBy] ?? self::ORDER_BY_SQL['revenue'];
         $bounds = $this->limitOffset($limit, $offset);
 
@@ -198,7 +201,9 @@ class ReportsRepository
 
         return array_map(static fn(array $row): array => [
             'amount_cents' => (int) $row['amount_cents'],
-            'occurred_at' => (string) $row['occurred_at'],
+            // Labelled like every other instant the API emits, so a consumer
+            // that parses it cannot read it as its own local time (#365).
+            'occurred_at' => DateFormatter::toUtcIso((string) $row['occurred_at']) ?? (string) $row['occurred_at'],
         ], $stmt->fetchAll());
     }
 
@@ -211,11 +216,17 @@ class ReportsRepository
     {
         [$where, $params] = $this->activityConditions($filters);
 
+        // The hour the club was in, not the hour UTC was in. This is the one
+        // figure with no second surface to disagree with it: an hour-of-day
+        // histogram is smooth and believable whichever way it is shifted, so a
+        // reader has nothing to check it against (#365).
+        $local = $this->localInstant($filters);
+
         $stmt = $this->db->prepare(
-            "SELECT HOUR(t.occurred_at) as hour, COUNT(*) as transaction_count
+            "SELECT HOUR({$local}) as hour, COUNT(*) as transaction_count
              FROM transactions t
              WHERE {$where}
-             GROUP BY HOUR(t.occurred_at)
+             GROUP BY HOUR({$local})
              ORDER BY hour"
         );
         $stmt->execute($params);
@@ -260,12 +271,45 @@ class ReportsRepository
     }
 
     /**
+     * The grouping dialect for `$groupBy`, with `{local}` resolved.
+     *
+     * The calendar dimensions — day, week, month, year — name a period the
+     * *club* had, so they group on `occurred_at` read in the club's zone rather
+     * than in the UTC it is stored in (#365). Without it a Saturday evening's
+     * takings appear partly under Sunday, and the bar is still plausible enough
+     * that nobody notices. {@see ClubLocalSql} explains why this is an offset
+     * expression and not `CONVERT_TZ`.
+     *
      * @return array{dimension: string, id: string, group: string, joins: string}
      */
-    private function groupBySql(string $groupBy): array
+    private function groupBySql(string $groupBy, ReportFilters $filters): array
     {
-        return self::GROUP_BY_SQL[$groupBy]
+        $grouping = self::GROUP_BY_SQL[$groupBy]
             ?? throw new \InvalidArgumentException("Invalid group_by: {$groupBy}");
+
+        $local = $this->localInstant($filters);
+
+        return [
+            'dimension' => str_replace('{local}', $local, $grouping['dimension']),
+            'id' => str_replace('{local}', $local, $grouping['id']),
+            'group' => str_replace('{local}', $local, $grouping['group']),
+            'joins' => $grouping['joins'],
+        ];
+    }
+
+    /**
+     * `t.occurred_at` evaluated in the club's zone, across this query's range.
+     *
+     * The bounds only decide which daylight-saving transitions the expression
+     * has to carry, so an unbounded filter widens rather than breaks it.
+     */
+    private function localInstant(ReportFilters $filters): string
+    {
+        return ClubLocalSql::localInstant(
+            't.occurred_at',
+            $filters->dateFrom !== null ? ClubTimeZone::startsAtUtc($filters->dateFrom) : null,
+            $filters->dateTo !== null ? ClubTimeZone::endsBeforeUtc($filters->dateTo) : null,
+        );
     }
 
     /**
@@ -333,13 +377,18 @@ class ReportsRepository
      */
     private function appendDateRange(ReportFilters $filters, array &$conditions, array &$params): void
     {
+        // A filter names club calendar days, and the column holds UTC: the
+        // window is the half-open range of UTC instants those days cover.
+        // Comparing the raw day against the column instead put both ends of
+        // every range two hours late in Berlin summer.
         if ($filters->dateFrom) {
             $conditions[] = 't.occurred_at >= ?';
-            $params[] = $filters->dateFrom;
+            $params[] = ClubTimeZone::startsAtUtc($filters->dateFrom) ?? $filters->dateFrom;
         }
         if ($filters->dateTo) {
-            $conditions[] = 't.occurred_at < DATE_ADD(?, INTERVAL 1 DAY)';
-            $params[] = $filters->dateTo;
+            $conditions[] = 't.occurred_at < ?';
+            $params[] = ClubTimeZone::endsBeforeUtc($filters->dateTo)
+                ?? (new \DateTimeImmutable($filters->dateTo . ' +1 day'))->format('Y-m-d H:i:s');
         }
     }
 

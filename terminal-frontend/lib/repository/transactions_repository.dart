@@ -33,7 +33,12 @@ class TransactionsRepository {
   Future<void> quarantineTransactions(Map<String, String> reasonsById) async {
     if (reasonsById.isEmpty) return;
 
-    final now = DateTime.now().toIso8601String();
+    // UTC, like every other instant in this database — `cart_service` writes
+    // `occurred_at` as `.toUtc()` and the API labels its columns "Z" (#365).
+    // Without it this one column carried the Pi's local time under a name
+    // that reads like all the others, which costs nothing while nothing
+    // displays it and becomes a two-hour error the moment something does.
+    final now = DateTime.now().toUtc().toIso8601String();
     await _db.transaction(() async {
       for (final entry in reasonsById.entries) {
         await (_db.update(_db.transactionsLocal)

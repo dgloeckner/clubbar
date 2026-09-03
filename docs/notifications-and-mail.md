@@ -246,14 +246,18 @@ sequenceDiagram
 | `drain_batch_size`, `drain_budget_seconds` | Settings → Mail | Budget defaults to 25s; lower it to fit a tighter external scheduler timeout |
 | Cron secret (for the URL trigger) | `backend/config.php` (`cron.secret`) | Written by the installer; the scheduler step (`install.php?step=7&update=1`) generates a replacement and shows it once. **Not** admin-editable since #744 — a second writer meant the panel and the installer could disagree about which secret was live |
 | SMTP transport (`mail.dsn`) | `backend/config.php` | **Not** admin-editable from the panel — same tier as the DB password, changing it is a file operation |
-| `CLUB_TIMEZONE` | `backend/.env` | The clock a mail's dates and times are written in. Defaults to `Europe/Berlin`; an unknown name falls back to it rather than failing a send |
+| `CLUB_TIMEZONE` | `backend/.env` | The clock the club's books are stated in — mails, exports, report buckets and the admin panel alike. Defaults to `Europe/Berlin`; an unknown name falls back to it rather than failing a send |
 
 **Which clock a mail states.** Everything is stored and served in UTC (#365),
-and in the admin panel the *browser* converts that to the reader's own zone. A
-mail has no browser, so the server does it instead, in the one zone a club
-actually has — hence `CLUB_TIMEZONE` rather than anything per-recipient. Only
-instants are shifted: a due date, a statement boundary and a period range are
-calendar days and stay where they are, in every zone (#637).
+and every surface converts it back using `CLUB_TIMEZONE` — the one zone a club
+actually has, rather than anything per-recipient. That includes the admin panel,
+which used to convert with whatever zone the *reader's browser* reported: for a
+Kassenwart reconciling from a laptop abroad, the Deckelauszug in their inbox and
+the journal on their screen then named different times for the same sale, and
+neither was wrong by its own rule. Only instants are shifted: a due date, a
+statement boundary and a period range are calendar days and stay where they are,
+in every zone (#637). See
+[Pattern 020](../backend/patterns/pattern-020-club-timezone-rendering.md).
 
 **Running the drain:**
 

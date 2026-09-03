@@ -1283,7 +1283,9 @@
     "jugendschutzAcknowledging": "Saving …",
     "jugendschutzAcknowledgeFailed": "Could not be marked as dealt with.",
     "creditLimitClubDefault": "Club default: {{amount}} — each member is measured against their own limit",
-    "balanceOfLimit": "{{balance}} of {{limit}}"
+    "balanceOfLimit": "{{balance}} of {{limit}}",
+    "timeZoneUnset": "No time zone configured: all times and day boundaries are shown in {{zone}}. If your club is elsewhere, set it in config.php (app.timezone) or as CLUB_TIMEZONE — otherwise booking times, daily revenue and reports are quietly off.",
+    "timeZoneInvalid": "The configured time zone is not valid — {{zone}} is being used instead. Please correct app.timezone in config.php or CLUB_TIMEZONE; until then booking times, daily revenue and reports may be wrong."
   },
   "pagination": {
     "firstPage": "First page",

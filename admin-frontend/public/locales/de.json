@@ -1283,7 +1283,9 @@
     "jugendschutzAcknowledging": "Wird gespeichert …",
     "jugendschutzAcknowledgeFailed": "Konnte nicht als erledigt markiert werden.",
     "creditLimitClubDefault": "Vereinsstandard: {{amount}} — gemessen wird jedes Mitglied an seinem eigenen Limit",
-    "balanceOfLimit": "{{balance}} von {{limit}}"
+    "balanceOfLimit": "{{balance}} von {{limit}}",
+    "timeZoneUnset": "Zeitzone nicht konfiguriert: Alle Zeiten und Tagesabgrenzungen werden in {{zone}} dargestellt. Liegt Ihr Verein in einer anderen Zeitzone, tragen Sie sie in der config.php (app.timezone) bzw. als CLUB_TIMEZONE ein — sonst weichen Buchungszeiten, Tagesumsätze und Auswertungen unbemerkt ab.",
+    "timeZoneInvalid": "Konfigurierte Zeitzone ist ungültig — es wird ersatzweise {{zone}} verwendet. Bitte korrigieren Sie app.timezone in der config.php bzw. CLUB_TIMEZONE; bis dahin können Buchungszeiten, Tagesumsätze und Auswertungen falsch sein."
   },
   "pagination": {
     "firstPage": "Erste Seite",

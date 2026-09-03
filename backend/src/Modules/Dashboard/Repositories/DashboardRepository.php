@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Dashboard\Repositories;
 
+use App\Shared\Time\ClubLocalSql;
+use App\Shared\Time\ClubTimeZone;
 use PDO;
 
 /**
@@ -43,6 +45,8 @@ class DashboardRepository
      */
     public function sumRevenueSince(string $date): int
     {
+        $date = ClubTimeZone::startsAtUtc($date) ?? $date;
+
         $stmt = $this->db->prepare(
             'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions
               WHERE occurred_at >= ? AND ' . self::REVENUE_FILTER
@@ -99,10 +103,10 @@ class DashboardRepository
     {
         $stmt = $this->db->prepare(
             'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions
-              WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
+              WHERE occurred_at >= ? AND occurred_at < ?
                 AND ' . self::REVENUE_FILTER
         );
-        $stmt->execute([$startDate, $endDate]);
+        $stmt->execute(self::window($startDate, $endDate));
 
         return (int) $stmt->fetchColumn();
     }
@@ -114,10 +118,10 @@ class DashboardRepository
     {
         $stmt = $this->db->prepare(
             "SELECT COUNT(*) FROM transactions
-              WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
+              WHERE occurred_at >= ? AND occurred_at < ?
                 AND transaction_type = 'purchase'"
         );
-        $stmt->execute([$startDate, $endDate]);
+        $stmt->execute(self::window($startDate, $endDate));
 
         return (int) $stmt->fetchColumn();
     }
@@ -132,17 +136,23 @@ class DashboardRepository
      */
     public function findDailyRevenue(string $startDate, string $endDate): array
     {
+        [$from, $until] = self::window($startDate, $endDate);
+        // One bar per club day, not per UTC day: a Saturday evening's takings
+        // belong to Saturday for everyone who was there, and bucketing on the
+        // stored UTC pushed the late ones onto Sunday (#365).
+        $local = ClubLocalSql::localInstant('occurred_at', $from, $until);
+
         $stmt = $this->db->prepare(
-            'SELECT DATE(occurred_at) as date,
+            "SELECT DATE({$local}) as date,
                     COALESCE(SUM(amount_cents), 0) as revenue_cents,
                     COUNT(*) as transaction_count
              FROM transactions
-             WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
-               AND ' . self::REVENUE_FILTER . '
-             GROUP BY DATE(occurred_at)
-             ORDER BY date'
+             WHERE occurred_at >= ? AND occurred_at < ?
+               AND " . self::REVENUE_FILTER . "
+             GROUP BY DATE({$local})
+             ORDER BY date"
         );
-        $stmt->execute([$startDate, $endDate]);
+        $stmt->execute([$from, $until]);
 
         return $stmt->fetchAll();
     }
@@ -158,14 +168,15 @@ class DashboardRepository
             "SELECT p.id, p.names, COUNT(*) as sold_count, SUM(t.amount_cents) as revenue_cents
              FROM transactions t
              JOIN products p ON t.product_id = p.id
-             WHERE t.occurred_at >= :start AND t.occurred_at < DATE_ADD(:end, INTERVAL 1 DAY)
+             WHERE t.occurred_at >= :start AND t.occurred_at < :end
                AND t.transaction_type = 'purchase'
              GROUP BY p.id
              ORDER BY revenue_cents DESC
              LIMIT :limit"
         );
-        $stmt->bindValue('start', $startDate);
-        $stmt->bindValue('end', $endDate);
+        [$from, $until] = self::window($startDate, $endDate);
+        $stmt->bindValue('start', $from);
+        $stmt->bindValue('end', $until);
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
 
@@ -183,14 +194,15 @@ class DashboardRepository
             "SELECT p.id, p.names, COUNT(*) as sold_count
              FROM transactions t
              JOIN products p ON t.product_id = p.id
-             WHERE t.occurred_at >= :start AND t.occurred_at < DATE_ADD(:end, INTERVAL 1 DAY)
+             WHERE t.occurred_at >= :start AND t.occurred_at < :end
                AND t.transaction_type = 'purchase'
              GROUP BY p.id
              ORDER BY sold_count DESC
              LIMIT :limit"
         );
-        $stmt->bindValue('start', $startDate);
-        $stmt->bindValue('end', $endDate);
+        [$from, $until] = self::window($startDate, $endDate);
+        $stmt->bindValue('start', $from);
+        $stmt->bindValue('end', $until);
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
 
@@ -209,17 +221,38 @@ class DashboardRepository
                     COUNT(*) as purchase_count, SUM(t.amount_cents) as revenue_cents
              FROM transactions t
              JOIN members m ON t.member_id = m.id
-             WHERE t.occurred_at >= :start AND t.occurred_at < DATE_ADD(:end, INTERVAL 1 DAY)
+             WHERE t.occurred_at >= :start AND t.occurred_at < :end
                AND t.transaction_type = 'purchase'
              GROUP BY m.id
              ORDER BY revenue_cents DESC
              LIMIT :limit"
         );
-        $stmt->bindValue('start', $startDate);
-        $stmt->bindValue('end', $endDate);
+        [$from, $until] = self::window($startDate, $endDate);
+        $stmt->bindValue('start', $from);
+        $stmt->bindValue('end', $until);
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
 
         return $stmt->fetchAll();
+    }
+
+    /**
+     * The UTC instants a range of **club calendar days** covers, half-open.
+     *
+     * Every date a caller hands this repository is a day the club had — the
+     * month the monthly stats are for, the range a chart spans — while
+     * `occurred_at` holds UTC. Comparing the two directly put both ends of
+     * every window two hours late in Berlin summer: the first two hours of the
+     * first day were missing and the first two of the day *after* the last were
+     * counted (#365).
+     *
+     * @return array{0: string, 1: string}
+     */
+    private static function window(string $startDate, string $endDate): array
+    {
+        return [
+            ClubTimeZone::startsAtUtc($startDate) ?? $startDate,
+            ClubTimeZone::endsBeforeUtc($endDate) ?? $endDate,
+        ];
     }
 }

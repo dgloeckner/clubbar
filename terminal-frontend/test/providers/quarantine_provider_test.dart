@@ -71,7 +71,14 @@ void main() {
       final sale = provider.failedSales.single;
       expect(sale.memberName, equals('Max Mustermann'));
       expect(sale.amountCents, equals(350));
-      expect(sale.occurredAt, equals(DateTime.parse('2025-02-01T20:15:00Z')));
+      // The banner shows staff a wall-clock time, so the sale is carried in
+      // the terminal's own zone — the same conversion the transaction
+      // history screen does to the same column. Dart's `==` compares the
+      // zone flag as well as the instant, so a UTC DateTime here would not
+      // merely be a different rendering, it would be a different value.
+      expect(sale.occurredAt,
+          equals(DateTime.parse('2025-02-01T20:15:00Z').toLocal()));
+      expect(sale.occurredAt.isUtc, isFalse);
       expect(sale.reason, equals('unstorable'));
     });
 

@@ -157,8 +157,10 @@ class TerminalIpSightingsRepositoryTest extends DatabaseTestCase
             $byIp[$interval['ip_address']] = $interval;
         }
 
-        $this->assertSame('2026-08-15 11:36:00', $byIp['203.0.113.10']['first_seen_at']);
-        $this->assertSame('2026-08-15 12:21:00', $byIp['203.0.113.10']['last_seen_at']);
+        // Labelled UTC on the way out, like every other instant the API emits:
+        // a bare datetime is read as local time by whatever parses it (#365).
+        $this->assertSame('2026-08-15T11:36:00Z', $byIp['203.0.113.10']['first_seen_at']);
+        $this->assertSame('2026-08-15T12:21:00Z', $byIp['203.0.113.10']['last_seen_at']);
         $this->assertSame(3, $byIp['203.0.113.10']['request_count']);
         $this->assertSame(1, $byIp['198.51.100.7']['request_count']);
     }

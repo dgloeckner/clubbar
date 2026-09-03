@@ -110,9 +110,12 @@ class AuditLogRepository
         // (594k rows examined for a 30-day window on a 600k-row table). A plain
         // date string still compares correctly against created_at's implicit
         // 00:00:00, so only the upper bound needs widening to the end of day.
+        //
+        // Both bounds name club calendar days and are resolved to the UTC
+        // instants those days cover (#365).
         if (isset($filters['date_from'])) {
             $where[] = 'al.created_at >= ?';
-            $params[] = $filters['date_from'];
+            $params[] = UnsettledTransactions::startOfDay((string) $filters['date_from']);
         }
         if (isset($filters['date_to'])) {
             $where[] = 'al.created_at <= ?';

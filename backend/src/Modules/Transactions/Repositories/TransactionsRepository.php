@@ -264,7 +264,7 @@ class TransactionsRepository
         }
         if (isset($filters['date_from'])) {
             $where[] = 't.occurred_at >= ?';
-            $params[] = $filters['date_from'];
+            $params[] = UnsettledTransactions::startOfDay((string) $filters['date_from']);
         }
         if (isset($filters['date_to'])) {
             $where[] = 't.occurred_at <= ?';

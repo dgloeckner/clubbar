@@ -9,7 +9,7 @@
  * impossible on both pages (#89).
  */
 
-import { toIsoDate } from './dates'
+import { toClubIsoDate } from './dates'
 
 export type PeriodKey = '1m' | '3m' | '6m' | '1y' | '2y' | 'all'
 
@@ -36,13 +36,16 @@ export interface PeriodRange {
 }
 
 /**
- * The `date_from` / `date_to` pair a preset stands for, as local calendar days.
+ * The `date_from` / `date_to` pair a preset stands for, as **club** calendar
+ * days — the backend resolves them against a UTC column as the club's days, so
+ * building them from the reader's calendar put the window a day out for anyone
+ * whose midnight is not the club's (#365).
  *
  * `today` is injectable so callers (and tests) can pin the reference day; it
  * defaults to now.
  */
 export function getPeriodRange(period: PeriodKey, today: Date = new Date()): PeriodRange {
-  const dateTo = toIsoDate(today)
+  const dateTo = toClubIsoDate(today)
   const days = PERIOD_DAYS[period]
 
   if (days === null) {
@@ -52,5 +55,5 @@ export function getPeriodRange(period: PeriodKey, today: Date = new Date()): Per
   const from = new Date(today)
   from.setDate(from.getDate() - days)
 
-  return { dateFrom: toIsoDate(from), dateTo }
+  return { dateFrom: toClubIsoDate(from), dateTo }
 }

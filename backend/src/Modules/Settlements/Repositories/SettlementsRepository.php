@@ -521,7 +521,7 @@ class SettlementsRepository
 
         if ($dateFrom) {
             $where[] = 's.created_at >= ?';
-            $params[] = $dateFrom . ' 00:00:00';
+            $params[] = UnsettledTransactions::startOfDay($dateFrom);
         }
         if ($dateTo) {
             $where[] = 's.created_at <= ?';

@@ -56,24 +56,42 @@ class DashboardRepositoryTest extends DatabaseTestCase
 
     // ── Revenue ─────────────────────────────────────────────────────────────
 
-    public function test_sumRevenueSince_counts_only_what_happened_on_or_after_the_date(): void
+    /**
+     * The date names a **club** calendar day, and the column holds UTC.
+     *
+     * Berlin is +01:00 in March, so the club day 2019-03-10 begins at 23:00Z on
+     * the 9th. A sale a second earlier was rung up at 23:59:59 on the 9th and is
+     * last night's takings; a sale a second later was rung up at 00:00 on the
+     * 10th and is today's. Reading the date as a UTC day put that boundary an
+     * hour late, which is how "Heute" on the dashboard lost every sale a bar
+     * serving past midnight made after 00:00 local (#365).
+     */
+    public function test_sumRevenueSince_counts_from_the_start_of_the_club_day(): void
     {
         $member = $this->createMember();
         $before = $this->repository->sumRevenueSince('2019-03-10');
 
-        $this->createTransaction($member, 500, '2019-03-09 23:59:59');
-        $this->createTransaction($member, 700, '2019-03-10 00:00:00');
+        $this->createTransaction($member, 500, '2019-03-09 22:59:59');
+        $this->createTransaction($member, 700, '2019-03-09 23:00:00');
         $this->createTransaction($member, 300, '2019-03-20 12:00:00');
 
         $this->assertSame($before + 1000, $this->repository->sumRevenueSince('2019-03-10'));
     }
 
-    public function test_sumRevenueBetween_includes_both_edges_of_the_range(): void
+    /**
+     * Both edges of the window are club days, and the last one here is 23 hours
+     * long: Berlin enters summer time on 2019-03-31, so that day starts at
+     * 23:00Z on the 30th and ends at 22:00Z rather than 23:00Z. A fixed offset
+     * gets exactly one of those two edges wrong, which is why the boundaries
+     * are constructed in the zone.
+     */
+    public function test_sumRevenueBetween_covers_the_club_days_edge_to_edge(): void
     {
         $member = $this->createMember();
-        $this->createTransaction($member, 100, self::WINDOW_START . ' 00:00:00');
-        $this->createTransaction($member, 200, self::WINDOW_END . ' 23:59:59');
-        $this->createTransaction($member, 999, '2019-04-01 00:00:00');
+        $this->createTransaction($member, 400, '2019-02-28 22:59:59'); // 23:59:59 on 28 Feb
+        $this->createTransaction($member, 100, '2019-02-28 23:00:00'); // 00:00:00 on 1 Mar
+        $this->createTransaction($member, 200, '2019-03-31 21:59:59'); // 23:59:59 on 31 Mar
+        $this->createTransaction($member, 999, '2019-03-31 22:00:00'); // 00:00:00 on 1 Apr
 
         $this->assertSame(300, $this->repository->sumRevenueBetween(self::WINDOW_START, self::WINDOW_END));
     }
@@ -104,6 +122,53 @@ class DashboardRepositoryTest extends DatabaseTestCase
         $this->createTransaction($member, 2500, '2019-03-06 10:00:00');
 
         $this->assertSame(7500, $this->repository->sumRevenueBetween(self::WINDOW_START, self::WINDOW_END));
+    }
+
+    /**
+     * A bar on the chart is a day the *club* had.
+     *
+     * A sale at 23:30Z on the 5th was rung up at 00:30 on the 6th in Berlin
+     * (+01:00 in early March), so it belongs to the 6th. Bucketing on the
+     * stored UTC put a Saturday evening's late takings under Sunday —
+     * invisible for a lunchtime club and systematic for an evening one (#365).
+     */
+    public function test_findDailyRevenue_buckets_by_the_club_day(): void
+    {
+        $member = $this->createMember();
+        $this->createTransaction($member, 1000, '2019-03-05 12:00:00'); // 13:00 on the 5th
+        $this->createTransaction($member, 2000, '2019-03-05 23:30:00'); // 00:30 on the 6th
+
+        $days = $this->repository->findDailyRevenue('2019-03-05', '2019-03-06');
+        $byDate = [];
+        foreach ($days as $day) {
+            $byDate[(string) $day['date']] = (int) $day['revenue_cents'];
+        }
+
+        $this->assertSame(['2019-03-05' => 1000, '2019-03-06' => 2000], $byDate);
+    }
+
+    /**
+     * The offset is not a constant, so a range spanning a daylight-saving
+     * transition needs a different one on each side of it. Berlin goes back to
+     * +01:00 at 01:00Z on 2019-10-27: 22:30Z on the 26th is still 00:30 on the
+     * 27th, while 23:30Z on the 27th is 00:30 on the *28th*. A single fixed
+     * offset gets one of these two wrong whichever value it picks — which is
+     * what `ClubLocalSql` builds a CASE for, `CONVERT_TZ` being unavailable on
+     * a stock MariaDB.
+     */
+    public function test_findDailyRevenue_stays_correct_across_a_dst_transition(): void
+    {
+        $member = $this->createMember();
+        $this->createTransaction($member, 1000, '2019-10-26 22:30:00'); // 00:30 on the 27th, +02:00
+        $this->createTransaction($member, 2000, '2019-10-27 23:30:00'); // 00:30 on the 28th, +01:00
+
+        $days = $this->repository->findDailyRevenue('2019-10-26', '2019-10-28');
+        $byDate = [];
+        foreach ($days as $day) {
+            $byDate[(string) $day['date']] = (int) $day['revenue_cents'];
+        }
+
+        $this->assertSame(['2019-10-27' => 1000, '2019-10-28' => 2000], $byDate);
     }
 
     public function test_findDailyRevenue_counts_purchases_only(): void

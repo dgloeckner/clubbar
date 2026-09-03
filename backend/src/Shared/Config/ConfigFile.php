@@ -47,6 +47,13 @@ final class ConfigFile
         $_ENV['APP_DEBUG'] = ($config['app']['debug'] ?? false) ? 'true' : 'false';
         $_ENV['APP_URL'] = $config['app']['url'] ?? '';
 
+        // The zone the club reads in. Optional, and deliberately only set when
+        // present: ClubTimeZone's own default (Europe/Berlin) is then what
+        // applies, and an empty string here would look like a configured value.
+        if (isset($config['app']['timezone']) && trim((string) $config['app']['timezone']) !== '') {
+            $_ENV['CLUB_TIMEZONE'] = trim((string) $config['app']['timezone']);
+        }
+
         $_ENV['SESSION_MAX_AGE'] = (string) ($config['session']['max_age'] ?? 7200);
         $_ENV['SESSION_REGEN_INTERVAL'] = (string) ($config['session']['regeneration_interval'] ?? 900);
 

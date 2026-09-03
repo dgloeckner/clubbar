@@ -10,6 +10,7 @@ use App\Shared\Validation\Validator;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Http\ListQuery;
 use App\Shared\Http\PaginatedResponse;
+use App\Shared\Time\ClubTimeZone;
 use App\Shared\Utils\Csv;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -237,7 +238,12 @@ class AdminController
             $item = (array) $item;
 
             $rows[] = [
-                substr((string) ($item['created_at'] ?? ''), 0, 10),
+                // The club's calendar day, not UTC's. Taking the first ten
+                // characters of the (correctly labelled) UTC instant dated a
+                // sale at 00:30 CEST to the previous day, so the export and the
+                // journal on screen named different days for the same row —
+                // and the export is what reaches the Kassenwart's books (#365).
+                self::exportDay($item['created_at'] ?? null),
                 $item['member_name'] ?? '',
                 $this->productLabel($item),
                 $item['transaction_type'] ?? $item['type'] ?? '',
@@ -246,6 +252,21 @@ class AdminController
         }
 
         return Csv::build(['date', 'member_name', 'product', 'type', 'amount_eur'], $rows);
+    }
+
+    /**
+     * A stored instant as the club calendar day it happened on, `Y-m-d`.
+     *
+     * An unparseable value comes back as an empty cell rather than as a
+     * plausible wrong date: a blank is something a reader questions.
+     */
+    private static function exportDay(mixed $instant): string
+    {
+        if (!is_string($instant) || trim($instant) === '') {
+            return '';
+        }
+
+        return ClubTimeZone::moment($instant)?->format('Y-m-d') ?? '';
     }
 
     /**

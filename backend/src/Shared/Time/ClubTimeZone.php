@@ -62,24 +62,57 @@ final class ClubTimeZone
      */
     private const INSTANT = '/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?(\.\d+)?\s*(Z|[+-]\d{2}:?\d{2})?$/i';
 
+    /** A deployment stated its zone, and it is usable. */
+    public const SOURCE_CONFIGURED = 'configured';
+
+    /** Nothing was stated; {@see self::DEFAULT} applies. */
+    public const SOURCE_DEFAULT = 'default';
+
+    /** Something was stated and is not a zone; {@see self::DEFAULT} applies. */
+    public const SOURCE_INVALID = 'invalid';
+
     /** The configured zone's name, or {@see self::DEFAULT}. */
     public static function name(): string
     {
-        $configured = trim(Env::get(self::ENV_KEY, self::DEFAULT));
+        return self::resolve()[0];
+    }
+
+    /**
+     * Why the effective zone is the one it is.
+     *
+     * The fallback is deliberately silent at the point of use — a mail that
+     * arrives with the wrong hour still reaches somebody, one that throws in
+     * the builder reaches nobody and blocks the drain behind it. Silent is not
+     * the same as unreportable, though: a club that never stated its zone is
+     * reading its books on Berlin's clock by accident rather than by decision,
+     * and a club that stated `Europe/Berlim` is doing so despite having tried.
+     * Both are invisible on every screen, because a wrong hour looks exactly
+     * like a right one. This is what lets the admin panel say so.
+     */
+    public static function source(): string
+    {
+        return self::resolve()[1];
+    }
+
+    /**
+     * The effective zone and where it came from.
+     *
+     * @return array{0: string, 1: self::SOURCE_*}
+     */
+    private static function resolve(): array
+    {
+        $configured = trim(Env::get(self::ENV_KEY, ''));
         if ($configured === '') {
-            return self::DEFAULT;
+            return [self::DEFAULT, self::SOURCE_DEFAULT];
         }
 
-        // A typo must not take a notice down: a mail that arrives with the
-        // wrong hour still reaches somebody, one that throws in the builder
-        // reaches nobody and blocks the drain behind it.
         try {
             new DateTimeZone($configured);
         } catch (\Exception) {
-            return self::DEFAULT;
+            return [self::DEFAULT, self::SOURCE_INVALID];
         }
 
-        return $configured;
+        return [$configured, self::SOURCE_CONFIGURED];
     }
 
     public static function zone(): DateTimeZone
@@ -123,5 +156,96 @@ final class ClubTimeZone
         }
 
         return null;
+    }
+
+    /**
+     * The club's calendar day containing `$instant`, as `Y-m-d`.
+     *
+     * The counterpart of {@see self::moment()} for aggregation: a figure headed
+     * "today" or a bar on a daily chart names a day the club *had*, and a sale
+     * at 23:30 UTC belongs to the following one in Berlin.
+     */
+    public static function dayOf(DateTimeImmutable $instant): string
+    {
+        return $instant->setTimezone(self::zone())->format('Y-m-d');
+    }
+
+    /** The club's current calendar day. `$now` is injectable for tests. */
+    public static function today(?DateTimeImmutable $now = null): string
+    {
+        return self::dayOf($now ?? new DateTimeImmutable('now', new DateTimeZone('UTC')));
+    }
+
+    /** Monday of the club week containing `$now`, as a club calendar day. */
+    public static function startOfWeek(?DateTimeImmutable $now = null): string
+    {
+        $local = ($now ?? new DateTimeImmutable('now', new DateTimeZone('UTC')))->setTimezone(self::zone());
+
+        return $local->modify('monday this week')->format('Y-m-d');
+    }
+
+    /** The first of the club month containing `$now`, as a club calendar day. */
+    public static function startOfMonth(?DateTimeImmutable $now = null): string
+    {
+        $local = ($now ?? new DateTimeImmutable('now', new DateTimeZone('UTC')))->setTimezone(self::zone());
+
+        return $local->format('Y-m-01');
+    }
+
+    /**
+     * The UTC instant a club calendar day begins at, as MariaDB spells it.
+     *
+     * A club day is a **half-open range of UTC instants**, `[startsAtUtc,
+     * endsBeforeUtc)`, and both ends are constructed *in the zone* rather than
+     * by adding an offset. That is what makes the two days a year that are not
+     * 24 hours long come out right: 2026-03-29 is 23 hours in Berlin and
+     * 2026-10-25 is 25, and a fixed offset gets one end of each wrong.
+     *
+     * Null for anything that is not a calendar day, so a caller can keep
+     * whatever bound it already had rather than silently querying a window
+     * built from a parse failure.
+     */
+    public static function startsAtUtc(string $day): ?string
+    {
+        return self::boundary($day, 0);
+    }
+
+    /**
+     * The UTC instant strictly after a club calendar day ends.
+     *
+     * Exclusive, not a `23:59:59` inclusive bound: the upper end of a day is
+     * the start of the next one, which needs no assumption about the column's
+     * resolution and stays right when a day is 23 or 25 hours long.
+     */
+    public static function endsBeforeUtc(string $day): ?string
+    {
+        return self::boundary($day, 1);
+    }
+
+    /** `$day` plus `$addDays`, at midnight club time, expressed in UTC. */
+    private static function boundary(string $day, int $addDays): ?string
+    {
+        $day = trim($day);
+        if (preg_match(self::DATE_ONLY, $day) !== 1) {
+            return null;
+        }
+
+        try {
+            $local = new DateTimeImmutable($day . ' 00:00:00', self::zone());
+        } catch (\Exception) {
+            return null;
+        }
+
+        // A calendar-shaped string PHP still rolls forward (2026-13-45) is a
+        // typo, not a date: refuse it rather than query a plausible window.
+        if ($local->format('Y-m-d') !== $day) {
+            return null;
+        }
+
+        if ($addDays !== 0) {
+            $local = $local->modify(sprintf('+%d day', $addDays));
+        }
+
+        return $local->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
     }
 }

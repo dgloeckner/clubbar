@@ -8,6 +8,7 @@ use App\Modules\Reports\DTOs\ReportDto;
 use App\Modules\Reports\DTOs\ReportRowDto;
 use App\Modules\Reports\Domain\ReportFilters;
 use App\Modules\Reports\Repositories\ReportsRepository;
+use App\Shared\Time\ClubTimeZone;
 
 class ReportsService
 {
@@ -121,6 +122,12 @@ class ReportsService
      * @param list<array{amount_cents: int, occurred_at: string}> $transactions
      * @return list<array{date: string, start_time: string, end_time: string, transaction_count: int, revenue_cents: int}>
      */
+    /** A unix instant on the club's clock, for printing a wall-clock time. */
+    private static function clubClock(int $timestamp): \DateTimeImmutable
+    {
+        return (new \DateTimeImmutable('@' . $timestamp))->setTimezone(ClubTimeZone::zone());
+    }
+
     public static function groupIntoSessions(array $transactions): array
     {
         $sessions = [];
@@ -129,22 +136,29 @@ class ReportsService
 
         foreach ($transactions as $transaction) {
             $time = strtotime($transaction['occurred_at']);
+            // A session is read as "the till was open from 20:00 to 23:30", so
+            // these are wall-clock strings and not instants — nothing
+            // downstream can convert them, and there is no "Z" to say they
+            // would need it. With the runtime pinned to UTC (#365) `date()`
+            // printed the UTC clock, so every session on the terminal-activity
+            // report opened and closed two hours early in Berlin summer.
+            $local = self::clubClock($time);
 
             if ($current === null || ($time - $lastTime) > self::SESSION_GAP_SECONDS) {
                 if ($current !== null) {
                     $sessions[] = $current;
                 }
                 $current = [
-                    'date' => date('Y-m-d', $time),
-                    'start_time' => date('H:i:s', $time),
-                    'end_time' => date('H:i:s', $time),
+                    'date' => $local->format('Y-m-d'),
+                    'start_time' => $local->format('H:i:s'),
+                    'end_time' => $local->format('H:i:s'),
                     'transaction_count' => 0,
                     'revenue_cents' => 0,
                 ];
             }
 
             $lastTime = $time;
-            $current['end_time'] = date('H:i:s', $time);
+            $current['end_time'] = $local->format('H:i:s');
             $current['transaction_count']++;
             $current['revenue_cents'] += $transaction['amount_cents'];
         }
