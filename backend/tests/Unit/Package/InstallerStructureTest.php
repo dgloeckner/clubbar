@@ -245,6 +245,16 @@ class InstallerStructureTest extends TestCase
             'docs/deployment.md no longer points at the installer for cron.heartbeat_url. If that '
             . 'is deliberate, the field on step 7 goes with it.'
         );
+
+        // Same pair, for the club's zone: an existing installation reaches the
+        // field through ?update=1, which is the only route a club that is
+        // already running has to answer the dashboard's warning without
+        // hand-editing config.php on a live site.
+        $this->assertMatchesRegularExpression(
+            '/step=2&update=1/',
+            $deployment,
+            'docs/deployment.md no longer points at the installer for app.timezone'
+        );
     }
 
     /**
@@ -371,5 +381,65 @@ class InstallerStructureTest extends TestCase
         $this->assertStringContainsString('ConfigWriter::merge(', $handler, 'the backup step is not carrying the existing config forward');
         $this->assertStringContainsString('BackupDsn::parse(', $handler, 'the backup step is not validating the DSN');
         $this->assertStringContainsString('BackupKeyring', $handler, 'the backup step is not validating the recipient keys');
+    }
+
+    /**
+     * The database step asks for the club's zone, and refuses a bad one.
+     *
+     * Everywhere else in the application an unusable zone falls back to
+     * `Europe/Berlin` in silence, and must — a mail that throws in the builder
+     * reaches nobody and blocks the drain behind it. This screen is the single
+     * exception, because it is the only one with a human present to read a
+     * refusal: `Europe/Berlim` here is a sentence on a form, and everywhere
+     * afterwards it is a club reading its books an hour out with nothing on any
+     * screen looking wrong (#365).
+     */
+    public function test_the_database_step_validates_and_writes_the_club_time_zone(): void
+    {
+        $post = self::postSection();
+        $at = strpos($post, "case '2':");
+
+        $this->assertIsInt($at, 'the database step lost its POST handler');
+
+        $handler = substr($post, $at, strpos($post, "case '3':") - $at);
+
+        $this->assertStringContainsString(
+            'DateTimeZone::listIdentifiers(',
+            $handler,
+            'the database step is not checking the zone against the zone database — an unusable name '
+            . 'written here is silent on every surface afterwards'
+        );
+        $this->assertStringContainsString(
+            "'timezone' => \$timeZone",
+            $handler,
+            'the database step is not writing app.timezone, so the club has no zone but the fallback'
+        );
+    }
+
+    /**
+     * And the field that posts it, pre-selected rather than blank.
+     *
+     * Blank would be the honest rendering of "you have not chosen yet" and the
+     * wrong one: it makes the commonest answer the one that takes the most
+     * work, on a screen a German Verein reaches with `Europe/Berlin` already
+     * correct. Confirming a pre-selection is still a decision — it is what
+     * makes the zone `configured` rather than `default`, which is the whole
+     * difference the dashboard warning reports.
+     */
+    public function test_the_database_step_renders_the_time_zone_field(): void
+    {
+        $source = self::source();
+
+        $this->assertStringContainsString(
+            'name="app_timezone"',
+            $source,
+            'step 2 must offer the time zone field its own handler reads'
+        );
+        $this->assertStringContainsString(
+            "\$timeZoneDefault = 'Europe/Berlin'",
+            $source,
+            'the field must pre-select the same zone the application falls back to, so a club that '
+            . 'confirms it changes nothing but the fact that it was stated'
+        );
     }
 }

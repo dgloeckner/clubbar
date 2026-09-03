@@ -272,6 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $dbName = trim($_POST['db_name'] ?? '');
             $dbUser = trim($_POST['db_user'] ?? '');
             $dbPass = $_POST['db_pass'] ?? '';
+            $timeZone = trim($_POST['app_timezone'] ?? '');
 
             if (empty($dbName)) {
                 $error = 'Database name is required.';
@@ -279,6 +280,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if (empty($dbUser)) {
                 $error = 'Database username is required.';
+                break;
+            }
+            // The one screen that can refuse a bad zone out loud. Everywhere
+            // else the fallback is deliberately silent — a mail that arrives
+            // with the wrong hour still reaches somebody, one that throws in
+            // the builder reaches nobody — but here a human is present and
+            // watching, so `Europe/Berlim` is a message rather than a club
+            // reading its books an hour out for a year. ALL_WITH_BC, because a
+            // config written when `Europe/Kiev` was current must survive a
+            // re-run of this step unchanged.
+            if ($timeZone === '' || !in_array($timeZone, DateTimeZone::listIdentifiers(DateTimeZone::ALL_WITH_BC), true)) {
+                $error = 'Please choose the time zone your club keeps its books in.';
                 break;
             }
 
@@ -376,6 +389,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 // flag from it.
                                 'url' => (installerRequestIsHttps() ? 'https' : 'http')
                                     . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'),
+                                // Stated, never inferred. Written even when it
+                                // equals the default, because `configured` and
+                                // `default` are different answers: the admin
+                                // dashboard warns about the second, and a club
+                                // that picked Berlin on this screen has decided
+                                // rather than defaulted (#365).
+                                'timezone' => $timeZone,
                             ],
                             'security' => [
                                 'totp_encryption_key' => $totpKey,
@@ -1324,16 +1344,38 @@ function renderStep2(bool $isUpdate): void
 
     // Pre-fill from existing config if available
     $dbDefaults  = ['host' => 'localhost', 'port' => 3306, 'name' => '', 'user' => '', 'pass' => ''];
+    // Europe/Berlin unless this installation already stated something — the
+    // same default the application falls back to, so the pre-selection never
+    // moves a working install's clock. It is offered as a choice rather than
+    // assumed: confirming it here is what makes the club's zone `configured`
+    // instead of `default`, and silences a dashboard warning that exists
+    // precisely because nothing on any screen looks wrong when the clock is.
+    $timeZoneDefault = 'Europe/Berlin';
     $configFile = DataDirectory::configPath(__DIR__);
     if (file_exists($configFile)) {
         $config = require $configFile;
         if (isset($config['db'])) {
             $dbDefaults = array_merge($dbDefaults, $config['db']);
         }
+        $stored = trim((string) ($config['app']['timezone'] ?? ''));
+        if ($stored !== '') {
+            $timeZoneDefault = $stored;
+        }
+    }
+    // Listed without the backwards-compatible aliases, so the menu offers one
+    // name per zone; a stored alias is still accepted on submit and is added
+    // below so a re-run does not silently re-point it.
+    $zones = DateTimeZone::listIdentifiers();
+    if (!in_array($timeZoneDefault, $zones, true)) {
+        $zones[] = $timeZoneDefault;
+        sort($zones);
     }
     ?>
-    <h2>Step 2: Database</h2>
-    <p>Enter your MySQL/MariaDB database credentials.</p>
+    <h2>Step 2: Database and the club's clock</h2>
+    <p>
+        Enter your MySQL/MariaDB database credentials, and the time zone this
+        club keeps its books in.
+    </p>
     <form method="post" action="?step=2<?php echo $updateParam; ?>" id="dbForm">
         <input type="hidden" name="step" value="2">
         <label>
@@ -1356,6 +1398,29 @@ function renderStep2(bool $isUpdate): void
             Password
             <input type="password" name="db_pass" value="<?php echo htmlspecialchars((string)$dbDefaults['pass']); ?>">
         </label>
+
+        <hr>
+
+        <label for="app_timezone">
+            Club time zone
+            <select name="app_timezone" id="app_timezone" required>
+                <?php foreach ($zones as $zone): ?>
+                    <option value="<?php echo htmlspecialchars($zone, ENT_QUOTES); ?>"<?php
+                        echo $zone === $timeZoneDefault ? ' selected' : ''; ?>><?php
+                        echo htmlspecialchars($zone); ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <p class="hint">
+            The clock your club's books are stated in. Every time is stored in
+            UTC and converted back into this zone on every surface — the admin
+            panel, the CSV exports, the day and hour buckets behind the reports,
+            and the mails, which have no browser to do it for them. Pick the
+            zone the <em>clubhouse</em> is in, not the one you are sitting in
+            now: a wrong clock is invisible, because an hour that is two hours
+            out looks exactly like an hour that is not.
+        </p>
+
         <div class="btn-row">
             <button type="button" class="btn btn-secondary" id="testBtn">Test Connection</button>
             <span id="testResult"></span>
@@ -2043,7 +2108,8 @@ label small {
 input[type="text"],
 input[type="password"],
 input[type="email"],
-input[type="number"] {
+input[type="number"],
+select {
     display: block;
     width: 100%;
     padding: 10px 12px;
@@ -2055,10 +2121,19 @@ input[type="number"] {
     background: #fff;
     transition: border-color 0.15s;
 }
-input:focus {
+input:focus,
+select:focus {
     outline: none;
     border-color: #1a56db;
     box-shadow: 0 0 0 3px rgba(26,86,219,0.1);
+}
+/* Explanatory text under a field. Used since the mail step and never styled,
+   so it read as body copy and competed with the question above it. */
+.hint {
+    margin-top: -8px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #6b7280;
 }
 .btn {
     display: inline-block;
