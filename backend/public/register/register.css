@@ -143,10 +143,6 @@ main {
   padding: 30px 26px calc(32px + env(safe-area-inset-bottom));
 }
 
-@media (max-width: 620px) {
-  main { padding-left: 22px; padding-right: 22px; }
-}
-
 h1 {
   margin: 0 0 16px;
   font-family: var(--display);
@@ -444,3 +440,35 @@ button[disabled] { opacity: 0.55; cursor: progress; }
 }
 
 .colophon[hidden] { display: none; }
+
+/* ── the safe area ────────────────────────────────────────────────────────
+   `viewport-fit=cover` puts this page under the notch and the home indicator
+   rather than inside a letterbox, which is what stops iOS painting bands at
+   the top and bottom of a full-bleed sheet. The price is that every edge the
+   sheet touches is now the *device's* edge: with a 28px margin around it there
+   is nothing to correct, but below the breakpoint the masthead runs under the
+   status bar, and held sideways the wordmark and the footer run under the
+   camera cutout.
+
+   So the insets are added exactly where the sheet goes full-bleed, and only
+   there. `main` already carries the bottom one; these are the two bands that
+   meet an edge on their own. */
+
+@media (max-width: 620px) {
+  .masthead {
+    padding-top: calc(22px + env(safe-area-inset-top));
+    padding-left: max(26px, env(safe-area-inset-left));
+    padding-right: max(26px, env(safe-area-inset-right));
+  }
+
+  main {
+    padding-left: max(22px, env(safe-area-inset-left));
+    padding-right: max(22px, env(safe-area-inset-right));
+  }
+
+  .colophon {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    padding-left: max(26px, env(safe-area-inset-left));
+    padding-right: max(26px, env(safe-area-inset-right));
+  }
+}

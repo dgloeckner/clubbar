@@ -82,7 +82,24 @@ RewriteRule ^tools/ - [F,L]
 #
 # Rewritten rather than left to mod_dir: mod_rewrite in .htaccess runs during
 # the fixup phase, before DirectoryIndex ever sees the request.
-RewriteRule ^register/?$ register/index.html [L]
+#
+# **The slash is redirected, not rewritten** (#812), and that difference is the
+# whole reason this is two rules. `PosterSecret::PATH` is `/register` without
+# one, so the QR code on the clubhouse wall sends every member to the slashless
+# form. An internal rewrite leaves the browser's URL at `/register`, and the
+# page's own `./register.css` and `./register.js` then resolve as *siblings* of
+# it — `/register.css`, which is not a file, so the front controller answers
+# with the admin SPA's HTML: a stylesheet and a script that are 200 OK, of the
+# wrong type, and inert. The form renders unstyled and does nothing.
+#
+# Taking over the path is what removed the redirect: mod_dir issues exactly
+# this 301 for a directory, which is why the docker layout — where the document
+# root *is* `backend/public` and no rule claims `/register` — never showed it.
+# So the rule that claims the path also has to do mod_dir's job. The fragment
+# carrying the poster secret survives: a browser re-attaches it to a redirect
+# target that has none of its own.
+RewriteRule ^register$ /register/ [R=301,L]
+RewriteRule ^register/$ register/index.html [L]
 
 # If the file exists on disk, serve it directly (SPA assets, install.php)
 RewriteCond %{REQUEST_FILENAME} -f
@@ -148,6 +165,10 @@ RewriteRule ^ index.php [L,QSA]
 </IfModule>
 
 # Cache static assets
+#
+# A year is right for what the SPA ships, because Vite writes the content hash
+# into every filename: `assets/index-Bx3k9f.js` is a different URL the moment
+# its bytes differ, so a cached copy can never be the wrong one.
 <IfModule mod_expires.c>
     ExpiresActive On
     ExpiresByType text/css "access plus 1 year"
@@ -157,3 +178,33 @@ RewriteRule ^ index.php [L,QSA]
     ExpiresByType image/svg+xml "access plus 1 year"
     ExpiresByType font/woff2 "access plus 1 year"
 </IfModule>
+
+# …but the onboarding page is hand-written, and its two assets have stable
+# names (#812).
+#
+# `register/register.css` and `register/register.js` carry no hash — the page
+# has no build step on purpose, so that a club can change a sentence without a
+# toolchain. Under the rule above, a phone that has once opened `/register`
+# keeps that release's stylesheet for a year: an upgrade replaces `index.html`
+# (HTML gets no expiry here, so it revalidates) and the new markup is styled by
+# the old file. The club's masthead and colophon then render as unstyled text
+# flush to the edge of the screen, in the palette of whichever release that
+# phone saw first — and the club, which upgraded weeks ago, sees the correct
+# page from its own browser.
+#
+# The build stamps each reference with the asset's content hash
+# (`build-package.sh`), which is what actually breaks an already-cached copy.
+# This block is the belt: if that stamp is ever lost, the cost is one
+# revalidation per page load instead of a year of a broken form.
+#
+# `<FilesMatch>` applies to this directory and everything below it, and the two
+# names are distinctive enough that nothing else in the tree matches.
+<FilesMatch "^register\.(css|js)$">
+    <IfModule mod_expires.c>
+        ExpiresActive Off
+    </IfModule>
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-cache, must-revalidate"
+        Header unset Expires
+    </IfModule>
+</FilesMatch>

@@ -75,6 +75,15 @@ class MandateDocumentFiller
      * unusable while they are looking at the setting, rather than when the
      * first applicant's registration cannot produce a document.
      *
+     * **And one that this filler could use perfectly well** (#812): a template
+     * whose fields already carry values. That is not a fill problem — FPDI
+     * imports page 1 without annotations, so the values never reach the output
+     * — it is a *publication* problem. ADR-0052 decision 6 makes this the URL
+     * every applicant opens before typing anything, so a value left in a field
+     * is shown to every stranger who scans the poster. It is checked first, and
+     * before the vocabulary, because it is the only failure here that leaks
+     * somebody's data rather than merely producing no document.
+     *
      * @throws UnusableTemplateException
      */
     public function assertUsable(string $template): void
@@ -83,6 +92,11 @@ class MandateDocumentFiller
 
         if ($fields === []) {
             throw new UnusableTemplateException(PdfAcroFormFields::diagnose($template));
+        }
+
+        $prefilled = PdfAcroFormFields::prefilledFields($template);
+        if ($prefilled !== []) {
+            throw new UnusableTemplateException(null, prefilledFields: $prefilled);
         }
 
         $missing = PdfAcroFormFields::missingRequired($fields);

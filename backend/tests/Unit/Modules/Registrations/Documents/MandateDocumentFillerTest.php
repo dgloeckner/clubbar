@@ -8,6 +8,7 @@ use App\Modules\Registrations\Documents\MandateDocumentFiller;
 use App\Modules\Registrations\Documents\PdfAcroFormFields;
 use App\Modules\Registrations\Documents\TemplateProblem;
 use App\Modules\Registrations\Documents\UnusableTemplateException;
+use App\Shared\Exceptions\BusinessRuleReason;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -245,6 +246,66 @@ final class MandateDocumentFillerTest extends TestCase
         $this->expectNotToPerformAssertions();
 
         (new MandateDocumentFiller())->assertUsable($this->template);
+    }
+
+    /**
+     * A template that arrives with somebody's data already in it is refused
+     * (#812) — and it is refused for a reason that has nothing to do with
+     * filling, which is why it is easy to miss.
+     *
+     * The fill itself is unaffected: FPDI imports page 1 without annotations,
+     * so the values are dropped along with the widgets that held them and the
+     * output is correct. The damage is that ADR-0052 decision 6 makes this same
+     * URL the club's Datenschutzhinweis — linked to every applicant before they
+     * type anything — so a value in a field is published to every stranger who
+     * scans the poster. A real club's IBAN was readable from the onboarding
+     * page this way, and nothing in the document looked wrong to the club.
+     */
+    public function test_a_template_arriving_with_values_in_it_is_refused(): void
+    {
+        // The genuine fixture with its IBAN field filled — the shape WeasyPrint
+        // produces from an `<input value="…">` somebody left in the HTML master.
+        $published = str_replace(
+            '/T (iban)/FT /Tx/DA (/a1.0 gs 0.101961 0.101961 0.180392 rg /SDLPBP 10 Tf)/V ()',
+            '/T (iban)/FT /Tx/DA (/a1.0 gs 0.101961 0.101961 0.180392 rg /SDLPBP 10 Tf)/V (DE89370400440532013000)',
+            $this->template,
+        );
+        self::assertNotSame($this->template, $published, 'the fixture no longer has the field this edits');
+
+        try {
+            (new MandateDocumentFiller())->assertUsable($published);
+            self::fail('A template carrying somebody else\'s data must be refused.');
+        } catch (UnusableTemplateException $e) {
+            self::assertSame(['iban'], $e->prefilledFields);
+            self::assertSame(
+                BusinessRuleReason::DOCUMENT_TEMPLATE_PREFILLED,
+                $e->getReason(),
+                'the panel needs its own code for this: the fix is not a rebuild flag'
+            );
+        }
+    }
+
+    /**
+     * The leak is reported ahead of the vocabulary. A document can be both
+     * incomplete and published with data in it, and only one of those two is
+     * somebody's bank details on a public URL.
+     */
+    public function test_the_leak_is_named_before_a_missing_field(): void
+    {
+        $both = str_replace('(iban_last4)', '(iban_lastvier)', $this->template);
+        $both = str_replace(
+            '/T (vorname)/FT /Tx/DA (/a1.0 gs 0.101961 0.101961 0.180392 rg /SDLPBP 10 Tf)/V ()',
+            '/T (vorname)/FT /Tx/DA (/a1.0 gs 0.101961 0.101961 0.180392 rg /SDLPBP 10 Tf)/V (Anna)',
+            $both,
+        );
+
+        try {
+            (new MandateDocumentFiller())->assertUsable($both);
+            self::fail('A template carrying values must be refused.');
+        } catch (UnusableTemplateException $e) {
+            self::assertSame(['vorname'], $e->prefilledFields);
+            self::assertSame([], $e->missingFields);
+        }
     }
 
     // ── the IBAN-Kamm, and fitting a value to its field (#781 feedback) ──

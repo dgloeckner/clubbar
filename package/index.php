@@ -37,7 +37,20 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 if (str_starts_with($path, '/api/')) {
     $app = require __DIR__ . '/backend/bootstrap.php';
     $app->run();
-} elseif ($path === '/register' || $path === '/register/') {
+} elseif ($path === '/register') {
+    // The slashless form the QR poster carries (`PosterSecret::PATH`), sent on
+    // to the directory it names (#812).
+    //
+    // A redirect and not a `readfile()`, for the same reason `.htaccess` does
+    // not rewrite it: the page loads `./register.css` and `./register.js`, and
+    // relative to `/register` those are `/register.css` and `/register.js` —
+    // siblings that do not exist, so the SPA fallback below hands back HTML
+    // with a 200. The form then renders unstyled and inert, which is a harder
+    // failure to recognise than a 404. The fragment holding the poster secret
+    // is re-attached by the browser; it never reaches this code to be lost.
+    header('Location: /register/', true, 301);
+    exit;
+} elseif ($path === '/register/') {
     // The public self-registration page (ADR-0052 decision 11, #781), served
     // from its own directory rather than by the SPA.
     //

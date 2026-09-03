@@ -147,6 +147,7 @@
       "category_inactive": "This category is inactive.",
       "document_template_field_missing": "The club document does not carry every required form field. Missing: {{fields}}. Add them to the HTML source and rebuild the PDF.",
       "document_template_not_a_pdf": "The configured address does not return a PDF. Most often a web server answering a moved file with an HTML error page — open the URL in a browser to check.",
+      "document_template_prefilled": "The club document already has values in its form fields: {{fields}}. Every applicant is linked to this file before entering anything, so those values would be published. Clear them in the HTML source (no value=\"…\") and rebuild the PDF.",
       "document_template_unreachable": "The club document could not be fetched. Check that the configured address is publicly reachable.",
       "document_template_unreadable": "The club document cannot be read. Rebuild it with WeasyPrint using --pdf-forms --uncompressed-pdf; a Chromium print carries no form fields at all.",
       "document_url_missing": "Self-registration cannot be switched on until the club document URL is set in the SEPA settings — its Datenschutzhinweise have to be reachable before anything is collected.",

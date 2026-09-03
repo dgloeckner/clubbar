@@ -12,7 +12,10 @@ import {
   pendingRowsContainingPlaintext,
   restoreClubDocumentUrl,
   serveClubDocument,
+  servePrefilledClubDocument,
   stopServingClubDocument,
+  stopServingPrefilledClubDocument,
+  PREFILLED_DOCUMENT_URL,
 } from '../../utils/sql'
 import { lockSelfRegistration, unlockSelfRegistration } from '../../utils/registrationLock'
 import { drainMailQueue } from '../../utils/drain'
@@ -171,10 +174,12 @@ test.describe('Public self-registration', () => {
    */
   test.beforeAll(() => {
     serveClubDocument()
+    servePrefilledClubDocument()
   })
 
   test.afterAll(() => {
     stopServingClubDocument()
+    stopServingPrefilledClubDocument()
   })
 
   test('a submission behind the poster secret is accepted and sealed', async ({ request }) => {
@@ -1240,6 +1245,43 @@ test.describe('Public self-registration', () => {
     })
     expect(accepted.status()).toBe(200)
     expect((await accepted.json()).document_url).toBe(CLUB_DOCUMENT_URL)
+  })
+
+  /**
+   * A template that arrives with somebody's data in its fields is refused
+   * (#812) — and it is refused for a reason that has nothing to do with
+   * whether it can be filled.
+   *
+   * The fill is unaffected: FPDI imports page 1 without annotations, so the
+   * values are dropped with the widgets that held them. What makes this a leak
+   * is the *other* job the same URL does. ADR-0052 decision 6 links it to every
+   * applicant before they type anything, because pages 2+ are the club's
+   * Datenschutzhinweise — so an IBAN left in a field is published to every
+   * stranger who scans the poster, which is exactly how a real one became
+   * readable from the onboarding page.
+   */
+  test('a document URL carrying somebody else\'s data in its fields is refused', async ({
+    authenticatedRequest,
+  }) => {
+    configureSelfRegistration(uniqueSecret())
+
+    const refused = await authenticatedRequest.patch(`${API}/admin/self-registration`, {
+      data: { document_url: PREFILLED_DOCUMENT_URL },
+    })
+
+    expect(refused.status()).toBe(409)
+    const body = await refused.json()
+    expect(body.reason).toBe('document_template_prefilled')
+    // The refusal names the field, because "your template is invalid" sends a
+    // club to audit a document that is otherwise perfectly correct.
+    expect(body.params?.fields ?? body.message).toContain('iban')
+
+    // And nothing was stored: the URL an admin cannot be talked out of is the
+    // one that is already saved.
+    const settings = await (
+      await authenticatedRequest.get(`${API}/admin/self-registration`)
+    ).json()
+    expect(settings.document_url).toBe(CLUB_DOCUMENT_URL)
   })
 
   test('the club document and the poster secret are both preconditions of switching on', async ({

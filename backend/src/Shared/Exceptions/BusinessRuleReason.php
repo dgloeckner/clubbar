@@ -180,6 +180,15 @@ enum BusinessRuleReason: string
     case DOCUMENT_TEMPLATE_FIELD_MISSING = 'document_template_field_missing';
     /** The configured URL could not be fetched at all. */
     case DOCUMENT_TEMPLATE_UNREACHABLE = 'document_template_unreachable';
+    /**
+     * A usable template that already has somebody's data in its fields (#812).
+     *
+     * The same URL is what every applicant is sent to before typing anything
+     * (ADR-0052 decision 6), so a value left in a field is published to
+     * strangers — a real club's IBAN reached the onboarding page this way. The
+     * refusal names the fields.
+     */
+    case DOCUMENT_TEMPLATE_PREFILLED = 'document_template_prefilled';
 
     // Managing the surface (#783). Each names the precondition that does not
     // hold, rather than greying a control out: a disabled control that will not

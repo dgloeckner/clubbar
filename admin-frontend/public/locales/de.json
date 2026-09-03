@@ -147,6 +147,7 @@
       "category_inactive": "Diese Kategorie ist inaktiv.",
       "document_template_field_missing": "Das Vereinsdokument hat nicht alle benötigten Formularfelder. Es fehlt: {{fields}}. Ergänzen Sie die Felder in der HTML-Quelle und bauen Sie das PDF neu.",
       "document_template_not_a_pdf": "Unter der hinterlegten Adresse liegt kein PDF. Meist antwortet der Webserver auf eine verschobene Datei mit einer HTML-Fehlerseite – prüfen Sie die URL im Browser.",
+      "document_template_prefilled": "Das Vereinsdokument enthält bereits ausgefüllte Formularfelder: {{fields}}. Diese Datei wird jedem Interessenten vor der Eingabe zum Lesen verlinkt – die Werte wären damit öffentlich. Leeren Sie die Felder in der HTML-Quelle (kein value=\"…\") und bauen Sie das PDF neu.",
       "document_template_unreachable": "Das Vereinsdokument konnte nicht geladen werden. Prüfen Sie, ob die hinterlegte Adresse öffentlich erreichbar ist.",
       "document_template_unreadable": "Das Vereinsdokument lässt sich nicht auslesen. Bauen Sie es mit WeasyPrint und den Optionen --pdf-forms --uncompressed-pdf neu; ein Chromium-Ausdruck enthält keine Formularfelder.",
       "document_url_missing": "Die Selbstanmeldung lässt sich erst einschalten, wenn die URL des Vereinsdokuments in den SEPA-Einstellungen hinterlegt ist – die Datenschutzhinweise darin müssen vor der Eingabe erreichbar sein.",
