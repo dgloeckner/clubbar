@@ -52,11 +52,14 @@ test.describe('User Badge & Logout', () => {
     // (#338) even though it isn't a real attack — retry with a fresh one. Waits
     // past the next window boundary plus random jitter so that several callers
     // who collided in the same window don't retry into the next one together.
+    //
+    // Typing the sixth digit is the whole submission — no click. On a code that
+    // is accepted the form has already navigated away, so a click would race
+    // the unmount; on one that is refused it would be swallowed anyway.
     const MAX_MFA_ATTEMPTS = 6
     await expect(page.locator('[data-testid="mfa-code-input"]')).toBeVisible({ timeout: 5000 })
     for (let attempt = 1; attempt <= MAX_MFA_ATTEMPTS; attempt++) {
       await page.locator('[data-testid="mfa-code-input"]').fill(generateTotp(TEST_CREDENTIALS.totp.adminSecret))
-      await page.locator('[data-testid="mfa-submit-button"]').click()
 
       const outcome = await Promise.race([
         page.waitForURL('**/dashboard', { timeout: 5000 }).then(() => 'success' as const),

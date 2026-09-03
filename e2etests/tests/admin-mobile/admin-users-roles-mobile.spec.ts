@@ -27,11 +27,13 @@ async function openAdminUsersTab(page: import('@playwright/test').Page) {
 }
 
 async function fillStepUp(page: import('@playwright/test').Page) {
-  await page.getByTestId('step-up-password').fill(TEST_CREDENTIALS.admin.password)
+  // Code first — completing it is what confirms a step-up dialog on its own,
+  // so filling it last would submit before the caller is ready for it.
   const totpField = page.getByTestId('step-up-totp-code')
   if (await totpField.count() > 0) {
     await totpField.fill(generateTotp(TEST_CREDENTIALS.totp.adminSecret))
   }
+  await page.getByTestId('step-up-password').fill(TEST_CREDENTIALS.admin.password)
 }
 
 test.describe('Admin role assignment — mobile', () => {

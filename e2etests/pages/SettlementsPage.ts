@@ -349,11 +349,15 @@ export class SettlementsPage extends BasePage {
    */
   async fillExportKeyAndPassword(privateKey: string, password: string, totpCode?: string) {
     await this.exportPrivateKeyInput().fill(privateKey)
-    await this.exportPasswordInput().fill(password)
 
+    // The code goes in before the password: completing it is what confirms the
+    // dialog, so filling it last would fire the export before
+    // submitExportSepaDialog() installs its response waiter.
     if (await this.exportTotpInput().isVisible()) {
       await this.exportTotpInput().fill(totpCode ?? generateTotp(TEST_CREDENTIALS.totp.adminSecret))
     }
+
+    await this.exportPasswordInput().fill(password)
   }
 
   /** Choose the key from a file rather than pasting it. */

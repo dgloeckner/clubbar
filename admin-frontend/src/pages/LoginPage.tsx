@@ -15,6 +15,7 @@ import { Button } from '../components/common/Button'
 import { SecretBox } from '../components/common/SecretBox'
 import { theme } from '../styles/design-system'
 import { useModalEscape } from '../hooks/useModalDialog'
+import { otpFromInput, useOtpAutoSubmit } from '../hooks/useOtpAutoSubmit'
 
 // ─── TOTP info modal ──────────────────────────────────────────────────────────
 
@@ -158,8 +159,7 @@ function MfaStep() {
   const [code, setCode] = useState('')
   const [localError, setLocalError] = useState<string>()
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+  const submit = async () => {
     setLocalError(undefined)
     const result = await submitMfa(code)
     if (result.success) {
@@ -167,6 +167,16 @@ function MfaStep() {
     } else {
       setLocalError(result.error || t('auth.mfaInvalidCode'))
     }
+  }
+
+  // The sixth digit is the whole message this screen carries, so it submits by
+  // itself. The hook is also what the form goes through, so the button and
+  // Enter can never spend a second attempt on a code already sent (#338).
+  const attemptSubmit = useOtpAutoSubmit(code, () => void submit(), !loading)
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    attemptSubmit()
   }
 
   return (
@@ -178,8 +188,11 @@ function MfaStep() {
           label={t('auth.mfaCode')}
           type="text"
           inputMode="numeric"
+          // Lets a phone offer the code from the keyboard bar. An autofill
+          // lands all six digits in one change, which auto-submit then finishes.
+          autoComplete="one-time-code"
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          onChange={(e) => setCode(otpFromInput(e.target.value))}
           placeholder="000000"
           disabled={loading}
           autoFocus
@@ -228,8 +241,7 @@ function TotpSetupStep() {
       .catch(() => setFetchError(t('auth.setupFetchError')))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+  const submit = async () => {
     setLocalError(undefined)
     const result = await confirmTotp(code)
     if (result.success) {
@@ -237,6 +249,15 @@ function TotpSetupStep() {
     } else {
       setLocalError(result.error || t('auth.mfaInvalidCode'))
     }
+  }
+
+  // Same as the MFA step, plus the QR code: there is nothing to confirm a code
+  // against until the secret this screen is enrolling has actually arrived.
+  const attemptSubmit = useOtpAutoSubmit(code, () => void submit(), !loading && !!qrCode)
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    attemptSubmit()
   }
 
   return (
@@ -314,8 +335,11 @@ function TotpSetupStep() {
           label={t('auth.setupCodeLabel')}
           type="text"
           inputMode="numeric"
+          // Lets a phone offer the code from the keyboard bar. An autofill
+          // lands all six digits in one change, which auto-submit then finishes.
+          autoComplete="one-time-code"
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          onChange={(e) => setCode(otpFromInput(e.target.value))}
           placeholder="000000"
           disabled={loading || !qrCode}
           autoFocus={!!qrCode}

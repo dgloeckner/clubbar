@@ -19,9 +19,10 @@
  * `-cancel`), plus `step-up-password`, `step-up-totp-code`, `step-up-error`.
  */
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from './ConfirmDialog'
+import { otpFromInput, useOtpAutoSubmit } from '../../hooks/useOtpAutoSubmit'
 import { ModalError, modalInputStyle, modalLabelStyle } from './ModalError'
 import { theme } from '../../styles/design-system'
 
@@ -80,6 +81,27 @@ export function StepUpConfirmDialog({
 
   const canConfirm = !confirmDisabled && isStepUpComplete(password, totpCode, requiresTotp)
 
+  const confirm = () =>
+    onConfirm({ current_password: password, totp_code: requiresTotp ? totpCode : undefined })
+
+  // The sixth digit of the code submits — but the code is not the only field
+  // here, so `canConfirm` gates it. An admin who types the code before the
+  // password gets no auto-submit at all (the hook triggers on the code field
+  // and nothing else, so filling the password does not set it off) and
+  // confirms with Enter or the button instead. That is the right way round:
+  // firing on the password's first character would spend the code on a 401.
+  // The same guard makes confirming idempotent for a code already attempted,
+  // which the backend would only refuse as a replay.
+  const attemptConfirm = useOtpAutoSubmit(totpCode, confirm, canConfirm)
+
+  const handleConfirm = () => {
+    if (!canConfirm) return
+    // Without a code there is nothing to de-duplicate, and routing through the
+    // hook would make the button dead: it only ever fires on six digits.
+    if (requiresTotp) attemptConfirm()
+    else confirm()
+  }
+
   return (
     <ConfirmDialog
       isOpen={isOpen}
@@ -87,7 +109,7 @@ export function StepUpConfirmDialog({
       confirmLabel={confirmLabel}
       confirmDisabled={!canConfirm}
       onCancel={onCancel}
-      onConfirm={() => onConfirm({ current_password: password, totp_code: requiresTotp ? totpCode : undefined })}
+      onConfirm={handleConfirm}
       message={
         <>
           <p style={{ margin: 0, marginBottom: theme.spacing.md }}>{message}</p>
@@ -132,6 +154,7 @@ export function StepUpConfirmDialog({
               invalid={!!error}
               onPasswordChange={setPassword}
               onTotpCodeChange={setTotpCode}
+              onSubmit={handleConfirm}
             />
           </div>
         </>
@@ -158,6 +181,7 @@ export function StepUpCredentialFields({
   invalid = false,
   onPasswordChange,
   onTotpCodeChange,
+  onSubmit,
 }: {
   requiresTotp: boolean
   password: string
@@ -165,8 +189,21 @@ export function StepUpCredentialFields({
   invalid?: boolean
   onPasswordChange: (value: string) => void
   onTotpCodeChange: (value: string) => void
+  /**
+   * Called when Enter is pressed in either field. Optional because these fields
+   * also appear inside creation forms (a new admin, a new terminal), where the
+   * credential is one section among several and Enter submitting the lot would
+   * be a surprise — those callers leave it off.
+   */
+  onSubmit?: () => void
 }) {
   const { t } = useTranslation()
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' || !onSubmit) return
+    e.preventDefault()
+    onSubmit()
+  }
 
   return (
     <>
@@ -180,6 +217,7 @@ export function StepUpCredentialFields({
         autoComplete="current-password"
         value={password}
         onChange={(e) => onPasswordChange(e.target.value)}
+        onKeyDown={handleKeyDown}
         style={modalInputStyle(invalid)}
       />
 
@@ -198,9 +236,11 @@ export function StepUpCredentialFields({
             inputMode="numeric"
             autoComplete="one-time-code"
             value={totpCode}
-            // Digits only, six at most: the field is the last thing standing
-            // between the admin and a 401 they would read as a wrong password.
-            onChange={(e) => onTotpCodeChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            // Digits only, six at most — the field is the last thing standing
+            // between the admin and a 401 they would read as a wrong password,
+            // so a code pasted in an app's own spacing has to land intact.
+            onChange={(e) => onTotpCodeChange(otpFromInput(e.target.value))}
+            onKeyDown={handleKeyDown}
             style={modalInputStyle(invalid)}
           />
         </>

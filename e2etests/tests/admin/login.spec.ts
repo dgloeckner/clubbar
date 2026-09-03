@@ -22,6 +22,7 @@ import { generateTotp } from '../../utils/totp'
 import { loginAs } from '../../utils/csrf'
 import { stepUp } from '../../fixtures/stepUp'
 import { acceptInvitation, INVITED_ADMIN_PASSWORD } from '../../utils/adminInvitation'
+import { createIsolatedAdmin, signInAndEnroll } from '../../utils/isolatedAdmin'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -83,6 +84,69 @@ test.describe('Login (UI)', () => {
     expect(adminId).toBeTruthy()
   })
 
+  /**
+   * The sixth digit is the whole message the MFA step carries, so it submits by
+   * itself — and an admin who reaches for the button anyway must not pay for
+   * the habit. A second POST would replay a code the backend has just consumed
+   * (#338), and a replay is charged against the five attempts a pending session
+   * gets before it is destroyed.
+   *
+   * Runs against a throwaway admin: the code here is deliberately wrong, and
+   * failed attempts are counted per account (ruling #145).
+   */
+  test('spends one attempt when the button is clicked after the code submits itself', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    test.setTimeout(360_000)
+    const { email, password } = await createIsolatedAdmin(playwright, 'login-dedup')
+    await signInAndEnroll(loginPage, page, email, password)
+
+    await page.context().clearCookies()
+    await loginPage.navigate()
+    await loginPage.login(email, password)
+    await expect(loginPage.mfaCodeInput()).toBeVisible()
+
+    await loginPage.startCountingMfaRequests()
+    await loginPage.submitMfaCodeAndClick('000000')
+
+    await expect(loginPage.mfaError()).toBeVisible()
+    expect(loginPage.countedMfaRequests()).toBe(1)
+  })
+
+  /**
+   * Copying the code out of an authenticator app is the other way it reaches
+   * the field, and apps render it spaced ("123 456"). The field keeps the six
+   * digits and drops everything else, so a paste completes the code in one
+   * change — which is exactly the change auto-submit fires on. A `maxLength`
+   * of 6 could not do this: it would truncate the paste to "123 45".
+   */
+  test('signs in from a pasted code, spacing and all', async ({ loginPage, page, playwright }) => {
+    test.setTimeout(360_000)
+    const { email, password } = await createIsolatedAdmin(playwright, 'login-paste')
+    // Enrolling is also the only way to learn this throwaway account's secret,
+    // and it gives the paste a TOTP window nothing else in the run competes for.
+    const secret = await signInAndEnroll(loginPage, page, email, password)
+
+    await page.context().clearCookies()
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    await loginPage.navigate()
+    await loginPage.login(email, password)
+    await expect(loginPage.mfaCodeInput()).toBeVisible()
+
+    // The enrollment above consumed the current time-step, so this waits out
+    // the window rather than pasting a code the replay guard would refuse.
+    await loginPage.submitMfaCodeWithRetry(secret, 3, (code) =>
+      loginPage.pasteMfaCode(`${code.slice(0, 3)} ${code.slice(3)}`)
+    )
+
+    // Reaching the dashboard is the assertion that the spacing was stripped:
+    // "123 456" left intact is not a code the backend would ever accept.
+    await page.waitForURL('**/dashboard', { timeout: 10000 })
+    await expect(page.getByTestId('dashboard-page')).toBeVisible()
+  })
+
   test('rejects an invalid MFA code without granting access', async ({ loginPage }) => {
     await loginPage.navigate()
     await loginPage.login(TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
@@ -119,6 +183,8 @@ test.describe('Login (UI)', () => {
     const secret = await loginPage.getTotpSetupSecret()
     expect(secret.length).toBeGreaterThan(0)
 
+    // Typed, not clicked: enrollment auto-submits on the sixth digit too, and
+    // this account's secret is brand new, so no replay retry is needed.
     const code = generateTotp(secret)
     await loginPage.submitTotpSetupCode(code)
 
