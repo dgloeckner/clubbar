@@ -1004,12 +1004,18 @@ export class SettingsPage {
    * test admin used across these specs).
    */
   async fillStepUpCredential() {
-    await this.page.getByTestId('step-up-password').fill(TEST_CREDENTIALS.admin.password)
-
+    // Code first, password second — deliberately. The dialog confirms itself
+    // when the code completes *and* the rest of the credential is already
+    // there, so filling the code last would submit before the caller's click
+    // and before any response waiter it installs afterwards. Filling it first
+    // leaves the dialog waiting, which is what these flows assert on. The
+    // auto-submit path itself is covered in tests/admin/profile-credentials.spec.ts.
     const totpField = this.page.getByTestId('step-up-totp-code')
     if (await totpField.count() > 0) {
       await totpField.fill(generateTotp(TEST_CREDENTIALS.totp.adminSecret))
     }
+
+    await this.page.getByTestId('step-up-password').fill(TEST_CREDENTIALS.admin.password)
   }
 
   /**

@@ -178,13 +178,25 @@ export class ProfilePage extends BasePage {
    * Change the password and wait for the request itself, so the assertion that
    * follows is about the server's answer rather than about client-side
    * validation that returned before any call.
+   *
+   * Pass `code` for a 2FA-enrolled admin instead of calling `fillTotpCode`
+   * separately: the sixth digit submits the form on its own, so the waiter has
+   * to be installed *before* the code is typed or it would miss the very
+   * response it is waiting for — and no click follows, because a successful
+   * change empties the form and clicking an empty one only replaces the
+   * success message with "required field". (That the guard swallows a click
+   * after auto-submit is asserted on the login form, where the form survives.)
    */
-  async submitPasswordChange(): Promise<number> {
+  async submitPasswordChange(code?: string): Promise<number> {
     const responsePromise = this.page.waitForResponse(
       (resp) => resp.url().includes('/api/auth/change-password') && resp.request().method() === 'PATCH',
       { timeout: 10000 }
     )
-    await this.changePasswordButton().click()
+    if (code !== undefined) {
+      await this.fillTotpCode(code)
+    } else {
+      await this.changePasswordButton().click()
+    }
     return (await responsePromise).status()
   }
 
@@ -219,18 +231,50 @@ export class ProfilePage extends BasePage {
     await expect(this.stepUpPassword()).toBeVisible()
   }
 
-  /** Fills the dialog and confirms, returning the PATCH status. */
+  /**
+   * Fills the dialog and confirms, returning the PATCH status.
+   *
+   * The waiter goes up before the fields, not after: with the password already
+   * entered, the code's sixth digit confirms the dialog by itself, so a waiter
+   * installed after the fill would miss the response. The click stays as the
+   * assertion that the de-duplication guard swallows it.
+   */
   async confirmEmailStepUp(password: string, totpCode?: string): Promise<number> {
-    await this.stepUpPassword().fill(password)
-    if (totpCode) {
-      await this.stepUpTotpCode().fill(totpCode)
-    }
     const responsePromise = this.page.waitForResponse(
       (resp) => resp.url().includes('/api/auth/profile') && resp.request().method() === 'PATCH',
       { timeout: 10000 }
     )
+    // Code first, so the dialog waits for the click below rather than
+    // confirming itself mid-fill. `confirmEmailStepUpByTyping` is the method
+    // that exercises the other order on purpose.
+    if (totpCode) {
+      await this.stepUpTotpCode().fill(totpCode)
+    }
+    await this.stepUpPassword().fill(password)
     await this.stepUpConfirm().click()
     return (await responsePromise).status()
+  }
+
+  /**
+   * Confirm the dialog by typing alone: password first, then the code, and no
+   * click at all — the sixth digit is what submits.
+   */
+  async confirmEmailStepUpByTyping(password: string, totpCode: string): Promise<number> {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/auth/profile') && resp.request().method() === 'PATCH',
+      { timeout: 10000 }
+    )
+    await this.stepUpPassword().fill(password)
+    // Cleared first so the code is always a *change*: re-filling a field with
+    // the value it already holds sets no state and fires nothing.
+    await this.stepUpTotpCode().clear()
+    await this.stepUpTotpCode().fill(totpCode)
+    return (await responsePromise).status()
+  }
+
+  /** Type a step-up code without touching the password field. */
+  async fillStepUpTotpCode(code: string) {
+    await this.stepUpTotpCode().fill(code)
   }
 
   /**

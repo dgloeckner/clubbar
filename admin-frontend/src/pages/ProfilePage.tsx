@@ -12,9 +12,10 @@
  * to switch language.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApiError } from '../hooks/useApiError'
+import { otpFromInput, useOtpAutoSubmit } from '../hooks/useOtpAutoSubmit'
 import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
 import { getAuthentication } from '../api/generated/authentication/authentication'
@@ -163,6 +164,16 @@ export function ProfilePage() {
     }
   }
 
+  // The same rules `handleChangePassword` enforces below, expressed as a
+  // predicate. The click path keeps its per-field messages by staying exactly
+  // as it was; this exists so auto-submit cannot fire into a form that would
+  // only bounce off a validation error and spend a TOTP code doing it.
+  const passwordFieldsValid =
+    currentPassword !== '' &&
+    newPassword.length >= 8 &&
+    /(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword) &&
+    newPassword === confirmPassword
+
   const handleChangePassword = async () => {
     setPasswordError(null)
     setPasswordSuccess(null)
@@ -217,6 +228,33 @@ export function ProfilePage() {
     } finally {
       setChangingPassword(false)
     }
+  }
+
+  // The code's sixth digit submits the change, but only once the rest of the
+  // form would pass — the trigger is the code field, never a keystroke in one
+  // of the password boxes.
+  const attemptChangePassword = useOtpAutoSubmit(
+    passwordTotpCode,
+    () => void handleChangePassword(),
+    !changingPassword && passwordFieldsValid,
+  )
+
+  /**
+   * What the button and Enter both call. The guarded path is taken only when
+   * the form is actually submittable with a complete code — in every other
+   * case `handleChangePassword` runs and says which field is wrong, which a
+   * silently-guarded no-op would swallow.
+   */
+  const submitPasswordChange = () => {
+    const codeComplete = /^\d{6}$/.test(passwordTotpCode)
+    if (profile?.totp_enabled && passwordFieldsValid && codeComplete) attemptChangePassword()
+    else void handleChangePassword()
+  }
+
+  const handlePasswordKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    submitPasswordChange()
   }
 
   const inputStyle = {
@@ -388,6 +426,7 @@ export function ProfilePage() {
             type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
+            onKeyDown={handlePasswordKeyDown}
             style={inputStyle}
           />
         </div>
@@ -399,6 +438,7 @@ export function ProfilePage() {
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
+            onKeyDown={handlePasswordKeyDown}
             style={inputStyle}
             placeholder={t('validation.minLength', { min: 8 })}
           />
@@ -411,6 +451,7 @@ export function ProfilePage() {
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
+            onKeyDown={handlePasswordKeyDown}
             style={inputStyle}
           />
         </div>
@@ -426,9 +467,12 @@ export function ProfilePage() {
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
-              maxLength={6}
               value={passwordTotpCode}
-              onChange={(e) => setPasswordTotpCode(e.target.value.replace(/\D/g, ''))}
+              // The shared normalisation, replacing a `maxLength` of 6 that
+              // truncated a pasted "123 456" to "123 45" — five digits and a
+              // wrong code, for a paste the other three OTP fields accept.
+              onChange={(e) => setPasswordTotpCode(otpFromInput(e.target.value))}
+              onKeyDown={handlePasswordKeyDown}
               style={inputStyle}
               placeholder="123456"
             />
@@ -446,7 +490,7 @@ export function ProfilePage() {
 
         <button
           data-testid="password-change-button"
-          onClick={handleChangePassword}
+          onClick={submitPasswordChange}
           disabled={changingPassword}
           style={{
             padding: `${theme.spacing.md} ${theme.spacing.xl}`,

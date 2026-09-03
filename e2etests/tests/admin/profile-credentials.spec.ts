@@ -50,11 +50,10 @@ test.describe('Profile credential changes (UI)', () => {
     await profilePage.fillCurrentPassword(password)
     await profilePage.fillNewPassword(newPassword)
     await profilePage.fillConfirmPassword(newPassword)
-    await profilePage.fillTotpCode(generateTotp(secret))
-
     // The request itself, not just the form's own validation — that distinction
-    // is what this file exists for.
-    expect(await profilePage.submitPasswordChange()).toBe(200)
+    // is what this file exists for. The code goes in through submitPasswordChange
+    // because typing its sixth digit is what sends the request.
+    expect(await profilePage.submitPasswordChange(generateTotp(secret))).toBe(200)
     await profilePage.expectPasswordSuccess()
 
     // The change is only proven by the credential it produced.
@@ -77,9 +76,8 @@ test.describe('Profile credential changes (UI)', () => {
     await profilePage.fillCurrentPassword(password)
     await profilePage.fillNewPassword('UiRotated1234')
     await profilePage.fillConfirmPassword('UiRotated1234')
-    await profilePage.fillTotpCode('000000')
 
-    expect(await profilePage.submitPasswordChange()).toBe(401)
+    expect(await profilePage.submitPasswordChange('000000')).toBe(401)
     await profilePage.expectPasswordError()
   })
 
@@ -127,6 +125,46 @@ test.describe('Profile credential changes (UI)', () => {
     expect(await profilePage.confirmEmailStepUp('WrongPassword123', '000000')).toBe(401)
     await profilePage.expectStepUpError()
     await profilePage.expectStepUpDialogVisible()
+  })
+
+  /**
+   * The step-up dialog asks for two things, and the code is only one of them.
+   * Completing it must not send the form on its own — nor may filling in the
+   * password afterwards set it off, which would submit against a half-typed
+   * password and spend the code on a 401.
+   */
+  test('sends nothing when the step-up code completes with no password', async ({
+    loginPage,
+    page,
+    playwright,
+  }) => {
+    test.setTimeout(360_000)
+    const { email, password } = await createAdmin(playwright, 'ui-email-nopw')
+    const secret = await signInAndEnroll(loginPage, page, email, password)
+
+    const profilePage = new ProfilePage(page)
+    await profilePage.navigate()
+    await profilePage.setEmail(uniqueEmail('ui-email-nopw-new'))
+    await profilePage.saveProfileExpectingStepUp()
+
+    let patches = 0
+    page.on('request', (req) => {
+      if (req.url().includes('/api/auth/profile') && req.method() === 'PATCH') patches++
+    })
+
+    await profilePage.fillStepUpTotpCode(generateTotp(secret))
+    // Nothing to await — the assertion is that no request happens, so give the
+    // page a beat in which one could have.
+    await page.waitForTimeout(1000)
+
+    expect(patches).toBe(0)
+    await profilePage.expectStepUpDialogVisible()
+
+    // The code was never spent, so the dialog still confirms with it — and now
+    // that the password is there, the sixth digit is enough on its own. No
+    // click: this is the step-up half of the auto-submit behaviour.
+    expect(await profilePage.confirmEmailStepUpByTyping(password, generateTotp(secret))).toBe(200)
+    await profilePage.expectSuccessVisible()
   })
 
   /**
