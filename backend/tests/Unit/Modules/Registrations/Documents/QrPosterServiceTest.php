@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Registrations\Documents;
 
 use App\Modules\Registrations\Documents\QrPosterService;
+use App\Shared\Mail\MailLayout;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\TempTree;
 
 /**
  * The poster that goes on the clubhouse wall (#783).
@@ -26,6 +28,8 @@ use PHPUnit\Framework\TestCase;
  */
 final class QrPosterServiceTest extends TestCase
 {
+    use TempTree;
+
     private const URL = 'https://club.example/register#kY3n-2Qb7xLp0aZm9RtVwSdEfGhJkLmN';
 
     public function test_it_renders_a_pdf(): void
@@ -106,6 +110,108 @@ final class QrPosterServiceTest extends TestCase
     }
 
     /**
+     * The sheet is the club's, not a generic one.
+     *
+     * The mail, the onboarding page and this poster are three surfaces of one
+     * club met minutes and days apart, and the whole reason the poster was
+     * restyled is that they have to look like it. The assertion is on the
+     * *drawn* colours rather than on constants either side of the comparison:
+     * a design that is only equal in the source and never reaches the page is
+     * exactly the failure a screenshot would catch and a unit test usually
+     * does not.
+     */
+    public function test_the_sheet_is_drawn_in_the_clubs_colours(): void
+    {
+        $poster = $this->readableText((new QrPosterService())->render(self::URL, 'Club'));
+
+        self::assertStringContainsString($this->fill(MailLayout::RED), $poster, 'no red rule under the masthead');
+        self::assertStringContainsString($this->fill(MailLayout::PETROL), $poster, 'no petrol footer band');
+        self::assertStringContainsString($this->fill(MailLayout::INK_050), $poster, 'no paper ground');
+        self::assertStringContainsString($this->fill(MailLayout::RED_SOFT), $poster, 'no note box');
+    }
+
+    /**
+     * The club's name is printed twice, as the mail prints it twice: the
+     * masthead's letterspaced capitals identify a photographed poster, and the
+     * footer band says who this is from.
+     */
+    public function test_the_name_is_in_both_the_masthead_and_the_footer(): void
+    {
+        $poster = $this->readableText((new QrPosterService())->render(self::URL, 'Ruderclub Musterstadt'));
+
+        self::assertStringContainsString('RUDERCLUB MUSTERSTADT', $poster);
+        self::assertStringContainsString('Ruderclub Musterstadt', $poster);
+    }
+
+    /**
+     * An instance with no name printed gets no empty bands.
+     *
+     * A petrol strip carrying nothing is not neutral — it is a footer that
+     * failed — and `instance_name` is genuinely absent on an installation that
+     * has not been through the panel yet. The onboarding page hides its
+     * colophon on the same fact; the sheet keeps its red rule, which is design
+     * rather than content, and drops the rest.
+     */
+    public function test_a_nameless_instance_gets_no_empty_bands(): void
+    {
+        $poster = $this->readableText((new QrPosterService())->render(self::URL, '   '));
+
+        self::assertStringNotContainsString($this->fill(MailLayout::PETROL), $poster);
+        self::assertStringContainsString($this->fill(MailLayout::RED), $poster);
+    }
+
+    /**
+     * A long name is set smaller, never cut.
+     *
+     * The masthead is two lines, and the first attempt at this simply sliced
+     * whatever did not fit — which on a real club produced a poster reading
+     * `TURN- UND SPORTVEREIN OBERAMMERGAU-UNTERAMMERGAU` and stopping, with
+     * `VON 1897 E.V.` silently gone. A name that does not fit is printed in
+     * smaller capitals.
+     */
+    public function test_a_long_club_name_is_printed_in_full(): void
+    {
+        $name = 'Turn-, Sport- und Schwimmverein Oberammergau-Unterammergau-Kleinsiedlung von 1897 e.V.';
+        $poster = $this->readableText((new QrPosterService())->render(self::URL, $name));
+
+        foreach (['TURN-,', 'SCHWIMMVEREIN', 'OBERAMMERGAU-UNTERAMMERGAU-KLEINSIEDLUNG', '1897', 'E.V.'] as $word) {
+            self::assertStringContainsString($word, $poster, "the masthead dropped $word");
+        }
+    }
+
+    /**
+     * The code has to stay big enough to scan from across a room.
+     *
+     * The layout gives the code whatever the words leave, so a change to the
+     * copy — a longer translation, a second line of headline — comes out of
+     * the QR rather than off the page. That is the right trade until it is
+     * not: measured on the rasterised sheet, the code is a hand's width.
+     */
+    public function test_the_code_is_printed_large_enough_to_scan(): void
+    {
+        $symbol = $this->symbol((new QrPosterService())->render(self::URL, 'Ruderclub Musterstadt e.V.'));
+
+        // The decoder reports where it found the code, so this is the printed
+        // size of the code itself — the matrix's own quiet zone and the panel
+        // around it excluded. The rasteriser runs at 150dpi, so a point is
+        // 150/72 pixels and 200pt is 7cm: scannable well beyond arm's length.
+        self::assertGreaterThan((int) round(200 * 150 / 72), $symbol['width']);
+    }
+
+    /** `SetFillColor()`'s operator for a hex colour, as it lands in the page. */
+    private function fill(string $hex): string
+    {
+        $hex = ltrim($hex, '#');
+
+        return sprintf(
+            '%.3F %.3F %.3F rg',
+            hexdec(substr($hex, 0, 2)) / 255,
+            hexdec(substr($hex, 2, 2)) / 255,
+            hexdec(substr($hex, 4, 2)) / 255,
+        );
+    }
+
+    /**
      * The text the poster's content streams carry.
      *
      * FPDF compresses what it draws, so the drawn words are not literal bytes
@@ -129,19 +235,21 @@ final class QrPosterServiceTest extends TestCase
     }
 
     /**
-     * Rasterise the poster and read the code back.
+     * Rasterise the poster, find the code, and report what it says and how
+     * big it is.
      *
      * Skips — loudly — when `pdftoppm` or a decoder is missing, rather than
      * degrading into a test that only proves a PDF was written.
+     *
+     * @return array{data: string, width: int}
      */
-    private function decode(string $pdf): ?string
+    private function symbol(string $pdf): array
     {
         if (self::which('pdftoppm') === null) {
             self::markTestSkipped('pdftoppm (poppler-utils) is needed to rasterise the poster.');
         }
 
-        $dir = sys_get_temp_dir() . '/clubbar-poster-' . bin2hex(random_bytes(6));
-        mkdir($dir, 0700, true);
+        $dir = self::makeTempTree('clubbar-poster');
 
         try {
             file_put_contents($dir . '/poster.pdf', $pdf);
@@ -150,6 +258,9 @@ final class QrPosterServiceTest extends TestCase
             $images = glob($dir . '/page*.png') ?: [];
             self::assertNotSame([], $images, 'The poster produced no page to decode.');
 
+            // The symbol's own rectangle, not the drawn panel: the layout gives
+            // the code the space the words leave, so the only honest measure of
+            // "big enough to scan" is where a decoder says the code actually is.
             $script = <<<'PY'
                 import sys
                 try:
@@ -159,7 +270,10 @@ final class QrPosterServiceTest extends TestCase
                     print("SKIP")
                     sys.exit(0)
                 found = decode(Image.open(sys.argv[1]))
-                print(found[0].data.decode() if found else "NONE")
+                if not found:
+                    print("NONE")
+                else:
+                    print(f"{found[0].rect.width}\t{found[0].data.decode()}")
                 PY;
 
             file_put_contents($dir . '/decode.py', $script);
@@ -171,13 +285,18 @@ final class QrPosterServiceTest extends TestCase
 
             self::assertNotSame('NONE', $output, 'No QR code was found on the poster at all.');
 
-            return $output;
+            [$width, $data] = explode("\t", $output, 2);
+
+            return ['data' => $data, 'width' => (int) $width];
         } finally {
-            foreach (glob($dir . '/*') ?: [] as $file) {
-                unlink($file);
-            }
-            @rmdir($dir);
+            self::removeTempTree($dir);
         }
+    }
+
+    /** What the code on the poster says. */
+    private function decode(string $pdf): ?string
+    {
+        return $this->symbol($pdf)['data'];
     }
 
     private static function which(string $binary): ?string
