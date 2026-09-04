@@ -259,4 +259,22 @@ enum AuditAction: string
      * afterwards was told (ADR-0052 decision 6).
      */
     case REGISTRATION_DOCUMENT_URL_CHANGED = 'registration_document_url_changed';
+
+    /**
+     * An admin mailed the club's registration link to somebody outside it
+     * (#821, ADR-0053).
+     *
+     * The entry carries the address, and that is deliberate rather than an
+     * oversight to be scrubbed: an admin causing the installation to write to a
+     * named third party is the shape of everything else in this log, and the
+     * address is the only part of the act worth recording. It ages out with the
+     * log like every other value in it — the alternative is a queue of people
+     * who were asked once, which ADR-0052 decision 10 exists to prevent.
+     *
+     * Its own action rather than the generic `mail_enqueued` the admin
+     * invitation reuses: that one says a message about an existing subject
+     * entered the queue, and this says an admin reached outside the club and
+     * offered somebody a way in. A reviewer searches for the second by name.
+     */
+    case REGISTRATION_LINK_SENT = 'registration_link_sent';
 }

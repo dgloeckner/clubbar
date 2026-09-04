@@ -956,7 +956,7 @@
       "generate": "Generate secret",
       "rotate": "Replace secret",
       "rotateTitle": "Generate a new secret?",
-      "rotateWarning": "Every poster in the building stops working immediately. Print a new one afterwards and put it up. This cannot be undone.",
+      "rotateWarning": "Every poster in the building stops working immediately — and so does every registration link you have sent. Print a new poster afterwards and put it up; who you sent a link to is listed under Notifications. This cannot be undone.",
       "generateWarning": "This mints the poster secret. Afterwards you can download the poster and switch registration on.",
       "rotateConfirm": "Generate",
       "documentUrl": "Address of the club document",
@@ -1489,6 +1489,7 @@
       "member_card_replaced": "Card replaced",
       "member_email_changed": "Member: address changed",
       "member_email_activated": "Member: new address active",
+      "registration_link": "Registration link",
       "jugendschutz_violation": "Jugendschutz violation",
       "key_expiry_warning": "Key expiring",
       "encryption_key_registered": "Key registered",
@@ -1578,7 +1579,7 @@
   },
   "registrations": {
     "title": "Registrations",
-    "subtitle": "Self-registrations from the QR poster, waiting to be checked.",
+    "subtitle": "Self-registrations waiting to be checked.",
     "searchPlaceholder": "Search name or email",
     "columns": {
       "name": "Name",
@@ -1596,9 +1597,21 @@
       "email": "A member already exists at this email address.",
       "iban": "A mandate already runs on this account."
     },
+    "sendLink": {
+      "action": "Send registration link",
+      "title": "Send registration link",
+      "body": "The recipient gets the link to the registration form — the same one the club's QR poster opens. Nothing about this person is stored.",
+      "emailLabel": "Email address",
+      "emailPlaceholder": "name@example.org",
+      "invalidEmail": "Enter a valid email address.",
+      "send": "Send",
+      "sending": "Sending …",
+      "queued": "The registration link to {{email}} is queued and goes out with the next send run.",
+      "failed": "The registration link could not be sent."
+    },
     "empty": {
       "title": "Nothing to review.",
-      "body": "Registrations appear here as soon as somebody scans the club's QR poster and fills in the form."
+      "body": "Registrations appear here as soon as somebody fills in the form — from the club's QR poster, or from a registration link you sent."
     },
     "fields": {
       "firstName": "First name",

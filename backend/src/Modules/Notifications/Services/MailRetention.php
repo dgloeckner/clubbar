@@ -196,7 +196,18 @@ final class MailRetention
             MailKind::MEMBER_WELCOME,
             MailKind::MEMBER_CARD_REPLACED,
             MailKind::MEMBER_EMAIL_CHANGED,
-            MailKind::MEMBER_EMAIL_ACTIVATED => self::DEFAULT_SENT_DAYS,
+            MailKind::MEMBER_EMAIL_ACTIVATED,
+            // The Anmeldelink (#821) keeps the default, and here the row is the
+            // *only* record there is: ADR-0053 stores nothing about a
+            // prospective member, so `recipient` is both the invitation history
+            // and the club's way of re-sending after a rotation without keeping
+            // a list. Ninety days is what that buys — long enough for a club to
+            // find who it wrote to and repeat it, short enough that an address
+            // belonging to somebody who never joined does not sit here for
+            // years. Keeping it longer would rebuild, one row at a time,
+            // exactly the queue of never-answered invitations ADR-0052
+            // decision 10 refuses to create.
+            MailKind::REGISTRATION_LINK => self::DEFAULT_SENT_DAYS,
             MailKind::DECKEL_STATEMENT => self::STATEMENT_SENT_DAYS,
             MailKind::CREDIT_LIMIT_DIGEST => self::DIGEST_SENT_DAYS,
         };

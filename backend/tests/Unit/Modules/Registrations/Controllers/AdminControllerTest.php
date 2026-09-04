@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\Registrations\Controllers;
 use App\Modules\Members\DTOs\MemberAdminDto;
 use App\Modules\Registrations\Controllers\AdminController;
 use App\Modules\Registrations\DTOs\PendingRegistrationDto;
+use App\Modules\Registrations\Services\RegistrationLinkService;
 use App\Modules\Registrations\Services\RegistrationReviewService;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Validation\Validator;
@@ -31,6 +32,7 @@ final class AdminControllerTest extends TestCase
 
     private AdminController $controller;
     private RecordingReviewService $service;
+    private RecordingLinkService $links;
 
     protected function setUp(): void
     {
@@ -38,7 +40,19 @@ final class AdminControllerTest extends TestCase
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         $this->service = new RecordingReviewService();
-        $this->controller = new AdminController($this->service, new Validator($db));
+        $this->links = new RecordingLinkService();
+        $this->controller = new AdminController($this->service, $this->links, new Validator($db));
+    }
+
+    /** The Anmeldelink request, which carries no registration id (#821). */
+    private function sendLink(array $body): Response
+    {
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('POST', '/api/admin/registrations/link')
+            ->withParsedBody($body)
+            ->withAttribute('admin_user_id', self::ADMIN);
+
+        return $this->controller->sendLink($request, new Response());
     }
 
     /** @param array<string, mixed> $body */
@@ -289,6 +303,41 @@ final class AdminControllerTest extends TestCase
 
         self::assertSame('no-store', $response->getHeaderLine('Cache-Control'));
     }
+
+    // ── the Anmeldelink (#821, UC-A70) ───────────────────────────────────
+
+    public function test_a_valid_address_is_queued_and_answered_202(): void
+    {
+        $response = $this->sendLink(['email' => 'interessent@example.org']);
+
+        // 202, not 200: nothing has been delivered when this returns, and an
+        // admin who reads "sent" tells the person waiting something untrue.
+        $this->assertSame(202, $response->getStatusCode());
+        $this->assertSame(
+            [['recipient' => 'interessent@example.org', 'adminUserId' => self::ADMIN]],
+            $this->links->sent,
+        );
+    }
+
+    #[DataProvider('badAddresses')]
+    public function test_an_unusable_address_never_reaches_the_service(mixed $email): void
+    {
+        $response = $this->sendLink($email === null ? [] : ['email' => $email]);
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame([], $this->links->sent);
+    }
+
+    /** @return array<string, array{0: mixed}> */
+    public static function badAddresses(): array
+    {
+        return [
+            'absent' => [null],
+            'blank' => [''],
+            'not an address' => ['not-an-address'],
+            'too long for the column' => [str_repeat('a', 250) . '@example.org'],
+        ];
+    }
 }
 
 /**
@@ -392,5 +441,26 @@ final class RecordingReviewService extends RegistrationReviewService
             'privacy_notice_shown_at' => '2026-08-31 10:00:00',
             'submitted_at' => '2026-08-31 10:00:00', 'expires_at' => '2026-09-30 10:00:00',
         ]);
+    }
+}
+
+/**
+ * The send half's own double: the Anmeldelink service reaches an outbox and an
+ * audit log, and neither is what this file is about.
+ */
+final class RecordingLinkService extends RegistrationLinkService
+{
+    /** @var list<array{recipient: string, adminUserId: ?string}> */
+    public array $sent = [];
+
+    public function __construct()
+    {
+        // As above: not calling the parent constructor. Nothing here reaches a
+        // collaborator.
+    }
+
+    public function send(string $recipient, ?string $adminUserId): void
+    {
+        $this->sent[] = ['recipient' => $recipient, 'adminUserId' => $adminUserId];
     }
 }

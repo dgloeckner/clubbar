@@ -109,9 +109,16 @@ would drift.
 1. **Every `MailKind` answers `recipientRoles()` explicitly**, in a `match` with
    no default arm. A kind added later must *state* its audience; it must never
    inherit one from the shape of the kinds around it. The same applies to
-   `addressesMember()`, `addressesClub()` and `subjectType()` — all four are
-   exhaustive `match` expressions for this reason, and PHP's exhaustiveness check
-   is what makes forgetting one a build error rather than a leak.
+   `addressesMember()`, `addressesClub()`, `addressesProspect()` and
+   `subjectType()` — all five are exhaustive `match` expressions for this reason,
+   and PHP's exhaustiveness check is what makes forgetting one a build error
+   rather than a leak. `addressesProspect()` ([#821](https://github.com/dgloeckner/clubbar/issues/821))
+   is the newest, and it exists because there are **three** audiences rather than
+   two: a kind addressed to somebody outside the club answers `[]` here for the
+   same reason a member-addressed one does — the fan-out is not how it is sent —
+   and with no way to tell that apart from a forgotten classification,
+   `warnAdmins()` accepts the kind, finds nobody, skips the club-copy escalation
+   and returns a zero-count *success*.
 2. **Derive the set from the route, not from intuition.** The near-limit digest
    is the push half of `GET /api/admin/dashboard`, which is `TREASURY`, so it is
    `[ADMIN, KASSENWART]`. A terminal token's expiry is behind an `admin`-only
@@ -569,7 +576,7 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    |------|----------|-------|
    | `api` | `api-tests` | 2 shards, 318/318 — homogeneous, so count-balancing is time-balancing |
    | `ui` | `admin-chromium`, `admin-mobile` | 2 shards |
-   | `chain` | `api-ordered`, `api-rotation`, `mail-backup`, `mail-chain`, `mail-statement`, `mail-credentials`, `mail-issuance`, `mail-lifecycle`, `mail-jugendschutz`, `mail-roles`, `mail-digest`, `mail-member` | 1 job, no shard: every project in it is deliberately serial |
+   | `chain` | `api-ordered`, `api-rotation`, `mail-backup`, `mail-chain`, `mail-statement`, `mail-credentials`, `mail-issuance`, `mail-lifecycle`, `mail-jugendschutz`, `mail-roles`, `mail-digest`, `mail-member`, `mail-anmeldelink` | 1 job, no shard: every project in it is deliberately serial |
 
    Those dependencies are about **one shared database**, not about data, so a
    job of its own satisfies them. `E2E_LANE=chain` is what says so, and it is
@@ -581,7 +588,7 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    E2E_LANE=chain npx playwright test --project=api-ordered --project=api-rotation \
      --project=mail-backup --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance \
      --project=mail-lifecycle --project=mail-jugendschutz --project=mail-roles \
-     --project=mail-digest --project=mail-member
+     --project=mail-digest --project=mail-member --project=mail-anmeldelink
    npx playwright test --project=api-tests --shard=1/2
    ```
 

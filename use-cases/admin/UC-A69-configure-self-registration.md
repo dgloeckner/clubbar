@@ -99,11 +99,20 @@ happen before it happens.
    for routine hygiene the way a terminal token's overlap rotation is
    (UC-A54).
 2. The system shows an explicit warning: **every poster currently printed
-   stops working the moment this is confirmed.** There is no overlap window
+   stops working the moment this is confirmed — and so does every Anmeldelink
+   the club has already mailed** (UC-A70, ADR-0053). There is no overlap window
    here the way there is for a terminal token — a terminal is a device an
    admin can walk over to and re-key in person; a poster is paper already
    handed out, and the entire point of rotating in response to a leak is that
    the leaked copy must die immediately, not gracefully.
+
+   A sent link dies more quietly than a poster does: nobody walks past it, and
+   its reader simply finds a page refusing them with no way to tell a rotated
+   secret from a wrong guess. So the warning names the recovery in the same
+   breath — the addresses that were written to are listed under
+   Benachrichtigungen, and sending again is one action per address. That list
+   is the club's only invitee record, and it is deliberately the *only* one
+   (ADR-0052 decision 10).
 3. The admin confirms. `POST /api/admin/self-registration/secret` generates a
    fresh 32 bytes and **replaces** `secret_hash` and the sealed copy — the old
    values are gone, not archived alongside a pending one.
@@ -186,7 +195,7 @@ switched on until the URL has been set and validated at least once (decision
 | Secret generated, availability still off | Same `registration_unavailable` — a secret existing is not the same as the club accepting anything | `[ADMIN]` generated it; nobody has turned it on yet |
 | Availability on | The registration form (UC-P01) | `[ADMIN]` flipped the switch |
 | Availability switched off, with a reason | `registration_disabled` plus the club's own reason text | `[ADMIN]` |
-| Secret rotated | Every poster printed before the rotation now answers `registration_unavailable`, identically to a stranger's wrong guess | `[ADMIN]` only |
+| Secret rotated | Every poster printed before the rotation now answers `registration_unavailable`, identically to a stranger's wrong guess — and so does every Anmeldelink already delivered (UC-A70) | `[ADMIN]` only |
 
 ## Rules
 
@@ -199,6 +208,7 @@ switched on until the URL has been set and validated at least once (decision
 | The Getränkewart reaches none of this page | Member onboarding is outside their remit on every surface (ADR-0045 invariant 5); the settings tab is not shown to them |
 | Reprinting never changes `secret_hash` | The stored sealed copy exists specifically so a poster can be replaced without a security event (decision 1) |
 | Rotating replaces `secret_hash` outright, with no overlap window | Unlike a terminal token, a poster cannot be "re-keyed in person" — the whole reason to rotate is to kill a leaked copy at once, not to let it keep working until somebody notices |
+| Rotating also kills every Anmeldelink already in somebody's inbox | A mailed link is the poster's URL and nothing else, so it has exactly the poster's lifetime. The rotation screen says so, and points at Benachrichtigungen — the outbox's `recipient` column is the only record of who was written to, and the only way back (ADR-0053) |
 | A rotated secret's old URLs answer exactly like an unknown one | Anything that told the difference would confirm to whoever holds the old poster that it *used to* work, which is information a probe should never get |
 | Switching off requires a reason; switching back on requires nothing but the flip | Off is addressed to a person standing at the poster; on restores exactly what was already printed, so nothing needs re-explaining |
 | Availability cannot be switched on without a configured document URL | Collecting a name, a birth date and an IBAN from somebody who was never shown the club's own Anmeldung — its Datenschutzhinweise are pages 2+ of that same document — is the failure this condition exists to prevent, and it is the half an admin is most likely to skip, because the poster is the visible artefact and the document is not |
@@ -222,8 +232,8 @@ switched on until the URL has been set and validated at least once (decision
 
 **After rotating**
 - `secret_hash` and the sealed copy are replaced. Every previously printed
-  poster now resolves as `registration_unavailable`. Audit log records the
-  rotation.
+  poster now resolves as `registration_unavailable`, as does every Anmeldelink
+  already delivered (UC-A70). Audit log records the rotation.
 
 **After switching availability**
 - `PATCH /api/admin/self-registration/availability`'s stored state (on/off
@@ -327,6 +337,8 @@ URL, if any, is untouched.
   page's "on" switch produces are reviewed
 - [UC-A54](./UC-A54-rotate-terminal-token.md) — the overlap-rotation pattern
   this use case deliberately does **not** follow, and why
+- [UC-A70](./UC-A70-send-anmeldelink.md) — mailing the same URL to somebody
+  outside the clubhouse, and what rotating here does to every copy of it
 - [UC-A68](./UC-A68-invite-admin.md) — the fragment-token URL shape this
   reuses
 - [ADR-0044](../../adr/0044-tiered-admin-roles.md) — the role derivation this

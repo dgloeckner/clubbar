@@ -448,6 +448,9 @@ const KINDS = [
   // Backups
   'backup_secret_expiry_warning',
   'backup_health_warning',
+  // Outward-facing: the one kind addressed to somebody who is not a member, not
+  // an admin, and holds no row in this database at all (#821, ADR-0053).
+  'registration_link',
 ]
 
 const STATUSES = ['pending', 'sent', 'failed', 'superseded']

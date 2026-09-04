@@ -170,4 +170,40 @@ signs in normally and enrols an authenticator like every other account has.
 See [UC-A68](./use-cases/admin/UC-A68-invite-admin.md).
 _Avoid_: activation link (nothing is activated), verification link (nothing is
 verified), magic link (it signs nobody in), welcome mail (that is the member's,
-and means something else here)
+and means something else here), member invitation / Mitgliedereinladung (that is
+an **Anmeldelink**, which carries no credential at all)
+
+**Anmeldelink** (registration link):
+The club's own registration URL, sent by mail to somebody thinking of joining —
+the poster on the clubhouse wall, addressed. An admin or Kassenwart types an
+address in the registrations inbox and the club sends it; what arrives is the
+same link the poster encodes, opening the same page.
+
+It carries **no credential**. The secret in it is the club's poster secret,
+already printed on a wall in a room the public walks through, so a copy in an
+inbox reaches nobody the wall did not. That is the whole reason this is a
+message rather than a token: it never expires, works any number of times, is
+addressed to nobody in particular once sent, and there is nothing to revoke. It
+dies only when the poster secret is rotated — at which point every poster dies
+with it, which is the same sentence the club already reads before rotating.
+
+The club keeps no list of who was invited: a queue of people who never joined is
+exactly the accumulation [ADR-0052](./adr/0052-member-self-registration-via-qr-code.md)
+refuses. Every address written to is nonetheless recoverable, because the outbox
+records what it sent — which is how a club re-sends after a rotation without
+maintaining an invitee list.
+
+Distinct from **Einladung**, which is an admin's one-time password-setting
+credential and shares nothing with this but the word a German club would reach
+for. Sending one is refused whenever self-registration could not answer it —
+switched off, no secret, no configured document — with the same named reasons
+the switch itself gives. See
+[ADR-0053](./adr/0053-anmeldelink-carries-no-credential.md) for why it carries
+no credential, [UC-A70](./use-cases/admin/UC-A70-send-anmeldelink.md) for the
+send itself, [UC-P01](./use-cases/public/UC-P01-member-self-registration.md) for
+the page it opens and
+[UC-A69](./use-cases/admin/UC-A69-configure-self-registration.md) for the
+rotation that kills every copy of it.
+_Avoid_: Einladung / invitation (that is the admin credential), invite link,
+Mitgliedereinladung, signup link (nothing is signed up — the form produces a
+pending registration, and paper is still signed by hand)

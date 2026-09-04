@@ -29,6 +29,7 @@ use App\Modules\Registrations\Documents\CurlTemplateFetcher;
 use App\Modules\Registrations\Documents\MandateDocumentFiller;
 use App\Modules\Registrations\Documents\MandateDocumentService;
 use App\Modules\Registrations\Documents\QrPosterService;
+use App\Modules\Registrations\Services\RegistrationLinkService;
 use App\Modules\Registrations\Services\SelfRegistrationAdminService;
 use App\Modules\Registrations\Services\RegistrationReviewService;
 use App\Modules\Registrations\Services\RegistrationsService;
@@ -115,6 +116,7 @@ use App\Modules\Notifications\Services\JugendschutzViolationMailBuilder;
 use App\Modules\Notifications\Services\TerminalAnomalyMailBuilder;
 use App\Modules\Notifications\Services\TerminalTokenIssuedMailBuilder;
 use App\Modules\Notifications\Services\AdminSecurityMailBuilder;
+use App\Modules\Notifications\Services\RegistrationLinkMailBuilder;
 use App\Shared\Mail\MailTransportFactory;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Modules\Settlements\Services\SettlementReversalService;
@@ -477,10 +479,26 @@ class ServiceFactory implements ContainerInterface
         ));
     }
 
+    /**
+     * The Anmeldelink's send half (#821). Deliberately small: the gate reads
+     * the same settings the availability switch does, and the enqueue is one
+     * row — everything about *what* is sent lives in the builder, at send time.
+     */
+    public function getRegistrationLinkService(): RegistrationLinkService
+    {
+        return $this->resolve(RegistrationLinkService::class, fn() => new RegistrationLinkService(
+            $this->getSelfRegistrationAdminService(),
+            $this->getMailOutboxRepository(),
+            $this->getAuditService(),
+            $this->logger,
+        ));
+    }
+
     public function getRegistrationsAdminController(): RegistrationsAdminController
     {
         return $this->resolve(RegistrationsAdminController::class, fn() => new RegistrationsAdminController(
             $this->getRegistrationReviewService(),
+            $this->getRegistrationLinkService(),
             $this->getValidator(),
         ));
     }
@@ -818,6 +836,19 @@ class ServiceFactory implements ContainerInterface
      * builder per subject; #410 and #438 add theirs here and the drain does not
      * change.
      */
+    /**
+     * ADR-0053. Claims its one kind by name rather than by subject: a
+     * subject-wide claim on `SELF_REGISTRATION` would be a standing offer to
+     * render the next kind filed under it, which the registry accepts silently.
+     */
+    public function getRegistrationLinkMailBuilder(): RegistrationLinkMailBuilder
+    {
+        return $this->resolve(RegistrationLinkMailBuilder::class, fn() => new RegistrationLinkMailBuilder(
+            $this->getSelfRegistrationAdminService(),
+            $this->config->appUrl,
+        ));
+    }
+
     public function getMailContentRegistry(): MailContentRegistry
     {
         return $this->resolve(MailContentRegistry::class, fn() => new MailContentRegistry(
@@ -832,6 +863,7 @@ class ServiceFactory implements ContainerInterface
             $this->getCreditLimitDigestMailBuilder(),
             $this->getBackupHealthMailBuilder(),
             $this->getMemberLifecycleMailBuilder(),
+            $this->getRegistrationLinkMailBuilder(),
         ));
     }
 

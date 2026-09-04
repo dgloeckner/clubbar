@@ -171,13 +171,19 @@ class MailKindTest extends TestCase
      * rather than quietly inheriting somebody else's audience. This is the same
      * guard `addressesMember()` gets above, for the same reason — the failure it
      * prevents is silent and is a message read by the wrong office.
+     *
+     * There are three audiences, not two. A kind addressed to a member or to a
+     * prospect (#821) is not fanned out at all, and answers `[]` for that
+     * reason rather than because somebody forgot to classify it — which is
+     * exactly why `addressesProspect()` exists to tell the two apart, and why
+     * `AdminNotifier` refuses both rather than queueing nothing.
      */
     public function test_every_admin_addressed_kind_names_the_offices_it_is_for(): void
     {
         foreach (MailKind::cases() as $kind) {
             $roles = $kind->recipientRoles();
 
-            if ($kind->addressesMember()) {
+            if ($kind->addressesMember() || $kind->addressesProspect()) {
                 $this->assertSame([], $roles, $kind->value . ' is not fanned out to any office');
                 continue;
             }
@@ -188,6 +194,47 @@ class MailKindTest extends TestCase
                 $roles,
                 $kind->value . ' — `admin` is the root of the ladder and receives whatever a lesser office does'
             );
+        }
+    }
+
+    /**
+     * A kind is addressed to exactly one of the three audiences.
+     *
+     * `addressesMember()` and `addressesProspect()` are separate booleans
+     * rather than one enum, which leaves "both true" expressible — and a kind
+     * claiming both would be handed to `warnAdmins()` and to the member
+     * fan-out by different callers, each believing it belongs to them.
+     */
+    public function test_a_kind_addresses_a_member_or_a_prospect_but_never_both(): void
+    {
+        foreach (MailKind::cases() as $kind) {
+            $this->assertFalse(
+                $kind->addressesMember() && $kind->addressesProspect(),
+                $kind->value . ' cannot be addressed to a member and to a stranger at once'
+            );
+        }
+    }
+
+    /**
+     * A prospect-addressed kind is never handed to the admin fan-out.
+     *
+     * The failure this guards is quiet: `recipientRoles()` is `[]`, so the
+     * fan-out finds nobody, the club-copy escalation needs a non-empty role set
+     * and is skipped, and the caller is handed a successful result reporting
+     * zero queued messages.
+     */
+    public function test_a_prospect_addressed_kind_is_not_a_fan_out(): void
+    {
+        $prospect = array_values(array_filter(
+            MailKind::cases(),
+            static fn (MailKind $kind): bool => $kind->addressesProspect(),
+        ));
+
+        $this->assertNotSame([], $prospect, 'the audience exists and something must be in it');
+
+        foreach ($prospect as $kind) {
+            $this->assertFalse($kind->addressesClub(), $kind->value . ' has no club-level copy');
+            $this->assertSame([], $kind->recipientRoles(), $kind->value . ' is not fanned out');
         }
     }
 

@@ -183,6 +183,61 @@ export function countPendingMail(): number {
 }
 
 /**
+ * Seal a poster secret the way the application does, so a test can write one
+ * the server can read back (#821).
+ *
+ * `self_registration_config` holds the secret twice — a SHA-256 hash, which is
+ * the lookup key, and a sealed copy the server decrypts to reprint a poster or
+ * to build an Anmeldelink. Only the first can be computed here: the second is
+ * `crypto_secretbox` under `TOTP_ENCRYPTION_KEY`, a value that lives in the
+ * backend's environment and deliberately nowhere else.
+ *
+ * So the sealing runs **inside the backend container**, through the same
+ * `SymmetricSecretBox` the application uses, rather than being reimplemented in
+ * TypeScript against a key copied into the test suite. Reimplementing it would
+ * mean a second definition of the ciphertext format, free to drift from the one
+ * that matters — and a fixture that no longer matched would fail as "the club
+ * has no readable poster secret", which reads as a broken feature.
+ *
+ * Set `CLUBBAR_PHP_COMMAND` to run against a local backend instead of the
+ * compose stack — e.g. `php`, to which `-r` and the script are appended.
+ */
+function sealPosterSecret(secret: string): string {
+  // Through a base64 argument rather than interpolated into the script: the
+  // secret is arbitrary text on the way to a shell, and a quote in it would
+  // otherwise end the string it is inside.
+  const encoded = Buffer.from(secret, 'utf8').toString('base64')
+  const script =
+    "require '/app/vendor/autoload.php';" +
+    "$box = new App\\Shared\\Security\\SymmetricSecretBox(" +
+    "getenv('TOTP_ENCRYPTION_KEY'), 'TOTP_ENCRYPTION_KEY');" +
+    `echo $box->encrypt(base64_decode('${encoded}'));`
+
+  const override = process.env.CLUBBAR_PHP_COMMAND
+  const result = override
+    ? spawnSync(override.split(' ')[0], [...override.split(' ').slice(1), '-r', script], {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        timeout: SQL_TIMEOUT_MS,
+      })
+    : spawnSync('docker', ['compose', 'exec', '-T', 'backend', 'php', '-r', script], {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        timeout: SQL_TIMEOUT_MS,
+      })
+
+  const cipher = (result.stdout ?? '').trim()
+  if (result.status !== 0 || !cipher.startsWith('v1:')) {
+    throw new Error(
+      'Could not seal a poster secret. The registration fixtures need the compose stack up, or ' +
+        `CLUBBAR_PHP_COMMAND pointing at an equivalent CLI.\n${result.stderr || result.stdout || ''}`,
+    )
+  }
+
+  return cipher
+}
+
+/**
  * Put the club's self-registration into a known state.
  *
  * Writes the SHA-256 of a secret the test chose, so the test can then present
@@ -220,12 +275,20 @@ export function configureSelfRegistration(
   const retentionDays = options.retentionDays ?? 30
 
   const hash = createHash('sha256').update(secret).digest('hex')
+  // The sealed copy, alongside the hash. Writing only the hash produces a state
+  // no real path can reach — `replaceSecret()` always writes both — and the
+  // application notices: reading the secret back is what reprints a poster
+  // without rotating, and what builds the Anmeldelink's URL at send time
+  // (#821). A club with a hash and no cipher answers "no poster secret", which
+  // in a test reads as a broken feature rather than as a half-written fixture.
+  const cipher = sealPosterSecret(secret)
   const reasonSql = reason === null ? 'NULL' : `'${reason.replace(/'/g, "''")}'`
   const urlSql = documentUrl === null ? 'NULL' : `'${documentUrl.replace(/'/g, "''")}'`
 
   execSql(
     `UPDATE self_registration_config SET enabled = ${enabled ? 1 : 0}, ` +
-      `secret_hash = '${hash}', disabled_reason = ${reasonSql}, ` +
+      `secret_hash = '${hash}', secret_cipher = '${cipher.replace(/'/g, "''")}', ` +
+      `disabled_reason = ${reasonSql}, ` +
       `retention_days = ${Number(retentionDays)} WHERE id = 1`,
   )
   execSql(`UPDATE sepa_config SET mandate_template_url = ${urlSql} WHERE id = 1`)
@@ -431,6 +494,42 @@ export function pendingRowsContainingPlaintext(iban: string): number {
  */
 export function clearRegistrationAttempts(): void {
   execSql('DELETE FROM registration_attempts')
+}
+
+/**
+ * The queued Anmeldelinks addressed to one address (#821, ADR-0053).
+ *
+ * Read from the database rather than from an API, because there is no API: the
+ * outbox row *is* the record that a link was sent, and nothing else about the
+ * recipient is stored. Both id columns come back so a spec can assert the shape
+ * ADR-0053 turns on — a message addressed to somebody this database holds no
+ * row for.
+ *
+ * `dedup_key` is returned for the claim that matters most here: it is a
+ * per-send nonce, which is what makes two sends to one address two messages
+ * rather than one the unique index swallowed.
+ */
+export function queuedRegistrationLinks(
+  recipient: string,
+): Array<{ dedupKey: string; memberId: string; adminUserId: string; language: string }> {
+  const needle = recipient.replace(/'/g, "''")
+  const output = execSql(
+    "SELECT CONCAT_WS('|', dedup_key, COALESCE(member_id, 'NULL'), " +
+      "COALESCE(admin_user_id, 'NULL'), language) FROM mail_outbox " +
+      `WHERE kind = 'registration_link' AND recipient = '${needle}'`,
+  )
+
+  return output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.includes('|'))
+    // The header row mariadb prints for a tabular result; it carries the
+    // expression, not a value, so it has no separator-delimited fields to read.
+    .filter((line) => !line.startsWith('CONCAT_WS'))
+    .map((line) => {
+      const [dedupKey, memberId, adminUserId, language] = line.split('|')
+      return { dedupKey, memberId, adminUserId, language }
+    })
 }
 
 /** Age a registration past its expiry, so a real cron run has something to purge. */

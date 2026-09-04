@@ -433,6 +433,36 @@ final class MailStrings
             'admin_invitation.unexpected' => 'Wenn Du damit nichts anfangen kannst, ignoriere diese E-Mail. '
                                            . 'Der Link läuft von selbst ab, und ohne ihn passiert nichts.',
 
+            // ── Anmeldelink (#821, ADR-0053) ────────────────────────────────
+            // An jemanden, der noch kein Mitglied ist und über den hier nichts
+            // gespeichert wird. Kein Name, keine Anrede mit Namen, kein
+            // Ablaufdatum — der Link ist derselbe wie auf dem Aushang und lebt
+            // genauso lange. Das Du bleibt: der Verein duzt seine Mitglieder,
+            // und wer gerade überlegt beizutreten, wird nicht anders
+            // angesprochen als danach.
+            'registration_link.subject'   => 'Mitglied werden bei {org}',
+            'registration_link.preheader' => 'Dein Link zur Anmeldung — das Formular dauert ein paar Minuten.',
+            'registration_link.eyebrow'   => 'Anmeldung',
+            'registration_link.title'     => 'Mitglied werden',
+            'registration_link.lede'      => 'schön, dass Du über eine Mitgliedschaft bei '
+                                          . '<strong>{org}</strong> nachdenkst. Über den Link unten kommst Du '
+                                          . 'direkt zum Anmeldeformular — dasselbe, das auch der Aushang im '
+                                          . 'Verein öffnet.',
+            'registration_link.lede_text' => 'schön, dass Du über eine Mitgliedschaft bei {org} nachdenkst. '
+                                          . 'Über den Link unten kommst Du direkt zum Anmeldeformular — '
+                                          . 'dasselbe, das auch der Aushang im Verein öffnet.',
+            'registration_link.cta'       => 'Zum Anmeldeformular',
+            'registration_link.fallback'  => 'Falls der Button nicht funktioniert, öffne diese Adresse im Browser:',
+            // Der Punkt, den der Aushang nicht erklären muss und diese Mail
+            // schon: Formular ausfüllen ist noch kein Beitritt.
+            'registration_link.paper_heading' => 'Ein Blatt Papier gehört dazu',
+            'registration_link.paper_body' => 'Mit dem Formular allein bist Du noch kein Mitglied. Am Ende '
+                                          . 'bekommst Du die Anmeldung als PDF: ausdrucken, unterschreiben und '
+                                          . 'im Verein abgeben. Erst danach wird sie geprüft und freigegeben. '
+                                          . 'Die Unterschrift brauchen wir für das SEPA-Lastschriftmandat.',
+            'registration_link.unexpected' => 'Wenn Du damit nichts anfangen kannst, ignoriere diese E-Mail '
+                                          . 'einfach — es wird nichts gespeichert und es passiert nichts.',
+
             // ── Admin-Lebenszyklus (ADR-0044) ───────────────────────────────
             // Geht an alle aktiven Admins *und* an die Vereinsadresse: bei
             // genau einem Admin ginge die Nachricht sonst von der handelnden
@@ -901,6 +931,32 @@ final class MailStrings
                                           . 'it is a required step and takes a minute.',
             'admin_invitation.unexpected' => 'If this means nothing to you, ignore this email. The link '
                                            . 'expires on its own, and nothing happens without it.',
+
+            // ── Registration link (#821, ADR-0053) ──────────────────────────
+            // Present in English even though nothing queues an English one
+            // today: the language a message is sent in is frozen at enqueue,
+            // and decision 6 defers a club-level default to #820. Wording it
+            // now costs a paragraph; discovering it missing on the day that
+            // default lands costs a German mail in an English mailbox.
+            'registration_link.subject'   => 'Joining {org}',
+            'registration_link.preheader' => 'Your link to the registration form — it takes a few minutes.',
+            'registration_link.eyebrow'   => 'Registration',
+            'registration_link.title'     => 'Becoming a member',
+            'registration_link.lede'      => 'good to hear you are thinking about joining '
+                                          . '<strong>{org}</strong>. The link below opens the registration '
+                                          . 'form — the same one the poster in the clubhouse opens.',
+            'registration_link.lede_text' => 'good to hear you are thinking about joining {org}. The link '
+                                          . 'below opens the registration form — the same one the poster in '
+                                          . 'the clubhouse opens.',
+            'registration_link.cta'       => 'Open the registration form',
+            'registration_link.fallback'  => 'If the button does not work, open this address in your browser:',
+            'registration_link.paper_heading' => 'A sheet of paper is part of it',
+            'registration_link.paper_body' => 'Filling in the form does not yet make you a member. At the end '
+                                          . 'you get the registration as a PDF: print it, sign it by hand and '
+                                          . 'hand it in at the club. Only then is it reviewed and approved. '
+                                          . 'The signature is what the SEPA direct debit mandate needs.',
+            'registration_link.unexpected' => 'If this means nothing to you, simply ignore this email — '
+                                          . 'nothing is stored and nothing happens.',
 
             // ── Admin lifecycle (ADR-0044) ──────────────────────────────────
             'admin_lifecycle.eyebrow'          => 'Security notice',

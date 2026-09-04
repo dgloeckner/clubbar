@@ -150,6 +150,13 @@ final class RouteRoleMap
         // Kassenwart who may not clear the queue they are working would leave
         // it to expire, which is the same deletion, later, unrecorded.
         'GET /api/admin/registrations' => self::TREASURY,
+        // Sending the Anmeldelink (#821, ADR-0053). TREASURY and not
+        // ADMIN_ONLY: the mail points at the registration surface, whose review
+        // routes are TREASURY — the rule is to mirror the grant on the surface
+        // the mail points at, and the credential surface (`self-registration`,
+        // below) is a different one. It hands over no secret: what travels is
+        // the URL a wall in the clubhouse already publishes.
+        'POST /api/admin/registrations/link' => self::TREASURY,
         'GET /api/admin/registrations/{registrationId}' => self::TREASURY,
         'PATCH /api/admin/registrations/{registrationId}' => self::TREASURY,
         'POST /api/admin/registrations/{registrationId}/approve' => self::TREASURY,

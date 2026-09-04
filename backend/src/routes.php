@@ -232,6 +232,11 @@ return function (App $app): void {
         // somebody has held their signed paper — ADR-0020's mandate gate and
         // ADR-0021's card step both sit behind this route.
         $group->get('/registrations', [RegistrationsAdminController::class, 'index']);
+        // The one outbound verb on this inbox (#821, UC-A70): mail the club's
+        // registration link — the poster's own URL — to somebody thinking of
+        // joining. Above `{registrationId}` for the same reason
+        // `self-registration` is, and `link` is not a registration id.
+        $group->post('/registrations/link', [RegistrationsAdminController::class, 'sendLink']);
         // Static segments above `/registrations/{registrationId}`, or
         // `self-registration` is read as a registration id.
         $group->get('/self-registration', [SelfRegistrationConfigController::class, 'show']);

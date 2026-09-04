@@ -4,6 +4,7 @@ import {
   clearRegistrationAttempts,
   configureSelfRegistration,
   countPendingRegistrations,
+  queuedRegistrationLinks,
   restoreClubDocumentUrl,
   serveClubDocument,
   stopServingClubDocument,
@@ -249,5 +250,94 @@ test.describe('Registrations inbox', () => {
       page.getByTestId('panel-print').click(),
     ])
     expect(download.suggestedFilename()).toContain('.pdf')
+  })
+
+  // ── the Anmeldelink (#821, UC-A70) ─────────────────────────────────────
+
+  /**
+   * The one **outbound** verb on this inbox, driven end to end (frontend → API
+   * → backend → database).
+   *
+   * The message itself is `mail-anmeldelink`'s job; what is asserted here is
+   * the half a Kassenwart performs: the control is on the page, the dialog
+   * takes an address, and a row lands in the queue naming that address. The
+   * last step is what makes this an E2E test rather than a UI one — a dialog
+   * that closes politely and queued nothing is exactly the failure the
+   * checklist in CLAUDE.md exists to catch.
+   */
+  test('sending an Anmeldelink from the header queues a message and names where it went', async ({
+    page,
+  }) => {
+    configureSelfRegistration(`secret-${randomUUID()}`)
+    const email = `interessent-${randomUUID().slice(0, 8)}@example.org`
+
+    await openInbox(page)
+    await page.getByTestId('registrations-send-link-button').click()
+
+    await expect(page.getByTestId('send-registration-link-modal')).toBeVisible()
+    await page.getByTestId('send-registration-link-email').fill(email)
+    await page.getByTestId('send-registration-link-confirm').click()
+
+    // The confirmation names the address, because the admin typed it and a typo
+    // is the failure mode that matters: nothing verifies the recipient.
+    const confirmation = page.getByTestId('send-registration-link-success')
+    await expect(confirmation).toBeVisible()
+    await expect(confirmation).toContainText(email)
+
+    // The button stays disabled afterwards — the guard against the impatient
+    // second click that the backend deliberately does not deduplicate.
+    await expect(page.getByTestId('send-registration-link-confirm')).toBeDisabled()
+
+    // The row is the whole record: no invitee table, nothing else stored.
+    expect(queuedRegistrationLinks(email)).toHaveLength(1)
+  })
+
+  /**
+   * A club that could not answer the link refuses to send one, and says which
+   * precondition is missing — in the admin's own language, from the reason
+   * code, never from the backend's English sentence.
+   */
+  test('a switched-off club refuses the send, in the admin\'s language', async ({ page }) => {
+    configureSelfRegistration(`secret-${randomUUID()}`, {
+      enabled: false,
+      disabledReason: 'Beta-Phase schon voll',
+    })
+    const email = `interessent-${randomUUID().slice(0, 8)}@example.org`
+
+    await openInbox(page)
+    await page.getByTestId('registrations-send-link-button').click()
+    await page.getByTestId('send-registration-link-email').fill(email)
+    await page.getByTestId('send-registration-link-confirm').click()
+
+    const banner = page.getByTestId('send-registration-link-error')
+    await expect(banner).toBeVisible()
+    // The panel runs in German; the backend's `message` is always English.
+    await expect(banner).not.toContainText('switched off')
+    await expect(page.getByTestId('send-registration-link-success')).toBeHidden()
+
+    expect(queuedRegistrationLinks(email)).toHaveLength(0)
+  })
+
+  /**
+   * The header row's three sortable columns each need a `<th>` of their own.
+   *
+   * Without one, CSS table fixup collects the three consecutive non-cell
+   * children into a *single* anonymous cell — four cells against the body's
+   * six columns — and since the button is `display: flex` they stack
+   * vertically inside it. Pre-existing and unrelated to the Anmeldelink, folded
+   * in because #821 was already on this page.
+   */
+  test('the header row has one cell per column', async ({ page }) => {
+    await openInbox(page)
+
+    const headerCells = page.locator('[data-testid="registrations-table"] thead tr > th')
+    await expect(headerCells).toHaveCount(6)
+
+    // And each sort control is inside one, rather than beside them.
+    for (const testId of ['sort-last-name', 'sort-email', 'sort-submitted-at']) {
+      await expect(
+        page.locator(`[data-testid="registrations-table"] thead th [data-testid="${testId}"]`),
+      ).toBeVisible()
+    }
   })
 })

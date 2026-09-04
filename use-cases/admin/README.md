@@ -90,6 +90,7 @@ The admin panel provides management and accounting functions for the bar system:
 | [UC-A63](./UC-A63-reset-admin-password.md) | Reset Admin Password | Generate new password |
 | [UC-A66](./UC-A66-credit-limit-digest.md) | Near-Limit Digest | One scheduled mail listing members close to their Deckel limit |
 | [UC-A69](./UC-A69-configure-self-registration.md) | Configure Self-Registration | The poster secret, the QR poster, and the availability switch with its member-facing reason |
+| [UC-A70](./UC-A70-send-anmeldelink.md) | Send the Anmeldelink | Mail the club's registration link — the poster's own URL — to somebody thinking of joining |
 
 ### System
 

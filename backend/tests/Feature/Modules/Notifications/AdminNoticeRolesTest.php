@@ -117,11 +117,19 @@ class AdminNoticeRolesTest extends DatabaseTestCase
     /**
      * The acceptance criterion, over every kind rather than the two above: an
      * account that looks after the bar stock is written to by nothing at all.
+     *
+     * Two audiences are skipped rather than asserted on, and for the same
+     * reason: `warnAdmins()` **refuses** them outright, so there is no fan-out
+     * to inspect. A member-addressed kind has always been one of those. The
+     * Anmeldelink (#821) is the other — it goes to one address an admin typed,
+     * belonging to somebody who holds no account at all, so "which office does
+     * this reach" has no answer for it. Passing either one here would assert on
+     * a thrown exception rather than on a recipient list.
      */
     public function test_the_getraenkewart_is_written_to_by_no_operational_kind(): void
     {
         foreach (MailKind::cases() as $kind) {
-            if ($kind->addressesMember()) {
+            if ($kind->addressesMember() || $kind->addressesProspect()) {
                 continue;
             }
 

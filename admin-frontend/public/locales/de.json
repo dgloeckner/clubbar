@@ -956,7 +956,7 @@
       "generate": "Geheimnis erzeugen",
       "rotate": "Geheimnis erneuern",
       "rotateTitle": "Neues Geheimnis erzeugen?",
-      "rotateWarning": "Jeder Aushang im Haus hört damit sofort auf zu funktionieren. Drucken Sie danach einen neuen aus und hängen Sie ihn aus. Das lässt sich nicht rückgängig machen.",
+      "rotateWarning": "Jeder Aushang im Haus hört damit sofort auf zu funktionieren — und ebenso jeder Anmeldelink, den Sie verschickt haben. Drucken Sie danach einen neuen Aushang aus und hängen Sie ihn aus; wem Sie einen Link geschickt haben, steht unter Benachrichtigungen. Das lässt sich nicht rückgängig machen.",
       "generateWarning": "Damit wird das Geheimnis für den Aushang erzeugt. Danach können Sie den Aushang herunterladen und die Anmeldung einschalten.",
       "rotateConfirm": "Erzeugen",
       "documentUrl": "Adresse des Vereinsdokuments",
@@ -1489,6 +1489,7 @@
       "member_card_replaced": "Karte gewechselt",
       "member_email_changed": "Mitglied: Adresse geändert",
       "member_email_activated": "Mitglied: neue Adresse aktiv",
+      "registration_link": "Anmeldelink",
       "jugendschutz_violation": "Jugendschutz-Verstoß",
       "key_expiry_warning": "Schlüssel läuft ab",
       "encryption_key_registered": "Schlüssel hinterlegt",
@@ -1578,7 +1579,7 @@
   },
   "registrations": {
     "title": "Anmeldungen",
-    "subtitle": "Selbstanmeldungen über den QR-Aushang, die auf Prüfung warten.",
+    "subtitle": "Selbstanmeldungen, die auf Prüfung warten.",
     "searchPlaceholder": "Name oder E-Mail suchen",
     "columns": {
       "name": "Name",
@@ -1596,9 +1597,21 @@
       "email": "Unter dieser E-Mail gibt es bereits ein Mitglied.",
       "iban": "Auf dieses Konto läuft bereits ein Mandat."
     },
+    "sendLink": {
+      "action": "Anmeldelink senden",
+      "title": "Anmeldelink senden",
+      "body": "Der Empfänger bekommt den Link zum Anmeldeformular — denselben, den auch der QR-Aushang im Verein öffnet. Es wird nichts über diese Person gespeichert.",
+      "emailLabel": "E-Mail-Adresse",
+      "emailPlaceholder": "name@example.org",
+      "invalidEmail": "Bitte eine gültige E-Mail-Adresse eingeben.",
+      "send": "Senden",
+      "sending": "Wird gesendet …",
+      "queued": "Der Anmeldelink an {{email}} ist in der Warteschlange und geht mit dem nächsten Versandlauf raus.",
+      "failed": "Der Anmeldelink konnte nicht gesendet werden."
+    },
     "empty": {
       "title": "Nichts zu prüfen.",
-      "body": "Anmeldungen erscheinen hier, sobald jemand den QR-Aushang im Verein scannt und das Formular ausfüllt."
+      "body": "Anmeldungen erscheinen hier, sobald jemand das Formular ausgefüllt hat — über den QR-Aushang im Verein oder über einen zugeschickten Anmeldelink."
     },
     "fields": {
       "firstName": "Vorname",
