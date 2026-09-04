@@ -197,8 +197,13 @@ Distinct from **Einladung**, which is an admin's one-time password-setting
 credential and shares nothing with this but the word a German club would reach
 for. Sending one is refused whenever self-registration could not answer it —
 switched off, no secret, no configured document — with the same named reasons
-the switch itself gives. See [UC-P01](./use-cases/public/UC-P01-member-self-registration.md)
-and [UC-A69](./use-cases/admin/UC-A69-configure-self-registration.md).
+the switch itself gives. See
+[ADR-0053](./adr/0053-anmeldelink-carries-no-credential.md) for why it carries
+no credential, [UC-A70](./use-cases/admin/UC-A70-send-anmeldelink.md) for the
+send itself, [UC-P01](./use-cases/public/UC-P01-member-self-registration.md) for
+the page it opens and
+[UC-A69](./use-cases/admin/UC-A69-configure-self-registration.md) for the
+rotation that kills every copy of it.
 _Avoid_: Einladung / invitation (that is the admin credential), invite link,
 Mitgliedereinladung, signup link (nothing is signed up — the form produces a
 pending registration, and paper is still signed by hand)

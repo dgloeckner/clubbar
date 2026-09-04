@@ -96,6 +96,7 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A67 | A Member Is Written To About Their Own Record | Implemented | [UC-A67](./admin/UC-A67-member-lifecycle-mail.md) |
 | UC-A68 | Onboard an Admin by Invitation Link | Implemented | [UC-A68](./admin/UC-A68-invite-admin.md) |
 | UC-A69 | Configure Self-Registration and Print the QR Poster | Not implemented — specified ([#783](https://github.com/dgloeckner/clubbar/issues/783)) | [UC-A69](./admin/UC-A69-configure-self-registration.md) |
+| UC-A70 | Send the Anmeldelink to a Prospective Member | Implemented ([#821](https://github.com/dgloeckner/clubbar/issues/821)) | [UC-A70](./admin/UC-A70-send-anmeldelink.md) |
 
 ### RFID Management
 
