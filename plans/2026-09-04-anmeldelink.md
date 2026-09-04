@@ -198,6 +198,54 @@ the send end to end, the refusal in German, and one header cell per column.
 
 ---
 
+## M7: The link fills in the address it was sent to — `[x]`
+
+[#823](https://github.com/dgloeckner/clubbar/issues/823). A follow-up, and a
+small one: the message is sent *to* an address a Kassenwart typed, and the first
+thing the form then asks the reader for is that same address.
+
+- [x] `PosterSecret::url()` takes an optional address and appends
+  `&email=<rawurlencode>` **to the fragment**. Not a query string: the address is
+  personal data, and a request line is written into every access log in front of
+  the installation — the same reasoning that put the secret there (ADR-0052
+  decision 1). `rawurlencode`, not `urlencode`, because the latter spells a space
+  `+` and a `+` is legal in a local part.
+- [x] The poster's URL is unchanged. `url()` with no address returns byte-for-byte
+  what it always did, which is not a nicety: a printed poster cannot be reissued,
+  and there are meant to be some on walls in 2028.
+- [x] `RegistrationLinkMailBuilder` passes the outbox row's own `recipient`.
+  Nothing new is stored and nothing new is read — the link is still built from
+  exactly the two values that method already had.
+- [x] `register.js` parses the fragment as `<secret>[&key=value…]` rather than
+  taking the whole of it as the secret. Unambiguous because the secret is
+  base64url and can hold no `&`; every existing poster therefore still parses to
+  exactly itself.
+- [x] Nothing in the fragment is trusted: the prefill is validated by the same
+  rule the field is and dropped silently when it fails. A prefill the form would
+  then reject hands a visitor an error they did not make, and the server
+  validates whatever is finally submitted regardless.
+- [x] The send modal says the address will be filled in, in both locales — which
+  is also the sentence that makes a sender check what they typed.
+- [x] **The German hint under the field was reworded** while here. *„Für die
+  Abrechnung. Es wird nichts an dich verschickt."* reads oddly and overstates:
+  nothing is sent *now*, and statements are mailed once they are a member. It is
+  now *„Für deine spätere Abrechnung. Jetzt bekommst du keine E-Mail."*, with the
+  English matched.
+
+**Verify**: backend Unit 3038/3038; `register` 38/38 (5 new, covering the
+prefill, its editability, the untouched poster link, a junk fragment, and that
+the address is in no request the page makes); `mail-anmeldelink` 3/3, where the
+chain now carries the address the whole way — typed by the Kassenwart, into the
+fragment, into the form, and finally the address the inbox row is found by,
+never typed by the applicant.
+
+**Left to the owner**: ADR-0053 says the link is *"the poster's own URL, sent
+verbatim"*. It is now that URL plus the reader's own address — no credential, no
+per-recipient token, nothing stored, rotation untouched — but the sentence wants
+an amendment, and ADRs are not edited without confirmation.
+
+---
+
 ## Deliberately not built
 
 Recorded so it is not re-proposed. The full reasoning is in ADR-0053's
@@ -206,7 +254,10 @@ alternatives table.
 - A per-member invitation credential, and the `member_invitations` table, TTL,
   purge and revoke-on-reissue that come with it.
 - Double opt-in on the recipient address.
-- Prefilled forms, invitee tracking, a campaign view.
+- Invitee tracking and a campaign view. (Prefilled forms were on this list
+  until [#823](https://github.com/dgloeckner/clubbar/issues/823) — see M7. What
+  it rules out is prefilling from a *stored* invitee: the address in the link is
+  the outbox row's own recipient, and nothing new is kept to put it there.)
 - A per-send daily cap.
 - `instance_config.default_language` — a real gap and a real decision, deferred
   to [#820](https://github.com/dgloeckner/clubbar/issues/820) rather than

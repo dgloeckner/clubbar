@@ -177,7 +177,14 @@ an **Anmeldelink**, which carries no credential at all)
 The club's own registration URL, sent by mail to somebody thinking of joining —
 the poster on the clubhouse wall, addressed. An admin or Kassenwart types an
 address in the registrations inbox and the club sends it; what arrives is the
-same link the poster encodes, opening the same page.
+same link the poster encodes, opening the same page — plus that address, so the
+form's E-Mail field arrives filled in
+([#823](https://github.com/dgloeckner/clubbar/issues/823)). It rides in the URL
+**fragment**, beside the secret and for the same reason: a query string is part
+of the request line, and a prospective member's address would then be in every
+access log in front of the installation. Nothing is stored to put it there — it
+is the outbox row's own recipient — and the poster's URL is unchanged, because a
+wall reaches nobody in particular and there is nobody to fill in.
 
 It carries **no credential**. The secret in it is the club's poster secret,
 already printed on a wall in a room the public walks through, so a copy in an

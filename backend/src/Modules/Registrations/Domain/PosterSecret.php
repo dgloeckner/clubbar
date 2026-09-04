@@ -69,7 +69,18 @@ final class PosterSecret
     }
 
     /**
-     * The absolute URL the QR code encodes.
+     * The query-string key the recipient's own address travels under, inside
+     * the fragment (#823).
+     *
+     * A key rather than a second bare segment because the fragment now has two
+     * readers to keep in agreement — this class and `register.js` — and a
+     * positional format is the one that breaks silently the day a third value
+     * is added.
+     */
+    public const EMAIL_PARAM = 'email';
+
+    /**
+     * The absolute URL the QR code encodes, and the one the Anmeldelink mails.
      *
      * **The secret is in the fragment, never in the path**, which is the whole
      * reason this method exists rather than a string concatenation at the call
@@ -82,9 +93,40 @@ final class PosterSecret
      * measured in years; written into `GET /register/<secret>` it would be
      * recorded verbatim by every web server in front of the installation —
      * twice per request in the shipped package — for every one of those years.
+     *
+     * ## The recipient's own address rides in the same fragment (#823)
+     *
+     * The Anmeldelink is sent *to* an address a Kassenwart typed, and the first
+     * thing the form then asks for is that same address — from the one reader
+     * who did not need to be asked, on a phone, from memory. `$email` fills it
+     * in for them.
+     *
+     * It goes **after the `#`, for the reason the secret does**: a query string
+     * is part of the request line, so `?email=` would write a prospective
+     * member's address into every access log in front of the installation. The
+     * poster flow refuses that for a credential; refusing it for personal data
+     * is the same rule (ADR-0052 decision 1, ADR-0018's privacy stance).
+     *
+     * The poster passes nothing here and its URL is byte-for-byte what it
+     * always was — a wall reaches nobody in particular, so there is nobody to
+     * fill in.
+     *
+     * @param ?string $email Prefills the form's E-Mail field. Encoded, never
+     *        trusted: the page validates it before using it, and the server
+     *        validates whatever is finally submitted regardless.
      */
-    public static function url(string $appUrl, string $secret): string
+    public static function url(string $appUrl, string $secret, ?string $email = null): string
     {
-        return rtrim($appUrl, '/') . self::PATH . '#' . $secret;
+        $url = rtrim($appUrl, '/') . self::PATH . '#' . $secret;
+
+        $email = trim((string) $email);
+        if ($email === '') {
+            return $url;
+        }
+
+        // rawurlencode, not urlencode: the latter spells a space `+`, which
+        // `decodeURIComponent` hands back as `+` rather than as a space — and a
+        // `+` is legal in a local part, so the two must not be confused.
+        return $url . '&' . self::EMAIL_PARAM . '=' . rawurlencode($email);
     }
 }

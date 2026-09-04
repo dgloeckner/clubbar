@@ -120,6 +120,47 @@ class RegistrationLinkMailBuilderTest extends TestCase
     }
 
     /**
+     * The link fills in the address it was sent to (#823).
+     *
+     * The reader is the one person who cannot get this field wrong, and the
+     * form asks them for it first. The address comes from the row — there is
+     * nowhere else it could come from, and nothing new is stored to get it.
+     */
+    public function test_the_link_prefills_the_address_the_message_was_sent_to(): void
+    {
+        $message = $this->builder()->build($this->row('lena+verein@example.org'), $this->mailConfig());
+
+        $expected = self::APP_URL . '/register#' . self::SECRET . '&email=lena%2Bverein%40example.org';
+
+        $this->assertStringContainsString($expected, $message->text);
+        // The HTML escapes `&` inside an href, so the button carries the same
+        // fragment spelled `&amp;` — which is what a browser hands back as `&`.
+        $this->assertStringContainsString(
+            self::APP_URL . '/register#' . self::SECRET . '&amp;email=lena%2Bverein%40example.org',
+            $message->html,
+        );
+    }
+
+    /**
+     * The address is personal data, and the fragment is the one part of a URL a
+     * browser does not send. A `?email=` would put a prospective member's
+     * address into every access log in front of the installation.
+     */
+    public function test_the_address_is_never_in_the_request_line(): void
+    {
+        $message = $this->builder()->build($this->row('interessent@example.org'), $this->mailConfig());
+
+        foreach (explode("\n", $message->text) as $line) {
+            if (!str_contains($line, '/register')) {
+                continue;
+            }
+            [$beforeFragment] = explode('#', $line, 2);
+            $this->assertStringNotContainsString('interessent', $beforeFragment);
+            $this->assertStringNotContainsString('?', $beforeFragment);
+        }
+    }
+
+    /**
      * The address is the row's, because there is nowhere else it could come
      * from — this person has no record anywhere in the database.
      */

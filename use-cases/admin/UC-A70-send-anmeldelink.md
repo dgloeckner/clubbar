@@ -5,7 +5,10 @@
 page header and its empty state, and the `registration_link` mail kind. Verified
 by `api-tests` `self-registration.spec.ts` (9 specs for this use case),
 `admin-chromium` `registrations-inbox.spec.ts` (3), the `mail-anmeldelink`
-chain project (3) and 6 component tests for the double-click guard.
+chain project (3) and 6 component tests for the double-click guard. The link
+also fills in the address it was sent to
+([#823](https://github.com/dgloeckner/clubbar/issues/823)), covered by the same
+chain project and by `register` `onboarding.spec.ts`.
 
 ## Actors
 
@@ -51,11 +54,17 @@ own words, with a record that it happened.
 6. The screen confirms, naming the address it queued and saying the message goes
    out with the next send run — not that it has arrived.
 7. On the scheduler's next drain the message is rendered and sent. The link is
-   built **at send time** from the club's current poster secret: `{appUrl}/register#<secret>`,
-   byte-for-byte the URL every printed poster carries.
-8. The recipient opens the link, sees the registration form (UC-P01) and submits.
-   Their row appears in the inbox the admin sent from, indistinguishable from
-   one produced by the wall.
+   built **at send time** from the club's current poster secret, and carries the
+   address the message is going to:
+   `{appUrl}/register#<secret>&email=<urlencoded address>` — the poster's own
+   URL, plus the one thing this reader cannot get wrong. The address is in the
+   **fragment**, for the reason the secret is: a query string is part of the
+   request line and would put a prospective member's address into every access
+   log in front of the installation.
+8. The recipient opens the link and sees the registration form (UC-P01) with the
+   E-Mail field already filled in — editable, like every other field. They
+   submit. Their row appears in the inbox the admin sent from, indistinguishable
+   from one produced by the wall.
 
 ## Alternative Flow: sending again to the same address
 
@@ -133,6 +142,9 @@ never got it — and self-healing: the admin corrects the address and sends agai
 | German, frozen at enqueue | There is no club-level default language to read, and inventing one as a side effect of this feature was rejected (deferred to [#820](https://github.com/dgloeckner/clubbar/issues/820)) |
 | The body states that a signed paper form is part of joining | The biggest surprise in the flow. A poster-scanner is in the building and learns it in a minute; somebody reading a link at home learns it only if the message says so |
 | The body names no expiry | Because there is none. Naming a lifetime the system does not enforce is a promise nobody keeps |
+| The link prefills the E-Mail field with the address it was sent to, in the fragment ([#823](https://github.com/dgloeckner/clubbar/issues/823)) | The reader is the one person who cannot get that field wrong, and it is the first thing the form asks them for. In the fragment because it is personal data and a query string is written into every access log; nothing new is stored — it is the outbox row's own `recipient` |
+| The prefilled value stays editable, and an implausible one is dropped | The club may have typed it wrong, and a reader may want their statements elsewhere. A prefill the form would then reject hands a visitor an error they did not make |
+| The poster's URL is unchanged | A wall reaches nobody in particular, so there is nobody to fill in — and every printed poster must keep working, unreissued, for years |
 | An audit entry carries the address | An admin causing the installation to write to a named third party is the shape of everything else in the log. It ages out with the log rather than being exempted |
 | The response is 202, never 200 | Nothing has been delivered when it returns. An admin who reads "sent" tells the person waiting something untrue |
 
@@ -147,8 +159,9 @@ never got it — and self-healing: the admin corrects the address and sends agai
   no invitee record — none of them exist yet, and two of them may never.
 
 **After the drain**
-- The recipient holds a message carrying `{appUrl}/register#<secret>` and saying
-  that a signed paper form is part of joining.
+- The recipient holds a message carrying
+  `{appUrl}/register#<secret>&email=<urlencoded address>` and saying that a
+  signed paper form is part of joining.
 - The outbox row is `sent`, visible under Benachrichtigungen with the address it
   went to.
 
@@ -158,11 +171,14 @@ never got it — and self-healing: the admin corrects the address and sends agai
 ## Acceptance Criteria
 
 - A Kassenwart sends from the inbox; Mailpit holds one German message carrying
-  the club's current `{appUrl}/register#<secret>` and stating that the form is
-  printed, signed and handed in
+  the club's current `{appUrl}/register#<secret>&email=<urlencoded address>` and
+  stating that the form is printed, signed and handed in
 - Opening that delivered link in a browser holding no session reaches the
   registration page and completes a submission that appears in the inbox —
   i.e. the delivered link is genuinely the poster's
+- That page opens with the E-Mail field already holding the address the message
+  was sent to, and a submission that never touches the field is found in the
+  inbox by that same address
 - Sending twice to one address delivers twice
 - With self-registration switched off, the send is refused with
   `registration_disabled` and nothing is queued

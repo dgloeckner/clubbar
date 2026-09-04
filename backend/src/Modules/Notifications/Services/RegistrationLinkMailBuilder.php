@@ -38,6 +38,10 @@ use App\Shared\Mail\MailMessage;
  * of the secret would mean `self_registration_config` holding a *set* of live
  * secrets, which is precisely the rotation story ADR-0052 refuses to give up.
  *
+ * The one thing added to that URL is the recipient's own address (#823), and it
+ * comes from the row rather than from a lookup — so the link is still built out
+ * of exactly the two values this method already had.
+ *
  * ## A club that cannot answer the link does not send one
  *
  * The send endpoint gates on the same three preconditions before anything is
@@ -97,7 +101,13 @@ class RegistrationLinkMailBuilder implements MailContentBuilder
 
         return RegistrationLinkMail::render(
             recipientAddress: $recipient,
-            url: PosterSecret::url($this->appUrl, $secret),
+            // The same address twice, on purpose: the message goes *to* it, and
+            // the link fills the form's E-Mail field *with* it (#823), so the
+            // one reader who cannot get it wrong is not asked to retype it. It
+            // rides in the fragment, so it reaches no access log — see
+            // {@see PosterSecret::url()}. Nothing new is stored: this is the
+            // outbox row's own `recipient`.
+            url: PosterSecret::url($this->appUrl, $secret, $recipient),
             language: MailLanguage::fromPreferred((string) ($outboxRow['language'] ?? null)),
             branding: $mailConfig->toBranding(),
         );

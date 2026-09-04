@@ -1600,7 +1600,7 @@
     "sendLink": {
       "action": "Send registration link",
       "title": "Send registration link",
-      "body": "The recipient gets the link to the registration form — the same one the club's QR poster opens. Nothing about this person is stored.",
+      "body": "The recipient gets the link to the registration form — the same one the club's QR poster opens. This address is already filled in on the form. Nothing about this person is stored.",
       "emailLabel": "Email address",
       "emailPlaceholder": "name@example.org",
       "invalidEmail": "Enter a valid email address.",

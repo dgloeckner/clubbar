@@ -51,6 +51,12 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
    `https://<club>/register#<secret>`. The secret travels in the URL
    **fragment**, so the browser never sends it to the server as part of the
    request line and it never appears in an access log.
+
+   An applicant arriving from a mailed Anmeldelink (UC-A70) opens
+   `https://<club>/register#<secret>&email=<urlencoded address>` instead. Same
+   page, same secret, same gate; the extra value fills in the E-Mail field at
+   step 4 and is in the fragment for the reason the secret is — it is personal
+   data, and a query string is part of the request line.
 2. The page reads the secret out of the fragment in the browser and posts it,
    in the request body, to the read-only context check. Two of the three
    possible answers end the flow here — see **Error Cases** E1 and E2. On the
@@ -63,9 +69,10 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
    declaration that the notice was read. This flow collects no optional
    consents — the paper it replaces carries an Anmeldung, a mandate, an
    information notice and a Nutzungsordnung, and nothing else.
-4. The applicant fills in the form (see **Form Fields**). A hidden field
-   present in the markup — the honeypot — is never shown to a person and is
-   left empty by one.
+4. The applicant fills in the form (see **Form Fields**). Arriving from an
+   Anmeldelink, the E-Mail field is already filled in with the address the club
+   wrote to — editable, like every other field. A hidden field present in the
+   markup — the honeypot — is never shown to a person and is left empty by one.
 5. The applicant submits. The browser validates the same rules the server
    will apply — format and IBAN checksum in particular — before sending, so a
    mistyped IBAN is caught without a round trip.
@@ -153,7 +160,7 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
 | First name | Yes | Non-empty, max 100 chars | The member being registered, never the account holder |
 | Last name | Yes | Non-empty, max 100 chars | |
 | Date of birth | Yes | Date, not in the future | Jugendschutz (ADR-0045); also decides whether the document gets a legal-representative line |
-| Email | Yes | Valid email format | Never checked against existing members before accepting — a duplicate is accepted like any first-time submission (ADR-0052 §9) |
+| Email | Yes | Valid email format | Never checked against existing members before accepting — a duplicate is accepted like any first-time submission (ADR-0052 §9). Prefilled from the link when the applicant arrived from an Anmeldelink ([#823](https://github.com/dgloeckner/clubbar/issues/823)) |
 | Preferred language | Yes | ISO 639-1 code from the enabled list | Selects the language of this page and the confirmation, and is carried to `members.preferred_language` at approval. It selects **no document**: the club's Anmeldung is what it is, in whatever language the club published it in |
 | IBAN | Yes | Valid IBAN format + checksum | Unlike UC-A11, there is no path through this form that leaves it empty — the point of registering is a signed mandate |
 | Account holder name | No | Max 70 chars | When set, the printed signature block names the holder, not the applicant (ADR-0052 §7) |
@@ -180,6 +187,8 @@ the paper in front of them (UC-A17).
 | Rule | Why |
 |------|-----|
 | The secret lives in the URL fragment, never the path, and both public endpoints take it in the request body — including the one that only reads | A fragment is the one part of a URL a browser never sends; a path is written verbatim into every access log in front of the installation, twice per request in the shipped package |
+| Everything else the link carries lives in the fragment too — today the Anmeldelink's `email=` prefill ([#823](https://github.com/dgloeckner/clubbar/issues/823)) | Same rule, second reason: an address in a query string is a prospective member's personal data written into every access log in front of the installation. The secret is base64url and can hold no `&`, so `#<secret>` alone still parses to exactly itself — every poster ever printed keeps working, and there is no way to reissue one |
+| Nothing arriving in the fragment is trusted | Anybody can type one. A prefill is validated by the same rule the field is, and a value that fails it is dropped silently — the form would reject it a moment later, and handing a visitor an error they did not make is worse than asking them to type. The server validates whatever is finally submitted regardless |
 | Every screen past the gate carries the club's identity — its name, and the mark its mail already uses | A page that asks a stranger for a birth date and an IBAN without naming whose form it is is indistinguishable from a phishing page. The values come from `instance_config.instance_name` and `mail_config.logo_url`, so there is no third place to configure and no way for the page to disagree with the club's mail. Nothing is branded before the gate: a wrong secret is still the uniform refusal, with no body to read a club name out of |
 | Three gate answers exist, and only two carry detail | No secret, or a wrong one → uniform `registration_unavailable`, no detail — an anonymous prober must not learn a valid secret exists. Right secret, switched off → `registration_disabled` plus the club's own reason text — the person is standing in the clubhouse holding a poster the club printed. Right secret, switched on → the form |
 | Registration is disabled by default until a secret has been generated | A fresh install and a half-configured one both refuse quietly, rather than accepting submissions nobody is watching for |
