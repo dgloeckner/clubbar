@@ -98,6 +98,18 @@ class AdminNotifier
             );
         }
 
+        if ($kind->addressesProspect()) {
+            // Loud rather than empty. This kind's `recipientRoles()` is `[]`
+            // because it is not fanned out at all (ADR-0053), and without this
+            // guard the loop below would find no recipients, skip the club copy
+            // (`$nobodyEligible` needs a non-empty role set), and return a
+            // zero-count success — a notice that reached nobody, silently,
+            // which is what ADR-0044 rule 5 exists to prevent.
+            throw new \InvalidArgumentException(
+                sprintf('%s is addressed to somebody outside the club and is not a fan-out', $kind->value)
+            );
+        }
+
         $queued = 0;
         $alreadyQueued = 0;
         $withoutEmail = [];

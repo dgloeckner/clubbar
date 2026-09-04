@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Registrations\Controllers;
 
 use App\Modules\Members\Enums\SupportedLanguage;
+use App\Modules\Registrations\Services\RegistrationLinkService;
 use App\Modules\Registrations\Services\RegistrationReviewService;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Http\ListQuery;
@@ -60,6 +61,7 @@ class AdminController
 
     public function __construct(
         private RegistrationReviewService $registrations,
+        private RegistrationLinkService $links,
         private Validator $validator,
     ) {}
 
@@ -200,6 +202,38 @@ class AdminController
         );
 
         return $response->withStatus(204);
+    }
+
+    /**
+     * POST …/link — mail the club's registration link to a prospective member
+     * (#821, UC-A70).
+     *
+     * The one **outbound** verb on an inbox, and the only one here that names
+     * nobody in this database: the address is typed by an admin and belongs to
+     * somebody who has no row anywhere, and none is created (ADR-0053).
+     *
+     * `email` is validated as an address and nothing more. There is no
+     * membership check, no duplicate check and no verification step — the link
+     * carries no credential, so a misdirected one produces at worst a pending
+     * registration that fails review, and the trust boundary is the signed paper
+     * that comes later.
+     *
+     * 202 rather than 200: nothing has been delivered when this returns, only
+     * queued. The drain sends on its next tick, and a client that reads 200 as
+     * "it has arrived" would be wrong in a way the admin then repeats to the
+     * person waiting for it.
+     */
+    public function sendLink(Request $request, Response $response): Response
+    {
+        $body = $request->getParsedBody() ?? [];
+
+        if (!$this->validator->validate($body, ['email' => ['required', 'email', 'max:255']])) {
+            return $this->validationFailed($response, $this->validator->errors());
+        }
+
+        $this->links->send((string) $body['email'], $request->getAttribute('admin_user_id'));
+
+        return $response->withStatus(202);
     }
 
     /**

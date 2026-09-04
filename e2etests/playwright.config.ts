@@ -487,6 +487,27 @@ export default defineConfig({
       dependencies: ['mail-digest'],
     },
 
+    // The Anmeldelink chain (#821, ADR-0053): an admin types an address →
+    // bin/cron.php → a stranger's mailbox → back through the registration form
+    // → the review inbox.
+    //
+    // Last, and its own project, for the two reasons every chain here is:
+    // its drains claim the whole queue, and it writes `self_registration_config`
+    // — the singleton row four other spec files contend over. It takes the same
+    // cross-file lock they do (#784), but a project of its own is what keeps its
+    // drains from sweeping a sending project's pending messages.
+    //
+    // Unlike the chains above it, this one also drives a **browser**: the claim
+    // that the mailed link is genuinely the poster's is only checkable by
+    // opening what was delivered, in a context holding no session, and
+    // completing a submission with it.
+    {
+      name: 'mail-anmeldelink',
+      testDir: './tests/mail-anmeldelink',
+      fullyParallel: false,
+      dependencies: ['mail-member'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',

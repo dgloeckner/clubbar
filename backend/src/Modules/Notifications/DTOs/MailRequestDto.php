@@ -32,6 +32,17 @@ use App\Modules\Notifications\Enums\MailLanguage;
  */
 final readonly class MailRequestDto
 {
+    /**
+     * The singleton `self_registration_config` row, as `subject_id`.
+     *
+     * A literal because there is exactly one registration surface per
+     * installation and no id to look up — the same shape the backup warnings
+     * use for `instance_config`. It is also the `entity_id` the audit entries
+     * on that surface already carry, so the queue and the log name the same
+     * thing.
+     */
+    public const SELF_REGISTRATION_SUBJECT_ID = 'self_registration_config';
+
     public function __construct(
         public MailKind $kind,
         /** The settlement, key or terminal this is about — see {@see MailKind::subjectType()}. */
@@ -58,6 +69,15 @@ final readonly class MailRequestDto
          * the club" apart from "somebody forgot to attribute this".
          */
         public bool $addressedToClub = false,
+        /**
+         * True for the Anmeldelink (#821, ADR-0053) — a message to somebody who
+         * is not a member, not an admin, and not the club. Never persisted, and
+         * a separate flag from {@see $addressedToClub} rather than a reuse of
+         * it: the two are both "no id columns" and are otherwise nothing
+         * alike, and collapsing them would let a club-level notice be queued to
+         * a stranger's address by passing the wrong boolean.
+         */
+        public bool $addressedToProspect = false,
     ) {
         if (trim($subjectId) === '') {
             throw new \InvalidArgumentException('A queued message must say what it is about');
@@ -78,7 +98,7 @@ final readonly class MailRequestDto
         // outside migration 026's `admin_user_id` cascade, because a notice
         // about an account that was created and then deleted is exactly what
         // the club-level copy exists to preserve.
-        if ($memberId === null && $adminUserId === null && !$addressedToClub) {
+        if ($memberId === null && $adminUserId === null && !$addressedToClub && !$addressedToProspect) {
             throw new \InvalidArgumentException(
                 'A queued message must name the member or the admin it is addressed to, '
                 . 'so erasure and cleanup can find it'
@@ -89,6 +109,17 @@ final readonly class MailRequestDto
             throw new \InvalidArgumentException(
                 'A club-addressed message belongs to no person; naming one would put it '
                 . 'inside a cascade it must survive'
+            );
+        }
+
+        // Same shape, different reason. A prospect has no row to name because
+        // nothing about them is stored (ADR-0053); an id here would mean the
+        // caller is queueing something else entirely and has reached for the
+        // wrong constructor.
+        if ($addressedToProspect && ($memberId !== null || $adminUserId !== null || $addressedToClub)) {
+            throw new \InvalidArgumentException(
+                'An Anmeldelink is addressed to somebody this database holds no row for; '
+                . 'naming a member, an admin or the club contradicts that'
             );
         }
     }
@@ -257,6 +288,44 @@ final readonly class MailRequestDto
             dedupKey: $invitationId,
             adminUserId: $adminUserId,
             actorAdminUserId: $actorAdminUserId,
+        );
+    }
+
+    /**
+     * The club's registration link, to somebody thinking of joining
+     * (#821, ADR-0053).
+     *
+     * The one constructor here that names nobody: `memberId` and `adminUserId`
+     * are both null because this person has no row in this database and — if
+     * they never join — never will. That is the design rather than a gap in it,
+     * and it is why {@see $addressedToProspect} exists to say so out loud.
+     *
+     * **`$nonce` is a per-send value, so dedup is effectively off**, and that
+     * inverts what `dedupKey` does everywhere else in this class. The unique
+     * index exists so a repeating *scan* is idempotent — a digest must not send
+     * twice for one window, an expiry warning must not re-fire each tick. There
+     * is no scan here: a human types an address and clicks send, and clicking
+     * again is the intent, not an accident to swallow. A key of the bare
+     * address would refuse precisely the re-send that answers "I never got it",
+     * silently, from the database, with a 204 on the wire. The double click is
+     * guarded in the UI, which is where the mistake actually happens.
+     *
+     * The subject is the registration surface itself — a singleton, like the
+     * config row the backup warnings file under — because what this message is
+     * *about* is the club's open door, not the person walking through it.
+     */
+    public static function forProspect(
+        string $recipient,
+        MailLanguage $language,
+        string $nonce,
+    ): self {
+        return new self(
+            kind: MailKind::REGISTRATION_LINK,
+            subjectId: self::SELF_REGISTRATION_SUBJECT_ID,
+            recipient: $recipient,
+            language: $language,
+            dedupKey: $nonce,
+            addressedToProspect: true,
         );
     }
 

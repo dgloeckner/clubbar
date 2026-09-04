@@ -10,6 +10,7 @@ import {
   expireRegistration,
   CLUB_DOCUMENT_URL,
   pendingRowsContainingPlaintext,
+  queuedRegistrationLinks,
   restoreClubDocumentUrl,
   serveClubDocument,
   servePrefilledClubDocument,
@@ -1357,5 +1358,201 @@ test.describe('Public self-registration', () => {
     // and member data are outside their remit on every surface.
     expect((await getraenkewartRequest.get(`${API}/admin/self-registration`)).status()).toBe(403)
     expect((await getraenkewartRequest.get(`${API}/admin/registrations?per_page=1`)).status()).toBe(403)
+  })
+
+  /**
+   * The Anmeldelink (#821, ADR-0053, UC-A70).
+   *
+   * In this file rather than one of its own, for the reason the review
+   * endpoints are: it writes `self_registration_config`, and a second file
+   * writing that singleton would clobber this one from another worker — the
+   * failure landing in whichever file lost the race.
+   *
+   * Nothing here drains. What is asserted is the row a send leaves behind, and
+   * the shape of that row *is* the design: a message addressed to somebody this
+   * database holds no record of. What actually arrives in a mailbox is
+   * `mail-anmeldelink`'s job (Pattern 010).
+   */
+  test.describe('Sending the Anmeldelink', () => {
+    /** Unique per test, so two workers never assert on each other's rows. */
+    function prospect(): string {
+      return `interessent-${randomUUID().slice(0, 8)}@example.org`
+    }
+
+    /**
+     * One row, addressed to nobody, with a nonce for a key.
+     *
+     * Every assertion here is one of ADR-0053's claims made checkable: no
+     * member id, no admin id, no invitee record anywhere — the outbox row is
+     * the whole of what the club keeps about somebody who may never join.
+     */
+    test('a send queues exactly one row that names no member and no admin', async ({
+      authenticatedRequest,
+    }) => {
+      configureSelfRegistration(uniqueSecret())
+      const email = prospect()
+
+      const response = await authenticatedRequest.post(`${API}/admin/registrations/link`, {
+        data: { email },
+      })
+
+      // 202: queued, not delivered. The drain sends on its next tick.
+      expect(response.status(), await response.text()).toBe(202)
+
+      const rows = queuedRegistrationLinks(email)
+      expect(rows).toHaveLength(1)
+      expect(rows[0].memberId).toBe('NULL')
+      expect(rows[0].adminUserId).toBe('NULL')
+      // German, frozen at enqueue: there is no club-level default to read, and
+      // inventing one belongs to #820 rather than to this feature.
+      expect(rows[0].language).toBe('de')
+    })
+
+    /**
+     * The regression test for decision 4, and the one most likely to be
+     * "fixed" by somebody later.
+     *
+     * `UNIQUE (kind, subject_id, dedup_key)` exists so a repeating *scan* is
+     * idempotent. There is no scan here — a human clicks send — and a
+     * `dedup_key` of the bare address would let the database refuse the second
+     * send silently, behind a 202, when the second send is precisely the one
+     * that answers "I never got it".
+     */
+    test('sending twice to the same address queues twice', async ({ authenticatedRequest }) => {
+      configureSelfRegistration(uniqueSecret())
+      const email = prospect()
+
+      for (const _ of [1, 2]) {
+        const response = await authenticatedRequest.post(`${API}/admin/registrations/link`, {
+          data: { email },
+        })
+        expect(response.status(), await response.text()).toBe(202)
+      }
+
+      const rows = queuedRegistrationLinks(email)
+      expect(rows).toHaveLength(2)
+      expect(rows[0].dedupKey).not.toBe(rows[1].dedupKey)
+    })
+
+    /**
+     * Sending is a promise. A poster has an excuse for going stale — it is
+     * paper the club cannot recall — and a message composed one second ago has
+     * none: mailing a link to a refusal page makes the club look broken to
+     * exactly the person it is courting.
+     *
+     * Each state is refused by the availability switch's *own* reason, so the
+     * admin is told which precondition to fix rather than being handed a
+     * generic failure.
+     */
+    for (const scenario of [
+      {
+        name: 'self-registration is switched off',
+        configure: () => configureSelfRegistration(uniqueSecret(), { enabled: false, disabledReason: 'Beta-Phase schon voll' }),
+        reason: 'registration_disabled',
+      },
+      {
+        name: 'no poster secret has ever been generated',
+        configure: () => {
+          configureSelfRegistration(uniqueSecret())
+          execSql("UPDATE self_registration_config SET secret_hash = NULL, secret_cipher = NULL WHERE id = 1")
+        },
+        reason: 'registration_no_secret',
+      },
+      {
+        name: 'no club document is configured',
+        configure: () => configureSelfRegistration(uniqueSecret(), { documentUrl: null }),
+        reason: 'document_url_missing',
+      },
+    ]) {
+      test(`the send is refused, and nothing is queued, when ${scenario.name}`, async ({
+        authenticatedRequest,
+      }) => {
+        scenario.configure()
+        const email = prospect()
+
+        const response = await authenticatedRequest.post(`${API}/admin/registrations/link`, {
+          data: { email },
+        })
+
+        expect(response.status(), await response.text()).toBe(409)
+        expect((await response.json()).reason).toBe(scenario.reason)
+
+        // A refusal is not a half-send: the queue must hold nothing.
+        expect(queuedRegistrationLinks(email)).toHaveLength(0)
+      })
+    }
+
+    test('an address that is not one is refused before anything is queued', async ({
+      authenticatedRequest,
+    }) => {
+      configureSelfRegistration(uniqueSecret())
+
+      for (const body of [{}, { email: '' }, { email: 'not-an-address' }]) {
+        const response = await authenticatedRequest.post(`${API}/admin/registrations/link`, {
+          data: body,
+        })
+        expect(response.status(), await response.text()).toBe(422)
+      }
+    })
+
+    /**
+     * The role set, and it is the interesting half of decision 5: this send is
+     * TREASURY and the poster's own controls beside it are ADMIN_ONLY.
+     *
+     * That is not an inconsistency. The rule is to mirror the grant on the
+     * surface the mail points at, and the mail points at the registration
+     * surface (UC-A17, TREASURY) rather than at the credential surface (UC-A69,
+     * ADMIN). Nothing secret crosses: what travels is the URL a wall in the
+     * clubhouse already publishes.
+     */
+    test('a Kassenwart may send, a Getränkewart may not', async ({
+      kassenwartRequest,
+      getraenkewartRequest,
+    }) => {
+      configureSelfRegistration(uniqueSecret())
+      const email = prospect()
+
+      const allowed = await kassenwartRequest.post(`${API}/admin/registrations/link`, {
+        data: { email },
+      })
+      expect(allowed.status(), await allowed.text()).toBe(202)
+      expect(queuedRegistrationLinks(email)).toHaveLength(1)
+
+      const refusedEmail = prospect()
+      const refused = await getraenkewartRequest.post(`${API}/admin/registrations/link`, {
+        data: { email: refusedEmail },
+      })
+      expect(refused.status()).toBe(403)
+      expect(queuedRegistrationLinks(refusedEmail)).toHaveLength(0)
+    })
+
+    /**
+     * Decision 9. An admin causing the installation to write to a named third
+     * party is the shape of everything else in the log, and the address is part
+     * of the entry rather than exempted from it.
+     */
+    test('the audit log names the act and the address', async ({ authenticatedRequest }) => {
+      configureSelfRegistration(uniqueSecret())
+      const email = prospect()
+
+      const response = await authenticatedRequest.post(`${API}/admin/registrations/link`, {
+        data: { email },
+      })
+      expect(response.status(), await response.text()).toBe(202)
+
+      const entries = await authenticatedRequest.get(
+        `${API}/admin/audit-log?filters[action]=registration_link_sent&limit=100`,
+      )
+      expect(entries.status()).toBe(200)
+
+      const body = await entries.json()
+      // Searched by id rather than taken from position 0 (Pattern 003): other
+      // workers send links of their own while this one runs.
+      const mine = (body.data ?? []).filter((entry: { new_values?: { recipient?: string } }) =>
+        entry.new_values?.recipient === email,
+      )
+      expect(mine).toHaveLength(1)
+      expect(mine[0].admin_user_id).toBeTruthy()
+    })
   })
 })

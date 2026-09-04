@@ -113,6 +113,27 @@ enum MailSubject: string
      */
     case INSTANCE_CONFIG = 'instance_config';
 
+    /**
+     * The club's registration surface — `subject_id` is the singleton config
+     * row's own key, the way {@see INSTANCE_CONFIG} files under the
+     * installation (#821, ADR-0053).
+     *
+     * Its own case rather than borrowing `INSTANCE_CONFIG`, which is the
+     * nearest existing neighbour and would have fit without a line of new code.
+     * That is exactly the trap the enum exists to close: `subject_id` would
+     * then claim an Anmeldelink is a message about the club's configuration,
+     * and every later reader — the notifications filter, the audit trail, the
+     * next person adding a kind — would inherit that claim as fact. A kind must
+     * *state* what it is about; picking a plausible-looking neighbour is how
+     * that guarantee gets spent.
+     *
+     * The subject is the surface and not the recipient because there is no
+     * recipient to point at. This is the one kind addressed to somebody who has
+     * no row anywhere in this database — which is the whole design (ADR-0053):
+     * nothing is stored about a person who may never join.
+     */
+    case SELF_REGISTRATION = 'self_registration';
+
     public function auditEntityType(): EntityType
     {
         return match ($this) {
@@ -124,6 +145,7 @@ enum MailSubject: string
             self::TRANSACTION => EntityType::TRANSACTION,
             self::CREDIT_LIMIT_CONFIG => EntityType::CREDIT_LIMIT_CONFIG,
             self::INSTANCE_CONFIG => EntityType::INSTANCE_CONFIG,
+            self::SELF_REGISTRATION => EntityType::SELF_REGISTRATION,
         };
     }
 }

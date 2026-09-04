@@ -388,6 +388,28 @@ enum MailKind: string
     case MEMBER_EMAIL_ACTIVATED = 'member_email_activated';
 
     /**
+     * The Anmeldelink (#821, ADR-0053): the club's registration link, mailed to
+     * somebody who is thinking of joining.
+     *
+     * The first kind addressed to a person who has **no row anywhere** — no
+     * member, no admin, no invitation. {@see \App\Modules\Notifications\DTOs\MailRequestDto}
+     * therefore writes it with both id columns NULL, and says why: there is
+     * nothing for erasure to find because nothing about this person is stored.
+     * The address in `recipient` is the only trace, and it ages out with the
+     * queue's own retention rather than sitting in a list of people who were
+     * asked once and never answered.
+     *
+     * **It carries no credential**, which is what separates it from
+     * {@see ADMIN_INVITATION} — the kind it superficially resembles. The link
+     * is the poster's, verbatim, and the poster's secret is printed on a wall
+     * the public walks past; a copy of it in an inbox reaches nobody the wall
+     * did not. So there is no token to mint, no expiry to name and nothing to
+     * revoke. What a reader loses instead is stated in the body: rotating the
+     * secret kills every sent link exactly as it kills every printed poster.
+     */
+    case REGISTRATION_LINK = 'registration_link';
+
+    /**
      * Does a club-level copy of this go out alongside the admins' (ADR-0044
      * rule 3)?
      *
@@ -446,7 +468,12 @@ enum MailKind: string
             self::MEMBER_WELCOME,
             self::MEMBER_CARD_REPLACED,
             self::MEMBER_EMAIL_CHANGED,
-            self::MEMBER_EMAIL_ACTIVATED => false,
+            self::MEMBER_EMAIL_ACTIVATED,
+            // Addressed to one person outside the club, who asked for nothing
+            // yet. A club-wide list has no business reading which strangers a
+            // Kassenwart is courting, and a second copy would be the only
+            // record of a person this feature deliberately keeps none of.
+            self::REGISTRATION_LINK => false,
         };
     }
 
@@ -542,7 +569,16 @@ enum MailKind: string
             self::MEMBER_WELCOME,
             self::MEMBER_CARD_REPLACED,
             self::MEMBER_EMAIL_CHANGED,
-            self::MEMBER_EMAIL_ACTIVATED => [],
+            self::MEMBER_EMAIL_ACTIVATED,
+            // Not a fan-out at all: it goes to the one address an admin typed,
+            // the way `admin_invitation` goes to the one account it onboards.
+            // The office allowed to *cause* it is `[ADMIN, KASSENWART]` — the
+            // registration surface's own set — and that grant lives on the
+            // route (`POST /api/admin/registrations/link`), which is where the
+            // rule says to derive it from. Answering with that set here would
+            // make `warnAdmins()` mail the club's own admins a link they do not
+            // need.
+            self::REGISTRATION_LINK => [],
         };
     }
 
@@ -588,6 +624,7 @@ enum MailKind: string
             self::MEMBER_EMAIL_ACTIVATED => MailSubject::MEMBER,
             self::JUGENDSCHUTZ_VIOLATION => MailSubject::TRANSACTION,
             self::CREDIT_LIMIT_DIGEST => MailSubject::CREDIT_LIMIT_CONFIG,
+            self::REGISTRATION_LINK => MailSubject::SELF_REGISTRATION,
         };
     }
 
@@ -629,6 +666,65 @@ enum MailKind: string
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED,
+            self::ADMIN_INVITATION,
+            self::JUGENDSCHUTZ_VIOLATION,
+            self::CREDIT_LIMIT_DIGEST,
+            // Addressed to somebody who is *not* a member — that is the point
+            // of it. `true` here would send `AdminNotifier` looking for a
+            // `members` row that will never exist.
+            self::REGISTRATION_LINK => false,
+        };
+    }
+
+    /**
+     * Does this go to somebody outside the club entirely (#821, ADR-0053)?
+     *
+     * The third audience, and the reason it needs naming: until the Anmeldelink
+     * there were two — a member, or an office — and "not a member" therefore
+     * meant "fanned out to admins" everywhere that mattered. It no longer does.
+     * A prospect holds no member row, no admin account and no office, so
+     * {@see recipientRoles()} answers `[]` for the same reason a member-addressed
+     * kind does: the fan-out is not how it is sent.
+     *
+     * Without this method that `[]` is indistinguishable from a kind whose
+     * offices were simply forgotten, and {@see \App\Modules\Notifications\Services\AdminNotifier::warnAdmins()}
+     * would accept it and queue **nothing** — no recipients, no club copy, a
+     * zero-count result and no error. A notification that silently reaches
+     * nobody is the exact failure ADR-0044 rule 5 exists to make impossible, so
+     * the guard is loud instead.
+     *
+     * An explicit `match`, like the four beside it, for the reason all of them
+     * are: the next kind has to answer the question rather than inherit
+     * whichever answer the shape of the existing ones happens to give it.
+     */
+    public function addressesProspect(): bool
+    {
+        return match ($this) {
+            self::REGISTRATION_LINK => true,
+            self::SEPA_PRENOTIFICATION,
+            self::CANCELLATION_NOTICE,
+            self::DECKEL_STATEMENT,
+            self::MEMBER_WELCOME,
+            self::MEMBER_CARD_REPLACED,
+            self::MEMBER_EMAIL_CHANGED,
+            self::MEMBER_EMAIL_ACTIVATED,
+            self::KEY_EXPIRY_WARNING,
+            self::ENCRYPTION_KEY_REGISTERED,
+            self::ENCRYPTION_KEY_ACTIVATED,
+            self::ENCRYPTION_KEY_REVOKED,
+            self::TERMINAL_TOKEN_EXPIRY_WARNING,
+            self::TERMINAL_ANOMALY_WARNING,
+            self::TERMINAL_TOKEN_ISSUED,
+            self::BACKUP_SECRET_EXPIRY_WARNING,
+            self::BACKUP_HEALTH_WARNING,
+            self::ADMIN_EMAIL_CHANGED,
+            self::ADMIN_ACCOUNT_CREATED,
+            self::ADMIN_ROLE_CHANGED,
+            // The nearest thing to a counterexample, and it is not one: an
+            // invitation reaches somebody who has no *credential* yet, but
+            // `admin_users` already holds their row and `subject_id` points at
+            // it. A prospect has no row to point at, which is why this kind
+            // files under the surface rather than under a person.
             self::ADMIN_INVITATION,
             self::JUGENDSCHUTZ_VIOLATION,
             self::CREDIT_LIMIT_DIGEST => false,

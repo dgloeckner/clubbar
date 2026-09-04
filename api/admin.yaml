@@ -1698,6 +1698,82 @@ paths:
         '403':
           $ref: '#/components/responses/InsufficientRole'
 
+  /admin/registrations/link:
+    post:
+      tags: [Registration review]
+      summary: Mail the club's registration link to a prospective member
+      description: |
+        The Anmeldelink ([ADR-0053](../../adr/0053-anmeldelink-carries-no-credential.md),
+        UC-A70). An admin or Kassenwart types an address and the club sends that
+        person the registration link — the same URL the QR poster encodes,
+        opening the same page (UC-P01).
+
+        **It is a message, not a credential.** The link carries the club's
+        poster secret, which is already printed on a wall the public walks past,
+        so a copy of it in an inbox reaches nobody the wall did not. Nothing is
+        minted, nothing expires, nothing can be revoked, and **nothing is stored
+        about the recipient** — no invitee table, no schema of its own. The
+        queued message is the whole record, and `mail_outbox.recipient` is the
+        invitation history.
+
+        The one consequence worth stating: rotating the poster secret kills
+        every link already sent, silently and permanently, exactly as it kills
+        every printed poster (UC-A69).
+
+        **Refused when the club could not answer the link** — self-registration
+        switched off, no poster secret, or no configured club document — with
+        the availability switch's own reason code. Sending is a promise, and a
+        link to a refusal page makes the club look broken to the person it is
+        courting.
+
+        **Sending twice to one address delivers twice.** That is the intent, not
+        an accident: a re-send is what answers *"I never got it"*. Guard the
+        double click in the UI.
+
+        **Roles**: `admin`, `kassenwart` — the registration surface's own set,
+        not the credential surface's.
+      operationId: sendRegistrationLink
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  maxLength: 255
+                  description: |
+                    Where to send the link. Validated as an address and nothing
+                    more — there is no membership check and no verification
+                    step, because the link carries no credential and the trust
+                    boundary is the signed paper that comes later.
+                  example: interessent@example.org
+      responses:
+        '202':
+          description: |
+            Queued. Nothing has been delivered yet — the scheduler's next drain
+            sends it (ADR-0038 rule 3).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: |
+            The club could not answer the link. `reason` is
+            `registration_disabled`, `registration_no_secret` or
+            `document_url_missing` — whichever precondition is missing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /admin/registrations/{registrationId}:
     parameters:
       - $ref: '#/components/parameters/registrationId'
@@ -8551,6 +8627,21 @@ components:
         addressed to a value the system no longer holds and reads it from the
         `recipient` snapshot.
 
+        `admin_invitation` is the one-time link a newly created admin follows to
+        set their first password (UC-A68). It is the only message whose body
+        carries a working credential, and its `dedup_key` is the invitation's own
+        id — which is what makes a reissue a second message rather than one the
+        unique index swallows.
+
+        `registration_link` is the Anmeldelink
+        ([ADR-0053](../../adr/0053-anmeldelink-carries-no-credential.md)): the
+        club's registration link, mailed to somebody thinking of joining. It is
+        the only kind addressed to a person this database holds **no row for** —
+        neither `member_id` nor `admin_user_id` is set — because nothing about a
+        prospective member is stored. Its `dedup_key` is a per-send nonce, so
+        two sends to one address are two messages: the second is the one that
+        answers *"I never got it"*.
+
         This list is the whole of `MailKind`, and the `kind` filter on
         `GET /api/admin/notifications` rejects anything outside it. Prefer
         reading `filters.kinds` off that response, which is generated from the
@@ -8577,6 +8668,8 @@ components:
         - member_card_replaced
         - member_email_changed
         - member_email_activated
+        - admin_invitation
+        - registration_link
 
     MailStatus:
       type: string

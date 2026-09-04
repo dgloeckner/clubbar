@@ -21,10 +21,12 @@ import { useNavigate } from 'react-router-dom'
 
 import { getRegistrationReview } from '../api/generated/registration-review/registration-review'
 import type { PendingRegistration } from '../api/generated/pendingRegistration'
+import { PageActionButton } from '../components/common/PageActionButton'
 import { PageHeader } from '../components/layout/PageHeader'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { RegistrationReviewPanel } from '../components/registrations/RegistrationReviewPanel'
+import { SendRegistrationLinkModal } from '../components/registrations/SendRegistrationLinkModal'
 import { useApiError } from '../hooks/useApiError'
 import { useFormatters } from '../hooks/useFormatters'
 import { useListQuery } from '../hooks/useListQuery'
@@ -42,6 +44,14 @@ export function RegistrationsPage() {
   const { formatDate } = useFormatters()
 
   const [selected, setSelected] = useState<PendingRegistration | null>(null)
+  /**
+   * The one outbound verb on this inbox (#821, UC-A70). It is page state rather
+   * than route state because the send is a modal over the queue: an admin who
+   * sends a link is still looking at the same list afterwards, and nothing in
+   * it changes — the person they wrote to has no row here until they fill in
+   * the form.
+   */
+  const [sendingLink, setSendingLink] = useState(false)
 
   const list = useListQuery<PendingRegistration, RegistrationFilters, RegistrationSortKey>({
     // `useListQuery` owns page, page size, sort, search, the debounce, request
@@ -93,7 +103,24 @@ export function RegistrationsPage() {
 
   return (
     <div data-testid="registrations-page">
-      <PageHeader title={t('registrations.title')} subtitle={t('registrations.subtitle')} />
+      {/* The send control lives on this page and not in Settings beside the
+          poster, which is where it conceptually belongs: that tab is ADMIN_ONLY
+          and holding one button there would lock out the Kassenwart, whose
+          queue this is. Splitting the tab's role set for one control is exactly
+          the drift ADR-0044's default-deny exists to prevent (#821 decision
+          5a). The cost is real and accepted — an outbound verb on an inbox. */}
+      <PageHeader
+        title={t('registrations.title')}
+        subtitle={t('registrations.subtitle')}
+        actions={
+          <PageActionButton
+            data-testid="registrations-send-link-button"
+            onClick={() => setSendingLink(true)}
+          >
+            {t('registrations.sendLink.action')}
+          </PageActionButton>
+        }
+      />
 
       {list.error && (
         <div
@@ -136,28 +163,42 @@ export function RegistrationsPage() {
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }} data-testid="registrations-table">
           <thead>
+            {/* Each `SortableTableHeader` renders a bare <button>, so every one
+                of them needs a <th> of its own — the shape the other five list
+                pages use. Without it CSS table fixup collects the three
+                consecutive non-cell children into a *single* anonymous cell,
+                and since the button is `display: flex` they stack vertically
+                inside it: a header row with four cells against the body's six
+                columns. It was misaligned with data too; an empty table merely
+                removed the row widths that were disguising it (#821). */}
             <tr>
-              <SortableTableHeader
-                label={t('registrations.columns.name')}
-                sortKey="last_name"
-                currentSort={{ key: list.sortKey, direction: list.sortDirection }}
-                onSort={(key, direction) => list.setSort(key as RegistrationSortKey, direction)}
-                testId="sort-last-name"
-              />
-              <SortableTableHeader
-                label={t('registrations.columns.email')}
-                sortKey="email"
-                currentSort={{ key: list.sortKey, direction: list.sortDirection }}
-                onSort={(key, direction) => list.setSort(key as RegistrationSortKey, direction)}
-                testId="sort-email"
-              />
-              <SortableTableHeader
-                label={t('registrations.columns.submittedAt')}
-                sortKey="submitted_at"
-                currentSort={{ key: list.sortKey, direction: list.sortDirection }}
-                onSort={(key, direction) => list.setSort(key as RegistrationSortKey, direction)}
-                testId="sort-submitted-at"
-              />
+              <th style={headerStyle}>
+                <SortableTableHeader
+                  label={t('registrations.columns.name')}
+                  sortKey="last_name"
+                  currentSort={{ key: list.sortKey, direction: list.sortDirection }}
+                  onSort={(key, direction) => list.setSort(key as RegistrationSortKey, direction)}
+                  testId="sort-last-name"
+                />
+              </th>
+              <th style={headerStyle}>
+                <SortableTableHeader
+                  label={t('registrations.columns.email')}
+                  sortKey="email"
+                  currentSort={{ key: list.sortKey, direction: list.sortDirection }}
+                  onSort={(key, direction) => list.setSort(key as RegistrationSortKey, direction)}
+                  testId="sort-email"
+                />
+              </th>
+              <th style={headerStyle}>
+                <SortableTableHeader
+                  label={t('registrations.columns.submittedAt')}
+                  sortKey="submitted_at"
+                  currentSort={{ key: list.sortKey, direction: list.sortDirection }}
+                  onSort={(key, direction) => list.setSort(key as RegistrationSortKey, direction)}
+                  testId="sort-submitted-at"
+                />
+              </th>
               <th style={headerStyle}>{t('registrations.columns.iban')}</th>
               <th style={headerStyle}>{t('registrations.columns.bank')}</th>
               <th style={headerStyle}>{t('registrations.columns.flags')}</th>
@@ -182,6 +223,23 @@ export function RegistrationsPage() {
                   <p style={{ margin: `${theme.spacing.sm} 0 0`, color: theme.colors.text.secondary }}>
                     {t('registrations.empty.body')}
                   </p>
+                  {/* Not the two-surfaces duplication that was rejected in
+                      design — that was one action on two screens with different
+                      role sets. This is a primary control plus a contextual
+                      prompt on one page, and the empty state is precisely where
+                      a Kassenwart is looking when they would want it. It is
+                      also the feature's only discovery point: an admin who
+                      never noticed the header button meets it at the moment
+                      they are wondering why nothing has arrived. */}
+                  <div style={{ marginTop: theme.spacing.lg }}>
+                    <PageActionButton
+                      variant="secondary"
+                      data-testid="registrations-empty-send-link-button"
+                      onClick={() => setSendingLink(true)}
+                    >
+                      {t('registrations.sendLink.action')}
+                    </PageActionButton>
+                  </div>
                 </td>
               </tr>
             )}
@@ -250,6 +308,8 @@ export function RegistrationsPage() {
         onPageSizeChange={list.setPageSize}
         testId="registrations-pagination"
       />
+
+      <SendRegistrationLinkModal isOpen={sendingLink} onClose={() => setSendingLink(false)} />
 
       {selected && (
         <RegistrationReviewPanel
