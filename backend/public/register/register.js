@@ -18,7 +18,10 @@
  * **No personal data leaves this page except to the submission endpoint.** Form
  * state is a variable. The one outbound navigation is the club's own document
  * link, and `<meta name="referrer" content="no-referrer">` keeps this URL —
- * fragment included — out of the club webserver's logs.
+ * fragment included — out of the club webserver's logs. That last point is why
+ * the mailed link's `email=` prefill (#823) is in the fragment too: an address
+ * in a query string would be in the request line, and therefore in every access
+ * log in front of the installation.
  *
  * **The one thing that is stored is the finished document, in this tab only**
  * (#804). `sessionStorage` — never `localStorage`, never a cookie, never the
@@ -62,7 +65,7 @@
       'form.lastName': 'Nachname',
       'form.dateOfBirth': 'Geburtsdatum',
       'form.email': 'E-Mail',
-      'form.emailHint': 'Für die Abrechnung. Es wird nichts an dich verschickt.',
+      'form.emailHint': 'Für deine spätere Abrechnung. Jetzt bekommst du keine E-Mail.',
       'form.iban': 'IBAN',
       'form.ibanHint': 'Von der Karte oder aus deiner Banking-App.',
       'form.optional': 'Weitere Angaben (optional)',
@@ -125,7 +128,7 @@
       'form.lastName': 'Last name',
       'form.dateOfBirth': 'Date of birth',
       'form.email': 'Email',
-      'form.emailHint': 'For your statements. Nothing is sent to you now.',
+      'form.emailHint': 'For your statements later. You will not get an email now.',
       'form.iban': 'IBAN',
       'form.ibanHint': 'From your card or your banking app.',
       'form.optional': 'More details (optional)',
@@ -511,7 +514,7 @@
       }
     }
 
-    if (values.email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
+    if (values.email !== '' && !looksLikeEmail(values.email)) {
       setFieldError('email', t('error.email'))
       ok = false
     }
@@ -590,10 +593,82 @@
     show('screen-paused')
   }
 
+  /**
+   * The one email rule this page has, used twice.
+   *
+   * Deliberately the same test for a typed address and for one arriving in the
+   * fragment: a prefill the form would then reject is worse than no prefill,
+   * because the reader is handed an error they did not make.
+   */
+  function looksLikeEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+  }
+
+  /**
+   * The fragment, as the two links that exist actually spell it (#823).
+   *
+   *     #<secret>                       the QR poster on the wall
+   *     #<secret>&email=<urlencoded>    the Anmeldelink, mailed to one person
+   *
+   * The secret is everything before the first `&`, which is unambiguous because
+   * it is base64url — `[A-Za-z0-9_-]` and nothing else, so it can never contain
+   * the separator. Every poster ever printed therefore still parses to exactly
+   * itself, which matters more here than anywhere: those are on walls for years
+   * and there is no way to reissue them.
+   *
+   * Nothing in here is trusted. Anybody can type a fragment; what it buys them
+   * is a form field they could have typed into anyway, and the server validates
+   * what is finally submitted regardless.
+   */
+  function readFragment(hash) {
+    var raw = hash.replace(/^#/, '')
+    var parts = raw.split('&')
+    var parsed = { secret: '', email: '' }
+
+    try {
+      parsed.secret = decodeURIComponent(parts[0])
+    } catch (error) {
+      // A malformed percent-escape throws. An empty secret is the uniform
+      // "this link no longer works" screen, which is the right answer for a
+      // fragment nothing could have produced.
+      parsed.secret = ''
+    }
+
+    for (var i = 1; i < parts.length; i++) {
+      var eq = parts[i].indexOf('=')
+      if (eq === -1) continue
+      if (parts[i].slice(0, eq) !== 'email') continue
+
+      try {
+        parsed.email = decodeURIComponent(parts[i].slice(eq + 1)).trim()
+      } catch (error) {
+        // A malformed percent-escape throws. A visitor did not cause this and
+        // cannot fix it, so it costs them a prefill and nothing else.
+        parsed.email = ''
+      }
+    }
+
+    return parsed
+  }
+
+  /**
+   * Fill in the address the club already wrote to, and only that.
+   *
+   * Editable, like every other field: the club may have typed it wrong, or the
+   * reader may want a different mailbox for their statements. `maxlength` is
+   * 255 on the input and enforced here too, because a value set from script
+   * bypasses it.
+   */
+  function prefillEmail(email) {
+    if (email === '' || email.length > 255 || !looksLikeEmail(email)) return
+
+    $('email').value = email
+  }
+
   function start() {
-    // Read once, from the fragment, and never written anywhere. `substring(1)`
-    // rather than a parse: the whole fragment is the secret.
-    secret = decodeURIComponent(window.location.hash.replace(/^#/, ''))
+    // Read once, from the fragment, and never written anywhere.
+    var fragment = readFragment(window.location.hash)
+    secret = fragment.secret
 
     if (secret === '') {
       show('screen-unknown')
@@ -634,6 +709,11 @@
         }
 
         $('document-link').href = body.document_url
+
+        // Only now: the form is the one screen this belongs on, and a club that
+        // turned out to be paused never renders it.
+        prefillEmail(fragment.email)
+
         renderLanguageChoice(body.languages || ['de'])
       })
       .catch(function () {

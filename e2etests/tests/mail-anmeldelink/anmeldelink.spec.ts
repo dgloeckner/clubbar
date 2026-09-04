@@ -18,6 +18,11 @@
  * the resulting row is found in the admin inbox. If the mailed URL ever drifted
  * from the poster's, every step after the first would fail.
  *
+ * The address travels the whole way too (#823): the Kassenwart types it here,
+ * the link carries it in its fragment, the form arrives holding it, and it is
+ * the address the inbox row is finally found by — never typed by the applicant
+ * at any point.
+ *
  * ### Nothing is faked
  *
  * The poster secret is the exception, and it is the same exception
@@ -189,7 +194,10 @@ test.describe('Anmeldelink — send, cron, delivered mail, and back through the 
 
     // ── the link is the poster's, and this is how that is proved ───────
     const link = deliveredLink(message)
-    expect(link).toBe(`${APP_URL}/register#${secret}`)
+    // The poster's URL, plus the address this message was sent to (#823). It
+    // rides after the `#`, so no access log in front of the installation ever
+    // sees it — the same rule that puts the secret there.
+    expect(link).toBe(`${APP_URL}/register#${secret}&email=${encodeURIComponent(email)}`)
 
     // A context of its own: no session, no cookies, nothing this run's admin
     // fixtures left behind. This is a stranger on a phone.
@@ -206,15 +214,18 @@ test.describe('Anmeldelink — send, cron, delivered mail, and back through the 
       await page.getByTestId('language-de').click()
       await expect(page.getByTestId('screen-form')).toBeVisible()
 
-      const unique = randomUUID().slice(0, 8)
-      const applicantEmail = `lena-${unique}@example.org`
-      const lastName = `Brandt-${unique}`
+      // The one field the reader does not have to type, because the club
+      // already knows it (#823) — filled in from the link they arrived on.
+      // Left untouched below, so what lands in the inbox proves it end to end.
+      const applicantEmail = email
+      await expect(page.getByTestId('field-email')).toHaveValue(applicantEmail)
+
+      const lastName = `Brandt-${randomUUID().slice(0, 8)}`
 
       for (const [testId, value] of Object.entries({
         'field-first-name': 'Lena',
         'field-last-name': lastName,
         'field-date-of-birth': '23111979',
-        'field-email': applicantEmail,
         'field-iban': TEST_IBAN,
       })) {
         await page.getByTestId(testId).fill(value)

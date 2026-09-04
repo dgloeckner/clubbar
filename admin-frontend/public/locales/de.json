@@ -1600,7 +1600,7 @@
     "sendLink": {
       "action": "Anmeldelink senden",
       "title": "Anmeldelink senden",
-      "body": "Der Empfänger bekommt den Link zum Anmeldeformular — denselben, den auch der QR-Aushang im Verein öffnet. Es wird nichts über diese Person gespeichert.",
+      "body": "Der Empfänger bekommt den Link zum Anmeldeformular — denselben, den auch der QR-Aushang im Verein öffnet. Diese Adresse ist im Formular schon eingetragen. Es wird nichts über diese Person gespeichert.",
       "emailLabel": "E-Mail-Adresse",
       "emailPlaceholder": "name@example.org",
       "invalidEmail": "Bitte eine gültige E-Mail-Adresse eingeben.",

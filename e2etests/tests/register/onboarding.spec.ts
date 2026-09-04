@@ -204,6 +204,145 @@ test.describe('Public onboarding page', () => {
     await expect(page.getByTestId('screen-form')).toBeHidden()
   })
 
+  // ── the mailed link's prefill (#823) ───────────────────────────────────
+  //
+  // The Anmeldelink is sent *to* an address a Kassenwart typed (UC-A70), and
+  // the form's first question is that same address. These assert the fragment
+  // the mail builds — `#<secret>&email=<urlencoded>` — arriving at the page.
+  // What the *mail* puts in it is `mail-anmeldelink/anmeldelink.spec.ts`.
+
+  /** Open the page the way the mailed link does: the address after the secret. */
+  const openWithEmail = async (page: any, secret: string, email: string) => {
+    await page.goto(`${PAGE}#${encodeURIComponent(secret)}&email=${encodeURIComponent(email)}`)
+  }
+
+  /**
+   * The point of the whole feature, and then the thing that makes it safe: the
+   * field is filled in, and it is still an ordinary editable field.
+   *
+   * The address is submitted as it arrived, so this also proves the prefill is
+   * a real value and not a placeholder — a `placeholder` attribute looks
+   * identical in a screenshot and submits nothing at all.
+   */
+  test('a mailed link fills the address in, and it submits as typed by nobody', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+    const invited = `lena-${randomUUID().slice(0, 8)}@example.org`
+
+    await openWithEmail(page, secret, invited)
+    await page.getByTestId('language-de').click()
+    await expect(page.getByTestId('screen-form')).toBeVisible()
+
+    await expect(page.getByTestId('field-email')).toHaveValue(invited)
+
+    const before = countPendingRegistrations()
+
+    // Every other field typed, and the address deliberately *not* touched: the
+    // claim is that what reaches the backend is the value the link carried.
+    for (const [testId, value] of Object.entries({
+      'field-first-name': 'Lena',
+      'field-last-name': `Brandt-${randomUUID().slice(0, 8)}`,
+      'field-date-of-birth': '23111979',
+      'field-iban': TEST_IBAN,
+    })) {
+      await page.getByTestId(testId).fill(value)
+    }
+
+    await page.getByTestId('submit-button').click()
+    await expect(page.getByTestId('review-summary')).toContainText(invited)
+    await page.getByTestId('confirm-button').click()
+
+    await expect(page.getByTestId('screen-done')).toBeVisible()
+    expect(countPendingRegistrations()).toBe(before + 1)
+  })
+
+  /**
+   * Editable, because the club may have typed it wrong and because the reader
+   * may want their statements somewhere else. A prefill that could not be
+   * overwritten would be worse than none.
+   */
+  test('the prefilled address can be replaced', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    await openWithEmail(page, secret, 'wrong@example.org')
+    await page.getByTestId('language-de').click()
+    await expect(page.getByTestId('screen-form')).toBeVisible()
+
+    const mine = `mine-${randomUUID().slice(0, 8)}@example.org`
+    await page.getByTestId('field-email').fill(mine)
+    await expect(page.getByTestId('field-email')).toHaveValue(mine)
+  })
+
+  /**
+   * Every poster ever printed carries `#<secret>` and nothing else, and there
+   * is no way to reissue one. The bare fragment must keep parsing to exactly
+   * the secret it always did.
+   */
+  test('a poster link is unaffected and prefills nothing', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    await openWith(page, secret)
+    await page.getByTestId('language-de').click()
+    await expect(page.getByTestId('screen-form')).toBeVisible()
+
+    await expect(page.getByTestId('field-email')).toHaveValue('')
+  })
+
+  /**
+   * Anybody can type a fragment, so nothing in it is trusted.
+   *
+   * A value that is not an address is dropped rather than filled in: the form
+   * would reject it a moment later, and handing a visitor an error they did not
+   * make is worse than asking them to type. Markup in particular reaches the
+   * field as a *value* or not at all — `input.value` is never parsed as HTML,
+   * and this asserts that it is not even set.
+   */
+  test('a fragment carrying something that is not an address is ignored', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+
+    for (const junk of ['not-an-address', '<img src=x onerror="window.__pwned = true">', '@@']) {
+      // A goto that changes only the fragment is a same-document navigation —
+      // no reload, so the page would never re-read the value under test.
+      await page.goto('about:blank')
+      await openWithEmail(page, secret, junk)
+      await page.getByTestId('language-de').click()
+      await expect(page.getByTestId('screen-form')).toBeVisible()
+
+      await expect(page.getByTestId('field-email')).toHaveValue('')
+    }
+
+    expect(await page.evaluate(() => (window as any).__pwned)).toBeUndefined()
+  })
+
+  /**
+   * The address is in the fragment for the reason the secret is: a fragment is
+   * the one part of a URL a browser does not put on the wire, so no access log
+   * in front of the installation ever sees a prospective member's address.
+   *
+   * Asserted from the page's own side — every request it made, and the one
+   * outbound navigation's `Referer` — because that is where a leak would show.
+   */
+  test('the prefilled address never leaves the browser in a request line', async ({ page }) => {
+    const secret = uniqueSecret()
+    configureSelfRegistration(secret)
+    const invited = `quiet-${randomUUID().slice(0, 8)}@example.org`
+
+    const requested: string[] = []
+    page.on('request', (request: any) => requested.push(request.url()))
+
+    await openWithEmail(page, secret, invited)
+    await page.getByTestId('language-de').click()
+    await expect(page.getByTestId('screen-form')).toBeVisible()
+
+    for (const url of requested) {
+      expect(url, `${url} carries the address`).not.toContain(invited)
+      expect(url).not.toContain(encodeURIComponent(invited))
+    }
+  })
+
   // ── branding ───────────────────────────────────────────────────────────
 
   /**
