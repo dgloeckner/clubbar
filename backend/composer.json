@@ -5,6 +5,7 @@
     "license": "Apache-2.0",
     "require": {
         "php": ">=8.3",
+        "ext-dom": "*",
         "ext-fileinfo": "*",
         "chillerlan/php-qrcode": "^6.0",
         "digitick/sepa-xml": "^3.1",

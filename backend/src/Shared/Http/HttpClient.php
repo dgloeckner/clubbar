@@ -57,4 +57,35 @@ interface HttpClient
         string $body = '',
         int $timeoutSeconds = 30,
     ): HttpResponse;
+
+    /**
+     * The same, with the body streamed from a file rather than held in memory.
+     *
+     * {@see send()} takes the body as a `string`, which is right for a JSON
+     * request and wrong for an archive: a WebDAV `PUT` of a 40 MB backup would
+     * need the whole file resident, plus whatever cURL copies, on a shared host
+     * whose `memory_limit` we do not control and cannot raise. The failure that
+     * would produce is a fatal error partway through a nightly job — the
+     * silent-stall class ADR-0038 exists to prevent — and it would arrive only
+     * once the club's database had grown past a threshold nobody was watching.
+     *
+     * So this exists to make peak memory constant in the archive's size. It is
+     * a separate method rather than a nullable parameter on {@see send()}
+     * because the two have genuinely different contracts: this one can fail
+     * before any request is made, when the file cannot be opened.
+     *
+     * Never throws. An unreadable file comes back as status `0`, like any other
+     * request that never reached a server, because the caller's response is the
+     * same and it already handles it.
+     *
+     * @param string $filePath the body; its size becomes `Content-Length`
+     * @param array<string, string> $headers field name => value
+     */
+    public function sendFile(
+        string $method,
+        string $url,
+        string $filePath,
+        array $headers = [],
+        int $timeoutSeconds = 30,
+    ): HttpResponse;
 }

@@ -19,10 +19,11 @@ namespace App\Shared\Http;
  * accepts a connection and never answers.
  *
  * It implements both outbound interfaces because there is one right way to
- * make a request on this host and no reason to write it twice — but the two
+ * make a request on this host and no reason to write it twice — but the three
  * methods keep their contracts apart: {@see post()} swallows everything into a
  * bool for the heartbeat, {@see send()} reports what came back for the
- * transport that has to act on it (#691).
+ * transport that has to act on it (#691), and {@see sendFile()} does the same
+ * for a body too large to hold in memory (#825).
  */
 final class CurlHttpClient implements OutboundHttpClient, HttpClient
 {
@@ -124,6 +125,99 @@ final class CurlHttpClient implements OutboundHttpClient, HttpClient
         $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
         $error = curl_error($curl);
         curl_close($curl);
+
+        if ($responseBody === false) {
+            return new HttpResponse(0, $error !== '' ? $error : 'The request failed before any response.');
+        }
+
+        return new HttpResponse($status, (string) $responseBody, $received);
+    }
+
+    /**
+     * The streaming half (#825).
+     *
+     * `CURLOPT_UPLOAD` plus `CURLOPT_INFILE` hands cURL the file handle and
+     * lets it read the body in its own buffer-sized bites, so peak memory is
+     * constant no matter how large the archive has grown. `CURLOPT_INFILESIZE`
+     * is what makes that possible over HTTP/1.1: without a `Content-Length`
+     * cURL would have to fall back to chunked transfer-encoding, which mod_dav
+     * accepts and some intermediaries in front of it do not.
+     *
+     * **`Expect:` is sent empty on purpose**, which suppresses cURL's automatic
+     * `Expect: 100-continue` on bodies over 1 KB. The handshake it asks for is
+     * worth having when a server might reject the request before the body — but
+     * this transport authenticates pre-emptively, so there is nothing to reject
+     * — and a server that ignores the header costs a fixed one-second stall on
+     * every single upload while cURL waits for a continuation that never comes.
+     */
+    public function sendFile(
+        string $method,
+        string $url,
+        string $filePath,
+        array $headers = [],
+        int $timeoutSeconds = 30,
+    ): HttpResponse {
+        if (!function_exists('curl_init')) {
+            return new HttpResponse(0, 'This host has no cURL, so it cannot make outbound requests.');
+        }
+
+        $size = @filesize($filePath);
+        $handle = @fopen($filePath, 'rb');
+
+        if ($size === false || $handle === false) {
+            if ($handle !== false) {
+                fclose($handle);
+            }
+
+            // Status 0, not a throw: the caller already handles "no answer",
+            // and a file that cannot be read is the same outcome as a server
+            // that could not be reached — nothing was uploaded.
+            return new HttpResponse(0, 'Could not open ' . basename($filePath) . ' to upload it.');
+        }
+
+        $curl = curl_init($url);
+        if ($curl === false) {
+            fclose($handle);
+
+            return new HttpResponse(0, 'Could not initialise a request to ' . $url . '.');
+        }
+
+        $received = [];
+
+        $formatted = ['Expect:'];
+        foreach ($headers as $name => $value) {
+            $formatted[] = $name . ': ' . $value;
+        }
+
+        curl_setopt_array($curl, [
+            CURLOPT_CUSTOMREQUEST  => strtoupper($method),
+            CURLOPT_UPLOAD         => true,
+            CURLOPT_INFILE         => $handle,
+            CURLOPT_INFILESIZE     => $size,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_TIMEOUT        => max(1, $timeoutSeconds),
+            CURLOPT_CONNECTTIMEOUT => max(1, min($timeoutSeconds, 10)),
+            CURLOPT_HTTPHEADER     => $formatted,
+            CURLOPT_HEADERFUNCTION => static function ($_curl, string $line) use (&$received): int {
+                $length = strlen($line);
+                $parts = explode(':', $line, 2);
+
+                if (count($parts) === 2) {
+                    $received[trim($parts[0])] = trim($parts[1]);
+                } elseif (trim($line) !== '' && str_starts_with($line, 'HTTP/')) {
+                    $received = [];
+                }
+
+                return $length;
+            },
+        ]);
+
+        $responseBody = curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($curl);
+        curl_close($curl);
+        fclose($handle);
 
         if ($responseBody === false) {
             return new HttpResponse(0, $error !== '' ? $error : 'The request failed before any response.');

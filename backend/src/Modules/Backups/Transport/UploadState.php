@@ -102,6 +102,38 @@ final class UploadState
         @chmod($this->path(), 0600);
     }
 
+    /**
+     * Mark this archive as *not yet off-site*, with no resume state to record.
+     *
+     * A transport that cannot resume — a WebDAV `PUT` is one shot (#825) — still
+     * needs the sweep below to come back to an archive whose upload failed.
+     * Without a sidecar nothing ever would: `pendingIn()` is the only thing in
+     * the system that revisits an archive, the next run seals and pushes a
+     * *new* one, and that night's copy simply never leaves the webspace. The
+     * failure is silent, which is the one kind this module refuses to have.
+     *
+     * So the sidecar is written as a bare marker. That is not a special case
+     * bolted on: the presence of the file has always meant "this archive has an
+     * upload that has not finished", and the resume URL was the *extra* a
+     * resumable transport could add. {@see read()} already returns null for a
+     * sidecar without one, and null already means "start a fresh upload" — so
+     * the next run re-sends the whole file, which is exactly right when there
+     * was never anything to resume.
+     */
+    public function markPending(int $size): void
+    {
+        @file_put_contents(
+            $this->path(),
+            (string) json_encode([
+                'archive' => basename($this->archivePath),
+                'size' => $size,
+                'at' => gmdate('c'),
+            ], JSON_UNESCAPED_SLASHES),
+            LOCK_EX
+        );
+        @chmod($this->path(), 0600);
+    }
+
     /** The upload finished — or the session died and must not be resumed. */
     public function clear(): void
     {

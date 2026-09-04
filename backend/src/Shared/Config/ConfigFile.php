@@ -111,7 +111,16 @@ final class ConfigFile
         // thrown — a club without a remote configured still gets the "undo a
         // mistake an hour ago" half.
         $_ENV['BACKUP_DSN'] = $config['backup']['dsn'] ?? '';
-        $_ENV['BACKUP_CLIENT_SECRET'] = $config['backup']['client_secret'] ?? '';
+        // `remote_secret` is the name; `client_secret` is what installations
+        // written before #825 have on disk and keeps working. A club's
+        // `config.php` is a file it owns, so nothing rewrites it — the old key
+        // is read, and the self-check mentions the new name once, in a row that
+        // is otherwise a pass. "Client secret" was Entra's vocabulary and there
+        // is no client in a WebDAV password.
+        $deprecated = $config['backup']['client_secret'] ?? '';
+        $canonical = $config['backup']['remote_secret'] ?? '';
+        $_ENV['BACKUP_REMOTE_SECRET'] = $canonical !== '' ? $canonical : $deprecated;
+        $_ENV['BACKUP_SECRET_FROM_DEPRECATED_KEY'] = $canonical === '' && $deprecated !== '' ? '1' : '';
 
         // When that secret stops working. Entra warns nobody, so an unattended
         // nightly job can go months before anyone notices — this is the date

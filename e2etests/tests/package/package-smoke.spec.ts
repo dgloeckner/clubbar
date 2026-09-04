@@ -492,7 +492,7 @@ test.describe('Package: Install Wizard', () => {
     const step6Post = await request.post(`${PACKAGE_URL}/install.php?step=6`, {
       ...step6Body(recipients, {
         backup_dsn: 'msgraph://tenant/client@drive/b!ci/clubbar',
-        backup_client_secret: 'ci-secret',
+        backup_remote_secret: 'ci-secret',
         backup_secret_expires_at: '2099-01-01',
       }),
       maxRedirects: 0,
@@ -538,7 +538,7 @@ test.describe('Package: Install Wizard', () => {
     const step6Reentry = await request.post(`${PACKAGE_URL}/install.php?step=6&update=1`, {
       ...step6Body(recipients, {
         backup_dsn: 'msgraph://tenant/client@drive/b!ci/clubbar',
-        backup_client_secret: '',
+        backup_remote_secret: '',
         backup_secret_expires_at: '2098-06-30',
       }),
       maxRedirects: 0,

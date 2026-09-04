@@ -4,6 +4,12 @@
 
 **Date**: 2026-08-24
 
+**Amended**: 2026-09-04 — decision 6's transport roadmap is reordered and
+`hidrive://` is built second rather than last ([#825](https://github.com/dgloeckner/clubbar/issues/825)).
+See *"Amendment: the roadmap reordered"* below. The original reasoning for the
+ordering is kept, because it is still true and is what makes the reversal
+legible.
+
 **Amends**: [ADR-0031](./0031-production-hardening-on-shared-hosting.md) (a second accepted hard dependency on a host feature: outbound HTTPS), [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md) (narrows decision 3 — see "One scheduled command, re-read"), [ADR-0029](./0029-two-tier-retention-and-erasure.md) (a backup is a place erased data lives), [ADR-0036](./0036-iban-encryption-sealed-box.md) (a second keypair, and why it is deliberately not the first one)
 
 ---
@@ -371,6 +377,42 @@ the storage target is swappable without touching the producer. Object storage
 with object lock is the option that would close (b) properly and is recorded here
 as the recommended upgrade for a club that wants the guarantee rather than the
 mitigation.
+
+#### Amendment: the roadmap reordered (2026-09-04, [#825](https://github.com/dgloeckner/clubbar/issues/825))
+
+The roadmap above put `s3://` next and `hidrive://` last, on the grounds that
+HiDrive is the same vendor as the hosting and a suspended account would take
+both. **That reasoning still holds.** What changed is not the ranking of the
+targets but whether the chosen one can be reached at all.
+
+Microsoft's edge answers `404 NotFound` to every request from the reference
+host's egress address. Not a credential failure and not a configuration error:
+an *anonymous* fetch of the public OpenID metadata document — no tenant lookup,
+no POST, no secret — returns `404` from the webspace and `200` from everywhere
+else, with none of the headers a real ESTS response carries. The client secret,
+the tenant id, the URL, the ESTS node and the address family were each ruled out
+by measurement before this conclusion was reached. It is an address-reputation
+block on a shared hosting range, and nothing in the application can move it.
+
+So the club this decision was written for has, in practice, requirement (a) and
+no way to satisfy it. **An off-site copy that cannot be reached protects
+nothing**, and between a strong target that is unreachable and a weaker one that
+works every night, the weaker one is the decision. `hidrive://` is therefore
+built second; `s3://` remains the recommended upgrade for (b), unchanged.
+
+The price, stated rather than absorbed:
+
+| | |
+|---|---|
+| **(a) is half satisfied** | Losing the webspace does not touch HiDrive; losing the *account* takes both. The **periodic manual copy is what makes this acceptable** and is therefore promoted from mitigation to precondition — it is now the only copy that survives the vendor |
+| **The delete net is weaker** | Decision 6 buys *"deletion is non-destructive"* through retention on the target library. HiDrive offers file versions with no recycle bin and a tariff-dependent horizon — less than SharePoint's 93 days, and harder to use. Remote retention still deletes, because requirement 5 outranks it: a backup outliving an [ADR-0029](./0029-two-tier-retention-and-erasure.md) erasure defeats the erasure |
+| **No resumable transfer** | A WebDAV `PUT` is one shot, so a night that exceeds its budget re-sends rather than continues. The archive streams from disk, so the cost is time and never memory, and a marker beside the archive brings the next run back to it — a failed night is not a lost night |
+
+And one thing that gets **better**, which is worth naming because this decision
+records the gap it never closed: `Sites.Selected` has no add-only role, so the
+Graph credential can delete anything in the library. A HiDrive backup *user*
+scoped to one folder is a real boundary, and the provisioning document requires
+one rather than recommending it.
 
 ### 7. A restore is proved, not assumed
 

@@ -297,15 +297,25 @@ the dumper:
 
 ```
 msgraph://<tenant-id>/<client-id>@drive/<drive-id>/<folder>
+hidrive://<user>@<host>/<absolute path>
 ```
 
-Only `msgraph://` (Microsoft 365 / SharePoint, via app-only Graph API
-credentials) is implemented today. `s3://` with object-lock versioning is
-named in ADR-0049 as the upgrade path for a club that wants **genuine**
-append-only storage rather than the retention-based mitigation below — it
-is not built, and nothing stops a future transport from sitting behind the
-same DSN shape. An empty `dsn` means local-only: still useful, still
-encrypted, just not off the host.
+Two transports are implemented. **`msgraph://`** (Microsoft 365 / SharePoint,
+via app-only Graph API credentials) is the stronger where it works — a
+separate vendor from the hosting, and a 93-day recycle bin — and is
+provisioned by [`m365-backup-target.md`](./m365-backup-target.md).
+**`hidrive://`** (IONOS HiDrive over WebDAV,
+[`hidrive-backup-target.md`](./hidrive-backup-target.md)) exists because that
+is not always available: on the reference host, Microsoft's edge refuses
+every request from the webspace's egress address, and an off-site copy that
+cannot be reached protects nothing ([#825](https://github.com/dgloeckner/clubbar/issues/825)).
+It is the same vendor as the hosting, so the manual copy matters more rather
+than less — ADR-0049's amendment states the full price.
+
+`s3://` with object-lock versioning is named in ADR-0049 as the upgrade path
+for a club that wants **genuine** append-only storage rather than the
+retention-based mitigation below; it is not built. An empty `dsn` means
+local-only: still useful, still encrypted, just not off the host.
 
 **What retention on the remote library buys, honestly.** The application's
 upload credential can delete as well as write — there is no create-only role
@@ -423,8 +433,8 @@ working default that turns backups **on**; only a recipient key does.
 |---|---|
 | `recipient_public_keys` | `['label:hex_public_key', ...]` — presence of at least one entry **is** the on/off switch |
 | `dsn` | `msgraph://tenant/client@drive/drive-id/folder` — empty means local-only |
-| `client_secret` | The DSN credential's secret half, kept out of the DSN string itself |
-| `client_secret_expires_at` | `YYYY-MM-DD` — Entra client secrets expire silently; this is what lets the job warn in advance |
+| `remote_secret` | The DSN credential's secret half, kept out of the DSN string itself — the Entra client secret for `msgraph://`, the backup user's password for `hidrive://`. Called `client_secret` before #825; that name is still read |
+| `client_secret_expires_at` | `YYYY-MM-DD` — Entra client secrets expire silently; this is what lets the job warn in advance. `msgraph://` only: a HiDrive password does not expire, so the self-check asks for no date and shows no row |
 | `heartbeat_url` | A push-monitor URL for the backup job specifically, separate from the mail drain's monitor |
 | `local_retention_days` / `local_max_bytes` / `remote_retention_days` | Retention overrides above the compiled defaults (§4) |
 

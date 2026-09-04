@@ -254,7 +254,7 @@ class MsGraphTransportTest extends TestCase
         $result = $this->transport()->upload($this->archive, 600);
 
         $this->assertSame('failed', $result->status);
-        $this->assertStringContainsString('backup.client_secret', $result->summary);
+        $this->assertStringContainsString('backup.remote_secret', $result->summary);
     }
 
     public function test_a_library_the_tenant_does_not_have_names_the_libraries_it_does(): void
@@ -387,7 +387,7 @@ class MsGraphTransportTest extends TestCase
     /**
      * The failure this whole slice was rebuilt around: a bare `404 Not Found`
      * on the token endpoint, which Entra never sends for a bad credential.
-     * Reporting it as "check backup.client_secret" sent an operator to rotate
+     * Reporting it as "check backup.remote_secret" sent an operator to rotate
      * a credential that had not even been read.
      */
     public function test_a_404_with_no_aadsts_code_is_not_blamed_on_the_client_secret(): void
@@ -400,7 +400,7 @@ class MsGraphTransportTest extends TestCase
         $this->assertSame('not-an-answer-from-microsoft', $entry['ctx']['cause']);
         $this->assertFalse($entry['ctx']['from_microsoft']);
         $this->assertSame('text/plain', $entry['ctx']['content_type'] ?? 'text/plain');
-        $this->assertStringNotContainsString('Check backup.client_secret', $result->summary);
+        $this->assertStringNotContainsString('Check backup.remote_secret', $result->summary);
         $this->assertStringContainsString('login.microsoftonline.com', $result->summary);
         $this->assertStringContainsString('tenant_id', $result->summary);
     }

@@ -104,9 +104,10 @@ class SecurityCheckService
         return (new BackupConfigCheck(
             $this->config->backupRecipientPublicKeys,
             $this->config->backupDsn,
-            $this->config->backupClientSecret,
+            $this->config->backupRemoteSecret,
             $this->config->backupClientSecretExpiresAt,
             $this->config->backupHeartbeatUrl,
+            $this->config->backupSecretFromDeprecatedKey,
         ))->findings();
     }
 

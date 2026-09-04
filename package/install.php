@@ -730,7 +730,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $backupDsn = trim($_POST['backup_dsn'] ?? '');
-            $clientSecret = trim($_POST['backup_client_secret'] ?? '');
+            $remoteSecret = trim($_POST['backup_remote_secret'] ?? '');
             $secretExpires = trim($_POST['backup_secret_expires_at'] ?? '');
             $backupHeartbeat = trim($_POST['backup_heartbeat_url'] ?? '');
 
@@ -792,26 +792,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // "keep what is there", and only an installation with no secret
                 // at all is refused. A DSN that cannot sign in produces a
                 // nightly failure naming Microsoft rather than this screen.
-                if ($clientSecret === '') {
-                    $clientSecret = (string) ($existingBackup['client_secret'] ?? '');
+                if ($remoteSecret === '') {
+                    // `client_secret` is the pre-#825 name and is still read, so
+                    // an installation upgraded rather than installed keeps its
+                    // stored credential instead of being told it has none.
+                    $remoteSecret = (string) ($existingBackup['remote_secret']
+                        ?? $existingBackup['client_secret']
+                        ?? '');
                 }
 
-                if ($clientSecret === '') {
-                    $error = 'A remote is configured but no client secret is stored. '
-                        . 'The secret is shown once by scripts/setup-msgraph-backup.ps1 and '
-                        . 'cannot be retrieved afterwards — mint a new one with -RotateSecretOnly.';
+                if ($remoteSecret === '') {
+                    $error = 'A remote is configured but no secret is stored. For msgraph:// the '
+                        . 'secret is shown once by scripts/setup-msgraph-backup.ps1 and cannot be '
+                        . 'retrieved afterwards — mint a new one with -RotateSecretOnly. For '
+                        . 'hidrive:// it is the backup user\'s own password.';
                     break;
                 }
             }
 
             try {
                 $writer = new ConfigWriter(INSTALLER_CONFIG_TEMPLATE);
+
+                // Saving this screen is where the pre-#825 key name is retired:
+                // its value was already read into $remoteSecret above, and
+                // merge() cannot clear a key by writing '' to it, so it is
+                // dropped here instead. Not a silent rewrite — the operator is
+                // saving this file right now.
+                $existingConfig = ConfigWriter::read($configFile);
+                unset($existingConfig['backup']['client_secret']);
+
                 $writer->writeTo($configTarget ?? $configFile, ConfigWriter::merge(
-                    ConfigWriter::read($configFile),
+                    $existingConfig,
                     ['backup' => [
                         'recipient_public_keys' => $recipientKeys,
                         'dsn' => $backupDsn,
-                        'client_secret' => $clientSecret,
+                        'remote_secret' => $remoteSecret,
                         'client_secret_expires_at' => $secretExpires,
                         'heartbeat_url' => $backupHeartbeat,
                     ]]
@@ -1947,12 +1962,12 @@ function renderStep6(bool $isUpdate, ?string $error = null, ?array $repost = nul
         <label for="backup_dsn">Backup DSN</label>
         <input type="text" id="backup_dsn" name="backup_dsn"
                value="<?= htmlspecialchars($dsnValue, ENT_QUOTES) ?>"
-               placeholder="msgraph://tenant/client@drive/driveid/clubbar">
+               placeholder="hidrive://user@webdav.hidrive.ionos.com/users/user/archives">
 
-        <label for="backup_client_secret">Client secret</label>
-        <input type="password" id="backup_client_secret" name="backup_client_secret"
+        <label for="backup_remote_secret">Remote secret</label>
+        <input type="password" id="backup_remote_secret" name="backup_remote_secret"
                autocomplete="new-password"
-               placeholder="<?= ($backup['client_secret'] ?? '') !== ''
+               placeholder="<?= ($backup['remote_secret'] ?? $backup['client_secret'] ?? '') !== ''
                    ? 'stored — leave blank to keep it'
                    : '' ?>">
         <p class="hint">

@@ -16,7 +16,7 @@ use RuntimeException;
  * believing its archives are off the host when they are not, which is the
  * belief ADR-0049 exists to destroy.
  *
- * Part of #691, epic #686.
+ * Part of #691 and #825, epic #686.
  */
 final class BackupDsnException extends RuntimeException
 {
@@ -24,6 +24,7 @@ final class BackupDsnException extends RuntimeException
     {
         return new self(sprintf(
             'backup.dsn is not a DSN: "%s". It must begin with a scheme, as in '
+            . 'hidrive://<user>@<host>/<absolute path> or '
             . 'msgraph://<tenant-id>/<client-id>@<site>/<library>/<folder>.',
             self::redact($dsn)
         ));
@@ -42,29 +43,35 @@ final class BackupDsnException extends RuntimeException
     /**
      * The roadmap schemes get their own message.
      *
-     * ADR-0049 names `s3://` (the option that closes the append-only gap
-     * properly) and `hidrive://` as the intended order. A club that read the
-     * ADR and configured one has not made a mistake — it is early — and telling
-     * it so is the difference between waiting for a release and hunting a typo.
+     * ADR-0049 names `s3://` — the option that closes the append-only gap
+     * properly rather than mitigating it — as the transport still unbuilt. A
+     * club that read the ADR and configured it has not made a mistake — it is
+     * early — and telling it so is the difference between waiting for a release
+     * and hunting a typo.
      */
     public static function notBuiltYet(string $scheme): self
     {
         return new self(sprintf(
             'backup.dsn uses "%s://", which ADR-0049 names as a planned transport but which is '
-            . 'not built yet. Only msgraph:// works today; leave backup.dsn empty until then and '
-            . 'archives stay on the webspace, with the periodic manual copy as the off-site one.',
+            . 'not built yet. hidrive:// and msgraph:// work today; leave backup.dsn empty until '
+            . 'then and archives stay on the webspace, with the periodic manual copy as the '
+            . 'off-site one.',
             $scheme
         ));
     }
 
-    public static function missingPart(string $part, string $dsn): self
+    /**
+     * @param string $shape the scheme's own documented shape — `MsGraphDsn::SHAPE`
+     *        or `HiDriveDsn::SHAPE`. Quoting the *other* scheme's shape at a club
+     *        is how "backup.dsn is invalid" stops being an edit of one word.
+     */
+    public static function missingPart(string $part, string $dsn, string $shape): self
     {
         return new self(sprintf(
-            'backup.dsn names no %s: "%s". The shape is '
-            . 'msgraph://<tenant-id>/<client-id>@<site>/<library>/<folder>, where the folder is '
-            . 'optional and everything else is not.',
+            'backup.dsn names no %s: "%s". The shape is %s.',
             $part,
-            self::redact($dsn)
+            self::redact($dsn),
+            $shape
         ));
     }
 
@@ -74,13 +81,13 @@ final class BackupDsnException extends RuntimeException
      * Refused rather than accepted, because a DSN is the value that gets pasted
      * into support threads, issue reports and screenshots. `mail.dsn` carries
      * its password for historical reasons; this one does not have to, so it
-     * does not — `backup.client_secret` is its own key.
+     * does not — `backup.remote_secret` is its own key.
      */
     public static function secretInDsn(): self
     {
         return new self(
-            'backup.dsn carries what looks like a password. Put the client secret in '
-            . 'backup.client_secret instead: a DSN gets pasted into support threads and '
+            'backup.dsn carries what looks like a password. Put the remote\'s secret in '
+            . 'backup.remote_secret instead: a DSN gets pasted into support threads and '
             . 'screenshots, and a credential that travels with it leaks by ordinary '
             . 'helpfulness rather than by attack.'
         );

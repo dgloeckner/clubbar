@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Backups\Transport;
 
-use App\Modules\Backups\Domain\BackupDsn;
+use App\Modules\Backups\Domain\MsGraphDsn;
 use App\Shared\Http\HttpClient;
 use App\Shared\Http\HttpResponse;
 use App\Shared\Logging\Logger;
@@ -100,7 +100,7 @@ final class MsGraphTransport implements BackupTransport
      *        test opens a socket would be worth little if every retry test took seven seconds
      */
     public function __construct(
-        private readonly BackupDsn $dsn,
+        private readonly MsGraphDsn $dsn,
         private readonly string $clientSecret,
         private readonly HttpClient $http,
         private readonly Logger $logger,
@@ -222,7 +222,7 @@ final class MsGraphTransport implements BackupTransport
     {
         $response = $this->send(
             'DELETE',
-            self::GRAPH . '/drives/' . $archive->driveId . '/items/' . $archive->id
+            self::GRAPH . '/drives/' . $archive->container . '/items/' . $archive->id
         );
 
         // 404 counts as gone: somebody deleting an archive by hand between the
@@ -503,7 +503,7 @@ final class MsGraphTransport implements BackupTransport
                 throw new BackupTransportException(
                     'The backup app\'s client secret has expired. Mint a new one '
                     . '(scripts/setup-msgraph-backup.ps1 -RotateSecretOnly), put it in '
-                    . 'backup.client_secret and update backup.client_secret_expires_at. Nothing has '
+                    . 'backup.remote_secret and update backup.client_secret_expires_at. Nothing has '
                     . 'been uploaded since it expired; the archives are still on the webspace.'
                 );
             }
@@ -561,8 +561,8 @@ final class MsGraphTransport implements BackupTransport
      * |---|---|---|
      * | `AADSTS90002`, `AADSTS900023` | The tenant does not exist, or is not spelled the way it is here | `backup.dsn`, tenant id |
      * | `AADSTS700016` | The tenant exists; no app registration in it has this client id. Usually a deleted registration, or a DSN pointing at the wrong tenant | `backup.dsn`, client id |
-     * | `AADSTS7000215` | The registration exists and the secret is not its secret | `backup.client_secret` |
-     * | `AADSTS7000222` | The secret was right and has expired — named on its own above, before this runs | `backup.client_secret` |
+     * | `AADSTS7000215` | The registration exists and the secret is not its secret | `backup.remote_secret` |
+     * | `AADSTS7000222` | The secret was right and has expired — named on its own above, before this runs | `backup.remote_secret` |
      * | `AADSTS7000112`, `AADSTS700027` | The registration is disabled or its credential was revoked in the tenant | the tenant, not this host |
      * | *no code at all* | Nothing that speaks Entra answered | the network between here and Microsoft |
      *
@@ -615,8 +615,8 @@ final class MsGraphTransport implements BackupTransport
             ],
             'AADSTS7000215' => [
                 'cause' => 'client-secret-wrong',
-                'check' => 'backup.client_secret',
-                'hint' => ' The app registration exists and the value in backup.client_secret is '
+                'check' => 'backup.remote_secret',
+                'hint' => ' The app registration exists and the value in backup.remote_secret is '
                     . 'not its secret. Mint a new one (scripts/setup-msgraph-backup.ps1 '
                     . '-RotateSecretOnly) — the value is shown exactly once and cannot be read '
                     . 'back afterwards, so a secret that was copied short is copied short forever.',
@@ -629,8 +629,8 @@ final class MsGraphTransport implements BackupTransport
             ],
             default => [
                 'cause' => $code === '' ? 'refused' : 'refused:' . $code,
-                'check' => 'backup.client_secret',
-                'hint' => ' Check backup.client_secret — a client secret expires (24 months at '
+                'check' => 'backup.remote_secret',
+                'hint' => ' Check backup.remote_secret — a client secret expires (24 months at '
                     . 'most), and an expired one looks exactly like a wrong one from here.',
             ],
         };

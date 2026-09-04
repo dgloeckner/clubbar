@@ -32,7 +32,7 @@ final class FakeHttpClient implements HttpClient
     /** @var list<HttpResponse> */
     private array $queued = [];
 
-    /** @var list<array{method: string, url: string, headers: array<string, string>, body: string}> */
+    /** @var list<array{method: string, url: string, headers: array<string, string>, body: string, file: ?string}> */
     private array $sent = [];
 
     /**
@@ -69,6 +69,7 @@ final class FakeHttpClient implements HttpClient
             'url' => $url,
             'headers' => $headers,
             'body' => $body,
+            'file' => null,
         ];
 
         return array_shift($this->queued) ?? new HttpResponse(
@@ -78,7 +79,38 @@ final class FakeHttpClient implements HttpClient
         );
     }
 
-    /** @return list<array{method: string, url: string, headers: array<string, string>, body: string}> */
+    /**
+     * A file upload, recorded with the path instead of the bytes.
+     *
+     * The path rather than the contents on purpose: an archive is megabytes of
+     * ciphertext, and a test asserting on it would be asserting that
+     * `file_get_contents()` works. What the contract actually is — which verb,
+     * which URL, which headers, *which file* — is all here, and the file's own
+     * size is what the transport's verification step reads back.
+     */
+    public function sendFile(
+        string $method,
+        string $url,
+        string $filePath,
+        array $headers = [],
+        int $timeoutSeconds = 30,
+    ): HttpResponse {
+        $this->sent[] = [
+            'method' => strtoupper($method),
+            'url' => $url,
+            'headers' => $headers,
+            'body' => '',
+            'file' => $filePath,
+        ];
+
+        return array_shift($this->queued) ?? new HttpResponse(
+            500,
+            'FakeHttpClient: the code under test made more requests than the test scripted. '
+            . 'Request ' . count($this->sent) . ' was ' . strtoupper($method) . ' ' . $url . '.'
+        );
+    }
+
+    /** @return list<array{method: string, url: string, headers: array<string, string>, body: string, file: ?string}> */
     public function requests(): array
     {
         return $this->sent;
@@ -89,7 +121,7 @@ final class FakeHttpClient implements HttpClient
         return count($this->sent);
     }
 
-    /** @return array{method: string, url: string, headers: array<string, string>, body: string} */
+    /** @return array{method: string, url: string, headers: array<string, string>, body: string, file: ?string} */
     public function request(int $index): array
     {
         return $this->sent[$index] ?? throw new \OutOfBoundsException(sprintf(

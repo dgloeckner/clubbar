@@ -658,16 +658,26 @@ the log of attempts, not a single backup.
 
 **A local archive is not an off-site backup.** It answers "undo a mistake an
 hour ago" and none of "the hosting account is gone". Set `backup.dsn` and the
-run pushes each finished archive to storage the club owns — today that is a
-SharePoint document library in the club's own Microsoft 365 tenant, provisioned
-by [`m365-backup-target.md`](./m365-backup-target.md) and
-[`scripts/setup-msgraph-backup.ps1`](../scripts/setup-msgraph-backup.ps1):
+run pushes each finished archive to storage the club owns. There are two
+destinations, and the choice is usually made for you by what the webspace can
+reach:
+
+- **`msgraph://`** — a SharePoint document library in the club's own Microsoft
+  365 tenant, provisioned by [`m365-backup-target.md`](./m365-backup-target.md)
+  and [`scripts/setup-msgraph-backup.ps1`](../scripts/setup-msgraph-backup.ps1).
+  The stronger option where it works: a separate vendor from the hosting.
+- **`hidrive://`** — an IONOS HiDrive folder over WebDAV, provisioned by
+  [`hidrive-backup-target.md`](./hidrive-backup-target.md). For hosts whose
+  egress address Microsoft's edge refuses outright, which is the reference
+  host's situation ([#825](https://github.com/dgloeckner/clubbar/issues/825)).
+  Same vendor as the hosting, so the manual copy below matters more, not less.
+
 
 ```php
 'backup' => [
     'recipient_public_keys'    => ['admin:…', 'vorstand:…'],
     'dsn'                      => 'msgraph://<tenant-id>/<client-id>@drive/<driveId>/clubbar',
-    'client_secret'            => '…',
+    'remote_secret'            => '…',
     'client_secret_expires_at' => '2027-08-25',
 ],
 ```

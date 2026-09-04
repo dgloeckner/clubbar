@@ -79,7 +79,7 @@ flowchart TB
 
     Mail[["Mail server (SMTP)"]]
     LocalArchive[("Local archive\n(backups/, encrypted)")]
-    RemoteArchive[["Remote storage (optional)\nmsgraph://"]]
+    RemoteArchive[["Remote storage (optional)\nmsgraph:// or hidrive://"]]
 
     Terminal <-->|"Sync API"| Backend
     Admin <-->|"REST API"| Backend

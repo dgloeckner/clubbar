@@ -148,6 +148,6 @@ class RemoteInventoryTest extends TestCase
     {
         // `createdAt()` is derived from the filename rather than stored — the
         // store's own timestamp disagrees exactly when it matters.
-        return new RemoteArchive(id: 'item-' . $name, name: $name, size: 2048, driveId: 'drive-1');
+        return new RemoteArchive(id: 'item-' . $name, name: $name, size: 2048, container: 'drive-1');
     }
 }

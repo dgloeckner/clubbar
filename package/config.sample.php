@@ -240,10 +240,26 @@ return [
 
         // The secret half of the DSN's credential, kept out of it for the same
         // reason the SMTP password is kept out of a URL that gets pasted into
-        // support threads.
+        // support threads. For msgraph:// it is the Entra client secret; for
+        // hidrive:// it is the backup user's own password.
+        //
+        // This was called `client_secret` before #825 and that name still
+        // works, so an existing config.php needs no edit. "Client secret" was
+        // Entra's vocabulary, and a WebDAV password is not a client secret.
+        'remote_secret' => '',
+
+        // DEPRECATED, and kept for one reason: an installation written before
+        // #825 has this key, ConfigWriter reads every key an existing
+        // config.php holds, and it refuses to write one the template does not
+        // have. Removing this line would make the installer unable to save on
+        // exactly the installations that need it. It is read as a fallback for
+        // `remote_secret`, and the installer moves the value across the next
+        // time that screen is saved. Leave it empty in a new install.
         'client_secret' => '',
 
-        // YYYY-MM-DD — when that secret stops working.
+        // YYYY-MM-DD — when that secret stops working. msgraph:// only; a
+        // HiDrive password does not expire, and the backup run asks for this
+        // date only for the scheme that has one.
         //
         // THE SINGLE MOST LIKELY CAUSE OF A SILENT BACKUP FAILURE. An Entra
         // client secret lasts at most 24 months, Entra warns nobody when one
