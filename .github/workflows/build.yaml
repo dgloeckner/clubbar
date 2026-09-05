@@ -268,10 +268,22 @@ jobs:
           tools: composer
           extensions: pdo_mysql, mbstring
 
+      # Composer's cache is at $XDG_CACHE_HOME/composer — ~/.cache/composer on
+      # the runner — and never at ~/.composer/cache, which this step used to
+      # name. actions/cache answered "Path Validation Error: Path(s) specified
+      # in the action for caching do(es) not exist, hence no cache is being
+      # saved" in the post-job section of every run, so the entry was never
+      # written and the restore then missed it every time: all 73 packages were
+      # downloaded from packagist on every build. Ask Composer where its cache
+      # is rather than encoding a second guess that can go stale the same way.
+      - name: Locate Composer's cache
+        id: composer-cache
+        run: echo "dir=$(composer config --global cache-files-dir)" >> "$GITHUB_OUTPUT"
+
       - name: Cache Composer packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.composer/cache
+          path: ${{ steps.composer-cache.outputs.dir }}
           key: composer-${{ hashFiles('backend/composer.lock') }}
           restore-keys: composer-
 
@@ -712,17 +724,50 @@ jobs:
       # libwoff, libmanette, fonts...) on every run, and the Azure mirror GH
       # runners pull from is what turned "Fetched 104 MB" into 13m40s on one
       # run and 39s an hour later on main — the .deb archive was never cached,
-      # only the browser binaries were (the cache above). This restores
-      # /var/cache/apt/archives so a hit lets apt skip the network fetch
-      # entirely and reuse the .debs already on disk. Same browser_key as
-      # above, for the same reason: chain shouldn't cold-populate its own
-      # copy of exactly what api already downloaded.
+      # only the browser binaries were (the cache above). Same browser_key as
+      # above, for the same reason: chain shouldn't cold-populate its own copy
+      # of exactly what api already downloaded.
+      #
+      # The cached directory is ~/apt-archives and NOT /var/cache/apt/archives,
+      # which this step used to name. apt's own cache holds a root-only
+      # `partial/` and a `lock`, and the post-job save runs tar as the runner
+      # user, so every run ended in "Cannot open: Permission denied" and
+      # "Failed to save" — a warning buried in the post-job section, while the
+      # restore said the honest thing at the top of the job ("Cache not found
+      # for input keys") on every run since the step was added. The entry was
+      # never written, so it could never be read, and the 104 MB was fetched
+      # every time. scripts/apt-archive-cache.sh moves the .debs between the
+      # runner-owned directory and apt's cache.
+      # The runner image identifies itself only in the job's own environment.
+      # `${{ env.ImageVersion }}` — the obvious spelling, and the one this key
+      # shipped with — expands to nothing there: the `env` context holds
+      # variables set by the workflow, job or step, not the image's own. The key
+      # became `apt-archives-<browsers>--<hash>`, with an empty segment where
+      # the rotation was meant to be, and rotated on nothing. Read it in a shell
+      # step, where the variable actually exists, and echo it so an empty stamp
+      # shows up in the log instead of collapsing the key in silence.
+      - name: Stamp the apt cache key with the runner image
+        id: runner-image
+        run: |
+          echo "runner image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+          echo "stamp=${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
       - name: Cache apt archives for Playwright system deps
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: /var/cache/apt/archives
-          key: apt-archives-${{ matrix.browser_key }}-${{ hashFiles('e2etests/package-lock.json') }}
+          path: ~/apt-archives
+          # The image stamp is what keeps the entry from decaying as Ubuntu
+          # ships new package versions: the browser key alone would pin one .deb
+          # set until e2etests/package-lock.json changed, and everything apt had
+          # since superseded would be re-fetched and never re-cached. A bumped
+          # runner image misses the primary key, restores the previous entry
+          # through the restore-key, and saves the refreshed set back — which is
+          # also why the script prunes on save.
+          key: apt-archives-${{ matrix.browser_key }}-${{ steps.runner-image.outputs.stamp }}-${{ hashFiles('e2etests/package-lock.json') }}
           restore-keys: apt-archives-${{ matrix.browser_key }}-
+
+      - name: Seed apt with the cached archives
+        run: scripts/apt-archive-cache.sh restore ~/apt-archives
 
       # Only the browsers this lane actually launches. `admin-mobile`
       # (`devices['iPhone 14']`) is the **only** project in CI that runs on
@@ -731,6 +776,9 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps ${{ matrix.browsers }}
         working-directory: e2etests
+
+      - name: Collect apt archives for the cache
+        run: scripts/apt-archive-cache.sh save ~/apt-archives
 
       - name: Run E2E tests
         # Every project is named explicitly, in one lane or another: these specs
@@ -822,12 +870,22 @@ jobs:
           cache: 'npm'
           cache-dependency-path: e2etests/package-lock.json
 
+      # Same path correction as build-backend above. The restore-keys fall back
+      # to that job's dev-inclusive entry, which is a superset of what
+      # `composer install --no-dev` needs, so this job stops cold-populating a
+      # cache of its own on the first run after a lock change.
+      - name: Locate Composer's cache
+        id: composer-cache
+        run: echo "dir=$(composer config --global cache-files-dir)" >> "$GITHUB_OUTPUT"
+
       - name: Cache Composer packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.composer/cache
+          path: ${{ steps.composer-cache.outputs.dir }}
           key: composer-no-dev-${{ hashFiles('backend/composer.lock') }}
-          restore-keys: composer-no-dev-
+          restore-keys: |
+            composer-no-dev-
+            composer-
 
       - name: Download admin frontend build
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -897,16 +955,38 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ hashFiles('e2etests/package-lock.json') }}
 
+      # The runner image identifies itself only in the job's own environment.
+      # `${{ env.ImageVersion }}` — the obvious spelling, and the one this key
+      # shipped with — expands to nothing there: the `env` context holds
+      # variables set by the workflow, job or step, not the image's own. The key
+      # became `apt-archives-<browsers>--<hash>`, with an empty segment where
+      # the rotation was meant to be, and rotated on nothing. Read it in a shell
+      # step, where the variable actually exists, and echo it so an empty stamp
+      # shows up in the log instead of collapsing the key in silence.
+      - name: Stamp the apt cache key with the runner image
+        id: runner-image
+        run: |
+          echo "runner image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+          echo "stamp=${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+      # Same directory swap as the E2E job above, and for the same reason:
+      # actions/cache cannot save /var/cache/apt/archives as the runner user.
       - name: Cache apt archives for Playwright system deps
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: /var/cache/apt/archives
-          key: apt-archives-chromium-${{ hashFiles('e2etests/package-lock.json') }}
+          path: ~/apt-archives
+          key: apt-archives-chromium-${{ steps.runner-image.outputs.stamp }}-${{ hashFiles('e2etests/package-lock.json') }}
           restore-keys: apt-archives-chromium-
+
+      - name: Seed apt with the cached archives
+        run: scripts/apt-archive-cache.sh restore ~/apt-archives
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
         working-directory: e2etests
+
+      - name: Collect apt archives for the cache
+        run: scripts/apt-archive-cache.sh save ~/apt-archives
 
       - name: Run package smoke tests
         run: npx playwright test --project=package-tests --workers=1
@@ -1020,6 +1100,43 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Same mechanism as the Playwright lanes: the .debs live in a
+      # runner-owned directory because actions/cache cannot save
+      # /var/cache/apt/archives as the runner user. The saving here is far
+      # smaller — this step measured 21s and 22s on two consecutive runs, and
+      # part of that is the `apt-get update` no cache of .debs can avoid. It
+      # earns its place on the tail rather than the mean: this is the same
+      # Azure mirror whose bad day turned the E2E job's 104 MB fetch into
+      # 13m40, and the gtk/gstreamer/clang toolchain is the biggest apt
+      # download left in the pipeline.
+      - name: Stamp the apt cache key with the runner image
+        id: runner-image
+        run: |
+          echo "runner image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+          echo "stamp=${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache apt archives for the Linux toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          # `runner.arch` is not decoration: this is the only job on
+          # ubuntu-24.04-arm, so its archives are `_arm64.deb` and must never
+          # be restored into an amd64 job. Naming the architecture makes a
+          # future `runs-on` change fail to match rather than quietly seed apt
+          # with packages for the wrong machine.
+          #
+          # The workflow file's own hash stands in for the package list, which
+          # is written inline in the step below and has no file of its own to
+          # hash. It over-invalidates — any edit anywhere in build.yaml rotates
+          # the key — but the restore-keys prefix means that costs one re-save,
+          # never a re-download, and the alternative is a newly added package
+          # that is fetched on every run and never cached.
+          key: apt-archives-terminal-${{ runner.arch }}-${{ steps.runner-image.outputs.stamp }}-${{ hashFiles('.github/workflows/build.yaml') }}
+          restore-keys: apt-archives-terminal-${{ runner.arch }}-
+
+      - name: Seed apt with the cached archives
+        run: scripts/apt-archive-cache.sh restore ~/apt-archives
+
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
@@ -1028,6 +1145,9 @@ jobs:
             libgtk-3-dev liblzma-dev libstdc++-12-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             xvfb
+
+      - name: Collect apt archives for the cache
+        run: scripts/apt-archive-cache.sh save ~/apt-archives
 
       - name: Cache Flutter SDK
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
