@@ -1100,6 +1100,43 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Same mechanism as the Playwright lanes: the .debs live in a
+      # runner-owned directory because actions/cache cannot save
+      # /var/cache/apt/archives as the runner user. The saving here is far
+      # smaller — this step measured 21s and 22s on two consecutive runs, and
+      # part of that is the `apt-get update` no cache of .debs can avoid. It
+      # earns its place on the tail rather than the mean: this is the same
+      # Azure mirror whose bad day turned the E2E job's 104 MB fetch into
+      # 13m40, and the gtk/gstreamer/clang toolchain is the biggest apt
+      # download left in the pipeline.
+      - name: Stamp the apt cache key with the runner image
+        id: runner-image
+        run: |
+          echo "runner image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+          echo "stamp=${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache apt archives for the Linux toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          # `runner.arch` is not decoration: this is the only job on
+          # ubuntu-24.04-arm, so its archives are `_arm64.deb` and must never
+          # be restored into an amd64 job. Naming the architecture makes a
+          # future `runs-on` change fail to match rather than quietly seed apt
+          # with packages for the wrong machine.
+          #
+          # The workflow file's own hash stands in for the package list, which
+          # is written inline in the step below and has no file of its own to
+          # hash. It over-invalidates — any edit anywhere in build.yaml rotates
+          # the key — but the restore-keys prefix means that costs one re-save,
+          # never a re-download, and the alternative is a newly added package
+          # that is fetched on every run and never cached.
+          key: apt-archives-terminal-${{ runner.arch }}-${{ steps.runner-image.outputs.stamp }}-${{ hashFiles('.github/workflows/build.yaml') }}
+          restore-keys: apt-archives-terminal-${{ runner.arch }}-
+
+      - name: Seed apt with the cached archives
+        run: scripts/apt-archive-cache.sh restore ~/apt-archives
+
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
@@ -1108,6 +1145,9 @@ jobs:
             libgtk-3-dev liblzma-dev libstdc++-12-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             xvfb
+
+      - name: Collect apt archives for the cache
+        run: scripts/apt-archive-cache.sh save ~/apt-archives
 
       - name: Cache Flutter SDK
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
