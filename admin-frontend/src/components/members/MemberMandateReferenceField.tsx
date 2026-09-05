@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { useClipboardCopy } from '../../hooks/useClipboardCopy'
 import { StoredFieldAction, StoredFieldBox } from './StoredFieldBox'
+import { FieldInfo } from '../forms/FieldInfo'
 
 export type MandateReferenceMode = 'assigned' | 'auto' | 'entry'
 
@@ -69,17 +70,17 @@ export function MemberMandateReferenceField({
         }}
       >
         {t('members.mandateReference')}
-        {mode !== 'assigned' && (
-          <span
-            style={{
-              color: theme.colors.text.secondary,
-              marginLeft: theme.spacing.xs,
-              fontWeight: 400,
-            }}
-          >
-            ({t('common.sepa')}, {t('common.optional')})
-          </span>
-        )}
+        {/* "(SEPA, optional)" repeated what the section divider above already
+            says, on a field whose real question — why it is usually left blank —
+            it never answered. That answer is behind the icon now (#830). */}
+        <FieldInfo
+          content={
+            mode === 'assigned'
+              ? t('members.mandateReferenceAssignedNote')
+              : t('members.mandateReferenceHint')
+          }
+          testId="members-form-mandate-reference-info"
+        />
       </label>
 
       {mode === 'assigned' && assignedReference && (
@@ -113,19 +114,17 @@ export function MemberMandateReferenceField({
               </button>
             </>
           }
+          // "Erscheint als Mandatsreferenz auf dem Kontoauszug" moved into the
+          // label's info popover: it is background, and background does not
+          // need a permanent line of its own beside the value (#830).
           actions={
-            <>
-              <span data-testid="members-form-mandate-reference-note">
-                {t('members.mandateReferenceAssignedNote')}
-              </span>
-              <StoredFieldAction
-                testId="members-form-mandate-reference-change"
-                tone="primary"
-                onClick={onBeginEntry}
-              >
-                {t('members.mandateReferenceChange')}
-              </StoredFieldAction>
-            </>
+            <StoredFieldAction
+              testId="members-form-mandate-reference-change"
+              tone="primary"
+              onClick={onBeginEntry}
+            >
+              {t('members.mandateReferenceChange')}
+            </StoredFieldAction>
           }
         />
       )}

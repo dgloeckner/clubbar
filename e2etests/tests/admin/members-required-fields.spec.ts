@@ -2,7 +2,8 @@ import { test, expect } from '../../fixtures/pageObjects'
 import { createMemberViaPage } from '../../utils/members'
 
 /**
- * Mandatory data, made visible (#629).
+ * Mandatory data, made visible (#629), through the status strip that replaced
+ * the requirements panel (#830).
  *
  * Three things the member form and the roster could not previously say:
  *
@@ -28,10 +29,11 @@ test.describe('Member form: mandatory fields are visible (#629)', () => {
     await authenticatedMembersPage.expectFormModalVisible()
 
     // ── The summary opens counting, not complaining ─────────────────────
-    // The language selector always carries a value, so a blank form starts
-    // at one of five rather than zero.
+    // The language selector always carries a value, so a blank form is four
+    // short of five rather than five.
     expect(await authenticatedMembersPage.getRequirementsPanelState()).toBe('incomplete')
-    expect(await authenticatedMembersPage.getRequirementsProgressText()).toContain('1')
+    expect(await authenticatedMembersPage.getRequiredSummaryTone()).toBe('warning')
+    expect(await authenticatedMembersPage.getRequiredSummaryText()).toContain('4')
 
     // Each required field carries an "open" marker; the optional ones do not.
     for (const field of ['first-name', 'last-name', 'email', 'dob']) {
@@ -67,11 +69,14 @@ test.describe('Member form: mandatory fields are visible (#629)', () => {
       'de',
     )
 
+    // A satisfied required field carries no marker at all since #830 — green
+    // is the outcome in the strip, not a tick on every label.
     for (const field of ['first-name', 'last-name', 'email', 'dob']) {
-      expect(await authenticatedMembersPage.getRequirementMarkerState(field)).toBe('satisfied')
+      expect(await authenticatedMembersPage.getRequirementMarkerState(field)).toBeNull()
     }
     await authenticatedMembersPage.expectMissingFieldNotListed('email')
     expect(await authenticatedMembersPage.getRequirementsPanelState()).toBe('complete')
+    expect(await authenticatedMembersPage.getRequiredSummaryTone()).toBe('success')
 
     // ── And the create goes through, end to end ─────────────────────────
     await authenticatedMembersPage.submitForm()
@@ -161,6 +166,7 @@ test.describe('Member form: mandatory fields are visible (#629)', () => {
 
     await authenticatedMembersPage.clearFirstName()
     expect(await authenticatedMembersPage.getRequirementMarkerState('first-name')).toBe('open')
+    expect(await authenticatedMembersPage.getRequiredSummaryText()).toContain('1')
 
     await authenticatedMembersPage.submitForm()
     await authenticatedMembersPage.expectFormModalVisible()

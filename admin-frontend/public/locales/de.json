@@ -76,7 +76,10 @@
     "filters": "Filter",
     "retry": "Erneut versuchen",
     "mandatory": "Pflicht",
-    "requiredForSepa": "erforderlich für SEPA-Einzug"
+    "requiredForSepa": "erforderlich für SEPA-Einzug",
+    "forTerminal": "für Terminal",
+    "forSepa": "für SEPA",
+    "moreInfo": "Mehr erfahren"
   },
   "auth": {
     "email": "E-Mail",
@@ -221,7 +224,9 @@
     "invalidFormat": "Kein gültiges Datum – bitte im Format {{format}} eingeben",
     "outOfRange": "Datum liegt außerhalb des zulässigen Zeitraums",
     "age_one": "{{count}} Jahr alt",
-    "age_other": "{{count}} Jahre alt"
+    "age_other": "{{count}} Jahre alt",
+    "ageShort_one": "{{count}} Jahr",
+    "ageShort_other": "{{count}} Jahre"
   },
   "members": {
     "title": "Mitglieder",
@@ -339,6 +344,7 @@
     "removeStoredIban": "Bankdaten entfernen",
     "storedIbanWillBeRemoved": "Bankdaten werden beim Speichern entfernt, das Mandat wird widerrufen.",
     "ibanStoredLabel": "verschlüsselt gespeichert",
+    "ibanEncryptedLabel": "verschlüsselt",
     "ibanChange": "Ändern",
     "ibanReplaces": "ersetzt {{masked}}",
     "ibanCancelChange": "Abbrechen — {{masked}} bleibt gespeichert",
@@ -393,7 +399,50 @@
     "creditLimitInheritedPlaceholder": "Vereinsstandard: {{amount}}",
     "creditLimitInheritedHelper": "Leer: Es gilt der Vereinsstandard von {{amount}} — wird dieser geändert, gilt das auch für dieses Mitglied.",
     "creditLimitZeroHelper": "0 bedeutet: kein Limit für dieses Mitglied. Das Terminal lehnt keine Buchung wegen des Deckels ab.",
-    "creditLimitHelper": "Höchststand des Deckels für dieses Mitglied. Leer lassen für den Vereinsstandard; 0 bedeutet kein Limit."
+    "creditLimitHelper": "Höchststand des Deckels für dieses Mitglied. Leer lassen für den Vereinsstandard; 0 bedeutet kein Limit.",
+    "status": {
+      "caption": "Nutzung der Clubbar",
+      "sepaSection": "SEPA-Lastschrift",
+      "noChanges": "Keine Änderungen",
+      "changedFields_one": "1 Feld geändert",
+      "changedFields_other": "{{count}} Felder geändert",
+      "terminal": {
+        "title": "Terminal",
+        "titleShort": "Terminal",
+        "full": "Buchen möglich, alle Produkte",
+        "ageLimited": "Nur Produkte ohne Altersgrenze",
+        "noAccess": "Kein Zugang",
+        "willGainAccess": "Buchen möglich, sobald gespeichert",
+        "willLoseAccess": "Kein Zugang mehr, sobald gespeichert"
+      },
+      "sepa": {
+        "title": "SEPA-Einzug",
+        "titleShort": "SEPA",
+        "valid": "Mandat gültig seit {{date}}",
+        "willBecomeValid": "Wird gültig, sobald gespeichert",
+        "willBecomeInvalid": "Wird ungültig, sobald gespeichert",
+        "missing": "Kein Einzug"
+      },
+      "reachable": {
+        "title": "Erreichbar",
+        "titleShort": "E-Mail",
+        "yes": "E-Mail-Versand möglich",
+        "willBecome": "Wird erreichbar, sobald gespeichert",
+        "willLose": "Keine Post mehr, sobald gespeichert",
+        "no": "Keine Post"
+      },
+      "required": {
+        "complete": "Alle Pflichtangaben vorhanden",
+        "completeShort": "Pflichtangaben vollständig",
+        "missing_one": "1 Pflichtangabe fehlt",
+        "missing_other": "{{count}} Pflichtangaben fehlen",
+        "blocked_one": "Speichern nicht möglich · 1 Pflichtangabe fehlt",
+        "blocked_other": "Speichern nicht möglich · {{count}} Pflichtangaben fehlen",
+        "clearing_one": "1 gespeicherter Wert wird gelöscht",
+        "clearing_other": "{{count}} gespeicherte Werte werden gelöscht"
+      }
+    },
+    "exportData": "Daten exportieren"
   },
   "products": {
     "title": "Produkte",

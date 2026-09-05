@@ -64,6 +64,7 @@ export class MembersPage extends BasePage {
   // German or English.
   private readonly dateOfBirthValue = () => this.page.getByTestId('members-form-dob-input-value')
   private readonly dateOfBirthHint = () => this.page.getByTestId('members-form-dob-input-hint')
+  private readonly dateOfBirthAge = () => this.page.getByTestId('members-form-dob-input-age')
   private readonly dateOfBirthCalendarButton = () => this.page.getByTestId('members-form-dob-input-open-calendar')
   private readonly dateOfBirthCalendar = () => this.page.getByTestId('members-form-dob-input-calendar')
   private readonly mandateDateInput = () => this.page.getByTestId('members-form-mandate-date-input')
@@ -109,10 +110,13 @@ export class MembersPage extends BasePage {
   // Filter controls
   private readonly clearFiltersBtn = () => this.page.getByTestId('members-clear-filters')
 
-  // Requirement markers and the form's requirement summary (#629)
-  private readonly requirementsPanel = () => this.page.getByTestId('members-form-requirements')
-  private readonly requirementsProgress = () => this.page.getByTestId('members-form-requirements-progress')
-  private readonly requirementsClearing = () => this.page.getByTestId('members-form-requirements-clearing')
+  // The form's status strip and its required-fields summary (#629, #830)
+  private readonly statusStrip = () => this.page.getByTestId('members-form-status')
+  private readonly statusRequired = () => this.page.getByTestId('members-form-status-required')
+  private readonly statusRequiredText = () => this.page.getByTestId('members-form-status-required-text')
+  private readonly formFooter = () => this.page.getByTestId('members-form-footer')
+  private readonly submitButton = () => this.page.getByTestId('members-form-submit-button')
+  private readonly formBody = () => this.page.getByTestId('members-form-body')
 
   // Datenqualität panel on the roster (#629)
   private readonly dataQualityPanel = () => this.page.getByTestId('members-data-quality')
@@ -345,9 +349,20 @@ export class MembersPage extends BasePage {
     return (await this.creditLimitInput().getAttribute('placeholder')) ?? ''
   }
 
-  /** The helper line, which says which of the three states the field is in. */
+  /**
+   * The helper line under the credit limit.
+   *
+   * Since #830 it appears **only** for a typed `0` — the state that looks like
+   * an ordinary number and means the opposite of one (ADR-0047). The empty
+   * state says what it means through the placeholder, and the long explanation
+   * is behind the label's info icon.
+   */
   async getCreditLimitHelperText(): Promise<string> {
     return (await this.creditLimitHelper().textContent()) ?? ''
+  }
+
+  async expectCreditLimitHelperHidden() {
+    await expect(this.creditLimitHelper()).toHaveCount(0)
   }
 
   /**
@@ -406,9 +421,20 @@ export class MembersPage extends BasePage {
     return (await this.dateOfBirthInput().inputValue()) || ''
   }
 
-  /** The line under the field: the format hint, the age, or the error. */
+  /** The line under the field — only ever an error since #830. */
   async getDateOfBirthHint(): Promise<string> {
     return (await this.dateOfBirthHint().textContent())?.trim() ?? ''
+  }
+
+  /**
+   * The age, which rides inside the field beside the calendar button (#830).
+   *
+   * It moved off the line below to save a line of dialog height — a
+   * restatement of the value already in the box is a lot to pay a whole row
+   * for, in a dialog whose Speichern button was below the fold.
+   */
+  async getDateOfBirthAge(): Promise<string> {
+    return (await this.dateOfBirthAge().textContent())?.trim() ?? ''
   }
 
   /** Type into the date of birth field as a person would, without the picker. */
@@ -727,24 +753,62 @@ export class MembersPage extends BasePage {
     await expect(this.page.getByTestId(`members-table-cell-data-complete-${memberId}`)).toBeVisible()
   }
 
-  // ── Form requirement markers (#629) ────────────────────────────────────
+  // ── Form field markers and the status strip (#629, #830) ───────────────
 
   /**
    * A field's requirement marker state: `open` (required, still empty),
-   * `satisfied` (required, filled), `conditional` (names a capability) or
-   * `optional`.
+   * `conditional` (a quiet note naming a capability) or `optional`.
+   *
+   * `null` where the field carries no marker at all, which since #830 is what
+   * a *satisfied* required field looks like: green is the outcome in the
+   * strip, not a tick on every label.
    */
   async getRequirementMarkerState(field: string): Promise<string | null> {
-    return this.page.getByTestId(`members-form-${field}-label-marker`).getAttribute('data-state')
+    const marker = this.page.getByTestId(`members-form-${field}-label-marker`)
+    if ((await marker.count()) === 0) return null
+    return marker.getAttribute('data-state')
   }
 
-  async getRequirementsProgressText(): Promise<string> {
-    return (await this.requirementsProgress().textContent()) || ''
+  /** The right-hand end of the strip's caption row: what still stops the save. */
+  async getRequiredSummaryText(): Promise<string> {
+    return (await this.statusRequiredText().textContent()) || ''
+  }
+
+  /** `success`, `warning` or `danger` — the summary's tone. */
+  async getRequiredSummaryTone(): Promise<string | null> {
+    return this.statusRequired().getAttribute('data-tone')
   }
 
   /** `incomplete`, `complete`, or `blocked` once a submit has been refused. */
   async getRequirementsPanelState(): Promise<string | null> {
-    return this.requirementsPanel().getAttribute('data-state')
+    return this.statusStrip().getAttribute('data-state')
+  }
+
+  /**
+   * One tile's tone: `ok`, `partial`, `gap`, `pending` or `losing` (#830).
+   *
+   * This is the assertion that matters most about the strip — it is the whole
+   * reason the tile previews the save instead of reporting the load.
+   */
+  async getStatusTileTone(tile: 'terminal' | 'sepa' | 'reachable'): Promise<string | null> {
+    return this.page.getByTestId(`members-form-status-tile-${tile}`).getAttribute('data-tone')
+  }
+
+  async getStatusTileText(tile: 'terminal' | 'sepa' | 'reachable'): Promise<string> {
+    return (await this.page.getByTestId(`members-form-status-tile-${tile}-message`).textContent()) || ''
+  }
+
+  /** The link inside a tile that takes you to the field that would close the gap. */
+  async jumpToStatusGap(field: string) {
+    await this.page.getByTestId(`members-form-status-gap-${field}`).click()
+  }
+
+  async expectStatusGapListed(field: string) {
+    await expect(this.page.getByTestId(`members-form-status-gap-${field}`)).toBeVisible()
+  }
+
+  async expectStatusGapNotListed(field: string) {
+    await expect(this.page.getByTestId(`members-form-status-gap-${field}`)).toHaveCount(0)
   }
 
   /** The summary's chip for a still-missing field; clicking it focuses the field. */
@@ -757,7 +821,53 @@ export class MembersPage extends BasePage {
   }
 
   async expectMissingFieldNotListed(field: string) {
-    await expect(this.page.getByTestId(`members-form-requirements-missing-${field}`)).not.toBeVisible()
+    await expect(this.page.getByTestId(`members-form-requirements-missing-${field}`)).toHaveCount(0)
+  }
+
+  // ── The dialog's three bands (#830) ────────────────────────────────────
+
+  /**
+   * That *Speichern* is reachable without scrolling the form.
+   *
+   * `toBeInViewport` rather than `toBeVisible`: the old dialog's button was
+   * "visible" by every DOM measure and 800px below the fold, which is the bug
+   * the sticky footer exists to fix.
+   */
+  async expectSubmitButtonInViewport() {
+    await expect(this.submitButton()).toBeInViewport()
+  }
+
+  async expectFooterVisible() {
+    await expect(this.formFooter()).toBeVisible()
+  }
+
+  /** Scrolls the form body to the bottom, as a phone would. */
+  async scrollFormToBottom() {
+    await this.formBody().evaluate((element) => {
+      element.scrollTop = element.scrollHeight
+    })
+  }
+
+  /** The compact line the pinned mobile header shows once the strip is gone. */
+  async expectMobileStatusSummaryVisible() {
+    await expect(this.page.getByTestId('members-form-status-summary')).toBeVisible()
+  }
+
+  async expectMobileStatusSummaryHidden() {
+    await expect(this.page.getByTestId('members-form-status-summary')).toHaveCount(0)
+  }
+
+  /** "Keine Änderungen" / "n Felder geändert" beside Speichern. */
+  async getChangeCountText(): Promise<string> {
+    return (await this.page.getByTestId('members-form-change-count').textContent()) || ''
+  }
+
+  /** Opens a field's info popover and reads it — the helper text moved here (#830). */
+  async openFieldInfo(field: string): Promise<string> {
+    await this.page.getByTestId(`members-form-${field}-label-info`).click()
+    const content = this.page.getByTestId(`members-form-${field}-label-info-content`)
+    await expect(content).toBeVisible()
+    return (await content.textContent()) || ''
   }
 
   /** Empties a required field, to prove an edit cannot silently blank it. */
@@ -780,8 +890,16 @@ export class MembersPage extends BasePage {
     await expect(this.page.getByTestId(`members-form-${field}-error`)).toBeVisible()
   }
 
+  /**
+   * That the strip's summary reports the pending deletion (#131).
+   *
+   * It shares the one slot with the required-fields count, and a refusal
+   * outranks it — the deletion cannot happen until the refusal is cleared —
+   * so this is only asserted on a form whose required fields are all present.
+   */
   async expectClearingSummaryVisible() {
-    await expect(this.requirementsClearing()).toBeVisible()
+    await expect(this.statusRequired()).toHaveAttribute('data-tone', 'warning')
+    await expect(this.statusRequiredText()).toContainText(/1|gel|delet/i)
   }
 
   // ── "will be deleted on save" notices (#629) ───────────────────────────
@@ -882,15 +1000,6 @@ export class MembersPage extends BasePage {
 
   async expectIbanRemovalPendingHidden() {
     await expect(this.ibanRemovalPending()).toBeHidden()
-  }
-
-  /**
-   * The SEPA banner at the top of the form. It previews what *this submit*
-   * would do, so it moves with the pending removal or a newly typed IBAN
-   * rather than reporting the state as it was loaded (#392).
-   */
-  async expectSepaStatusContains(text: string) {
-    await expect(this.page.getByTestId('members-form-sepa-status')).toContainText(text)
   }
 
   /** Reveal the IBAN input for a member whose account is already on file. */
