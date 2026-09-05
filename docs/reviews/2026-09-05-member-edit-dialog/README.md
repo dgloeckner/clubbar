@@ -7,8 +7,8 @@ a sticky footer so *Speichern* is never out of view.
 
 The editable canvas lives at
 <https://claude.ai/code/artifact/c27ac99d-acf5-4f4a-8a75-6cd35ccb7157>; the
-PNGs here are exports of its artboards, kept so the GitHub issue that tracks the
-work can show them.
+PNGs here are exports of its artboards, kept so the tracking issue
+<https://github.com/dgloeckner/clubbar/issues/830> can show them.
 
 | File | Artboard |
 |------|----------|
