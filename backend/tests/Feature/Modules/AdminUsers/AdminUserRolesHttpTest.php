@@ -55,6 +55,16 @@ class AdminUserRolesHttpTest extends HttpTestCase
 
     protected function tearDown(): void
     {
+        // A refused step-up is counted: `StepUpAuthService` writes a
+        // `login_attempts` row against this test's address. Nothing else here
+        // touches that table, so it used to outlive the run — and the address
+        // is drawn from the same two-hundred-wide documentation block every
+        // other Feature class that varies a source IP draws from. A stranger's
+        // row surviving at a colliding address is what broke
+        // `CronScriptTest::test_a_run_prunes_stale_auth_attempts`. Clean up
+        // what this class caused, on the dimension it caused it on.
+        $this->db->prepare('DELETE FROM login_attempts WHERE ip_address = ?')->execute([$this->clientIp]);
+
         foreach ($this->createdAdmins as $id) {
             $this->db->prepare('DELETE FROM audit_log WHERE entity_id = ? OR admin_user_id = ?')->execute([$id, $id]);
             $this->db->prepare('DELETE FROM admin_users WHERE id = ?')->execute([$id]);

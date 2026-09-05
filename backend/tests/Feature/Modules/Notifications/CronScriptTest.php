@@ -142,17 +142,33 @@ class CronScriptTest extends DatabaseTestCase
     public function test_a_run_prunes_stale_auth_attempts(): void
     {
         $ip = $this->authAttemptIp();
-        $this->insertLoginAttempt($ip, strtotime('-2 days'));
+        $staleLoginId = $this->insertLoginAttempt($ip, strtotime('-2 days'));
         $liveLoginId = $this->insertLoginAttempt($ip, strtotime('-1 hour'));
-        $this->insertTerminalAuthAttempt($ip, strtotime('-2 days'));
+        $staleTerminalId = $this->insertTerminalAuthAttempt($ip, strtotime('-2 days'));
         $liveTerminalId = $this->insertTerminalAuthAttempt($ip, strtotime('-1 hour'));
 
         $result = $this->runCron();
 
         $this->assertSame(0, $result['exit'], $result['output']);
-        $this->assertStringContainsString('Pruned auth attempts: 1 login, 1 terminal.', $result['output']);
-        $this->assertSame([$liveLoginId], $this->remainingLoginAttemptIds($ip));
-        $this->assertSame([$liveTerminalId], $this->remainingTerminalAuthAttemptIds($ip));
+
+        // The prune is database-wide, and the address is one of two hundred
+        // shared with every other Feature class that varies a source IP — so
+        // both the number in the line and the set of rows at this address
+        // belong to the run, not to this test. Assert on the four rows this
+        // test planted; a stranger's row at the same address is not a
+        // regression, and asserting the whole set made it read as one.
+        $this->assertMatchesRegularExpression(
+            '/Pruned auth attempts: [1-9]\d* login, [1-9]\d* terminal\./',
+            $result['output'],
+        );
+
+        $remainingLogin = $this->remainingLoginAttemptIds($ip);
+        $this->assertNotContains($staleLoginId, $remainingLogin, 'the day-old login attempt survived the prune');
+        $this->assertContains($liveLoginId, $remainingLogin, 'a login attempt inside the window was pruned');
+
+        $remainingTerminal = $this->remainingTerminalAuthAttemptIds($ip);
+        $this->assertNotContains($staleTerminalId, $remainingTerminal, 'the day-old terminal attempt survived the prune');
+        $this->assertContains($liveTerminalId, $remainingTerminal, 'a terminal attempt inside the window was pruned');
     }
 
     private function authAttemptIp(): string
