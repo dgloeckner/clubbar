@@ -738,19 +738,32 @@ jobs:
       # never written, so it could never be read, and the 104 MB was fetched
       # every time. scripts/apt-archive-cache.sh moves the .debs between the
       # runner-owned directory and apt's cache.
+      # The runner image identifies itself only in the job's own environment.
+      # `${{ env.ImageVersion }}` — the obvious spelling, and the one this key
+      # shipped with — expands to nothing there: the `env` context holds
+      # variables set by the workflow, job or step, not the image's own. The key
+      # became `apt-archives-<browsers>--<hash>`, with an empty segment where
+      # the rotation was meant to be, and rotated on nothing. Read it in a shell
+      # step, where the variable actually exists, and echo it so an empty stamp
+      # shows up in the log instead of collapsing the key in silence.
+      - name: Stamp the apt cache key with the runner image
+        id: runner-image
+        run: |
+          echo "runner image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+          echo "stamp=${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
       - name: Cache apt archives for Playwright system deps
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/apt-archives
-          # ImageVersion is what keeps the entry from decaying as Ubuntu ships
-          # new package versions: the browser key alone would pin one .deb set
-          # until e2etests/package-lock.json changed, and everything apt had
+          # The image stamp is what keeps the entry from decaying as Ubuntu
+          # ships new package versions: the browser key alone would pin one .deb
+          # set until e2etests/package-lock.json changed, and everything apt had
           # since superseded would be re-fetched and never re-cached. A bumped
           # runner image misses the primary key, restores the previous entry
-          # through the restore-key, and saves the refreshed set back. (Should
-          # the runner ever stop exporting it the segment is simply empty: the
-          # key stops rotating, which is a stale cache, not a broken one.)
-          key: apt-archives-${{ matrix.browser_key }}-${{ env.ImageVersion }}-${{ hashFiles('e2etests/package-lock.json') }}
+          # through the restore-key, and saves the refreshed set back — which is
+          # also why the script prunes on save.
+          key: apt-archives-${{ matrix.browser_key }}-${{ steps.runner-image.outputs.stamp }}-${{ hashFiles('e2etests/package-lock.json') }}
           restore-keys: apt-archives-${{ matrix.browser_key }}-
 
       - name: Seed apt with the cached archives
@@ -942,13 +955,27 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ hashFiles('e2etests/package-lock.json') }}
 
+      # The runner image identifies itself only in the job's own environment.
+      # `${{ env.ImageVersion }}` — the obvious spelling, and the one this key
+      # shipped with — expands to nothing there: the `env` context holds
+      # variables set by the workflow, job or step, not the image's own. The key
+      # became `apt-archives-<browsers>--<hash>`, with an empty segment where
+      # the rotation was meant to be, and rotated on nothing. Read it in a shell
+      # step, where the variable actually exists, and echo it so an empty stamp
+      # shows up in the log instead of collapsing the key in silence.
+      - name: Stamp the apt cache key with the runner image
+        id: runner-image
+        run: |
+          echo "runner image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+          echo "stamp=${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
       # Same directory swap as the E2E job above, and for the same reason:
       # actions/cache cannot save /var/cache/apt/archives as the runner user.
       - name: Cache apt archives for Playwright system deps
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/apt-archives
-          key: apt-archives-chromium-${{ env.ImageVersion }}-${{ hashFiles('e2etests/package-lock.json') }}
+          key: apt-archives-chromium-${{ steps.runner-image.outputs.stamp }}-${{ hashFiles('e2etests/package-lock.json') }}
           restore-keys: apt-archives-chromium-
 
       - name: Seed apt with the cached archives
