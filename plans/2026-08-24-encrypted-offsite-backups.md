@@ -267,6 +267,64 @@ against the drain's existing `recommended_interval_minutes`.
 
 - [ ] Take a backup before migrations run during an upgrade
 
+### M9 — HiDrive WebDAV transport ([#825](https://github.com/dgloeckner/clubbar/issues/825))
+
+M5's transport works and this installation cannot use it. Microsoft's edge
+answers `404 NotFound` to **every** request from the reference host's egress
+address — including an anonymous GET of the public OpenID metadata document,
+which returns `200` from anywhere else. Measured from the webspace and compared
+against the same requests from elsewhere; the credential, the tenant, the URL,
+the node and the address family were each ruled out in turn. Nothing in
+`MsGraphTransport` can work around a block on the source address.
+
+So the roadmap's last transport becomes its second one. Design settled by
+grilling, thirteen decisions, none left implicit:
+
+- [ ] **WebDAV**, not the HiDrive REST API — it removes the failure class this
+      milestone exists because of: no token endpoint, no expiring secret, no
+      third-party identity service between the club and its archives
+- [ ] **One remote, still.** `backup.dsn` stays singular; HiDrive replaces
+      `msgraph://` rather than joining it. The second copy the club keeps is the
+      **manual copy**, which is a different failure domain and worth more than a
+      second automated push
+- [ ] **A dedicated backup user**, required rather than recommended — the one
+      place this move *improves* on M5, where `Sites.Selected` write includes
+      delete and the epic records it as an accepted gap
+- [ ] **Remote retention still deletes**, and HiDrive's net is weaker than a
+      SharePoint retention policy: file versions, no recycle bin, tariff
+      dependent. Named as a consequence, not discovered later — ADR-0049
+      requirement 5 outranks it, because a backup outliving an ADR-0029 erasure
+      defeats the erasure
+- [ ] **The DSN carries the absolute WebDAV path**, so a shared folder outside
+      the backup user's own home stays representable
+- [ ] **`backup.remote_secret`** is the canonical key; `backup.client_secret`
+      keeps working as a deprecated alias. "Client secret" is Entra vocabulary
+      and there is no client
+- [ ] **`HttpClient::sendFile()`** streams from a file handle, so memory is
+      constant in the archive's size rather than bounded by `memory_limit`
+- [ ] **An upload is verified, not believed** — one `PROPFIND` compares the
+      stored length against the local file. On mismatch: report failed, leave
+      the remote file alone, let the next run overwrite it
+- [ ] **A missing folder is refused, never created.** Auto-`MKCOL` turns a
+      typo'd DSN into a *successful* upload into a folder nobody watches, which
+      is this ADR's founding failure arrived at by a typo
+- [ ] **`describe()` prints host and path, never the backup user** — the value
+      that gets logged is the value that ends up in a screenshot
+- [ ] **A failed night is retried.** Without resume state there is no sidecar,
+      and `UploadState::pendingIn()` sweeps by sidecar presence — so an archive
+      that fails to upload would never be revisited by anything. The transport
+      writes a sidecar as a pure *"has not reached the remote"* marker instead;
+      `read()` already treats one without an upload URL as "start fresh"
+- [ ] **No expiry finding for this scheme.** A HiDrive password does not expire,
+      so `UNKNOWN` would be a permanent amber row that can never be cleared —
+      and a warning nobody can clear is how a club learns to ignore the page
+- [ ] **No live test.** ADR-0038's rule that no test opens a socket is worth
+      more than the coverage; a test that skips unless a secret is set has a
+      status nobody knows. The residual risk is named in *The honest gaps*
+
+Verification: `docker compose exec -w /app backend ./vendor/bin/phpunit --filter 'Backup|HiDrive|Dsn'`,
+plus the three existing backup E2E suites staying green.
+
 ---
 
 ## The honest gaps

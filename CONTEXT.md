@@ -214,3 +214,37 @@ rotation that kills every copy of it.
 _Avoid_: Einladung / invitation (that is the admin credential), invite link,
 Mitgliedereinladung, signup link (nothing is signed up — the form produces a
 pending registration, and paper is still signed by hand)
+
+### Backups
+
+**Archive**:
+One night's database, dumped, sealed to a keypair the server cannot open, and
+written as a single file. An archive is complete by construction — every base
+table, no selection — because a backup that holds opinions about which parts of
+the database matter can be wrong about them, silently, until the day of a
+restore. See [ADR-0049](./adr/0049-encrypted-offsite-backups-on-shared-hosting.md).
+_Avoid_: dump (that is only the first step, and an unsealed one), snapshot,
+export, backup file
+
+**Remote**:
+The one off-site store archives are pushed to. Exactly one: a club configures a
+single remote, and "did the archive reach the remote" is therefore one question
+with one answer. The copy that stays on the webspace is the **local copy** and
+is never the answer to *where are the backups* — it shares a hosting account
+with the database it was taken from.
+_Avoid_: cloud, target (overloaded), destination, backup server
+
+**Manual copy**:
+The archive a human periodically copies to a medium the server has never been
+able to write to. It is the copy that survives the loss of the hosting account
+and of the remote together, so it remains a standing duty even once the remote
+is automated — the two are different failure domains, not redundant copies of
+each other.
+_Avoid_: offline backup, cold copy, archive copy
+
+**Backup user**:
+The dedicated account at the remote whose credentials the webspace holds, with
+access to the backup folder and nothing else. Never the club's own account at
+that provider: the credential sits in a file on the webspace, so what it can
+reach is what a compromised webspace can reach.
+_Avoid_: service account, technical user, API user

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Docs;
 
 use App\Modules\Backups\Domain\BackupDsn;
+use App\Modules\Backups\Domain\HiDriveDsn;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -749,5 +750,50 @@ class BackupDocumentationTest extends TestCase
             . 'mounted read-only at /repo — run `docker compose up -d` after pulling a '
             . 'compose file that carries those mounts.'
         );
+    }
+
+    /**
+     * The HiDrive procedure exists, is reachable, and prints a DSN that parses.
+     *
+     * The same guard the Microsoft setup script gets, for the same reason and
+     * with one difference that makes it matter more: there *is* no script here.
+     * HiDrive is provisioned by clicking through a web app, so this document is
+     * the only place the DSN comes from, and the line in §4 is pasted into
+     * `config.php` verbatim. A segment dropped from it is not a cosmetic error
+     * — it is an installation whose backups fail every night, found weeks
+     * later, reported as a malformed DSN rather than as a wrong document.
+     */
+    public function test_the_hidrive_onboarding_procedure_exists_and_prints_a_dsn_the_parser_accepts(): void
+    {
+        $this->assertFileExists(
+            self::repoRoot() . '/docs/hidrive-backup-target.md',
+            'The HiDrive destination has to be provisioned before backup.dsn means anything.'
+        );
+
+        foreach (['docs/README.md', 'docs/deployment.md'] as $index) {
+            $this->assertStringContainsString(
+                'hidrive-backup-target.md',
+                self::read($index),
+                'A document nobody can find from ' . $index . ' is a document nobody reads.'
+            );
+        }
+
+        $document = self::read('docs/hidrive-backup-target.md');
+
+        $this->assertSame(
+            1,
+            preg_match('~hidrive://[^\s`\'")]+~', $document, $match),
+            'the document must show a complete example DSN'
+        );
+
+        $dsn = BackupDsn::parse($match[0]);
+
+        $this->assertInstanceOf(HiDriveDsn::class, $dsn);
+        // Not "the name never appears" — a home-directory path contains it and
+        // that is unavoidable. What must not appear is the credential *form*:
+        // the description is logged, shown on the backups page and mailed, and
+        // all three end up in screenshots.
+        $this->assertStringStartsWith('hidrive://' . $dsn->host . '/', $dsn->describe());
+        $this->assertStringNotContainsString('@', $dsn->describe());
     }
 }

@@ -70,16 +70,16 @@ class BackupDsnTest extends TestCase
 
     public function test_the_reserved_schemes_are_refused_by_name_rather_than_as_gibberish(): void
     {
-        // s3:// and hidrive:// are named in ADR-0049 as the roadmap. Refusing
-        // them with "not built yet" rather than "unknown scheme" is the
-        // difference between a club waiting for a release and a club deciding
-        // it typed something wrong.
-        foreach (['s3://key@bucket/path', 'hidrive://user@host/path'] as $dsn) {
+        // s3:// is what ADR-0049 still names as roadmap; hidrive:// left this
+        // list when #825 built it. Refusing a planned scheme with "not built
+        // yet" rather than "unknown scheme" is the difference between a club
+        // waiting for a release and a club deciding it typed something wrong.
+        foreach (['s3://key@bucket/path'] as $dsn) {
             try {
                 BackupDsn::parse($dsn);
                 $this->fail('Expected ' . $dsn . ' to be refused.');
             } catch (BackupDsnException $e) {
-                $this->assertMatchesRegularExpression('/not built yet|only .*msgraph/i', $e->getMessage());
+                $this->assertMatchesRegularExpression('/not built yet/i', $e->getMessage());
             }
         }
     }
@@ -124,7 +124,7 @@ class BackupDsnTest extends TestCase
     /**
      * The secret is deliberately not in the DSN.
      *
-     * `backup.client_secret` is its own config key for the same reason the SMTP
+     * `backup.remote_secret` is its own config key for the same reason the SMTP
      * password is kept out of a URL: a DSN gets pasted into support threads,
      * issue reports and screenshots, and a credential that travels with it
      * leaks by ordinary helpfulness rather than by attack.
@@ -132,7 +132,7 @@ class BackupDsnTest extends TestCase
     public function test_a_dsn_carrying_a_password_is_refused_rather_than_quietly_accepted(): void
     {
         $this->expectException(BackupDsnException::class);
-        $this->expectExceptionMessageMatches('/client_secret/');
+        $this->expectExceptionMessageMatches('/remote_secret/');
 
         BackupDsn::parse('msgraph://tenant/client:s3cr3t@verein.sharepoint.com/Dokumente/Backups');
     }

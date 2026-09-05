@@ -7,6 +7,13 @@
 holds it *next*. Write the values from §2 down somewhere a successor will find
 them.
 
+**Not sure this is the right target?** It is the stronger of the two where it
+works — a separate vendor from the hosting, and a 93-day recycle bin. It needs
+the webspace to be able to reach `login.microsoftonline.com`, which is not a
+given: on the reference host Microsoft's edge refuses every request from that
+egress address ([#825](https://github.com/dgloeckner/clubbar/issues/825)). Where
+it cannot, use [`hidrive-backup-target.md`](./hidrive-backup-target.md).
+
 **Companion documents**: [ADR-0049](../adr/0049-encrypted-offsite-backups-on-shared-hosting.md)
 (why backups look the way they do), [`deployment.md`](./deployment.md) (the
 install this plugs into), [`procedures.md`](./procedures.md) (the restore
@@ -88,7 +95,7 @@ value it is not asking about. The resulting `config.php`:
 'backup' => [
     'recipient_public_keys'    => ['admin:…', 'vorstand:…'],
     'dsn'                      => 'msgraph://<tenant-id>/<client-id>@drive/<driveId>/clubbar',
-    'client_secret'            => '…',
+    'remote_secret'            => '…',
     'client_secret_expires_at' => '2027-08-25',
 ],
 ```

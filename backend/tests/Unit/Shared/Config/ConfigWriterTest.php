@@ -315,12 +315,12 @@ class ConfigWriterTest extends TestCase
     {
         $config = $this->evaluate($this->writer->render(ConfigWriter::merge(
             ['db' => ['host' => 'db.example.org', 'pass' => "p'w\\x"], 'cron' => ['secret' => 'abc']],
-            ['backup' => ['dsn' => 'msgraph://t/c@drive/b!x/clubbar', 'client_secret' => 'shh']]
+            ['backup' => ['dsn' => 'msgraph://t/c@drive/b!x/clubbar', 'remote_secret' => 'shh']]
         )));
 
         $this->assertSame("p'w\\x", $config['db']['pass']);
         $this->assertSame('abc', $config['cron']['secret']);
-        $this->assertSame('shh', $config['backup']['client_secret']);
+        $this->assertSame('shh', $config['backup']['remote_secret']);
     }
 
     /**

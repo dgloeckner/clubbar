@@ -1709,7 +1709,7 @@ class ServiceFactory implements ContainerInterface
             $this->logger,
             BackupTransportFactory::forBrowsing(
                 $this->config->backupDsn,
-                $this->config->backupClientSecret,
+                $this->config->backupRemoteSecret,
                 new CurlHttpClient(),
                 $this->logger,
             ),
@@ -1751,7 +1751,7 @@ class ServiceFactory implements ContainerInterface
             $this->config->env,
             BackupTransportFactory::fromConfig(
                 $this->config->backupDsn,
-                $this->config->backupClientSecret,
+                $this->config->backupRemoteSecret,
                 new CurlHttpClient(),
                 $this->getLogger(),
             ),

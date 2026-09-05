@@ -137,7 +137,7 @@ class RemoteLookupTest extends TestCase
                     id: 'item-' . $name,
                     name: $name,
                     size: 2048,
-                    driveId: 'drive-1',
+                    container: 'drive-1',
                 ),
                 $names
             ),
@@ -156,7 +156,7 @@ class RemoteLookupTest extends TestCase
                 id: 'item-' . $name,
                 name: $name,
                 size: 2048,
-                driveId: 'drive-1',
+                container: 'drive-1',
             ),
             $names
         ));

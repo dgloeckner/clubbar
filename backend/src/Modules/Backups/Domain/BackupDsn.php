@@ -13,82 +13,67 @@ namespace App\Modules\Backups\Domain;
  *
  *     msgraph://<tenant-id>/<client-id>@drive/<drive-id>/<folder>
  *     msgraph://<tenant-id>/<client-id>@<site>/<library>/<folder>
+ *     hidrive://<user>@<host>/<absolute path>
  *
- * The folder is optional; everything else is not.
+ * ## Why this is a base class and not one struct with nullable fields
  *
- * ## Two ways to name the target, and the first one is the one to use
+ * A DSN's *parts* are scheme-specific and its *use* is not. Everything outside
+ * this namespace wants two things — "where am I pushing" for a log line and
+ * "where does this filename land" for the upload, the listing and the retention
+ * delete — and neither depends on which store answers. Everything that does
+ * differ (a tenant, a drive id, a WebDAV host) belongs to exactly one subclass,
+ * where the type system can insist on it.
  *
- * `drive/<drive-id>` is what the onboarding script prints, and it is preferred
- * for two reasons learned from running it against a real tenant
- * ([`docs/m365-backup-target.md`](../../../../../docs/m365-backup-target.md)):
- * a drive id needs **no resolution at all**, so a run makes two fewer requests
- * and cannot fail on a name; and a library's *display* name is localised by the
- * tenant, so `Dokumente` and `Documents` are the same library in two tenants
- * and `Freigegebene Dokumente` is a different one in the same tenant.
+ * The rejected alternative was one `final` class holding every field of every
+ * scheme, four of them always empty. It survives two schemes and rots at the
+ * third: `describe()` becomes a switch, every consumer learns which fields are
+ * real for which scheme, and nothing stops a Graph field being read on a
+ * HiDrive DSN — the compiler having no opinion is the whole problem.
  *
- * `<site>/<library>` stays supported because a drive id is a hundred opaque
- * characters that nobody can sanity-check by eye, and a club that has lost the
- * script's output can still write the site and library it can see in
- * SharePoint. It costs two extra requests per run and one failure mode; that
- * is the trade, stated rather than hidden.
- *
- * ## Parsed by hand rather than by `parse_url()`
- *
- * `parse_url()` would read the authority of the string above as the tenant
- * alone and hand back the rest as a path, because the first `/` ends the
- * authority — so the client id and the site would arrive glued together in a
- * field that means neither. The documented shape is fixed and small, so
- * splitting it explicitly is both shorter and able to say *which part* is
- * missing, which is what turns "backup.dsn is invalid" into an edit of one
- * word.
+ * {@see self::parse()} stays the one entry point, so no caller learns which
+ * subclass it is getting until it asks.
  *
  * ## What is deliberately not in here
  *
- * The client secret. `mail.dsn` carries its password for historical reasons;
- * this one does not have to, so it does not — a DSN is the value that gets
- * pasted into support threads and screenshots, and a credential that travels
- * with it leaks by ordinary helpfulness rather than by attack. A DSN that looks
- * like it carries one is refused (see {@see BackupDsnException::secretInDsn()}).
+ * The secret. `mail.dsn` carries its password for historical reasons; this one
+ * does not have to, so it does not — a DSN is the value that gets pasted into
+ * support threads and screenshots, and a credential that travels with it leaks
+ * by ordinary helpfulness rather than by attack. A DSN that looks like it
+ * carries one is refused (see {@see BackupDsnException::secretInDsn()}).
  *
  * This class parses and validates; it never connects.
  *
- * Part of #691, epic #686.
+ * Part of #691 and #825, epic #686.
  */
-final readonly class BackupDsn
+abstract readonly class BackupDsn
 {
     /** What this build can actually talk to. */
-    public const SUPPORTED_SCHEMES = ['msgraph'];
+    public const SUPPORTED_SCHEMES = ['msgraph', 'hidrive'];
 
     /**
-     * Named in ADR-0049 as the roadmap, in that order: `s3://` with object lock
-     * is the option that closes the append-only gap *properly* rather than
-     * mitigating it, and `hidrive://` comes last because it is the same vendor
-     * as the hosting — a suspended account would take both.
+     * Named in ADR-0049 as the roadmap. `s3://` with object lock is the option
+     * that closes the append-only gap *properly* rather than mitigating it, and
+     * it is the one still unbuilt.
+     *
+     * `hidrive://` was in this list and was built early, out of order: Entra's
+     * edge refuses the reference host's egress address outright — every
+     * request, including an anonymous fetch of a public metadata document —
+     * so the club that motivated `msgraph://` cannot use it ([#825](https://github.com/dgloeckner/clubbar/issues/825)).
+     * ADR-0049's amendment records the reversal and the price: HiDrive is the
+     * same vendor as the hosting, so a suspended account takes both, and the
+     * periodic manual copy stays the copy that survives that.
      */
-    public const RESERVED_SCHEMES = ['s3', 'hidrive'];
+    public const RESERVED_SCHEMES = ['s3'];
 
-    /** The first target segment that means "what follows is a drive id". */
-    private const DRIVE_MARKER = 'drive';
-
-    private function __construct(
+    protected function __construct(
         public string $scheme,
-        public string $tenantId,
-        public string $clientId,
-        /** '' when the DSN names a drive directly */
-        public string $site,
-        /** '' when the DSN names a drive directly */
-        public string $library,
-        /** '' when the DSN names a site and library instead */
-        public string $driveId,
+        /** '' when archives go in the target's root */
         public string $path,
     ) {
     }
 
-    /** Does this DSN name the drive outright, or a site and library to resolve? */
-    public function addressesDriveDirectly(): bool
-    {
-        return $this->driveId !== '';
-    }
+    /** One line for a log or the self-check: *which store, which folder*. */
+    abstract public function describe(): string;
 
     /**
      * @throws BackupDsnException when the value cannot be used as a DSN
@@ -113,55 +98,14 @@ final readonly class BackupDsn
             throw BackupDsnException::unsupportedScheme($scheme, self::SUPPORTED_SCHEMES);
         }
 
-        // The *last* `@` rather than the first: an id will not contain one, but
-        // a site might in some tenants, and splitting on the first would then
-        // move the boundary silently.
-        $at = strrpos($rest, '@');
-        if ($at === false) {
-            throw BackupDsnException::missingPart('site', $dsn);
-        }
-
-        $credentials = substr($rest, 0, $at);
-        $target = substr($rest, $at + 1);
-
-        if (str_contains($credentials, ':')) {
-            throw BackupDsnException::secretInDsn();
-        }
-
-        [$tenantId, $clientId] = array_pad(explode('/', $credentials, 2), 2, '');
-        if ($tenantId === '') {
-            throw BackupDsnException::missingPart('tenant id', $dsn);
-        }
-        if ($clientId === '') {
-            throw BackupDsnException::missingPart('client id', $dsn);
-        }
-
-        $targetParts = explode('/', trim($target, '/'));
-        $first = array_shift($targetParts) ?? '';
-
-        if ($first === '') {
-            throw BackupDsnException::missingPart('site', $dsn);
-        }
-
-        if (strcasecmp($first, self::DRIVE_MARKER) === 0) {
-            $driveId = array_shift($targetParts) ?? '';
-            if ($driveId === '') {
-                throw BackupDsnException::missingPart('drive id', $dsn);
-            }
-
-            return new self($scheme, $tenantId, $clientId, '', '', $driveId, implode('/', $targetParts));
-        }
-
-        $library = array_shift($targetParts) ?? '';
-        if ($library === '') {
-            throw BackupDsnException::missingPart('library', $dsn);
-        }
-
-        return new self($scheme, $tenantId, $clientId, $first, $library, '', implode('/', $targetParts));
+        return match ($scheme) {
+            'msgraph' => MsGraphDsn::fromRest($rest, $dsn),
+            'hidrive' => HiDriveDsn::fromRest($rest, $dsn),
+        };
     }
 
     /**
-     * Where an archive of this name lands, as a path inside the library.
+     * Where an archive of this name lands, as a path inside the target.
      *
      * Kept here rather than in the transport so the answer is the same for the
      * upload, the listing and the retention delete — three places that must
@@ -174,54 +118,27 @@ final readonly class BackupDsn
     }
 
     /**
-     * One line for a log or the self-check: *which site am I pushing to*.
+     * Split `<credentials>@<target>`, refusing a secret in either half.
      *
-     * Not the whole DSN. The tenant and client ids are not secrets, but they
-     * are noise in a log line, and the value that gets printed is the value
-     * that ends up in a screenshot.
+     * On the *last* `@` rather than the first: an id will not contain one, but
+     * a SharePoint site might in some tenants, and splitting on the first would
+     * then move the boundary silently.
+     *
+     * @return array{0: string, 1: string} credentials, target
+     * @throws BackupDsnException
      */
-    public function describe(): string
+    protected static function splitCredentials(string $rest, string $dsn, string $missing, string $shape): array
     {
-        $target = $this->addressesDriveDirectly()
-            // A drive id is ~100 opaque characters and identifies nothing to a
-            // reader; its tail is enough to tell two configured targets apart,
-            // which is all a log line is being asked to do.
-            ? 'drive …' . substr($this->driveId, -8)
-            : $this->site . '/' . $this->library;
-
-        return sprintf(
-            '%s://%s%s',
-            $this->scheme,
-            $target,
-            $this->path === '' ? '' : '/' . $this->path
-        );
-    }
-
-    /**
-     * How Graph is asked for this site — only meaningful for a site-addressed DSN.
-     *
-     * A site segment is one DSN path segment, so a server-relative path is
-     * written with colons instead of slashes:
-     *
-     *     frgs.sharepoint.com                 → the root site
-     *     frgs.sharepoint.com:sites:Backups   → https://frgs.sharepoint.com/sites/Backups
-     *
-     * The second form is the one to use, and the onboarding guide says so in
-     * stronger words: `Sites.Selected` is granted per **site collection**, so
-     * granting on the root site would hand this app write access to the club
-     * intranet and every library under it.
-     */
-    public function graphSiteSelector(): string
-    {
-        $parts = array_values(array_filter(explode(':', $this->site), static fn (string $p): bool => $p !== ''));
-        $host = array_shift($parts) ?? '';
-
-        if ($parts === []) {
-            return rawurlencode($host);
+        $at = strrpos($rest, '@');
+        if ($at === false) {
+            throw BackupDsnException::missingPart($missing, $dsn, $shape);
         }
 
-        // `{hostname}:/{server-relative-path}:` — the trailing colon is what
-        // lets `/drives` be appended to it without Graph reading it as more path.
-        return rawurlencode($host) . ':/' . implode('/', array_map('rawurlencode', $parts)) . ':';
+        $credentials = substr($rest, 0, $at);
+        if (str_contains($credentials, ':')) {
+            throw BackupDsnException::secretInDsn();
+        }
+
+        return [$credentials, substr($rest, $at + 1)];
     }
 }

@@ -7,6 +7,7 @@ namespace App\Modules\Backups\Services;
 use App\Modules\Backups\Domain\BackupDsn;
 use App\Modules\Backups\Domain\BackupDsnException;
 use App\Modules\Backups\Domain\BackupKeyringException;
+use App\Modules\Backups\Domain\HiDriveDsn;
 use App\Shared\Security\SecurityFinding;
 use App\Shared\Security\SecuritySelfCheck;
 
@@ -49,9 +50,11 @@ final class BackupConfigCheck
     public function __construct(
         private readonly string $recipientPublicKeys,
         private readonly ?string $dsn,
-        private readonly ?string $clientSecret,
+        private readonly ?string $remoteSecret,
         private readonly ?string $clientSecretExpiresAt,
         private readonly ?string $heartbeatUrl = null,
+        /** The secret came from the pre-#825 `backup.client_secret` key. */
+        private readonly bool $secretFromDeprecatedKey = false,
     ) {
     }
 
@@ -197,16 +200,43 @@ final class BackupConfigCheck
             $parsed->describe()
         )];
 
-        if (trim((string) $this->clientSecret) === '') {
+        if (trim((string) $this->remoteSecret) === '') {
             $findings[] = SecurityFinding::fail(
                 'backup_secret',
                 self::CATEGORY,
                 'Backup credential',
-                'a remote is configured and backup.client_secret is empty',
-                'The backup app cannot sign in, so nothing is uploaded. Mint a secret with '
-                . 'scripts/setup-msgraph-backup.ps1 -RotateSecretOnly.'
+                'a remote is configured and backup.remote_secret is empty',
+                $parsed instanceof HiDriveDsn
+                    ? 'The backup user cannot sign in, so nothing is uploaded. Put that user\'s '
+                        . 'password in backup.remote_secret — the one from Administration → Users '
+                        . 'in the HiDrive web app, not your own account password.'
+                    : 'The backup app cannot sign in, so nothing is uploaded. Mint a secret with '
+                        . 'scripts/setup-msgraph-backup.ps1 -RotateSecretOnly.'
             );
 
+            return $findings;
+        }
+
+        if ($this->secretFromDeprecatedKey) {
+            // A pass, not a warning. Nothing is broken and nothing will break:
+            // the old key is read and goes on being read. Amber is reserved for
+            // what is actually wrong — a security page whose warnings cannot be
+            // cleared is a page that gets skimmed, which is the same argument
+            // the expiry finding makes below by being absent.
+            $findings[] = SecurityFinding::pass(
+                'backup_secret_key',
+                self::CATEGORY,
+                'Backup credential key',
+                'read from backup.client_secret, which is now called backup.remote_secret — '
+                . 'both work, rename it in config.php when convenient'
+            );
+        }
+
+        // A HiDrive password does not expire, so there is nothing here to
+        // measure — and UNKNOWN would be a permanent amber row that no action
+        // can ever clear. Silence is the honest answer, and the reason this is
+        // a scheme test rather than an "is the date set" test.
+        if ($parsed instanceof HiDriveDsn) {
             return $findings;
         }
 

@@ -89,7 +89,9 @@ class AppConfig
      */
     public readonly ?string $backupDsn;
     /** The secret half of {@see $backupDsn}'s credential, kept out of a URL that gets pasted around. */
-    public readonly ?string $backupClientSecret;
+    public readonly ?string $backupRemoteSecret;
+    /** True when that secret came from the pre-#825 `backup.client_secret` key. */
+    public readonly bool $backupSecretFromDeprecatedKey;
     /**
      * `YYYY-MM-DD`: when that secret stops working.
      *
@@ -155,7 +157,8 @@ class AppConfig
         $this->cronHeartbeatUrl     = trim(Env::get('CRON_HEARTBEAT_URL', '')) ?: null;
         $this->backupRecipientPublicKeys = trim(Env::get('BACKUP_RECIPIENT_PUBLIC_KEYS', ''));
         $this->backupDsn            = trim(Env::get('BACKUP_DSN', '')) ?: null;
-        $this->backupClientSecret   = trim(Env::get('BACKUP_CLIENT_SECRET', '')) ?: null;
+        $this->backupRemoteSecret   = trim(Env::get('BACKUP_REMOTE_SECRET', '')) ?: null;
+        $this->backupSecretFromDeprecatedKey = trim(Env::get('BACKUP_SECRET_FROM_DEPRECATED_KEY', '')) !== '';
         $this->backupClientSecretExpiresAt = trim(Env::get('BACKUP_CLIENT_SECRET_EXPIRES_AT', '')) ?: null;
         $this->backupHeartbeatUrl   = trim(Env::get('BACKUP_HEARTBEAT_URL', '')) ?: null;
         $this->backupLocalRetentionDays = self::optionalInt('BACKUP_LOCAL_RETENTION_DAYS');

@@ -7,13 +7,20 @@ namespace App\Modules\Backups\Transport;
 /**
  * One archive the remote store already holds.
  *
- * Carries the drive it was found in, so a delete can only ever name something
- * a listing produced. That is not ceremony: the credential this app holds can
- * delete anything in the library (the gap #691 names openly — `Sites.Selected`
- * has no add-only role), so the narrowest useful discipline available is that
- * the code has no way to express a delete of something it did not just see.
+ * Carries the container it was found in, so a delete can only ever name
+ * something a listing produced. That is not ceremony: the credential this app
+ * holds can delete anything it can write (the gap #691 names openly —
+ * `Sites.Selected` has no add-only role), so the narrowest useful discipline
+ * available is that the code has no way to express a delete of something it did
+ * not just see.
  *
- * Part of #691, epic #686.
+ * `id` and `container` are whatever the store needs in order to be asked again
+ * — a Graph item id inside a drive id, a WebDAV resource URL inside its
+ * collection URL — and are opaque to everything outside the transport that
+ * produced them. They were once named for Graph's vocabulary alone; a second
+ * store made that name wrong rather than merely narrow (#825).
+ *
+ * Part of #691 and #825, epic #686.
  */
 final readonly class RemoteArchive
 {
@@ -21,7 +28,7 @@ final readonly class RemoteArchive
         public string $id,
         public string $name,
         public int $size,
-        public string $driveId,
+        public string $container,
     ) {
     }
 

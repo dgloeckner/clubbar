@@ -28,6 +28,7 @@ class BackupConfigCheckTest extends TestCase
     private const KEY_A = 'admin:bb637d8ec1cb92bca0467e59faa6d61f6b7f8088103e5b89d7afdc01f1efa45c';
     private const KEY_B = 'vorstand:363e2a0c16939139dd4e593e63cfde7ebcbda57d7fd36c307be67005ebc7ab4d';
     private const DSN = 'msgraph://tenant/client@drive/b!driveid/clubbar';
+    private const HIDRIVE_DSN = 'hidrive://clubbar-backup@webdav.hidrive.ionos.com/users/clubbar-backup/archives';
 
     /**
      * Backups off is a legitimate state, not a broken one. A club that has not
@@ -166,6 +167,56 @@ class BackupConfigCheckTest extends TestCase
     }
 
     /** @param list<SecurityFinding> $findings */
+    /**
+     * A HiDrive password does not expire, so there is nothing to measure.
+     *
+     * `UNKNOWN` means *"this is measurable and we cannot measure it"*, and
+     * emitting it here would put a permanent amber row on the security page
+     * that no action can ever clear. A warning nobody can clear is how a club
+     * learns to skim the whole page — the same argument the notification rules
+     * make about a digest that reports "0 items" fifty times.
+     */
+    public function test_a_hidrive_remote_has_no_credential_expiry_row_at_all(): void
+    {
+        $findings = $this->check(dsn: self::HIDRIVE_DSN, expires: null);
+
+        $ids = array_map(static fn (SecurityFinding $f): string => $f->id, $findings);
+        $this->assertContains('backup_remote', $ids);
+        $this->assertNotContains('backup_secret', $ids, 'a password that cannot expire has no expiry row');
+    }
+
+    public function test_a_hidrive_remote_with_no_password_says_which_password_is_meant(): void
+    {
+        $finding = $this->findingById($this->check(dsn: self::HIDRIVE_DSN, secret: ''), 'backup_secret');
+
+        $this->assertSame('fail', $finding->status);
+        // The account owner's password would work and is the wrong answer: the
+        // credential lives in config.php on the webspace, so what it can reach
+        // is what a compromised webspace can reach.
+        $this->assertStringContainsString('not your own account password', (string) $finding->remedy);
+    }
+
+    /**
+     * The deprecated key name is reported as a pass, not a warning.
+     *
+     * Nothing is broken and nothing will break — the old key is read and goes
+     * on being read. Amber is reserved for what is actually wrong.
+     */
+    public function test_the_old_config_key_is_noted_without_raising_an_alarm(): void
+    {
+        $finding = $this->findingById($this->check(deprecatedKey: true), 'backup_secret_key');
+
+        $this->assertSame('pass', $finding->status);
+        $this->assertStringContainsString('backup.remote_secret', $finding->observed);
+    }
+
+    public function test_the_current_config_key_produces_no_row_of_its_own(): void
+    {
+        $ids = array_map(static fn (SecurityFinding $f): string => $f->id, $this->check());
+
+        $this->assertNotContains('backup_secret_key', $ids);
+    }
+
     private function findingById(array $findings, string $id): SecurityFinding
     {
         foreach ($findings as $finding) {
@@ -234,7 +285,8 @@ class BackupConfigCheckTest extends TestCase
         ?string $secret = 'a-secret',
         ?string $expires = '2099-01-01',
         ?string $monitor = null,
+        bool $deprecatedKey = false,
     ): array {
-        return (new BackupConfigCheck($keys, $dsn, $secret, $expires, $monitor))->findings();
+        return (new BackupConfigCheck($keys, $dsn, $secret, $expires, $monitor, $deprecatedKey))->findings();
     }
 }

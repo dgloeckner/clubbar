@@ -6,6 +6,8 @@ namespace App\Modules\Backups\Transport;
 
 use App\Modules\Backups\Domain\BackupDsn;
 use App\Modules\Backups\Domain\BackupDsnException;
+use App\Modules\Backups\Domain\HiDriveDsn;
+use App\Modules\Backups\Domain\MsGraphDsn;
 use App\Shared\Http\HttpClient;
 use App\Shared\Logging\Logger;
 
@@ -18,6 +20,7 @@ use App\Shared\Logging\Logger;
  * |---|---|---|
  * | empty | `null` | Nothing. Local-only is a legitimate configuration |
  * | valid `msgraph://` | {@see MsGraphTransport} | Nothing, until something fails |
+ * | valid `hidrive://` | {@see HiDriveWebDavTransport} | Nothing, until something fails |
  * | anything else | {@see MisconfiguredTransport} | A failure every run, naming the word to edit |
  *
  * The third row is the one that matters. Folding a malformed DSN into the
@@ -25,7 +28,7 @@ use App\Shared\Logging\Logger;
  * sit on the same webspace as the database — which is precisely the belief
  * ADR-0049 exists to destroy, arrived at by a typo.
  *
- * Part of #691, epic #686.
+ * Part of #691 and #825, epic #686.
  */
 final class BackupTransportFactory
 {
@@ -44,11 +47,11 @@ final class BackupTransportFactory
      */
     public static function forBrowsing(
         ?string $dsn,
-        ?string $clientSecret,
+        ?string $secret,
         HttpClient $http,
         Logger $logger,
     ): ?BackupTransport {
-        return self::fromConfig($dsn, $clientSecret, $http, $logger, self::BROWSE_TIMEOUT_SECONDS, 0);
+        return self::fromConfig($dsn, $secret, $http, $logger, self::BROWSE_TIMEOUT_SECONDS, 0);
     }
 
     /**
@@ -59,9 +62,15 @@ final class BackupTransportFactory
      */
     public const BROWSE_TIMEOUT_SECONDS = 8;
 
+    /**
+     * @param string|null $secret `backup.remote_secret` — the Entra client secret
+     *        for `msgraph://`, the backup user's password for `hidrive://`. One
+     *        key, because it is one thing: the credential that belongs to
+     *        `backup.dsn` (#825)
+     */
     public static function fromConfig(
         ?string $dsn,
-        ?string $clientSecret,
+        ?string $secret,
         HttpClient $http,
         Logger $logger,
         ?int $timeoutSeconds = null,
@@ -79,26 +88,46 @@ final class BackupTransportFactory
             return new MisconfiguredTransport($e->getMessage());
         }
 
-        if (trim((string) $clientSecret) === '') {
+        if (trim((string) $secret) === '') {
             // Deliberately not silent either: a DSN with no secret is a club
             // half-way through onboarding, and the half it has not done is the
-            // one that makes uploads work.
-            return new MisconfiguredTransport(
-                'backup.dsn names a remote but backup.client_secret is empty, so the backup app '
-                . 'cannot sign in. The secret is shown exactly once when it is minted and cannot be '
-                . 'retrieved afterwards by anyone, including Microsoft — mint a new one with '
-                . 'scripts/setup-msgraph-backup.ps1 -RotateSecretOnly.'
-            );
+            // one that makes uploads work. The sentence differs per scheme
+            // because the *next action* does: one is minted and cannot be read
+            // back, the other is chosen by a person.
+            return new MisconfiguredTransport(self::noSecretMessage($parsed));
         }
 
-        return new MsGraphTransport(
-            $parsed,
-            (string) $clientSecret,
-            $http,
-            $logger,
-            null,
-            $timeoutSeconds ?? MsGraphTransport::DEFAULT_TIMEOUT_SECONDS,
-            $maxRetries ?? MsGraphTransport::DEFAULT_MAX_RETRIES,
-        );
+        return match (true) {
+            $parsed instanceof HiDriveDsn => new HiDriveWebDavTransport(
+                $parsed,
+                (string) $secret,
+                $http,
+                $logger,
+                $timeoutSeconds ?? HiDriveWebDavTransport::DEFAULT_TIMEOUT_SECONDS,
+            ),
+            $parsed instanceof MsGraphDsn => new MsGraphTransport(
+                $parsed,
+                (string) $secret,
+                $http,
+                $logger,
+                null,
+                $timeoutSeconds ?? MsGraphTransport::DEFAULT_TIMEOUT_SECONDS,
+                $maxRetries ?? MsGraphTransport::DEFAULT_MAX_RETRIES,
+            ),
+        };
+    }
+
+    private static function noSecretMessage(BackupDsn $dsn): string
+    {
+        if ($dsn instanceof HiDriveDsn) {
+            return 'backup.dsn names a HiDrive folder but backup.remote_secret is empty, so the '
+                . 'backup user cannot sign in. Put that user\'s password there — the one from '
+                . 'Administration → Users in the HiDrive web app, not your own account password.';
+        }
+
+        return 'backup.dsn names a remote but backup.remote_secret is empty, so the backup app '
+            . 'cannot sign in. The secret is shown exactly once when it is minted and cannot be '
+            . 'retrieved afterwards by anyone, including Microsoft — mint a new one with '
+            . 'scripts/setup-msgraph-backup.ps1 -RotateSecretOnly.';
     }
 }

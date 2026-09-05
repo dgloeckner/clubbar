@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Backups\Transport;
 
 use App\Modules\Backups\Transport\BackupTransportFactory;
+use App\Modules\Backups\Transport\HiDriveWebDavTransport;
 use App\Modules\Backups\Transport\MisconfiguredTransport;
 use App\Modules\Backups\Transport\MsGraphTransport;
 use App\Shared\Logging\Logger;
@@ -70,9 +71,43 @@ class BackupTransportFactoryTest extends TestCase
 
         $this->assertInstanceOf(MisconfiguredTransport::class, $transport);
         $this->assertStringContainsString(
-            'backup.client_secret',
+            'backup.remote_secret',
             $transport->upload('/x', 60)->summary
         );
+    }
+
+    public function test_a_hidrive_dsn_yields_the_webdav_transport(): void
+    {
+        $transport = $this->build(
+            'hidrive://clubbar-backup@webdav.hidrive.ionos.com/users/clubbar-backup/archives'
+        );
+
+        $this->assertInstanceOf(HiDriveWebDavTransport::class, $transport);
+        $this->assertSame(
+            'hidrive://webdav.hidrive.ionos.com/users/clubbar-backup/archives',
+            $transport->describe(),
+            'the description a log line carries names the folder and never the backup user'
+        );
+    }
+
+    /**
+     * The sentence differs per scheme because the next action does.
+     *
+     * A Graph secret is minted and cannot be read back; a HiDrive password is
+     * chosen by a person and is emphatically not the account owner's.
+     */
+    public function test_a_missing_secret_names_the_credential_that_scheme_actually_uses(): void
+    {
+        $transport = $this->build(
+            'hidrive://clubbar-backup@webdav.hidrive.ionos.com/users/clubbar-backup/archives',
+            ''
+        );
+
+        $result = $transport->upload('/tmp/whatever.cbb', 60);
+        $this->assertSame('failed', $result->status);
+        $this->assertStringContainsString('backup.remote_secret', $result->summary);
+        $this->assertStringContainsString('not your own account password', $result->summary);
+        $this->assertStringNotContainsString('setup-msgraph-backup', $result->summary);
     }
 
     private function build(?string $dsn, ?string $secret = 'secret'): ?object
