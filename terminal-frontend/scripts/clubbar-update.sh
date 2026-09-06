@@ -292,7 +292,7 @@ fi
 # 1. What does the backend say it is?
 # ---------------------------------------------------------------------------
 
-HEALTH="$(curl -fsS --max-time 20 "$API_URL/health" 2>/dev/null)" || {
+HEALTH="$(curl -fsS --max-time 20 --retry 3 --retry-delay 5 "$API_URL/health" 2>/dev/null)" || {
   # The commonest refusal by far, and the least interesting: the club's
   # internet was down at 04:00.
   log "backend at $API_URL is unreachable; no update tonight"
@@ -379,13 +379,26 @@ cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
 RELEASE_JSON="$WORK/release.json"
-if ! curl -fsS --max-time 60 \
-      -H 'Accept: application/vnd.github+json' \
-      "https://api.github.com/repos/$REPO/releases/tags/$TARGET" -o "$RELEASE_JSON"; then
-  # A tag the backend reports but the project never released is worth saying
-  # loudly: it means a club is running a backend built outside the release
-  # process, and no terminal anywhere will ever match it.
-  warn "no release $TARGET in $REPO (or GitHub is unreachable); no update"
+# Not `if ! curl ...`: the `!` rewrites the exit status to 0 before the body can
+# read it, and the status is the whole point here.
+curl -fsS --max-time 60 --retry 3 --retry-delay 5 \
+  -H 'Accept: application/vnd.github+json' \
+  "https://api.github.com/repos/$REPO/releases/tags/$TARGET" -o "$RELEASE_JSON"
+LOOKUP_STATUS=$?
+
+if [ "$LOOKUP_STATUS" != 0 ]; then
+  # Two conditions with very different meanings used to share one sentence, and
+  # curl's exit status already separates them. 22 is "the server answered, with
+  # an error" — with --retry in place that is the 404 curl deliberately does not
+  # retry, which means a club is running a backend built outside the release
+  # process and no terminal anywhere will ever match that tag; waiting cannot
+  # fix it. Anything else is a transport failure that survived three attempts:
+  # DNS, TLS, a timeout, no route.
+  if [ "$LOOKUP_STATUS" = 22 ]; then
+    warn "no release $TARGET in $REPO; no update. A backend reporting a tag the project never released was built outside the release process"
+  else
+    warn "could not reach api.github.com to look up $TARGET (curl exit $LOOKUP_STATUS); no update tonight"
+  fi
   exit 0
 fi
 
@@ -417,8 +430,8 @@ if [ -z "$SHA_URL" ]; then
 fi
 
 log "downloading $TARGET ($ASSET)"
-curl -fsSL --max-time 900 "$ASSET_URL" -o "$WORK/$ASSET" || { warn "download of $ASSET failed"; exit 0; }
-curl -fsSL --max-time 60 "$SHA_URL" -o "$WORK/$ASSET.sha256" || { warn "download of the checksum failed"; exit 0; }
+curl -fsSL --max-time 900 --retry 3 --retry-delay 5 "$ASSET_URL" -o "$WORK/$ASSET" || { warn "download of $ASSET failed"; exit 0; }
+curl -fsSL --max-time 60 --retry 3 --retry-delay 5 "$SHA_URL" -o "$WORK/$ASSET.sha256" || { warn "download of the checksum failed"; exit 0; }
 
 if ! (cd "$WORK" && sha256sum -c "$ASSET.sha256" >/dev/null 2>&1); then
   warn "checksum mismatch for $ASSET; refusing to install"
@@ -551,10 +564,39 @@ if [ -n "$BACKUP" ] && [ -f "$BACKUP" ]; then
   cp -a "$BACKUP" "$DB_FILE" && log "database restored from $BACKUP"
 fi
 
-# Never retried on this terminal. The club learns about it from the Terminals
-# page, because the app reads this file at startup and puts the tag on the wire
-# in X-Terminal-Blocked-Version — without which a blocked terminal silently
-# stops updating and nobody finds out.
+# Ask *why* there was no heartbeat before condemning the build.
+#
+# Health here is "the app completed a sync round-trip", which the app cannot do
+# when the backend is down — so an absent heartbeat says nothing about the new
+# build if the backend was unavailable for the watchdog window. The run is at
+# 04:00 ± an hour of jitter, which on shared hosting is exactly where nightly
+# cron work and deploys live, so this is not a hypothetical.
+#
+# Rolling back happens either way: a terminal that has not synced belongs on the
+# version that last worked. Only the blacklist is conditional, and that is what
+# keeps `blocked` worth trusting — an entry means *this build failed on this
+# terminal*, not *something went wrong once*. A permanent, silent freeze over a
+# verdict the version never earned is the failure this branch exists to prevent.
+#
+# Deliberately no --retry on this probe: the safe direction is "unreachable", so
+# a blip that makes the backend look down costs one more attempt tomorrow, while
+# retrying would delay the restart of a till for a distinction that does not
+# change the rollback.
+if ! curl -fsS --max-time 20 "$API_URL/health" >/dev/null 2>&1; then
+  warn "no heartbeat, but the backend at $API_URL is unreachable — the build was never given a chance to sync, so $TARGET is not blocked. Tomorrow's run will try it again."
+  rm -rf "${RELEASES:?}/$TARGET"
+
+  systemctl --user start "$UNIT" || warn "could not restart $UNIT after rollback"
+
+  warn "rolled back to $INSTALLED without blocking $TARGET."
+  exit 1
+fi
+
+# The backend answered, so the app had a backend to sync with and did not. Never
+# retried on this terminal. The club learns about it from the Terminals page,
+# because the app reads this file at startup and puts the tag on the wire in
+# X-Terminal-Blocked-Version — without which a blocked terminal silently stops
+# updating and nobody finds out.
 printf '%s\n' "$TARGET" >> "$BLOCKED"
 printf '{\n  "blocked_version": "%s"\n}\n' "$TARGET" > "$UPDATE_STATE"
 rm -rf "${RELEASES:?}/$TARGET"

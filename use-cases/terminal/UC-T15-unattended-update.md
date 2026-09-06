@@ -89,6 +89,25 @@ cannot be the signal. One test covers both the crash-loop and the wedge.
 Restoring the database is safe *because* of step 5: a version that never got
 healthy booked nothing.
 
+### V3a: The rollback where the backend, not the build, was missing
+
+Health is *"the app completed a sync round-trip"*, so an app with no backend to
+sync with is silent in exactly the way a broken build is. The watchdog cannot
+tell them apart from the heartbeat alone — and the run is at 04:00 ± an hour of
+jitter, which on shared hosting is where nightly cron work and deploys live.
+
+So before it condemns the build, the updater asks *why* there was no heartbeat:
+it probes `/api/health` once more. **Rolling back happens either way** — a
+terminal that has not synced belongs on the version that last worked — but the
+tag is appended to `blocked` only when the backend answered. When it did not,
+the rollback is logged saying so and tomorrow's run tries the same tag again,
+which is the right outcome for a night when the network was the problem.
+
+That conditional is what keeps V4 worth its cost: an entry in `blocked` means
+*this build failed on this terminal*, not *something went wrong once*. Without
+it a backend outage freezes a terminal on a verdict the version never earned,
+permanently and with no signal but a support call ([#836](https://github.com/dgloeckner/clubbar/issues/836)).
+
 ### V4: A blocked terminal waits
 
 After V3 the terminal will never retry that tag, and exact-match means it is
@@ -112,10 +131,10 @@ None of them is an error state, and none of them leaves the terminal changed.
 
 | # | Condition | Why it is a refusal |
 |---|-----------|---------------------|
-| E1 | The backend is unreachable | The club's internet was down at 04:00. Nothing about the terminal is wrong |
+| E1 | The backend is unreachable | The club's internet was down at 04:00. Nothing about the terminal is wrong. Each pre-swap fetch retries a transient failure (5xx, 408, 429, a dropped connection) three times first, so a single bad response does not cost a night |
 | E2 | The backend reports `dev` or `dev-<sha>` | A club deployed from git reports this forever. An unknown version is not an infinite ceiling — the same fail-closed reading [ADR-0044](../../adr/0044-tiered-admin-roles.md) gives an unclassified route |
 | E3 | The backend is on an **older** tag | Never downgrade. Moving backwards means running a sqlite migration backwards, and the backup that would make that safe is long gone. Logged as a warning, because it is the one refusal that means somebody did something |
-| E4 | The tag has no release, or no bundle for this architecture | Nothing to install. A missing release is logged more loudly: the club is running a backend the project never released |
+| E4 | The tag has no release, or no bundle for this architecture | Nothing to install. A missing release is logged more loudly: the club is running a backend the project never released. A 404 and an unreachable `api.github.com` are logged as separate sentences — `curl --retry` covers the second and deliberately not the first, so what survives the retries is the club's problem, not the wifi's |
 | E5 | The release publishes no `.sha256`, or the checksum does not match | Refused rather than installed unverified. TLS authenticates the host; the checksum is what catches a truncated download, and a truncated tarball extracts into a bundle that starts and then does not work |
 | E6 | Unsynced transactions exist, or the status file is missing | Real purchases that exist nowhere else. A missing file is treated the same way: "unknown" is not "none" |
 | E7 | `current` is not a symlink | An install that was never converted to A/B slots. The updater **refuses and exits 2** rather than force-installing over it, which would silently reinstall over a terminal somebody had deliberately held back |
@@ -131,6 +150,7 @@ and a `systemctl` that can pretend the app came back — or did not.
 | E1–E7 above, one case each | exit 0 (E7: exit 2), the reason named in the log, `current` unmoved, and — where nothing should have been touched — the service never cycled |
 | Main flow | `current` moves, `previous` points at the replaced slot, the bundle is in its own slot, a database backup exists, the service was stopped before the copy and started after, and nothing was blocked |
 | V3 | exit 1, `current` back on the old version, the pre-update database byte-for-byte restored, the tag in `blocked`, `update-state.json` naming it, and the failed slot removed |
+| V3a | the backend is taken away at the moment of the swap: exit 1, `current` back on the old version, the database restored, `blocked` **empty**, `update-state.json` naming nothing — and the next run, with the backend back, installs the same tag |
 | V4 | the next run refuses the same tag rather than retrying it |
 | Recovery | `--clear-block` lets a subsequent run install it |
 

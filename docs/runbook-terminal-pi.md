@@ -197,6 +197,23 @@ backend rolls forward under the same single-release policy, and the terminal
 follows on its own. Clear the block only when you know what went wrong and have
 reason to think it will not happen again.
 
+**A backend outage does not stick a terminal.** Health is "the app completed a
+sync round-trip", so a backend that is down for the five minutes after the swap
+looks exactly like a broken build. The updater re-probes `/api/health` before it
+blocks anything: it rolls back either way — a terminal that has not synced
+belongs on the version that last worked — but blocks the tag only when the
+backend answered. A rollback caused by an outage reads
+
+```
+WARNING: no heartbeat, but the backend at https://… is unreachable — the build
+was never given a chance to sync, so v1.0.9 is not blocked. Tomorrow's run will
+try it again.
+```
+
+and needs nothing from you: the terminal reads *Behind*, not *Stuck at `<tag>`*,
+and the next run installs the same version. Two nights of that in a row is worth
+looking at the backend for, not the Pi.
+
 ### Pinning a terminal, or opting one out
 
 Two keys in `config.json` (see

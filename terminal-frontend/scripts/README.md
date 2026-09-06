@@ -66,6 +66,16 @@ clubbar-update.sh --clear-block  # forget a failed version so it may be retried
 Exit `0` is "nothing to do, or done"; `1` is "an update failed and was rolled
 back"; `2` is "this machine is not set up for unattended updates".
 
+A rollback and a *block* are two different things. Health is "the app completed
+a sync round-trip", so a backend that is unavailable for the watchdog window is
+as silent as a broken build — the updater re-probes `/api/health` before it
+condemns anything. It rolls back either way, and adds the tag to `blocked` only
+when the backend answered; after an outage the next run simply tries the same
+tag again ([#836](https://github.com/dgloeckner/clubbar/issues/836)). That is
+what keeps an entry in `blocked` meaning *this build failed on this terminal*
+rather than *something went wrong once* — which matters, because under
+exact-match a block is a permanent freeze until a newer release ships.
+
 Its two test suites are in [`test/`](test/):
 
 ```bash

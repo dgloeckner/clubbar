@@ -55,6 +55,7 @@ setup_case() {
   export FIXTURES="$CASE_DIR/fixtures"
   export SYSTEMCTL_LOG="$CASE_DIR/systemctl.log"
   export FAKE_APP_HEALTHY=1
+  export FAKE_BACKEND_DOWN_AFTER_SWAP=0
 
   mkdir -p "$CLUBBAR_ROOT/releases/v1.0.6" "$CLUBBAR_DATA_DIR" "$FIXTURES/assets"
   : > "$SYSTEMCTL_LOG"
@@ -182,10 +183,18 @@ cat > "$STUB_BIN/systemctl" <<'STUB'
 # FAKE_APP_HEALTHY=1 it stamps a heartbeat the way a real first sync round-trip
 # would; with 0 it stays silent, which is precisely what a crash-looping or
 # wedged terminal looks like to the watchdog.
+#
+# FAKE_BACKEND_DOWN_AFTER_SWAP=1 takes the backend away at the moment of the
+# swap instead. The app is then fine and cannot sync anyway, which is the case
+# the watchdog cannot tell apart from a broken build — and the one where a
+# blacklist entry would be a verdict the version never earned.
 args="$*"
 echo "$args" >> "$SYSTEMCTL_LOG"
 case "$args" in
   *start*)
+    if [ "${FAKE_BACKEND_DOWN_AFTER_SWAP:-0}" = 1 ]; then
+      rm -f "$FIXTURES/health.json"
+    fi
     if [ "${FAKE_APP_HEALTHY:-1}" = 1 ]; then
       version="$(basename "$(readlink -f "$CLUBBAR_ROOT/current")")"
       cat > "$CLUBBAR_DATA_DIR/status.json" <<JSON
@@ -453,6 +462,94 @@ expect_installed v1.0.6 "the next run leaves the working version alone"
 run_updater
 expect_status 0 "clearing the block lets the update run again"
 expect_installed v1.0.7 "after --clear-block the update is installed"
+
+# ---------------------------------------------------------------------------
+# A backend outage during the watchdog window — the same silence, a different
+# cause
+# ---------------------------------------------------------------------------
+# The heartbeat is "the app completed a sync round-trip", so a backend that goes
+# away for the five minutes after the swap produces exactly the silence a broken
+# build produces. Rolling back is right in both cases; blacklisting is right in
+# only one, and getting it wrong freezes a terminal permanently and silently on
+# a verdict the version never earned (#836).
+
+echo
+echo "== the backend is unreachable during the watchdog window =="
+
+setup_case
+export FAKE_APP_HEALTHY=0
+export FAKE_BACKEND_DOWN_AFTER_SWAP=1   # the new build is fine; the backend is not
+run_updater
+expect_status 1 "an update that could not sync still reports failure"
+expect_installed v1.0.6 "a terminal that has not synced goes back to the version that worked"
+expect_output "rolling back" "the rollback is announced"
+expect_output "backend at" "the reason the heartbeat never arrived is named"
+
+if [ "$(cat "$CLUBBAR_DATA_DIR/clubbar_terminal.db")" = "pretend-database" ]; then
+  pass "the pre-update database was restored"
+else
+  fail "the database was not restored"
+fi
+
+if [ ! -s "$CLUBBAR_ROOT/blocked" ]; then
+  pass "an unreachable backend does not blacklist the version"
+else
+  fail "the version was blocked over a backend outage: $(cat "$CLUBBAR_ROOT/blocked")"
+fi
+
+if ! grep -qF 'v1.0.7' "$CLUBBAR_DATA_DIR/update-state.json" 2>/dev/null; then
+  pass "the app is not told to report a blocked version that is not blocked"
+else
+  fail "update-state.json names v1.0.7 after a backend outage"
+fi
+
+# The whole point: tomorrow's run tries the same tag again, which is the right
+# outcome for a night when the network was the problem.
+export FAKE_APP_HEALTHY=1
+export FAKE_BACKEND_DOWN_AFTER_SWAP=0
+backend_reports v1.0.7                  # the backend is back
+run_updater
+expect_status 0 "the next run after a network-caused rollback succeeds"
+expect_installed v1.0.7 "the same tag is retried and installed once the backend is back"
+
+# ---------------------------------------------------------------------------
+# Transient 5xx on the four pre-swap fetches
+# ---------------------------------------------------------------------------
+# curl's own --retry covers 5xx, 408, 429 and transient connection failures and
+# deliberately does not retry a 404 — which is the distinction wanted here,
+# since a 404 on /releases/tags/<version> means the backend reports a version
+# the project never released and waiting cannot fix that. The stub *is* curl in
+# this suite, so retry behaviour cannot be exercised; that the flags are on
+# every pre-swap fetch can be, and that is what regressed in the first place.
+
+echo
+echo "== transient failures on the pre-swap fetches =="
+
+RETRYING="$(grep -c -- '--retry 3 --retry-delay 5' "$UPDATER")"
+if [ "$RETRYING" = 4 ]; then
+  pass "all four pre-swap curl calls retry a transient failure"
+else
+  fail "expected 4 curl calls carrying --retry, found $RETRYING"
+fi
+
+# The rollback probe is deliberately not one of them: the safe direction there
+# is "unreachable", so a blip costs one more attempt tomorrow, while retrying
+# would hold a stopped till open for a distinction that changes nothing.
+if grep -A2 'no heartbeat, but the backend' "$UPDATER" | grep -q -- '--retry'; then
+  fail "the rollback health probe retries; it must fail fast towards 'unreachable'"
+else
+  pass "the rollback health probe does not retry"
+fi
+
+# A 404 from GitHub and an unreachable GitHub no longer share one sentence: the
+# first means a backend built outside the release process, the second means the
+# wifi blinked.
+setup_case
+backend_reports v9.9.9                  # released by nobody: the stub 404s (exit 22)
+run_updater
+expect_status 0 "a tag with no release is still not an error"
+expect_output "no release v9.9.9" "a 404 is reported as a missing release"
+expect_output "built outside the release process" "a 404 names what it actually means"
 
 echo
 if [ "$FAILURES" -gt 0 ]; then

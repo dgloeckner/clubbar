@@ -95,7 +95,9 @@ flowchart TD
     I --> J[swap current symlink, restart service]
     J --> K{heartbeat within window?}
     K -->|yes| L[done]
-    K -->|no| M[restore current + DB, add tag to blocked, restart]
+    K -->|no| N{backend reachable?}
+    N -->|yes| M[restore current + DB, add tag to blocked, restart]
+    N -->|no| O[restore current + DB, restart — tag NOT blocked, retry tomorrow]
 ```
 
 Five of those branches are refusals, and all five are **"no update", not an
@@ -153,6 +155,31 @@ On failure: `current` goes back to `previous`, the sqlite backup is restored,
 the tag is written to `blocked`, and the service restarts. Restoring the
 database is safe because the run happens at night on an idle, synced terminal —
 a version that never got healthy booked nothing.
+
+> **Amended 2026-09-06 — no heartbeat is not by itself a verdict on the build.**
+> Found on `ruderbar` during the first production OTA hop
+> ([#836](https://github.com/dgloeckner/clubbar/issues/836)); the original text
+> made the blacklist unconditional and this is that sentence corrected.
+
+Health is *"the app completed a sync round-trip"*, which the app cannot do when
+the **backend** is unavailable — so the criterion above cannot, on its own,
+distinguish a broken build from a good build with nothing to talk to. Both are
+silent, and the window is not hypothetical: the run is at 04:00 ± an hour of
+jitter, which on shared hosting is where nightly cron work and deploys live.
+
+So the updater probes `/api/health` once more before condemning the build.
+**The rollback is unconditional** — a terminal that has not synced belongs on
+the version that last worked — and only the blacklist is conditional: the tag
+is written to `blocked` when the backend answered, and is not when it did not,
+in which case the next run tries the same tag again.
+
+That distinction is what makes `blocked` worth trusting, here and on the wire in
+`X-Terminal-Blocked-Version` and in the admin panel's *Stuck at `<tag>`* state:
+an entry means **this build failed on this terminal**, not *something went wrong
+once*. Unconditional, the two are indistinguishable, and the second is a silent
+permanent freeze over a verdict the version never earned — recoverable only by
+`--clear-block`, which is deliberately a human act and so needs a human to
+notice first.
 
 ### The window is part of the argument, not a default
 
@@ -253,7 +280,9 @@ anyway. A guarantee in CI is not a guarantee on a Pi three months later.
 - **A terminal can stop updating indefinitely and only a screen says so.** A
   blocked tag with a stationary backend is a permanent freeze. Mitigation: the
   `X-Terminal-Version` reporting is required rather than nice-to-have, and the
-  Terminals page must name the stuck state specifically.
+  Terminals page must name the stuck state specifically. As amended above, the
+  freeze also has to be *earned*: a tag reaches `blocked` only when the backend
+  was reachable and the build still did not sync.
 - **Clubs deployed from git never auto-update their terminals.** `dev` is not a
   version. Mitigation: none, and none wanted — this is the fail-closed branch
   working.
