@@ -397,7 +397,7 @@
     },
     "creditLimit": "Own limit",
     "creditLimitInheritedPlaceholder": "Club default: {{amount}}",
-    "creditLimitInheritedHelper": "Empty: the club default of {{amount}} applies — change it and this member moves with it.",
+    "creditLimitInheritedHelper": "A value here always wins — a later change to the club default does not touch it. Empty: the club default of {{amount}} applies.",
     "creditLimitZeroHelper": "0 means no limit for this member. The terminal will not refuse a purchase over their tab.",
     "creditLimitHelper": "The highest this member's tab may reach. Leave empty for the club default; 0 means no limit.",
     "status": {

@@ -397,7 +397,7 @@
     },
     "creditLimit": "Eigenes Limit",
     "creditLimitInheritedPlaceholder": "Vereinsstandard: {{amount}}",
-    "creditLimitInheritedHelper": "Leer: Es gilt der Vereinsstandard von {{amount}} — wird dieser geändert, gilt das auch für dieses Mitglied.",
+    "creditLimitInheritedHelper": "Ein Wert hier gilt immer — auch wenn der Vereinsstandard später geändert wird. Leer: Es gilt der Vereinsstandard von {{amount}}.",
     "creditLimitZeroHelper": "0 bedeutet: kein Limit für dieses Mitglied. Das Terminal lehnt keine Buchung wegen des Deckels ab.",
     "creditLimitHelper": "Höchststand des Deckels für dieses Mitglied. Leer lassen für den Vereinsstandard; 0 bedeutet kein Limit.",
     "status": {
