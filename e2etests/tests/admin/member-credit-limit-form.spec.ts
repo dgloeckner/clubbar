@@ -99,15 +99,17 @@ test.describe('The credit limit field on the member form', () => {
     expect(await members.getCreditLimit()).toBe('')
 
     // ── 5. A typed zero is a decision, and survives as one ────────────────
-    // The helper line is what makes the two look-alike states distinguishable
-    // on screen: an empty field says the club's number applies, a zero says no
-    // number does. If both read the same, nobody can tell them apart.
-    const inheritedHelper = await members.getCreditLimitHelperText()
-    expect(inheritedHelper.trim().length).toBeGreaterThan(0)
+    // The two look-alike states must never read the same on screen: an empty
+    // field says the club's number applies, a zero says no number does. Since
+    // #830 the empty state says it through the placeholder — the permanent
+    // helper paragraph moved behind the label's info icon — and the zero
+    // state, which looks like an ordinary number and means the opposite of
+    // one, keeps a line of its own.
+    await members.expectCreditLimitHelperHidden()
+    expect(await members.getCreditLimitPlaceholder()).toMatch(/\d/)
 
     await members.setCreditLimit('0')
     const zeroHelper = await members.getCreditLimitHelperText()
-    expect(zeroHelper).not.toBe(inheritedHelper)
     expect(zeroHelper).toContain('0')
 
     await members.submitForm()

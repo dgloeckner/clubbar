@@ -69,17 +69,21 @@ export function MemberIbanField({
     }
   }, [mode, isReplacing])
 
-  // "(SEPA, optional)" is only true of a field being filled in for the first
-  // time; for a stored account it is the lock, for a replacement it names what
-  // is being replaced, and during a pending removal the box below says it all.
+  // "(SEPA, optional)" said the field's section twice — the form now carries a
+  // SEPA-Lastschrift divider above it (#830) — and buried the one fact this
+  // field alone has: whatever is typed here is sealed and never readable again
+  // (ADR-0036). So every state names the lock, except a replacement, which
+  // names what it is replacing.
   const labelSuffix =
-    mode === 'stored'
-      ? `🔒 ${t('members.ibanStoredLabel')}`
-      : mode === 'removing'
-        ? ''
-        : isReplacing && storedMasked
-          ? t('members.ibanReplaces', { masked: storedMasked })
-          : `(${t('common.sepa')}, ${t('common.optional')})`
+    mode === 'removing'
+      ? ''
+      : isReplacing && storedMasked
+        ? t('members.ibanReplaces', { masked: storedMasked })
+        : mode === 'stored'
+          ? `🔒 ${t('members.ibanStoredLabel')}`
+          : // Nothing is on file yet, so the note is a promise about what will
+            // happen to what is typed, not a claim that it already has.
+            `🔒 ${t('members.ibanEncryptedLabel')}`
 
   return (
     <div>

@@ -76,7 +76,10 @@
     "filters": "Filters",
     "retry": "Retry",
     "mandatory": "Required",
-    "requiredForSepa": "required for SEPA collection"
+    "requiredForSepa": "required for SEPA collection",
+    "forTerminal": "for terminal",
+    "forSepa": "for SEPA",
+    "moreInfo": "More information"
   },
   "auth": {
     "email": "Email",
@@ -221,7 +224,9 @@
     "invalidFormat": "Not a valid date – please use the format {{format}}",
     "outOfRange": "Date is outside the allowed range",
     "age_one": "{{count}} year old",
-    "age_other": "{{count}} years old"
+    "age_other": "{{count}} years old",
+    "ageShort_one": "{{count}} yr",
+    "ageShort_other": "{{count}} yrs"
   },
   "members": {
     "title": "Members",
@@ -339,6 +344,7 @@
     "removeStoredIban": "Remove bank details",
     "storedIbanWillBeRemoved": "Bank details will be removed on save, revoking the mandate.",
     "ibanStoredLabel": "encrypted, on file",
+    "ibanEncryptedLabel": "encrypted",
     "ibanChange": "Change",
     "ibanReplaces": "replaces {{masked}}",
     "ibanCancelChange": "Cancel — {{masked}} stays on file",
@@ -393,7 +399,50 @@
     "creditLimitInheritedPlaceholder": "Club default: {{amount}}",
     "creditLimitInheritedHelper": "Empty: the club default of {{amount}} applies — change it and this member moves with it.",
     "creditLimitZeroHelper": "0 means no limit for this member. The terminal will not refuse a purchase over their tab.",
-    "creditLimitHelper": "The highest this member's tab may reach. Leave empty for the club default; 0 means no limit."
+    "creditLimitHelper": "The highest this member's tab may reach. Leave empty for the club default; 0 means no limit.",
+    "status": {
+      "caption": "Clubbar access",
+      "sepaSection": "SEPA direct debit",
+      "noChanges": "No changes",
+      "changedFields_one": "1 field changed",
+      "changedFields_other": "{{count}} fields changed",
+      "terminal": {
+        "title": "Terminal",
+        "titleShort": "Terminal",
+        "full": "Can buy, all products",
+        "ageLimited": "Only products without an age limit",
+        "noAccess": "No access",
+        "willGainAccess": "Can buy once saved",
+        "willLoseAccess": "Loses access once saved"
+      },
+      "sepa": {
+        "title": "SEPA direct debit",
+        "titleShort": "SEPA",
+        "valid": "Mandate valid since {{date}}",
+        "willBecomeValid": "Becomes valid once saved",
+        "willBecomeInvalid": "Becomes invalid once saved",
+        "missing": "No collection"
+      },
+      "reachable": {
+        "title": "Reachable",
+        "titleShort": "Email",
+        "yes": "Email delivery possible",
+        "willBecome": "Reachable once saved",
+        "willLose": "Loses email once saved",
+        "no": "No mail"
+      },
+      "required": {
+        "complete": "All required fields present",
+        "completeShort": "Required fields complete",
+        "missing_one": "1 required field missing",
+        "missing_other": "{{count}} required fields missing",
+        "blocked_one": "Cannot save · 1 required field missing",
+        "blocked_other": "Cannot save · {{count}} required fields missing",
+        "clearing_one": "1 stored value will be deleted",
+        "clearing_other": "{{count}} stored values will be deleted"
+      }
+    },
+    "exportData": "Export data"
   },
   "products": {
     "title": "Products",

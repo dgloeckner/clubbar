@@ -48,10 +48,12 @@ import { MemberIbanField } from '../components/members/MemberIbanField'
 import { ClearedValueNotice } from '../components/members/ClearedValueNotice'
 import { MemberDataQualityPanel } from '../components/members/MemberDataQualityPanel'
 import { MemberGapChips } from '../components/members/MemberGapChips'
-import { MemberFormRequirements } from '../components/members/MemberFormRequirements'
+import {
+  MemberStatusStrip,
+  MemberStatusSummaryLine,
+} from '../components/members/MemberStatusStrip'
 import { FieldLabel } from '../components/forms/FieldLabel'
 import {
-  MEMBER_REQUIRED_FIELDS,
   clearedFields,
   isPlausibleEmail,
   missingRequiredFields,
@@ -60,7 +62,11 @@ import {
 } from '../utils/memberFormRequirements'
 import { MemberMandateReferenceField } from '../components/members/MemberMandateReferenceField'
 import { deriveSepaFormStatus } from '../utils/sepaStatus'
-import { Alert } from '../components/common/Alert'
+import {
+  countChangedFields,
+  deriveMemberStatusTiles,
+  statusGapFields,
+} from '../utils/memberFormStatus'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import {
   tableWrapperStyles,
@@ -85,22 +91,48 @@ const CARD_UID_PATTERN = /^[0-9A-F]{8,20}$/
 /**
  * The member form's input styling, in one place because ten copies of it is
  * how the danger border came to be applied to four of the fields and not the
- * other six. `invalid` is what a field with a complaint under it looks like.
+ * other six. `invalid` is what a field with a complaint under it looks like;
+ * `gap` is the orange border on a field the status strip is naming as the
+ * reason a tile is not green (#830), so the two carry different colours and an
+ * error is never mistaken for a gap.
  *
  * The two date fields do not use it: they render through `DateField`, which
  * owns its own styling and takes `invalid` as a prop (#631).
  */
-function formInputStyle(invalid: boolean): React.CSSProperties {
+function formInputStyle(invalid: boolean, gap = false): React.CSSProperties {
   return {
     width: '100%',
     padding: `${theme.spacing.md} ${theme.spacing.lg}`,
     background: theme.colors.bg.input,
-    border: `1px solid ${invalid ? theme.colors.semantic.danger : theme.colors.border.light}`,
+    border: `1px solid ${
+      invalid
+        ? theme.colors.semantic.danger
+        : gap
+          ? theme.colors.semantic.warning
+          : theme.colors.border.light
+    }`,
     borderRadius: theme.borderRadius.md,
     color: theme.colors.text.primary,
     boxSizing: 'border-box',
   }
 }
+
+/** A form with nothing in it — the create dialog, and the reset after a save. */
+const BLANK_MEMBER_FORM = {
+  first_name: '',
+  last_name: '',
+  email: '',
+  date_of_birth: '',
+  iban: '',
+  account_holder_name: '',
+  mandate_reference: '',
+  mandate_signed_at: '',
+  preferred_language: 'de',
+  card_uid: '',
+  credit_limit: '',
+}
+
+type MemberFormData = typeof BLANK_MEMBER_FORM
 
 const formFieldErrorStyle: React.CSSProperties = {
   color: theme.colors.semantic.danger,
@@ -244,22 +276,27 @@ export function MembersPage() {
 
   const { items: members, total: totalMembers, totalPages, loading, error, setError, search } = list
   const { status: filterIsActive, cardUid: filterCardUid, sepaStatus: filterSepaStatus, email: filterEmail, dateOfBirth: filterDateOfBirth, dataStatus: filterDataStatus } = list.filters
-  const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    date_of_birth: '',
-    iban: '',
-    account_holder_name: '',
-    mandate_reference: '',
-    mandate_signed_at: '',
-    preferred_language: 'de',
-    card_uid: '',
-    // The member's own credit ceiling, in euros as typed (ADR-0047). Empty is
-    // the ordinary case and means "follow the club default"; see
-    // `utils/creditLimit.ts` for why empty and `0` must never collapse.
-    credit_limit: '',
-  })
+  // `credit_limit` is euros as typed (ADR-0047). Empty is the ordinary case and
+  // means "follow the club default"; see `utils/creditLimit.ts` for why empty
+  // and `0` must never collapse.
+  const [formData, setFormData] = useState<MemberFormData>(BLANK_MEMBER_FORM)
+
+  /**
+   * The form as it was *opened*, for the footer's change count (#830).
+   *
+   * A snapshot rather than a comparison against `editingMember`: four of the
+   * fields are normalised on the way in (both dates, the credit limit, the
+   * language default), and diffing a normalised value against the raw API one
+   * would report a change on a form nobody has typed into.
+   */
+  const [initialFormData, setInitialFormData] = useState<MemberFormData | null>(null)
+
+  /** Fills the form and takes the snapshot together, so the two cannot drift. */
+  const openForm = useCallback((values: MemberFormData) => {
+    setFormData(values)
+    setInitialFormData(values)
+    setShowModal(true)
+  }, [])
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [clubDefaultLimitCents, setClubDefaultLimitCents] = useState<number | null>(null)
   // Removing the stored account is its own act, because a blank IBAN field now
@@ -375,6 +412,101 @@ export function MembersPage() {
   const clearedPrevious = Object.fromEntries(
     clearedStoredValues.map((entry) => [entry.field, entry.previous]),
   ) as Partial<Record<MemberClearableField, string>>
+
+  // ── Can this member use the Clubbar? (#830) ─────────────────────────────
+  //
+  // Three tiles, derived from the form rather than from the loaded member, so
+  // the dialog answers the question an admin opened it with instead of listing
+  // the fields it happens to contain. `MemberStatusStrip` renders them; the
+  // rules are in `utils/memberFormStatus.ts`, where they can be asserted
+  // without a browser.
+  const statusTiles = deriveMemberStatusTiles({
+    cardUid: formData.card_uid,
+    dateOfBirth: formData.date_of_birth,
+    email: formData.email,
+    sepa: sepaFormStatus,
+    // Kept as the IBAN field itself reads it: a stored account survives a save
+    // unless removal is pending, and a typed one only counts once it checksums
+    // (ADR-0036, #392).
+    willHaveIban: removeStoredIban
+      ? false
+      : Boolean(storedIbanMasked) || validateIban(formData.iban),
+    mandateSignedAt: formData.mandate_signed_at,
+    saved: editingMember
+      ? {
+          hasCardUid: Boolean(editingMember.card_uid),
+          hasDateOfBirth: Boolean(editingMember.date_of_birth),
+          hasEmail: Boolean(editingMember.email),
+        }
+      : null,
+  })
+
+  // The fields the strip currently names, so their inputs carry the same
+  // orange border. One colour, one meaning: "this field is why a tile is not
+  // green" — which is what lets the form be scanned rather than read.
+  const gapFields = new Set(statusGapFields(statusTiles))
+  const isGapField = (field: string) => gapFields.has(field)
+
+  /** The missing required fields, named the way their labels read. */
+  const missingRequirements = missingRequired.map((field) => ({
+    field,
+    label: requiredFieldLabels[field],
+  }))
+
+  // How much this edit has actually changed, for the footer. A replacement
+  // IBAN never shows up in the field diff — the input starts blank by design
+  // (ADR-0036) — so it and a pending removal are counted separately.
+  const changedCount = countChangedFields(
+    initialFormData,
+    formData,
+    (removeStoredIban ? 1 : 0) + (isReplacingIban && formData.iban.trim() !== '' ? 1 : 0),
+  )
+
+  /**
+   * Whether the status strip is still on screen.
+   *
+   * Only consulted on a phone, where the form is longer than the viewport and
+   * the strip scrolls away: the header then shows its conclusion instead
+   * (#830). An `IntersectionObserver` rather than a scroll handler, so nothing
+   * runs per frame while a finger is dragging.
+   */
+  const [statusStripVisible, setStatusStripVisible] = useState(true)
+  const statusStripElement = useRef<HTMLDivElement | null>(null)
+  const statusStripRef = useCallback((element: HTMLDivElement | null) => {
+    statusStripElement.current = element
+  }, [])
+
+  useEffect(() => {
+    const element = statusStripElement.current
+    if (!showModal || !element) {
+      // Reopening the dialog must start from "visible": the strip is at the top
+      // of a freshly scrolled body, and a stale `false` would show the header
+      // summary over a strip that is right there.
+      setStatusStripVisible(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setStatusStripVisible(entry.isIntersecting),
+      { threshold: 0 },
+    )
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [showModal])
+
+  /**
+   * Closes the dialog and puts every opt-in state back.
+   *
+   * One function because there are three ways out (Cancel, the phone's ✕, a
+   * successful save) and a state left set by one of them — a pending IBAN
+   * removal, a refused submit — reappears on the *next* member opened.
+   */
+  const closeForm = useCallback(() => {
+    setShowModal(false)
+    resetBankingFieldModes()
+    setSubmitAttempted(false)
+    setStatusStripVisible(true)
+  }, [])
 
   /** Puts a value the admin has just emptied back, from the notice under it. */
   const restoreClearedValue = (field: MemberClearableField) => {
@@ -612,11 +744,10 @@ export function MembersPage() {
       }
 
       // Reset form
-      setShowModal(false)
+      closeForm()
       setEditingMember(null)
-      setFormData({ first_name: '', last_name: '', email: '', date_of_birth: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '', credit_limit: '' })
-      resetBankingFieldModes()
-      setSubmitAttempted(false)
+      setFormData(BLANK_MEMBER_FORM)
+      setInitialFormData(null)
 
       // Reload members list with the active filters still applied
       await list.reload()
@@ -732,7 +863,7 @@ export function MembersPage() {
       setFormErrors({})
       resetBankingFieldModes()
       setSubmitAttempted(false)
-      setFormData({
+      openForm({
         first_name: fullMember.first_name ?? '',
         last_name: fullMember.last_name ?? '',
         email: fullMember.email ?? '',
@@ -751,7 +882,6 @@ export function MembersPage() {
         // member a blank box would re-cap them on the next save.
         credit_limit: creditLimitToInput(fullMember.credit_limit_cents),
       })
-      setShowModal(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('members.errors.loadDetails'))
     }
@@ -802,11 +932,10 @@ export function MembersPage() {
               data-testid="members-create-button"
               onClick={() => {
                 setEditingMember(null)
-                setFormData({ first_name: '', last_name: '', email: '', date_of_birth: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '', credit_limit: '' })
                 setFormErrors({})
                 resetBankingFieldModes()
                 setSubmitAttempted(false)
-                setShowModal(true)
+                openForm(BLANK_MEMBER_FORM)
               }}
               iconOnly={isMobile}
               icon={<PlusIcon size={18} />}
@@ -1732,7 +1861,13 @@ export function MembersPage() {
           The backdrop deliberately carries no close handler: this form holds
           nine fields that may have come out of a scanned mandate, and a stray
           click beside the dialog used to throw all of it away (#131). It closes
-          through Cancel or a successful save. */}
+          through Cancel or a successful save.
+
+          Three bands, not one scrolling box (#830): a pinned header, a
+          scrolling body, and a pinned footer. The dialog used to be one ~1750px
+          column inside `overflow-y: auto`, which put *Speichern* below the fold
+          on a 900px screen — an admin edited a field and had to scroll to find
+          out whether they could save. */}
       {showModal && (
         <div
           data-testid="members-form-modal"
@@ -1754,81 +1889,159 @@ export function MembersPage() {
             style={{
               background: theme.colors.bg.secondary,
               borderRadius: isMobile ? 0 : theme.borderRadius.lg,
-              padding: isMobile ? theme.spacing.lg : theme.spacing.xl,
-              maxWidth: isMobile ? '100%' : '900px',
-              width: isMobile ? '100%' : '90%',
+              maxWidth: isMobile ? '100%' : '960px',
+              width: isMobile ? '100%' : '95%',
               height: isMobile ? '100%' : 'auto',
               boxShadow: isMobile ? 'none' : theme.shadows.modalStrong,
               maxHeight: isMobile ? '100%' : '90vh',
-              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              // The bands scroll, the dialog does not — without this the
+              // rounded corners clip nothing and the body's scrollbar runs
+              // past the footer.
+              overflow: 'hidden',
             }}
           >
-            <h2 data-testid="members-form-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
-              {editingMember ? t('members.editMember') : t('members.createMember')}
-            </h2>
-
-            {/*
-              What the form still needs, and what saving it would delete. It
-              opens the modal because those are the two things an admin wants
-              to know before reading a single field (#629).
-            */}
-            <MemberFormRequirements
-              satisfied={MEMBER_REQUIRED_FIELDS.length - missingRequired.length}
-              total={MEMBER_REQUIRED_FIELDS.length}
-              missing={missingRequired.map((field) => ({ field, label: requiredFieldLabels[field] }))}
-              clearingCount={clearedStoredValues.length}
-              blocked={submitAttempted && missingRequired.length > 0}
-              onJumpTo={jumpToField}
-            />
-
-            {/*
-              SEPA status. It used to report `is_sepa_valid` as loaded, which
-              left "SEPA-Mandat gültig" standing above the line announcing that
-              the mandate is about to be revoked. It now previews what this
-              submit would do, and says so where that differs from what is
-              saved (#392).
-            */}
-            {editingMember && (
-              <div aria-live="polite">
-                <Alert
-                  testId="members-form-sepa-status"
-                  variant={
-                    sepaFormStatus === 'valid'
-                      ? 'success'
-                      : sepaFormStatus === 'willBecomeValid'
-                        ? 'info'
-                        : sepaFormStatus === 'willBecomeInvalid'
-                          ? 'warning'
-                          : 'danger'
-                  }
-                  icon={
-                    <span style={{ fontSize: theme.typography.fontSize.lg }}>
-                      {sepaFormStatus === 'valid' ? '✓' : sepaFormStatus === 'willBecomeValid' ? 'ⓘ' : '⚠'}
+            {/* ── Header, pinned ─────────────────────────────────────── */}
+            <div
+              data-testid="members-form-header"
+              style={{
+                flex: '0 0 auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: theme.spacing.sm,
+                padding: isMobile
+                  ? `${theme.spacing.lg} ${theme.spacing.lg} ${theme.spacing.md}`
+                  : `${theme.spacing.xl} ${theme.spacing.xl} 0`,
+                borderBottom: isMobile ? `1px solid ${theme.colors.border.dark}` : 'none',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: isMobile ? 'flex-start' : 'baseline',
+                  justifyContent: 'space-between',
+                  gap: theme.spacing.md,
+                }}
+              >
+                <h2
+                  data-testid="members-form-title"
+                  style={{
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    alignItems: isMobile ? 'flex-start' : 'baseline',
+                    gap: isMobile ? '2px' : theme.spacing.md,
+                    fontSize: theme.typography.fontSize.xl,
+                  }}
+                >
+                  {editingMember ? t('members.editMember') : t('members.createMember')}
+                  {/* Which member, beside the verb. The dialog is opened from a
+                      roster row and used to name nobody, so a mistap was only
+                      discoverable by reading the fields. */}
+                  {editingMember && (
+                    <span
+                      data-testid="members-form-title-member"
+                      style={{
+                        fontSize: theme.typography.fontSize.sm,
+                        fontWeight: theme.typography.fontWeight.normal,
+                        color: theme.colors.text.secondary,
+                      }}
+                    >
+                      {memberName(editingMember)}
                     </span>
-                  }
-                  title={
-                    sepaFormStatus === 'valid'
-                      ? t('members.sepaValid')
-                      : sepaFormStatus === 'willBecomeValid'
-                        ? t('members.sepaWillBecomeValid')
-                        : sepaFormStatus === 'willBecomeInvalid'
-                          ? t('members.sepaWillBecomeInvalid')
-                          : t('members.sepaMissing')
-                  }
-                  message={
-                    sepaFormStatus === 'valid'
-                      ? ''
-                      : sepaFormStatus === 'missing'
-                        ? t('members.sepaMissingHint')
-                        : t('members.sepaUnsavedHint')
-                  }
-                />
+                  )}
+                </h2>
+
+                {/* Full-screen on a phone, so the way out has to be in the
+                    header — the footer's Abbrechen is behind the whole form. */}
+                {isMobile && (
+                  <button
+                    data-testid="members-form-close-button"
+                    type="button"
+                    onClick={closeForm}
+                    aria-label={t('common.cancel')}
+                    style={{
+                      flex: '0 0 auto',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: theme.borderRadius.sm,
+                      color: theme.colors.text.secondary,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                )}
               </div>
-            )}
+
+              {/* Once the strip has scrolled away on a phone, its conclusion
+                  stays: three dots in the tiles' colours and whatever still
+                  blocks the save, as a jump link. */}
+              {isMobile && !statusStripVisible && (
+                <MemberStatusSummaryLine
+                  tiles={statusTiles}
+                  missingRequired={missingRequirements}
+                  blocked={submitAttempted && missingRequired.length > 0}
+                  onJumpTo={jumpToField}
+                />
+              )}
+            </div>
 
             {/* `noValidate`: the required checks live in `handleSubmit`, which
-                reports every gap at once — see the comment there (#629). */}
-            <form onSubmit={handleSubmit} noValidate style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
+                reports every gap at once — see the comment there (#629).
+                The form spans body *and* footer so the submit button stays a
+                plain submit button rather than needing a `form=` attribute. */}
+            <form
+              onSubmit={handleSubmit}
+              noValidate
+              style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+            >
+              <div
+                data-testid="members-form-body"
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  padding: isMobile
+                    ? theme.spacing.lg
+                    : `${theme.spacing.lg} ${theme.spacing.xl}`,
+                }}
+              >
+                {/*
+                  Can this member use the Clubbar? One strip, three tiles, and
+                  on the right the only thing that stops the save (#830). It
+                  replaces the requirements panel (#629) and the SEPA alert
+                  (#392), which between them said the same things twice in two
+                  shades of green.
+                */}
+                <div ref={statusStripRef}>
+                  <MemberStatusStrip
+                    tiles={statusTiles}
+                    missingRequired={missingRequirements}
+                    clearingCount={clearedStoredValues.length}
+                    blocked={submitAttempted && missingRequired.length > 0}
+                    compact={isMobile}
+                    onJumpTo={jumpToField}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                    gap: theme.spacing.lg,
+                    columnGap: theme.spacing.xl,
+                  }}
+                >
               <div>
                 <FieldLabel
                   htmlFor="members-form-first-name-input"
@@ -1903,7 +2116,7 @@ export function MembersPage() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="max@example.com"
-                  style={formInputStyle(Boolean(formErrors.email))}
+                  style={formInputStyle(Boolean(formErrors.email), isGapField('email'))}
                 />
                 {/* The API requires an email on create; without this the 422 it
                     answers with was mapped into formErrors and never rendered. */}
@@ -1939,6 +2152,7 @@ export function MembersPage() {
                     min={EARLIEST_BIRTH_DATE}
                     max={toIsoDate(new Date())}
                     invalid={Boolean(formErrors.date_of_birth)}
+                    warn={isGapField('date_of_birth')}
                     describedBy={formErrors.date_of_birth ? 'members-form-dob-error' : undefined}
                   />
                 </div>
@@ -1950,14 +2164,15 @@ export function MembersPage() {
               </div>
 
               {/* Not required to store, but nothing works at the till without
-                  it — so the marker names the capability instead of calling the
-                  field optional, which understates it (#629). */}
+                  it. The strip's Terminal tile is where that is spelled out, so
+                  the label only needs a quiet note that the field is load-
+                  bearing rather than decorative (#830). */}
               <div>
                 <FieldLabel
                   htmlFor="member-form-card-uid"
                   label={t('members.form.cardUid')}
                   requirement="conditional"
-                  unlocks={t('common.requiredForTerminal')}
+                  unlocks={formData.card_uid.trim() === '' ? t('common.forTerminal') : undefined}
                   testId="members-form-card-uid-label"
                 />
                 <input
@@ -1976,7 +2191,10 @@ export function MembersPage() {
                   }}
                   placeholder={t('members.form.cardUidPlaceholder')}
                   maxLength={20}
-                  style={{ ...formInputStyle(Boolean(formErrors.card_uid)), fontFamily: 'monospace' }}
+                  style={{
+                    ...formInputStyle(Boolean(formErrors.card_uid), isGapField('card_uid')),
+                    fontFamily: 'monospace',
+                  }}
                 />
                 {clearedPrevious.card_uid && (
                   <ClearedValueNotice
@@ -1997,64 +2215,85 @@ export function MembersPage() {
                 )}
               </div>
 
-              <MemberIbanField
-                mode={ibanFieldMode}
-                value={formData.iban}
-                onChange={(iban) => {
-                  setFormData((prev) => ({ ...prev, iban }))
-                  if (formErrors.iban) {
-                    setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban')))
-                  }
-                }}
-                storedMasked={storedIbanMasked}
-                storedBankName={editingMember?.bank_name}
-                isReplacing={isReplacingIban}
-                onBeginChange={() => setIsReplacingIban(true)}
-                onCancelChange={() => {
-                  // Clearing the field matters as much as hiding it: a half-typed
-                  // IBAN left behind would reach the payload invisibly.
-                  setIsReplacingIban(false)
-                  setFormData((prev) => ({ ...prev, iban: '' }))
-                  setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban')))
-                }}
-                onRemove={() => {
-                  setRemoveStoredIban(true)
-                  setIsReplacingIban(false)
-                  setFormData((prev) => ({ ...prev, iban: '' }))
-                }}
-                onUndoRemove={() => setRemoveStoredIban(false)}
-                error={formErrors.iban}
-              />
-
+              {/* Beside the card UID rather than on a full-width row of its own:
+                  a two-option select does not need 960px, and the row it used to
+                  occupy is part of why Speichern was below the fold (#830). */}
               <div>
                 <FieldLabel
-                  htmlFor="members-form-account-holder-name-input"
-                  label={t('members.accountHolderName')}
-                  requirement="optional"
-                  optionalNote={`${t('common.sepa')}, ${t('common.optional')}`}
-                  testId="members-form-account-holder-label"
+                  label={t('members.preferredLanguage')}
+                  requirement="required"
+                  satisfied={isRequiredSatisfied('preferred_language')}
+                  testId="members-form-language-label"
                 />
-                <input
-                  id="members-form-account-holder-name-input"
-                  ref={registerField('account_holder_name')}
-                  data-testid="members-form-account-holder-name-input"
-                  type="text"
-                  value={formData.account_holder_name}
-                  onChange={(e) => setFormData({ ...formData, account_holder_name: e.target.value })}
-                  placeholder={t('members.accountHolderPlaceholder')}
-                  maxLength={70}
-                  style={formInputStyle(false)}
+                <LanguageSelector
+                  value={formData.preferred_language as 'de' | 'en'}
+                  onChange={(language) => setFormData({ ...formData, preferred_language: language })}
+                  testId="members-form-language-select"
+                  required
                 />
-                {clearedPrevious.account_holder_name && (
-                  <ClearedValueNotice
-                    previous={clearedPrevious.account_holder_name}
-                    onRestore={() => restoreClearedValue('account_holder_name')}
-                    testId="members-form-account-holder-cleared"
-                  />
-                )}
-                <span style={{ fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary, marginTop: theme.spacing.xs, display: 'block' }}>
-                  {t('members.accountHolderHint')}
+              </div>
+
+              {/* A rule with a name on it, rather than a gap: four of the
+                  remaining fields are one subject (ADR-0020), and saying so
+                  once costs less height than the spacing that used to imply
+                  it. */}
+              <div
+                data-testid="members-form-sepa-divider"
+                style={{
+                  gridColumn: '1 / -1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: theme.spacing.md,
+                  marginTop: theme.spacing.sm,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: theme.typography.fontSize.xs,
+                    fontWeight: theme.typography.fontWeight.semibold,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: theme.colors.text.label,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {t('members.status.sepaSection')}
                 </span>
+                <span
+                  aria-hidden="true"
+                  style={{ flex: 1, height: '1px', background: theme.colors.border.dark }}
+                />
+              </div>
+
+              <div ref={registerField('iban')}>
+                <MemberIbanField
+                  mode={ibanFieldMode}
+                  value={formData.iban}
+                  onChange={(iban) => {
+                    setFormData((prev) => ({ ...prev, iban }))
+                    if (formErrors.iban) {
+                      setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban')))
+                    }
+                  }}
+                  storedMasked={storedIbanMasked}
+                  storedBankName={editingMember?.bank_name}
+                  isReplacing={isReplacingIban}
+                  onBeginChange={() => setIsReplacingIban(true)}
+                  onCancelChange={() => {
+                    // Clearing the field matters as much as hiding it: a half-typed
+                    // IBAN left behind would reach the payload invisibly.
+                    setIsReplacingIban(false)
+                    setFormData((prev) => ({ ...prev, iban: '' }))
+                    setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban')))
+                  }}
+                  onRemove={() => {
+                    setRemoveStoredIban(true)
+                    setIsReplacingIban(false)
+                    setFormData((prev) => ({ ...prev, iban: '' }))
+                  }}
+                  onUndoRemove={() => setRemoveStoredIban(false)}
+                  error={formErrors.iban}
+                />
               </div>
 
               <MemberMandateReferenceField
@@ -2082,13 +2321,13 @@ export function MembersPage() {
                   quietly filled `DtOfSgntr` with the settlement date when this
                   was blank. The date the member signed is the third part of a
                   mandate (ADR-0020, #164): without it there is no collection,
-                  and the marker has to say so rather than understate the field
-                  the way the two above it do not. */}
+                  and the SEPA tile names it as one of the two things standing
+                  in the way. */}
               <div>
                 <FieldLabel
                   label={t('members.mandateSignedAt')}
                   requirement="conditional"
-                  unlocks={t('common.requiredForSepa')}
+                  unlocks={formData.mandate_signed_at.trim() === '' ? t('common.forSepa') : undefined}
                   testId="members-form-mandate-date-label"
                 />
                 <div ref={registerField('mandate_signed_at')}>
@@ -2098,6 +2337,7 @@ export function MembersPage() {
                     value={formData.mandate_signed_at}
                     onChange={(iso) => setFormData({ ...formData, mandate_signed_at: iso })}
                     max={toIsoDate(new Date())}
+                    warn={isGapField('mandate_signed_at')}
                   />
                 </div>
                 {clearedPrevious.mandate_signed_at && (
@@ -2109,29 +2349,52 @@ export function MembersPage() {
                 )}
               </div>
 
-              <div style={{ gridColumn: '1 / -1' }}>
+              {/* The paragraph that used to sit under this field is now the
+                  placeholder plus the info icon: the short form where it is
+                  needed, the long form one tap away (#830). */}
+              <div>
                 <FieldLabel
-                  label={t('members.preferredLanguage')}
-                  requirement="required"
-                  satisfied={isRequiredSatisfied('preferred_language')}
-                  testId="members-form-language-label"
+                  htmlFor="members-form-account-holder-name-input"
+                  label={t('members.accountHolderName')}
+                  requirement="optional"
+                  info={t('members.accountHolderHint')}
+                  testId="members-form-account-holder-label"
                 />
-                <LanguageSelector
-                  value={formData.preferred_language as 'de' | 'en'}
-                  onChange={(language) => setFormData({ ...formData, preferred_language: language })}
-                  testId="members-form-language-select"
-                  required
+                <input
+                  id="members-form-account-holder-name-input"
+                  ref={registerField('account_holder_name')}
+                  data-testid="members-form-account-holder-name-input"
+                  type="text"
+                  value={formData.account_holder_name}
+                  onChange={(e) => setFormData({ ...formData, account_holder_name: e.target.value })}
+                  placeholder={t('members.accountHolderPlaceholder')}
+                  maxLength={70}
+                  style={formInputStyle(false)}
                 />
+                {clearedPrevious.account_holder_name && (
+                  <ClearedValueNotice
+                    previous={clearedPrevious.account_holder_name}
+                    onRestore={() => restoreClearedValue('account_holder_name')}
+                    testId="members-form-account-holder-cleared"
+                  />
+                )}
               </div>
 
               {/* The member's own credit ceiling (ADR-0047). Optional, and the
                   empty state is the ordinary one — which is why the placeholder
                   names the club figure the member inherits rather than leaving
                   a blank box that reads as unset-and-broken. */}
-              <div style={{ gridColumn: '1 / -1' }}>
+              <div>
                 <FieldLabel
                   label={t('members.creditLimit')}
                   requirement="optional"
+                  info={
+                    clubDefaultLimitCents !== null
+                      ? t('members.creditLimitInheritedHelper', {
+                          amount: formatters.formatPrice(clubDefaultLimitCents),
+                        })
+                      : t('members.creditLimitHelper')
+                  }
                   testId="members-form-credit-limit-label"
                 />
                 <input
@@ -2155,31 +2418,82 @@ export function MembersPage() {
                   aria-invalid={Boolean(formErrors.credit_limit_cents)}
                   style={formInputStyle(Boolean(formErrors.credit_limit_cents))}
                 />
-                <div
-                  data-testid="members-form-credit-limit-helper"
-                  style={{
-                    marginTop: theme.spacing.xs,
-                    fontSize: theme.typography.fontSize.xs,
-                    color: theme.colors.text.muted,
-                  }}
-                >
-                  {creditLimitFromInput(formData.credit_limit) === 0
-                    ? t('members.creditLimitZeroHelper')
-                    : formData.credit_limit.trim() === '' && clubDefaultLimitCents !== null
-                      ? t('members.creditLimitInheritedHelper', {
-                          amount: formatters.formatPrice(clubDefaultLimitCents),
-                        })
-                      : t('members.creditLimitHelper')}
-                </div>
+                {/* A typed 0 is the one state the field cannot show on its own.
+                    Empty is answered by the placeholder ("Vereinsstandard:
+                    100,00 €"); 0 looks like an ordinary number and means the
+                    opposite of one — no ceiling at all (ADR-0047). Those two
+                    must never read the same, so this line survives the move of
+                    the other two explanations into the info popover (#830). */}
+                {creditLimitFromInput(formData.credit_limit) === 0 && (
+                  <div
+                    data-testid="members-form-credit-limit-helper"
+                    style={{
+                      marginTop: theme.spacing.xs,
+                      fontSize: theme.typography.fontSize.xs,
+                      color: theme.colors.text.muted,
+                    }}
+                  >
+                    {t('members.creditLimitZeroHelper')}
+                  </div>
+                )}
                 {formErrors.credit_limit_cents && (
                   <p data-testid="members-form-credit-limit-error" style={formFieldErrorStyle}>
                     {formErrors.credit_limit_cents}
                   </p>
                 )}
               </div>
+                </div>
 
-              <div style={{ gridColumn: '1 / -1', display: 'flex', gap: theme.spacing.lg, justifyContent: editingMember ? 'space-between' : 'flex-end', marginTop: theme.spacing.lg }}>
-                {editingMember && (
+                {/* On a phone the footer holds only Abbrechen and Speichern, so
+                    the export lands at the end of the form — where a rarely
+                    used action belongs, and where it is not competing with the
+                    button the admin came for. */}
+                {isMobile && editingMember && (
+                  <button
+                    data-testid="members-form-export-button-mobile"
+                    type="button"
+                    onClick={handleExportData}
+                    disabled={exporting}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: theme.spacing.sm,
+                      marginTop: theme.spacing.xl,
+                      padding: `${theme.spacing.md} 0`,
+                      background: 'transparent',
+                      border: 'none',
+                      color: theme.colors.text.secondary,
+                      cursor: exporting ? 'not-allowed' : 'pointer',
+                      fontSize: theme.typography.fontSize.sm,
+                      fontWeight: theme.typography.fontWeight.semibold,
+                      opacity: exporting ? 0.6 : 1,
+                    }}
+                  >
+                    <DownloadIcon size={16} />
+                    {t('members.exportData')}
+                  </button>
+                )}
+              </div>
+
+              {/* ── Footer, pinned ───────────────────────────────────────
+                  Only the body scrolls, so Speichern is on screen whatever the
+                  form's height and whatever the screen's (#830). */}
+              <div
+                data-testid="members-form-footer"
+                style={{
+                  flex: '0 0 auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: theme.spacing.md,
+                  justifyContent: !isMobile && editingMember ? 'space-between' : 'flex-end',
+                  padding: isMobile
+                    ? theme.spacing.lg
+                    : `${theme.spacing.lg} ${theme.spacing.xl}`,
+                  borderTop: `1px solid ${theme.colors.border.dark}`,
+                  background: theme.colors.bg.secondary,
+                }}
+              >
+                {!isMobile && editingMember && (
                   <button
                     data-testid="members-form-export-button"
                     type="button"
@@ -2205,13 +2519,40 @@ export function MembersPage() {
                     {t('common.export')}
                   </button>
                 )}
-                <div style={{ display: 'flex', gap: theme.spacing.lg }}>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: theme.spacing.lg,
+                    flex: isMobile ? 1 : '0 0 auto',
+                  }}
+                >
+                  {/* "Nothing has changed" is the fact that decides between
+                      Speichern and Abbrechen, and the dialog is the only place
+                      that knows it. */}
+                  {!isMobile && editingMember && (
+                    <span
+                      data-testid="members-form-change-count"
+                      style={{
+                        fontSize: theme.typography.fontSize.sm,
+                        color: theme.colors.text.muted,
+                      }}
+                    >
+                      {changedCount === 0
+                        ? t('members.status.noChanges')
+                        : t('members.status.changedFields', { count: changedCount })}
+                    </span>
+                  )}
+
                   <button
                     data-testid="members-form-cancel-button"
                     type="button"
-                    onClick={() => { setShowModal(false); resetBankingFieldModes(); setSubmitAttempted(false) }}
+                    onClick={closeForm}
                     style={{
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      minHeight: isMobile ? '44px' : undefined,
+                      flex: isMobile ? '0 0 auto' : undefined,
                       background: 'transparent',
                       border: `1px solid ${theme.colors.border.light}`,
                       borderRadius: theme.borderRadius.md,
@@ -2228,6 +2569,10 @@ export function MembersPage() {
                     type="submit"
                     style={{
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      // 44px is the smallest target a finger hits reliably; the
+                      // primary action on a phone gets the rest of the row.
+                      minHeight: isMobile ? '44px' : undefined,
+                      flex: isMobile ? 1 : undefined,
                       background: theme.colors.semantic.primary,
                       border: 'none',
                       borderRadius: theme.borderRadius.md,

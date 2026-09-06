@@ -13,8 +13,13 @@
  * Both used to be plain inputs standing empty next to a grey example value,
  * which reads as "this is what is stored, greyed out" — the opposite of the
  * truth. Showing the stored value *in place of* the input, with the actions
- * that can change it underneath, states the same rule without a sentence of
- * explanation.
+ * that can change it, states the same rule without a sentence of explanation.
+ *
+ * The actions sit **inside** the box, right-aligned, so the row is exactly as
+ * tall as an input (#830). Underneath they cost a whole line each, on two of
+ * the member dialog's fields, in a dialog whose *Speichern* button was below
+ * the fold. `actionsBelow` keeps the old placement for actions too long to
+ * fit — a pending-removal notice, a cancel that names the value it restores.
  *
  * It is deliberately not an `<input readOnly>`: a disabled-looking field still
  * invites typing, and a focusable one lands in the tab order for no reason.
@@ -28,8 +33,10 @@ export interface StoredFieldBoxProps {
   value: ReactNode
   /** Rendered dimmer and in italics — for "will be assigned on save". */
   pending?: boolean
-  /** Buttons/links rendered under the box. */
+  /** Buttons/links rendered inside the box, right-aligned. */
   actions?: ReactNode
+  /** Buttons/links rendered under the box, for text too long to sit inside. */
+  actionsBelow?: ReactNode
   monospace?: boolean
   testId?: string
 }
@@ -38,6 +45,7 @@ export function StoredFieldBox({
   value,
   pending = false,
   actions,
+  actionsBelow,
   monospace = true,
   testId,
 }: StoredFieldBoxProps) {
@@ -65,9 +73,37 @@ export function StoredFieldBox({
           minHeight: '3rem',
         }}
       >
-        {value}
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: theme.spacing.md,
+            minWidth: 0,
+            overflowWrap: 'anywhere',
+          }}
+        >
+          {value}
+        </span>
+
+        {actions && (
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.spacing.md,
+              flex: '0 0 auto',
+              fontFamily: theme.typography.fontFamily.base,
+              fontStyle: 'normal',
+              fontSize: theme.typography.fontSize.sm,
+              color: theme.colors.text.secondary,
+            }}
+          >
+            {actions}
+          </span>
+        )}
       </div>
-      {actions && (
+
+      {actionsBelow && (
         <div
           style={{
             display: 'flex',
@@ -79,7 +115,7 @@ export function StoredFieldBox({
             color: theme.colors.text.secondary,
           }}
         >
-          {actions}
+          {actionsBelow}
         </div>
       )}
     </>

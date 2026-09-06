@@ -646,7 +646,9 @@ test.describe('Admin Members Page', () => {
     await authenticatedMembersPage.reopenMemberForm(firstName)
     await authenticatedMembersPage.expectIbanInputHidden()
     await authenticatedMembersPage.expectStoredIbanContains(`****${replacement.slice(-4)}`)
-    await authenticatedMembersPage.expectSepaStatusContains('SEPA')
+    // The mandate survived the swap, and the strip's SEPA tile says so as the
+    // saved state rather than as a pending change (#830).
+    expect(await authenticatedMembersPage.getStatusTileTone('sepa')).toBe('ok')
     await authenticatedMembersPage.cancelForm()
   })
 

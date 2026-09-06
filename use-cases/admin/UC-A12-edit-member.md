@@ -76,19 +76,71 @@ system.
 | Created date | Historical |
 | Tab balance | Changed via transactions only |
 
-## SEPA Status Display
+## Status Strip — can this member use the Clubbar?
 
-The form shows SEPA status (derived, not editable directly) as a preview of
-what *this submit* would leave behind — not as the state that was loaded. A
-banner announcing "SEPA mandate valid" above a field announcing that the
-mandate is about to be revoked is the contradiction this avoids.
+The dialog opens with **one** status region, captioned *Nutzung der Clubbar*
+([#830](https://github.com/dgloeckner/clubbar/issues/830)). It replaced four
+separate indicators that each answered a question about *fields* — a
+requirements panel, a SEPA banner, a tick per satisfied label and a pill per
+conditional one — and between them answered none of the three the admin
+actually has.
 
-| Status | Condition | Display |
-|--------|-----------|---------|
-| Valid | Saved state: IBAN present AND mandate_reference present | Green: "SEPA mandate valid" |
-| Invalid | Saved state: IBAN missing OR mandate_reference missing | Red: "SEPA mandate missing", with what is needed |
-| Will become valid | Unsaved: a valid IBAN typed for a member who had none | Info: "SEPA mandate becomes valid on save", marked as not yet saved |
-| Will become invalid | Unsaved: removal of the bank details is pending | Warning: "SEPA mandate becomes invalid on save", marked as not yet saved |
+Three tiles, grouped by **outcome** rather than by field:
+
+| Tile | Derived from | Green reads |
+|------|--------------|-------------|
+| Terminal | `card_uid`, `date_of_birth` | "Can buy, all products" |
+| SEPA direct debit | IBAN, `mandate_signed_at`, `mandate_reference` | "Mandate valid since &lt;date&gt;" |
+| Reachable | `email` | "Email delivery possible" |
+
+Every tile carries a gap by **naming its consequence first** ("No access") and
+the field that fixes it second, as a link that puts the caret in that field.
+The gaps are the four the roster's Datenqualität panel counts, so the dialog
+and the roster cannot disagree about what "incomplete" means.
+
+The caption row's right-hand end carries the one thing that can stop the save:
+the required fields still empty, or the stored values this submit would delete
+([#131](https://github.com/dgloeckner/clubbar/issues/131)). After a refused
+submit it turns red and is announced as an alert; before that it is a status
+region, because a running count that interrupts on every keystroke is a count
+nobody hears.
+
+**Every tile previews the save; none reports the load.** A banner announcing
+"SEPA mandate valid" above a field announcing that the mandate is about to be
+revoked is the contradiction this avoids, and the rule is applied to all three
+tiles rather than only to SEPA — a strip where one tile means "after saving"
+and the two beside it mean "as loaded" would be worse than either rule applied
+consistently.
+
+| Tone | Meaning |
+|------|---------|
+| Green | The capability is on, and saving will not change that |
+| Orange | Off (or reduced — a member with no birth date may buy, minus anything age-restricted per [ADR-0045](../../adr/0045-age-restricted-products.md)), and still so after saving |
+| Blue | Off now, on once this form is saved |
+| Red | On now, off once this form is saved |
+
+Applied to the mandate specifically:
+
+| Status | Condition | Tile |
+|--------|-----------|------|
+| Valid | Saved state: IBAN, reference and signature date all present | Green: "Mandate valid since &lt;date&gt;" |
+| Invalid | Saved state: one of the three missing | Orange: "No collection", naming the IBAN and/or the mandate date |
+| Will become valid | Unsaved: a valid IBAN typed for a member who had none | Blue: "Becomes valid once saved" |
+| Will become invalid | Unsaved: removal of the bank details, or the date cleared | Red: "Becomes invalid once saved", with the link that puts it back |
+
+## Field markers and layout
+
+- A marker on a field means **this field is why a tile is not green**: an
+  orange "Pflicht" pill and an orange border on a missing required field, the
+  border alone on a missing non-required one (the card UID). A satisfied field
+  carries nothing.
+- Long explanations sit behind an **i** beside the label, opening on hover and
+  on tap; the short form is the field's placeholder.
+- The dialog is a **pinned header, a scrolling body and a pinned footer**, so
+  *Speichern* is on screen at any screen height. On a phone it is 44px and
+  full width, the export moves to the end of the form, and once the strip
+  scrolls out of view the header carries its conclusion: three dots in the
+  tiles' colours plus the field that still blocks the save.
 
 To revoke SEPA access: use *Remove bank details*. The IBAN field cannot be
 cleared — the stored value is sealed and never returned, so a blank field means
@@ -127,7 +179,11 @@ the old mandate row is retained so returned collections stay matchable. See
 - Audit log: changes logged with before/after
 - Concurrent edit: modify same record → conflict detected
 - Cancel edit: discard changes → original values
-- SEPA indicator updates: add IBAN → indicator changes to green
+- SEPA tile updates: add IBAN → tile turns blue ("becomes valid once saved"), and green after the save
+- Terminal tile: a member with no card UID reads "No access", its link focuses the card field, filling it turns the tile blue, and the roster's card gap is gone after the save
+- Field markers: a missing required field carries the pill and the orange border; a satisfied one carries neither
+- Fold: at 1440×900 the dialog opens with *Speichern* in the viewport, and it is still there once the body is scrolled to its last field
+- Mobile: *Speichern* is ≥44px and in the viewport before and after scrolling; the header shows the compact summary once the strip is out of view
 
 ## Related
 

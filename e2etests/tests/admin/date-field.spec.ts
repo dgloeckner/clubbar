@@ -44,7 +44,7 @@ test.describe('Date field - Desktop', () => {
 
     // The age is shown as a check on the year, which is the digit that gets
     // mistyped and the one ADR-0045 gates a sale on.
-    expect(await authenticatedMembersPage.getDateOfBirthHint()).toMatch(/\d+ Jahre/)
+    expect(await authenticatedMembersPage.getDateOfBirthAge()).toMatch(/\d+ Jahre/)
 
     // Single digits with separators are understood, and normalised on blur.
     await authenticatedMembersPage.typeDateOfBirth('1.1.1990')

@@ -427,6 +427,65 @@ test('should confirm dialog', async ({ page }) => {
 })
 ```
 
+### Pattern 5b: A three-band form modal
+
+**Use case**: a dialog whose form can outgrow the viewport — a pinned header, a
+scrolling body and a pinned footer (see
+[Three-band modal](./components.md#three-band-modal--pinned-header-scrolling-body-pinned-footer)).
+
+Each band gets an ID, because each is what a different assertion is about: the
+body is what a test *scrolls*, and the footer is what must not move when it
+does.
+
+```typescript
+<div data-testid="members-form-modal-content">
+  <div data-testid="members-form-header">…title, and the compact status line on a phone…</div>
+  <form>
+    <div data-testid="members-form-body">…fields…</div>
+    <div data-testid="members-form-footer">…Exportieren · Abbrechen · Speichern…</div>
+  </form>
+</div>
+```
+
+```typescript
+// Assert reachability with toBeInViewport(), not toBeVisible(): the member
+// dialog's Speichern button was "visible" by every DOM measure and 800px
+// below the fold (#830).
+await expect(page.getByTestId('members-form-submit-button')).toBeInViewport()
+
+await page.getByTestId('members-form-body').evaluate((el) => {
+  el.scrollTop = el.scrollHeight
+})
+await expect(page.getByTestId('members-form-submit-button')).toBeInViewport()
+```
+
+### Pattern 5c: A status region, keyed by what it says
+
+**Use case**: a panel whose *tone* is the thing under test — the member
+dialog's status strip (#830).
+
+The text is translated and will be reworded; the tone is the behaviour. So
+carry it in a `data-` attribute and assert on that, and keep the text
+assertions for the one or two places where the wording itself is the point.
+
+```typescript
+<section data-testid="members-form-status" data-state="incomplete">   {/* complete | incomplete | blocked */}
+  <div data-testid="members-form-status-required" data-tone="warning">  {/* success | warning | danger */}
+    <span data-testid="members-form-status-required-text">…</span>
+    <button data-testid="members-form-requirements-missing-date_of_birth">…</button>
+  </div>
+  <div data-testid="members-form-status-tile-terminal" data-tone="gap"> {/* ok | partial | gap | pending | losing */}
+    <span data-testid="members-form-status-tile-terminal-message">…</span>
+    <button data-testid="members-form-status-gap-card_uid">…</button>
+  </div>
+</section>
+```
+
+A gap button is keyed by the **form field** it jumps to (`card_uid`,
+`mandate_signed_at`), not by the tile it sits in: the assertion is "the strip
+sent me to the field that fixes this", and the field is what the test then
+checks the caret landed in.
+
 ### Pattern 6: Components with Multiple States
 
 **Use case**: Components that show different content based on state

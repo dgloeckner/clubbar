@@ -62,6 +62,12 @@ export interface DateFieldProps {
   disabled?: boolean
   /** The page has an error for this field (e.g. a 422), so it renders red. */
   invalid?: boolean
+  /**
+   * The field is empty and something on the page is asking for it — the member
+   * dialog's status strip naming it as a gap (#830). Orange, and outranked by
+   * `invalid`: a complaint about the value beats a note that there isn't one.
+   */
+  warn?: boolean
   /** Extra ids for `aria-describedby`, e.g. the page's error paragraph. */
   describedBy?: string
   ariaLabel?: string
@@ -86,6 +92,7 @@ export function DateField({
   required = false,
   disabled = false,
   invalid = false,
+  warn = false,
   describedBy,
   ariaLabel,
   variant = 'form',
@@ -148,11 +155,20 @@ export function DateField({
   const age = mode === 'birthdate' ? calculateAge(value, new Date()) : null
 
   /*
-   * One line under the field: what is wrong, else the age the date implies,
-   * else nothing. The format is the input's own placeholder, so repeating it
-   * underneath only doubles it — and on a filter row it doubles it per field.
+   * The age rides *inside* the field, to the left of the calendar button,
+   * rather than on a line under it (#830). It is a restatement of the value
+   * already in the box, and a whole line of dialog height is a lot to pay for
+   * one — enough, in the member form, to be part of why *Speichern* was below
+   * the fold.
    */
-  const hint = localError ?? (age !== null ? t('dateField.age', { count: age }) : null)
+  const ageSuffix = age !== null ? t('dateField.ageShort', { count: age }) : null
+
+  /*
+   * One line under the field: what is wrong, and nothing else. The format is
+   * the input's own placeholder, so repeating it underneath only doubles it —
+   * and on a filter row it doubles it per field.
+   */
+  const hint = localError
 
   const commit = (nextText: string) => {
     const iso = parseDateInput(nextText, spec)
@@ -276,7 +292,12 @@ export function DateField({
     closePanel(true)
   }
 
-  const borderColor = invalid || localError ? theme.colors.semantic.danger : theme.colors.border.light
+  const borderColor =
+    invalid || localError
+      ? theme.colors.semantic.danger
+      : warn
+        ? theme.colors.semantic.warning
+        : theme.colors.border.light
   const compact = variant === 'filter'
 
   const calendar = (
@@ -330,8 +351,8 @@ export function DateField({
           style={{
             width: '100%',
             padding: compact
-              ? `${theme.spacing.sm} 40px ${theme.spacing.sm} ${theme.spacing.md}`
-              : `${theme.spacing.md} 44px ${theme.spacing.md} ${theme.spacing.lg}`,
+              ? `${theme.spacing.sm} ${ageSuffix ? 96 : 40}px ${theme.spacing.sm} ${theme.spacing.md}`
+              : `${theme.spacing.md} ${ageSuffix ? 104 : 44}px ${theme.spacing.md} ${theme.spacing.lg}`,
             background: theme.colors.bg.input,
             border: `1px solid ${borderColor}`,
             borderRadius: theme.borderRadius.md,
@@ -340,6 +361,23 @@ export function DateField({
             boxSizing: 'border-box',
           }}
         />
+
+        {ageSuffix && (
+          <span
+            data-testid={`${testId}-age`}
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              right: compact ? 40 : 46,
+              fontSize: theme.typography.fontSize.xs,
+              color: theme.colors.text.secondary,
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {ageSuffix}
+          </span>
+        )}
 
         <button
           type="button"

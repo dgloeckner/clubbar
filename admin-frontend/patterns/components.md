@@ -538,8 +538,8 @@ read `Kategorie * *` while its mandatory `Preis (€)` had no marker at all.
 
 | Tier | Marker | Use it when |
 |------|--------|-------------|
-| `required` | Pill: amber `! Pflicht` while the field is empty, green `✓ Pflicht` once filled | The API refuses the record without it |
-| `conditional` | Blue pill naming the capability, e.g. "erforderlich für Terminal-Zugang" | Optional to store, but a feature stays off until it is there — a card UID gates terminal access, IBAN + mandate gate SEPA collection (ADR-0020) |
+| `required` | Orange `Pflicht` pill **while the field is empty**, and nothing once it is filled | The API refuses the record without it |
+| `conditional` | Quiet muted note naming the capability, e.g. "für Terminal" | Optional to store, but a feature stays off until it is there — a card UID gates terminal access, IBAN + mandate gate SEPA collection (ADR-0020) |
 | `optional` | Muted grey text | Genuinely optional |
 
 The middle tier matters most. Calling a card UID "optional" is true of the
@@ -547,15 +547,30 @@ database and false of the club: without one the member cannot buy a drink.
 Naming the capability says what the field is *for* in the space where
 "(optional)" used to say what it is not.
 
+**A marker means one thing: this field is why something is not green.** The
+first version of this component marked every tier in colour — an amber pill
+that turned green when filled, and a blue pill on every conditional field. The
+member dialog then held five green ticks, a green requirements panel and a
+green SEPA alert, all saying at length that nothing was wrong (#830). Nothing
+was emphasised because everything was. So a satisfied required field now
+carries **no marker at all**, and the conditional note is muted rather than
+blue: green is the *outcome*, stated once, by whatever component owns the
+status — `MemberStatusStrip` in the member dialog.
+
+Pair the orange pill with an orange input border (`formInputStyle(invalid,
+gap)` in `MembersPage`, `warn` on `DateField`) so one colour means one thing
+down the whole form and it can be scanned instead of read.
+
 **Props**:
 - `label` (string, required): The field name
 - `requirement` (`'required' | 'conditional' | 'optional'`, required)
 - `htmlFor` (string, optional): The control's `id` — set it wherever the control is a single input
-- `satisfied` (boolean, `required` tier): Whether the field currently holds a value; drives amber → green
-- `unlocks` (string, `conditional` tier): Translated marker text naming the capability
+- `satisfied` (boolean, `required` tier): Whether the field currently holds a value; a satisfied field renders no marker
+- `unlocks` (string, `conditional` tier): Translated note naming the capability
 - `optionalNote` (string, `optional` tier): Translated qualifier instead of the bare word, e.g. "SEPA, optional"
+- `info` (string, optional): The long explanation, behind an info icon (`FieldInfo`, below). The short form belongs in the placeholder
 - `children` (ReactNode, optional): Rendered after the marker — a `ValidationIndicator`, a lock, a stored-value note
-- `testId` (string, optional): The marker gets `${testId}-marker` and a `data-state` of `open` / `satisfied` / `conditional` / `optional`
+- `testId` (string, optional): The marker gets `${testId}-marker` and a `data-state` of `open` / `conditional` / `optional`; the info trigger gets `${testId}-info`
 
 **Example**:
 ```typescript
@@ -578,9 +593,9 @@ import { FieldLabel } from '@/components/forms/FieldLabel'
 - **Keep the marker inside the `<label>`.** It is part of the field's
   accessible name; the leading glyph is `aria-hidden` because it is decoration.
   Put `required` / `aria-required` on the control itself.
-- **`satisfied` must track live state**, not the initial value — the amber →
-  green switch is what lets an admin see at a glance which required field is
-  still empty.
+- **`satisfied` must track live state**, not the initial value — the marker
+  disappearing as the field is filled is what lets an admin see at a glance
+  which required field is still empty.
 - Components that wrap a control (`CategorySelect`, `IconSelect`,
   `LanguageTabsInput`) take `requirement` / `satisfied` and render `FieldLabel`
   themselves. Do not add a `required` boolean back to them.
@@ -591,24 +606,108 @@ alone rather than half-migrated — convert a form when you next touch it.
 
 ---
 
-#### MemberFormRequirements / ClearedValueNotice
+#### FieldInfo Component — the explanation a field only sometimes needs
+
+**File**: `src/components/forms/FieldInfo.tsx`
+
+A small **i** beside a label that opens a wrapping popover on hover *and* on
+tap. It exists because the member form used to keep three helper paragraphs
+permanently on screen — each genuinely useful the first time, and afterwards
+three paragraphs of body text in a dialog whose *Speichern* button was below
+the fold, and part of the reason it was (#830).
+
+**The split is: short form in the placeholder, long form behind the icon.**
+"Wie Mitglied" is what the empty Kontoinhaber field says; "Nur ausfüllen, wenn
+der Kontoinhaber vom Mitglied abweicht (z.B. Elternteil zahlt für Kind)" is
+what the icon says. Nothing permanent under the field.
+
+**Props**: `content` (string, required, already translated), `testId`
+(the trigger is `${testId}`, the panel `${testId}-content`).
+
+**Do not use `Tooltip` for this.** That component is hover-only,
+`pointerEvents: none` and `whiteSpace: nowrap` — right for a three-word label
+on an icon button, and unable to hold a sentence or be opened by a finger. On a
+phone a hover-only tooltip is text nobody can reach.
+
+Reach it through `FieldLabel`'s `info` prop rather than rendering it directly,
+so the icon lands inside the `<label>` in the same place on every field.
+
+---
+
+#### MemberStatusStrip / ClearedValueNotice
 
 Two members-specific components that build on `FieldLabel`, and the pattern is
 worth copying to any form long enough to get lost in.
 
-**Files**: `src/components/members/MemberFormRequirements.tsx`,
+**Files**: `src/components/members/MemberStatusStrip.tsx`,
 `src/components/members/ClearedValueNotice.tsx`
 
-`MemberFormRequirements` opens the modal with a progress line ("3 von 5
-Pflichtangaben ausgefüllt"), the missing fields as buttons that focus the field
-they name, and a count of stored values the save would delete. It is
-`role="status"` until a submit is actually refused and `role="alert"` after —
-announcing a running count on every keystroke is noise.
+`MemberStatusStrip` opens the modal with **one** status line: a caption row
+("Nutzung der Clubbar") whose right-hand end carries whatever stops the save,
+and three tiles — Terminal, SEPA-Einzug, Erreichbar. It replaced four separate
+indicators that agreed about the facts and disagreed about the tone (#830).
+
+Two rules make it worth copying:
+
+- **Group by outcome, not by field.** An admin opens the dialog to find out
+  whether the member can book, be collected from, and be reached — not to audit
+  ten inputs. A tile with a gap names the *consequence* first ("Kein Zugang")
+  and the field second, as a button that puts the caret in it.
+- **Preview the save; never report the load.** The SEPA tile has done this
+  since #392, and a strip where one tile means "after saving" while the two
+  beside it mean "as loaded" is worse than either rule applied consistently.
+  Hence the five tones: `ok`, `partial`, `gap`, `pending` ("wird gültig, sobald
+  gespeichert"), `losing` ("wird ungültig, sobald gespeichert").
+
+The rules live in `src/utils/memberFormStatus.ts` — pure, so they are asserted
+directly rather than through the modal — and the gaps it names are
+`MEMBER_GAPS` from `src/utils/memberCompleteness.ts`, the same four the
+roster's Datenqualität panel counts. A dialog that invented a fifth would let
+an admin fix everything it asks for and still see the roster call the member
+incomplete.
+
+The summary is `role="status"` until a submit is actually refused and
+`role="alert"` after — announcing a running count on every keystroke is noise.
 
 Pair it with **`noValidate` on the `<form>`** and the required checks in the
 submit handler. Native validation surfaces one bubble at a time at the first
 offending field and says nothing about the rest; the point of the summary is
 that it names every gap at once.
+
+`MemberStatusSummaryLine` (same file) is its conclusion for a pinned mobile
+header: three dots in the tiles' own colours plus the field that still blocks
+the save. Both read the same tiles, so they cannot offer a second opinion.
+
+---
+
+#### Three-band modal — pinned header, scrolling body, pinned footer
+
+Any dialog whose form can outgrow the viewport is built as three bands rather
+than one `overflow-y: auto` box. The member dialog was the latter, ~1750px
+tall, which put *Speichern* about 800px below the fold on a 900px screen: an
+admin edited a field and had to scroll to find out whether they could save
+(#830).
+
+```tsx
+<div style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
+  <div style={{ flex: '0 0 auto' }}>…title…</div>
+  <form style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>…fields…</div>
+    <div style={{ flex: '0 0 auto', borderTop: … }}>…actions…</div>
+  </form>
+</div>
+```
+
+- `minHeight: 0` on both the form and the body is what actually lets the body
+  scroll; without it a flex child refuses to shrink below its content and the
+  whole dialog grows instead.
+- Keep the `<form>` around **both** body and footer, so the submit button stays
+  a plain `type="submit"` rather than needing a `form=` attribute.
+- On a phone the primary action is at least 44px tall and takes the rest of the
+  row; rarely used actions (an export) move out of the footer to the end of the
+  form body.
+- Assert it in E2E with `toBeInViewport()`, not `toBeVisible()` — the old
+  button was "visible" by every DOM measure and still off screen.
 
 `ClearedValueNotice` is the other half, and the less obvious one. Where a blank
 input is sent to the API as an explicit `null` (#131), emptying a field on an
