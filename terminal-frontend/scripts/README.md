@@ -46,6 +46,39 @@ reported success, because playing into an unconnected port *is* success. Set
 Exit code `1` means at least one FAIL, so it works in a check script.
 
 
+### `clubbar-update.sh`
+
+The nightly updater ([ADR-0054](../../adr/0054-terminal-runs-its-backends-version.md),
+[#318](https://github.com/dgloeckner/clubbar/issues/318)). It installs **exactly
+the version the terminal's backend reports** at `/api/health`, atomically, and
+rolls it back if the app does not write a heartbeat within five minutes.
+
+Run by a systemd *user* timer at 04:00 — see
+[`INSTALL.md` §4](../INSTALL.md#unattended-updates) for why a user unit and not
+a system one, and for the one-off conversion an older flat install needs.
+
+```bash
+clubbar-update.sh --status       # installed / previous / blocked / pinned
+clubbar-update.sh --check        # what tonight would do; changes nothing
+clubbar-update.sh --clear-block  # forget a failed version so it may be retried
+```
+
+Exit `0` is "nothing to do, or done"; `1` is "an update failed and was rolled
+back"; `2` is "this machine is not set up for unattended updates".
+
+Its two test suites are in [`test/`](test/):
+
+```bash
+./test/updater-version.sh   # the release-tag rules, shared with the backend
+./test/updater-flow.sh      # the refusals, the happy path and the rollback,
+                            # against a sandboxed install root and a fake GitHub
+```
+
+`updater-version.sh` asserts the *same table of cases* as
+`backend/tests/Unit/Shared/Version/ReleaseVersionTest.php`. Two implementations
+of "which version is newer" that disagree is how a terminal ends up moving
+backwards, so a case added to one belongs in the other.
+
 ### `reset-db.sh`
 
 Resets the local SQLite database by removing the app's data file. On the next app launch, the database will be recreated and seeded with fresh mock data.
@@ -90,8 +123,8 @@ brings it back — the reboot is what destroys the evidence, so run this first.
 
 ```bash
 # On the terminal, while it is silent
-/opt/clubbar-terminal/scripts/audio-diagnose.sh          # ~/audio-diagnose-<timestamp>.txt
-/opt/clubbar-terminal/scripts/audio-diagnose.sh --no-play  # skip the noise-making tests
+/opt/clubbar-terminal/current/scripts/audio-diagnose.sh          # ~/audio-diagnose-<timestamp>.txt
+/opt/clubbar-terminal/current/scripts/audio-diagnose.sh --no-play  # skip the noise-making tests
 ```
 
 **What it collects:**

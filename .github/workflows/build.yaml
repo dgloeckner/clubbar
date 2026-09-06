@@ -13,8 +13,9 @@ on:
 # — `npm ci` resolves ~470 packages of which 26 run install lifecycle scripts,
 # `composer install` and `flutter pub get`/`build_runner` do the equivalent —
 # so a workflow-wide write grant would hand a compromised release of any of
-# them a token that can push to this repository. Only the two jobs that attach
-# artifacts to a GitHub release need to write, and they ask for it themselves.
+# them a token that can push to this repository. Only `release-gate`, which
+# attaches artifacts to a GitHub release, needs to write, and it asks for it
+# itself.
 permissions:
   contents: read
 
@@ -847,9 +848,9 @@ jobs:
       && needs['test-e2e'].result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    # Needed only by the "Upload to release" step below.
-    permissions:
-      contents: write
+    # No `contents: write`. This job used to publish the backend ZIP itself;
+    # `release-gate` does now, and it is the only job in this workflow that can
+    # write to a release (ADR-0054).
     outputs:
       artifact: ${{ steps.package.outputs.artifact }}
 
@@ -1072,12 +1073,6 @@ jobs:
           path: dist/${{ steps.package.outputs.artifact }}
           retention-days: 30
 
-      - name: Upload to release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
-        with:
-          files: dist/${{ steps.package.outputs.artifact }}
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1093,9 +1088,10 @@ jobs:
     if: needs.changes.outputs.full == 'true' || needs.changes.outputs.terminal == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
-    # Needed only by the "Upload to release" step below.
-    permissions:
-      contents: write
+    # No `contents: write`, for the same reason as test-package above: this job
+    # produces the bundle, `release-gate` publishes it.
+    outputs:
+      artifact: ${{ steps.package.outputs.artifact }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1213,6 +1209,25 @@ jobs:
         run: flutter build linux --release --dart-define=APP_VERSION=${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}
         working-directory: terminal-frontend
 
+      # The operator scripts ship *inside* the bundle, so they land in the slot
+      # (`current/scripts/…`) and are replaced with the binary they diagnose
+      # (ADR-0054). Left at the top level of /opt/clubbar-terminal they would
+      # keep working at their documented paths forever and never receive a fix
+      # — a diagnostic that has drifted from the build it is diagnosing is
+      # worse than no diagnostic. `flutter build` never copies them, hence this
+      # step.
+      #
+      # It is also what makes the updater self-hosting: the systemd unit calls
+      # /opt/clubbar-terminal/current/scripts/clubbar-update.sh, so each release
+      # brings its own updater.
+      - name: Add the operator scripts to the bundle
+        run: |
+          mkdir -p build/linux/arm64/release/bundle/scripts
+          cp -a scripts/*.sh scripts/README.md build/linux/arm64/release/bundle/scripts/
+          cp -a scripts/systemd build/linux/arm64/release/bundle/scripts/
+          chmod +x build/linux/arm64/release/bundle/scripts/*.sh
+        working-directory: terminal-frontend
+
       - name: Package artifact
         id: package
         working-directory: terminal-frontend/build/linux/arm64/release/bundle
@@ -1220,20 +1235,82 @@ jobs:
           VERSION="${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}"
           ARTIFACT="clubbar-terminal-linux-arm64-${VERSION}.tar.gz"
           tar -czf "$GITHUB_WORKSPACE/${ARTIFACT}" .
+          # The checksum a Pi verifies before it installs anything (ADR-0054
+          # requirement 7). Written from the workspace directory so the file
+          # names a bare filename, which is what `sha256sum -c` needs after the
+          # updater has downloaded the pair into a directory of its own.
+          cd "$GITHUB_WORKSPACE" && sha256sum "$ARTIFACT" > "${ARTIFACT}.sha256"
           echo "artifact=${ARTIFACT}" >> "$GITHUB_OUTPUT"
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.package.outputs.artifact }}
-          path: ${{ steps.package.outputs.artifact }}
+          path: |
+            ${{ steps.package.outputs.artifact }}
+            ${{ steps.package.outputs.artifact }}.sha256
           retention-days: 30
 
-      - name: Upload to release
-        if: github.event_name == 'release'
+  # A Release publishes both artifacts or neither (ADR-0054).
+  #
+  # `test-package` and `build-terminal` each used to upload its own artifact,
+  # with no dependency between them. A release whose arm64 build failed still
+  # published a backend ZIP — harmless while terminals were updated by hand, and
+  # not harmless now: under ADR-0054 that backend's `/api/health` points every
+  # terminal in every club at a tag that has no tarball. Publication has to be
+  # one act, which is what a **Release** means.
+  #
+  # Deliberately *not* `test-package.needs: [build-terminal]`. That would make
+  # shipping the backend hostage to an arm64 runner and inverts the dependency
+  # the project actually wants; a gate that both feed leaves them running in
+  # parallel and simply refuses to publish half a release.
+  #
+  # The `if` carries no `always()` or `!cancelled()` on purpose. Default `needs`
+  # semantics skip this job when either producer failed *or was skipped*, and
+  # skipping is exactly right: nothing is published.
+  release-gate:
+    name: Publish the release
+    needs: [test-package, build-terminal]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The only job in this workflow that may write to a release.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download the backend package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.test-package.outputs.artifact }}
+          path: dist
+
+      - name: Download the terminal bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.build-terminal.outputs.artifact }}
+          path: dist
+
+      # The updater refuses a bundle it cannot verify, so a release that
+      # publishes a mismatched or missing checksum is a release no terminal will
+      # ever install — a failure that would otherwise surface months later, on a
+      # Pi, at 04:00.
+      - name: Verify what is about to be published
+        run: |
+          cd dist
+          ls -la
+          test -f "${{ needs.test-package.outputs.artifact }}"
+          test -f "${{ needs.build-terminal.outputs.artifact }}"
+          test -f "${{ needs.build-terminal.outputs.artifact }}.sha256"
+          sha256sum -c "${{ needs.build-terminal.outputs.artifact }}.sha256"
+
+      - name: Upload every artifact to the release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
-          files: ${{ steps.package.outputs.artifact }}
+          files: |
+            dist/${{ needs.test-package.outputs.artifact }}
+            dist/${{ needs.build-terminal.outputs.artifact }}
+            dist/${{ needs.build-terminal.outputs.artifact }}.sha256
 
   deploy-integration:
     name: Deploy to Integration

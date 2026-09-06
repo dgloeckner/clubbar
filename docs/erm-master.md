@@ -201,6 +201,9 @@ erDiagram
         boolean is_active "Terminal enabled"
         datetime last_sync_at "Last successful sync"
         varchar_45 last_sync_ip "IP of last sync"
+        varchar_64 reported_version "Last X-Terminal-Version the terminal sent"
+        datetime reported_version_at "When that version was last seen"
+        varchar_64 blocked_version "Tag whose update failed there, never retried"
         datetime created_at "Record creation"
         datetime updated_at "Last modification"
     }

@@ -11,6 +11,7 @@ import { Badge } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
 import { TerminalLifecycleBadge, type TokenLifecycleBadgeState } from './TerminalLifecycleBadge'
 import { TerminalAnomalyPanel } from './TerminalAnomalyPanel'
+import { TerminalVersionCell } from './TerminalVersionCell'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import type { Terminal as GeneratedTerminal } from '../../api/generated'
 
@@ -329,6 +330,10 @@ export function TerminalsTab({
                   <div style={{ color: theme.colors.text.muted, marginBottom: '2px' }}>{t('settings.tokenExpires')}</div>
                   <TokenExpiry terminal={terminal} />
                 </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ color: theme.colors.text.muted, marginBottom: '2px' }}>{t('settings.terminalVersion')}</div>
+                  <TerminalVersionCell terminal={terminal} testId={`settings-terminal-version-${terminal.id}`} />
+                </div>
               </div>
 
               {/* Actions row */}
@@ -442,6 +447,16 @@ export function TerminalsTab({
                 <th
                   style={{
                     padding: theme.spacing.md,
+                    textAlign: 'left',
+                    borderBottom: `1px solid ${theme.colors.border.light}`,
+                    fontWeight: theme.typography.fontWeight.semibold,
+                  }}
+                >
+                  {t('settings.terminalVersion')}
+                </th>
+                <th
+                  style={{
+                    padding: theme.spacing.md,
                     textAlign: 'center',
                     borderBottom: `1px solid ${theme.colors.border.light}`,
                     fontWeight: theme.typography.fontWeight.semibold,
@@ -535,6 +550,17 @@ export function TerminalsTab({
                     }}
                   >
                     <TokenExpiry terminal={terminal} />
+                  </td>
+
+                  {/* What the terminal reports running (ADR-0054) */}
+                  <td
+                    style={{
+                      padding: theme.spacing.md,
+                      color: theme.colors.text.secondary,
+                      fontSize: theme.typography.fontSize.xs,
+                    }}
+                  >
+                    <TerminalVersionCell terminal={terminal} testId={`settings-terminal-version-${terminal.id}`} />
                   </td>
 
                   {/* Actions */}

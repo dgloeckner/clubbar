@@ -1,0 +1,23 @@
+[Unit]
+Description=Nightly check for the version this terminal's backend reports
+Documentation=https://github.com/dgloeckner/clubbar/blob/main/adr/0054-terminal-runs-its-backends-version.md
+
+[Timer]
+# 04:00 local: the bar is shut, the terminal is idle, and its sales have long
+# since synced — which is what makes restoring the pre-update database safe on
+# the rollback path.
+OnCalendar=*-*-* 04:00:00
+
+# Every terminal in every club would otherwise ask GitHub for the same release
+# at the same second. An hour of jitter costs nothing here — nobody is waiting
+# — and it is the difference between a release being fetched by a crowd and by
+# a queue.
+RandomizedDelaySec=3600
+
+# A Pi that was switched off overnight catches up on the next boot instead of
+# waiting for tomorrow. Clubs do switch terminals off, and a terminal that is
+# off every night at 04:00 would otherwise never update at all.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -21,6 +21,7 @@ use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\DuplicateResourceException;
 use App\Modules\Auth\Services\TokenService;
 use App\Shared\Config\AppConfig;
+use App\Shared\Version\AppVersion;
 
 class TerminalsService
 {
@@ -31,6 +32,12 @@ class TerminalsService
         private TerminalAnomaliesRepository $anomaliesRepository,
         private AdminNotifier $adminNotifier,
         private Logger $logger,
+        /**
+         * The yardstick each terminal's reported version is measured against
+         * (ADR-0054): this backend's own version *is* the target, so there is
+         * nothing else to compare with and no second field to keep in step.
+         */
+        private AppVersion $appVersion = new AppVersion(),
     ) {}
 
     public function listTerminals(int $limit, int $offset, ?bool $isActive = null): PaginatedResultDto
@@ -40,9 +47,11 @@ class TerminalsService
         // One grouped read for the whole page rather than a query per row
         // (ADR-0041 §4).
         $anomalyCounts = $this->anomaliesRepository->openCountsByTerminal();
+        $backendVersion = $this->appVersion->current();
         $items = array_map(
             fn($row) => TerminalDto::fromRow(
-                $row + ['open_anomaly_count' => $anomalyCounts[$row['id']] ?? 0]
+                $row + ['open_anomaly_count' => $anomalyCounts[$row['id']] ?? 0],
+                $backendVersion,
             )->toArray(),
             $result['items'],
         );
@@ -58,7 +67,8 @@ class TerminalsService
         $anomalyCounts = $this->anomaliesRepository->openCountsByTerminal();
 
         return TerminalDto::fromRow(
-            $terminal + ['open_anomaly_count' => $anomalyCounts[$terminal['id']] ?? 0]
+            $terminal + ['open_anomaly_count' => $anomalyCounts[$terminal['id']] ?? 0],
+            $this->appVersion->current(),
         );
     }
 

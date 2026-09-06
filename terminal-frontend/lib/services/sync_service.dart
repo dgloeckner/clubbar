@@ -11,6 +11,7 @@ import '../models/credit_limit.dart';
 import '../repository/sync_repository.dart';
 import 'config_service.dart';
 import 'network_service.dart';
+import 'updater_handshake.dart';
 
 /// Result of a sync operation
 enum SyncResult { success, failure, alreadyInProgress }
@@ -36,6 +37,10 @@ class SyncService {
   final Logger _logger;
   final String? _failedTransactionsPath;
 
+  /// Where the heartbeat goes (ADR-0054). Optional: absent in tests, and in any
+  /// setup with no updater watching — a null simply means nothing is written.
+  final TerminalStatusFile? _statusFile;
+
   bool _isSyncing = false;
   DateTime? _lastSyncTime;
   DateTime? _lastTransactionSyncTime;
@@ -59,6 +64,7 @@ class SyncService {
     ConfigService? configService,
     Logger? logger,
     String? failedTransactionsPath,
+    TerminalStatusFile? statusFile,
   })  : _networkService = networkService,
         _membersRepo = membersRepo,
         _productsRepo = productsRepo,
@@ -66,7 +72,8 @@ class SyncService {
         _syncRepo = syncRepo,
         _configService = configService,
         _logger = logger ?? Logger(),
-        _failedTransactionsPath = failedTransactionsPath;
+        _failedTransactionsPath = failedTransactionsPath,
+        _statusFile = statusFile;
 
   /// Check if sync is currently in progress
   bool get isSyncing => _isSyncing;
@@ -173,6 +180,34 @@ class SyncService {
       return SyncResult.failure;
     } finally {
       _isSyncing = false;
+      await _writeHeartbeat();
+    }
+  }
+
+  /// Refresh the file the Pi's updater reads before it touches anything
+  /// (ADR-0054).
+  ///
+  /// In the `finally`, so it runs on a failed cycle too. That is the case that
+  /// matters: a terminal that has been offline all evening has a stale
+  /// heartbeat *and* a growing pile of unsynced sales, and the updater has to
+  /// see the pile — a file refreshed only by successful syncs would report zero
+  /// unsynced transactions at exactly the moment there were most.
+  ///
+  /// Failure here is logged and swallowed. The heartbeat exists so that an
+  /// update can be refused safely; losing it costs a night's update, while
+  /// letting it throw would cost the sync cycle that produced it.
+  Future<void> _writeHeartbeat() async {
+    final statusFile = _statusFile;
+    if (statusFile == null) return;
+
+    try {
+      await statusFile.write(
+        appVersion: AppConfig.version,
+        lastSyncAt: _lastSyncTime,
+        unsyncedTransactions: await _transactionsRepo.getUnsyncedCount(),
+      );
+    } catch (e) {
+      _logger.w('Could not write the terminal status file: $e');
     }
   }
 
